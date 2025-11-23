@@ -308,7 +308,7 @@
                     <h2>Join the Waitlist</h2>
                     <p style="margin-bottom: 20px; font-size: 14px; color: #4A5568;">Free for the first 10 "Founding Members".</p>
                     
-                    <form class="signup-form" action="https://formspree.io/f/YOUR_FORMSPREE_ID_HERE" method="POST">
+                    <form class="signup-form" id="waitlistForm">
                         <div class="form-group">
                             <label for="name">First Name</label>
                             <input type="text" id="name" name="name" placeholder="Jane" required>
@@ -317,6 +317,13 @@
                         <div class="form-group">
                             <label for="email">Email Address</label>
                             <input type="email" id="email" name="email" placeholder="jane@example.com" required>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label style="display: flex; align-items: start; gap: 10px; cursor: pointer;">
+                                <input type="checkbox" name="newsletter" id="newsletter" checked style="width: auto; margin-top: 3px;">
+                                <span style="font-size: 14px; color: #4A5568; font-weight: 400;">Send me monthly Oklahoma mineral market updates</span>
+                            </label>
                         </div>
                         
                         <button type="submit" class="cta-button">Start My Watchdog</button>
@@ -443,7 +450,48 @@
                 </p>
             </div>
             <p style="margin-top: 20px; font-size: 12px;">
-                <a href="mailto:support@mymineralwatch.com" style="color: #A0AEC0; text-decoration: none;">Contact Us</a>
+                <a href="/cdn-cgi/l/email-protection#bac9cfcacad5c8cefad7c3d7d3d4dfc8dbd6cddbced9d294d9d5d7" style="color: #A0AEC0; text-decoration: none;">Contact Us</a>
             </p>
         </div>
     </footer>
+
+    <script>
+    document.getElementById("waitlistForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const button = e.target.querySelector("button[type=\"submit\"]");
+      const originalText = button.textContent;
+      button.textContent = "Joining...";
+      button.disabled = true;
+      
+      const formData = new FormData(e.target);
+      const data = {
+        firstName: formData.get("name"),
+        email: formData.get("email"),
+        newsletter: formData.get("newsletter") === "on"
+      };
+      
+      try {
+        const response = await fetch("https://YOUR-WORKER-NAME.YOUR-SUBDOMAIN.workers.dev", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          alert("🎉 Welcome to Mineral Watch! Check your email for next steps.");
+          e.target.reset();
+        } else {
+          throw new Error("Submission failed");
+        }
+      } catch (error) {
+        alert("Something went wrong. Please try again or email us at james@mymineralwatch.com");
+      } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+      }
+    });
+    </script>
+
+</body>
+</html>
