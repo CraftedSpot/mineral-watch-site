@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Mineral Watch!</title>
+    <meta name="description" content="Your account has been created. Let's get your properties monitored.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+            --success: #03543F;
+            --success-bg: #DEF7EC;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #F7FAFC;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+        
+        /* Header */
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            letter-spacing: -0.5px;
+            text-decoration: none;
+        }
+
+        /* Main Content */
+        main {
+            flex-grow: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 60px 20px;
+        }
+        
+        .success-card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            padding: 50px;
+            max-width: 550px;
+            text-align: center;
+        }
+        
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: var(--success-bg);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 25px;
+        }
+        
+        .success-icon svg {
+            width: 40px;
+            height: 40px;
+            color: var(--success);
+        }
+        
+        .success-card h1 {
+            font-size: 32px;
+            margin-bottom: 15px;
+            color: var(--oil-navy);
+        }
+        
+        .success-card .subtitle {
+            font-size: 18px;
+            color: var(--slate-blue);
+            margin-bottom: 35px;
+        }
+        
+        .next-steps {
+            background: var(--paper);
+            border-radius: 8px;
+            padding: 25px;
+            text-align: left;
+            margin-bottom: 30px;
+        }
+        
+        .next-steps h2 {
+            font-size: 16px;
+            margin-bottom: 15px;
+            color: var(--oil-navy);
+        }
+        
+        .step {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: start;
+        }
+        
+        .step:last-child {
+            margin-bottom: 0;
+        }
+        
+        .step-number {
+            flex-shrink: 0;
+            width: 28px;
+            height: 28px;
+            background: var(--red-dirt);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 700;
+        }
+        
+        .step p {
+            font-size: 15px;
+            color: var(--slate-blue);
+            padding-top: 3px;
+        }
+        
+        .cta-button {
+            display: inline-block;
+            padding: 16px 40px;
+            background: var(--red-dirt);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-decoration: none;
+        }
+        
+        .cta-button:hover {
+            background: var(--red-dirt-dark);
+        }
+        
+        .help-text {
+            margin-top: 25px;
+            font-size: 14px;
+            color: var(--slate-blue);
+        }
+        
+        .help-text a {
+            color: var(--red-dirt);
+            text-decoration: none;
+        }
+        
+        .help-text a:hover {
+            text-decoration: underline;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--oil-navy);
+            color: #A0AEC0;
+            padding: 25px 0;
+            font-size: 14px;
+            text-align: center;
+        }
+
+        @media (max-width: 600px) {
+            .success-card {
+                padding: 30px 25px;
+            }
+            
+            .success-card h1 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="success-card">
+            <div class="success-icon">
+                <svg fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
+                </svg>
+            </div>
+            
+            <h1>You're All Set!</h1>
+            <p class="subtitle">Your account has been created and your subscription is active.</p>
+            
+            <div class="next-steps">
+                <h2>What happens next:</h2>
+                
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <p><strong>Check your email</strong> — We just sent you a login link to access your dashboard.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <p><strong>Add your properties</strong> — Enter your Oklahoma mineral properties to start monitoring.</p>
+                </div>
+                
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <p><strong>Relax</strong> — We'll email you the moment there's any activity on your properties.</p>
+                </div>
+            </div>
+            
+            <a href="/portal" class="cta-button">Go to Dashboard</a>
+            
+            <p class="help-text">
+                Didn't receive the email? Check spam or <a href="mailto:james@mymineralwatch.com">contact us</a>.
+            </p>
+        </div>
+    </main>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
+        </div>
+    </footer>
+</body>
+</html>
