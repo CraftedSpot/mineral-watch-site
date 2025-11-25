@@ -5,20 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pricing - Mineral Watch</title>
     <meta name="description" content="Simple, affordable pricing for Oklahoma mineral property monitoring. Start free, upgrade when you need more.">
+    
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     
     <style>
         :root {
+            /* Your Brand Palette */
             --oil-navy: #1C2B36;
             --slate-blue: #334E68;
             --red-dirt: #C05621;
             --red-dirt-dark: #9C4215;
             --paper: #F8F9FA;
             --border: #E2E8F0;
-            --success: #03543F;
-            --success-bg: #DEF7EC;
+            --success: #047857;
+            --success-bg: #D1FAE5;
         }
 
         * {
@@ -34,7 +36,7 @@
             background-color: #fff;
         }
 
-        h1, h2, h3, .logo {
+        h1, h2, h3, .logo, .price-amount {
             font-family: 'Merriweather', serif;
         }
         
@@ -61,8 +63,8 @@
             font-size: 22px;
             font-weight: 900;
             color: var(--oil-navy);
-            letter-spacing: -0.5px;
             text-decoration: none;
+            letter-spacing: -0.5px;
         }
         
         .nav-links {
@@ -90,22 +92,19 @@
             border-radius: 4px;
             font-weight: 600;
         }
-        
-        .nav-links .btn-login:hover {
-            background: var(--slate-blue);
-            color: white;
-        }
 
-        /* Pricing Header */
+        /* Hero / Pricing Header */
         .pricing-header {
             text-align: center;
-            padding: 60px 0 40px;
+            padding: 80px 0 40px;
+            background: linear-gradient(to bottom, #fff, var(--paper));
         }
         
         .pricing-header h1 {
             font-size: 42px;
             margin-bottom: 15px;
             font-weight: 900;
+            color: var(--oil-navy);
         }
         
         .pricing-header p {
@@ -121,25 +120,24 @@
             justify-content: center;
             align-items: center;
             gap: 15px;
-            margin: 30px 0 50px;
+            margin: 40px 0 60px;
         }
         
         .billing-toggle span {
             font-size: 15px;
-            font-weight: 500;
+            font-weight: 600;
             color: var(--slate-blue);
         }
         
         .billing-toggle span.active {
             color: var(--oil-navy);
-            font-weight: 600;
         }
         
         .toggle-switch {
             position: relative;
-            width: 60px;
-            height: 32px;
-            background: var(--border);
+            width: 56px;
+            height: 30px;
+            background: var(--slate-blue);
             border-radius: 20px;
             cursor: pointer;
             transition: background 0.3s;
@@ -152,8 +150,8 @@
         .toggle-switch::after {
             content: '';
             position: absolute;
-            top: 4px;
-            left: 4px;
+            top: 3px;
+            left: 3px;
             width: 24px;
             height: 24px;
             background: white;
@@ -163,32 +161,34 @@
         }
         
         .toggle-switch.annual::after {
-            transform: translateX(28px);
+            transform: translateX(26px);
         }
         
         .save-badge {
             background: var(--success-bg);
             color: var(--success);
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 700;
             padding: 4px 10px;
             border-radius: 20px;
             text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
 
         /* Pricing Grid */
         .pricing-grid {
             display: grid;
-            grid-template-columns: repeat(5, 1fr);
+            grid-template-columns: repeat(4, 1fr); /* 4 Columns for the main plans */
             gap: 20px;
-            margin-bottom: 60px;
+            margin-bottom: 40px;
+            align-items: stretch;
         }
         
         .pricing-card {
             background: white;
-            border: 2px solid var(--border);
-            border-radius: 8px;
-            padding: 30px 25px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 30px 20px;
             text-align: center;
             position: relative;
             transition: transform 0.2s, box-shadow 0.2s;
@@ -198,19 +198,19 @@
         
         .pricing-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+            border-color: #CBD5E0;
         }
         
+        /* The "Most Popular" Card */
         .pricing-card.popular {
-            border-color: var(--red-dirt);
-            box-shadow: 0 5px 20px rgba(192, 86, 33, 0.15);
+            border: 2px solid var(--red-dirt);
+            box-shadow: 0 10px 40px rgba(192, 86, 33, 0.1);
+            transform: scale(1.02);
+            z-index: 10;
         }
-        
-        .feature-list {
-            list-style: none;
-            text-align: left;
-            margin-bottom: 25px;
-            flex-grow: 1;
+        .pricing-card.popular:hover {
+            transform: scale(1.02) translateY(-5px);
         }
         
         .popular-badge {
@@ -222,19 +222,19 @@
             color: white;
             font-size: 11px;
             font-weight: 700;
-            padding: 5px 15px;
-            border-radius: 20px;
+            padding: 6px 12px;
+            border-radius: 4px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
+            letter-spacing: 1px;
         }
         
         .tier-name {
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 700;
             text-transform: uppercase;
             letter-spacing: 1px;
             color: var(--slate-blue);
-            margin-bottom: 10px;
+            margin-bottom: 15px;
         }
         
         .pricing-card.popular .tier-name {
@@ -242,475 +242,433 @@
         }
         
         .price {
-            margin-bottom: 5px;
+            margin-bottom: 10px;
+            height: 60px;
+            display: flex;
+            align-items: baseline;
+            justify-content: center;
         }
         
         .price-amount {
             font-size: 42px;
             font-weight: 900;
-            font-family: 'Merriweather', serif;
             color: var(--oil-navy);
         }
         
         .price-period {
             font-size: 14px;
-            color: var(--slate-blue);
+            color: #718096;
+            margin-left: 4px;
+            font-weight: 400;
         }
         
-        .annual-price {
-            display: none;
-            font-size: 13px;
+        .annual-savings-text {
+            font-size: 12px;
             color: var(--success);
+            height: 20px;
+            font-weight: 600;
             margin-bottom: 15px;
-            font-weight: 500;
+            opacity: 0; /* Hidden by default */
         }
         
-        .pricing-card.show-annual .annual-price {
-            display: block;
+        .show-annual .annual-savings-text {
+            opacity: 1;
         }
         
         .properties-count {
-            font-size: 16px;
+            font-size: 15px;
             font-weight: 600;
             color: var(--oil-navy);
-            margin: 15px 0 20px;
-            padding: 12px 0;
+            margin: 0 0 20px;
+            padding: 15px 0;
             border-top: 1px solid var(--border);
             border-bottom: 1px solid var(--border);
+            background: #FAFAFA; /* Subtle contrast */
+        }
+        
+        .feature-list {
+            list-style: none;
+            text-align: left;
+            margin-bottom: 25px;
+            flex: 1; /* Pushes button down */
+            padding: 0 10px;
         }
         
         .feature-list li {
-            font-size: 14px;
-            color: var(--slate-blue);
+            font-size: 13px;
+            color: #4A5568;
             padding: 8px 0;
             display: flex;
-            align-items: start;
+            align-items: flex-start;
             gap: 10px;
+            line-height: 1.4;
         }
         
         .feature-list li svg {
             flex-shrink: 0;
-            margin-top: 2px;
             color: var(--success);
+            margin-top: 1px;
         }
         
         .pricing-cta {
             display: block;
             width: 100%;
-            padding: 14px;
+            padding: 12px;
             border-radius: 4px;
-            font-size: 15px;
+            font-size: 14px;
             font-weight: 600;
             text-decoration: none;
             text-align: center;
             transition: all 0.2s;
+            margin-top: auto;
         }
         
         .pricing-cta.primary {
             background: var(--red-dirt);
             color: white;
         }
-        
-        .pricing-cta.primary:hover {
-            background: var(--red-dirt-dark);
-        }
+        .pricing-cta.primary:hover { background: var(--red-dirt-dark); }
         
         .pricing-cta.secondary {
             background: var(--oil-navy);
             color: white;
         }
-        
-        .pricing-cta.secondary:hover {
-            background: var(--slate-blue);
-        }
+        .pricing-cta.secondary:hover { background: var(--slate-blue); }
         
         .pricing-cta.outline {
             background: white;
             color: var(--oil-navy);
-            border: 2px solid var(--border);
+            border: 1px solid var(--border);
         }
-        
-        .pricing-cta.outline:hover {
-            border-color: var(--oil-navy);
-        }
+        .pricing-cta.outline:hover { border-color: var(--oil-navy); }
 
-        /* Adjacent Note */
-        .adjacent-note {
-            background: #F0F9FF;
-            border: 1px solid #BAE6FD;
-            border-radius: 8px;
-            padding: 20px 30px;
+        /* The Enterprise Row */
+        .enterprise-row {
+            max-width: 800px;
+            margin: 40px auto 80px;
             text-align: center;
-            margin-bottom: 60px;
+            padding: 30px;
+            background: var(--paper);
+            border-radius: 8px;
+            border: 1px dashed var(--slate-blue);
+        }
+        .enterprise-row h3 { font-size: 18px; margin-bottom: 5px; color: var(--oil-navy); }
+        .enterprise-row p { font-size: 14px; color: #718096; margin-bottom: 15px; }
+        .enterprise-link { color: var(--red-dirt); font-weight: 600; text-decoration: none; }
+
+        /* Adjacent Note - Clean & Subtle */
+        .pro-tip {
+            text-align: center;
+            max-width: 600px;
+            margin: -20px auto 60px;
+            font-size: 14px;
+            color: #718096;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .pro-tip svg { color: var(--slate-blue); }
+
+        /* "What You Get" Section (The Clean Redesign) */
+        .features-section {
+            padding: 80px 0;
+            background: #fff;
+            border-top: 1px solid var(--border);
         }
         
-        .adjacent-note p {
-            font-size: 15px;
+        .section-title {
+            text-align: center;
+            font-size: 32px;
+            color: var(--oil-navy);
+            margin-bottom: 50px;
+        }
+        
+        .feature-grid-clean {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 30px;
+        }
+        
+        .feature-item-clean {
+            text-align: left;
+        }
+        
+        .icon-box {
+            width: 48px;
+            height: 48px;
+            background: var(--paper);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: var(--red-dirt);
+        }
+        
+        .feature-item-clean h3 {
+            font-size: 18px;
+            margin-bottom: 10px;
             color: var(--oil-navy);
         }
         
-        .adjacent-note strong {
-            color: var(--red-dirt);
+        .feature-item-clean p {
+            font-size: 14px;
+            color: #718096;
+            line-height: 1.6;
         }
 
-        /* FAQ Section */
+        /* FAQ */
         .faq-section {
-            background: #F7FAFC;
-            padding: 60px 0;
+            background: var(--paper);
+            padding: 80px 0;
         }
-        
-        .faq-section h2 {
-            text-align: center;
-            font-size: 32px;
-            margin-bottom: 40px;
-        }
-        
         .faq-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 30px;
+            gap: 40px;
             max-width: 900px;
             margin: 0 auto;
         }
-        
-        .faq-item h3 {
-            font-size: 16px;
-            margin-bottom: 10px;
-            font-weight: 700;
-        }
-        
-        .faq-item p {
-            font-size: 14px;
-            color: var(--slate-blue);
-        }
+        .faq-item h3 { font-size: 16px; margin-bottom: 8px; color: var(--oil-navy); }
+        .faq-item p { font-size: 14px; color: #718096; }
 
         /* Footer */
         footer {
             background: var(--oil-navy);
             color: #A0AEC0;
-            padding: 40px 0;
+            padding: 50px 0;
             font-size: 14px;
         }
-        
-        footer a {
-            color: #A0AEC0;
-            text-decoration: none;
-        }
-        
-        footer a:hover {
-            color: white;
-        }
-        
-        .footer-links {
-            display: flex;
-            gap: 25px;
-            margin-top: 15px;
-        }
-        
-        .disclaimer {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #2D3748;
-            font-size: 11px;
-            color: #718096;
-            line-height: 1.6;
-        }
+        .footer-links a { margin-right: 20px; color: #A0AEC0; text-decoration: none; }
+        .disclaimer { border-top: 1px solid #2D3748; margin-top: 30px; padding-top: 20px; font-size: 12px; color: #718096; }
 
         /* Responsive */
-        @media (max-width: 1100px) {
-            .pricing-grid {
-                grid-template-columns: repeat(3, 1fr);
-            }
-            
-            .pricing-card:nth-child(4),
-            .pricing-card:nth-child(5) {
-                grid-column: span 1;
-            }
+        @media (max-width: 900px) {
+            .pricing-grid { grid-template-columns: 1fr 1fr; }
+            .feature-grid-clean { grid-template-columns: 1fr 1fr; }
         }
-        
-        @media (max-width: 800px) {
-            .pricing-grid {
-                grid-template-columns: 1fr 1fr;
-            }
-            
-            .pricing-card:nth-child(5) {
-                grid-column: span 2;
-            }
-            
-            .faq-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-        
         @media (max-width: 600px) {
-            .pricing-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .pricing-card:nth-child(5) {
-                grid-column: span 1;
-            }
-            
-            .pricing-header h1 {
-                font-size: 32px;
-            }
-            
-            .header-inner {
-                flex-direction: column;
-                gap: 15px;
-            }
+            .pricing-grid { grid-template-columns: 1fr; }
+            .feature-grid-clean { grid-template-columns: 1fr; }
+            .pricing-header h1 { font-size: 32px; }
+            .faq-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
+
     <header>
-        <div class="container">
-            <div class="header-inner">
-                <a href="/" class="logo">Mineral Watch</a>
-                <nav class="nav-links">
-                    <a href="/pricing">Pricing</a>
-                    <a href="/portal" class="btn-login">Log In</a>
-                </nav>
-            </div>
+        <div class="container header-inner">
+            <a href="/" class="logo">Mineral Watch</a>
+            <nav class="nav-links">
+                <a href="/pricing">Pricing</a>
+                <a href="/portal" class="btn-login">Log In</a>
+            </nav>
         </div>
     </header>
 
     <section class="pricing-header">
         <div class="container">
             <h1>Simple, Honest Pricing</h1>
-            <p>Start free. Upgrade when you need more properties. Cancel anytime.</p>
+            <p>Start free. Upgrade when you need more power. Cancel anytime.</p>
+            
+            <div class="billing-toggle">
+                <span class="monthly-label active">Monthly</span>
+                <div class="toggle-switch" id="billingToggle"></div>
+                <span class="annual-label">Annual</span>
+                <span class="save-badge">2 Months Free</span>
+            </div>
         </div>
     </section>
 
     <div class="container">
-        <div class="billing-toggle">
-            <span class="monthly-label active">Monthly</span>
-            <div class="toggle-switch" id="billingToggle"></div>
-            <span class="annual-label">Annual</span>
-            <span class="save-badge">Save 2 Months</span>
-        </div>
-
         <div class="pricing-grid">
             <!-- FREE -->
             <div class="pricing-card">
                 <div class="tier-name">Free</div>
                 <div class="price">
                     <span class="price-amount">$0</span>
-                    <span class="price-period">/forever</span>
                 </div>
-                <div class="annual-price">&nbsp;</div>
+                <div class="annual-savings-text">&nbsp;</div>
                 <div class="properties-count">1 Property</div>
                 <ul class="feature-list">
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Daily well alerts
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Adjacent section monitoring
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Status change alerts
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        OCC record links
-                    </li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Daily drilling alerts</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Status change notifications</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Operator transfer alerts</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Adjacent section watch</li>
                 </ul>
-                <a href="#" class="pricing-cta outline" data-plan="free">Get Started</a>
+                <a href="/portal" class="pricing-cta outline" data-plan="free">Get Started</a>
             </div>
 
             <!-- STARTER -->
             <div class="pricing-card">
                 <div class="tier-name">Starter</div>
                 <div class="price">
-                    <span class="price-amount monthly-price">$5</span>
-                    <span class="price-period monthly-period">/month</span>
+                    <span class="price-amount monthly-price">$9</span>
+                    <span class="price-period monthly-period">/mo</span>
                 </div>
-                <div class="annual-price">$50/year (save $10)</div>
-                <div class="properties-count">Up to 10 Properties</div>
+                <div class="annual-savings-text">Save $22 / year</div>
+                <div class="properties-count">10 Properties / 10 APIs</div>
                 <ul class="feature-list">
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Everything in Free
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Weekly status digest
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Email support
-                    </li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Everything in Free</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg><strong>Specific Well Tracking</strong></li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Weekly activity digest</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Email support</li>
                 </ul>
-                <a href="#" class="pricing-cta secondary" data-plan="starter" data-monthly="price_starter_monthly" data-annual="price_starter_annual">Start Starter</a>
+                <a href="#" class="pricing-cta secondary" data-plan="starter">Start Starter</a>
             </div>
 
-            <!-- STANDARD (Popular) -->
+            <!-- STANDARD (Most Popular) -->
             <div class="pricing-card popular">
                 <span class="popular-badge">Most Popular</span>
                 <div class="tier-name">Standard</div>
                 <div class="price">
-                    <span class="price-amount monthly-price">$15</span>
-                    <span class="price-period monthly-period">/month</span>
+                    <span class="price-amount monthly-price">$29</span>
+                    <span class="price-period monthly-period">/mo</span>
                 </div>
-                <div class="annual-price">$150/year (save $30)</div>
-                <div class="properties-count">Up to 50 Properties</div>
+                <div class="annual-savings-text">Save $70 / year</div>
+                <div class="properties-count">50 Properties / 50 APIs</div>
                 <ul class="feature-list">
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Everything in Starter
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Pooling order notifications
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Priority email support
-                    </li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Everything in Starter</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg><strong>Priority Alerts</strong></li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Historical Well Data</li>
                 </ul>
-                <a href="#" class="pricing-cta primary" data-plan="standard" data-monthly="price_standard_monthly" data-annual="price_standard_annual">Start Standard</a>
+                <a href="#" class="pricing-cta primary" data-plan="standard">Start Standard</a>
             </div>
 
             <!-- PROFESSIONAL -->
             <div class="pricing-card">
                 <div class="tier-name">Professional</div>
                 <div class="price">
-                    <span class="price-amount monthly-price">$49</span>
-                    <span class="price-period monthly-period">/month</span>
+                    <span class="price-amount monthly-price">$99</span>
+                    <span class="price-period monthly-period">/mo</span>
                 </div>
-                <div class="annual-price">$490/year (save $98)</div>
-                <div class="properties-count">Up to 500 Properties</div>
+                <div class="annual-savings-text">Save $238 / year</div>
+                <div class="properties-count">500 Props / Unlimited APIs</div>
                 <ul class="feature-list">
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Everything in Standard
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Multi-user access (3 logins)
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Export reports (CSV/PDF)
-                    </li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Everything in Standard</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>Multi-user access (3)</li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg><strong>CSV / PDF Exports</strong></li>
+                    <li><svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>White-label Reports</li>
                 </ul>
-                <a href="#" class="pricing-cta secondary" data-plan="professional" data-monthly="price_pro_monthly" data-annual="price_pro_annual">Start Professional</a>
-            </div>
-
-            <!-- ENTERPRISE -->
-            <div class="pricing-card">
-                <div class="tier-name">Enterprise</div>
-                <div class="price">
-                    <span class="price-amount" style="font-size: 28px;">Custom</span>
-                </div>
-                <div class="annual-price">&nbsp;</div>
-                <div class="properties-count">Unlimited Properties</div>
-                <ul class="feature-list">
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Everything in Professional
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        White-label reports
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        API access
-                    </li>
-                    <li>
-                        <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="3" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"></path></svg>
-                        Dedicated account manager
-                    </li>
-                </ul>
-                <a href="mailto:james@mymineralwatch.com?subject=Enterprise%20Inquiry" class="pricing-cta outline">Contact Us</a>
+                <a href="#" class="pricing-cta secondary" data-plan="professional">Start Professional</a>
             </div>
         </div>
 
-        <div class="adjacent-note">
-            <p><strong>Every property includes adjacent section monitoring.</strong> We automatically watch your section plus the 8 surrounding sections — horizontal wells can affect your minerals even when drilling on neighboring land.</p>
+        <!-- ENTERPRISE ROW -->
+        <div class="enterprise-row">
+            <h3>Need more than 500 properties?</h3>
+            <p>We work with Family Offices and Banks to monitor massive portfolios.</p>
+            <a href="mailto:support@mymineralwatch.com" class="enterprise-link">Contact Sales for Enterprise &rarr;</a>
+        </div>
+
+        <!-- PRO TIP -->
+        <div class="pro-tip">
+            <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+            <span><strong>Pro Tip:</strong> Every plan includes adjacent section monitoring (we watch your 8 surrounding sections automatically).</span>
         </div>
     </div>
 
-    <section class="faq-section">
+    <!-- WHAT YOU'LL BE NOTIFIED ABOUT -->
+    <section class="features-section">
         <div class="container">
-            <h2>Common Questions</h2>
-            <div class="faq-grid">
-                <div class="faq-item">
-                    <h3>What counts as a "property"?</h3>
-                    <p>A property is a unique section-township-range location where you own mineral rights. If you have interests in the same section from different sources, it still counts as one property.</p>
+            <h2 class="section-title">What You'll Be Notified About</h2>
+            
+            <div class="feature-grid-clean">
+                <div class="feature-item-clean">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <h3>New Drill Permits</h3>
+                    <p>When an operator files Form 1000 to drill on or near your property. This is your first warning sign.</p>
                 </div>
-                <div class="faq-item">
-                    <h3>Can I upgrade or downgrade anytime?</h3>
-                    <p>Yes! Upgrade instantly to add more properties. Downgrade at any time and the change takes effect at your next billing cycle.</p>
+
+                <div class="feature-item-clean">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                    </div>
+                    <h3>Drilling Starts (Spud)</h3>
+                    <p>When a rig actually moves onto the location (Spud). The clock has officially started.</p>
                 </div>
-                <div class="faq-item">
-                    <h3>What data sources do you monitor?</h3>
-                    <p>We monitor the Oklahoma Corporation Commission (OCC) RBDMS database for well permits, drilling activity, and status changes. Standard plans and above also get pooling order notifications.</p>
+
+                <div class="feature-item-clean">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h3>Well Completions</h3>
+                    <p>When the well is finished and oil starts flowing. This signals that royalty checks are coming soon.</p>
                 </div>
-                <div class="faq-item">
-                    <h3>How quickly will I get alerts?</h3>
-                    <p>We check OCC records daily. When new activity appears on your properties, you'll receive an email alert that same day with clear explanations and direct links to official records.</p>
-                </div>
-                <div class="faq-item">
-                    <h3>Is my data secure?</h3>
-                    <p>Yes. We never share your property information with third parties, and we never make offers to buy your minerals. Your data is encrypted and stored securely.</p>
-                </div>
-                <div class="faq-item">
-                    <h3>Can I cancel anytime?</h3>
-                    <p>Absolutely. No contracts, no cancellation fees. Cancel from your account settings and you'll retain access until the end of your billing period.</p>
+
+                <div class="feature-item-clean">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path></svg>
+                    </div>
+                    <h3>Operator Transfers</h3>
+                    <p>When operational control changes hands (e.g., Chesapeake to Devon). Critical for updating your payment info.</p>
                 </div>
             </div>
         </div>
     </section>
 
+    <!-- FAQ SECTION -->
+    <section class="faq-section">
+        <div class="container">
+            <h2 class="section-title" style="margin-bottom: 40px;">Common Questions</h2>
+            <div class="faq-grid">
+                <div class="faq-item">
+                    <h3>What counts as a "property"?</h3>
+                    <p>A property is a unique section-township-range location (e.g. 28-14N-04W). If you have multiple wells in one section, it counts as 1 property.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>What is "API Well Tracking"?</h3>
+                    <p>This allows you to track specific wells anywhere in the state by their API number, even if you don't own the land. Great for watching nearby horizontal drilling or tracking wells you're interested in purchasing.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Can I cancel anytime?</h3>
+                    <p>Yes. There are no contracts. You can cancel your subscription instantly from your dashboard and retain access until the end of your billing period.</p>
+                </div>
+                <div class="faq-item">
+                    <h3>Is my data secure?</h3>
+                    <p>Absolutely. We never share your property locations or data with third parties. We are a monitoring service, not a mineral buyer.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- FOOTER -->
     <footer>
         <div class="container">
-            <p>&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
-            
             <div class="footer-links">
                 <a href="/">Home</a>
                 <a href="/pricing">Pricing</a>
                 <a href="/portal">Log In</a>
-                <a href="mailto:james@mymineralwatch.com">Contact</a>
+                <a href="mailto:support@mymineralwatch.com">Contact</a>
             </div>
+            <p style="margin-top: 20px; color: #718096;">&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
             
             <div class="disclaimer">
-                <p style="margin-bottom: 10px;">
-                    <strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. 
-                    We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, 
-                    or timeliness of this data. Government databases frequently contain errors, delays, or omissions.
-                </p>
-                <p>
-                    This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any 
-                    missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always 
-                    verify official records directly with the OCC or a qualified attorney before making decisions.
-                </p>
+                <p><strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, or timeliness of this data. Government databases frequently contain errors, delays, or omissions. This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always verify official records directly with the OCC or a qualified attorney before making decisions.</p>
             </div>
         </div>
     </footer>
 
     <script>
-        // Payment links (Test Mode)
         const paymentLinks = {
-            starter: {
-                monthly: 'https://buy.stripe.com/test_9B614g9mvex04BSaxh7EQ01',
-                annual: 'https://buy.stripe.com/test_5kQbIU56fdsW1pG8p97EQ02'
+            starter: { 
+                monthly: 'https://buy.stripe.com/test_dRm8wIfKT74y7O40WH7EQ07', 
+                annual: 'https://buy.stripe.com/test_28EbIU1U39cG9WcdJt7EQ08' 
             },
-            standard: {
-                monthly: 'https://buy.stripe.com/test_00w9AM6ajfB45FWdJt7EQ03',
-                annual: 'https://buy.stripe.com/test_00w3co1U374y6K020L7EQ04'
+            standard: { 
+                monthly: 'https://buy.stripe.com/test_00wcMYcyH0Gac4k0WH7EQ09', 
+                annual: 'https://buy.stripe.com/test_00wdR256f3Sm7O45cX7EQ0a' 
             },
-            professional: {
-                monthly: 'https://buy.stripe.com/test_bJefZabuD74y0lC6h17EQ05',
-                annual: 'https://buy.stripe.com/test_8x29AM0PZagKgkA34P7EQ06'
+            professional: { 
+                monthly: 'https://buy.stripe.com/test_8x2aEQ8ir74y7O434P7EQ0b', 
+                annual: 'https://buy.stripe.com/test_00waEQ56f88CgkA34P7EQ0c' 
             }
         };
 
-        // Billing toggle functionality
         const toggle = document.getElementById('billingToggle');
         const monthlyLabel = document.querySelector('.monthly-label');
         const annualLabel = document.querySelector('.annual-label');
@@ -726,55 +684,40 @@
             
             cards.forEach(card => {
                 card.classList.toggle('show-annual', isAnnual);
+                const priceEl = card.querySelector('.price-amount');
+                const periodEl = card.querySelector('.price-period');
                 
-                const priceEl = card.querySelector('.monthly-price');
-                const periodEl = card.querySelector('.monthly-period');
-                
-                if (priceEl && periodEl) {
+                // Only update if this card HAS a price (skips Free/Custom)
+                if (priceEl && periodEl && card.querySelector('.monthly-price')) {
                     if (isAnnual) {
-                        // Show annual prices
-                        const currentPrice = priceEl.textContent.replace('$', '');
-                        const annualPrice = {
-                            '5': '50',
-                            '15': '150',
-                            '49': '490'
-                        }[currentPrice];
-                        
-                        if (annualPrice) {
-                            priceEl.textContent = '$' + annualPrice;
-                            periodEl.textContent = '/year';
-                        }
+                        const current = priceEl.textContent.replace('$', '');
+                        if (current === '9') priceEl.textContent = '$86';
+                        if (current === '29') priceEl.textContent = '$278';
+                        if (current === '99') priceEl.textContent = '$950';
+                        periodEl.textContent = '/yr';
                     } else {
-                        // Show monthly prices
-                        const currentPrice = priceEl.textContent.replace('$', '');
-                        const monthlyPrice = {
-                            '50': '5',
-                            '150': '15',
-                            '490': '49'
-                        }[currentPrice];
-                        
-                        if (monthlyPrice) {
-                            priceEl.textContent = '$' + monthlyPrice;
-                            periodEl.textContent = '/month';
-                        }
+                        const current = priceEl.textContent.replace('$', '');
+                        if (current === '86') priceEl.textContent = '$9';
+                        if (current === '278') priceEl.textContent = '$29';
+                        if (current === '950') priceEl.textContent = '$99';
+                        periodEl.textContent = '/mo';
                     }
                 }
             });
         });
-        
-        // CTA click handling
+
         document.querySelectorAll('.pricing-cta').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const plan = btn.dataset.plan;
                 
                 if (plan === 'free') {
-                    // Redirect to free signup (portal)
-                    window.location.href = '/portal/signup?plan=free';
+                    // Redirect to portal signup
+                    window.location.href = '/portal';
                 } else if (paymentLinks[plan]) {
                     // Redirect to Stripe checkout
-                    const billingPeriod = isAnnual ? 'annual' : 'monthly';
-                    window.location.href = paymentLinks[plan][billingPeriod];
+                    const link = isAnnual ? paymentLinks[plan].annual : paymentLinks[plan].monthly;
+                    window.location.href = link;
                 }
             });
         });
