@@ -1,0 +1,36 @@
+{
+  "name": "mineral-watch-portal-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker for Mineral Watch portal authentication, properties, and billing",
+  "main": "index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20241106.0",
+    "wrangler": "^3.78.12",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/[your-username]/mineral-watch-portal-worker.git"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "mineral-watch",
+    "authentication",
+    "airtable",
+    "postmark"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}
