@@ -480,6 +480,13 @@
         const submitBtn = document.getElementById('submitBtn');
         const formMessage = document.getElementById('formMessage');
 
+        // Pre-select topic from URL parameter
+        const urlParams = new URLSearchParams(window.location.search);
+        const topicParam = urlParams.get('topic');
+        if (topicParam === 'enterprise') {
+            document.getElementById('topic').value = 'Enterprise / Large Portfolio';
+        }
+
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             
