@@ -1,0 +1,18 @@
+name = "mineralwatch-contact"
+main = "contact-worker.js"
+compatibility_date = "2024-01-01"
+
+# Custom domain routing (add this route after deploying)
+# routes = [
+#   { pattern = "api.mymineralwatch.com/contact", zone_name = "mymineralwatch.com" }
+# ]
+
+# Environment variables - set these as secrets in Cloudflare dashboard
+# Run: wrangler secret put POSTMARK_API_KEY
+# Run: wrangler secret put NOTIFY_EMAIL  
+# Run: wrangler secret put FROM_EMAIL
+
+[vars]
+# Non-sensitive vars can go here
+# NOTIFY_EMAIL = "support@mymineralwatch.com"
+# FROM_EMAIL = "noreply@mymineralwatch.com"
