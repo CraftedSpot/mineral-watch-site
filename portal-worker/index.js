@@ -1115,7 +1115,7 @@ async function handleRegister(request, env) {
         "X-Postmark-Server-Token": env.POSTMARK_API_KEY
       },
       body: JSON.stringify({
-        From: "noreply@mymineralwatch.com",
+        From: "support@mymineralwatch.com",
         To: normalizedEmail,
         Subject: "Welcome to Mineral Watch - Verify Your Account",
         HtmlBody: htmlBody,
