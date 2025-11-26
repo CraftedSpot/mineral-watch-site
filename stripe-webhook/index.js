@@ -606,7 +606,7 @@ async function sendEmail(env, to, subject, htmlBody, textBody) {
         'X-Postmark-Server-Token': env.POSTMARK_API_KEY
       },
       body: JSON.stringify({
-        From: 'noreply@mymineralwatch.com',
+        From: 'support@mymineralwatch.com',
         To: to,
         Subject: subject,
         HtmlBody: htmlBody,
