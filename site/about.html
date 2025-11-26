@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About - Mineral Watch</title>
+    <meta name="description" content="Built by mineral owners, for mineral owners. Learn the story behind Mineral Watch and our mission to help Oklahoma families stay informed about their mineral rights.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #fff;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: var(--slate-blue);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--oil-navy);
+        }
+        
+        .nav-links .btn-login {
+            background: var(--oil-navy);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .nav-links .btn-login:hover {
+            background: var(--slate-blue);
+            color: white;
+        }
+
+        /* Page Header */
+        .page-header {
+            text-align: center;
+            padding: 60px 0 40px;
+            background: linear-gradient(to bottom, #fff, var(--paper));
+        }
+        
+        .page-header h1 {
+            font-size: 38px;
+            margin-bottom: 15px;
+            font-weight: 900;
+            color: var(--oil-navy);
+        }
+        
+        .page-header p {
+            font-size: 18px;
+            color: var(--slate-blue);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Story Section */
+        .story-section {
+            padding: 60px 0 80px;
+            background: var(--paper);
+        }
+
+        .story-content {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .photos-row {
+            display: flex;
+            justify-content: center;
+            gap: 40px;
+            margin-bottom: 50px;
+            flex-wrap: wrap;
+        }
+
+        .photo-card {
+            text-align: center;
+        }
+
+        .photo-card img {
+            width: 200px;
+            height: 250px;
+            object-fit: cover;
+            border-radius: 8px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+            border: 4px solid white;
+        }
+
+        .photo-card.grandfather img {
+            width: 220px;
+            height: 280px;
+            object-fit: contain;
+            background: #f0f0f0;
+        }
+
+        .photo-card .caption {
+            margin-top: 15px;
+            font-size: 15px;
+            color: var(--oil-navy);
+            font-weight: 600;
+        }
+
+        .photo-card .subcaption {
+            font-size: 13px;
+            color: var(--slate-blue);
+            margin-top: 2px;
+        }
+
+        .story-text {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 40px;
+            font-size: 17px;
+            line-height: 1.8;
+            color: var(--slate-blue);
+        }
+
+        .story-text p {
+            margin-bottom: 20px;
+        }
+
+        .story-text p:last-child {
+            margin-bottom: 0;
+        }
+
+        .story-text .highlight {
+            color: var(--oil-navy);
+            font-weight: 500;
+        }
+
+        .signature {
+            margin-top: 30px;
+            padding-top: 25px;
+            border-top: 1px solid var(--border);
+        }
+
+        .signature .name {
+            font-family: 'Merriweather', serif;
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--oil-navy);
+        }
+
+        .signature .location {
+            font-size: 14px;
+            color: var(--slate-blue);
+            margin-top: 4px;
+        }
+
+        /* Values Section */
+        .values-section {
+            padding: 80px 0;
+            background: white;
+        }
+
+        .values-section h2 {
+            text-align: center;
+            font-size: 28px;
+            margin-bottom: 50px;
+            color: var(--oil-navy);
+        }
+
+        .values-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 40px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .value-item {
+            text-align: center;
+        }
+
+        .value-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--paper);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 16px;
+            color: var(--red-dirt);
+        }
+
+        .value-item h3 {
+            font-size: 17px;
+            margin-bottom: 8px;
+            color: var(--oil-navy);
+        }
+
+        .value-item p {
+            font-size: 14px;
+            color: var(--slate-blue);
+            line-height: 1.6;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 60px 0;
+            background: var(--oil-navy);
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            color: white;
+            font-size: 28px;
+            margin-bottom: 15px;
+        }
+
+        .cta-section p {
+            color: #A0AEC0;
+            font-size: 16px;
+            margin-bottom: 25px;
+        }
+
+        .cta-btn {
+            display: inline-block;
+            background: var(--red-dirt);
+            color: white;
+            padding: 14px 32px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 15px;
+            transition: background 0.2s;
+        }
+
+        .cta-btn:hover {
+            background: var(--red-dirt-dark);
+        }
+
+        /* Footer */
+        footer {
+            background: var(--oil-navy);
+            color: #A0AEC0;
+            padding: 50px 0;
+            font-size: 14px;
+            border-top: 1px solid #2D3748;
+        }
+        
+        .footer-links a {
+            margin-right: 20px;
+            color: #A0AEC0;
+            text-decoration: none;
+        }
+
+        .footer-links a:hover {
+            color: white;
+        }
+        
+        .disclaimer {
+            border-top: 1px solid #2D3748;
+            margin-top: 30px;
+            padding-top: 20px;
+            font-size: 12px;
+            color: #718096;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .page-header {
+                padding: 40px 0 30px;
+            }
+            
+            .page-header h1 {
+                font-size: 30px;
+            }
+
+            .photos-row {
+                gap: 30px;
+            }
+
+            .photo-card img {
+                width: 160px;
+                height: 200px;
+            }
+
+            .photo-card.grandfather img {
+                width: 180px;
+                height: 230px;
+            }
+
+            .story-text {
+                padding: 25px;
+                font-size: 16px;
+            }
+
+            .values-grid {
+                grid-template-columns: 1fr;
+                gap: 30px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="container header-inner">
+            <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+            <nav class="nav-links">
+                <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                <a href="https://portal.mymineralwatch.com/" class="btn-login">Log In</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="page-header">
+        <div class="container">
+            <h1>Built by Mineral Owners, for Mineral Owners</h1>
+            <p>The story behind Mineral Watch — and why we built it.</p>
+        </div>
+    </section>
+
+    <section class="story-section">
+        <div class="container">
+            <div class="story-content">
+                
+                <div class="photos-row">
+                    <div class="photo-card grandfather">
+                        <img src="/images/joel-s-price.jpg" alt="Dr. Joel S. Price">
+                        <div class="caption">Dr. Joel S. Price</div>
+                        <div class="subcaption">Woodward, Oklahoma</div>
+                    </div>
+                    <div class="photo-card">
+                        <img src="/images/james-price.jpg" alt="James Price">
+                        <div class="caption">James Price</div>
+                        <div class="subcaption">Founder, Mineral Watch</div>
+                    </div>
+                </div>
+
+                <div class="story-text">
+                    <p>
+                        My grandfather, <span class="highlight">Dr. Joel S. Price</span>, grew up on a dirt farm in Woodward, Oklahoma. He became a country doctor, making house calls across the rural parts of the state. Between those visits, he bought mineral rights — a few acres here, a few there — building a portfolio that would support his family for generations.
+                    </p>
+                    <p>
+                        Seventy-five years later, our family still manages those minerals. What started as a handful of properties has grown to <span class="highlight">370+ mineral interests</span> spread across Oklahoma, now shared among an ever-growing number of heirs.
+                    </p>
+                    <p>
+                        For decades, we made it work with eight filing cabinets and an Excel spreadsheet. We tracked permits by hand, waited for division orders to arrive in the mail, and hoped we didn't miss anything important at the OCC.
+                    </p>
+                    <p>
+                        I always knew there had to be a better way — an affordable tool that could watch the Oklahoma Corporation Commission filings for us and send a plain-English alert when something happened on our land.
+                    </p>
+                    <p>
+                        So I built <span class="highlight">Mineral Watch</span>.
+                    </p>
+                    <p>
+                        It's the tool I wished our family had years ago. No complicated interfaces. No expensive landman fees. Just simple, reliable monitoring that tells you what's happening on your minerals — in language you can actually understand.
+                    </p>
+
+                    <div class="signature">
+                        <div class="name">James Price</div>
+                        <div class="location">Oklahoma City, Oklahoma</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <section class="values-section">
+        <div class="container">
+            <h2>What We Believe</h2>
+            <div class="values-grid">
+                <div class="value-item">
+                    <div class="value-icon">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M12 15a3 3 0 100-6 3 3 0 000 6z"></path>
+                            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"></path>
+                        </svg>
+                    </div>
+                    <h3>Simple Over Complicated</h3>
+                    <p>You shouldn't need a petroleum engineering degree to understand what's happening on your land.</p>
+                </div>
+                <div class="value-item">
+                    <div class="value-icon">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        </svg>
+                    </div>
+                    <h3>Your Data Stays Yours</h3>
+                    <p>We're a monitoring service, not a mineral buyer. We never share or sell your property information.</p>
+                </div>
+                <div class="value-item">
+                    <div class="value-icon">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"></path>
+                            <circle cx="9" cy="7" r="4"></circle>
+                            <path d="M23 21v-2a4 4 0 00-3-3.87"></path>
+                            <path d="M16 3.13a4 4 0 010 7.75"></path>
+                        </svg>
+                    </div>
+                    <h3>Built for Families</h3>
+                    <p>Whether you have 1 property or 500, we're here to help you protect what your family built.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to Start Monitoring?</h2>
+            <p>Try Mineral Watch free with your first property. No credit card required.</p>
+            <a href="https://portal.mymineralwatch.com/" class="cta-btn">Get Started Free</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <div class="footer-links">
+                <a href="https://mymineralwatch.com">Home</a>
+                <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                <a href="https://mymineralwatch.com/about">About</a>
+                <a href="https://portal.mymineralwatch.com/">Log In</a>
+                <a href="https://mymineralwatch.com/contact">Contact</a>
+            </div>
+            <p style="margin-top: 20px; color: #718096;">&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
+            
+            <div class="disclaimer">
+                <p><strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, or timeliness of this data. Government databases frequently contain errors, delays, or omissions. This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always verify official records directly with the OCC or a qualified attorney before making decisions.</p>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
