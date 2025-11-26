@@ -1,0 +1,166 @@
+/**
+ * Mineral Watch Contact Form Handler
+ * Cloudflare Worker that receives form submissions and sends via Postmark
+ * 
+ * Environment Variables Required:
+ * - POSTMARK_API_KEY: Your Postmark server API token
+ * - NOTIFY_EMAIL: Email address to receive contact form submissions (e.g., support@mymineralwatch.com)
+ * - FROM_EMAIL: Verified sender email in Postmark (e.g., noreply@mymineralwatch.com)
+ */
+
+export default {
+  async fetch(request, env, ctx) {
+    // Handle CORS preflight
+    if (request.method === 'OPTIONS') {
+      return handleCORS();
+    }
+
+    // Only accept POST to /contact
+    const url = new URL(request.url);
+    if (request.method !== 'POST' || url.pathname !== '/contact') {
+      return new Response('Not Found', { status: 404 });
+    }
+
+    try {
+      const data = await request.json();
+      
+      // Validate required fields
+      const { name, email, topic, message } = data;
+      if (!name || !email || !topic || !message) {
+        return jsonResponse({ error: 'Missing required fields' }, 400);
+      }
+
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        return jsonResponse({ error: 'Invalid email address' }, 400);
+      }
+
+      // Send email via Postmark
+      const postmarkResponse = await fetch('https://api.postmarkapp.com/email', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+          'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+        },
+        body: JSON.stringify({
+          From: env.FROM_EMAIL,
+          To: env.NOTIFY_EMAIL,
+          ReplyTo: email,
+          Subject: `[Mineral Watch Contact] ${topic} - ${name}`,
+          TextBody: formatTextEmail(name, email, topic, message),
+          HtmlBody: formatHtmlEmail(name, email, topic, message),
+          MessageStream: 'outbound'
+        })
+      });
+
+      if (!postmarkResponse.ok) {
+        const errorData = await postmarkResponse.json();
+        console.error('Postmark error:', errorData);
+        return jsonResponse({ error: 'Failed to send message' }, 500);
+      }
+
+      return jsonResponse({ success: true, message: 'Message sent successfully' }, 200);
+
+    } catch (error) {
+      console.error('Contact form error:', error);
+      return jsonResponse({ error: 'Internal server error' }, 500);
+    }
+  }
+};
+
+function handleCORS() {
+  return new Response(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Max-Age': '86400'
+    }
+  });
+}
+
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*'
+    }
+  });
+}
+
+function formatTextEmail(name, email, topic, message) {
+  return `
+New Contact Form Submission
+============================
+
+Name: ${name}
+Email: ${email}
+Topic: ${topic}
+
+Message:
+${message}
+
+---
+Sent from Mineral Watch contact form
+`.trim();
+}
+
+function formatHtmlEmail(name, email, topic, message) {
+  // Escape HTML to prevent XSS in email
+  const escapeHtml = (str) => str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/\n/g, '<br>');
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1C2B36; }
+    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+    .header { background: #1C2B36; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
+    .header h1 { margin: 0; font-size: 20px; }
+    .content { background: #F8F9FA; padding: 25px; border: 1px solid #E2E8F0; border-top: none; border-radius: 0 0 8px 8px; }
+    .field { margin-bottom: 15px; }
+    .label { font-size: 12px; font-weight: 600; color: #334E68; text-transform: uppercase; letter-spacing: 0.5px; }
+    .value { font-size: 15px; margin-top: 4px; }
+    .message-box { background: white; padding: 15px; border: 1px solid #E2E8F0; border-radius: 6px; margin-top: 20px; }
+    .footer { margin-top: 20px; font-size: 12px; color: #718096; }
+    .topic-badge { display: inline-block; background: #C05621; color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>New Contact Form Submission</h1>
+    </div>
+    <div class="content">
+      <div class="field">
+        <div class="label">From</div>
+        <div class="value"><strong>${escapeHtml(name)}</strong> &lt;${escapeHtml(email)}&gt;</div>
+      </div>
+      <div class="field">
+        <div class="label">Topic</div>
+        <div class="value"><span class="topic-badge">${escapeHtml(topic)}</span></div>
+      </div>
+      <div class="message-box">
+        <div class="label">Message</div>
+        <div class="value" style="margin-top: 10px;">${escapeHtml(message)}</div>
+      </div>
+      <div class="footer">
+        Reply directly to this email to respond to ${escapeHtml(name)}.
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`.trim();
+}
