@@ -104,6 +104,14 @@ var index_default = {
         return handleBulkUploadWells(request, env);
       }
 
+      // CSV Export endpoints (Professional+ only)
+      if (path === "/api/export/properties" && request.method === "GET") {
+        return handleExportPropertiesCSV(request, env);
+      }
+      if (path === "/api/export/wells" && request.method === "GET") {
+        return handleExportWellsCSV(request, env);
+      }
+
       
       if (path === "/api/billing/portal" && request.method === "POST") {
         return handleBillingPortal(request, env);
@@ -675,6 +683,86 @@ async function handleBulkUploadWells(request, env) {
   return jsonResponse({
     success: true,
     results
+  });
+}
+
+// ====================
+// CSV EXPORT HANDLERS
+// ====================
+
+async function handleExportPropertiesCSV(request, env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  // Check if user is Professional or Enterprise
+  const userRecord = await getUserById(env, user.id);
+  const plan = userRecord?.fields.Plan || "Free";
+  if (plan !== "Professional" && plan !== "Enterprise") {
+    return jsonResponse({ error: "CSV export requires Professional plan" }, 403);
+  }
+  
+  const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!response.ok) throw new Error("Failed to fetch properties");
+  const data = await response.json();
+  
+  // Build CSV
+  let csv = "Section,Township,Range,Meridian,County,Status\n";
+  data.records.forEach(p => {
+    const f = p.fields;
+    csv += `${f.SEC || ""},${f.TWN || ""},${f.RNG || ""},${f.MERIDIAN || "IM"},${f.COUNTY || ""},Active\n`;
+  });
+  
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv",
+      "Content-Disposition": "attachment; filename=mineral-watch-properties.csv",
+      ...CORS_HEADERS
+    }
+  });
+}
+
+async function handleExportWellsCSV(request, env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  // Check if user is Professional or Enterprise
+  const userRecord = await getUserById(env, user.id);
+  const plan = userRecord?.fields.Plan || "Free";
+  if (plan !== "Professional" && plan !== "Enterprise") {
+    return jsonResponse({ error: "CSV export requires Professional plan" }, 403);
+  }
+  
+  const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!response.ok) throw new Error("Failed to fetch wells");
+  const data = await response.json();
+  
+  // Build CSV
+  let csv = "API Number,Well Name,Latitude,Longitude,OCC Link,Status,Notes\n";
+  data.records.forEach(w => {
+    const f = w.fields;
+    const lat = f.Latitude || "";
+    const lon = f.Longitude || "";
+    const occLink = f["OCC Map Link"] || "";
+    const notes = (f.Notes || "").replace(/"/g, '""'); // Escape quotes
+    csv += `"${f["API Number"] || ""}","${f["Well Name"] || ""}",${lat},${lon},"${occLink}","${f.Status || "Active"}","${notes}"\n`;
+  });
+  
+  return new Response(csv, {
+    headers: {
+      "Content-Type": "text/csv",
+      "Content-Disposition": "attachment; filename=mineral-watch-wells.csv",
+      ...CORS_HEADERS
+    }
   });
 }
 
@@ -1915,7 +2003,7 @@ var LOGIN_HTML = `<!DOCTYPE html>
             </div>
         </div>
     </main>
-    <footer>&copy; 2025 Mineral Watch</footer>
+    <footer>&copy; 2025 Mineral Watch &nbsp;·&nbsp; <a href="https://mymineralwatch.com/contact" style="color: #718096;">Contact Support</a></footer>
     <script>
         // Check for error params
         const params = new URLSearchParams(window.location.search);
@@ -2077,6 +2165,69 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             .header-actions { flex-direction: column; width: 100%; }
             .btn-add { width: 100%; justify-content: center; }
         }
+
+        /* Search and Export Bar */
+        .table-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            gap: 12px;
+        }
+
+        .search-input {
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            width: 250px;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+        }
+
+        .btn-export {
+            background: var(--oil-navy);
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .btn-export:hover {
+            background: var(--slate-blue);
+        }
+
+        /* Sortable Headers */
+        .data-table th.sortable {
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .data-table th.sortable:hover {
+            background: #E2E8F0;
+        }
+
+        .data-table th .sort-icon {
+            margin-left: 4px;
+            opacity: 0.4;
+        }
+
+        .data-table th.sorted-asc .sort-icon,
+        .data-table th.sorted-desc .sort-icon {
+            opacity: 1;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 20px;
+            color: var(--slate-blue);
+        }
     </style>
 </head>
 <body>
@@ -2143,7 +2294,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             </div>
         </div>
     </main>
-    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
+    <footer><div class="container">&copy; 2025 Mineral Watch &nbsp;·&nbsp; <a href="https://mymineralwatch.com/contact" style="color: #718096;">Contact Support</a></div></footer>
     
     <!-- Add Property Modal -->
     <div class="modal-overlay" id="addPropertyModal">
@@ -2257,6 +2408,11 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             });
         });
         
+        let propertiesData = [];
+        let wellsData = [];
+        let propertiesSort = { col: null, asc: true };
+        let wellsSort = { col: null, asc: true };
+
         async function loadAllData() {
             await Promise.all([loadProperties(), loadWells()]);
         }
@@ -2265,61 +2421,175 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             try {
                 const res = await fetch('/api/properties');
                 if (!res.ok) throw new Error('Failed to load');
-                const properties = await res.json();
-                document.getElementById('propCount').textContent = properties.length;
-                updateTotalCount();
-                
-                if (properties.length === 0) {
-                    document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
-                } else {
-                    let html = '<table class="data-table"><thead><tr><th>Legal Description</th><th>County</th><th>Status</th><th></th></tr></thead><tbody>';
-                    properties.forEach(p => {
-                        const f = p.fields;
-                        html += \`<tr>
-                            <td>S\${f.SEC} T\${f.TWN} R\${f.RNG}</td>
-                            <td>\${f.COUNTY}</td>
-                            <td class="status-active">Active</td>
-                            <td>
-                                <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
-                            </td>
-                        </tr>\`;
-                    });
-                    html += '</tbody></table>';
-                    document.getElementById('propertiesContent').innerHTML = html;
-                }
-            } catch { document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+                propertiesData = await res.json();
+                document.getElementById('propCount').textContent = propertiesData.length;
+                renderPropertiesTable();
+            } catch { 
+                document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; 
+            }
         }
 
         async function loadWells() {
             try {
                 const res = await fetch('/api/wells');
                 if (!res.ok) throw new Error('Failed to load');
-                const wells = await res.json();
-                document.getElementById('wellCount').textContent = wells.length;
-                updateTotalCount();
+                wellsData = await res.json();
+                document.getElementById('wellCount').textContent = wellsData.length;
+                renderWellsTable();
+            } catch { 
+                document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; 
+            }
+        }
+
+        function renderPropertiesTable() {
+            const searchTerm = (document.getElementById('propSearch')?.value || '').toLowerCase();
+            const canExport = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            
+            if (propertiesData.length === 0) {
+                document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
+                return;
+            }
+            
+            // Filter
+            let filtered = propertiesData.filter(p => {
+                const f = p.fields;
+                const text = \`\${f.SEC} \${f.TWN} \${f.RNG} \${f.COUNTY}\`.toLowerCase();
+                return text.includes(searchTerm);
+            });
+            
+            // Sort
+            if (propertiesSort.col) {
+                filtered.sort((a, b) => {
+                    let aVal = a.fields[propertiesSort.col] || '';
+                    let bVal = b.fields[propertiesSort.col] || '';
+                    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                    if (aVal < bVal) return propertiesSort.asc ? -1 : 1;
+                    if (aVal > bVal) return propertiesSort.asc ? 1 : -1;
+                    return 0;
+                });
+            }
+            
+            let html = \`<div class="table-toolbar">
+                <input type="text" id="propSearch" class="search-input" placeholder="Search properties..." value="\${searchTerm}" oninput="renderPropertiesTable()">
+                \${canExport ? '<button class="btn-export" onclick="exportProperties()">Download CSV</button>' : ''}
+            </div>\`;
+            
+            if (filtered.length === 0) {
+                html += '<div class="no-results">No properties match your search.</div>';
+            } else {
+                html += \`<table class="data-table"><thead><tr>
+                    <th class="sortable \${propertiesSort.col === 'SEC' ? (propertiesSort.asc ? 'sorted-asc' : 'sorted-desc') : ''}" onclick="sortProperties('SEC')">Legal Description <span class="sort-icon">⇅</span></th>
+                    <th class="sortable \${propertiesSort.col === 'COUNTY' ? (propertiesSort.asc ? 'sorted-asc' : 'sorted-desc') : ''}" onclick="sortProperties('COUNTY')">County <span class="sort-icon">⇅</span></th>
+                    <th>Status</th>
+                    <th></th>
+                </tr></thead><tbody>\`;
                 
-                if (wells.length === 0) {
-                    document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
-                } else {
-                    let html = '<table class="data-table"><thead><tr><th>API Number</th><th>Well Name</th><th>Status</th><th></th></tr></thead><tbody>';
-                    wells.forEach(w => {
-                        const f = w.fields;
-                        const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">No name</em>';
-                        const occLink = f['OCC Map Link'] || \`https://occeweb.occ.ok.gov/ims/el/displaywell.aspx?wellid=\${f['API Number']}\`;
-                        html += \`<tr>
-                            <td><strong>\${f['API Number']}</strong></td>
-                            <td>\${wellName}</td>
-                            <td class="status-active">\${f.Status || 'Active'}</td>
-                            <td>
-                                <button class="btn-link" onclick="window.open('\${occLink}', '_blank')">View on OCC</button>
-                                <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
-                            </td>
-                        </tr>\`;
-                    });
-                    html += '</tbody></table>';
-                    document.getElementById('wellsContent').innerHTML = html;
-                }
-            } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+                filtered.forEach(p => {
+                    const f = p.fields;
+                    html += \`<tr>
+                        <td>S\${f.SEC} T\${f.TWN} R\${f.RNG}</td>
+                        <td>\${f.COUNTY}</td>
+                        <td class="status-active">Active</td>
+                        <td><button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button></td>
+                    </tr>\`;
+                });
+                html += '</tbody></table>';
+            }
+            
+            document.getElementById('propertiesContent').innerHTML = html;
+        }
+
+        function renderWellsTable() {
+            const searchTerm = (document.getElementById('wellSearch')?.value || '').toLowerCase();
+            const canExport = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            
+            if (wellsData.length === 0) {
+                document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
+                return;
+            }
+            
+            // Filter
+            let filtered = wellsData.filter(w => {
+                const f = w.fields;
+                const text = \`\${f['API Number'] || ''} \${f['Well Name'] || ''}\`.toLowerCase();
+                return text.includes(searchTerm);
+            });
+            
+            // Sort
+            if (wellsSort.col) {
+                filtered.sort((a, b) => {
+                    let aVal = a.fields[wellsSort.col] || '';
+                    let bVal = b.fields[wellsSort.col] || '';
+                    if (typeof aVal === 'string') aVal = aVal.toLowerCase();
+                    if (typeof bVal === 'string') bVal = bVal.toLowerCase();
+                    if (aVal < bVal) return wellsSort.asc ? -1 : 1;
+                    if (aVal > bVal) return wellsSort.asc ? 1 : -1;
+                    return 0;
+                });
+            }
+            
+            let html = \`<div class="table-toolbar">
+                <input type="text" id="wellSearch" class="search-input" placeholder="Search wells..." value="\${searchTerm}" oninput="renderWellsTable()">
+                \${canExport ? '<button class="btn-export" onclick="exportWells()">Download CSV</button>' : ''}
+            </div>\`;
+            
+            if (filtered.length === 0) {
+                html += '<div class="no-results">No wells match your search.</div>';
+            } else {
+                html += \`<table class="data-table"><thead><tr>
+                    <th class="sortable \${wellsSort.col === 'API Number' ? (wellsSort.asc ? 'sorted-asc' : 'sorted-desc') : ''}" onclick="sortWells('API Number')">API Number <span class="sort-icon">⇅</span></th>
+                    <th class="sortable \${wellsSort.col === 'Well Name' ? (wellsSort.asc ? 'sorted-asc' : 'sorted-desc') : ''}" onclick="sortWells('Well Name')">Well Name <span class="sort-icon">⇅</span></th>
+                    <th>Status</th>
+                    <th></th>
+                </tr></thead><tbody>\`;
+                
+                filtered.forEach(w => {
+                    const f = w.fields;
+                    const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">No name</em>';
+                    const occLink = f['OCC Map Link'] || \`https://occeweb.occ.ok.gov/ims/el/displaywell.aspx?wellid=\${f['API Number']}\`;
+                    html += \`<tr>
+                        <td><strong>\${f['API Number']}</strong></td>
+                        <td>\${wellName}</td>
+                        <td class="status-active">\${f.Status || 'Active'}</td>
+                        <td>
+                            <button class="btn-link" onclick="window.open('\${occLink}', '_blank')">View on OCC</button>
+                            <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
+                        </td>
+                    </tr>\`;
+                });
+                html += '</tbody></table>';
+            }
+            
+            document.getElementById('wellsContent').innerHTML = html;
+        }
+
+        function sortProperties(col) {
+            if (propertiesSort.col === col) {
+                propertiesSort.asc = !propertiesSort.asc;
+            } else {
+                propertiesSort.col = col;
+                propertiesSort.asc = true;
+            }
+            renderPropertiesTable();
+        }
+
+        function sortWells(col) {
+            if (wellsSort.col === col) {
+                wellsSort.asc = !wellsSort.asc;
+            } else {
+                wellsSort.col = col;
+                wellsSort.asc = true;
+            }
+            renderWellsTable();
+        }
+
+        function exportProperties() {
+            window.location.href = '/api/export/properties';
+        }
+
+        function exportWells() {
+            window.location.href = '/api/export/wells';
         }
 
         function updateTotalCount() {
@@ -3952,7 +4222,7 @@ var ACCOUNT_HTML = `<!DOCTYPE html>
             </div>
         </div>
     </main>
-    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
+    <footer><div class="container">&copy; 2025 Mineral Watch &nbsp;·&nbsp; <a href="https://mymineralwatch.com/contact" style="color: #718096;">Contact Support</a></div></footer>
     <script>
         const planConfigs = {
             'Free': { properties: 1, wells: 0, features: ['1 property', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
@@ -4241,8 +4511,9 @@ var UPGRADE_HTML = `<!DOCTYPE html>
                     <li>10 properties</li>
                     <li>10 wells</li>
                     <li>Adjacent section monitoring</li>
-                    <li>Daily OCC scans</li>
-                    <li>Email alerts</li>
+                    <li>Daily activity alerts</li>
+                    <li>Bulk upload</li>
+                    <li>Email support</li>
                 </ul>
                 <button class="plan-btn primary" id="starterBtn" data-plan="starter">Select Starter</button>
             </div>
@@ -4257,7 +4528,8 @@ var UPGRADE_HTML = `<!DOCTYPE html>
                     <li>50 properties</li>
                     <li>50 wells</li>
                     <li>Adjacent section monitoring</li>
-                    <li>Daily OCC scans</li>
+                    <li>Daily activity alerts</li>
+                    <li>Bulk upload</li>
                     <li>Priority support</li>
                 </ul>
                 <button class="plan-btn primary" id="standardBtn" data-plan="standard">Select Standard</button>
@@ -4271,10 +4543,10 @@ var UPGRADE_HTML = `<!DOCTYPE html>
                 <ul class="plan-features">
                     <li>500 properties</li>
                     <li>500 wells</li>
-                    <li>Adjacent section monitoring</li>
-                    <li>Daily OCC scans</li>
+                    <li>Multi-user access (3)</li>
+                    <li>CSV / PDF exports</li>
+                    <li>White-label reports</li>
                     <li>Priority support</li>
-                    <li>Bulk upload</li>
                 </ul>
                 <button class="plan-btn primary" id="professionalBtn" data-plan="professional">Select Professional</button>
             </div>
@@ -4283,7 +4555,7 @@ var UPGRADE_HTML = `<!DOCTYPE html>
         <a href="/portal" class="back-link">← Back to Dashboard</a>
     </main>
     
-    <footer>&copy; 2025 Mineral Watch</footer>
+    <footer>&copy; 2025 Mineral Watch &nbsp;·&nbsp; <a href="https://mymineralwatch.com/contact" style="color: #718096;">Contact Support</a></footer>
     
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
