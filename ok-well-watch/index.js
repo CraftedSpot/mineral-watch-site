@@ -181,7 +181,26 @@ async function runWellWatch(env, ctx) {
               matchType: matchType,
               link: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api}`,
               mapLink: mapLink,
-              objectid: attr.objectid
+              objectid: attr.objectid,
+              county: attr.county
+            });
+            
+            // 📋 LOG TO ACTIVITY HISTORY
+            await logActivity(env, {
+              userId: user.id,
+              api: attr.api,
+              wellName: fullWellName,
+              activityType: activityType,
+              previousValue: isOperatorChange ? previousOperator : previousStatus,
+              newValue: isOperatorChange ? attr.operator : attr.wellstatus,
+              operator: attr.operator,
+              previousOperator: previousOperator,
+              alertLevel: matchType.includes("Adjacent") ? "ADJACENT SECTION" : 
+                          matchType.includes("API") ? "TRACKED WELL" : "YOUR PROPERTY",
+              location: locationKey,
+              county: attr.county,
+              occLink: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api}`,
+              mapLink: mapLink
             });
           }
         }
@@ -702,4 +721,64 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
     const errorText = await response.text();
     throw new Error(`Postmark Failed: ${errorText}`);
   }
+}
+
+// --- ACTIVITY LOGGING ---
+async function logActivity(env, data) {
+  const AIRTABLE_BASE_ID = "app3j3X29Uvp5stza";
+  const ACTIVITY_TABLE_ID = "tblhBZNR5pDr620NY";
+  
+  const fields = {
+    "Well Name": data.wellName || "",
+    "Detected At": new Date().toISOString(),
+    "API Number": data.api || "",
+    "Activity Type": mapActivityType(data.activityType),
+    "Previous Value": data.previousValue || "",
+    "New Value": data.newValue || "",
+    "Operator": data.operator || "",
+    "Previous Operator": data.previousOperator || "",
+    "Alert Level": data.alertLevel,
+    "User": [data.userId],
+    "Section-Township-Range": data.location || "",
+    "County": data.county || "",
+    "OCC Link": data.occLink || "",
+    "Map Link": data.mapLink || "",
+    "Email Sent": true
+  };
+  
+  try {
+    const response = await fetch(
+      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${ACTIVITY_TABLE_ID}`,
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${env.AIRTABLE_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ fields })
+      }
+    );
+    
+    if (!response.ok) {
+      console.error("Activity log failed:", await response.text());
+    } else {
+      console.log(`  - Logged activity: ${data.wellName} - ${data.activityType}`);
+    }
+  } catch (err) {
+    console.error("Activity log error:", err);
+    // Don't throw - logging failure should NOT stop alerts
+  }
+}
+
+function mapActivityType(activityType) {
+  // Map emoji descriptions to clean single-select values
+  if (activityType.includes("Operator") || activityType.includes("Transfer")) return "Operator Transfer";
+  if (activityType.includes("Permit") || activityType.includes("ND")) return "New Permit";
+  if (activityType.includes("Drilling") || activityType.includes("Spud") || activityType.includes("SP")) return "Drilling Started";
+  if (activityType.includes("Completed") || activityType.includes("Active") || activityType.includes("AC")) return "Well Completed";
+  if (activityType.includes("Plugged") || activityType.includes("Abandoned") || activityType.includes("PA")) return "Plugged & Abandoned";
+  if (activityType.includes("Shut In") || activityType.includes("SI")) return "Shut In";
+  if (activityType.includes("TA")) return "Temporarily Abandoned";
+  if (activityType.includes("New Well")) return "New Well Record";
+  return "Status Change";
 }
