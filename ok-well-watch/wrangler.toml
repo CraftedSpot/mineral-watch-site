@@ -7,9 +7,11 @@ crons = ["0 8 * * *"]  # Daily at 8 AM CST
 
 [[kv_namespaces]]
 binding = "MINERAL_DB"
-id = "your-kv-namespace-id"
+id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"
 
 [vars]
+AIRTABLE_BASE_ID = "app3j3X29Uvp5stza"
+
 # Environment variables (secrets set via CLI)
 # POSTMARK_API_KEY = "your-postmark-api-key"
-# AIRTABLE_API_KEY = "your-airtable-api-key"
+# MINERAL_AIRTABLE_API_KEY = "your-airtable-api-key"

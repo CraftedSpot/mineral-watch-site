@@ -140,7 +140,7 @@ async function handleListWells(request, env) {
   const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) {
     const errText = await response.text();
@@ -220,7 +220,7 @@ async function handleAddWell(request, env) {
   const response = await fetch(createUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
+      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -253,7 +253,7 @@ async function handleDeleteWell(wellId, request, env) {
   
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
   const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!getResponse.ok) {
@@ -268,7 +268,7 @@ async function handleDeleteWell(wellId, request, env) {
   const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
   await fetch(deleteUrl, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   console.log(`Well deleted: ${wellId} by ${user.email}`);
@@ -307,7 +307,7 @@ async function handleListActivity(request, env) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc&maxRecords=100`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -337,7 +337,7 @@ async function handleActivityStats(request, env) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -544,7 +544,7 @@ async function handleBulkUploadProperties(request, env) {
     const response = await fetch(createUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -746,7 +746,7 @@ async function handleBulkUploadWells(request, env) {
     const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -795,7 +795,7 @@ async function fetchUserWells(env, userEmail) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) return [];
@@ -816,7 +816,7 @@ async function fetchUserProperties(env, userEmail) {
   
   const response = await fetch(url, {
     headers: {
-      Authorization: `Bearer ${env.AIRTABLE_API_KEY}`
+      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
     }
   });
   
@@ -1021,7 +1021,7 @@ async function countUserWells(env, userEmail) {
   const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return 0;
   const data = await response.json();
@@ -1033,7 +1033,7 @@ async function checkDuplicateWell(env, userEmail, apiNumber) {
   const formula = `AND(FIND('${userEmail}', ARRAYJOIN({User})) > 0, {API Number} = '${apiNumber}')`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return false;
   const data = await response.json();
@@ -1166,7 +1166,7 @@ async function handleRegister(request, env) {
     const response = await fetch(createUrl, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
@@ -1487,7 +1487,7 @@ async function handleListProperties(request, env) {
   const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) {
     const errText = await response.text();
@@ -1538,7 +1538,7 @@ async function handleAddProperty(request, env) {
   const response = await fetch(createUrl, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${env.AIRTABLE_API_KEY}`,
+      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
@@ -1569,7 +1569,7 @@ async function handleDeleteProperty(propertyId, request, env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
   const getResponse = await fetch(getUrl, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!getResponse.ok) {
     return jsonResponse({ error: "Property not found" }, 404);
@@ -1581,7 +1581,7 @@ async function handleDeleteProperty(propertyId, request, env) {
   const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
   await fetch(deleteUrl, {
     method: "DELETE",
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   console.log(`Property deleted: ${propertyId} by ${user.email}`);
   return jsonResponse({ success: true });
@@ -1753,7 +1753,7 @@ async function updateSubscription(env, user, subscriptionId, newPriceId, targetP
     await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
       method: 'PATCH',
       headers: {
-        'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({ fields: { Plan: targetPlan } })
@@ -1835,7 +1835,7 @@ async function findUserByEmail(env, email) {
   const formula = `LOWER({Email}) = '${email.toLowerCase()}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) throw new Error(`Airtable error: ${response.status}`);
   const data = await response.json();
@@ -1846,7 +1846,7 @@ __name(findUserByEmail, "findUserByEmail");
 async function getUserById(env, userId) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userId}`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return null;
   return await response.json();
@@ -1857,7 +1857,7 @@ async function countUserProperties(env, userEmail) {
   const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return 0;
   const data = await response.json();
@@ -1869,7 +1869,7 @@ async function checkDuplicateProperty(env, userEmail, county, section, township,
   const formula = `AND(FIND('${userEmail}', ARRAYJOIN({User})) > 0, {COUNTY} = '${county}', {SEC} = '${section}', {TWN} = '${township}', {RNG} = '${range}')`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   if (!response.ok) return false;
   const data = await response.json();

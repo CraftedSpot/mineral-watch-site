@@ -242,10 +242,10 @@ async function fetchActiveUsers(env) {
   const baseId = "app3j3X29Uvp5stza";
   const tableName = "👤 Users";
   
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=Status='Active'`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent("{Status}='Active'")}`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -272,7 +272,7 @@ async function fetchUserProperties(env, userId) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC&fields[]=TWN&fields[]=RNG&fields[]=MERIDIAN`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -294,7 +294,7 @@ async function fetchUserWells(env, userId) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number&fields[]=Well Name&fields[]=Status`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -479,114 +479,247 @@ function generateMapLink(lat, lon, title) {
 
 // --- HELPER: SEND EMAIL ---
 async function sendPostmarkEmail(env, user, matches, remaining = 0) {
+  
+  // Build individual alert cards
   const rows = matches.map(m => {
-    const imagingLink = "https://imaging.occ.ok.gov/imaging/oap.aspx";
-    const moeaLink = "https://ogims.public.occ.ok.gov/external/moea-search";
+    // Determine alert category styling
+    let categoryBadge, categoryColor, cardBorderColor, cardBgColor;
     
-    // Choose background color based on change type
-    const bgColor = m.isOperatorChange ? '#fef3c7' : 
-                    (m.isStatusChange ? '#fef3c7' : 
-                    (m.matchType.includes('Adjacent') ? '#fffbeb' : '#ffffff'));
+    if (m.matchType.includes('API Watch')) {
+      // Specific well monitoring - teal/green
+      categoryBadge = 'TRACKED WELL';
+      categoryColor = '#0D9488';
+      cardBorderColor = '#0D9488';
+      cardBgColor = '#F0FDFA';
+    } else if (m.matchType.includes('Adjacent')) {
+      // Adjacent section - amber/yellow
+      categoryBadge = 'ADJACENT SECTION';
+      categoryColor = '#D97706';
+      cardBorderColor = '#D97706';
+      cardBgColor = '#FFFBEB';
+    } else {
+      // Direct hit - red (highest priority)
+      categoryBadge = 'YOUR PROPERTY';
+      categoryColor = '#DC2626';
+      cardBorderColor = '#DC2626';
+      cardBgColor = '#FEF2F2';
+    }
+
+    // Activity type badge color
+    let activityBadgeColor = '#1E40AF';
+    let activityBadgeBg = '#DBEAFE';
+    if (m.isOperatorChange) {
+      activityBadgeColor = '#6D28D9';
+      activityBadgeBg = '#EDE9FE';
+    } else if (m.isStatusChange) {
+      activityBadgeColor = '#92400E';
+      activityBadgeBg = '#FEF3C7';
+    } else if (m.status === 'AC') {
+      activityBadgeColor = '#047857';
+      activityBadgeBg = '#D1FAE5';
+    }
 
     return `
-    <div style="border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 20px; border-radius: 8px; background-color: ${bgColor}; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <div style="border: 1px solid #E2E8F0; border-left: 4px solid ${cardBorderColor}; border-radius: 0 8px 8px 0; margin-bottom: 20px; overflow: hidden;">
       
-      <div style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
-        <h3 style="margin: 0; color: ${m.isOperatorChange || m.isStatusChange ? '#d97706' : (m.matchType.includes('API Watch') ? '#059669' : (m.matchType.includes('Adjacent') ? '#d97706' : '#dc2626'))}; font-size: 18px;">
-          ${m.matchType.includes('API Watch') ? '🎯 Specific Well Monitor' : (m.matchType.includes('Adjacent') ? '⚠️ Adjacent Activity' : '🚨 Direct Hit: Your Property')}
-        </h3>
-        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 14px;">${m.location}${m.matchType.includes('API Watch') ? ' (API: ' + m.api + ')' : ''}</p>
-        <p style="margin: 8px 0 0 0; font-size: 16px; font-weight: bold; color: ${m.isOperatorChange || m.isStatusChange ? '#d97706' : '#059669'};">
-          ${m.activityType}
-        </p>
-        ${m.isOperatorChange ? `<p style="margin: 5px 0 0 0; font-size: 13px; color: #78350f; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;">Changed from: ${m.previousOperator}</p>` : ''}
-        ${m.isStatusChange ? `<p style="margin: 5px 0 0 0; font-size: 13px; color: #78350f; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;">Changed from: ${m.previousStatus}</p>` : ''}
-      </div>
-
-      <div style="background: #f8fafc; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #475569;">
-          <strong>What this means:</strong> ${m.explanation}
+      <!-- Card Header -->
+      <div style="background: ${cardBgColor}; padding: 16px 20px; border-bottom: 1px solid #E2E8F0;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+          <span style="display: inline-block; background: ${categoryColor}; color: white; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+            ${categoryBadge}
+          </span>
+          <span style="display: inline-block; background: ${activityBadgeBg}; color: ${activityBadgeColor}; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+            ${m.activityType.replace(/[🔄🔨💰🔴⏸️✅❌📋📊📄]/g, '').trim()}
+          </span>
+        </div>
+        <p style="margin: 12px 0 0 0; font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${m.location}${m.matchType.includes('Adjacent') ? ` · Adjacent to Section ${m.matchType.split('Adjacent to ')[1]}` : ''}
         </p>
       </div>
-
-      ${m.actionNeeded ? `
-      <div style="background: ${m.actionNeeded.includes('⚠️') ? '#fef2f2' : '#f0fdf4'}; padding: 12px; border-radius: 6px; margin-bottom: 12px; border-left: 3px solid ${m.actionNeeded.includes('⚠️') ? '#ef4444' : '#22c55e'};">
-        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #1e293b;">
-          <strong>${m.actionNeeded.includes('⚠️') ? '⚠️ Action Required:' : '💡 Recommended Action:'}</strong> ${m.actionNeeded}
-        </p>
-      </div>
-      ` : ''}
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 15px; margin-bottom: 12px;">
-        <p style="margin: 5px 0;"><strong>Well:</strong> 
-           <a href="${m.mapLink}" style="color: #2563eb; text-decoration: underline; font-weight: bold;">${m.well} 📍</a>
-        </p>
-        <p style="margin: 5px 0;"><strong>Operator:</strong> ${m.operator}${m.isOperatorChange ? ' 🔄' : ''}</p>
-        <p style="margin: 5px 0;"><strong>Current Status:</strong> <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px;">${m.status}</span></p>
-        <p style="margin: 5px 0;"><strong>API:</strong> ${m.api || 'Pending'}</p>
-      </div>
-
-      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #cbd5e1;">
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Investigate this Section:</p>
+      
+      <!-- Card Body -->
+      <div style="background: #ffffff; padding: 20px;">
         
-        <a href="${m.link}" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; display: inline-block; margin-right: 5px;">
-          📄 View Permit / Docs
-        </a>
-
-        <a href="${imagingLink}" target="_blank" style="background-color: #475569; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; display: inline-block; margin-right: 5px;">
-          ⚖️ Search Legal Filings
-        </a>
-
-        <a href="${moeaLink}" target="_blank" style="background-color: #059669; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; display: inline-block;">
-          💰 Check Escrow
-        </a>
+        <!-- Change indicator for operator/status changes -->
+        ${m.isOperatorChange ? `
+        <div style="background: #FEF3C7; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 13px; color: #92400E;">
+            <strong>Operator changed:</strong> ${m.previousOperator} → ${m.operator}
+          </p>
+        </div>
+        ` : ''}
+        ${m.isStatusChange && !m.isOperatorChange ? `
+        <div style="background: #FEF3C7; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 13px; color: #92400E;">
+            <strong>Status changed:</strong> ${m.previousStatus} → ${m.status}
+          </p>
+        </div>
+        ` : ''}
+        
+        <!-- Well Details -->
+        <table style="width: 100%; font-size: 14px; margin-bottom: 16px;" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding: 6px 0; color: #64748B; width: 90px;">Well</td>
+            <td style="padding: 6px 0; color: #1C2B36; font-weight: 500;">
+              <a href="${m.mapLink}" style="color: #1C2B36; text-decoration: none;">${m.well}</a>
+              <a href="${m.mapLink}" style="color: #2563EB; font-size: 12px; margin-left: 6px;">📍 Map</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748B;">Operator</td>
+            <td style="padding: 6px 0; color: #1C2B36; font-weight: 500;">${m.operator}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748B;">Status</td>
+            <td style="padding: 6px 0;">
+              <span style="background: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: 500;">${m.status}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748B;">API</td>
+            <td style="padding: 6px 0; color: #1C2B36;">${m.api || 'Pending'}</td>
+          </tr>
+        </table>
+        
+        <!-- What This Means -->
+        <div style="background: #F8FAFC; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 13px; color: #334E68; line-height: 1.6;">
+            <strong style="color: #1C2B36;">What this means:</strong> ${m.explanation}
+          </p>
+        </div>
+        
+        <!-- Action Needed -->
+        ${m.actionNeeded ? `
+        <div style="background: ${m.actionNeeded.includes('⚠️') ? '#FEF2F2' : '#F0FDF4'}; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; border-left: 3px solid ${m.actionNeeded.includes('⚠️') ? '#EF4444' : '#22C55E'};">
+          <p style="margin: 0; font-size: 13px; color: ${m.actionNeeded.includes('⚠️') ? '#991B1B' : '#166534'}; line-height: 1.6;">
+            ${m.actionNeeded}
+          </p>
+        </div>
+        ` : ''}
+        
+        <!-- CTA Button -->
+        <div style="text-align: center; padding-top: 8px;">
+          <a href="${m.link}" style="display: inline-block; background: #C05621; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">
+            View OCC Filing →
+          </a>
+        </div>
+        
       </div>
     </div>
   `}).join("");
 
+  // Build full email HTML
   const htmlBody = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1e293b;">Mineral Watch Alert</h2>
-      <p style="color: #475569;">Hi ${user.name}, we detected ${matches.length + remaining} update${matches.length + remaining > 1 ? 's' : ''} on your monitored properties:</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #F7FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #E2E8F0;">
       
-      ${(() => {
-        const operatorChanges = matches.filter(m => m.isOperatorChange).length;
-        const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
-        const newWells = matches.filter(m => !m.isStatusChange && !m.isOperatorChange).length;
-        const parts = [];
-        if (operatorChanges > 0) parts.push(`<strong>🔄 ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''}</strong>`);
-        if (statusChanges > 0) parts.push(`<strong>📊 ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}</strong>`);
-        if (newWells > 0) parts.push(`<strong>📋 ${newWells} New Well Record${newWells > 1 ? 's' : ''}</strong>`);
+      <!-- Header -->
+      <div style="background: #1C2B36; padding: 24px 30px;">
+        <span style="color: #ffffff; font-size: 22px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+      </div>
+      
+      <!-- Content -->
+      <div style="padding: 32px 30px;">
+        <h1 style="font-size: 22px; color: #1C2B36; margin: 0 0 8px; font-family: Georgia, serif;">
+          Activity Alert
+        </h1>
+        <p style="font-size: 16px; color: #334E68; margin: 0 0 24px;">
+          Hi ${user.name}, we found ${matches.length + remaining} update${matches.length + remaining > 1 ? 's' : ''} on your monitored properties.
+        </p>
         
-        if (parts.length > 0) {
-          return `<div style="background: #f0f9ff; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #0284c7;">
-            <p style="margin: 0; font-size: 14px;">
-              ${parts.join(' • ')}
-            </p>
-          </div>`;
-        }
-        return '';
-      })()}
-      
-      ${rows}
-      
-      ${remaining > 0 ? `
-      <div style="background: #fef3c7; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #f59e0b;">
-        <strong>⚠️ ${remaining} more wells found</strong><br>
-        <span style="font-size: 14px; color: #78350f;">Only showing the first 20 matches to keep this email manageable. Check your dashboard for the complete list.</span>
+        <!-- Summary -->
+        ${(() => {
+          const operatorChanges = matches.filter(m => m.isOperatorChange).length;
+          const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
+          const newWells = matches.filter(m => !m.isStatusChange && !m.isOperatorChange).length;
+          const directHits = matches.filter(m => !m.matchType.includes('Adjacent') && !m.matchType.includes('API Watch')).length;
+          const adjacentHits = matches.filter(m => m.matchType.includes('Adjacent')).length;
+          const apiHits = matches.filter(m => m.matchType.includes('API Watch')).length;
+          
+          let summaryItems = [];
+          if (directHits > 0) summaryItems.push(`<span style="color: #DC2626; font-weight: 600;">${directHits} on your property</span>`);
+          if (adjacentHits > 0) summaryItems.push(`<span style="color: #D97706; font-weight: 600;">${adjacentHits} adjacent</span>`);
+          if (apiHits > 0) summaryItems.push(`<span style="color: #0D9488; font-weight: 600;">${apiHits} tracked well${apiHits > 1 ? 's' : ''}</span>`);
+          
+          if (summaryItems.length > 0) {
+            return `<div style="background: #F8FAFC; padding: 14px 18px; border-radius: 6px; margin-bottom: 24px; border-left: 4px solid #1C2B36;">
+              <p style="margin: 0; font-size: 14px; color: #334E68;">
+                ${summaryItems.join(' · ')}
+              </p>
+            </div>`;
+          }
+          return '';
+        })()}
+        
+        <!-- Alert Cards -->
+        ${rows}
+        
+        <!-- More Alerts Notice -->
+        ${remaining > 0 ? `
+        <div style="background: #FEF3C7; padding: 16px 20px; border-radius: 6px; margin-top: 8px; border-left: 4px solid #F59E0B;">
+          <p style="margin: 0; font-size: 14px; color: #92400E;">
+            <strong>+ ${remaining} more alerts</strong><br>
+            <span style="font-size: 13px;">Showing first 20 to keep this email manageable.</span>
+          </p>
+        </div>
+        ` : ''}
+        
+        <!-- Status Code Reference -->
+        <div style="background: #F8FAFC; padding: 16px 20px; border-radius: 6px; margin-top: 32px;">
+          <p style="font-size: 12px; font-weight: 600; color: #64748B; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Status Codes</p>
+          <p style="font-size: 13px; color: #64748B; margin: 0; line-height: 1.8;">
+            <strong>ND</strong> = Permit Filed · 
+            <strong>SP</strong> = Drilling · 
+            <strong>AC</strong> = Producing · 
+            <strong>SI</strong> = Shut-In · 
+            <strong>PA</strong> = Plugged
+          </p>
+        </div>
+        
       </div>
-      ` : ''}
       
-      <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin-top: 30px; font-size: 12px; color: #64748b;">
-        <strong>Understanding Status Codes:</strong><br>
-        ND = New Drill (Permit Filed)<br>
-        SP = Spud (Drilling Started)<br>
-        AC = Active (Producing)<br>
-        PA = Plugged
+      <!-- Footer -->
+      <div style="background: #F8F9FA; padding: 20px 30px; border-top: 1px solid #E2E8F0;">
+        <p style="font-size: 12px; color: #718096; margin: 0; line-height: 1.6;">
+          Mineral Watch · Oklahoma City, Oklahoma<br>
+          <a href="https://mymineralwatch.com/portal" style="color: #718096;">View Dashboard</a> · 
+          <a href="https://mymineralwatch.com/contact" style="color: #718096;">Contact Support</a>
+        </p>
       </div>
+      
     </div>
+  </div>
+</body>
+</html>
   `;
 
+  // Build subject line
+  const subject = (() => {
+    const operatorChanges = matches.filter(m => m.isOperatorChange).length;
+    const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
+    const newWells = matches.filter(m => !m.isStatusChange && !m.isOperatorChange).length;
+    const directHits = matches.filter(m => !m.matchType.includes('Adjacent') && !m.matchType.includes('API Watch')).length;
+    
+    // Prioritize direct hits in subject
+    if (directHits > 0) {
+      return `🚨 ${directHits} alert${directHits > 1 ? 's' : ''} on your property`;
+    } else if (operatorChanges > 0) {
+      return `🔄 ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''}${statusChanges > 0 ? ` + ${statusChanges} more` : ''}`;
+    } else if (statusChanges > 0) {
+      return `📊 ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}${newWells > 0 ? ` + ${newWells} new` : ''}`;
+    } else {
+      return `📋 ${newWells} New Well Record${newWells > 1 ? 's' : ''} nearby`;
+    }
+  })();
+
+  // Send via Postmark
   const response = await fetch("https://api.postmarkapp.com/email", {
     method: "POST",
     headers: {
@@ -595,23 +728,9 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
       "X-Postmark-Server-Token": env.POSTMARK_API_KEY
     },
     body: JSON.stringify({
-      "From": "alerts@mymineralwatch.com",
+      "From": "Mineral Watch <alerts@mymineralwatch.com>",
       "To": user.email,
-      "Subject": (() => {
-        const operatorChanges = matches.filter(m => m.isOperatorChange).length;
-        const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
-        const newWells = matches.filter(m => !m.isStatusChange && !m.isOperatorChange).length;
-        
-        if (operatorChanges > 0) {
-          return `🔔 ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''}${statusChanges > 0 ? ` + ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}` : ''}${newWells > 0 ? ` + ${newWells} New Well${newWells > 1 ? 's' : ''}` : ''}`;
-        } else if (statusChanges > 0 && newWells > 0) {
-          return `🔔 ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''} + ${newWells} New Well${newWells > 1 ? 's' : ''}`;
-        } else if (statusChanges > 0) {
-          return `🔔 ${statusChanges} Well Status Change${statusChanges > 1 ? 's' : ''}`;
-        } else {
-          return `📋 ${newWells} New Well Record${newWells > 1 ? 's' : ''}`;
-        }
-      })(),
+      "Subject": subject,
       "HtmlBody": htmlBody,
       "MessageStream": "outbound"
     })
@@ -622,7 +741,6 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
     throw new Error(`Postmark Failed: ${errorText}`);
   }
 }
-
 // --- HELPER: LOG ACTIVITY TO AIRTABLE ---
 async function logActivity(env, data) {
   const baseId = "app3j3X29Uvp5stza";
@@ -632,7 +750,7 @@ async function logActivity(env, data) {
     const response = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({

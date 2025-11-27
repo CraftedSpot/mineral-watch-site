@@ -341,10 +341,10 @@ async function fetchActiveUsers(env) {
   const baseId = "app3j3X29Uvp5stza";
   const tableName = "👤 Users";
   
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=Status='Active'`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent("{Status}='Active'")}`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -370,7 +370,7 @@ async function fetchUserProperties(env, userId) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC&fields[]=TWN&fields[]=RNG&fields[]=MERIDIAN`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -391,7 +391,7 @@ async function fetchUserWells(env, userId) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number&fields[]=Well Name&fields[]=Status`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -751,7 +751,7 @@ async function logActivity(env, data) {
     const response = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
