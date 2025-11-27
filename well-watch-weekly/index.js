@@ -1,4 +1,5 @@
 // UPDATED well-watch-weekly - Status changes + Client Wells API monitoring
+// CHANGES: New email design, removed generic buttons, updated From address
 
 export default {
   async fetch(request, env, ctx) {
@@ -266,126 +267,119 @@ async function processWellFeatures(env, user, features, sectionBatch, matches, t
   }
 }
 
-// --- HELPER: BUILD SECTION LIST ---
+// --- HELPER: FETCH USERS ---
+async function fetchActiveUsers(env) {
+  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Users?filterByFormula=AND({Status}='Active', {Email}!='')`;
+  
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!res.ok) throw new Error("Failed to fetch users");
+  const data = await res.json();
+  
+  return data.records.map(r => ({
+    id: r.id,
+    email: r.fields.Email,
+    name: r.fields.Name || r.fields.Email.split('@')[0]
+  }));
+}
+
+// --- HELPER: FETCH USER PROPERTIES ---
+async function fetchUserProperties(env, userId) {
+  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Properties?filterByFormula=FIND("${userId}", ARRAYJOIN({User}))`;
+  
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!res.ok) throw new Error("Failed to fetch properties");
+  const data = await res.json();
+  
+  return data.records.map(r => ({
+    section: r.fields.Section,
+    township: r.fields.Township,
+    range: r.fields.Range,
+    meridian: r.fields.Meridian || 'IM'
+  }));
+}
+
+// --- HELPER: FETCH USER WELLS ---
+async function fetchUserWells(env, userId) {
+  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Wells?filterByFormula=FIND("${userId}", ARRAYJOIN({User}))`;
+  
+  const res = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!res.ok) throw new Error("Failed to fetch wells");
+  const data = await res.json();
+  
+  return data.records.map(r => r.fields);
+}
+
+// --- HELPER: BUILD SECTION LIST (with adjacents) ---
 function buildSectionList(properties) {
   const sections = [];
   const seen = new Set();
   
-  properties.forEach(f => {
-    if (!f.SEC || !f.TWN || !f.RNG) return;
-
-    const sec = parseInt(f.SEC);
-    const twn = f.TWN;
-    const rng = f.RNG;
-    const mer = f.MERIDIAN || 'IM';
+  for (const prop of properties) {
+    const sec = parseInt(prop.section);
+    const twn = prop.township;
+    const rng = prop.range;
+    const mer = prop.meridian || 'IM';
     
-    const originalKey = `${String(sec).padStart(2, '0')}-${twn}-${rng}-${mer}`;
-    
-    // Add actual property
-    if (!seen.has(originalKey)) {
+    // Add the property's own section
+    const mainKey = `${sec}-${twn}-${rng}-${mer}`;
+    if (!seen.has(mainKey)) {
+      seen.add(mainKey);
       sections.push({
-        section: String(sec).padStart(2, '0'),
+        section: String(sec),
         township: twn,
         range: rng,
         meridian: mer,
         isAdjacent: false,
-        originalSection: originalKey
+        originalSection: sec
       });
-      seen.add(originalKey);
     }
     
-    // Add 8 adjacent sections
-    const offsets = [-1, +1, -6, +6, -7, -5, +5, +7];
-    offsets.forEach(offset => {
-      const adjSec = sec + offset;
-      if (adjSec >= 1 && adjSec <= 36) {
-        const adjKey = `${String(adjSec).padStart(2, '0')}-${twn}-${rng}-${mer}`;
-        if (!seen.has(adjKey)) {
-          sections.push({
-            section: String(adjSec).padStart(2, '0'),
-            township: twn,
-            range: rng,
-            meridian: mer,
-            isAdjacent: true,
-            originalSection: originalKey
-          });
-          seen.add(adjKey);
-        }
+    // Add adjacent sections
+    const adjacentSections = getAdjacentSections(sec);
+    for (const adjSec of adjacentSections) {
+      const adjKey = `${adjSec}-${twn}-${rng}-${mer}`;
+      if (!seen.has(adjKey)) {
+        seen.add(adjKey);
+        sections.push({
+          section: String(adjSec),
+          township: twn,
+          range: rng,
+          meridian: mer,
+          isAdjacent: true,
+          originalSection: sec
+        });
       }
-    });
-  });
+    }
+  }
   
   return sections;
 }
 
-// --- HELPER: FETCH ACTIVE USERS ---
-async function fetchActiveUsers(env) {
-  const baseId = "app3j3X29Uvp5stza";
-  const tableName = "👤 Users";
+// --- HELPER: GET ADJACENT SECTIONS ---
+function getAdjacentSections(section) {
+  const adjacent = [];
+  const sec = parseInt(section);
   
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=Status='Active'`;
+  // Simplified adjacent logic - same township/range
+  const offsets = [-7, -6, -5, -1, 1, 5, 6, 7];
   
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Airtable Users Fetch Failed: ${response.status} - ${errText}`);
+  for (const offset of offsets) {
+    const adj = sec + offset;
+    if (adj >= 1 && adj <= 36) {
+      adjacent.push(adj);
+    }
   }
-
-  const json = await response.json();
-  return json.records.map(r => ({
-    id: r.id,
-    email: r.fields.Email,
-    name: r.fields.Name || r.fields.Email,
-    plan: r.fields.Plan
-  }));
-}
-
-// --- HELPER: FETCH USER'S PROPERTIES ---
-async function fetchUserProperties(env, userId) {
-  const baseId = "app3j3X29Uvp5stza";
-  const tableName = "📍 Client Properties"; // UPDATED TABLE NAME
   
-  const formula = `FIND('${userId}', ARRAYJOIN({User}))`;
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC&fields[]=TWN&fields[]=RNG&fields[]=MERIDIAN`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Airtable Properties Fetch Failed: ${response.status} - ${errText}`);
-  }
-
-  const json = await response.json();
-  return json.records.map(r => r.fields);
-}
-
-// --- HELPER: FETCH USER'S WELLS (NEW FUNCTION) ---
-async function fetchUserWells(env, userId) {
-  const baseId = "app3j3X29Uvp5stza";
-  const tableName = "🛢️ Client Wells";
-  
-  const formula = `FIND('${userId}', ARRAYJOIN({User}))`;
-  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number&fields[]=Well Name&fields[]=Status`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
-  });
-  
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error(`Airtable Wells Fetch Failed: ${response.status} - ${errText}`);
-    return [];
-  }
-
-  const json = await response.json();
-  return json.records
-    .map(r => r.fields)
-    .filter(f => f['API Number'] && f.Status === 'Active'); // Only active wells
+  return adjacent;
 }
 
 // --- HELPER: OPERATOR CHANGE DESCRIPTIONS ---
@@ -461,102 +455,249 @@ function generateMapLink(lat, lon, title) {
 
 // --- HELPER: SEND EMAIL ---
 async function sendPostmarkEmail(env, user, matches, remaining = 0) {
+  
+  // Build individual alert cards
   const rows = matches.map(m => {
-    const imagingLink = "https://imaging.occ.ok.gov/imaging/oap.aspx";
-    const moeaLink = "https://ogims.public.occ.ok.gov/external/moea-search";
+    // Determine alert category styling
+    let categoryBadge, categoryColor, cardBorderColor, cardBgColor;
+    
+    if (m.matchType.includes('API Watch')) {
+      // Specific well monitoring - teal/green
+      categoryBadge = 'TRACKED WELL';
+      categoryColor = '#0D9488';
+      cardBorderColor = '#0D9488';
+      cardBgColor = '#F0FDFA';
+    } else if (m.matchType.includes('Adjacent')) {
+      // Adjacent section - amber/yellow
+      categoryBadge = 'ADJACENT SECTION';
+      categoryColor = '#D97706';
+      cardBorderColor = '#D97706';
+      cardBgColor = '#FFFBEB';
+    } else {
+      // Direct hit - red (highest priority)
+      categoryBadge = 'YOUR PROPERTY';
+      categoryColor = '#DC2626';
+      cardBorderColor = '#DC2626';
+      cardBgColor = '#FEF2F2';
+    }
+
+    // Activity type badge color
+    let activityBadgeColor = '#6D28D9';
+    let activityBadgeBg = '#EDE9FE';
+    if (m.isOperatorChange) {
+      activityBadgeColor = '#6D28D9';
+      activityBadgeBg = '#EDE9FE';
+    } else if (m.activityType.includes('Plugged') || m.activityType.includes('Abandoned')) {
+      activityBadgeColor = '#DC2626';
+      activityBadgeBg = '#FEE2E2';
+    } else if (m.activityType.includes('Producing') || m.activityType.includes('Reactivated')) {
+      activityBadgeColor = '#047857';
+      activityBadgeBg = '#D1FAE5';
+    } else if (m.activityType.includes('Shut In')) {
+      activityBadgeColor = '#92400E';
+      activityBadgeBg = '#FEF3C7';
+    }
 
     return `
-    <div style="border: 1px solid #e2e8f0; padding: 20px; margin-bottom: 20px; border-radius: 8px; background-color: #fef3c7; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+    <div style="border: 1px solid #E2E8F0; border-left: 4px solid ${cardBorderColor}; border-radius: 0 8px 8px 0; margin-bottom: 20px; overflow: hidden;">
       
-      <div style="border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 10px;">
-        <h3 style="margin: 0; color: #d97706; font-size: 18px;">
-          ${m.matchType}
-        </h3>
-        <p style="margin: 5px 0 0 0; color: #64748b; font-size: 14px;">${m.location}</p>
-        <p style="margin: 8px 0 0 0; font-size: 16px; font-weight: bold; color: #d97706;">
-          ${m.activityType}
-        </p>
-        ${m.isOperatorChange ? `<p style="margin: 5px 0 0 0; font-size: 13px; color: #78350f; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;">Changed from: ${m.previousOperator}</p>` : ''}
-        ${m.isStatusChange ? `<p style="margin: 5px 0 0 0; font-size: 13px; color: #78350f; background: #fef3c7; padding: 4px 8px; border-radius: 4px; display: inline-block;">Changed from: ${m.previousStatus}</p>` : ''}
-      </div>
-
-      <div style="background: #f8fafc; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
-        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #475569;">
-          <strong>What this means:</strong> ${m.explanation}
+      <!-- Card Header -->
+      <div style="background: ${cardBgColor}; padding: 16px 20px; border-bottom: 1px solid #E2E8F0;">
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 8px;">
+          <span style="display: inline-block; background: ${categoryColor}; color: white; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+            ${categoryBadge}
+          </span>
+          <span style="display: inline-block; background: ${activityBadgeBg}; color: ${activityBadgeColor}; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.5px;">
+            ${m.activityType.replace(/[🔄🔨💰🔴⏸️✅❌📋📊📄]/g, '').trim()}
+          </span>
+        </div>
+        <p style="margin: 12px 0 0 0; font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px;">
+          ${m.location}${m.matchType.includes('Adjacent') ? ` · Adjacent to Section ${m.matchType.split('Adjacent to ')[1]}` : ''}
         </p>
       </div>
-
-      ${m.actionNeeded ? `
-      <div style="background: ${m.actionNeeded.includes('⚠️') ? '#fef2f2' : '#f0fdf4'}; padding: 12px; border-radius: 6px; margin-bottom: 12px; border-left: 3px solid ${m.actionNeeded.includes('⚠️') ? '#ef4444' : '#22c55e'};">
-        <p style="margin: 0; font-size: 14px; line-height: 1.5; color: #1e293b;">
-          <strong>${m.actionNeeded.includes('⚠️') ? '⚠️ Action Required:' : '💡 Recommended Action:'}</strong> ${m.actionNeeded}
-        </p>
-      </div>
-      ` : ''}
-
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; font-size: 15px; margin-bottom: 12px;">
-        <p style="margin: 5px 0;"><strong>Well:</strong> 
-           <a href="${m.mapLink}" style="color: #2563eb; text-decoration: underline; font-weight: bold;">${m.well} 📍</a>
-        </p>
-        <p style="margin: 5px 0;"><strong>Operator:</strong> ${m.operator}${m.isOperatorChange ? ' 🔄' : ''}</p>
-        <p style="margin: 5px 0;"><strong>Current Status:</strong> <span style="background: #e0f2fe; color: #0369a1; padding: 2px 6px; border-radius: 4px;">${m.status}</span></p>
-        <p style="margin: 5px 0;"><strong>API:</strong> ${m.api || 'Pending'}</p>
-      </div>
-
-      <div style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #cbd5e1;">
-        <p style="font-size: 12px; color: #94a3b8; margin-bottom: 8px; font-weight: bold; text-transform: uppercase;">Investigate this Section:</p>
+      
+      <!-- Card Body -->
+      <div style="background: #ffffff; padding: 20px;">
         
-        <a href="${m.link}" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; display: inline-block; margin-right: 5px;">
-          📄 View Permit / Docs
-        </a>
-
-        <a href="${imagingLink}" target="_blank" style="background-color: #475569; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; display: inline-block; margin-right: 5px;">
-          ⚖️ Search Legal Filings
-        </a>
-
-        <a href="${moeaLink}" target="_blank" style="background-color: #059669; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-size: 13px; display: inline-block;">
-          💰 Check Escrow
-        </a>
+        <!-- Change indicator -->
+        ${m.isOperatorChange ? `
+        <div style="background: #EDE9FE; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 13px; color: #6D28D9;">
+            <strong>Operator changed:</strong> ${m.previousOperator} → ${m.operator}
+          </p>
+        </div>
+        ` : ''}
+        ${m.isStatusChange && !m.isOperatorChange ? `
+        <div style="background: #FEF3C7; border-radius: 6px; padding: 10px 14px; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 13px; color: #92400E;">
+            <strong>Status changed:</strong> ${m.previousStatus} → ${m.status}
+          </p>
+        </div>
+        ` : ''}
+        
+        <!-- Well Details -->
+        <table style="width: 100%; font-size: 14px; margin-bottom: 16px;" cellpadding="0" cellspacing="0">
+          <tr>
+            <td style="padding: 6px 0; color: #64748B; width: 90px;">Well</td>
+            <td style="padding: 6px 0; color: #1C2B36; font-weight: 500;">
+              <a href="${m.mapLink}" style="color: #1C2B36; text-decoration: none;">${m.well}</a>
+              <a href="${m.mapLink}" style="color: #2563EB; font-size: 12px; margin-left: 6px;">📍 Map</a>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748B;">Operator</td>
+            <td style="padding: 6px 0; color: #1C2B36; font-weight: 500;">${m.operator}</td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748B;">Status</td>
+            <td style="padding: 6px 0;">
+              <span style="background: #E0F2FE; color: #0369A1; padding: 2px 8px; border-radius: 4px; font-size: 13px; font-weight: 500;">${m.status}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 6px 0; color: #64748B;">API</td>
+            <td style="padding: 6px 0; color: #1C2B36;">${m.api || 'Pending'}</td>
+          </tr>
+        </table>
+        
+        <!-- What This Means -->
+        <div style="background: #F8FAFC; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px;">
+          <p style="margin: 0; font-size: 13px; color: #334E68; line-height: 1.6;">
+            <strong style="color: #1C2B36;">What this means:</strong> ${m.explanation}
+          </p>
+        </div>
+        
+        <!-- Action Needed -->
+        ${m.actionNeeded ? `
+        <div style="background: ${m.actionNeeded.includes('⚠️') ? '#FEF2F2' : '#F0FDF4'}; border-radius: 6px; padding: 14px 16px; margin-bottom: 16px; border-left: 3px solid ${m.actionNeeded.includes('⚠️') ? '#EF4444' : '#22C55E'};">
+          <p style="margin: 0; font-size: 13px; color: ${m.actionNeeded.includes('⚠️') ? '#991B1B' : '#166534'}; line-height: 1.6;">
+            ${m.actionNeeded}
+          </p>
+        </div>
+        ` : ''}
+        
+        <!-- CTA Button -->
+        <div style="text-align: center; padding-top: 8px;">
+          <a href="${m.link}" style="display: inline-block; background: #C05621; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px;">
+            View OCC Filing →
+          </a>
+        </div>
+        
       </div>
     </div>
   `}).join("");
 
+  // Build full email HTML
   const htmlBody = `
-    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1e293b;">📊 Weekly Status Update</h2>
-      <p style="color: #475569;">Hi ${user.name}, during our weekly review we found ${matches.length + remaining} change${matches.length + remaining > 1 ? 's' : ''} on your monitored properties:</p>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #F7FAFC; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #E2E8F0;">
       
-      <div style="background: #fef3c7; padding: 12px; border-radius: 6px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
-        <p style="margin: 0; font-size: 14px;">
-          ${(() => {
-            const operatorChanges = matches.filter(m => m.isOperatorChange).length;
-            const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
-            const parts = [];
-            if (operatorChanges > 0) parts.push(`<strong>🔄 ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''}</strong>`);
-            if (statusChanges > 0) parts.push(`<strong>📊 ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}</strong>`);
-            return parts.join(' • ');
-          })()}<br>
-          <span style="color: #78350f; font-size: 13px;">These wells changed since last week's review.</span>
+      <!-- Header -->
+      <div style="background: #1C2B36; padding: 24px 30px;">
+        <span style="color: #ffffff; font-size: 22px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+      </div>
+      
+      <!-- Content -->
+      <div style="padding: 32px 30px;">
+        <p style="font-size: 11px; font-weight: 600; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 8px;">Weekly Review</p>
+        <h1 style="font-size: 22px; color: #1C2B36; margin: 0 0 8px; font-family: Georgia, serif;">
+          Status Changes Detected
+        </h1>
+        <p style="font-size: 16px; color: #334E68; margin: 0 0 24px;">
+          Hi ${user.name}, our weekly scan found ${matches.length + remaining} change${matches.length + remaining > 1 ? 's' : ''} on your monitored wells.
+        </p>
+        
+        <!-- Summary -->
+        <div style="background: #F8FAFC; padding: 14px 18px; border-radius: 6px; margin-bottom: 24px; border-left: 4px solid #1C2B36;">
+          <p style="margin: 0; font-size: 14px; color: #334E68;">
+            ${(() => {
+              const operatorChanges = matches.filter(m => m.isOperatorChange).length;
+              const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
+              const directHits = matches.filter(m => !m.matchType.includes('Adjacent') && !m.matchType.includes('API Watch')).length;
+              const adjacentHits = matches.filter(m => m.matchType.includes('Adjacent')).length;
+              const apiHits = matches.filter(m => m.matchType.includes('API Watch')).length;
+              
+              let parts = [];
+              if (operatorChanges > 0) parts.push(`<strong style="color: #6D28D9;">${operatorChanges} operator transfer${operatorChanges > 1 ? 's' : ''}</strong>`);
+              if (statusChanges > 0) parts.push(`<strong style="color: #92400E;">${statusChanges} status change${statusChanges > 1 ? 's' : ''}</strong>`);
+              
+              let locationParts = [];
+              if (directHits > 0) locationParts.push(`${directHits} on your property`);
+              if (adjacentHits > 0) locationParts.push(`${adjacentHits} adjacent`);
+              if (apiHits > 0) locationParts.push(`${apiHits} tracked well${apiHits > 1 ? 's' : ''}`);
+              
+              return parts.join(' · ') + (locationParts.length > 0 ? '<br><span style="font-size: 13px; color: #64748B;">' + locationParts.join(' · ') + '</span>' : '');
+            })()}
+          </p>
+        </div>
+        
+        <!-- Alert Cards -->
+        ${rows}
+        
+        <!-- More Alerts Notice -->
+        ${remaining > 0 ? `
+        <div style="background: #FEF3C7; padding: 16px 20px; border-radius: 6px; margin-top: 8px; border-left: 4px solid #F59E0B;">
+          <p style="margin: 0; font-size: 14px; color: #92400E;">
+            <strong>+ ${remaining} more changes</strong><br>
+            <span style="font-size: 13px;">Showing first 20 to keep this email manageable.</span>
+          </p>
+        </div>
+        ` : ''}
+        
+        <!-- Schedule Explanation -->
+        <div style="background: #F8FAFC; padding: 16px 20px; border-radius: 6px; margin-top: 32px;">
+          <p style="font-size: 12px; font-weight: 600; color: #64748B; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">How Monitoring Works</p>
+          <p style="font-size: 13px; color: #64748B; margin: 0; line-height: 1.7;">
+            <strong>Daily alerts</strong> catch new permits and wells as they're filed.<br>
+            <strong>Weekly reviews</strong> (like this one) catch status and operator changes on existing wells.
+          </p>
+        </div>
+        
+      </div>
+      
+      <!-- Footer -->
+      <div style="background: #F8F9FA; padding: 20px 30px; border-top: 1px solid #E2E8F0;">
+        <p style="font-size: 12px; color: #718096; margin: 0; line-height: 1.6;">
+          Mineral Watch · Oklahoma City, Oklahoma<br>
+          <a href="https://mymineralwatch.com/portal" style="color: #718096;">View Dashboard</a> · 
+          <a href="https://mymineralwatch.com/contact" style="color: #718096;">Contact Support</a>
         </p>
       </div>
       
-      ${rows}
-      
-      ${remaining > 0 ? `
-      <div style="background: #fef3c7; padding: 15px; border-radius: 6px; margin-top: 20px; border-left: 4px solid #f59e0b;">
-        <strong>⚠️ ${remaining} more changes found</strong><br>
-        <span style="font-size: 14px; color: #78350f;">Only showing the first 20 matches to keep this email manageable.</span>
-      </div>
-      ` : ''}
-      
-      <div style="background: #f8fafc; padding: 15px; border-radius: 6px; margin-top: 30px; font-size: 12px; color: #64748b;">
-        <strong>📅 Review Schedule:</strong><br>
-        • Daily scans check for NEW drill permits and wells<br>
-        • Weekly reviews (like this one) check for status and operator changes on existing wells
-      </div>
     </div>
+  </div>
+</body>
+</html>
   `;
 
+  // Build subject line
+  const subject = (() => {
+    const operatorChanges = matches.filter(m => m.isOperatorChange).length;
+    const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
+    const directHits = matches.filter(m => !m.matchType.includes('Adjacent') && !m.matchType.includes('API Watch')).length;
+    
+    // Prioritize direct hits and operator changes
+    if (directHits > 0 && operatorChanges > 0) {
+      return `📊 Weekly: ${operatorChanges} operator change${operatorChanges > 1 ? 's' : ''} on your property`;
+    } else if (operatorChanges > 0 && statusChanges > 0) {
+      return `📊 Weekly: ${operatorChanges} operator + ${statusChanges} status change${statusChanges > 1 ? 's' : ''}`;
+    } else if (operatorChanges > 0) {
+      return `🔄 Weekly: ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''}`;
+    } else if (directHits > 0) {
+      return `📊 Weekly: ${statusChanges} status change${statusChanges > 1 ? 's' : ''} on your property`;
+    } else {
+      return `📊 Weekly: ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}`;
+    }
+  })();
+
+  // Send via Postmark
   const response = await fetch("https://api.postmarkapp.com/email", {
     method: "POST",
     headers: {
@@ -565,20 +706,9 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
       "X-Postmark-Server-Token": env.POSTMARK_API_KEY
     },
     body: JSON.stringify({
-      "From": "support@craftedspot.com",
+      "From": "Mineral Watch <alerts@mymineralwatch.com>",
       "To": user.email,
-      "Subject": (() => {
-        const operatorChanges = matches.filter(m => m.isOperatorChange).length;
-        const statusChanges = matches.filter(m => m.isStatusChange && !m.isOperatorChange).length;
-        
-        if (operatorChanges > 0 && statusChanges > 0) {
-          return `📊 Weekly: ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''} + ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}`;
-        } else if (operatorChanges > 0) {
-          return `🔄 Weekly: ${operatorChanges} Operator Transfer${operatorChanges > 1 ? 's' : ''}`;
-        } else {
-          return `📊 Weekly: ${statusChanges} Status Change${statusChanges > 1 ? 's' : ''}`;
-        }
-      })(),
+      "Subject": subject,
       "HtmlBody": htmlBody,
       "MessageStream": "outbound"
     })
