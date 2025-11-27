@@ -5,3 +5,9 @@ compatibility_date = "2024-01-01"
 [[kv_namespaces]]
 binding = "AUTH_TOKENS"
 id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"
+
+# Environment variables (secrets set via CLI)
+# MINERAL_AIRTABLE_API_KEY = "your-airtable-api-key"
+# POSTMARK_API_KEY = "your-postmark-api-key"
+# AUTH_SECRET = "your-auth-secret"
+# STRIPE_SECRET_KEY = "your-stripe-secret-key"
