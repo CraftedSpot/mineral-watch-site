@@ -1,5 +1,4 @@
 // UPDATED well-watch-weekly - Status changes + Client Wells API monitoring
-// CHANGES: New email design, removed generic buttons, updated From address
 
 export default {
   async fetch(request, env, ctx) {
@@ -256,18 +255,17 @@ async function processWellFeatures(env, user, features, sectionBatch, matches, t
         county: attr.county
       });
       
-      // 📋 LOG TO ACTIVITY HISTORY
+      // 📋 Log to Activity Log
       await logActivity(env, {
-        userId: user.id,
-        api: attr.api,
         wellName: fullWellName,
+        apiNumber: attr.api,
         activityType: activityType,
         previousValue: isOperatorChange ? previousOperator : previousStatus,
         newValue: isOperatorChange ? attr.operator : attr.wellstatus,
         operator: attr.operator,
         previousOperator: previousOperator,
-        alertLevel: matchType.includes("Adjacent") ? "ADJACENT SECTION" : 
-                    matchType.includes("Tracked") || matchType.includes("API") ? "TRACKED WELL" : "YOUR PROPERTY",
+        alertLevel: matchType,
+        userId: user.id,
         location: locationKey,
         county: attr.county,
         occLink: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api}`,
@@ -286,119 +284,126 @@ async function processWellFeatures(env, user, features, sectionBatch, matches, t
   }
 }
 
-// --- HELPER: FETCH USERS ---
-async function fetchActiveUsers(env) {
-  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Users?filterByFormula=AND({Status}='Active', {Email}!='')`;
-  
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
-  });
-  
-  if (!res.ok) throw new Error("Failed to fetch users");
-  const data = await res.json();
-  
-  return data.records.map(r => ({
-    id: r.id,
-    email: r.fields.Email,
-    name: r.fields.Name || r.fields.Email.split('@')[0]
-  }));
-}
-
-// --- HELPER: FETCH USER PROPERTIES ---
-async function fetchUserProperties(env, userId) {
-  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Properties?filterByFormula=FIND("${userId}", ARRAYJOIN({User}))`;
-  
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
-  });
-  
-  if (!res.ok) throw new Error("Failed to fetch properties");
-  const data = await res.json();
-  
-  return data.records.map(r => ({
-    section: r.fields.Section,
-    township: r.fields.Township,
-    range: r.fields.Range,
-    meridian: r.fields.Meridian || 'IM'
-  }));
-}
-
-// --- HELPER: FETCH USER WELLS ---
-async function fetchUserWells(env, userId) {
-  const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Wells?filterByFormula=FIND("${userId}", ARRAYJOIN({User}))`;
-  
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
-  });
-  
-  if (!res.ok) throw new Error("Failed to fetch wells");
-  const data = await res.json();
-  
-  return data.records.map(r => r.fields);
-}
-
-// --- HELPER: BUILD SECTION LIST (with adjacents) ---
+// --- HELPER: BUILD SECTION LIST ---
 function buildSectionList(properties) {
   const sections = [];
   const seen = new Set();
   
-  for (const prop of properties) {
-    const sec = parseInt(prop.section);
-    const twn = prop.township;
-    const rng = prop.range;
-    const mer = prop.meridian || 'IM';
+  properties.forEach(f => {
+    if (!f.SEC || !f.TWN || !f.RNG) return;
+
+    const sec = parseInt(f.SEC);
+    const twn = f.TWN;
+    const rng = f.RNG;
+    const mer = f.MERIDIAN || 'IM';
     
-    // Add the property's own section
-    const mainKey = `${sec}-${twn}-${rng}-${mer}`;
-    if (!seen.has(mainKey)) {
-      seen.add(mainKey);
+    const originalKey = `${String(sec).padStart(2, '0')}-${twn}-${rng}-${mer}`;
+    
+    // Add actual property
+    if (!seen.has(originalKey)) {
       sections.push({
-        section: String(sec),
+        section: String(sec).padStart(2, '0'),
         township: twn,
         range: rng,
         meridian: mer,
         isAdjacent: false,
-        originalSection: sec
+        originalSection: originalKey
       });
+      seen.add(originalKey);
     }
     
-    // Add adjacent sections
-    const adjacentSections = getAdjacentSections(sec);
-    for (const adjSec of adjacentSections) {
-      const adjKey = `${adjSec}-${twn}-${rng}-${mer}`;
-      if (!seen.has(adjKey)) {
-        seen.add(adjKey);
-        sections.push({
-          section: String(adjSec),
-          township: twn,
-          range: rng,
-          meridian: mer,
-          isAdjacent: true,
-          originalSection: sec
-        });
+    // Add 8 adjacent sections
+    const offsets = [-1, +1, -6, +6, -7, -5, +5, +7];
+    offsets.forEach(offset => {
+      const adjSec = sec + offset;
+      if (adjSec >= 1 && adjSec <= 36) {
+        const adjKey = `${String(adjSec).padStart(2, '0')}-${twn}-${rng}-${mer}`;
+        if (!seen.has(adjKey)) {
+          sections.push({
+            section: String(adjSec).padStart(2, '0'),
+            township: twn,
+            range: rng,
+            meridian: mer,
+            isAdjacent: true,
+            originalSection: originalKey
+          });
+          seen.add(adjKey);
+        }
       }
-    }
-  }
+    });
+  });
   
   return sections;
 }
 
-// --- HELPER: GET ADJACENT SECTIONS ---
-function getAdjacentSections(section) {
-  const adjacent = [];
-  const sec = parseInt(section);
+// --- HELPER: FETCH ACTIVE USERS ---
+async function fetchActiveUsers(env) {
+  const baseId = "app3j3X29Uvp5stza";
+  const tableName = "👤 Users";
   
-  // Simplified adjacent logic - same township/range
-  const offsets = [-7, -6, -5, -1, 1, 5, 6, 7];
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=Status='Active'`;
   
-  for (const offset of offsets) {
-    const adj = sec + offset;
-    if (adj >= 1 && adj <= 36) {
-      adjacent.push(adj);
-    }
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Airtable Users Fetch Failed: ${response.status} - ${errText}`);
   }
+
+  const json = await response.json();
+  return json.records.map(r => ({
+    id: r.id,
+    email: r.fields.Email,
+    name: r.fields.Name || r.fields.Email,
+    plan: r.fields.Plan
+  }));
+}
+
+// --- HELPER: FETCH USER'S PROPERTIES ---
+async function fetchUserProperties(env, userId) {
+  const baseId = "app3j3X29Uvp5stza";
+  const tableName = "📍 Client Properties"; // UPDATED TABLE NAME
   
-  return adjacent;
+  const formula = `FIND('${userId}', ARRAYJOIN({User}))`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC&fields[]=TWN&fields[]=RNG&fields[]=MERIDIAN`;
+  
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`Airtable Properties Fetch Failed: ${response.status} - ${errText}`);
+  }
+
+  const json = await response.json();
+  return json.records.map(r => r.fields);
+}
+
+// --- HELPER: FETCH USER'S WELLS (NEW FUNCTION) ---
+async function fetchUserWells(env, userId) {
+  const baseId = "app3j3X29Uvp5stza";
+  const tableName = "🛢️ Client Wells";
+  
+  const formula = `FIND('${userId}', ARRAYJOIN({User}))`;
+  const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number&fields[]=Well Name&fields[]=Status`;
+  
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+  });
+  
+  if (!response.ok) {
+    const errText = await response.text();
+    console.error(`Airtable Wells Fetch Failed: ${response.status} - ${errText}`);
+    return [];
+  }
+
+  const json = await response.json();
+  return json.records
+    .map(r => r.fields)
+    .filter(f => f['API Number'] && f.Status === 'Active'); // Only active wells
 }
 
 // --- HELPER: OPERATOR CHANGE DESCRIPTIONS ---
@@ -738,63 +743,70 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
     throw new Error(`Postmark Failed: ${errorText}`);
   }
 }
-
-// --- ACTIVITY LOGGING ---
 async function logActivity(env, data) {
-  const AIRTABLE_BASE_ID = "app3j3X29Uvp5stza";
-  const ACTIVITY_TABLE_ID = "tblhBZNR5pDr620NY";
-  
-  const fields = {
-    "Well Name": data.wellName || "",
-    "Detected At": new Date().toISOString(),
-    "API Number": data.api || "",
-    "Activity Type": mapActivityType(data.activityType),
-    "Previous Value": data.previousValue || "",
-    "New Value": data.newValue || "",
-    "Operator": data.operator || "",
-    "Previous Operator": data.previousOperator || "",
-    "Alert Level": data.alertLevel,
-    "User": [data.userId],
-    "Section-Township-Range": data.location || "",
-    "County": data.county || "",
-    "OCC Link": data.occLink || "",
-    "Map Link": data.mapLink || "",
-    "Email Sent": true
-  };
+  const baseId = "app3j3X29Uvp5stza";
+  const tableId = "tblhBZNR5pDr620NY"; // 📋 Activity Log table
   
   try {
-    const response = await fetch(
-      `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${ACTIVITY_TABLE_ID}`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${env.AIRTABLE_API_KEY}`,
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ fields })
-      }
-    );
+    const response = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: {
+          "Well Name": data.wellName,
+          "Detected At": new Date().toISOString(),
+          "API Number": data.apiNumber,
+          "Activity Type": mapActivityType(data.activityType),
+          "Previous Value": data.previousValue || "",
+          "New Value": data.newValue || "",
+          "Operator": data.operator || "",
+          "Previous Operator": data.previousOperator || "",
+          "Alert Level": mapAlertLevel(data.alertLevel),
+          "User": [data.userId],
+          "Section-Township-Range": data.location,
+          "County": data.county || "",
+          "OCC Link": data.occLink || "",
+          "Map Link": data.mapLink || "",
+          "Email Sent": true
+        }
+      })
+    });
     
-    if (!response.ok) {
-      console.error("Activity log failed:", await response.text());
+    if (response.ok) {
+      console.log(`Logged activity: ${data.wellName} - ${data.activityType}`);
     } else {
-      console.log(`  - Logged activity: ${data.wellName} - ${data.activityType}`);
+      const err = await response.text();
+      console.error(`Failed to log activity: ${err}`);
     }
-  } catch (err) {
-    console.error("Activity log error:", err);
-    // Don't throw - logging failure should NOT stop alerts
+  } catch (error) {
+    console.error(`Activity logging error: ${error.message}`);
+    // Don't throw - logging failure shouldn't stop alerts
   }
 }
 
-function mapActivityType(activityType) {
-  // Map emoji descriptions to clean single-select values
-  if (activityType.includes("Operator") || activityType.includes("Transfer")) return "Operator Transfer";
-  if (activityType.includes("Permit") || activityType.includes("ND")) return "New Permit";
-  if (activityType.includes("Drilling") || activityType.includes("Spud") || activityType.includes("SP")) return "Drilling Started";
-  if (activityType.includes("Completed") || activityType.includes("Active") || activityType.includes("AC")) return "Well Completed";
-  if (activityType.includes("Plugged") || activityType.includes("Abandoned") || activityType.includes("PA")) return "Plugged & Abandoned";
-  if (activityType.includes("Shut In") || activityType.includes("SI")) return "Shut In";
-  if (activityType.includes("TA")) return "Temporarily Abandoned";
-  if (activityType.includes("New Well")) return "New Well Record";
+// --- HELPER: MAP ACTIVITY TYPE TO AIRTABLE SELECT OPTIONS ---
+function mapActivityType(description) {
+  if (!description) return "Status Change";
+  const d = description.toLowerCase();
+  if (d.includes('operator') || d.includes('transfer')) return "Operator Transfer";
+  if (d.includes('permit') || d.includes('nd')) return "New Permit";
+  if (d.includes('drilling') || d.includes('spud') || d.includes('sp')) return "Drilling Started";
+  if (d.includes('completed') || d.includes('active') || d.includes('ac')) return "Well Completed";
+  if (d.includes('plugged') || d.includes('abandoned') || d.includes('pa')) return "Plugged & Abandoned";
+  if (d.includes('shut in') || d.includes('si')) return "Shut In";
+  if (d.includes('ta')) return "Temporarily Abandoned";
+  if (d.includes('new well')) return "New Well Record";
   return "Status Change";
+}
+
+// --- HELPER: MAP ALERT LEVEL TO AIRTABLE SELECT OPTIONS ---
+function mapAlertLevel(matchType) {
+  if (!matchType) return "YOUR PROPERTY";
+  const m = matchType.toLowerCase();
+  if (m.includes('api') || m.includes('tracked') || m.includes('specific well')) return "TRACKED WELL";
+  if (m.includes('adjacent')) return "ADJACENT SECTION";
+  return "YOUR PROPERTY";
 }
