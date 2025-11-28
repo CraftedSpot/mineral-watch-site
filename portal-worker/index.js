@@ -2937,8 +2937,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 updateTotalCount();
                 
                 // Show/hide Remove All section (Professional+ only, 2+ items)
-                const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
-                document.getElementById('removeAllPropertiesSection').style.display = (isPro && properties.length > 1) ? 'block' : 'none';
+                const hasSearch = currentUser?.plan !== 'Free';
+                document.getElementById('removeAllPropertiesSection').style.display = (hasSearch && properties.length > 1) ? 'block' : 'none';
                 
                 // Render the table (handles empty state internally)
                 renderPropertiesTable();
@@ -2963,8 +2963,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 updateTotalCount();
                 
                 // Show/hide Remove All section (Professional+ only, 2+ items)
-                const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
-                document.getElementById('removeAllWellsSection').style.display = (isPro && wells.length > 1) ? 'block' : 'none';
+                const hasSearch = currentUser?.plan !== 'Free';
+                document.getElementById('removeAllWellsSection').style.display = (hasSearch && wells.length > 1) ? 'block' : 'none';
                 
                 // Render the table (handles empty state internally)
                 renderWellsTable();
@@ -2977,12 +2977,12 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 
         // Initialize Properties Controls (call this after user loads)
         function initPropertiesControls() {
-            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            const hasSearch = currentUser?.plan !== 'Free';
             
             // Show/hide controls based on plan
-            document.getElementById('propertiesControls').style.display = isPro ? 'flex' : 'none';
+            document.getElementById('propertiesControls').style.display = hasSearch ? 'flex' : 'none';
             
-            if (!isPro) return;
+            if (!hasSearch) return;
             
             // Search input handler
             document.getElementById('propertiesSearch').addEventListener('input', (e) => {
@@ -3054,11 +3054,11 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 
         // Render the properties table (extracted from loadProperties)
         function renderPropertiesTable() {
-            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            const hasSearch = currentUser?.plan !== 'Free';
             
             // Apply filter and sort
             let displayProperties = loadedProperties;
-            if (isPro) {
+            if (hasSearch) {
                 displayProperties = filterProperties(loadedProperties);
                 displayProperties = sortProperties(displayProperties);
                 
@@ -3111,12 +3111,12 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 
         // Initialize Wells Controls (call this after user loads)
         function initWellsControls() {
-            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            const hasSearch = currentUser?.plan !== 'Free';
             
             // Show/hide controls based on plan
-            document.getElementById('wellsControls').style.display = isPro ? 'flex' : 'none';
+            document.getElementById('wellsControls').style.display = hasSearch ? 'flex' : 'none';
             
-            if (!isPro) return;
+            if (!hasSearch) return;
             
             // Search input handler
             document.getElementById('wellsSearch').addEventListener('input', (e) => {
@@ -3186,11 +3186,11 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 
         // Render the wells table (extracted from loadWells)
         function renderWellsTable() {
-            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            const hasSearch = currentUser?.plan !== 'Free';
             
             // Apply filter and sort
             let displayWells = loadedWells;
-            if (isPro) {
+            if (hasSearch) {
                 displayWells = filterWells(loadedWells);
                 displayWells = sortWells(displayWells);
                 
