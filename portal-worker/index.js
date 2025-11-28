@@ -2858,8 +2858,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All section based on count (2+ items)
-                document.getElementById('removeAllPropertiesSection').style.display = properties.length > 1 ? 'block' : 'none';
+                // Show/hide Remove All section (Professional+ only, 2+ items)
+                const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+                document.getElementById('removeAllPropertiesSection').style.display = (isPro && properties.length > 1) ? 'block' : 'none';
                 
                 if (properties.length === 0) {
                     document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
@@ -2904,8 +2905,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All section based on count (2+ items)
-                document.getElementById('removeAllWellsSection').style.display = wells.length > 1 ? 'block' : 'none';
+                // Show/hide Remove All section (Professional+ only, 2+ items)
+                const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+                document.getElementById('removeAllWellsSection').style.display = (isPro && wells.length > 1) ? 'block' : 'none';
                 
                 if (wells.length === 0) {
                     document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
