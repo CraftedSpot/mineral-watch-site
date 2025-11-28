@@ -16,7 +16,7 @@ var PLAN_LIMITS = {
   "Free": { properties: 1, wells: 0 },
   "Starter": { properties: 10, wells: 10 },
   "Standard": { properties: 50, wells: 50 },
-  "Professional": { properties: 500, wells: 500 },
+  "Professional": { properties: 250, wells: 250 },
   "Enterprise": { properties: Infinity, wells: Infinity }
 };
 var OCC_CACHE_TTL = 86400; // 24 hours in seconds
@@ -2902,7 +2902,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             'Free': { properties: 1, wells: 0 }, 
             'Starter': { properties: 10, wells: 10 }, 
             'Standard': { properties: 50, wells: 50 }, 
-            'Professional': { properties: 500, wells: 500 }, 
+            'Professional': { properties: 250, wells: 250 }, 
             'Enterprise': { properties: Infinity, wells: Infinity } 
         };
         let currentTab = 'properties';
@@ -5308,7 +5308,7 @@ var ACCOUNT_HTML = `<!DOCTYPE html>
             'Free': { properties: 1, wells: 0, features: ['1 property', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
             'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
             'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support'] },
-            'Professional': { properties: 500, wells: 500, features: ['500 properties', '500 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
+            'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
             'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', 'All features', 'Dedicated support'] }
         };
         
