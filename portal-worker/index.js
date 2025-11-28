@@ -75,6 +75,10 @@ var index_default = {
       if (deletePropertyMatch && request.method === "DELETE") {
         return handleDeleteProperty(deletePropertyMatch[1], request, env);
       }
+      const propertyNotesMatch = path.match(/^\/api\/properties\/([a-zA-Z0-9]+)\/notes$/);
+      if (propertyNotesMatch && request.method === "PATCH") {
+        return handleUpdatePropertyNotes(propertyNotesMatch[1], request, env);
+      }
       
       // Wells endpoints
       if (path === "/api/wells" && request.method === "GET") {
@@ -86,6 +90,10 @@ var index_default = {
       const deleteWellMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)$/);
       if (deleteWellMatch && request.method === "DELETE") {
         return handleDeleteWell(deleteWellMatch[1], request, env);
+      }
+      const wellNotesMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/notes$/);
+      if (wellNotesMatch && request.method === "PATCH") {
+        return handleUpdateWellNotes(wellNotesMatch[1], request, env);
       }
       
       // Activity endpoint
@@ -298,6 +306,90 @@ async function handleDeleteWell(wellId, request, env) {
   return jsonResponse({ success: true });
 }
 __name(handleDeleteWell, "handleDeleteWell");
+
+// --- HANDLER: UPDATE WELL NOTES ---
+async function handleUpdateWellNotes(wellId, request, env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  const body = await request.json();
+  const notes = body.notes || "";
+  
+  // Verify ownership
+  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
+  const getResponse = await fetch(getUrl, {
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+  
+  if (!getResponse.ok) {
+    return jsonResponse({ error: "Well not found" }, 404);
+  }
+  
+  const well = await getResponse.json();
+  if (well.fields.User?.[0] !== user.id) {
+    return jsonResponse({ error: "Not authorized" }, 403);
+  }
+  
+  // Update notes
+  const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
+  const updateResponse = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ fields: { Notes: notes } })
+  });
+  
+  if (!updateResponse.ok) {
+    return jsonResponse({ error: "Failed to update notes" }, 500);
+  }
+  
+  return jsonResponse({ success: true });
+}
+__name(handleUpdateWellNotes, "handleUpdateWellNotes");
+
+// --- HANDLER: UPDATE PROPERTY NOTES ---
+async function handleUpdatePropertyNotes(propertyId, request, env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  const body = await request.json();
+  const notes = body.notes || "";
+  
+  // Verify ownership
+  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
+  const getResponse = await fetch(getUrl, {
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+  
+  if (!getResponse.ok) {
+    return jsonResponse({ error: "Property not found" }, 404);
+  }
+  
+  const property = await getResponse.json();
+  if (property.fields.User?.[0] !== user.id) {
+    return jsonResponse({ error: "Not authorized" }, 403);
+  }
+  
+  // Update notes
+  const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
+  const updateResponse = await fetch(updateUrl, {
+    method: "PATCH",
+    headers: {
+      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({ fields: { Notes: notes } })
+  });
+  
+  if (!updateResponse.ok) {
+    return jsonResponse({ error: "Failed to update notes" }, 500);
+  }
+  
+  return jsonResponse({ success: true });
+}
+__name(handleUpdatePropertyNotes, "handleUpdatePropertyNotes");
 
 // ====================
 // ACTIVITY LOG HANDLERS
@@ -1045,7 +1137,9 @@ async function fetchWellDetailsFromOCC(apiNumber) {
       const attr = data.features[0].attributes;
       return {
         api: attr.api,
-        wellName: attr.well_num ? `${attr.well_name} #${attr.well_num}` : attr.well_name,
+        wellName: attr.well_name && attr.well_num && !attr.well_name.includes('#') 
+          ? `${attr.well_name} #${attr.well_num}` 
+          : (attr.well_name || ''),
         operator: attr.operator || null,
         county: attr.county || null,
         section: attr.section || null,
@@ -2238,9 +2332,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-        .tab { background: white; border: none; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
-        .tab.active { background: white; color: var(--oil-navy); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .tab:not(.active) { background: rgba(255,255,255,0.5); }
+        .tab { background: white; border: 2px solid transparent; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
+        .tab.active { background: white; color: var(--oil-navy); box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 2px solid white; }
+        .tab:not(.active) { background: rgba(255,255,255,0.6); border: 2px solid var(--border); border-bottom: none; color: #64748B; }
+        .tab:not(.active):hover { background: rgba(255,255,255,0.9); color: var(--oil-navy); }
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -2320,10 +2415,12 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 <div class="header-actions">
                     <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
                     <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">📄 Import Properties</button>
-                    <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export CSV</button>
+                    <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export Properties</button>
+                    <button class="btn-add" id="removeAllPropertiesBtn" style="background: var(--error); display: none;" onclick="confirmRemoveAllProperties()">🗑️ Remove All Properties</button>
                     <button class="btn-add" id="addWellBtn">+ Add Well</button>
                     <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">🛢️ Import Wells</button>
-                    <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export CSV</button>
+                    <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export Wells</button>
+                    <button class="btn-add" id="removeAllWellsBtn" style="background: var(--error); display: none;" onclick="confirmRemoveAllWells()">🗑️ Remove All Wells</button>
                 </div>
             </div>
             
@@ -2486,9 +2583,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     <span class="details-label">OCC Status</span>
                     <span class="details-value" id="wellDetailsStatus">—</span>
                 </div>
-                <div class="details-row">
-                    <span class="details-label">Notes</span>
-                    <span class="details-value" id="wellDetailsNotes">—</span>
+                <div class="details-row" style="flex-direction: column; align-items: flex-start;">
+                    <span class="details-label" style="margin-bottom: 8px;">Notes</span>
+                    <textarea id="wellDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this well..."></textarea>
                 </div>
             </div>
             
@@ -2497,8 +2594,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 <a href="#" target="_blank" class="details-btn" id="wellDetailsOccLink">📄 OCC Filing</a>
             </div>
             
+            <input type="hidden" id="wellDetailsId">
             <div class="modal-buttons" style="margin-top: 20px;">
                 <button type="button" class="btn-cancel" onclick="closeWellDetailsModal()">Close</button>
+                <button type="button" class="btn-submit" onclick="saveWellNotes()">Save Notes</button>
             </div>
         </div>
     </div>
@@ -2534,14 +2633,16 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     <span class="details-label">Monitor Adjacent</span>
                     <span class="details-value" id="propertyDetailsAdjacent">—</span>
                 </div>
-                <div class="details-row">
-                    <span class="details-label">Notes</span>
-                    <span class="details-value" id="propertyDetailsNotes">—</span>
+                <div class="details-row" style="flex-direction: column; align-items: flex-start;">
+                    <span class="details-label" style="margin-bottom: 8px;">Notes</span>
+                    <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this property..."></textarea>
                 </div>
             </div>
             
+            <input type="hidden" id="propertyDetailsId">
             <div class="modal-buttons" style="margin-top: 20px;">
                 <button type="button" class="btn-cancel" onclick="closePropertyDetailsModal()">Close</button>
+                <button type="button" class="btn-submit" onclick="savePropertyNotes()">Save Notes</button>
             </div>
         </div>
     </div>
@@ -2612,6 +2713,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
+                // Show/hide Remove All button based on count
+                document.getElementById('removeAllPropertiesBtn').style.display = properties.length > 1 ? 'inline-flex' : 'none';
+                
                 if (properties.length === 0) {
                     document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
                 } else {
@@ -2657,6 +2761,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
+                // Show/hide Remove All button based on count
+                document.getElementById('removeAllWellsBtn').style.display = wells.length > 1 ? 'inline-flex' : 'none';
+                
                 if (wells.length === 0) {
                     document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
                 } else {
@@ -2689,7 +2796,6 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     document.getElementById('wellsContent').innerHTML = html;
                 }
             } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
-        }
         }
 
         function updateTotalCount() {
@@ -2919,6 +3025,58 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             } catch { alert('Error deleting.'); }
         }
         
+        // Remove All Properties with confirmation
+        async function confirmRemoveAllProperties() {
+            const count = loadedProperties.length;
+            if (count === 0) return;
+            
+            const confirmText = \`Are you sure you want to remove ALL \${count} properties?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:\`;
+            const userInput = prompt(confirmText);
+            
+            if (userInput !== 'DELETE ALL') {
+                if (userInput !== null) alert('Removal cancelled. You must type "DELETE ALL" exactly to confirm.');
+                return;
+            }
+            
+            try {
+                // Delete all properties one by one
+                for (const prop of loadedProperties) {
+                    await fetch('/api/properties/' + prop.id, { method: 'DELETE' });
+                }
+                alert(\`Successfully removed \${count} properties.\`);
+                await loadProperties();
+            } catch (err) {
+                alert('Error removing properties. Some may have been deleted.');
+                await loadProperties();
+            }
+        }
+        
+        // Remove All Wells with confirmation
+        async function confirmRemoveAllWells() {
+            const count = loadedWells.length;
+            if (count === 0) return;
+            
+            const confirmText = \`Are you sure you want to remove ALL \${count} wells?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:\`;
+            const userInput = prompt(confirmText);
+            
+            if (userInput !== 'DELETE ALL') {
+                if (userInput !== null) alert('Removal cancelled. You must type "DELETE ALL" exactly to confirm.');
+                return;
+            }
+            
+            try {
+                // Delete all wells one by one
+                for (const well of loadedWells) {
+                    await fetch('/api/wells/' + well.id, { method: 'DELETE' });
+                }
+                alert(\`Successfully removed \${count} wells.\`);
+                await loadWells();
+            } catch (err) {
+                alert('Error removing wells. Some may have been deleted.');
+                await loadWells();
+            }
+        }
+        
         // Store loaded data for details modals
         let loadedProperties = [];
         let loadedWells = [];
@@ -2929,6 +3087,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             if (!well) return;
             
             const f = well.fields;
+            document.getElementById('wellDetailsId').value = wellId;
             document.getElementById('wellDetailsTitle').textContent = f['Well Name'] || 'Unknown Well';
             document.getElementById('wellDetailsApi').textContent = 'API: ' + (f['API Number'] || '—');
             document.getElementById('wellDetailsOperator').textContent = f['Operator'] || '—';
@@ -2941,7 +3100,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             document.getElementById('wellDetailsCounty').textContent = f['County'] || '—';
             document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
             document.getElementById('wellDetailsStatus').textContent = f['Well Status'] || '—';
-            document.getElementById('wellDetailsNotes').textContent = f['Notes'] || '—';
+            document.getElementById('wellDetailsNotes').value = f['Notes'] || '';
             
             // Map link
             const mapLink = f['OCC Map Link'];
@@ -2953,11 +3112,36 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 mapBtn.style.display = 'none';
             }
             
-            // OCC Filing link (RBDMS lookup)
-            const occLink = \`https://imaging.occ.ok.gov/OG/Well%20Records/\${f['API Number']}/\`;
+            // OCC Filing link (Well Browse - works with API number)
+            const occLink = \`https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?API=\${f['API Number']}\`;
             document.getElementById('wellDetailsOccLink').href = occLink;
             
             document.getElementById('wellDetailsModal').style.display = 'flex';
+        }
+        
+        async function saveWellNotes() {
+            const wellId = document.getElementById('wellDetailsId').value;
+            const notes = document.getElementById('wellDetailsNotes').value;
+            
+            try {
+                const res = await fetch('/api/wells/' + wellId + '/notes', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const well = loadedWells.find(w => w.id === wellId);
+                if (well) well.fields['Notes'] = notes;
+                
+                alert('Notes saved!');
+                closeWellDetailsModal();
+                await loadWells();
+            } catch (err) {
+                alert('Error saving notes.');
+            }
         }
         
         function closeWellDetailsModal() {
@@ -2974,6 +3158,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             if (!prop) return;
             
             const f = prop.fields;
+            document.getElementById('propertyDetailsId').value = propId;
             document.getElementById('propertyDetailsTitle').textContent = f['COUNTY'] || 'Property Details';
             document.getElementById('propertyDetailsLegal').textContent = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
             document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || '—';
@@ -2982,9 +3167,34 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             document.getElementById('propertyDetailsRange').textContent = f['RNG'] || '—';
             document.getElementById('propertyDetailsMeridian').textContent = f['MERIDIAN'] || 'IM';
             document.getElementById('propertyDetailsAdjacent').textContent = f['Monitor Adjacent'] ? 'Yes' : 'No';
-            document.getElementById('propertyDetailsNotes').textContent = f['Notes'] || '—';
+            document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
             document.getElementById('propertyDetailsModal').style.display = 'flex';
+        }
+        
+        async function savePropertyNotes() {
+            const propId = document.getElementById('propertyDetailsId').value;
+            const notes = document.getElementById('propertyDetailsNotes').value;
+            
+            try {
+                const res = await fetch('/api/properties/' + propId + '/notes', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const prop = loadedProperties.find(p => p.id === propId);
+                if (prop) prop.fields['Notes'] = notes;
+                
+                alert('Notes saved!');
+                closePropertyDetailsModal();
+                await loadProperties();
+            } catch (err) {
+                alert('Error saving notes.');
+            }
         }
         
         function closePropertyDetailsModal() {
