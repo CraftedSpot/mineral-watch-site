@@ -2612,6 +2612,20 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 
             <div class="content-card">
                 <div id="properties-tab" class="tab-content active">
+                    <div id="propertiesControls" class="table-controls" style="display: none;">
+                        <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range...">
+                        <select id="propertiesSort" class="sort-select">
+                            <option value="county-asc">County (A-Z)</option>
+                            <option value="county-desc">County (Z-A)</option>
+                            <option value="section-asc">Section (1-36)</option>
+                            <option value="section-desc">Section (36-1)</option>
+                            <option value="township-asc">Township (A-Z)</option>
+                            <option value="township-desc">Township (Z-A)</option>
+                            <option value="range-asc">Range (A-Z)</option>
+                            <option value="range-desc">Range (Z-A)</option>
+                        </select>
+                        <span id="propertiesResultsCount" class="results-count"></span>
+                    </div>
                    <div id="propertiesContent">
     <div class="skeleton-table">
         <div class="skeleton-header">
@@ -2887,8 +2901,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 
                 await loadAllData();
 
-                // Initialize wells search/sort controls
+                // Initialize search/sort controls
                 initWellsControls();
+                initPropertiesControls();
             } catch { window.location.href = '/portal/login'; }
 
             // Tab switching
@@ -2917,7 +2932,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 const res = await fetch('/api/properties');
                 if (!res.ok) throw new Error('Failed to load');
                 const properties = await res.json();
-                loadedProperties = properties; // Store for details modal
+                loadedProperties = properties; // Store for filtering/sorting
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
@@ -2925,29 +2940,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
                 document.getElementById('removeAllPropertiesSection').style.display = (isPro && properties.length > 1) ? 'block' : 'none';
                 
-                if (properties.length === 0) {
-                    document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
-                } else {
-                    let html = '<table class="data-table"><thead><tr><th>County</th><th>Legal Description</th><th>Notes</th><th></th></tr></thead><tbody>';
-                    properties.forEach(p => {
-                        const f = p.fields;
-                        const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
-                        const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
-                        const notes = notesText ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${notesText}</span>\` : '<em style="color: #A0AEC0;">—</em>';
-                        
-                        html += \`<tr>
-                            <td>\${escapeHtml(f.COUNTY) || '—'}</td>
-                            <td><strong>\${str}</strong></td>
-                            <td>\${notes}</td>
-                            <td style="white-space: nowrap;">
-                                <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
-                                <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
-                            </td>
-                        </tr>\`;
-                    });
-                    html += '</tbody></table>';
-                    document.getElementById('propertiesContent').innerHTML = html;
-                }
+                // Render the table (handles empty state internally)
+                renderPropertiesTable();
             } catch { document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
         }
         
@@ -2975,6 +2969,140 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 // Render the table (handles empty state internally)
                 renderWellsTable();
             } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
+
+        // Properties Search & Sort State
+        let propertiesSearchTerm = '';
+        let propertiesSortBy = 'county-asc';
+
+        // Initialize Properties Controls (call this after user loads)
+        function initPropertiesControls() {
+            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            
+            // Show/hide controls based on plan
+            document.getElementById('propertiesControls').style.display = isPro ? 'flex' : 'none';
+            
+            if (!isPro) return;
+            
+            // Search input handler
+            document.getElementById('propertiesSearch').addEventListener('input', (e) => {
+                propertiesSearchTerm = e.target.value.toLowerCase().trim();
+                renderPropertiesTable();
+            });
+            
+            // Sort select handler
+            document.getElementById('propertiesSort').addEventListener('change', (e) => {
+                propertiesSortBy = e.target.value;
+                renderPropertiesTable();
+            });
+        }
+
+        // Filter properties based on search term
+        function filterProperties(properties) {
+            if (!propertiesSearchTerm) return properties;
+            
+            return properties.filter(p => {
+                const f = p.fields;
+                const searchable = [
+                    f.COUNTY || '',
+                    f.SEC || '',
+                    f.TWN || '',
+                    f.RNG || '',
+                    f.MERIDIAN || '',
+                    f.Notes || ''
+                ].join(' ').toLowerCase();
+                
+                return searchable.includes(propertiesSearchTerm);
+            });
+        }
+
+        // Sort properties based on selected option
+        function sortProperties(properties) {
+            const [field, direction] = propertiesSortBy.split('-');
+            const multiplier = direction === 'asc' ? 1 : -1;
+            
+            return [...properties].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(field) {
+                    case 'county':
+                        aVal = (a.fields.COUNTY || '').toLowerCase();
+                        bVal = (b.fields.COUNTY || '').toLowerCase();
+                        break;
+                    case 'section':
+                        aVal = parseInt(a.fields.SEC) || 0;
+                        bVal = parseInt(b.fields.SEC) || 0;
+                        break;
+                    case 'township':
+                        aVal = (a.fields.TWN || '').toLowerCase();
+                        bVal = (b.fields.TWN || '').toLowerCase();
+                        break;
+                    case 'range':
+                        aVal = (a.fields.RNG || '').toLowerCase();
+                        bVal = (b.fields.RNG || '').toLowerCase();
+                        break;
+                    default:
+                        aVal = '';
+                        bVal = '';
+                }
+                
+                if (aVal < bVal) return -1 * multiplier;
+                if (aVal > bVal) return 1 * multiplier;
+                return 0;
+            });
+        }
+
+        // Render the properties table (extracted from loadProperties)
+        function renderPropertiesTable() {
+            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            
+            // Apply filter and sort
+            let displayProperties = loadedProperties;
+            if (isPro) {
+                displayProperties = filterProperties(loadedProperties);
+                displayProperties = sortProperties(displayProperties);
+                
+                // Update results count
+                const countEl = document.getElementById('propertiesResultsCount');
+                if (propertiesSearchTerm) {
+                    countEl.textContent = \`\${displayProperties.length} of \${loadedProperties.length} properties\`;
+                } else {
+                    countEl.textContent = \`\${loadedProperties.length} properties\`;
+                }
+            }
+            
+            if (displayProperties.length === 0 && loadedProperties.length > 0) {
+                // No search results
+                document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties match your search.</p></div>';
+                return;
+            }
+            
+            if (displayProperties.length === 0) {
+                document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
+                return;
+            }
+            
+            let html = '<table class="data-table"><thead><tr><th>County</th><th>Legal Description</th><th>Notes</th><th></th></tr></thead><tbody>';
+            
+            displayProperties.forEach(p => {
+                const f = p.fields;
+                const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
+                const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
+                const notes = notesText ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${notesText}</span>\` : '<em style="color: #A0AEC0;">—</em>';
+                
+                html += \`<tr>
+                    <td>\${escapeHtml(f.COUNTY) || '—'}</td>
+                    <td><strong>\${str}</strong></td>
+                    <td>\${notes}</td>
+                    <td style="white-space: nowrap;">
+                        <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
+                        <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
+                    </td>
+                </tr>\`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('propertiesContent').innerHTML = html;
         }
 
         // Wells Search & Sort State
