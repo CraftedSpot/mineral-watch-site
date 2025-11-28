@@ -2492,6 +2492,52 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         .skeleton-line.short { width: 40%; }
         .skeleton-line.medium { width: 60%; }
         .skeleton-line.long { width: 85%; }
+        
+        /* Search and Sort Controls */
+        .table-controls {
+            display: flex;
+            gap: 12px;
+            padding: 16px 20px;
+            background: var(--paper);
+            border-bottom: 1px solid var(--border);
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .search-input {
+            flex: 1;
+            min-width: 200px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        .search-input:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+        }
+        .search-input::placeholder {
+            color: #94a3b8;
+        }
+        .sort-select {
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+            min-width: 160px;
+        }
+        .sort-select:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+        }
+        .results-count {
+            font-size: 13px;
+            color: var(--slate-blue);
+            margin-left: auto;
+        }
     </style>
 </head>
 <body>
@@ -2587,6 +2633,20 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 </div>
                 
                 <div id="wells-tab" class="tab-content">
+                    <div id="wellsControls" class="table-controls" style="display: none;">
+                        <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
+                        <select id="wellsSort" class="sort-select">
+                            <option value="name-asc">Well Name (A-Z)</option>
+                            <option value="name-desc">Well Name (Z-A)</option>
+                            <option value="operator-asc">Operator (A-Z)</option>
+                            <option value="operator-desc">Operator (Z-A)</option>
+                            <option value="county-asc">County (A-Z)</option>
+                            <option value="county-desc">County (Z-A)</option>
+                            <option value="api-asc">API (Low-High)</option>
+                            <option value="api-desc">API (High-Low)</option>
+                        </select>
+                        <span id="wellsResultsCount" class="results-count"></span>
+                    </div>
                    <div id="wellsContent">
     <div class="skeleton-table">
         <div class="skeleton-header">
@@ -2826,6 +2886,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 }
                 
                 await loadAllData();
+
+                // Initialize wells search/sort controls
+                initWellsControls();
             } catch { window.location.href = '/portal/login'; }
 
             // Tab switching
@@ -2901,7 +2964,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 const res = await fetch('/api/wells');
                 if (!res.ok) throw new Error('Failed to load');
                 const wells = await res.json();
-                loadedWells = wells; // Store for details modal
+                loadedWells = wells; // Store for filtering/sorting
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
@@ -2909,38 +2972,149 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
                 document.getElementById('removeAllWellsSection').style.display = (isPro && wells.length > 1) ? 'block' : 'none';
                 
-                if (wells.length === 0) {
-                    document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
-                } else {
-                    let html = '<table class="data-table"><thead><tr><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Location</th><th></th></tr></thead><tbody>';
-                    wells.forEach(w => {
-                        const f = w.fields;
-                        const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
-                        const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
-                        const county = escapeHtml(f['County']) || '—';
-                        const section = f['Section'] || '';
-                        const township = f['Township'] || '';
-                        const range = f['Range'] || '';
-                        const str = (section && township && range) ? \`S\${section} T\${township} R\${range}\` : '—';
-                        const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
-                        
-                        html += \`<tr>
-                            <td><strong>\${wellName}</strong></td>
-                            <td>\${operator}</td>
-                            <td>\${escapeHtml(f['API Number'])}</td>
-                            <td>\${county}</td>
-                            <td>\${str}</td>
-                            <td style="white-space: nowrap;">
-                                <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
-                                \${mapLink ? \`<button class="btn-link" onclick="window.open('\${escapeHtml(mapLink)}', '_blank')">Map</button>\` : ''}
-                                <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
-                            </td>
-                        </tr>\`;
-                    });
-                    html += '</tbody></table>';
-                    document.getElementById('wellsContent').innerHTML = html;
-                }
+                // Render the table (handles empty state internally)
+                renderWellsTable();
             } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
+
+        // Wells Search & Sort State
+        let wellsSearchTerm = '';
+        let wellsSortBy = 'name-asc';
+
+        // Initialize Wells Controls (call this after user loads)
+        function initWellsControls() {
+            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            
+            // Show/hide controls based on plan
+            document.getElementById('wellsControls').style.display = isPro ? 'flex' : 'none';
+            
+            if (!isPro) return;
+            
+            // Search input handler
+            document.getElementById('wellsSearch').addEventListener('input', (e) => {
+                wellsSearchTerm = e.target.value.toLowerCase().trim();
+                renderWellsTable();
+            });
+            
+            // Sort select handler
+            document.getElementById('wellsSort').addEventListener('change', (e) => {
+                wellsSortBy = e.target.value;
+                renderWellsTable();
+            });
+        }
+
+        // Filter wells based on search term
+        function filterWells(wells) {
+            if (!wellsSearchTerm) return wells;
+            
+            return wells.filter(w => {
+                const f = w.fields;
+                const searchable = [
+                    f['Well Name'] || '',
+                    f['Operator'] || '',
+                    f['API Number'] || '',
+                    f['County'] || ''
+                ].join(' ').toLowerCase();
+                
+                return searchable.includes(wellsSearchTerm);
+            });
+        }
+
+        // Sort wells based on selected option
+        function sortWells(wells) {
+            const [field, direction] = wellsSortBy.split('-');
+            const multiplier = direction === 'asc' ? 1 : -1;
+            
+            return [...wells].sort((a, b) => {
+                let aVal, bVal;
+                
+                switch(field) {
+                    case 'name':
+                        aVal = (a.fields['Well Name'] || '').toLowerCase();
+                        bVal = (b.fields['Well Name'] || '').toLowerCase();
+                        break;
+                    case 'operator':
+                        aVal = (a.fields['Operator'] || '').toLowerCase();
+                        bVal = (b.fields['Operator'] || '').toLowerCase();
+                        break;
+                    case 'county':
+                        aVal = (a.fields['County'] || '').toLowerCase();
+                        bVal = (b.fields['County'] || '').toLowerCase();
+                        break;
+                    case 'api':
+                        aVal = a.fields['API Number'] || '';
+                        bVal = b.fields['API Number'] || '';
+                        break;
+                    default:
+                        aVal = '';
+                        bVal = '';
+                }
+                
+                if (aVal < bVal) return -1 * multiplier;
+                if (aVal > bVal) return 1 * multiplier;
+                return 0;
+            });
+        }
+
+        // Render the wells table (extracted from loadWells)
+        function renderWellsTable() {
+            const isPro = currentUser?.plan === 'Professional' || currentUser?.plan === 'Enterprise';
+            
+            // Apply filter and sort
+            let displayWells = loadedWells;
+            if (isPro) {
+                displayWells = filterWells(loadedWells);
+                displayWells = sortWells(displayWells);
+                
+                // Update results count
+                const countEl = document.getElementById('wellsResultsCount');
+                if (wellsSearchTerm) {
+                    countEl.textContent = `${displayWells.length} of ${loadedWells.length} wells`;
+                } else {
+                    countEl.textContent = `${loadedWells.length} wells`;
+                }
+            }
+            
+            if (displayWells.length === 0 && loadedWells.length > 0) {
+                // No search results
+                document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells match your search.</p></div>';
+                return;
+            }
+            
+            if (displayWells.length === 0) {
+                document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
+                return;
+            }
+            
+            let html = '<table class="data-table"><thead><tr><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Location</th><th></th></tr></thead><tbody>';
+            
+            displayWells.forEach(w => {
+                const f = w.fields;
+                const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
+                const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
+                const county = escapeHtml(f['County']) || '—';
+                const section = f['Section'] || '';
+                const township = f['Township'] || '';
+                const range = f['Range'] || '';
+                const str = (section && township && range) ? `S${section} T${township} R${range}` : '—';
+                const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
+                
+                html += `<tr>
+                    <td><strong>${wellName}</strong></td>
+                    <td>${operator}</td>
+                    <td>${escapeHtml(f['API Number'])}</td>
+                    <td>${county}</td>
+                    <td>${str}</td>
+                    <td style="white-space: nowrap;">
+                        <button class="btn-link" onclick="openWellDetails('${w.id}')">Details</button>
+                        ${mapLink ? `<button class="btn-link" onclick="window.open('${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
+                        <button class="btn-delete" onclick="deleteWell('${w.id}')">Remove</button>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('wellsContent').innerHTML = html;
         }
 
         function updateTotalCount() {
