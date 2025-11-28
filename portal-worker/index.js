@@ -13,7 +13,7 @@ var PROPERTIES_TABLE = "📍 Client Properties";
 var WELLS_TABLE = "🛢️ Client Wells";
 var BASE_URL = "https://portal.mymineralwatch.com";
 var PLAN_LIMITS = {
-  "Free": { properties: 1, wells: 0 },
+  "Free": { properties: 1, wells: 1 },
   "Starter": { properties: 10, wells: 10 },
   "Standard": { properties: 50, wells: 50 },
   "Professional": { properties: 250, wells: 250 },
@@ -2899,7 +2899,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         }
         
         const planConfigs = { 
-            'Free': { properties: 1, wells: 0 }, 
+            'Free': { properties: 1, wells: 1 }, 
             'Starter': { properties: 10, wells: 10 }, 
             'Standard': { properties: 50, wells: 50 }, 
             'Professional': { properties: 250, wells: 250 }, 
@@ -2967,9 +2967,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All section (Professional+ only, 2+ items)
-                const hasSearch = currentUser?.plan !== 'Free';
-                document.getElementById('removeAllPropertiesSection').style.display = (hasSearch && properties.length > 1) ? 'block' : 'none';
+                // Show/hide Remove All section (2+ items)
+                document.getElementById('removeAllPropertiesSection').style.display = (properties.length > 1) ? 'block' : 'none';
                 
                 // Render the table (handles empty state internally)
                 renderPropertiesTable();
@@ -2993,9 +2992,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All section (Professional+ only, 2+ items)
-                const hasSearch = currentUser?.plan !== 'Free';
-                document.getElementById('removeAllWellsSection').style.display = (hasSearch && wells.length > 1) ? 'block' : 'none';
+                // Show/hide Remove All section (2+ items)
+                document.getElementById('removeAllWellsSection').style.display = (wells.length > 1) ? 'block' : 'none';
                 
                 // Render the table (handles empty state internally)
                 renderWellsTable();
@@ -5305,7 +5303,7 @@ var ACCOUNT_HTML = `<!DOCTYPE html>
     <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
     <script>
         const planConfigs = {
-            'Free': { properties: 1, wells: 0, features: ['1 property', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
+            'Free': { properties: 1, wells: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
             'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
             'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support'] },
             'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
