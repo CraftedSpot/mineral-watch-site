@@ -2458,12 +2458,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
                     <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">📄 Import Properties</button>
                     <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export Properties</button>
-                    <button class="btn-add" id="removeAllPropertiesBtn" style="background: var(--error); display: none;" onclick="confirmRemoveAllProperties()">🗑️ Remove All Properties</button>
                     <span style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></span>
                     <button class="btn-add" id="addWellBtn">+ Add Well</button>
                     <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">🛢️ Import Wells</button>
                     <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export Wells</button>
-                    <button class="btn-add" id="removeAllWellsBtn" style="background: var(--error); display: none;" onclick="confirmRemoveAllWells()">🗑️ Remove All Wells</button>
                 </div>
             </div>
             
@@ -2511,11 +2509,19 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     <div id="propertiesContent">
                         <div class="empty-state"><p>Loading properties...</p></div>
                     </div>
+                    <div id="removeAllPropertiesSection" style="display: none; text-align: center; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 20px;">
+                        <span style="color: #94a3b8; font-size: 13px;">Need to start over? </span>
+                        <button onclick="confirmRemoveAllProperties()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all properties</button>
+                    </div>
                 </div>
                 
                 <div id="wells-tab" class="tab-content">
                     <div id="wellsContent">
                         <div class="empty-state"><p>Loading wells...</p></div>
+                    </div>
+                    <div id="removeAllWellsSection" style="display: none; text-align: center; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 20px;">
+                        <span style="color: #94a3b8; font-size: 13px;">Need to start over? </span>
+                        <button onclick="confirmRemoveAllWells()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all wells</button>
                     </div>
                 </div>
                 
@@ -2768,8 +2774,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All button based on count
-                document.getElementById('removeAllPropertiesBtn').style.display = properties.length > 1 ? 'inline-flex' : 'none';
+                // Show/hide Remove All section based on count (2+ items)
+                document.getElementById('removeAllPropertiesSection').style.display = properties.length > 1 ? 'block' : 'none';
                 
                 if (properties.length === 0) {
                     document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
@@ -2814,8 +2820,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All button based on count
-                document.getElementById('removeAllWellsBtn').style.display = wells.length > 1 ? 'inline-flex' : 'none';
+                // Show/hide Remove All section based on count (2+ items)
+                document.getElementById('removeAllWellsSection').style.display = wells.length > 1 ? 'block' : 'none';
                 
                 if (wells.length === 0) {
                     document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
