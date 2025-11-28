@@ -5551,6 +5551,34 @@ var UPGRADE_HTML = `<!DOCTYPE html>
         .loading-overlay.show { display: flex; }
         .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--red-dirt); border-radius: 50%; animation: spin 1s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+        .enterprise-row {
+            max-width: 700px;
+            margin: 40px auto 0;
+            text-align: center;
+            padding: 24px 30px;
+            background: var(--paper);
+            border-radius: 8px;
+            border: 1px dashed var(--slate-blue);
+        }
+        .enterprise-row h3 { 
+            font-size: 18px; 
+            margin-bottom: 6px; 
+            color: var(--oil-navy); 
+            font-family: 'Merriweather', serif;
+        }
+        .enterprise-row p { 
+            font-size: 14px; 
+            color: #718096; 
+            margin-bottom: 12px; 
+        }
+        .enterprise-link { 
+            color: var(--red-dirt); 
+            font-weight: 600; 
+            text-decoration: none; 
+        }
+        .enterprise-link:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -5617,15 +5645,23 @@ var UPGRADE_HTML = `<!DOCTYPE html>
                 <div class="plan-price" id="professionalPrice">$99<span>/mo</span></div>
                 <div class="plan-interval" id="professionalInterval">billed monthly</div>
                 <ul class="plan-features">
-                    <li>500 properties</li>
-                    <li>500 wells</li>
+                    <li>250 properties</li>
+                    <li>250 wells</li>
                     <li>Adjacent section monitoring</li>
                     <li>Daily OCC scans</li>
                     <li>Priority support</li>
-                    <li>Bulk upload</li>
+                    <li>Bulk import & export</li>
+                    <li>Multi-user access (3)</li>
                 </ul>
                 <button class="plan-btn primary" id="professionalBtn" data-plan="professional">Select Professional</button>
             </div>
+        </div>
+        
+        <!-- Enterprise Row -->
+        <div class="enterprise-row">
+            <h3>Need more than 250 properties?</h3>
+            <p>Custom solutions for family offices, mineral management companies, and financial institutions.</p>
+            <a href="/contact?topic=enterprise" class="enterprise-link">Contact Sales for Enterprise →</a>
         </div>
         
         <a href="/portal" class="back-link">← Back to Dashboard</a>
