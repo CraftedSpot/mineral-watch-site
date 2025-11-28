@@ -6,6 +6,10 @@ compatibility_date = "2024-01-01"
 binding = "AUTH_TOKENS"
 id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"
 
+[[kv_namespaces]]
+binding = "OCC_CACHE"
+id = "0988b6413183413bb4f1d1731ced4ed8"
+
 # Environment variables (secrets set via CLI)
 # MINERAL_AIRTABLE_API_KEY = "your-airtable-api-key"
 # POSTMARK_API_KEY = "your-postmark-api-key"
