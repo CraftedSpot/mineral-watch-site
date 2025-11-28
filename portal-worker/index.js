@@ -2606,8 +2606,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                         <button onclick="confirmRemoveAllWells()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all wells</button>
                     </div>
                 </div>
-                
-                <div id="activityContent">
+
+                <div id="activity-tab" class="tab-content">
+                    <div id="activityContent">
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
