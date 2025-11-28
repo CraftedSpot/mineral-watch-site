@@ -2845,8 +2845,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         });
         
         async function loadAllData() {
-            await Promise.all([loadProperties(), loadWells(), loadActivityStats()]);
-        }
+        await Promise.all([loadProperties(), loadWells(), loadActivityStats()]);
+}
 
         async function loadProperties() {
             try {
