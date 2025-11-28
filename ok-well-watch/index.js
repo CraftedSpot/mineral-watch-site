@@ -99,7 +99,9 @@ async function runWellWatch(env, ctx) {
           let matchType = "";
 
           // Check API Match (specific well)
-          if (attr.api && API_WATCH_LIST.has(String(attr.api))) {
+          // Handle both formats: OCC format (with trailing 00) and standard OK format
+          const occApiFormatted = attr.api ? `35${attr.api.toString().slice(0, -2)}` : null;
+          if (attr.api && (API_WATCH_LIST.has(String(attr.api)) || API_WATCH_LIST.has(occApiFormatted))) {
             isMatch = true;
             matchType = "🎯 Specific Well (API Watch)";
           }
@@ -169,7 +171,7 @@ async function runWellWatch(env, ctx) {
               operator: attr.operator,
               previousOperator: previousOperator,
               location: locationKey,
-              api: attr.api,
+              api: attr.api ? `35${attr.api.toString().slice(0, -2)}` : null, // Remove last 2 digits & add OK state code,
               status: attr.wellstatus,
               previousStatus: previousStatus,
               isStatusChange: isStatusChange,
@@ -184,10 +186,10 @@ async function runWellWatch(env, ctx) {
               county: attr.county
             });
             
-            // 📋 Log to Activity Log
-            await logActivity(env, {
+            // 📋 Prepare activity log data (will log after email is sent)
+            const activityData = {
               wellName: fullWellName,
-              apiNumber: attr.api,
+              apiNumber: attr.api ? `35${attr.api.toString().slice(0, -2)}` : null, // Remove last 2 digits & add OK state code
               activityType: activityType,
               previousValue: isOperatorChange ? previousOperator : previousStatus,
               newValue: isOperatorChange ? attr.operator : attr.wellstatus,
@@ -198,8 +200,12 @@ async function runWellWatch(env, ctx) {
               location: locationKey,
               county: attr.county,
               occLink: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api}`,
-              mapLink: mapLink
-            });
+              mapLink: mapLink,
+              emailSent: false // Will be updated after email attempt
+            };
+            
+            // Store activity data with the match for later processing
+            matches[matches.length - 1].activityData = activityData;
           }
         }
 
@@ -208,10 +214,23 @@ async function runWellWatch(env, ctx) {
           const matchesToSend = matches.slice(0, 20);
           const remaining = matches.length - matchesToSend.length;
           
-          await sendPostmarkEmail(env, user, matchesToSend, remaining);
-          totalAlertsSent++;
+          let emailSent = false;
+          try {
+            await sendPostmarkEmail(env, user, matchesToSend, remaining);
+            emailSent = true;
+            totalAlertsSent++;
+            console.log(`  - Sent ${matches.length} alerts to ${user.email}`);
+          } catch (emailError) {
+            console.error(`Failed to send email to ${user.email}: ${emailError.message}`);
+          }
           
-          console.log(`  - Sent ${matches.length} alerts to ${user.email}`);
+          // Log all activities with correct email status
+          for (const match of matches) {
+            if (match.activityData) {
+              match.activityData.emailSent = emailSent;
+              await logActivity(env, match.activityData);
+            }
+          }
         } else {
           console.log(`  - No new activity for this user`);
         }
@@ -769,7 +788,7 @@ async function logActivity(env, data) {
           "County": data.county || "",
           "OCC Link": data.occLink || "",
           "Map Link": data.mapLink || "",
-          "Email Sent": true
+          "Email Sent": data.emailSent || false
         }
       })
     });
