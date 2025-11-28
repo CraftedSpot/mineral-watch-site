@@ -443,7 +443,7 @@ async function handleBulkValidateProperties(request, env) {
     // Validate required fields
     if (!normalized.SEC) {
       errors.push("Missing section number");
-    } else if (Number(normalized.SEC) < 1 || Number(normalized.SEC) > 36) {
+    } else if (normalized.SEC < 1 || normalized.SEC > 36) {
       errors.push("Section must be 1-36");
     }
     
@@ -1043,14 +1043,9 @@ async function fetchWellDetailsFromOCC(apiNumber) {
     
     if (data.features && data.features.length > 0) {
       const attr = data.features[0].attributes;
-      // Combine well_name and well_num, but check if well_num is already in well_name
-      let wellName = attr.well_name || '';
-      if (attr.well_num && !wellName.includes(attr.well_num)) {
-        wellName = `${wellName} ${attr.well_num}`.trim();
-      }
       return {
         api: attr.api,
-        wellName: wellName,
+        wellName: attr.well_num ? `${attr.well_name} #${attr.well_num}` : attr.well_name,
         operator: attr.operator || null,
         county: attr.county || null,
         section: attr.section || null,
@@ -2243,16 +2238,14 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-        .tab { background: #E2E8F0; border: none; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
+        .tab { background: white; border: none; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
         .tab.active { background: white; color: var(--oil-navy); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .tab:not(.active):hover { background: #CBD5E1; }
+        .tab:not(.active) { background: rgba(255,255,255,0.5); }
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .data-table { width: 100%; border-collapse: collapse; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
-        .data-table th.sortable { cursor: pointer; user-select: none; }
-        .data-table th.sortable:hover { background: #E2E8F0; }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
         .data-table tr:last-child td { border-bottom: none; }
         .status-active { color: var(--success); font-weight: 600; }
@@ -2327,12 +2320,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 <div class="header-actions">
                     <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
                     <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">📄 Import Properties</button>
-                    <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export Properties</button>
-                    <button class="btn-add" id="removeAllPropertiesBtn" style="background: #DC2626; display: none;" onclick="removeAllProperties()">🗑️ Remove All</button>
+                    <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export CSV</button>
                     <button class="btn-add" id="addWellBtn">+ Add Well</button>
                     <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">🛢️ Import Wells</button>
-                    <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export Wells</button>
-                    <button class="btn-add" id="removeAllWellsBtn" style="background: #DC2626; display: none;" onclick="removeAllWells()">🗑️ Remove All</button>
+                    <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export CSV</button>
                 </div>
             </div>
             
@@ -2565,8 +2556,6 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         };
         let currentTab = 'properties';
         let currentUser = null; // Store user data globally
-        let loadedProperties = []; // Store for details modal
-        let loadedWells = []; // Store for details modal
         
         document.addEventListener('DOMContentLoaded', async () => {
             try {
@@ -2589,10 +2578,6 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     document.getElementById('exportPropertiesBtn').style.display = 'inline-flex';
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
-                
-                // Show remove all buttons for all users
-                document.getElementById('removeAllPropertiesBtn').style.display = 'inline-flex';
-                document.getElementById('removeAllWellsBtn').style.display = 'inline-flex';
                 
                 await loadAllData();
             } catch { window.location.href = '/portal/login'; }
@@ -2630,7 +2615,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 if (properties.length === 0) {
                     document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
                 } else {
-                    let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortProperties(\'county\')">County ⇅</th><th class="sortable" onclick="sortProperties(\'legal\')">Legal Description ⇅</th><th>Notes</th><th></th></tr></thead><tbody>';
+                    let html = '<table class="data-table"><thead><tr><th>County</th><th>Legal Description</th><th>Notes</th><th></th></tr></thead><tbody>';
                     properties.forEach(p => {
                         const f = p.fields;
                         const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
@@ -2675,7 +2660,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 if (wells.length === 0) {
                     document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
                 } else {
-                    let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortWells(\'name\')">Well Name ⇅</th><th class="sortable" onclick="sortWells(\'operator\')">Operator ⇅</th><th>API</th><th class="sortable" onclick="sortWells(\'county\')">County ⇅</th><th>Location</th><th></th></tr></thead><tbody>';
+                    let html = '<table class="data-table"><thead><tr><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Location</th><th></th></tr></thead><tbody>';
                     wells.forEach(w => {
                         const f = w.fields;
                         const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">Unknown</em>';
@@ -2704,6 +2689,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     document.getElementById('wellsContent').innerHTML = html;
                 }
             } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
         }
 
         function updateTotalCount() {
@@ -2933,151 +2919,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             } catch { alert('Error deleting.'); }
         }
         
-        async function removeAllProperties() {
-            if (!loadedProperties.length) {
-                alert('No properties to remove.');
-                return;
-            }
-            if (!confirm(\`Are you sure you want to remove ALL \${loadedProperties.length} properties? This cannot be undone.\`)) return;
-            if (!confirm('This is your last chance to cancel. Remove all properties?')) return;
-            
-            try {
-                for (const prop of loadedProperties) {
-                    await fetch('/api/properties/' + prop.id, { method: 'DELETE' });
-                }
-                await loadProperties();
-                alert('All properties removed.');
-            } catch { alert('Error removing properties.'); }
-        }
-        
-        async function removeAllWells() {
-            if (!loadedWells.length) {
-                alert('No wells to remove.');
-                return;
-            }
-            if (!confirm(\`Are you sure you want to remove ALL \${loadedWells.length} wells? This cannot be undone.\`)) return;
-            if (!confirm('This is your last chance to cancel. Remove all wells?')) return;
-            
-            try {
-                for (const well of loadedWells) {
-                    await fetch('/api/wells/' + well.id, { method: 'DELETE' });
-                }
-                await loadWells();
-                alert('All wells removed.');
-            } catch { alert('Error removing wells.'); }
-        }
-        
-        // Sorting state
-        let propertiesSortField = null;
-        let propertiesSortAsc = true;
-        let wellsSortField = null;
-        let wellsSortAsc = true;
-        
-        function sortProperties(field) {
-            if (propertiesSortField === field) {
-                propertiesSortAsc = !propertiesSortAsc;
-            } else {
-                propertiesSortField = field;
-                propertiesSortAsc = true;
-            }
-            
-            loadedProperties.sort((a, b) => {
-                let valA, valB;
-                if (field === 'county') {
-                    valA = (a.fields.COUNTY || '').toLowerCase();
-                    valB = (b.fields.COUNTY || '').toLowerCase();
-                } else if (field === 'legal') {
-                    valA = \`\${a.fields.SEC}-\${a.fields.TWN}-\${a.fields.RNG}\`.toLowerCase();
-                    valB = \`\${b.fields.SEC}-\${b.fields.TWN}-\${b.fields.RNG}\`.toLowerCase();
-                }
-                if (valA < valB) return propertiesSortAsc ? -1 : 1;
-                if (valA > valB) return propertiesSortAsc ? 1 : -1;
-                return 0;
-            });
-            
-            renderPropertiesTable();
-        }
-        
-        function sortWells(field) {
-            if (wellsSortField === field) {
-                wellsSortAsc = !wellsSortAsc;
-            } else {
-                wellsSortField = field;
-                wellsSortAsc = true;
-            }
-            
-            loadedWells.sort((a, b) => {
-                let valA, valB;
-                if (field === 'name') {
-                    valA = (a.fields['Well Name'] || '').toLowerCase();
-                    valB = (b.fields['Well Name'] || '').toLowerCase();
-                } else if (field === 'operator') {
-                    valA = (a.fields['Operator'] || '').toLowerCase();
-                    valB = (b.fields['Operator'] || '').toLowerCase();
-                } else if (field === 'county') {
-                    valA = (a.fields['County'] || '').toLowerCase();
-                    valB = (b.fields['County'] || '').toLowerCase();
-                }
-                if (valA < valB) return wellsSortAsc ? -1 : 1;
-                if (valA > valB) return wellsSortAsc ? 1 : -1;
-                return 0;
-            });
-            
-            renderWellsTable();
-        }
-        
-        function renderPropertiesTable() {
-            let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortProperties(\'county\')">County ⇅</th><th class="sortable" onclick="sortProperties(\'legal\')">Legal Description ⇅</th><th>Notes</th><th></th></tr></thead><tbody>';
-            loadedProperties.forEach(p => {
-                const f = p.fields;
-                const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
-                const notes = f.Notes ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${f.Notes.substring(0, 30)}\${f.Notes.length > 30 ? '...' : ''}</span>\` : '<em style="color: #A0AEC0;">—</em>';
-                const mapLink = generateSectionMapLink(f.SEC, f.TWN, f.RNG, f.COUNTY);
-                
-                html += \`<tr>
-                    <td>\${f.COUNTY || '—'}</td>
-                    <td><strong>\${str}</strong></td>
-                    <td>\${notes}</td>
-                    <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
-                        \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
-                        <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
-                    </td>
-                </tr>\`;
-            });
-            html += '</tbody></table>';
-            document.getElementById('propertiesContent').innerHTML = html;
-        }
-        
-        function renderWellsTable() {
-            let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortWells(\'name\')">Well Name ⇅</th><th class="sortable" onclick="sortWells(\'operator\')">Operator ⇅</th><th>API</th><th class="sortable" onclick="sortWells(\'county\')">County ⇅</th><th>Location</th><th></th></tr></thead><tbody>';
-            loadedWells.forEach(w => {
-                const f = w.fields;
-                const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">Unknown</em>';
-                const operator = f['Operator'] || '<em style="color: #A0AEC0;">—</em>';
-                const county = f['County'] || '—';
-                const section = f['Section'] || '';
-                const township = f['Township'] || '';
-                const range = f['Range'] || '';
-                const str = (section && township && range) ? \`S\${section} T\${township} R\${range}\` : '—';
-                const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
-                
-                html += \`<tr>
-                    <td><strong>\${wellName}</strong></td>
-                    <td>\${operator}</td>
-                    <td>\${f['API Number']}</td>
-                    <td>\${county}</td>
-                    <td>\${str}</td>
-                    <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
-                        \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
-                        <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
-                    </td>
-                </tr>\`;
-            });
-            html += '</tbody></table>';
-            document.getElementById('wellsContent').innerHTML = html;
-        }
+        // Store loaded data for details modals
+        let loadedProperties = [];
+        let loadedWells = [];
         
         // Well Details Modal Functions
         function openWellDetails(wellId) {
@@ -3109,8 +2953,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 mapBtn.style.display = 'none';
             }
             
-            // OCC Well lookup link (Well Browse)
-            const occLink = \`https://wellbrowse.occ.ok.gov/?APINumber=\${f['API Number']}\`;
+            // OCC Filing link (RBDMS lookup)
+            const occLink = \`https://imaging.occ.ok.gov/OG/Well%20Records/\${f['API Number']}/\`;
             document.getElementById('wellDetailsOccLink').href = occLink;
             
             document.getElementById('wellDetailsModal').style.display = 'flex';
