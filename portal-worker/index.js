@@ -3069,9 +3069,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 // Update results count
                 const countEl = document.getElementById('wellsResultsCount');
                 if (wellsSearchTerm) {
-                    countEl.textContent = `${displayWells.length} of ${loadedWells.length} wells`;
+                    countEl.textContent = \`\${displayWells.length} of \${loadedWells.length} wells\`;
                 } else {
-                    countEl.textContent = `${loadedWells.length} wells`;
+                    countEl.textContent = \`\${loadedWells.length} wells\`;
                 }
             }
             
@@ -3096,21 +3096,21 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
-                const str = (section && township && range) ? `S${section} T${township} R${range}` : '—';
+                const str = (section && township && range) ? \`S\${section} T\${township} R\${range}\` : '—';
                 const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
                 
-                html += `<tr>
-                    <td><strong>${wellName}</strong></td>
-                    <td>${operator}</td>
-                    <td>${escapeHtml(f['API Number'])}</td>
-                    <td>${county}</td>
-                    <td>${str}</td>
+                html += \`<tr>
+                    <td><strong>\${wellName}</strong></td>
+                    <td>\${operator}</td>
+                    <td>\${escapeHtml(f['API Number'])}</td>
+                    <td>\${county}</td>
+                    <td>\${str}</td>
                     <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openWellDetails('${w.id}')">Details</button>
-                        ${mapLink ? `<button class="btn-link" onclick="window.open('${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
-                        <button class="btn-delete" onclick="deleteWell('${w.id}')">Remove</button>
+                        <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
+                        \${mapLink ? \`<button class="btn-link" onclick="window.open('\${escapeHtml(mapLink)}', '_blank')">Map</button>\` : ''}
+                        <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
                     </td>
-                </tr>`;
+                </tr>\`;
             });
             
             html += '</tbody></table>';
