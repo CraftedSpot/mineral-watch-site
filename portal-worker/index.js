@@ -313,7 +313,12 @@ async function handleUpdateWellNotes(wellId, request, env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   const body = await request.json();
-  const notes = body.notes || "";
+  let notes = body.notes || "";
+  
+  // Limit notes length to prevent abuse
+  if (notes.length > 1000) {
+    notes = notes.substring(0, 1000);
+  }
   
   // Verify ownership
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
@@ -355,7 +360,12 @@ async function handleUpdatePropertyNotes(propertyId, request, env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   const body = await request.json();
-  const notes = body.notes || "";
+  let notes = body.notes || "";
+  
+  // Limit notes length to prevent abuse
+  if (notes.length > 1000) {
+    notes = notes.substring(0, 1000);
+  }
   
   // Verify ownership
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
@@ -765,12 +775,19 @@ async function handleBulkValidateWells(request, env) {
       warnings.push("Duplicate in this file");
     }
     
+    // Truncate notes to prevent abuse
+    let notes = well.notes || well.Notes || well.NOTE || well.Note || well.Comments || well.comments || '';
+    if (notes.length > 1000) {
+      notes = notes.substring(0, 1000);
+    }
+    
     return {
       row: index + 1,
       original: well,
       normalized: {
         apiNumber: cleanApi,
-        wellName: well.wellName || well.WELL_NAME || well.Well_Name || well.name || ''
+        wellName: well.wellName || well.WELL_NAME || well.Well_Name || well.name || '',
+        notes: notes
       },
       errors,
       warnings,
@@ -902,7 +919,7 @@ async function handleBulkUploadWells(request, env) {
               Range: occ.range || "",
               "Well Type": occ.wellType || "",
               "Well Status": occ.wellStatus || "",
-              Notes: ""
+              Notes: well.notes || ""
             }
           };
         })
@@ -980,14 +997,22 @@ async function fetchUserProperties(env, userEmail) {
 
 
 // --- HELPER: NORMALIZE PROPERTY DATA ---
+var MAX_NOTES_LENGTH = 1000;
+
 function normalizePropertyData(prop) {
+  let notes = prop.NOTES || prop.Notes || prop.Note || prop.Comments || "";
+  // Truncate notes to prevent abuse
+  if (notes.length > MAX_NOTES_LENGTH) {
+    notes = notes.substring(0, MAX_NOTES_LENGTH);
+  }
+  
   return {
     SEC: normalizeSectionNumber(prop.SEC || prop.Section || prop.Sec || prop.S),
     TWN: normalizeTownship(prop.TWN || prop.Township || prop.Town || prop.T),
     RNG: normalizeRange(prop.RNG || prop.Range || prop.R),
     MERIDIAN: normalizeMeridian(prop.MERIDIAN || prop.Meridian || prop.MER || prop.M),
     COUNTY: normalizeCounty(prop.COUNTY || prop.County || prop.Co || prop.CTY),
-    NOTES: prop.NOTES || prop.Notes || prop.Note || prop.Comments || ""
+    NOTES: notes
   };
 }
 
@@ -2410,13 +2435,14 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
     </header>
     <main>
         <div class="container">
-            <div class="page-header">
-                <h1>My Monitoring</h1>
-                <div class="header-actions">
+            <div class="page-header" style="flex-direction: column; align-items: flex-start; gap: 16px;">
+                <h1 style="margin: 0;">My Monitoring</h1>
+                <div class="header-actions" style="flex-wrap: wrap; gap: 8px;">
                     <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
                     <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">📄 Import Properties</button>
                     <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export Properties</button>
                     <button class="btn-add" id="removeAllPropertiesBtn" style="background: var(--error); display: none;" onclick="confirmRemoveAllProperties()">🗑️ Remove All Properties</button>
+                    <span style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></span>
                     <button class="btn-add" id="addWellBtn">+ Add Well</button>
                     <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">🛢️ Import Wells</button>
                     <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export Wells</button>
@@ -2724,8 +2750,6 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                         const f = p.fields;
                         const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
                         const notes = f.Notes ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${f.Notes.substring(0, 30)}\${f.Notes.length > 30 ? '...' : ''}</span>\` : '<em style="color: #A0AEC0;">—</em>';
-                        // Generate section map link
-                        const mapLink = generateSectionMapLink(f.SEC, f.TWN, f.RNG, f.COUNTY);
                         
                         html += \`<tr>
                             <td>\${f.COUNTY || '—'}</td>
@@ -2733,7 +2757,6 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                             <td>\${notes}</td>
                             <td style="white-space: nowrap;">
                                 <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
-                                \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
                                 <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
                             </td>
                         </tr>\`;
@@ -3113,7 +3136,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             }
             
             // OCC Filing link (Well Browse - works with API number)
-            const occLink = \`https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?API=\${f['API Number']}\`;
+            const occLink = \`https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?api=\${f['API Number']}\`;
             document.getElementById('wellDetailsOccLink').href = occLink;
             
             document.getElementById('wellDetailsModal').style.display = 'flex';
@@ -3285,6 +3308,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             <!-- Instructions -->
             <div class="bulk-section">
                 <p class="bulk-intro">Upload a CSV or Excel file with your properties. We'll automatically detect columns and format your data.</p>
+                <p class="bulk-text" style="margin-top: 8px;">💡 <strong>Tip:</strong> Include a Notes column to add context like well names, ownership details, or reminders for each property.</p>
             </div>
             
             <!-- File Formats -->
@@ -3303,7 +3327,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                             <div><strong>Section:</strong> <code>SEC</code> <code>Section</code> <code>Sec</code> <code>S</code></div>
                             <div><strong>Township:</strong> <code>TWN</code> <code>Township</code> <code>Town</code> <code>T</code></div>
                             <div><strong>Range:</strong> <code>RNG</code> <code>Range</code> <code>R</code></div>
-                            <div><strong>Optional:</strong> County, Meridian, Notes</div>
+                            <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
+                            <div><strong>Optional:</strong> County, Meridian</div>
                         </div>
                     </div>
                     
@@ -3378,6 +3403,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                                 <th>RNG</th>
                                 <th>MER</th>
                                 <th>County</th>
+                                <th>Notes</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -3446,6 +3472,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         <div id="wells-upload-step" style="display:block;">
             <div class="bulk-section">
                 <p class="bulk-intro">Upload a CSV or Excel file with API numbers. We'll validate each one and add them to your monitored wells.</p>
+                <p class="bulk-text" style="margin-top: 8px;">💡 <strong>Tip:</strong> Include a Notes column to add your own context or reminders for each well.</p>
             </div>
             
             <div class="bulk-section bulk-section-gray">
@@ -3461,9 +3488,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             <div class="bulk-section">
                 <div class="bulk-two-col">
                     <div>
-                        <div class="bulk-label">Optional Column</div>
+                        <div class="bulk-label">Optional Columns</div>
                         <div class="bulk-columns">
                             <div><strong>Well Name:</strong> <code>Well Name</code> <code>WELL_NAME</code> <code>wellName</code></div>
+                            <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
                         </div>
                     </div>
                     <div>
@@ -3523,6 +3551,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                                 <th>#</th>
                                 <th>API Number</th>
                                 <th>Well Name</th>
+                                <th>Notes</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -4281,6 +4310,9 @@ function renderPreviewTable() {
                           (result.errors.length > 0 ? \`❌ \${result.errors[0]}\` :
                           (result.warnings.length > 0 ? \`⚠️ \${result.warnings[0]}\` : '✓ Valid'));
         
+        // Truncate notes for preview (max 25 chars)
+        const notesPreview = prop.NOTES ? (prop.NOTES.length > 25 ? prop.NOTES.substring(0, 25) + '...' : prop.NOTES) : '-';
+        
         html += \`
             <tr class="\${rowClass}">
                 <td>\${index + 1}</td>
@@ -4289,6 +4321,7 @@ function renderPreviewTable() {
                 <td>\${prop.RNG || '-'}</td>
                 <td>\${prop.MERIDIAN || '-'}</td>
                 <td>\${prop.COUNTY || '-'}</td>
+                <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
                 <td class="status-cell \${statusClass}">
                     \${statusText}
                 </td>
@@ -4599,11 +4632,16 @@ function renderWellsPreviewTable() {
                           (result.errors.length > 0 ? \`❌ \${result.errors[0]}\` :
                           (result.warnings.length > 0 ? \`⚠️ \${result.warnings[0]}\` : '✓ Valid'));
         
+        // Truncate notes for preview
+        const notesPreview = result.normalized.notes ? 
+            (result.normalized.notes.length > 25 ? result.normalized.notes.substring(0, 25) + '...' : result.normalized.notes) : '-';
+        
         html += \`
             <tr class="\${rowClass}">
                 <td>\${index + 1}</td>
                 <td>\${result.normalized.apiNumber || '-'}</td>
                 <td>\${result.normalized.wellName || '-'}</td>
+                <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
                 <td class="status-cell \${statusClass}">\${statusText}</td>
             </tr>
         \`;
