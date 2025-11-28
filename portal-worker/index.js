@@ -139,6 +139,23 @@ var index_default = {
 };
 
 // ====================
+// SECURITY HELPERS
+// ====================
+
+// HTML escape to prevent XSS attacks from user-generated content
+function escapeHtml(text) {
+  if (!text) return '';
+  const str = String(text);
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+__name(escapeHtml, "escapeHtml");
+
+// ====================
 // WELL HANDLERS
 // ====================
 
@@ -2674,6 +2691,18 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
     </div>
     
     <script>
+        // Security: escape HTML to prevent XSS from user-generated content
+        function escapeHtml(text) {
+            if (!text) return '';
+            const str = String(text);
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+        
         const planConfigs = { 
             'Free': { properties: 1, wells: 0 }, 
             'Starter': { properties: 10, wells: 10 }, 
@@ -2749,10 +2778,11 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     properties.forEach(p => {
                         const f = p.fields;
                         const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
-                        const notes = f.Notes ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${f.Notes.substring(0, 30)}\${f.Notes.length > 30 ? '...' : ''}</span>\` : '<em style="color: #A0AEC0;">—</em>';
+                        const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
+                        const notes = notesText ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${notesText}</span>\` : '<em style="color: #A0AEC0;">—</em>';
                         
                         html += \`<tr>
-                            <td>\${f.COUNTY || '—'}</td>
+                            <td>\${escapeHtml(f.COUNTY) || '—'}</td>
                             <td><strong>\${str}</strong></td>
                             <td>\${notes}</td>
                             <td style="white-space: nowrap;">
@@ -2793,9 +2823,9 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     let html = '<table class="data-table"><thead><tr><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Location</th><th></th></tr></thead><tbody>';
                     wells.forEach(w => {
                         const f = w.fields;
-                        const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">Unknown</em>';
-                        const operator = f['Operator'] || '<em style="color: #A0AEC0;">—</em>';
-                        const county = f['County'] || '—';
+                        const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
+                        const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
+                        const county = escapeHtml(f['County']) || '—';
                         const section = f['Section'] || '';
                         const township = f['Township'] || '';
                         const range = f['Range'] || '';
@@ -2805,12 +2835,12 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                         html += \`<tr>
                             <td><strong>\${wellName}</strong></td>
                             <td>\${operator}</td>
-                            <td>\${f['API Number']}</td>
+                            <td>\${escapeHtml(f['API Number'])}</td>
                             <td>\${county}</td>
                             <td>\${str}</td>
                             <td style="white-space: nowrap;">
                                 <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
-                                \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
+                                \${mapLink ? \`<button class="btn-link" onclick="window.open('\${escapeHtml(mapLink)}', '_blank')">Map</button>\` : ''}
                                 <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
                             </td>
                         </tr>\`;
@@ -2916,10 +2946,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                     const mapLink = f['Map Link'];
                     let actionsHtml = '<div class="activity-actions">';
                     if (occLink) {
-                        actionsHtml += \`<a href="\${occLink}" target="_blank" class="activity-btn">OCC Filing</a>\`;
+                        actionsHtml += \`<a href="\${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>\`;
                     }
                     if (mapLink) {
-                        actionsHtml += \`<a href="\${mapLink}" target="_blank" class="activity-btn">View Map</a>\`;
+                        actionsHtml += \`<a href="\${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>\`;
                     }
                     actionsHtml += '</div>';
                     
@@ -2928,12 +2958,12 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                             <div class="activity-icon \${iconClass}">\${icon}</div>
                             <div class="activity-details">
                                 <div class="activity-header">
-                                    <span class="activity-type">\${activityType}</span>
-                                    <span class="activity-level \${levelClass}">\${alertLevel.replace('_', ' ')}</span>
+                                    <span class="activity-type">\${escapeHtml(activityType)}</span>
+                                    <span class="activity-level \${levelClass}">\${escapeHtml(alertLevel.replace('_', ' '))}</span>
                                 </div>
-                                <div class="activity-well">\${f['Well Name'] || 'Unknown Well'}</div>
-                                <div class="activity-meta">\${f['Operator'] || ''} • \${f['Section-Township-Range'] || ''} • \${f['County'] || ''}</div>
-                                \${changeText ? \`<div class="activity-change">\${changeText}</div>\` : ''}
+                                <div class="activity-well">\${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
+                                <div class="activity-meta">\${escapeHtml(f['Operator']) || ''} • \${escapeHtml(f['Section-Township-Range']) || ''} • \${escapeHtml(f['County']) || ''}</div>
+                                \${changeText ? \`<div class="activity-change">\${escapeHtml(changeText)}</div>\` : ''}
                                 \${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
                             <div class="activity-date">\${dateStr}</div>
@@ -4050,6 +4080,18 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 let parsedData = [];
 let validationResults = null;
 
+// Security: escape HTML to prevent XSS (also defined in main script, but needed here for bulk upload)
+function escapeHtmlBulk(text) {
+    if (!text) return '';
+    const str = String(text);
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 // Open bulk upload modal
 function openBulkUploadModal() {
     document.getElementById('bulk-upload-modal').style.display = 'flex';
@@ -4310,17 +4352,18 @@ function renderPreviewTable() {
                           (result.errors.length > 0 ? \`❌ \${result.errors[0]}\` :
                           (result.warnings.length > 0 ? \`⚠️ \${result.warnings[0]}\` : '✓ Valid'));
         
-        // Truncate notes for preview (max 25 chars)
-        const notesPreview = prop.NOTES ? (prop.NOTES.length > 25 ? prop.NOTES.substring(0, 25) + '...' : prop.NOTES) : '-';
+        // Truncate notes for preview (max 25 chars) and escape
+        const notesRaw = prop.NOTES ? (prop.NOTES.length > 25 ? prop.NOTES.substring(0, 25) + '...' : prop.NOTES) : '-';
+        const notesPreview = escapeHtmlBulk(notesRaw);
         
         html += \`
             <tr class="\${rowClass}">
                 <td>\${index + 1}</td>
-                <td>\${prop.SEC || '-'}</td>
-                <td>\${prop.TWN || '-'}</td>
-                <td>\${prop.RNG || '-'}</td>
-                <td>\${prop.MERIDIAN || '-'}</td>
-                <td>\${prop.COUNTY || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.SEC) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.TWN) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.RNG) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
                 <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
                 <td class="status-cell \${statusClass}">
                     \${statusText}
@@ -4632,15 +4675,16 @@ function renderWellsPreviewTable() {
                           (result.errors.length > 0 ? \`❌ \${result.errors[0]}\` :
                           (result.warnings.length > 0 ? \`⚠️ \${result.warnings[0]}\` : '✓ Valid'));
         
-        // Truncate notes for preview
-        const notesPreview = result.normalized.notes ? 
+        // Truncate notes for preview and escape
+        const notesRaw = result.normalized.notes ? 
             (result.normalized.notes.length > 25 ? result.normalized.notes.substring(0, 25) + '...' : result.normalized.notes) : '-';
+        const notesPreview = escapeHtmlBulk(notesRaw);
         
         html += \`
             <tr class="\${rowClass}">
                 <td>\${index + 1}</td>
-                <td>\${result.normalized.apiNumber || '-'}</td>
-                <td>\${result.normalized.wellName || '-'}</td>
+                <td>\${escapeHtmlBulk(result.normalized.apiNumber) || '-'}</td>
+                <td>\${escapeHtmlBulk(result.normalized.wellName) || '-'}</td>
                 <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
                 <td class="status-cell \${statusClass}">\${statusText}</td>
             </tr>
