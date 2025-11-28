@@ -19,6 +19,7 @@ var PLAN_LIMITS = {
   "Professional": { properties: 500, wells: 500 },
   "Enterprise": { properties: Infinity, wells: Infinity }
 };
+var OCC_CACHE_TTL = 86400; // 24 hours in seconds
 var CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
@@ -221,7 +222,7 @@ async function handleAddWell(request, env) {
   
   // Query OCC API to get well details and coordinates
   console.log(`Querying OCC for well API: ${cleanApi}`);
-  const wellDetails = await fetchWellDetailsFromOCC(cleanApi);
+  const wellDetails = await fetchWellDetailsFromOCC(cleanApi, env);
   
   let occMapLink = "#";
   let suggestedWellName = body.wellName || "";
@@ -894,9 +895,9 @@ async function handleBulkUploadWells(request, env) {
   for (let i = 0; i < toCreate.length; i += occBatchSize) {
     const occBatch = toCreate.slice(i, i + occBatchSize);
     const occPromises = occBatch.map(async (well) => {
-      const occData = await fetchWellDetailsFromOCC(well.apiNumber);
-      return { ...well, occData };
-    });
+    const occData = await fetchWellDetailsFromOCC(well.apiNumber, env);
+    return { ...well, occData };
+});
     const batchResults = await Promise.all(occPromises);
     wellsWithData.push(...batchResults);
     
@@ -1151,10 +1152,25 @@ function validateRange(value) {
 // Export functions (add to existing exports at end of file)
 
 
-async function fetchWellDetailsFromOCC(apiNumber) {
+async function fetchWellDetailsFromOCC(apiNumber, env) {
+  // Check cache first
+  if (env?.OCC_CACHE) {
+    const cacheKey = `well_${apiNumber}`;
+    try {
+      const cached = await env.OCC_CACHE.get(cacheKey, 'json');
+      if (cached) {
+        console.log(`OCC cache hit: ${apiNumber}`);
+        return cached;
+      }
+    } catch (e) {
+      console.warn('OCC cache read error:', e);
+    }
+  }
+  
+  console.log(`OCC cache miss: ${apiNumber} - fetching from API`);
+  
   const baseUrl = "https://gis.occ.ok.gov/server/rest/services/Hosted/RBDMS_WELLS/FeatureServer/220/query";
   
-  // Fetch all useful fields from OCC GIS
   const params = new URLSearchParams({
     where: `api=${apiNumber}`,
     outFields: "api,well_name,well_num,operator,county,section,township,range,welltype,wellstatus,sh_lat,sh_lon",
@@ -1177,7 +1193,7 @@ async function fetchWellDetailsFromOCC(apiNumber) {
     
     if (data.features && data.features.length > 0) {
       const attr = data.features[0].attributes;
-      return {
+      const wellDetails = {
         api: attr.api,
         wellName: attr.well_name && attr.well_num && !attr.well_name.includes('#') 
           ? `${attr.well_name} #${attr.well_num}` 
@@ -1190,8 +1206,25 @@ async function fetchWellDetailsFromOCC(apiNumber) {
         wellType: attr.welltype || null,
         wellStatus: attr.wellstatus || null,
         lat: attr.sh_lat,
-        lon: attr.sh_lon
+        lon: attr.sh_lon,
+        cachedAt: Date.now()
       };
+      
+      // Cache the result
+      if (env?.OCC_CACHE) {
+        try {
+          await env.OCC_CACHE.put(
+            `well_${apiNumber}`, 
+            JSON.stringify(wellDetails), 
+            { expirationTtl: OCC_CACHE_TTL }
+          );
+          console.log(`OCC cached: ${apiNumber}`);
+        } catch (e) {
+          console.warn('OCC cache write error:', e);
+        }
+      }
+      
+      return wellDetails;
     }
     
     return null;
@@ -2432,6 +2465,33 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             .activity-header { flex-direction: column; gap: 8px; }
             .activity-date { align-self: flex-start; }
         }
+        /* Skeleton Loading */
+        .skeleton {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-shimmer 1.5s infinite;
+            border-radius: 4px;
+        }
+        @keyframes skeleton-shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-table { width: 100%; }
+        .skeleton-row { display: flex; gap: 20px; padding: 16px 20px; border-bottom: 1px solid var(--border); }
+        .skeleton-row:last-child { border-bottom: none; }
+        .skeleton-cell { height: 20px; flex: 1; }
+        .skeleton-cell.narrow { max-width: 80px; }
+        .skeleton-cell.medium { max-width: 120px; }
+        .skeleton-header { background: var(--paper); padding: 14px 20px; display: flex; gap: 20px; border-bottom: 1px solid var(--border); }
+        .skeleton-header .skeleton-cell { height: 14px; opacity: 0.5; }
+        .skeleton-activity { padding: 20px; display: flex; gap: 16px; border-bottom: 1px solid var(--border); }
+        .skeleton-activity:last-child { border-bottom: none; }
+        .skeleton-avatar { width: 40px; height: 40px; border-radius: 50%; flex-shrink: 0; }
+        .skeleton-activity-content { flex: 1; display: flex; flex-direction: column; gap: 8px; }
+        .skeleton-line { height: 16px; }
+        .skeleton-line.short { width: 40%; }
+        .skeleton-line.medium { width: 60%; }
+        .skeleton-line.long { width: 85%; }
     </style>
 </head>
 <body>
@@ -2506,9 +2566,20 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
 
             <div class="content-card">
                 <div id="properties-tab" class="tab-content active">
-                    <div id="propertiesContent">
-                        <div class="empty-state"><p>Loading properties...</p></div>
-                    </div>
+                   <div id="propertiesContent">
+    <div class="skeleton-table">
+        <div class="skeleton-header">
+            <div class="skeleton skeleton-cell medium"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+        </div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+    </div>
+</div>
                     <div id="removeAllPropertiesSection" style="display: none; text-align: center; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 20px;">
                         <span style="color: #94a3b8; font-size: 13px;">Need to start over? </span>
                         <button onclick="confirmRemoveAllProperties()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all properties</button>
@@ -2516,19 +2587,31 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 </div>
                 
                 <div id="wells-tab" class="tab-content">
-                    <div id="wellsContent">
-                        <div class="empty-state"><p>Loading wells...</p></div>
-                    </div>
+                   <div id="wellsContent">
+    <div class="skeleton-table">
+        <div class="skeleton-header">
+            <div class="skeleton skeleton-cell"></div>
+            <div class="skeleton skeleton-cell medium"></div>
+            <div class="skeleton skeleton-cell medium"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+        </div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+    </div>
+</div>
                     <div id="removeAllWellsSection" style="display: none; text-align: center; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 20px;">
                         <span style="color: #94a3b8; font-size: 13px;">Need to start over? </span>
                         <button onclick="confirmRemoveAllWells()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all wells</button>
                     </div>
                 </div>
                 
-                <div id="activity-tab" class="tab-content">
-                    <div id="activityContent">
-                        <div class="empty-state"><p>Loading activity...</p></div>
-                    </div>
+                <div id="activityContent">
+                    <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
+                    <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
+                    <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
+                </div>
                 </div>
             </div>
         </div>
