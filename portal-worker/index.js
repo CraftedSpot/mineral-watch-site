@@ -72,13 +72,12 @@ var index_default = {
       if (path === "/api/properties" && request.method === "POST") {
         return handleAddProperty(request, env);
       }
-      const deletePropertyMatch = path.match(/^\/api\/properties\/([a-zA-Z0-9]+)$/);
-      if (deletePropertyMatch && request.method === "DELETE") {
-        return handleDeleteProperty(deletePropertyMatch[1], request, env);
+      const propertyIdMatch = path.match(/^\/api\/properties\/([a-zA-Z0-9]+)$/);
+      if (propertyIdMatch && request.method === "PATCH") {
+        return handleUpdateProperty(propertyIdMatch[1], request, env);
       }
-      const propertyNotesMatch = path.match(/^\/api\/properties\/([a-zA-Z0-9]+)\/notes$/);
-      if (propertyNotesMatch && request.method === "PATCH") {
-        return handleUpdatePropertyNotes(propertyNotesMatch[1], request, env);
+      if (propertyIdMatch && request.method === "DELETE") {
+        return handleDeleteProperty(propertyIdMatch[1], request, env);
       }
       
       // Wells endpoints
@@ -372,17 +371,29 @@ async function handleUpdateWellNotes(wellId, request, env) {
 }
 __name(handleUpdateWellNotes, "handleUpdateWellNotes");
 
-// --- HANDLER: UPDATE PROPERTY NOTES ---
-async function handleUpdatePropertyNotes(propertyId, request, env) {
+// --- HANDLER: UPDATE PROPERTY ---
+async function handleUpdateProperty(propertyId, request, env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   const body = await request.json();
-  let notes = body.notes || "";
   
-  // Limit notes length to prevent abuse
-  if (notes.length > 1000) {
-    notes = notes.substring(0, 1000);
+  // Build fields object with allowed editable fields
+  const updateFields = {};
+  if (body.notes !== undefined) {
+    let notes = body.notes || "";
+    // Limit notes length to prevent abuse
+    if (notes.length > 1000) {
+      notes = notes.substring(0, 1000);
+    }
+    updateFields['Notes'] = notes;
+  }
+  if (body.meridian !== undefined) {
+    // Validate meridian value
+    if (!['IM', 'CM'].includes(body.meridian)) {
+      return jsonResponse({ error: 'Invalid meridian value' }, 400);
+    }
+    updateFields['MERIDIAN'] = body.meridian;
   }
   
   // Verify ownership
@@ -400,7 +411,7 @@ async function handleUpdatePropertyNotes(propertyId, request, env) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }
   
-  // Update notes
+  // Update property
   const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
   const updateResponse = await fetch(updateUrl, {
     method: "PATCH",
@@ -408,16 +419,16 @@ async function handleUpdatePropertyNotes(propertyId, request, env) {
       Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({ fields: { Notes: notes } })
+    body: JSON.stringify({ fields: updateFields })
   });
   
   if (!updateResponse.ok) {
-    return jsonResponse({ error: "Failed to update notes" }, 500);
+    return jsonResponse({ error: "Failed to update property" }, 500);
   }
   
   return jsonResponse({ success: true });
 }
-__name(handleUpdatePropertyNotes, "handleUpdatePropertyNotes");
+__name(handleUpdateProperty, "handleUpdateProperty");
 
 // ====================
 // ACTIVITY LOG HANDLERS
@@ -2834,7 +2845,10 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 </div>
                 <div class="details-row">
                     <span class="details-label">Meridian</span>
-                    <span class="details-value" id="propertyDetailsMeridian">—</span>
+                    <select id="propertyDetailsMeridian" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white;">
+                        <option value="IM">IM (Indian Meridian)</option>
+                        <option value="CM">CM (Cimarron Meridian)</option>
+                    </select>
                 </div>
                 <div class="details-row">
                     <span class="details-label">Monitor Adjacent</span>
@@ -2849,7 +2863,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             <input type="hidden" id="propertyDetailsId">
             <div class="modal-buttons" style="margin-top: 20px;">
                 <button type="button" class="btn-cancel" onclick="closePropertyDetailsModal()">Close</button>
-                <button type="button" class="btn-submit" onclick="savePropertyNotes()">Save Notes</button>
+                <button type="button" class="btn-submit" onclick="savePropertyDetails()">Save Changes</button>
             </div>
         </div>
     </div>
@@ -3612,35 +3626,39 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
             document.getElementById('propertyDetailsSection').textContent = f['SEC'] || '—';
             document.getElementById('propertyDetailsTownship').textContent = f['TWN'] || '—';
             document.getElementById('propertyDetailsRange').textContent = f['RNG'] || '—';
-            document.getElementById('propertyDetailsMeridian').textContent = f['MERIDIAN'] || 'IM';
+            document.getElementById('propertyDetailsMeridian').value = f['MERIDIAN'] || 'IM';
             document.getElementById('propertyDetailsAdjacent').textContent = f['Monitor Adjacent'] ? 'Yes' : 'No';
             document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
             document.getElementById('propertyDetailsModal').style.display = 'flex';
         }
         
-        async function savePropertyNotes() {
+        async function savePropertyDetails() {
             const propId = document.getElementById('propertyDetailsId').value;
             const notes = document.getElementById('propertyDetailsNotes').value;
+            const meridian = document.getElementById('propertyDetailsMeridian').value;
             
             try {
-                const res = await fetch('/api/properties/' + propId + '/notes', {
+                const res = await fetch('/api/properties/' + propId, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notes })
+                    body: JSON.stringify({ notes, meridian })
                 });
                 
                 if (!res.ok) throw new Error('Failed to save');
                 
                 // Update local data
                 const prop = loadedProperties.find(p => p.id === propId);
-                if (prop) prop.fields['Notes'] = notes;
+                if (prop) {
+                    prop.fields['Notes'] = notes;
+                    prop.fields['MERIDIAN'] = meridian;
+                }
                 
-                alert('Notes saved!');
+                alert('Changes saved!');
                 closePropertyDetailsModal();
                 await loadProperties();
             } catch (err) {
-                alert('Error saving notes.');
+                alert('Error saving changes.');
             }
         }
         
