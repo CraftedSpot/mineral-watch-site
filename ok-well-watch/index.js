@@ -101,6 +101,13 @@ async function runWellWatch(env, ctx) {
           // Check API Match (specific well)
           // Handle both formats: OCC format (with trailing 00) and standard OK format
           const occApiFormatted = attr.api ? `35${attr.api.toString().slice(0, -2)}` : null;
+          
+          // Debug logging
+          if (attr.api && API_WATCH_LIST.size > 0) {
+            console.log(`DEBUG: Checking API ${attr.api} (formatted: ${occApiFormatted}) against watch list`);
+            console.log(`DEBUG: Watch list contains: ${Array.from(API_WATCH_LIST).join(', ')}`);
+          }
+          
           if (attr.api && (API_WATCH_LIST.has(String(attr.api)) || API_WATCH_LIST.has(occApiFormatted))) {
             isMatch = true;
             matchType = "🎯 Specific Well (API Watch)";
@@ -180,7 +187,7 @@ async function runWellWatch(env, ctx) {
               explanation: explanation,
               actionNeeded: actionNeeded,
               matchType: matchType,
-              link: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api}`,
+              link: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api ? `35${attr.api.toString().slice(0, -2)}` : ''}`,
               mapLink: mapLink,
               objectid: attr.objectid,
               county: attr.county
@@ -199,7 +206,7 @@ async function runWellWatch(env, ctx) {
               userId: user.id,
               location: locationKey,
               county: attr.county,
-              occLink: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api}`,
+              occLink: attr.well_records_docs || `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?api=${attr.api ? `35${attr.api.toString().slice(0, -2)}` : ''}`,
               mapLink: mapLink,
               emailSent: false // Will be updated after email attempt
             };
@@ -739,6 +746,7 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
   })();
 
   // Send via Postmark
+  console.log(`Sending email to ${user.email} with ${matches.length} alerts`);
   const response = await fetch("https://api.postmarkapp.com/email", {
     method: "POST",
     headers: {
@@ -757,8 +765,11 @@ async function sendPostmarkEmail(env, user, matches, remaining = 0) {
 
   if (!response.ok) {
     const errorText = await response.text();
+    console.error(`Postmark API error for ${user.email}: ${response.status} - ${errorText}`);
     throw new Error(`Postmark Failed: ${errorText}`);
   }
+  
+  console.log(`Email sent successfully to ${user.email}`);
 }
 // --- HELPER: LOG ACTIVITY TO AIRTABLE ---
 async function logActivity(env, data) {
@@ -794,7 +805,7 @@ async function logActivity(env, data) {
     });
     
     if (response.ok) {
-      console.log(`Logged activity: ${data.wellName} - ${data.activityType}`);
+      console.log(`Logged activity: ${data.wellName} - ${data.activityType} - Email Sent: ${data.emailSent}`);
     } else {
       const err = await response.text();
       console.error(`Failed to log activity: ${err}`);
