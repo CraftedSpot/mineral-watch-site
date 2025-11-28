@@ -162,18 +162,11 @@ __name(escapeHtml, "escapeHtml");
 async function handleListWells(request, env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
   const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("Airtable list wells error:", errText);
-    throw new Error(`Airtable error: ${response.status}`);
-  }
-  const data = await response.json();
-  return jsonResponse(data.records);
+  const records = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
+  
+  return jsonResponse(records);
 }
 __name(handleListWells, "handleListWells");
 
@@ -1727,18 +1720,11 @@ You signed up at mymineralwatch.com`;
 async function handleListProperties(request, env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
   const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) {
-    const errText = await response.text();
-    console.error("Airtable list error:", errText);
-    throw new Error(`Airtable error: ${response.status}`);
-  }
-  const data = await response.json();
-  return jsonResponse(data.records);
+  const records = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, formula);
+  
+  return jsonResponse(records);
 }
 __name(handleListProperties, "handleListProperties");
 
@@ -2037,6 +2023,37 @@ function jsonResponse(data, status = 200) {
   });
 }
 __name(jsonResponse, "jsonResponse");
+
+// Fetch all records from Airtable with pagination
+async function fetchAllAirtableRecords(env, table, formula) {
+  let allRecords = [];
+  let offset = null;
+  
+  do {
+    let url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(table)}?filterByFormula=${encodeURIComponent(formula)}`;
+    if (offset) {
+      url += `&offset=${offset}`;
+    }
+    
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+    });
+    
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error(`Airtable fetch error for ${table}:`, errText);
+      throw new Error(`Airtable error: ${response.status}`);
+    }
+    
+    const data = await response.json();
+    allRecords = allRecords.concat(data.records);
+    offset = data.offset; // Will be undefined when no more pages
+    
+  } while (offset);
+  
+  return allRecords;
+}
+__name(fetchAllAirtableRecords, "fetchAllAirtableRecords");
 
 function servePage(html, request, env) {
   return new Response(html, {
