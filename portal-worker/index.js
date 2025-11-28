@@ -200,20 +200,36 @@ async function handleAddWell(request, env) {
   
   let occMapLink = "#";
   let suggestedWellName = body.wellName || "";
+  let operator = "";
+  let county = "";
+  let section = "";
+  let township = "";
+  let range = "";
+  let wellType = "";
+  let wellStatus = "";
   
   if (wellDetails) {
     // Generate proper map link with coordinates
     occMapLink = generateMapLink(wellDetails.lat, wellDetails.lon, wellDetails.wellName);
     
-    // If user didn't provide a well name, suggest the one from OCC
+    // If user didn't provide a well name, use the one from OCC
     if (!suggestedWellName && wellDetails.wellName) {
       suggestedWellName = wellDetails.wellName;
     }
     
-    console.log(`OCC well found: ${wellDetails.wellName} at ${wellDetails.lat}, ${wellDetails.lon}`);
+    // Capture all OCC data
+    operator = wellDetails.operator || "";
+    county = wellDetails.county || "";
+    section = wellDetails.section ? String(wellDetails.section) : "";
+    township = wellDetails.township || "";
+    range = wellDetails.range || "";
+    wellType = wellDetails.wellType || "";
+    wellStatus = wellDetails.wellStatus || "";
+    
+    console.log(`OCC well found: ${wellDetails.wellName} - ${operator} - ${county} County`);
   } else {
     console.warn(`Well API ${cleanApi} not found in OCC database - may be pending or invalid`);
-    // Still allow adding, but with placeholder link
+    // Still allow adding, but with placeholder link and empty fields
   }
   
   const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
@@ -230,6 +246,13 @@ async function handleAddWell(request, env) {
         "Well Name": suggestedWellName,
         Status: "Active",
         "OCC Map Link": occMapLink,
+        Operator: operator,
+        County: county,
+        Section: section,
+        Township: township,
+        Range: range,
+        "Well Type": wellType,
+        "Well Status": wellStatus,
         Notes: body.notes || ""
       }
     })
@@ -420,7 +443,7 @@ async function handleBulkValidateProperties(request, env) {
     // Validate required fields
     if (!normalized.SEC) {
       errors.push("Missing section number");
-    } else if (normalized.SEC < 1 || normalized.SEC > 36) {
+    } else if (Number(normalized.SEC) < 1 || Number(normalized.SEC) > 36) {
       errors.push("Section must be 1-36");
     }
     
@@ -738,10 +761,29 @@ async function handleBulkUploadWells(request, env) {
     errors: []
   };
   
-  // Create in batches of 10
+  // Fetch OCC data for each well (in parallel batches to speed up)
+  const wellsWithData = [];
+  const occBatchSize = 5; // Fetch 5 at a time from OCC
+  
+  for (let i = 0; i < toCreate.length; i += occBatchSize) {
+    const occBatch = toCreate.slice(i, i + occBatchSize);
+    const occPromises = occBatch.map(async (well) => {
+      const occData = await fetchWellDetailsFromOCC(well.apiNumber);
+      return { ...well, occData };
+    });
+    const batchResults = await Promise.all(occPromises);
+    wellsWithData.push(...batchResults);
+    
+    // Small delay between OCC batches
+    if (i + occBatchSize < toCreate.length) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+  
+  // Create in Airtable batches of 10
   const batchSize = 10;
-  for (let i = 0; i < toCreate.length; i += batchSize) {
-    const batch = toCreate.slice(i, i + batchSize);
+  for (let i = 0; i < wellsWithData.length; i += batchSize) {
+    const batch = wellsWithData.slice(i, i + batchSize);
     
     const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`, {
       method: 'POST',
@@ -750,15 +792,28 @@ async function handleBulkUploadWells(request, env) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        records: batch.map(well => ({
-          fields: {
-            User: [user.id],
-            "API Number": well.apiNumber,
-            "Well Name": well.wellName || "",
-            Status: "Active",
-            Notes: ""
-          }
-        }))
+        records: batch.map(well => {
+          const occ = well.occData || {};
+          const mapLink = occ.lat && occ.lon ? generateMapLink(occ.lat, occ.lon, occ.wellName) : '#';
+          
+          return {
+            fields: {
+              User: [user.id],
+              "API Number": well.apiNumber,
+              "Well Name": occ.wellName || well.wellName || "",
+              Status: "Active",
+              "OCC Map Link": mapLink,
+              Operator: occ.operator || "",
+              County: occ.county || "",
+              Section: occ.section ? String(occ.section) : "",
+              Township: occ.township || "",
+              Range: occ.range || "",
+              "Well Type": occ.wellType || "",
+              "Well Status": occ.wellStatus || "",
+              Notes: ""
+            }
+          };
+        })
       })
     });
     
@@ -965,9 +1020,10 @@ function validateRange(value) {
 async function fetchWellDetailsFromOCC(apiNumber) {
   const baseUrl = "https://gis.occ.ok.gov/server/rest/services/Hosted/RBDMS_WELLS/FeatureServer/220/query";
   
+  // Fetch all useful fields from OCC GIS
   const params = new URLSearchParams({
-    where: `api='${apiNumber}'`,
-    outFields: "api,well_name,well_num,sh_lat,sh_lon",
+    where: `api=${apiNumber}`,
+    outFields: "api,well_name,well_num,operator,county,section,township,range,welltype,wellstatus,sh_lat,sh_lon",
     returnGeometry: "false",
     f: "json",
     resultRecordCount: "1"
@@ -987,9 +1043,21 @@ async function fetchWellDetailsFromOCC(apiNumber) {
     
     if (data.features && data.features.length > 0) {
       const attr = data.features[0].attributes;
+      // Combine well_name and well_num, but check if well_num is already in well_name
+      let wellName = attr.well_name || '';
+      if (attr.well_num && !wellName.includes(attr.well_num)) {
+        wellName = `${wellName} ${attr.well_num}`.trim();
+      }
       return {
         api: attr.api,
-        wellName: attr.well_num ? `${attr.well_name} ${attr.well_num}` : attr.well_name,
+        wellName: wellName,
+        operator: attr.operator || null,
+        county: attr.county || null,
+        section: attr.section || null,
+        township: attr.township || null,
+        range: attr.range || null,
+        wellType: attr.welltype || null,
+        wellStatus: attr.wellstatus || null,
         lat: attr.sh_lat,
         lon: attr.sh_lon
       };
@@ -2168,18 +2236,23 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         .activity-well { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
         .activity-meta { font-size: 13px; color: var(--slate-blue); }
         .activity-change { background: var(--paper); padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-top: 8px; display: inline-block; }
+        .activity-actions { display: flex; gap: 8px; margin-top: 10px; }
+        .activity-btn { display: inline-block; padding: 6px 12px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 4px; background: var(--paper); color: var(--slate-blue); border: 1px solid var(--border); transition: all 0.2s; }
+        .activity-btn:hover { background: var(--red-dirt); color: white; border-color: var(--red-dirt); }
         .activity-date { font-size: 12px; color: #718096; white-space: nowrap; }
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-        .tab { background: white; border: none; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
+        .tab { background: #E2E8F0; border: none; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
         .tab.active { background: white; color: var(--oil-navy); box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .tab:not(.active) { background: rgba(255,255,255,0.5); }
+        .tab:not(.active):hover { background: #CBD5E1; }
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .data-table { width: 100%; border-collapse: collapse; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+        .data-table th.sortable { cursor: pointer; user-select: none; }
+        .data-table th.sortable:hover { background: #E2E8F0; }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
         .data-table tr:last-child td { border-bottom: none; }
         .status-active { color: var(--success); font-weight: 600; }
@@ -2202,6 +2275,16 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; }
         .btn-cancel { padding: 10px 20px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 14px; }
         .btn-submit { padding: 10px 20px; background: var(--red-dirt); color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 600; }
+        .details-grid { display: flex; flex-direction: column; gap: 12px; }
+        .details-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid var(--border); }
+        .details-row:last-child { border-bottom: none; }
+        .details-label { font-size: 13px; color: var(--slate-blue); font-weight: 500; }
+        .details-value { font-size: 14px; color: var(--oil-navy); font-weight: 500; text-align: right; max-width: 60%; }
+        .details-actions { display: flex; gap: 10px; margin-top: 20px; }
+        .details-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 16px; font-size: 13px; font-weight: 600; text-decoration: none; border-radius: 4px; background: var(--paper); color: var(--slate-blue); border: 1px solid var(--border); flex: 1; text-align: center; }
+        .details-btn:hover { background: #E2E8F0; }
+        .details-btn.primary { background: var(--red-dirt); color: white; border-color: var(--red-dirt); }
+        .details-btn.primary:hover { background: var(--red-dirt-dark); }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; margin-top: auto; }
         @media (max-width: 768px) { 
             .form-row { grid-template-columns: 1fr; } 
@@ -2243,9 +2326,13 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 <h1>My Monitoring</h1>
                 <div class="header-actions">
                     <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
-                    <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">Bulk Upload</button>
+                    <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">📄 Import Properties</button>
+                    <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export Properties</button>
+                    <button class="btn-add" id="removeAllPropertiesBtn" style="background: #DC2626; display: none;" onclick="removeAllProperties()">🗑️ Remove All</button>
                     <button class="btn-add" id="addWellBtn">+ Add Well</button>
-                    <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">Bulk Upload</button>
+                    <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">🛢️ Import Wells</button>
+                    <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export Wells</button>
+                    <button class="btn-add" id="removeAllWellsBtn" style="background: #DC2626; display: none;" onclick="removeAllWells()">🗑️ Remove All</button>
                 </div>
             </div>
             
@@ -2381,6 +2468,93 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         </div>
     </div>
     
+    <!-- Well Details Modal -->
+    <div class="modal-overlay" id="wellDetailsModal">
+        <div class="modal" style="max-width: 550px;">
+            <h2 style="margin-bottom: 5px;" id="wellDetailsTitle">Well Details</h2>
+            <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="wellDetailsApi">API: —</p>
+            
+            <div class="details-grid">
+                <div class="details-row">
+                    <span class="details-label">Operator</span>
+                    <span class="details-value" id="wellDetailsOperator">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Location</span>
+                    <span class="details-value" id="wellDetailsLocation">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">County</span>
+                    <span class="details-value" id="wellDetailsCounty">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Well Type</span>
+                    <span class="details-value" id="wellDetailsType">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">OCC Status</span>
+                    <span class="details-value" id="wellDetailsStatus">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Notes</span>
+                    <span class="details-value" id="wellDetailsNotes">—</span>
+                </div>
+            </div>
+            
+            <div class="details-actions">
+                <a href="#" target="_blank" class="details-btn primary" id="wellDetailsMapLink">📍 View on Map</a>
+                <a href="#" target="_blank" class="details-btn" id="wellDetailsOccLink">📄 OCC Filing</a>
+            </div>
+            
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button type="button" class="btn-cancel" onclick="closeWellDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Property Details Modal -->
+    <div class="modal-overlay" id="propertyDetailsModal">
+        <div class="modal" style="max-width: 500px;">
+            <h2 style="margin-bottom: 5px;" id="propertyDetailsTitle">Property Details</h2>
+            <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="propertyDetailsLegal">—</p>
+            
+            <div class="details-grid">
+                <div class="details-row">
+                    <span class="details-label">County</span>
+                    <span class="details-value" id="propertyDetailsCounty">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Section</span>
+                    <span class="details-value" id="propertyDetailsSection">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Township</span>
+                    <span class="details-value" id="propertyDetailsTownship">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Range</span>
+                    <span class="details-value" id="propertyDetailsRange">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Meridian</span>
+                    <span class="details-value" id="propertyDetailsMeridian">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Monitor Adjacent</span>
+                    <span class="details-value" id="propertyDetailsAdjacent">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Notes</span>
+                    <span class="details-value" id="propertyDetailsNotes">—</span>
+                </div>
+            </div>
+            
+            <div class="modal-buttons" style="margin-top: 20px;">
+                <button type="button" class="btn-cancel" onclick="closePropertyDetailsModal()">Close</button>
+            </div>
+        </div>
+    </div>
+    
     <script>
         const planConfigs = { 
             'Free': { properties: 1, wells: 0 }, 
@@ -2391,6 +2565,8 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
         };
         let currentTab = 'properties';
         let currentUser = null; // Store user data globally
+        let loadedProperties = []; // Store for details modal
+        let loadedWells = []; // Store for details modal
         
         document.addEventListener('DOMContentLoaded', async () => {
             try {
@@ -2407,6 +2583,16 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 if (currentUser.plan === 'Enterprise') {
                     document.getElementById('upgradeLink').style.display = 'none';
                 }
+                
+                // Show export buttons for Professional and Enterprise users
+                if (currentUser.plan === 'Professional' || currentUser.plan === 'Enterprise') {
+                    document.getElementById('exportPropertiesBtn').style.display = 'inline-flex';
+                    document.getElementById('exportWellsBtn').style.display = 'inline-flex';
+                }
+                
+                // Show remove all buttons for all users
+                document.getElementById('removeAllPropertiesBtn').style.display = 'inline-flex';
+                document.getElementById('removeAllWellsBtn').style.display = 'inline-flex';
                 
                 await loadAllData();
             } catch { window.location.href = '/portal/login'; }
@@ -2437,20 +2623,28 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 const res = await fetch('/api/properties');
                 if (!res.ok) throw new Error('Failed to load');
                 const properties = await res.json();
+                loadedProperties = properties; // Store for details modal
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
                 if (properties.length === 0) {
                     document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
                 } else {
-                    let html = '<table class="data-table"><thead><tr><th>Legal Description</th><th>County</th><th>Status</th><th></th></tr></thead><tbody>';
+                    let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortProperties(\'county\')">County ⇅</th><th class="sortable" onclick="sortProperties(\'legal\')">Legal Description ⇅</th><th>Notes</th><th></th></tr></thead><tbody>';
                     properties.forEach(p => {
                         const f = p.fields;
+                        const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
+                        const notes = f.Notes ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${f.Notes.substring(0, 30)}\${f.Notes.length > 30 ? '...' : ''}</span>\` : '<em style="color: #A0AEC0;">—</em>';
+                        // Generate section map link
+                        const mapLink = generateSectionMapLink(f.SEC, f.TWN, f.RNG, f.COUNTY);
+                        
                         html += \`<tr>
-                            <td>S\${f.SEC} T\${f.TWN} R\${f.RNG}</td>
-                            <td>\${f.COUNTY}</td>
-                            <td class="status-active">Active</td>
-                            <td>
+                            <td>\${f.COUNTY || '—'}</td>
+                            <td><strong>\${str}</strong></td>
+                            <td>\${notes}</td>
+                            <td style="white-space: nowrap;">
+                                <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
+                                \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
                                 <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
                             </td>
                         </tr>\`;
@@ -2460,29 +2654,48 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 }
             } catch { document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
         }
+        
+        // Generate a map link for a property section (centers on general area)
+        function generateSectionMapLink(sec, twn, rng, county) {
+            // Link to OCC GIS with a search query - this will show the general area
+            // We can't pin-drop without coordinates, but we can search
+            const searchTerm = encodeURIComponent(\`\${county || ''} \${sec} \${twn} \${rng}\`.trim());
+            return \`https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b\`;
+        }
 
         async function loadWells() {
             try {
                 const res = await fetch('/api/wells');
                 if (!res.ok) throw new Error('Failed to load');
                 const wells = await res.json();
+                loadedWells = wells; // Store for details modal
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
                 if (wells.length === 0) {
                     document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p>No wells yet. Add your first well API to start monitoring.</p></div>';
                 } else {
-                    let html = '<table class="data-table"><thead><tr><th>API Number</th><th>Well Name</th><th>Status</th><th></th></tr></thead><tbody>';
+                    let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortWells(\'name\')">Well Name ⇅</th><th class="sortable" onclick="sortWells(\'operator\')">Operator ⇅</th><th>API</th><th class="sortable" onclick="sortWells(\'county\')">County ⇅</th><th>Location</th><th></th></tr></thead><tbody>';
                     wells.forEach(w => {
                         const f = w.fields;
-                        const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">No name</em>';
-                        const occLink = f['OCC Map Link'] || \`https://occeweb.occ.ok.gov/ims/el/displaywell.aspx?wellid=\${f['API Number']}\`;
+                        const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">Unknown</em>';
+                        const operator = f['Operator'] || '<em style="color: #A0AEC0;">—</em>';
+                        const county = f['County'] || '—';
+                        const section = f['Section'] || '';
+                        const township = f['Township'] || '';
+                        const range = f['Range'] || '';
+                        const str = (section && township && range) ? \`S\${section} T\${township} R\${range}\` : '—';
+                        const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
+                        
                         html += \`<tr>
-                            <td><strong>\${f['API Number']}</strong></td>
-                            <td>\${wellName}</td>
-                            <td class="status-active">\${f.Status || 'Active'}</td>
-                            <td>
-                                <button class="btn-link" onclick="window.open('\${occLink}', '_blank')">View on OCC</button>
+                            <td><strong>\${wellName}</strong></td>
+                            <td>\${operator}</td>
+                            <td>\${f['API Number']}</td>
+                            <td>\${county}</td>
+                            <td>\${str}</td>
+                            <td style="white-space: nowrap;">
+                                <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
+                                \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
                                 <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
                             </td>
                         </tr>\`;
@@ -2583,6 +2796,18 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                         }
                     }
                     
+                    // Build action buttons
+                    const occLink = f['OCC Link'];
+                    const mapLink = f['Map Link'];
+                    let actionsHtml = '<div class="activity-actions">';
+                    if (occLink) {
+                        actionsHtml += \`<a href="\${occLink}" target="_blank" class="activity-btn">OCC Filing</a>\`;
+                    }
+                    if (mapLink) {
+                        actionsHtml += \`<a href="\${mapLink}" target="_blank" class="activity-btn">View Map</a>\`;
+                    }
+                    actionsHtml += '</div>';
+                    
                     html += \`
                         <div class="activity-item">
                             <div class="activity-icon \${iconClass}">\${icon}</div>
@@ -2594,6 +2819,7 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                                 <div class="activity-well">\${f['Well Name'] || 'Unknown Well'}</div>
                                 <div class="activity-meta">\${f['Operator'] || ''} • \${f['Section-Township-Range'] || ''} • \${f['County'] || ''}</div>
                                 \${changeText ? \`<div class="activity-change">\${changeText}</div>\` : ''}
+                                \${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
                             <div class="activity-date">\${dateStr}</div>
                         </div>
@@ -2705,6 +2931,284 @@ var DASHBOARD_HTML = `<!DOCTYPE html>
                 await fetch('/api/wells/' + id, { method: 'DELETE' });
                 await loadWells();
             } catch { alert('Error deleting.'); }
+        }
+        
+        async function removeAllProperties() {
+            if (!loadedProperties.length) {
+                alert('No properties to remove.');
+                return;
+            }
+            if (!confirm(\`Are you sure you want to remove ALL \${loadedProperties.length} properties? This cannot be undone.\`)) return;
+            if (!confirm('This is your last chance to cancel. Remove all properties?')) return;
+            
+            try {
+                for (const prop of loadedProperties) {
+                    await fetch('/api/properties/' + prop.id, { method: 'DELETE' });
+                }
+                await loadProperties();
+                alert('All properties removed.');
+            } catch { alert('Error removing properties.'); }
+        }
+        
+        async function removeAllWells() {
+            if (!loadedWells.length) {
+                alert('No wells to remove.');
+                return;
+            }
+            if (!confirm(\`Are you sure you want to remove ALL \${loadedWells.length} wells? This cannot be undone.\`)) return;
+            if (!confirm('This is your last chance to cancel. Remove all wells?')) return;
+            
+            try {
+                for (const well of loadedWells) {
+                    await fetch('/api/wells/' + well.id, { method: 'DELETE' });
+                }
+                await loadWells();
+                alert('All wells removed.');
+            } catch { alert('Error removing wells.'); }
+        }
+        
+        // Sorting state
+        let propertiesSortField = null;
+        let propertiesSortAsc = true;
+        let wellsSortField = null;
+        let wellsSortAsc = true;
+        
+        function sortProperties(field) {
+            if (propertiesSortField === field) {
+                propertiesSortAsc = !propertiesSortAsc;
+            } else {
+                propertiesSortField = field;
+                propertiesSortAsc = true;
+            }
+            
+            loadedProperties.sort((a, b) => {
+                let valA, valB;
+                if (field === 'county') {
+                    valA = (a.fields.COUNTY || '').toLowerCase();
+                    valB = (b.fields.COUNTY || '').toLowerCase();
+                } else if (field === 'legal') {
+                    valA = \`\${a.fields.SEC}-\${a.fields.TWN}-\${a.fields.RNG}\`.toLowerCase();
+                    valB = \`\${b.fields.SEC}-\${b.fields.TWN}-\${b.fields.RNG}\`.toLowerCase();
+                }
+                if (valA < valB) return propertiesSortAsc ? -1 : 1;
+                if (valA > valB) return propertiesSortAsc ? 1 : -1;
+                return 0;
+            });
+            
+            renderPropertiesTable();
+        }
+        
+        function sortWells(field) {
+            if (wellsSortField === field) {
+                wellsSortAsc = !wellsSortAsc;
+            } else {
+                wellsSortField = field;
+                wellsSortAsc = true;
+            }
+            
+            loadedWells.sort((a, b) => {
+                let valA, valB;
+                if (field === 'name') {
+                    valA = (a.fields['Well Name'] || '').toLowerCase();
+                    valB = (b.fields['Well Name'] || '').toLowerCase();
+                } else if (field === 'operator') {
+                    valA = (a.fields['Operator'] || '').toLowerCase();
+                    valB = (b.fields['Operator'] || '').toLowerCase();
+                } else if (field === 'county') {
+                    valA = (a.fields['County'] || '').toLowerCase();
+                    valB = (b.fields['County'] || '').toLowerCase();
+                }
+                if (valA < valB) return wellsSortAsc ? -1 : 1;
+                if (valA > valB) return wellsSortAsc ? 1 : -1;
+                return 0;
+            });
+            
+            renderWellsTable();
+        }
+        
+        function renderPropertiesTable() {
+            let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortProperties(\'county\')">County ⇅</th><th class="sortable" onclick="sortProperties(\'legal\')">Legal Description ⇅</th><th>Notes</th><th></th></tr></thead><tbody>';
+            loadedProperties.forEach(p => {
+                const f = p.fields;
+                const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
+                const notes = f.Notes ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${f.Notes.substring(0, 30)}\${f.Notes.length > 30 ? '...' : ''}</span>\` : '<em style="color: #A0AEC0;">—</em>';
+                const mapLink = generateSectionMapLink(f.SEC, f.TWN, f.RNG, f.COUNTY);
+                
+                html += \`<tr>
+                    <td>\${f.COUNTY || '—'}</td>
+                    <td><strong>\${str}</strong></td>
+                    <td>\${notes}</td>
+                    <td style="white-space: nowrap;">
+                        <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
+                        \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
+                        <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
+                    </td>
+                </tr>\`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('propertiesContent').innerHTML = html;
+        }
+        
+        function renderWellsTable() {
+            let html = '<table class="data-table"><thead><tr><th class="sortable" onclick="sortWells(\'name\')">Well Name ⇅</th><th class="sortable" onclick="sortWells(\'operator\')">Operator ⇅</th><th>API</th><th class="sortable" onclick="sortWells(\'county\')">County ⇅</th><th>Location</th><th></th></tr></thead><tbody>';
+            loadedWells.forEach(w => {
+                const f = w.fields;
+                const wellName = f['Well Name'] || '<em style="color: #A0AEC0;">Unknown</em>';
+                const operator = f['Operator'] || '<em style="color: #A0AEC0;">—</em>';
+                const county = f['County'] || '—';
+                const section = f['Section'] || '';
+                const township = f['Township'] || '';
+                const range = f['Range'] || '';
+                const str = (section && township && range) ? \`S\${section} T\${township} R\${range}\` : '—';
+                const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
+                
+                html += \`<tr>
+                    <td><strong>\${wellName}</strong></td>
+                    <td>\${operator}</td>
+                    <td>\${f['API Number']}</td>
+                    <td>\${county}</td>
+                    <td>\${str}</td>
+                    <td style="white-space: nowrap;">
+                        <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
+                        \${mapLink ? \`<button class="btn-link" onclick="window.open('\${mapLink}', '_blank')">Map</button>\` : ''}
+                        <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
+                    </td>
+                </tr>\`;
+            });
+            html += '</tbody></table>';
+            document.getElementById('wellsContent').innerHTML = html;
+        }
+        
+        // Well Details Modal Functions
+        function openWellDetails(wellId) {
+            const well = loadedWells.find(w => w.id === wellId);
+            if (!well) return;
+            
+            const f = well.fields;
+            document.getElementById('wellDetailsTitle').textContent = f['Well Name'] || 'Unknown Well';
+            document.getElementById('wellDetailsApi').textContent = 'API: ' + (f['API Number'] || '—');
+            document.getElementById('wellDetailsOperator').textContent = f['Operator'] || '—';
+            
+            const sec = f['Section'] || '';
+            const twn = f['Township'] || '';
+            const rng = f['Range'] || '';
+            document.getElementById('wellDetailsLocation').textContent = (sec && twn && rng) ? \`S\${sec} T\${twn} R\${rng}\` : '—';
+            
+            document.getElementById('wellDetailsCounty').textContent = f['County'] || '—';
+            document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
+            document.getElementById('wellDetailsStatus').textContent = f['Well Status'] || '—';
+            document.getElementById('wellDetailsNotes').textContent = f['Notes'] || '—';
+            
+            // Map link
+            const mapLink = f['OCC Map Link'];
+            const mapBtn = document.getElementById('wellDetailsMapLink');
+            if (mapLink && mapLink !== '#') {
+                mapBtn.href = mapLink;
+                mapBtn.style.display = 'inline-flex';
+            } else {
+                mapBtn.style.display = 'none';
+            }
+            
+            // OCC Well lookup link (Well Browse)
+            const occLink = \`https://wellbrowse.occ.ok.gov/?APINumber=\${f['API Number']}\`;
+            document.getElementById('wellDetailsOccLink').href = occLink;
+            
+            document.getElementById('wellDetailsModal').style.display = 'flex';
+        }
+        
+        function closeWellDetailsModal() {
+            document.getElementById('wellDetailsModal').style.display = 'none';
+        }
+        
+        document.getElementById('wellDetailsModal').addEventListener('click', e => {
+            if (e.target.id === 'wellDetailsModal') closeWellDetailsModal();
+        });
+        
+        // Property Details Modal Functions
+        function openPropertyDetails(propId) {
+            const prop = loadedProperties.find(p => p.id === propId);
+            if (!prop) return;
+            
+            const f = prop.fields;
+            document.getElementById('propertyDetailsTitle').textContent = f['COUNTY'] || 'Property Details';
+            document.getElementById('propertyDetailsLegal').textContent = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
+            document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || '—';
+            document.getElementById('propertyDetailsSection').textContent = f['SEC'] || '—';
+            document.getElementById('propertyDetailsTownship').textContent = f['TWN'] || '—';
+            document.getElementById('propertyDetailsRange').textContent = f['RNG'] || '—';
+            document.getElementById('propertyDetailsMeridian').textContent = f['MERIDIAN'] || 'IM';
+            document.getElementById('propertyDetailsAdjacent').textContent = f['Monitor Adjacent'] ? 'Yes' : 'No';
+            document.getElementById('propertyDetailsNotes').textContent = f['Notes'] || '—';
+            
+            document.getElementById('propertyDetailsModal').style.display = 'flex';
+        }
+        
+        function closePropertyDetailsModal() {
+            document.getElementById('propertyDetailsModal').style.display = 'none';
+        }
+        
+        document.getElementById('propertyDetailsModal').addEventListener('click', e => {
+            if (e.target.id === 'propertyDetailsModal') closePropertyDetailsModal();
+        });
+        
+        // CSV Export Functions (Professional tier)
+        function exportWellsCSV() {
+            if (!loadedWells.length) {
+                alert('No wells to export.');
+                return;
+            }
+            
+            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Well Type', 'Well Status', 'OCC Map Link', 'Notes'];
+            const rows = loadedWells.map(w => {
+                const f = w.fields;
+                return [
+                    f['API Number'] || '',
+                    (f['Well Name'] || '').replace(/,/g, ';'),
+                    (f['Operator'] || '').replace(/,/g, ';'),
+                    f['County'] || '',
+                    f['Section'] || '',
+                    f['Township'] || '',
+                    f['Range'] || '',
+                    f['Well Type'] || '',
+                    f['Well Status'] || '',
+                    f['OCC Map Link'] || '',
+                    (f['Notes'] || '').replace(/,/g, ';').replace(/\\n/g, ' ')
+                ].join(',');
+            });
+            
+            const csv = [headers.join(','), ...rows].join('\\n');
+            downloadCSV(csv, 'mineral-watch-wells.csv');
+        }
+        
+        function exportPropertiesCSV() {
+            if (!loadedProperties.length) {
+                alert('No properties to export.');
+                return;
+            }
+            
+            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Notes'];
+            const rows = loadedProperties.map(p => {
+                const f = p.fields;
+                return [
+                    f['COUNTY'] || '',
+                    f['SEC'] || '',
+                    f['TWN'] || '',
+                    f['RNG'] || '',
+                    f['MERIDIAN'] || 'IM',
+                    (f['Notes'] || '').replace(/,/g, ';').replace(/\\n/g, ' ')
+                ].join(',');
+            });
+            
+            const csv = [headers.join(','), ...rows].join('\\n');
+            downloadCSV(csv, 'mineral-watch-properties.csv');
+        }
+        
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
         }
         
         document.getElementById('logoutBtn').addEventListener('click', async () => {
