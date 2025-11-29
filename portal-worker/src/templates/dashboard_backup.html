@@ -607,8 +607,8 @@
         function generateSectionMapLink(sec, twn, rng, county) {
             // Link to OCC GIS with a search query - this will show the general area
             // We can't pin-drop without coordinates, but we can search
-            const searchTerm = encodeURIComponent(`${county || ''} ${sec} ${twn} ${rng}`.trim());
-            return `https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b`;
+            const searchTerm = encodeURIComponent(\`\${county || ''} \${sec} \${twn} \${rng}\`.trim());
+            return \`https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b\`;
         }
 
         async function loadWells() {
@@ -722,9 +722,9 @@
                 // Update results count
                 const countEl = document.getElementById('propertiesResultsCount');
                 if (propertiesSearchTerm) {
-                    countEl.textContent = `${displayProperties.length} of ${loadedProperties.length} properties`;
+                    countEl.textContent = \`\${displayProperties.length} of \${loadedProperties.length} properties\`;
                 } else {
-                    countEl.textContent = `${loadedProperties.length} properties`;
+                    countEl.textContent = \`\${loadedProperties.length} properties\`;
                 }
             }
             
@@ -743,19 +743,19 @@
             
             displayProperties.forEach(p => {
                 const f = p.fields;
-                const str = `S${f.SEC} T${f.TWN} R${f.RNG}`;
+                const str = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
                 const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
-                const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
+                const notes = notesText ? \`<span style="color: var(--slate-blue); font-size: 13px;">\${notesText}</span>\` : '<em style="color: #A0AEC0;">—</em>';
                 
-                html += `<tr>
-                    <td>${escapeHtml(f.COUNTY) || '—'}</td>
-                    <td><strong>${str}</strong></td>
-                    <td>${notes}</td>
+                html += \`<tr>
+                    <td>\${escapeHtml(f.COUNTY) || '—'}</td>
+                    <td><strong>\${str}</strong></td>
+                    <td>\${notes}</td>
                     <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openPropertyDetails('${p.id}')">Details</button>
-                        <button class="btn-delete" onclick="deleteProperty('${p.id}')">Remove</button>
+                        <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
+                        <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
                     </td>
-                </tr>`;
+                </tr>\`;
             });
             
             html += '</tbody></table>';
@@ -854,9 +854,9 @@
                 // Update results count
                 const countEl = document.getElementById('wellsResultsCount');
                 if (wellsSearchTerm) {
-                    countEl.textContent = `${displayWells.length} of ${loadedWells.length} wells`;
+                    countEl.textContent = \`\${displayWells.length} of \${loadedWells.length} wells\`;
                 } else {
-                    countEl.textContent = `${loadedWells.length} wells`;
+                    countEl.textContent = \`\${loadedWells.length} wells\`;
                 }
             }
             
@@ -881,21 +881,21 @@
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
-                const str = (section && township && range) ? `S${section} T${township} R${range}` : '—';
+                const str = (section && township && range) ? \`S\${section} T\${township} R\${range}\` : '—';
                 const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
                 
-                html += `<tr>
-                    <td><strong>${wellName}</strong></td>
-                    <td>${operator}</td>
-                    <td>${escapeHtml(f['API Number'])}</td>
-                    <td>${county}</td>
-                    <td>${str}</td>
+                html += \`<tr>
+                    <td><strong>\${wellName}</strong></td>
+                    <td>\${operator}</td>
+                    <td>\${escapeHtml(f['API Number'])}</td>
+                    <td>\${county}</td>
+                    <td>\${str}</td>
                     <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openWellDetails('${w.id}')">Details</button>
-                        ${mapLink ? `<button class="btn-link" onclick="window.open('${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
-                        <button class="btn-delete" onclick="deleteWell('${w.id}')">Remove</button>
+                        <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
+                        \${mapLink ? \`<button class="btn-link" onclick="window.open('\${escapeHtml(mapLink)}', '_blank')">Map</button>\` : ''}
+                        <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
                     </td>
-                </tr>`;
+                </tr>\`;
             });
             
             html += '</tbody></table>';
@@ -947,7 +947,7 @@
                 const plan = data.plan || 'Free';
                 
                 if (records.length === 0) {
-                    let msg = `<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they'll appear here.</p></div>`;
+                    let msg = '<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they\\'ll appear here.</p></div>';
                     document.getElementById('activityContent').innerHTML = msg;
                     return;
                 }
@@ -956,7 +956,7 @@
                 
                 // Show limit notice for lower tiers
                 if (daysLimit <= 30 && plan !== 'Professional' && plan !== 'Enterprise') {
-                    html += `<div class="activity-limit-notice">Showing last ${daysLimit} days of activity. <a href="/portal/upgrade">Upgrade</a> for full history.</div>`;
+                    html += \`<div class="activity-limit-notice">Showing last \${daysLimit} days of activity. <a href="/portal/upgrade">Upgrade</a> for full history.</div>\`;
                 }
                 
                 records.forEach(r => {
@@ -986,9 +986,9 @@
                     let changeText = '';
                     if (f['Previous Value'] && f['New Value']) {
                         if (activityType.includes('Transfer')) {
-                            changeText = `${f['Previous Value']} → ${f['New Value']}`;
+                            changeText = \`\${f['Previous Value']} → \${f['New Value']}\`;
                         } else {
-                            changeText = `Status: ${f['Previous Value']} → ${f['New Value']}`;
+                            changeText = \`Status: \${f['Previous Value']} → \${f['New Value']}\`;
                         }
                     }
                     
@@ -997,29 +997,29 @@
                     const mapLink = f['Map Link'];
                     let actionsHtml = '<div class="activity-actions">';
                     if (occLink) {
-                        actionsHtml += `<a href="${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
+                        actionsHtml += \`<a href="\${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>\`;
                     }
                     if (mapLink) {
-                        actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>`;
+                        actionsHtml += \`<a href="\${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>\`;
                     }
                     actionsHtml += '</div>';
                     
-                    html += `
+                    html += \`
                         <div class="activity-item">
-                            <div class="activity-icon ${iconClass}">${icon}</div>
+                            <div class="activity-icon \${iconClass}">\${icon}</div>
                             <div class="activity-details">
                                 <div class="activity-header">
-                                    <span class="activity-type">${escapeHtml(activityType)}</span>
-                                    <span class="activity-level ${levelClass}">${escapeHtml(alertLevel.replace('_', ' '))}</span>
+                                    <span class="activity-type">\${escapeHtml(activityType)}</span>
+                                    <span class="activity-level \${levelClass}">\${escapeHtml(alertLevel.replace('_', ' '))}</span>
                                 </div>
-                                <div class="activity-well">${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
-                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${escapeHtml(f['Section-Township-Range']) || ''} • ${escapeHtml(f['County']) || ''}</div>
-                                ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
-                                ${(occLink || mapLink) ? actionsHtml : ''}
+                                <div class="activity-well">\${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
+                                <div class="activity-meta">\${escapeHtml(f['Operator']) || ''} • \${escapeHtml(f['Section-Township-Range']) || ''} • \${escapeHtml(f['County']) || ''}</div>
+                                \${changeText ? \`<div class="activity-change">\${escapeHtml(changeText)}</div>\` : ''}
+                                \${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
-                            <div class="activity-date">${dateStr}</div>
+                            <div class="activity-date">\${dateStr}</div>
                         </div>
-                    `;
+                    \`;
                 });
                 
                 html += '</div>';
@@ -1134,7 +1134,7 @@
             const count = loadedProperties.length;
             if (count === 0) return;
             
-            const confirmText = `Are you sure you want to remove ALL ${count} properties?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
+            const confirmText = \`Are you sure you want to remove ALL \${count} properties?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:\`;
             const userInput = prompt(confirmText);
             
             if (userInput !== 'DELETE ALL') {
@@ -1147,7 +1147,7 @@
                 for (const prop of loadedProperties) {
                     await fetch('/api/properties/' + prop.id, { method: 'DELETE' });
                 }
-                alert(`Successfully removed ${count} properties.`);
+                alert(\`Successfully removed \${count} properties.\`);
                 await loadProperties();
             } catch (err) {
                 alert('Error removing properties. Some may have been deleted.');
@@ -1160,7 +1160,7 @@
             const count = loadedWells.length;
             if (count === 0) return;
             
-            const confirmText = `Are you sure you want to remove ALL ${count} wells?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
+            const confirmText = \`Are you sure you want to remove ALL \${count} wells?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:\`;
             const userInput = prompt(confirmText);
             
             if (userInput !== 'DELETE ALL') {
@@ -1173,7 +1173,7 @@
                 for (const well of loadedWells) {
                     await fetch('/api/wells/' + well.id, { method: 'DELETE' });
                 }
-                alert(`Successfully removed ${count} wells.`);
+                alert(\`Successfully removed \${count} wells.\`);
                 await loadWells();
             } catch (err) {
                 alert('Error removing wells. Some may have been deleted.');
@@ -1199,7 +1199,7 @@
             const sec = f['Section'] || '';
             const twn = f['Township'] || '';
             const rng = f['Range'] || '';
-            document.getElementById('wellDetailsLocation').textContent = (sec && twn && rng) ? `S${sec} T${twn} R${rng}` : '—';
+            document.getElementById('wellDetailsLocation').textContent = (sec && twn && rng) ? \`S\${sec} T\${twn} R\${rng}\` : '—';
             
             document.getElementById('wellDetailsCounty').textContent = f['County'] || '—';
             document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
@@ -1217,7 +1217,7 @@
             }
             
             // OCC Filing link (Well Browse - works with API number)
-            const occLink = `https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?api=${f['API Number']}`;
+            const occLink = \`https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?api=\${f['API Number']}\`;
             document.getElementById('wellDetailsOccLink').href = occLink;
             
             document.getElementById('wellDetailsModal').style.display = 'flex';
@@ -1264,7 +1264,7 @@
             const f = prop.fields;
             document.getElementById('propertyDetailsId').value = propId;
             document.getElementById('propertyDetailsTitle').textContent = f['COUNTY'] || 'Property Details';
-            document.getElementById('propertyDetailsLegal').textContent = `S${f.SEC} T${f.TWN} R${f.RNG}`;
+            document.getElementById('propertyDetailsLegal').textContent = \`S\${f.SEC} T\${f.TWN} R\${f.RNG}\`;
             document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || '—';
             document.getElementById('propertyDetailsSection').textContent = f['SEC'] || '—';
             document.getElementById('propertyDetailsTownship').textContent = f['TWN'] || '—';
@@ -2215,7 +2215,7 @@ function handleFileSelect(e) {
 // Process uploaded file
 async function processFile(file) {
     document.getElementById('filename').textContent = file.name;
-    document.getElementById('filesize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('filesize').textContent = \`\${(file.size / 1024).toFixed(1)} KB\`;
     document.getElementById('file-info').style.display = 'block';
     document.getElementById('parse-error').style.display = 'none';
     
@@ -2256,14 +2256,14 @@ async function parseCSV(file) {
             skipEmptyLines: true,
             complete: (results) => {
                 if (results.errors.length > 0) {
-                    reject(new Error(`CSV parsing error: ${results.errors[0].message}`));
+                    reject(new Error(\`CSV parsing error: \${results.errors[0].message}\`));
                     return;
                 }
                 parsedData = results.data;
                 resolve();
             },
             error: (error) => {
-                reject(new Error(`CSV parsing failed: ${error.message}`));
+                reject(new Error(\`CSV parsing failed: \${error.message}\`));
             }
         });
     });
@@ -2291,7 +2291,7 @@ async function parseExcel(file) {
                 parsedData = jsonData;
                 resolve();
             } catch (error) {
-                reject(new Error(`Excel parsing failed: ${error.message}`));
+                reject(new Error(\`Excel parsing failed: \${error.message}\`));
             }
         };
         
@@ -2342,26 +2342,26 @@ async function validateAndPreview() {
 // Render summary badges
 function renderSummary() {
     const summary = validationResults.summary;
-    const html = `
+    const html = \`
         <div class="validation-badge badge-valid">
-            ✓ ${summary.valid} Valid
+            ✓ \${summary.valid} Valid
         </div>
-        ${summary.invalid > 0 ? `
+        \${summary.invalid > 0 ? \`
         <div class="validation-badge badge-invalid">
-            ❌ ${summary.invalid} Invalid
+            ❌ \${summary.invalid} Invalid
         </div>
-        ` : ''}
-        ${summary.warnings > 0 ? `
+        \` : ''}
+        \${summary.warnings > 0 ? \`
         <div class="validation-badge badge-warning">
-            ⚠️ ${summary.warnings} Warnings
+            ⚠️ \${summary.warnings} Warnings
         </div>
-        ` : ''}
-        ${summary.duplicates > 0 ? `
+        \` : ''}
+        \${summary.duplicates > 0 ? \`
         <div class="validation-badge badge-duplicate">
-            🔄 ${summary.duplicates} Duplicates
+            🔄 \${summary.duplicates} Duplicates
         </div>
-        ` : ''}
-    `;
+        \` : ''}
+    \`;
     document.getElementById('validation-summary').innerHTML = html;
 }
 
@@ -2370,18 +2370,18 @@ function renderPlanCheck() {
     const plan = validationResults.planCheck;
     const wouldExceed = plan.wouldExceedLimit;
     
-    const html = `
-        <div class="plan-check-box ${wouldExceed ? 'exceeded' : 'ok'}">
+    const html = \`
+        <div class="plan-check-box \${wouldExceed ? 'exceeded' : 'ok'}">
             <div class="plan-check-header">
-                ${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
+                \${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
             </div>
             <div class="plan-check-details">
-                Current: ${plan.current} properties · 
-                Adding: ${validationResults.summary.willImport} · 
-                Total: ${plan.afterUpload} of ${plan.limit} (${plan.plan} plan)
+                Current: \${plan.current} properties · 
+                Adding: \${validationResults.summary.willImport} · 
+                Total: \${plan.afterUpload} of \${plan.limit} (\${plan.plan} plan)
             </div>
         </div>
-    `;
+    \`;
     document.getElementById('plan-check').innerHTML = html;
     
     // Disable import button if would exceed
@@ -2404,27 +2404,27 @@ function renderPreviewTable() {
                            (result.warnings.length > 0 ? 'status-cell-warning' : 'status-cell-valid'));
         
         const statusText = result.isDuplicate ? '🔄 Duplicate' :
-                          (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
-                          (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
+                          (result.errors.length > 0 ? \`❌ \${result.errors[0]}\` :
+                          (result.warnings.length > 0 ? \`⚠️ \${result.warnings[0]}\` : '✓ Valid'));
         
         // Truncate notes for preview (max 25 chars) and escape
         const notesRaw = prop.NOTES ? (prop.NOTES.length > 25 ? prop.NOTES.substring(0, 25) + '...' : prop.NOTES) : '-';
         const notesPreview = escapeHtmlBulk(notesRaw);
         
-        html += `
-            <tr class="${rowClass}">
-                <td>${index + 1}</td>
-                <td>${escapeHtmlBulk(prop.SEC) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.TWN) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
-                <td style="font-size: 12px; color: var(--slate-blue);">${notesPreview}</td>
-                <td class="status-cell ${statusClass}">
-                    ${statusText}
+        html += \`
+            <tr class="\${rowClass}">
+                <td>\${index + 1}</td>
+                <td>\${escapeHtmlBulk(prop.SEC) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.TWN) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.RNG) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
+                <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
+                <td class="status-cell \${statusClass}">
+                    \${statusText}
                 </td>
             </tr>
-        `;
+        \`;
     });
     
     tbody.innerHTML = html;
@@ -2446,7 +2446,7 @@ async function startImport() {
         .filter(r => r.isValid && !r.isDuplicate)
         .map(r => r.normalized);
     
-    document.getElementById('import-progress').textContent = `Importing ${toImport.length} properties...`;
+    document.getElementById('import-progress').textContent = \`Importing \${toImport.length} properties...\`;
     
     try {
         const response = await fetch('/api/bulk-upload-properties', {
@@ -2466,7 +2466,7 @@ async function startImport() {
         progressBar.classList.remove('indeterminate');
         progressBar.style.width = '100%';
         document.getElementById('progress-percent').textContent = '100%';
-        document.getElementById('import-progress').textContent = `${results.results.successful} of ${toImport.length} properties created`;
+        document.getElementById('import-progress').textContent = \`\${results.results.successful} of \${toImport.length} properties created\`;
         
         // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -2587,7 +2587,7 @@ function handleWellsFileSelect(e) {
 // Process wells file
 async function processWellsFile(file) {
     document.getElementById('wells-filename').textContent = file.name;
-    document.getElementById('wells-filesize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('wells-filesize').textContent = \`\${(file.size / 1024).toFixed(1)} KB\`;
     document.getElementById('wells-file-info').style.display = 'flex';
     document.getElementById('wells-parse-error').style.display = 'none';
     
@@ -2683,11 +2683,11 @@ async function validateAndPreviewWells() {
 // Render wells summary badges
 function renderWellsSummary() {
     const summary = wellsValidationResults.summary;
-    const html = `
-        <div class="validation-badge badge-valid">✓ ${summary.valid} Valid</div>
-        ${summary.invalid > 0 ? `<div class="validation-badge badge-invalid">❌ ${summary.invalid} Invalid</div>` : ''}
-        ${summary.duplicates > 0 ? `<div class="validation-badge badge-duplicate">↺ ${summary.duplicates} Duplicates</div>` : ''}
-    `;
+    const html = \`
+        <div class="validation-badge badge-valid">✓ \${summary.valid} Valid</div>
+        \${summary.invalid > 0 ? \`<div class="validation-badge badge-invalid">❌ \${summary.invalid} Invalid</div>\` : ''}
+        \${summary.duplicates > 0 ? \`<div class="validation-badge badge-duplicate">↺ \${summary.duplicates} Duplicates</div>\` : ''}
+    \`;
     document.getElementById('wells-validation-summary').innerHTML = html;
 }
 
@@ -2696,18 +2696,18 @@ function renderWellsPlanCheck() {
     const plan = wellsValidationResults.planCheck;
     const wouldExceed = plan.wouldExceedLimit;
     
-    const html = `
-        <div class="plan-check-box ${wouldExceed ? 'exceeded' : 'ok'}">
+    const html = \`
+        <div class="plan-check-box \${wouldExceed ? 'exceeded' : 'ok'}">
             <div class="plan-check-header">
-                ${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
+                \${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
             </div>
             <div class="plan-check-details">
-                Current: ${plan.current} wells · 
-                Adding: ${wellsValidationResults.summary.willImport} · 
-                Total: ${plan.afterUpload} of ${plan.limit} (${plan.plan} plan)
+                Current: \${plan.current} wells · 
+                Adding: \${wellsValidationResults.summary.willImport} · 
+                Total: \${plan.afterUpload} of \${plan.limit} (\${plan.plan} plan)
             </div>
         </div>
-    `;
+    \`;
     document.getElementById('wells-plan-check').innerHTML = html;
     document.getElementById('wells-import-btn').disabled = wouldExceed;
 }
@@ -2727,23 +2727,23 @@ function renderWellsPreviewTable() {
                            (result.warnings.length > 0 ? 'status-cell-warning' : 'status-cell-valid'));
         
         const statusText = result.isDuplicate ? '↺ Duplicate' :
-                          (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
-                          (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
+                          (result.errors.length > 0 ? \`❌ \${result.errors[0]}\` :
+                          (result.warnings.length > 0 ? \`⚠️ \${result.warnings[0]}\` : '✓ Valid'));
         
         // Truncate notes for preview and escape
         const notesRaw = result.normalized.notes ? 
             (result.normalized.notes.length > 25 ? result.normalized.notes.substring(0, 25) + '...' : result.normalized.notes) : '-';
         const notesPreview = escapeHtmlBulk(notesRaw);
         
-        html += `
-            <tr class="${rowClass}">
-                <td>${index + 1}</td>
-                <td>${escapeHtmlBulk(result.normalized.apiNumber) || '-'}</td>
-                <td>${escapeHtmlBulk(result.normalized.wellName) || '-'}</td>
-                <td style="font-size: 12px; color: var(--slate-blue);">${notesPreview}</td>
-                <td class="status-cell ${statusClass}">${statusText}</td>
+        html += \`
+            <tr class="\${rowClass}">
+                <td>\${index + 1}</td>
+                <td>\${escapeHtmlBulk(result.normalized.apiNumber) || '-'}</td>
+                <td>\${escapeHtmlBulk(result.normalized.wellName) || '-'}</td>
+                <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
+                <td class="status-cell \${statusClass}">\${statusText}</td>
             </tr>
-        `;
+        \`;
     });
     
     tbody.innerHTML = html;
@@ -2758,7 +2758,7 @@ async function startWellsImport() {
         .filter(r => r.isValid && !r.isDuplicate)
         .map(r => r.normalized);
     
-    document.getElementById('wells-import-progress').textContent = `Importing ${toImport.length} wells...`;
+    document.getElementById('wells-import-progress').textContent = \`Importing \${toImport.length} wells...\`;
     
     try {
         const response = await fetch('/api/bulk-upload-wells', {
@@ -2835,4 +2835,614 @@ function finishBulkUploadWells() {
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
     </body>
+</html>`;
+
+// Account page remains the same - would need minor updates for wells display
+var ACCOUNT_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
+        h1, h2, .logo { font-family: 'Merriweather', serif; }
+        header { background: var(--oil-navy); padding: 15px 0; color: white; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+        .header-inner { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: 900; color: white; text-decoration: none; }
+        .nav-links { display: flex; gap: 25px; }
+        .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-weight: 500; font-size: 14px; }
+        .nav-links a:hover, .nav-links a.active { color: white; }
+        .user-menu { display: flex; align-items: center; gap: 15px; }
+        .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
+        .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        main { padding: 40px 0; }
+        .page-header h1 { font-size: 28px; margin-bottom: 30px; }
+        .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 25px; }
+        .card.full { grid-column: span 2; }
+        .card h2 { font-size: 18px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .info-row:last-of-type { border-bottom: none; }
+        .info-label { font-size: 14px; color: var(--slate-blue); }
+        .info-value { font-size: 14px; font-weight: 600; }
+        .plan-badge { background: var(--success-bg); color: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .plan-badge.free { background: #E2E8F0; color: var(--slate-blue); }
+        .btn { display: inline-block; padding: 12px 20px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; border: none; margin-top: 20px; }
+        .btn-secondary { background: white; color: var(--oil-navy); border: 1px solid var(--border); }
+        .btn-primary { background: var(--red-dirt); color: white; }
+        .features { margin: 20px 0; list-style: none; }
+        .features li { padding: 8px 0 8px 25px; position: relative; font-size: 14px; color: var(--slate-blue); }
+        .features li::before { content: '✓'; position: absolute; left: 0; color: var(--success); font-weight: bold; }
+        .upgrade-box { background: var(--paper); border-radius: 6px; padding: 20px; margin-top: 20px; }
+        .upgrade-box p { font-size: 14px; color: var(--slate-blue); margin-bottom: 15px; }
+        footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
+        @media (max-width: 768px) { .cards { grid-template-columns: 1fr; } .card.full { grid-column: span 1; } .user-name { display: none; } }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/account" class="active">Account</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <div class="page-header"><h1>Account Settings</h1></div>
+            <div class="cards">
+                <div class="card">
+                    <h2>Profile</h2>
+                    <div class="info-row"><span class="info-label">Name</span><span class="info-value" id="profileName">—</span></div>
+                    <div class="info-row"><span class="info-label">Email</span><span class="info-value" id="profileEmail">—</span></div>
+                </div>
+                <div class="card">
+                    <h2>Subscription</h2>
+                    <div class="info-row"><span class="info-label">Plan</span><span class="plan-badge" id="currentPlan">Loading...</span></div>
+                    <div class="info-row"><span class="info-label">Properties</span><span class="info-value"><span id="propItems">0</span> / <span id="propLimit">1</span></span></div>
+                    <div class="info-row"><span class="info-label">Wells</span><span class="info-value"><span id="wellItems">0</span> / <span id="wellLimit">0</span></span></div>
+                    <div class="info-row"><span class="info-label">Status</span><span class="info-value" id="status">—</span></div>
+                    <button class="btn btn-secondary" id="manageBtn">Manage Subscription</button>
+                </div>
+                <div class="card full">
+                    <h2>Your Plan Features</h2>
+                    <ul class="features" id="features"><li>Loading...</li></ul>
+                    <div class="upgrade-box" id="upgradeBox">
+                        <p>Need to monitor more properties or wells? Upgrade your plan.</p>
+                        <a href="/portal/upgrade" class="btn btn-primary">View Plans</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
+    <script>
+        const planConfigs = {
+            'Free': { properties: 1, wells: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
+            'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
+            'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support'] },
+            'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
+            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', 'All features', 'Dedicated support'] }
+        };
+        
+        let currentUser = null;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) { window.location.href = '/portal/login'; return; }
+                currentUser = await res.json();
+                const plan = currentUser.plan || 'Free';
+                const config = planConfigs[plan] || planConfigs['Free'];
+                
+                document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+                document.getElementById('profileName').textContent = currentUser.name || '—';
+                document.getElementById('profileEmail').textContent = currentUser.email;
+                document.getElementById('currentPlan').textContent = plan;
+                document.getElementById('currentPlan').classList.toggle('free', plan === 'Free');
+                document.getElementById('propLimit').textContent = config.properties === Infinity ? '∞' : config.properties;
+                document.getElementById('wellLimit').textContent = config.wells === Infinity ? '∞' : config.wells;
+                document.getElementById('status').textContent = currentUser.status || 'Active';
+                document.getElementById('features').innerHTML = config.features.map(f => '<li>' + f + '</li>').join('');
+                
+                // Hide upgrade box for Enterprise
+                if (plan === 'Enterprise') document.getElementById('upgradeBox').style.display = 'none';
+                
+                // Hide manage button if no Stripe Customer ID (Free user without billing history)
+                if (!currentUser.stripeCustomerId) {
+                    document.getElementById('manageBtn').style.display = 'none';
+                }
+                
+                // Get counts
+                const [propsRes, wellsRes] = await Promise.all([
+                    fetch('/api/properties'),
+                    fetch('/api/wells')
+                ]);
+                if (propsRes.ok && wellsRes.ok) {
+                    const props = await propsRes.json();
+                    const wells = await wellsRes.json();
+                    document.getElementById('propItems').textContent = props.length;
+                    document.getElementById('wellItems').textContent = wells.length;
+                }
+            } catch { window.location.href = '/portal/login'; }
+        });
+        
+        document.getElementById('manageBtn').addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/billing/portal', { method: 'POST' });
+                if (res.ok) {
+                    const { url } = await res.json();
+                    window.location.href = url;
+                } else { alert('Unable to open billing portal.'); }
+            } catch { alert('Error connecting to billing.'); }
+        });
+        
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/portal/login';
+        });
+    </script>
+</body>
+</html>`;
+
+var UPGRADE_HTML = `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upgrade - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { 
+            --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; 
+            --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; 
+            --success: #03543F; --success-bg: #DEF7EC; 
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
+        h1, h2, .logo { font-family: 'Merriweather', serif; }
+        
+        header { background: var(--oil-navy); }
+        .header-inner { max-width: 1200px; margin: 0 auto; padding: 16px 24px; display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: 900; color: white; text-decoration: none; }
+        .nav-links a { color: #CBD5E0; text-decoration: none; margin-left: 24px; font-size: 14px; }
+        .nav-links a:hover, .nav-links a.active { color: white; }
+        
+        main { max-width: 1100px; margin: 0 auto; padding: 40px 24px; }
+        .page-header { text-align: center; margin-bottom: 40px; }
+        .page-header h1 { font-size: 32px; margin-bottom: 12px; }
+        .page-header p { color: var(--slate-blue); font-size: 18px; }
+        
+        .current-plan-banner { 
+            background: var(--success-bg); 
+            border: 1px solid var(--success); 
+            border-radius: 8px; 
+            padding: 16px 24px; 
+            margin-bottom: 32px; 
+            text-align: center;
+            color: var(--success);
+            font-weight: 500;
+        }
+        
+        .interval-toggle {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 32px;
+            gap: 8px;
+        }
+        .interval-btn {
+            padding: 10px 24px;
+            border: 2px solid var(--border);
+            background: white;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .interval-btn.active {
+            border-color: var(--oil-navy);
+            background: var(--oil-navy);
+            color: white;
+        }
+        .save-badge {
+            background: var(--success);
+            color: white;
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 10px;
+            margin-left: 8px;
+        }
+        
+        .pricing-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 24px;
+        }
+        @media (max-width: 900px) {
+            .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
+        }
+        
+        .plan-card {
+            background: white;
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 32px 24px;
+            text-align: center;
+            transition: all 0.2s;
+            position: relative;
+        }
+        .plan-card.current {
+            border-color: var(--oil-navy);
+            box-shadow: 0 4px 20px rgba(28, 43, 54, 0.15);
+        }
+        .plan-card.popular {
+            border-color: var(--red-dirt);
+        }
+        .popular-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--red-dirt);
+            color: white;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .current-badge {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--oil-navy);
+            color: white;
+            padding: 4px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .plan-name { font-size: 24px; font-weight: 700; margin-bottom: 8px; font-family: 'Merriweather', serif; }
+        .plan-price { font-size: 48px; font-weight: 700; color: var(--oil-navy); }
+        .plan-price span { font-size: 16px; font-weight: 400; color: var(--slate-blue); }
+        .plan-interval { color: var(--slate-blue); font-size: 14px; margin-bottom: 24px; }
+        
+        .plan-features { list-style: none; text-align: left; margin-bottom: 24px; }
+        .plan-features li { padding: 8px 0; font-size: 14px; color: var(--slate-blue); display: flex; align-items: center; gap: 10px; }
+        .plan-features li::before { content: "✓"; color: var(--success); font-weight: bold; }
+        
+        .plan-btn {
+            width: 100%;
+            padding: 14px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .plan-btn.primary {
+            background: var(--red-dirt);
+            color: white;
+        }
+        .plan-btn.primary:hover { background: var(--red-dirt-dark); }
+        .plan-btn.secondary {
+            background: var(--paper);
+            color: var(--slate-blue);
+            border: 1px solid var(--border);
+        }
+        .plan-btn.secondary:hover { background: var(--border); }
+        .plan-btn.current-btn {
+            background: var(--oil-navy);
+            color: white;
+            cursor: default;
+        }
+        .plan-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 32px;
+            color: var(--slate-blue);
+            text-decoration: none;
+            font-size: 14px;
+        }
+        .back-link:hover { color: var(--oil-navy); }
+        
+        footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px; text-align: center; font-size: 13px; margin-top: 60px; }
+        
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(255,255,255,0.9);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+        .loading-overlay.show { display: flex; }
+        .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--red-dirt); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .enterprise-row {
+            max-width: 700px;
+            margin: 40px auto 0;
+            text-align: center;
+            padding: 24px 30px;
+            background: var(--paper);
+            border-radius: 8px;
+            border: 1px dashed var(--slate-blue);
+        }
+        .enterprise-row h3 { 
+            font-size: 18px; 
+            margin-bottom: 6px; 
+            color: var(--oil-navy); 
+            font-family: 'Merriweather', serif;
+        }
+        .enterprise-row p { 
+            font-size: 14px; 
+            color: #718096; 
+            margin-bottom: 12px; 
+        }
+        .enterprise-link { 
+            color: var(--red-dirt); 
+            font-weight: 600; 
+            text-decoration: none; 
+        }
+        .enterprise-link:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-inner">
+            <a href="/" class="logo">Mineral Watch</a>
+            <nav class="nav-links">
+                <a href="/portal">Dashboard</a>
+                <a href="/portal/account">Account</a>
+            </nav>
+        </div>
+    </header>
+    
+    <main>
+        <div class="page-header">
+            <h1>Choose Your Plan</h1>
+            <p>Monitor more properties and wells with an upgraded plan</p>
+        </div>
+        
+        <div class="current-plan-banner" id="currentPlanBanner">
+            You're currently on the <strong id="currentPlanName">Free</strong> plan
+        </div>
+        
+        <div class="interval-toggle">
+            <button class="interval-btn active" data-interval="monthly">Monthly</button>
+            <button class="interval-btn" data-interval="annual">Annual <span class="save-badge">Save 20%</span></button>
+        </div>
+        
+        <div class="pricing-grid">
+            <!-- Starter -->
+            <div class="plan-card" id="starterCard">
+                <h3 class="plan-name">Starter</h3>
+                <div class="plan-price" id="starterPrice">$9<span>/mo</span></div>
+                <div class="plan-interval" id="starterInterval">billed monthly</div>
+                <ul class="plan-features">
+                    <li>10 properties</li>
+                    <li>10 wells</li>
+                    <li>Adjacent section monitoring</li>
+                    <li>Daily OCC scans</li>
+                    <li>Email alerts</li>
+                </ul>
+                <button class="plan-btn primary" id="starterBtn" data-plan="starter">Select Starter</button>
+            </div>
+            
+            <!-- Standard -->
+            <div class="plan-card popular" id="standardCard">
+                <div class="popular-badge">Most Popular</div>
+                <h3 class="plan-name">Standard</h3>
+                <div class="plan-price" id="standardPrice">$29<span>/mo</span></div>
+                <div class="plan-interval" id="standardInterval">billed monthly</div>
+                <ul class="plan-features">
+                    <li>50 properties</li>
+                    <li>50 wells</li>
+                    <li>Adjacent section monitoring</li>
+                    <li>Daily OCC scans</li>
+                    <li>Priority support</li>
+                </ul>
+                <button class="plan-btn primary" id="standardBtn" data-plan="standard">Select Standard</button>
+            </div>
+            
+            <!-- Professional -->
+            <div class="plan-card" id="professionalCard">
+                <h3 class="plan-name">Professional</h3>
+                <div class="plan-price" id="professionalPrice">$99<span>/mo</span></div>
+                <div class="plan-interval" id="professionalInterval">billed monthly</div>
+                <ul class="plan-features">
+                    <li>250 properties</li>
+                    <li>250 wells</li>
+                    <li>Adjacent section monitoring</li>
+                    <li>Daily OCC scans</li>
+                    <li>Priority support</li>
+                    <li>Bulk import & export</li>
+                    <li>Multi-user access (3)</li>
+                </ul>
+                <button class="plan-btn primary" id="professionalBtn" data-plan="professional">Select Professional</button>
+            </div>
+        </div>
+        
+        <!-- Enterprise Row -->
+        <div class="enterprise-row">
+            <h3>Need more than 250 properties?</h3>
+            <p>Custom solutions for family offices, mineral management companies, and financial institutions.</p>
+            <a href="/contact?topic=enterprise" class="enterprise-link">Contact Sales for Enterprise →</a>
+        </div>
+        
+        <a href="/portal" class="back-link">← Back to Dashboard</a>
+    </main>
+    
+    <footer>&copy; 2025 Mineral Watch</footer>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <p style="margin-top: 16px; color: var(--slate-blue);">Processing...</p>
+    </div>
+    
+    <script>
+        const pricing = {
+            starter: { monthly: 9, annual: 86 },
+            standard: { monthly: 29, annual: 278 },
+            professional: { monthly: 99, annual: 950 }
+        };
+        
+        const planHierarchy = ['Free', 'Starter', 'Standard', 'Professional', 'Enterprise'];
+        
+        let currentInterval = 'monthly';
+        let currentUser = null;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Check for success/error params
+            const params = new URLSearchParams(window.location.search);
+            if (params.get('error')) {
+                alert('Something went wrong. Please try again.');
+            }
+            
+            // Load user data
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) { window.location.href = '/portal/login'; return; }
+                currentUser = await res.json();
+                
+                document.getElementById('currentPlanName').textContent = currentUser.plan || 'Free';
+                
+                // If Enterprise, redirect - they can't change
+                if (currentUser.plan === 'Enterprise') {
+                    window.location.href = '/portal';
+                    return;
+                }
+                
+                updateUI();
+            } catch { 
+                window.location.href = '/portal/login'; 
+            }
+            
+            // Interval toggle
+            document.querySelectorAll('.interval-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    document.querySelectorAll('.interval-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    currentInterval = btn.dataset.interval;
+                    updatePrices();
+                });
+            });
+            
+            // Plan buttons
+            document.querySelectorAll('.plan-btn').forEach(btn => {
+                btn.addEventListener('click', () => selectPlan(btn.dataset.plan));
+            });
+        });
+        
+        function updateUI() {
+            updatePrices();
+            updateButtons();
+        }
+        
+        function updatePrices() {
+            const isAnnual = currentInterval === 'annual';
+            
+            ['starter', 'standard', 'professional'].forEach(plan => {
+                const price = pricing[plan][currentInterval];
+                const perMonth = isAnnual ? Math.round(price / 12) : price;
+                
+                document.getElementById(plan + 'Price').innerHTML = 
+                    '$' + perMonth + '<span>/mo</span>';
+                document.getElementById(plan + 'Interval').textContent = 
+                    isAnnual ? 'billed annually ($' + price + '/yr)' : 'billed monthly';
+            });
+        }
+        
+        function updateButtons() {
+            const userPlan = currentUser?.plan || 'Free';
+            const userIndex = planHierarchy.indexOf(userPlan);
+            
+            ['starter', 'standard', 'professional'].forEach(plan => {
+                const card = document.getElementById(plan + 'Card');
+                const btn = document.getElementById(plan + 'Btn');
+                const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
+                const planIndex = planHierarchy.indexOf(planName);
+                
+                // Remove existing badges
+                card.classList.remove('current');
+                const existingBadge = card.querySelector('.current-badge');
+                if (existingBadge) existingBadge.remove();
+                
+                if (planName === userPlan) {
+                    // Current plan
+                    card.classList.add('current');
+                    const badge = document.createElement('div');
+                    badge.className = 'current-badge';
+                    badge.textContent = 'Current Plan';
+                    card.insertBefore(badge, card.firstChild);
+                    btn.textContent = 'Current Plan';
+                    btn.className = 'plan-btn current-btn';
+                    btn.disabled = true;
+                } else if (planIndex > userIndex) {
+                    // Upgrade
+                    btn.textContent = 'Upgrade to ' + planName;
+                    btn.className = 'plan-btn primary';
+                    btn.disabled = false;
+                } else {
+                    // Downgrade
+                    btn.textContent = 'Downgrade to ' + planName;
+                    btn.className = 'plan-btn secondary';
+                    btn.disabled = false;
+                }
+            });
+        }
+        
+        async function selectPlan(plan) {
+            document.getElementById('loadingOverlay').classList.add('show');
+            
+            try {
+                const res = await fetch('/api/upgrade', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plan, interval: currentInterval })
+                });
+                
+                const data = await res.json();
+                
+                if (!res.ok) {
+                    throw new Error(data.error || 'Upgrade failed');
+                }
+                
+                if (data.url) {
+                    // Redirect to Stripe Checkout
+                    window.location.href = data.url;
+                } else if (data.success) {
+                    // Direct update succeeded
+                    alert(data.message);
+                    window.location.href = '/portal';
+                }
+            } catch (err) {
+                document.getElementById('loadingOverlay').classList.remove('show');
+                alert(err.message || 'Something went wrong. Please try again.');
+            }
+        }
+    </script>
+</body>
 </html>
