@@ -7,6 +7,7 @@
 import { BASE_ID, ACTIVITY_TABLE, PLAN_LIMITS } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
+import { getUserById } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -19,9 +20,16 @@ export async function handleListActivity(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
+  // Get user record to access plan information
+  const userRecord = await getUserById(env, user.id);
+  const plan = userRecord?.fields.Plan || "Free";
+  
   // Get plan-based record limit
-  const planLimits = PLAN_LIMITS[user.plan] || PLAN_LIMITS["Free"];
+  const planLimits = PLAN_LIMITS[plan] || PLAN_LIMITS["Free"];
   const recordLimit = planLimits.activityRecords;
+  
+  // Add debug logging
+  console.log(`Activity handler - User: ${user.email}, Plan: ${plan}, Record Limit: ${recordLimit}`);
   
   // Build formula: user's records, sorted by date desc
   const formula = `{Email} = '${user.email}'`;
@@ -44,7 +52,7 @@ export async function handleListActivity(request: Request, env: Env) {
   return jsonResponse({
     records: data.records,
     recordLimit: recordLimit,
-    plan: user.plan
+    plan: plan
   });
 }
 
