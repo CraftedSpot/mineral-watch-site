@@ -1,37 +1,39 @@
 // UPDATED MINERAL WATCH PORTAL WORKER - WITH WELLS SUPPORT
 // Deploy with: wrangler deploy
 
+// Import constants and utilities from modular files
+import { 
+  COOKIE_NAME, 
+  TOKEN_EXPIRY, 
+  SESSION_EXPIRY, 
+  BASE_ID, 
+  USERS_TABLE, 
+  PROPERTIES_TABLE, 
+  WELLS_TABLE, 
+  BASE_URL, 
+  PLAN_LIMITS, 
+  OCC_CACHE_TTL, 
+  CORS_HEADERS 
+} from './src/constants.js';
+
+import { 
+  jsonResponse, 
+  servePage, 
+  redirectWithError, 
+  notFoundResponse, 
+  corsResponse, 
+  errorResponse 
+} from './src/utils/responses.js';
+
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-
-var COOKIE_NAME = "mw_session";
-var TOKEN_EXPIRY = 15 * 60 * 1e3;
-var SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1e3;
-var BASE_ID = "app3j3X29Uvp5stza";
-var USERS_TABLE = "👤 Users";
-var PROPERTIES_TABLE = "📍 Client Properties";
-var WELLS_TABLE = "🛢️ Client Wells";
-var BASE_URL = "https://portal.mymineralwatch.com";
-var PLAN_LIMITS = {
-  "Free": { properties: 1, wells: 1 },
-  "Starter": { properties: 10, wells: 10 },
-  "Standard": { properties: 50, wells: 50 },
-  "Professional": { properties: 250, wells: 250 },
-  "Enterprise": { properties: Infinity, wells: Infinity }
-};
-var OCC_CACHE_TTL = 86400; // 24 hours in seconds
-var CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type"
-};
 
 var index_default = {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const path = url.pathname;
     if (request.method === "OPTIONS") {
-      return new Response(null, { headers: CORS_HEADERS });
+      return corsResponse();
     }
     try {
       if (path === "/" || path === "") {
@@ -130,7 +132,13 @@ var index_default = {
       if (path === "/api/upgrade/success" && request.method === "GET") {
         return handleUpgradeSuccess(request, env, url);
       }
-      return new Response("Not Found", { status: 404 });
+      
+      // Track This Well endpoint
+      if (path === "/add-well" && request.method === "GET") {
+        return handleTrackThisWell(request, env, url);
+      }
+      
+      return notFoundResponse();
     } catch (err) {
       console.error("Worker error:", err);
       return jsonResponse({ error: "Internal server error" }, 500);
@@ -287,6 +295,217 @@ async function handleAddWell(request, env) {
   return jsonResponse(newRecord, 201);
 }
 __name(handleAddWell, "handleAddWell");
+
+// --- TOKEN VALIDATION HELPER ---
+async function validateTrackToken(userId, apiNumber, expiration, token, secret) {
+  // Check expiration
+  const now = Math.floor(Date.now() / 1000);
+  if (now > expiration) {
+    return { valid: false, error: 'Link has expired' };
+  }
+  
+  // Generate expected token
+  const payload = `${userId}:${apiNumber}:${expiration}:${secret}`;
+  const encoder = new TextEncoder();
+  const data = encoder.encode(payload);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  const hashArray = new Uint8Array(hashBuffer);
+  const expectedToken = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  // Compare tokens
+  if (token !== expectedToken) {
+    return { valid: false, error: 'Invalid token' };
+  }
+  
+  return { valid: true };
+}
+
+async function handleTrackThisWell(request, env, url) {
+  const apiNumber = url.searchParams.get('api');
+  const userId = url.searchParams.get('user');
+  const token = url.searchParams.get('token');
+  const exp = url.searchParams.get('exp');
+  
+  // Check if we have signed token parameters
+  if (userId && token && exp && env.TRACK_WELL_SECRET) {
+    // Token-based flow (no auth required)
+    
+    // Validate API parameter
+    if (!apiNumber) {
+      return new Response(generateTrackWellErrorPage('Missing API number in tracking link.'), {
+        headers: { 'Content-Type': 'text/html' },
+        status: 400
+      });
+    }
+    
+    // Clean and validate API format
+    const cleanApi = apiNumber.replace(/\D/g, '');
+    if (cleanApi.length !== 10 || !cleanApi.startsWith('35')) {
+      return new Response(generateTrackWellErrorPage('Invalid API format in tracking link.'), {
+        headers: { 'Content-Type': 'text/html' },
+        status: 400
+      });
+    }
+    
+    // Validate token
+    const expiration = parseInt(exp);
+    const tokenValidation = await validateTrackToken(userId, cleanApi, expiration, token, env.TRACK_WELL_SECRET);
+    
+    if (!tokenValidation.valid) {
+      return new Response(generateTrackWellErrorPage(`Tracking link is ${tokenValidation.error}. Please request a new alert email.`), {
+        headers: { 'Content-Type': 'text/html' },
+        status: 400
+      });
+    }
+    
+    try {
+      // Get user record
+      const userRecord = await getUserById(env, userId);
+      if (!userRecord) {
+        return new Response(generateTrackWellErrorPage('User not found. Please contact support.'), {
+          headers: { 'Content-Type': 'text/html' },
+          status: 404
+        });
+      }
+      
+      const userEmail = userRecord.fields.Email;
+      
+      // Check for duplicate well API for this user
+      const isDuplicate = await checkDuplicateWell(env, userEmail, cleanApi);
+      if (isDuplicate) {
+        return new Response(generateTrackWellSuccessPage(cleanApi, true), {
+          headers: { 'Content-Type': 'text/html' }
+        });
+      }
+      
+      // Check plan limits
+      const plan = userRecord?.fields.Plan || "Free";
+      const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+      
+      if (planLimits.wells === 0) {
+        return new Response(generateTrackWellErrorPage(`Your ${plan} plan does not include well monitoring. Please upgrade to add wells.`, true), {
+          headers: { 'Content-Type': 'text/html' },
+          status: 403
+        });
+      }
+      
+      const wellsCount = await countUserWells(env, userEmail);
+      if (wellsCount >= planLimits.wells) {
+        return new Response(generateTrackWellErrorPage(`Well limit reached (${planLimits.wells} wells on ${plan} plan). You have ${wellsCount} wells.`, true), {
+          headers: { 'Content-Type': 'text/html' },
+          status: 403
+        });
+      }
+      
+      // Query OCC API to get well details
+      const wellDetails = await fetchWellDetailsFromOCC(cleanApi, env);
+      
+      let occMapLink = "#";
+      let wellName = "";
+      let operator = "";
+      let county = "";
+      let section = "";
+      let township = "";
+      let range = "";
+      let wellType = "";
+      let wellStatus = "";
+      
+      if (wellDetails) {
+        occMapLink = generateMapLink(wellDetails.lat, wellDetails.lon, wellDetails.wellName);
+        wellName = wellDetails.wellName || "";
+        operator = wellDetails.operator || "";
+        county = wellDetails.county || "";
+        section = wellDetails.section ? String(wellDetails.section) : "";
+        township = wellDetails.township || "";
+        range = wellDetails.range || "";
+        wellType = wellDetails.wellType || "";
+        wellStatus = wellDetails.wellStatus || "";
+      }
+      
+      // Add the well to Airtable
+      const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
+      const response = await fetch(createUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          fields: {
+            User: [userId],
+            "API Number": cleanApi,
+            "Well Name": wellName,
+            Status: "Active",
+            "OCC Map Link": occMapLink,
+            Operator: operator,
+            County: county,
+            Section: section,
+            Township: township,
+            Range: range,
+            "Well Type": wellType,
+            "Well Status": wellStatus,
+            Notes: "Added via signed email tracking link"
+          }
+        })
+      });
+      
+      if (!response.ok) {
+        const err = await response.text();
+        console.error("Airtable create well error:", err);
+        return new Response(generateTrackWellErrorPage('Failed to add well. Please try again later.'), {
+          headers: { 'Content-Type': 'text/html' },
+          status: 500
+        });
+      }
+      
+      console.log(`Well added via signed email link: API ${cleanApi} for ${userEmail}`);
+      return new Response(generateTrackWellSuccessPage(cleanApi, false, wellName), {
+        headers: { 'Content-Type': 'text/html' }
+      });
+      
+    } catch (error) {
+      console.error("Track well error:", error);
+      return new Response(generateTrackWellErrorPage('An error occurred. Please try again later.'), {
+        headers: { 'Content-Type': 'text/html' },
+        status: 500
+      });
+    }
+    
+  } else {
+    // Fallback to old auth-required flow
+    
+    // Validate API parameter
+    if (!apiNumber) {
+      return new Response(generateTrackWellErrorPage('Missing API number. Please use a valid tracking link.'), {
+        headers: { 'Content-Type': 'text/html' },
+        status: 400
+      });
+    }
+    
+    // Clean and validate API format
+    const cleanApi = apiNumber.replace(/\D/g, '');
+    if (cleanApi.length !== 10 || !cleanApi.startsWith('35')) {
+      return new Response(generateTrackWellErrorPage('Invalid API format. Must be 10 digits starting with 35.'), {
+        headers: { 'Content-Type': 'text/html' },
+        status: 400
+      });
+    }
+    
+    // Check authentication
+    const user = await authenticateRequest(request, env);
+    if (!user) {
+      // Redirect to login with return URL
+      const returnUrl = encodeURIComponent(`/add-well?api=${cleanApi}`);
+      return Response.redirect(`${BASE_URL}/portal/login?return=${returnUrl}`, 302);
+    }
+    
+    return new Response(generateTrackWellErrorPage('This tracking link requires authentication. Please log in and try again.'), {
+      headers: { 'Content-Type': 'text/html' },
+      status: 400
+    });
+  }
+}
+__name(handleTrackThisWell, "handleTrackThisWell");
 
 async function handleDeleteWell(wellId, request, env) {
   const user = await authenticateRequest(request, env);
@@ -2016,14 +2235,6 @@ __name(handleUpgradeSuccess, "handleUpgradeSuccess");
 // UTILITY FUNCTIONS
 // ====================
 
-function jsonResponse(data, status = 200) {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: { "Content-Type": "application/json", ...CORS_HEADERS }
-  });
-}
-__name(jsonResponse, "jsonResponse");
-
 // Fetch all records from Airtable with pagination
 async function fetchAllAirtableRecords(env, table, formula) {
   let allRecords = [];
@@ -2055,21 +2266,6 @@ async function fetchAllAirtableRecords(env, table, formula) {
 }
 __name(fetchAllAirtableRecords, "fetchAllAirtableRecords");
 
-function servePage(html, request, env) {
-  return new Response(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8" }
-  });
-}
-__name(servePage, "servePage");
-
-function redirectWithError(message) {
-  const params = new URLSearchParams({ error: message });
-  return new Response(null, {
-    status: 302,
-    headers: { "Location": `/portal/login?${params}` }
-  });
-}
-__name(redirectWithError, "redirectWithError");
 
 function getCookieValue(cookieString, name) {
   const match = cookieString.match(new RegExp(`(^| )${name}=([^;]+)`));
@@ -2201,6 +2397,120 @@ If you didn't request this, you can ignore this email.`
   }
 }
 __name(sendMagicLinkEmail, "sendMagicLinkEmail");
+
+// --- TRACK WELL PAGE GENERATORS ---
+function generateTrackWellSuccessPage(apiNumber, alreadyTracking, wellName) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Well Tracked - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Inter, sans-serif; background: #F3F4F6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
+        .success-icon { width: 80px; height: 80px; border-radius: 50%; background: #D1FAE5; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 40px; }
+        h1 { font-family: Merriweather, serif; font-size: 28px; color: #047857; margin-bottom: 16px; }
+        .subtitle { font-size: 18px; color: #6B7280; margin-bottom: 32px; }
+        .well-info { background: #F9FAFB; border-radius: 8px; padding: 20px; margin-bottom: 32px; text-align: left; }
+        .well-info h3 { color: #374151; margin-bottom: 12px; }
+        .well-detail { display: flex; justify-content: space-between; margin-bottom: 8px; }
+        .well-detail:last-child { margin-bottom: 0; }
+        .label { color: #6B7280; }
+        .value { color: #111827; font-weight: 500; }
+        .buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; text-decoration: none; display: inline-block; }
+        .btn-primary { background: #047857; color: white; }
+        .btn-secondary { background: #E5E7EB; color: #374151; }
+        .btn:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="success-icon">${alreadyTracking ? '✓' : '🎉'}</div>
+            <h1>${alreadyTracking ? 'Already Tracking' : 'Successfully Added!'}</h1>
+            <p class="subtitle">
+                ${alreadyTracking 
+                  ? 'You\'re already tracking this well.' 
+                  : 'This well has been added to your tracking list.'}
+            </p>
+            
+            <div class="well-info">
+                <h3>Well Information</h3>
+                <div class="well-detail">
+                    <span class="label">API Number:</span>
+                    <span class="value">${apiNumber}</span>
+                </div>
+                ${wellName ? `
+                <div class="well-detail">
+                    <span class="label">Well Name:</span>
+                    <span class="value">${wellName}</span>
+                </div>
+                ` : ''}
+                <div class="well-detail">
+                    <span class="label">Status:</span>
+                    <span class="value">Active Monitoring</span>
+                </div>
+            </div>
+            
+            <div class="buttons">
+                <a href="${BASE_URL}/portal" class="btn btn-primary">View Dashboard</a>
+                <a href="${BASE_URL}/portal" class="btn btn-secondary">Manage Wells</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
+
+function generateTrackWellErrorPage(message, showUpgrade = false) {
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Error - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Inter, sans-serif; background: #F3F4F6; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .card { background: white; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); padding: 40px; text-align: center; }
+        .error-icon { width: 80px; height: 80px; border-radius: 50%; background: #FEF2F2; display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-size: 40px; color: #DC2626; }
+        h1 { font-family: Merriweather, serif; font-size: 28px; color: #DC2626; margin-bottom: 16px; }
+        .message { font-size: 16px; color: #6B7280; margin-bottom: 32px; line-height: 1.5; }
+        .buttons { display: flex; gap: 16px; justify-content: center; flex-wrap: wrap; }
+        .btn { padding: 12px 24px; border-radius: 8px; font-weight: 600; text-decoration: none; display: inline-block; }
+        .btn-primary { background: #047857; color: white; }
+        .btn-secondary { background: #E5E7EB; color: #374151; }
+        .btn-warning { background: #F59E0B; color: white; }
+        .btn:hover { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="error-icon">⚠️</div>
+            <h1>Unable to Track Well</h1>
+            <p class="message">${message}</p>
+            
+            <div class="buttons">
+                ${showUpgrade 
+                  ? '<a href="' + BASE_URL + '/portal/upgrade" class="btn btn-warning">Upgrade Plan</a>'
+                  : ''
+                }
+                <a href="${BASE_URL}/portal" class="btn btn-primary">Go to Dashboard</a>
+                <a href="${BASE_URL}/portal/login" class="btn btn-secondary">Login</a>
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+}
 
 // ====================
 // HTML PAGES
