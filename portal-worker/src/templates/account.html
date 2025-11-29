@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Account - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
+        h1, h2, .logo { font-family: 'Merriweather', serif; }
+        header { background: var(--oil-navy); padding: 15px 0; color: white; }
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
+        .header-inner { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: 900; color: white; text-decoration: none; }
+        .nav-links { display: flex; gap: 25px; }
+        .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-weight: 500; font-size: 14px; }
+        .nav-links a:hover, .nav-links a.active { color: white; }
+        .user-menu { display: flex; align-items: center; gap: 15px; }
+        .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
+        .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        main { padding: 40px 0; }
+        .page-header h1 { font-size: 28px; margin-bottom: 30px; }
+        .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 25px; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); padding: 25px; }
+        .card.full { grid-column: span 2; }
+        .card h2 { font-size: 18px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid var(--border); }
+        .info-row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid var(--border); }
+        .info-row:last-of-type { border-bottom: none; }
+        .info-label { font-size: 14px; color: var(--slate-blue); }
+        .info-value { font-size: 14px; font-weight: 600; }
+        .plan-badge { background: var(--success-bg); color: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
+        .plan-badge.free { background: #E2E8F0; color: var(--slate-blue); }
+        .btn { display: inline-block; padding: 12px 20px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; border: none; margin-top: 20px; }
+        .btn-secondary { background: white; color: var(--oil-navy); border: 1px solid var(--border); }
+        .btn-primary { background: var(--red-dirt); color: white; }
+        .features { margin: 20px 0; list-style: none; }
+        .features li { padding: 8px 0 8px 25px; position: relative; font-size: 14px; color: var(--slate-blue); }
+        .features li::before { content: '✓'; position: absolute; left: 0; color: var(--success); font-weight: bold; }
+        .upgrade-box { background: var(--paper); border-radius: 6px; padding: 20px; margin-top: 20px; }
+        .upgrade-box p { font-size: 14px; color: var(--slate-blue); margin-bottom: 15px; }
+        footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
+        @media (max-width: 768px) { .cards { grid-template-columns: 1fr; } .card.full { grid-column: span 1; } .user-name { display: none; } }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/account" class="active">Account</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <div class="page-header"><h1>Account Settings</h1></div>
+            <div class="cards">
+                <div class="card">
+                    <h2>Profile</h2>
+                    <div class="info-row"><span class="info-label">Name</span><span class="info-value" id="profileName">—</span></div>
+                    <div class="info-row"><span class="info-label">Email</span><span class="info-value" id="profileEmail">—</span></div>
+                </div>
+                <div class="card">
+                    <h2>Subscription</h2>
+                    <div class="info-row"><span class="info-label">Plan</span><span class="plan-badge" id="currentPlan">Loading...</span></div>
+                    <div class="info-row"><span class="info-label">Properties</span><span class="info-value"><span id="propItems">0</span> / <span id="propLimit">1</span></span></div>
+                    <div class="info-row"><span class="info-label">Wells</span><span class="info-value"><span id="wellItems">0</span> / <span id="wellLimit">0</span></span></div>
+                    <div class="info-row"><span class="info-label">Status</span><span class="info-value" id="status">—</span></div>
+                    <button class="btn btn-secondary" id="manageBtn">Manage Subscription</button>
+                </div>
+                <div class="card full">
+                    <h2>Your Plan Features</h2>
+                    <ul class="features" id="features"><li>Loading...</li></ul>
+                    <div class="upgrade-box" id="upgradeBox">
+                        <p>Need to monitor more properties or wells? Upgrade your plan.</p>
+                        <a href="/portal/upgrade" class="btn btn-primary">View Plans</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
+    <script>
+        const planConfigs = {
+            'Free': { properties: 1, wells: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
+            'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
+            'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support'] },
+            'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
+            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', 'All features', 'Dedicated support'] }
+        };
+        
+        let currentUser = null;
+        
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (!res.ok) { window.location.href = '/portal/login'; return; }
+                currentUser = await res.json();
+                const plan = currentUser.plan || 'Free';
+                const config = planConfigs[plan] || planConfigs['Free'];
+                
+                document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+                document.getElementById('profileName').textContent = currentUser.name || '—';
+                document.getElementById('profileEmail').textContent = currentUser.email;
+                document.getElementById('currentPlan').textContent = plan;
+                document.getElementById('currentPlan').classList.toggle('free', plan === 'Free');
+                document.getElementById('propLimit').textContent = config.properties === Infinity ? '∞' : config.properties;
+                document.getElementById('wellLimit').textContent = config.wells === Infinity ? '∞' : config.wells;
+                document.getElementById('status').textContent = currentUser.status || 'Active';
+                document.getElementById('features').innerHTML = config.features.map(f => '<li>' + f + '</li>').join('');
+                
+                // Hide upgrade box for Enterprise
+                if (plan === 'Enterprise') document.getElementById('upgradeBox').style.display = 'none';
+                
+                // Hide manage button if no Stripe Customer ID (Free user without billing history)
+                if (!currentUser.stripeCustomerId) {
+                    document.getElementById('manageBtn').style.display = 'none';
+                }
+                
+                // Get counts
+                const [propsRes, wellsRes] = await Promise.all([
+                    fetch('/api/properties'),
+                    fetch('/api/wells')
+                ]);
+                if (propsRes.ok && wellsRes.ok) {
+                    const props = await propsRes.json();
+                    const wells = await wellsRes.json();
+                    document.getElementById('propItems').textContent = props.length;
+                    document.getElementById('wellItems').textContent = wells.length;
+                }
+            } catch { window.location.href = '/portal/login'; }
+        });
+        
+        document.getElementById('manageBtn').addEventListener('click', async () => {
+            try {
+                const res = await fetch('/api/billing/portal', { method: 'POST' });
+                if (res.ok) {
+                    const { url } = await res.json();
+                    window.location.href = url;
+                } else { alert('Unable to open billing portal.'); }
+            } catch { alert('Error connecting to billing.'); }
+        });
+        
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/portal/login';
+        });
+    </script>
+</body>
+</html>

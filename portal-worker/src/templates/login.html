@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; --error-bg: #FEE2E2; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; display: flex; flex-direction: column; }
+        h1, h2, .logo { font-family: 'Merriweather', serif; }
+        header { background: var(--oil-navy); padding: 20px 0; text-align: center; }
+        .logo { font-size: 24px; font-weight: 900; color: white; text-decoration: none; }
+        main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 40px 20px; }
+        .login-card { background: white; border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); padding: 40px; width: 100%; max-width: 420px; }
+        .login-card h1 { font-size: 24px; margin-bottom: 8px; }
+        .login-card p { color: var(--slate-blue); margin-bottom: 30px; font-size: 15px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-size: 14px; font-weight: 600; margin-bottom: 6px; color: var(--oil-navy); }
+        input[type="email"], input[type="text"] { width: 100%; padding: 12px 14px; border: 1px solid var(--border); border-radius: 4px; font-size: 15px; transition: border-color 0.2s; }
+        input[type="email"]:focus, input[type="text"]:focus { outline: none; border-color: var(--red-dirt); }
+        .btn { width: 100%; padding: 14px; background: var(--red-dirt); color: white; border: none; border-radius: 4px; font-size: 16px; font-weight: 600; cursor: pointer; transition: background 0.2s; }
+        .btn:hover { background: var(--red-dirt-dark); }
+        .btn:disabled { opacity: 0.7; cursor: not-allowed; }
+        .message { padding: 12px 16px; border-radius: 4px; margin-bottom: 20px; font-size: 14px; }
+        .message.error { background: var(--error-bg); color: var(--error); }
+        .message.success { background: var(--success-bg); color: var(--success); }
+        .toggle-mode { text-align: center; margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--border); font-size: 14px; color: var(--slate-blue); }
+        .toggle-mode a { color: var(--red-dirt); text-decoration: none; font-weight: 600; }
+        .toggle-mode a:hover { text-decoration: underline; }
+        footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px; text-align: center; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <header><a href="/" class="logo">Mineral Watch</a></header>
+    <main>
+        <div class="login-card">
+            <!-- Login Form -->
+            <div id="loginSection">
+                <h1>Welcome back</h1>
+                <p>Enter your email to receive a secure login link.</p>
+                <div id="loginMessage"></div>
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="loginEmail">Email Address</label>
+                        <input type="email" id="loginEmail" placeholder="you@example.com" required>
+                    </div>
+                    <button type="submit" class="btn" id="loginBtn">Send Login Link</button>
+                </form>
+                <div class="toggle-mode">
+                    Don't have an account? <a href="#" onclick="showSignup(event)">Sign up free</a>
+                </div>
+            </div>
+            
+            <!-- Signup Form -->
+            <div id="signupSection" style="display: none;">
+                <h1>Start free</h1>
+                <p>Monitor 1 property free. No credit card required.</p>
+                <div id="signupMessage"></div>
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signupName">Your Name</label>
+                        <input type="text" id="signupName" placeholder="John Smith" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="signupEmail">Email Address</label>
+                        <input type="email" id="signupEmail" placeholder="you@example.com" required>
+                    </div>
+                    <button type="submit" class="btn" id="signupBtn">Create Free Account</button>
+                </form>
+                <div class="toggle-mode">
+                    Already have an account? <a href="#" onclick="showLogin(event)">Log in</a>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer>&copy; 2025 Mineral Watch</footer>
+    <script>
+        // Check for error params
+        const params = new URLSearchParams(window.location.search);
+        const error = params.get('error');
+        if (error) {
+            document.getElementById('loginMessage').innerHTML = '<div class="message error">' + error + '</div>';
+        }
+        
+        // Toggle between login and signup
+        function showSignup(e) {
+            e.preventDefault();
+            document.getElementById('loginSection').style.display = 'none';
+            document.getElementById('signupSection').style.display = 'block';
+        }
+        
+        function showLogin(e) {
+            e.preventDefault();
+            document.getElementById('signupSection').style.display = 'none';
+            document.getElementById('loginSection').style.display = 'block';
+        }
+        
+        // Login form handler
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('loginBtn');
+            const email = document.getElementById('loginEmail').value;
+            
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            
+            try {
+                const res = await fetch('/api/auth/send-magic-link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                
+                if (res.ok) {
+                    document.getElementById('loginMessage').innerHTML = '<div class="message success">Check your email for a login link!</div>';
+                    document.getElementById('loginForm').style.display = 'none';
+                } else {
+                    const data = await res.json();
+                    throw new Error(data.error || 'Failed to send');
+                }
+            } catch (err) {
+                document.getElementById('loginMessage').innerHTML = '<div class="message error">' + (err.message || 'Something went wrong. Please try again.') + '</div>';
+                btn.disabled = false;
+                btn.textContent = 'Send Login Link';
+            }
+        });
+        
+        // Signup form handler
+        document.getElementById('signupForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const btn = document.getElementById('signupBtn');
+            const name = document.getElementById('signupName').value;
+            const email = document.getElementById('signupEmail').value;
+            
+            btn.disabled = true;
+            btn.textContent = 'Creating account...';
+            
+            try {
+                const res = await fetch('/api/auth/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, email })
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    document.getElementById('signupMessage').innerHTML = '<div class="message success">' + data.message + '</div>';
+                    document.getElementById('signupForm').style.display = 'none';
+                } else {
+                    throw new Error(data.error || 'Registration failed');
+                }
+            } catch (err) {
+                document.getElementById('signupMessage').innerHTML = '<div class="message error">' + (err.message || 'Something went wrong. Please try again.') + '</div>';
+                btn.disabled = false;
+                btn.textContent = 'Create Free Account';
+            }
+        });
+    </script>
+</body>
+</html>
