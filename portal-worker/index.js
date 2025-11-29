@@ -32,6 +32,18 @@ import {
   upgradeHtml 
 } from './src/templates/index.js';
 
+import {
+  findUserByEmail,
+  getUserById,
+  countUserProperties,
+  countUserWells,
+  checkDuplicateProperty,
+  checkDuplicateWell,
+  fetchAllAirtableRecords,
+  fetchUserProperties,
+  fetchUserWells
+} from './src/services/airtable.js';
+
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
@@ -1198,52 +1210,6 @@ async function handleBulkUploadWells(request, env) {
   });
 }
 
-// --- HELPER: FETCH USER WELLS ---
-async function fetchUserWells(env, userEmail) {
-  const user = await findUserByEmail(env, userEmail);
-  if (!user) return [];
-  
-  const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  
-  if (!response.ok) return [];
-  
-  const data = await response.json();
-  return data.records.map(r => ({
-    id: r.id,
-    apiNumber: r.fields["API Number"] || '',
-    wellName: r.fields["Well Name"] || ''
-  }));
-}
-async function fetchUserProperties(env, userEmail) {
-  const user = await findUserByEmail(env, userEmail);
-  if (!user) return [];
-  
-  const formula = `{User Email} = "${userEmail}"`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
-  
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
-    }
-  });
-  
-  if (!response.ok) return [];
-  
-  const data = await response.json();
-  return data.records.map(r => ({
-    SEC: r.fields.SEC,
-    TWN: r.fields.TWN,
-    RNG: r.fields.RNG,
-    MERIDIAN: r.fields.MERIDIAN || 'IM'
-  }));
-}
-
-
 // --- HELPER: NORMALIZE PROPERTY DATA ---
 var MAX_NOTES_LENGTH = 1000;
 
@@ -1479,29 +1445,7 @@ function generateMapLink(lat, lon, title) {
 }
 __name(generateMapLink, "generateMapLink");
 
-async function countUserWells(env, userEmail) {
-  const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) return 0;
-  const data = await response.json();
-  return data.records?.length || 0;
-}
-__name(countUserWells, "countUserWells");
 
-async function checkDuplicateWell(env, userEmail, apiNumber) {
-  const formula = `AND(FIND('${userEmail}', ARRAYJOIN({User})) > 0, {API Number} = '${apiNumber}')`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) return false;
-  const data = await response.json();
-  return data.records?.length > 0;
-}
-__name(checkDuplicateWell, "checkDuplicateWell");
 
 // ====================
 // AUTH HANDLERS
@@ -2242,36 +2186,6 @@ __name(handleUpgradeSuccess, "handleUpgradeSuccess");
 // UTILITY FUNCTIONS
 // ====================
 
-// Fetch all records from Airtable with pagination
-async function fetchAllAirtableRecords(env, table, formula) {
-  let allRecords = [];
-  let offset = null;
-  
-  do {
-    let url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(table)}?filterByFormula=${encodeURIComponent(formula)}`;
-    if (offset) {
-      url += `&offset=${offset}`;
-    }
-    
-    const response = await fetch(url, {
-      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-    });
-    
-    if (!response.ok) {
-      const errText = await response.text();
-      console.error(`Airtable fetch error for ${table}:`, errText);
-      throw new Error(`Airtable error: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    allRecords = allRecords.concat(data.records);
-    offset = data.offset; // Will be undefined when no more pages
-    
-  } while (offset);
-  
-  return allRecords;
-}
-__name(fetchAllAirtableRecords, "fetchAllAirtableRecords");
 
 
 function getCookieValue(cookieString, name) {
@@ -2293,52 +2207,6 @@ async function authenticateRequest(request, env) {
   }
 }
 __name(authenticateRequest, "authenticateRequest");
-
-async function findUserByEmail(env, email) {
-  const formula = `LOWER({Email}) = '${email.toLowerCase()}'`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) throw new Error(`Airtable error: ${response.status}`);
-  const data = await response.json();
-  return data.records?.[0] || null;
-}
-__name(findUserByEmail, "findUserByEmail");
-
-async function getUserById(env, userId) {
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userId}`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) return null;
-  return await response.json();
-}
-__name(getUserById, "getUserById");
-
-async function countUserProperties(env, userEmail) {
-  const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) return 0;
-  const data = await response.json();
-  return data.records?.length || 0;
-}
-__name(countUserProperties, "countUserProperties");
-
-async function checkDuplicateProperty(env, userEmail, county, section, township, range) {
-  const formula = `AND(FIND('${userEmail}', ARRAYJOIN({User})) > 0, {COUNTY} = '${county}', {SEC} = '${section}', {TWN} = '${township}', {RNG} = '${range}')`;
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  if (!response.ok) return false;
-  const data = await response.json();
-  return data.records?.length > 0;
-}
-__name(checkDuplicateProperty, "checkDuplicateProperty");
 
 async function generateToken(env, payload, ttlSeconds = 900) {
   const tokenId = crypto.randomUUID();
