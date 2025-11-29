@@ -4,13 +4,13 @@
  * Handles activity log listing and statistics for user accounts
  */
 
-import { BASE_ID, ACTIVITY_TABLE, ACTIVITY_LIMITS } from '../constants.js';
+import { BASE_ID, ACTIVITY_TABLE, PLAN_LIMITS } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
 
 /**
- * Handle activity log listing with plan-based date limits
+ * Handle activity log listing with plan-based record count limits
  * @param request The incoming request
  * @param env Worker environment
  * @returns JSON response with activity records
@@ -19,16 +19,14 @@ export async function handleListActivity(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
-  // Get plan-based date limit
-  const daysLimit = ACTIVITY_LIMITS[user.plan] || 7;
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - daysLimit);
-  const cutoffISO = cutoffDate.toISOString();
+  // Get plan-based record limit
+  const planLimits = PLAN_LIMITS[user.plan] || PLAN_LIMITS["Free"];
+  const recordLimit = planLimits.activityRecords;
   
-  // Build formula: user's records, after cutoff date, sorted by date desc
-  const formula = `AND({Email} = '${user.email}', {Detected At} >= '${cutoffISO}')`;
+  // Build formula: user's records, sorted by date desc
+  const formula = `{Email} = '${user.email}'`;
   
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc&maxRecords=100`;
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc&maxRecords=${recordLimit}`;
   
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -45,7 +43,7 @@ export async function handleListActivity(request: Request, env: Env) {
   // Include the limit info for the UI
   return jsonResponse({
     records: data.records,
-    daysLimit: daysLimit,
+    recordLimit: recordLimit,
     plan: user.plan
   });
 }

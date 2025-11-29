@@ -21,20 +21,11 @@ export const BASE_URL = "https://portal.mymineralwatch.com";
 
 // Plan Limits Configuration
 export const PLAN_LIMITS = {
-  "Free": { properties: 1, wells: 1 },
-  "Starter": { properties: 10, wells: 10 },
-  "Standard": { properties: 50, wells: 50 },
-  "Professional": { properties: 250, wells: 250 },
-  "Enterprise": { properties: Infinity, wells: Infinity }
-} as const;
-
-// Plan-based activity history limits (in days)
-export const ACTIVITY_LIMITS = {
-  "Free": 7,
-  "Starter": 30,
-  "Standard": 90,
-  "Professional": 365 * 10,  // 10 years = essentially unlimited
-  "Enterprise": 365 * 10
+  "Free": { properties: 1, wells: 1, activityRecords: 5 },
+  "Starter": { properties: 10, wells: 10, activityRecords: 25 },
+  "Standard": { properties: 50, wells: 50, activityRecords: 50 },
+  "Professional": { properties: 250, wells: 250, activityRecords: 100 },
+  "Enterprise": { properties: Infinity, wells: Infinity, activityRecords: Infinity }
 } as const;
 
 // Cache TTL

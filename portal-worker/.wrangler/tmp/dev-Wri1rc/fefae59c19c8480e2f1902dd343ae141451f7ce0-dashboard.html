@@ -607,7 +607,7 @@
         function generateSectionMapLink(sec, twn, rng, county) {
             // Link to OCC GIS with a search query - this will show the general area
             // We can't pin-drop without coordinates, but we can search
-            const searchTerm = encodeURIComponent(`${county || ''} ${sec} ${twn} ${rng}`.trim());
+            const searchTerm = encodeURIComponent(`\${county || ''} \${sec} \${twn} \${rng}`.trim());
             return `https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b`;
         }
 
@@ -722,9 +722,9 @@
                 // Update results count
                 const countEl = document.getElementById('propertiesResultsCount');
                 if (propertiesSearchTerm) {
-                    countEl.textContent = `${displayProperties.length} of ${loadedProperties.length} properties`;
+                    countEl.textContent = `\${displayProperties.length} of \${loadedProperties.length} properties`;
                 } else {
-                    countEl.textContent = `${loadedProperties.length} properties`;
+                    countEl.textContent = `\${loadedProperties.length} properties`;
                 }
             }
             
@@ -743,17 +743,17 @@
             
             displayProperties.forEach(p => {
                 const f = p.fields;
-                const str = `S${f.SEC} T${f.TWN} R${f.RNG}`;
+                const str = `S\${f.SEC} T\${f.TWN} R\${f.RNG}`;
                 const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
-                const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
+                const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">\${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 
                 html += `<tr>
-                    <td>${escapeHtml(f.COUNTY) || '—'}</td>
-                    <td><strong>${str}</strong></td>
-                    <td>${notes}</td>
+                    <td>\${escapeHtml(f.COUNTY) || '—'}</td>
+                    <td><strong>\${str}</strong></td>
+                    <td>\${notes}</td>
                     <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openPropertyDetails('${p.id}')">Details</button>
-                        <button class="btn-delete" onclick="deleteProperty('${p.id}')">Remove</button>
+                        <button class="btn-link" onclick="openPropertyDetails('\${p.id}')">Details</button>
+                        <button class="btn-delete" onclick="deleteProperty('\${p.id}')">Remove</button>
                     </td>
                 </tr>`;
             });
@@ -854,9 +854,9 @@
                 // Update results count
                 const countEl = document.getElementById('wellsResultsCount');
                 if (wellsSearchTerm) {
-                    countEl.textContent = `${displayWells.length} of ${loadedWells.length} wells`;
+                    countEl.textContent = `\${displayWells.length} of \${loadedWells.length} wells`;
                 } else {
-                    countEl.textContent = `${loadedWells.length} wells`;
+                    countEl.textContent = `\${loadedWells.length} wells`;
                 }
             }
             
@@ -881,19 +881,19 @@
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
-                const str = (section && township && range) ? `S${section} T${township} R${range}` : '—';
+                const str = (section && township && range) ? `S\${section} T\${township} R\${range}` : '—';
                 const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
                 
                 html += `<tr>
-                    <td><strong>${wellName}</strong></td>
-                    <td>${operator}</td>
-                    <td>${escapeHtml(f['API Number'])}</td>
-                    <td>${county}</td>
-                    <td>${str}</td>
+                    <td><strong>\${wellName}</strong></td>
+                    <td>\${operator}</td>
+                    <td>\${escapeHtml(f['API Number'])}</td>
+                    <td>\${county}</td>
+                    <td>\${str}</td>
                     <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openWellDetails('${w.id}')">Details</button>
-                        ${mapLink ? `<button class="btn-link" onclick="window.open('${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
-                        <button class="btn-delete" onclick="deleteWell('${w.id}')">Remove</button>
+                        <button class="btn-link" onclick="openWellDetails('\${w.id}')">Details</button>
+                        \${mapLink ? `<button class="btn-link" onclick="window.open('\${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
+                        <button class="btn-delete" onclick="deleteWell('\${w.id}')">Remove</button>
                     </td>
                 </tr>`;
             });
@@ -943,11 +943,11 @@
                 if (!res.ok) throw new Error('Failed to load');
                 const data = await res.json();
                 const records = data.records || [];
-                const recordLimit = data.recordLimit || 5;
+                const daysLimit = data.daysLimit || 7;
                 const plan = data.plan || 'Free';
                 
                 if (records.length === 0) {
-                    let msg = `<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they'll appear here.</p></div>`;
+                    let msg = '<div class="empty-state"><p>No activity recorded yet.</p><p style="font-size: 13px; color: var(--slate-blue);">When wells on your properties have status changes, they\\'ll appear here.</p></div>';
                     document.getElementById('activityContent').innerHTML = msg;
                     return;
                 }
@@ -955,8 +955,8 @@
                 let html = '<div class="activity-list">';
                 
                 // Show limit notice for lower tiers
-                if (recordLimit < 100 && plan !== 'Professional' && plan !== 'Enterprise') {
-                    html += `<div class="activity-limit-notice">Showing last ${recordLimit} alerts. <a href="/portal/upgrade">Upgrade</a> for more history.</div>`;
+                if (daysLimit <= 30 && plan !== 'Professional' && plan !== 'Enterprise') {
+                    html += `<div class="activity-limit-notice">Showing last \${daysLimit} days of activity. <a href="/portal/upgrade">Upgrade</a> for full history.</div>`;
                 }
                 
                 records.forEach(r => {
@@ -986,9 +986,9 @@
                     let changeText = '';
                     if (f['Previous Value'] && f['New Value']) {
                         if (activityType.includes('Transfer')) {
-                            changeText = `${f['Previous Value']} → ${f['New Value']}`;
+                            changeText = `\${f['Previous Value']} → \${f['New Value']}`;
                         } else {
-                            changeText = `Status: ${f['Previous Value']} → ${f['New Value']}`;
+                            changeText = `Status: \${f['Previous Value']} → \${f['New Value']}`;
                         }
                     }
                     
@@ -997,27 +997,27 @@
                     const mapLink = f['Map Link'];
                     let actionsHtml = '<div class="activity-actions">';
                     if (occLink) {
-                        actionsHtml += `<a href="${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
+                        actionsHtml += `<a href="\${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
                     }
                     if (mapLink) {
-                        actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>`;
+                        actionsHtml += `<a href="\${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>`;
                     }
                     actionsHtml += '</div>';
                     
                     html += `
                         <div class="activity-item">
-                            <div class="activity-icon ${iconClass}">${icon}</div>
+                            <div class="activity-icon \${iconClass}">\${icon}</div>
                             <div class="activity-details">
                                 <div class="activity-header">
-                                    <span class="activity-type">${escapeHtml(activityType)}</span>
-                                    <span class="activity-level ${levelClass}">${escapeHtml(alertLevel.replace('_', ' '))}</span>
+                                    <span class="activity-type">\${escapeHtml(activityType)}</span>
+                                    <span class="activity-level \${levelClass}">\${escapeHtml(alertLevel.replace('_', ' '))}</span>
                                 </div>
-                                <div class="activity-well">${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
-                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${escapeHtml(f['Section-Township-Range']) || ''} • ${escapeHtml(f['County']) || ''}</div>
-                                ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
-                                ${(occLink || mapLink) ? actionsHtml : ''}
+                                <div class="activity-well">\${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
+                                <div class="activity-meta">\${escapeHtml(f['Operator']) || ''} • \${escapeHtml(f['Section-Township-Range']) || ''} • \${escapeHtml(f['County']) || ''}</div>
+                                \${changeText ? `<div class="activity-change">\${escapeHtml(changeText)}</div>` : ''}
+                                \${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
-                            <div class="activity-date">${dateStr}</div>
+                            <div class="activity-date">\${dateStr}</div>
                         </div>
                     `;
                 });
@@ -1134,7 +1134,7 @@
             const count = loadedProperties.length;
             if (count === 0) return;
             
-            const confirmText = `Are you sure you want to remove ALL ${count} properties?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
+            const confirmText = `Are you sure you want to remove ALL \${count} properties?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
             const userInput = prompt(confirmText);
             
             if (userInput !== 'DELETE ALL') {
@@ -1147,7 +1147,7 @@
                 for (const prop of loadedProperties) {
                     await fetch('/api/properties/' + prop.id, { method: 'DELETE' });
                 }
-                alert(`Successfully removed ${count} properties.`);
+                alert(`Successfully removed \${count} properties.`);
                 await loadProperties();
             } catch (err) {
                 alert('Error removing properties. Some may have been deleted.');
@@ -1160,7 +1160,7 @@
             const count = loadedWells.length;
             if (count === 0) return;
             
-            const confirmText = `Are you sure you want to remove ALL ${count} wells?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
+            const confirmText = `Are you sure you want to remove ALL \${count} wells?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
             const userInput = prompt(confirmText);
             
             if (userInput !== 'DELETE ALL') {
@@ -1173,7 +1173,7 @@
                 for (const well of loadedWells) {
                     await fetch('/api/wells/' + well.id, { method: 'DELETE' });
                 }
-                alert(`Successfully removed ${count} wells.`);
+                alert(`Successfully removed \${count} wells.`);
                 await loadWells();
             } catch (err) {
                 alert('Error removing wells. Some may have been deleted.');
@@ -1199,7 +1199,7 @@
             const sec = f['Section'] || '';
             const twn = f['Township'] || '';
             const rng = f['Range'] || '';
-            document.getElementById('wellDetailsLocation').textContent = (sec && twn && rng) ? `S${sec} T${twn} R${rng}` : '—';
+            document.getElementById('wellDetailsLocation').textContent = (sec && twn && rng) ? `S\${sec} T\${twn} R\${rng}` : '—';
             
             document.getElementById('wellDetailsCounty').textContent = f['County'] || '—';
             document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
@@ -1217,7 +1217,7 @@
             }
             
             // OCC Filing link (Well Browse - works with API number)
-            const occLink = `https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?api=${f['API Number']}`;
+            const occLink = `https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?api=\${f['API Number']}`;
             document.getElementById('wellDetailsOccLink').href = occLink;
             
             document.getElementById('wellDetailsModal').style.display = 'flex';
@@ -1264,7 +1264,7 @@
             const f = prop.fields;
             document.getElementById('propertyDetailsId').value = propId;
             document.getElementById('propertyDetailsTitle').textContent = f['COUNTY'] || 'Property Details';
-            document.getElementById('propertyDetailsLegal').textContent = `S${f.SEC} T${f.TWN} R${f.RNG}`;
+            document.getElementById('propertyDetailsLegal').textContent = `S\${f.SEC} T\${f.TWN} R\${f.RNG}`;
             document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || '—';
             document.getElementById('propertyDetailsSection').textContent = f['SEC'] || '—';
             document.getElementById('propertyDetailsTownship').textContent = f['TWN'] || '—';
@@ -2215,7 +2215,7 @@ function handleFileSelect(e) {
 // Process uploaded file
 async function processFile(file) {
     document.getElementById('filename').textContent = file.name;
-    document.getElementById('filesize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('filesize').textContent = `\${(file.size / 1024).toFixed(1)} KB`;
     document.getElementById('file-info').style.display = 'block';
     document.getElementById('parse-error').style.display = 'none';
     
@@ -2256,14 +2256,14 @@ async function parseCSV(file) {
             skipEmptyLines: true,
             complete: (results) => {
                 if (results.errors.length > 0) {
-                    reject(new Error(`CSV parsing error: ${results.errors[0].message}`));
+                    reject(new Error(`CSV parsing error: \${results.errors[0].message}`));
                     return;
                 }
                 parsedData = results.data;
                 resolve();
             },
             error: (error) => {
-                reject(new Error(`CSV parsing failed: ${error.message}`));
+                reject(new Error(`CSV parsing failed: \${error.message}`));
             }
         });
     });
@@ -2291,7 +2291,7 @@ async function parseExcel(file) {
                 parsedData = jsonData;
                 resolve();
             } catch (error) {
-                reject(new Error(`Excel parsing failed: ${error.message}`));
+                reject(new Error(`Excel parsing failed: \${error.message}`));
             }
         };
         
@@ -2344,21 +2344,21 @@ function renderSummary() {
     const summary = validationResults.summary;
     const html = `
         <div class="validation-badge badge-valid">
-            ✓ ${summary.valid} Valid
+            ✓ \${summary.valid} Valid
         </div>
-        ${summary.invalid > 0 ? `
+        \${summary.invalid > 0 ? `
         <div class="validation-badge badge-invalid">
-            ❌ ${summary.invalid} Invalid
+            ❌ \${summary.invalid} Invalid
         </div>
         ` : ''}
-        ${summary.warnings > 0 ? `
+        \${summary.warnings > 0 ? `
         <div class="validation-badge badge-warning">
-            ⚠️ ${summary.warnings} Warnings
+            ⚠️ \${summary.warnings} Warnings
         </div>
         ` : ''}
-        ${summary.duplicates > 0 ? `
+        \${summary.duplicates > 0 ? `
         <div class="validation-badge badge-duplicate">
-            🔄 ${summary.duplicates} Duplicates
+            🔄 \${summary.duplicates} Duplicates
         </div>
         ` : ''}
     `;
@@ -2371,14 +2371,14 @@ function renderPlanCheck() {
     const wouldExceed = plan.wouldExceedLimit;
     
     const html = `
-        <div class="plan-check-box ${wouldExceed ? 'exceeded' : 'ok'}">
+        <div class="plan-check-box \${wouldExceed ? 'exceeded' : 'ok'}">
             <div class="plan-check-header">
-                ${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
+                \${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
             </div>
             <div class="plan-check-details">
-                Current: ${plan.current} properties · 
-                Adding: ${validationResults.summary.willImport} · 
-                Total: ${plan.afterUpload} of ${plan.limit} (${plan.plan} plan)
+                Current: \${plan.current} properties · 
+                Adding: \${validationResults.summary.willImport} · 
+                Total: \${plan.afterUpload} of \${plan.limit} (\${plan.plan} plan)
             </div>
         </div>
     `;
@@ -2404,24 +2404,24 @@ function renderPreviewTable() {
                            (result.warnings.length > 0 ? 'status-cell-warning' : 'status-cell-valid'));
         
         const statusText = result.isDuplicate ? '🔄 Duplicate' :
-                          (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
-                          (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
+                          (result.errors.length > 0 ? `❌ \${result.errors[0]}` :
+                          (result.warnings.length > 0 ? `⚠️ \${result.warnings[0]}` : '✓ Valid'));
         
         // Truncate notes for preview (max 25 chars) and escape
         const notesRaw = prop.NOTES ? (prop.NOTES.length > 25 ? prop.NOTES.substring(0, 25) + '...' : prop.NOTES) : '-';
         const notesPreview = escapeHtmlBulk(notesRaw);
         
         html += `
-            <tr class="${rowClass}">
-                <td>${index + 1}</td>
-                <td>${escapeHtmlBulk(prop.SEC) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.TWN) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
-                <td style="font-size: 12px; color: var(--slate-blue);">${notesPreview}</td>
-                <td class="status-cell ${statusClass}">
-                    ${statusText}
+            <tr class="\${rowClass}">
+                <td>\${index + 1}</td>
+                <td>\${escapeHtmlBulk(prop.SEC) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.TWN) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.RNG) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
+                <td>\${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
+                <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
+                <td class="status-cell \${statusClass}">
+                    \${statusText}
                 </td>
             </tr>
         `;
@@ -2446,7 +2446,7 @@ async function startImport() {
         .filter(r => r.isValid && !r.isDuplicate)
         .map(r => r.normalized);
     
-    document.getElementById('import-progress').textContent = `Importing ${toImport.length} properties...`;
+    document.getElementById('import-progress').textContent = `Importing \${toImport.length} properties...`;
     
     try {
         const response = await fetch('/api/bulk-upload-properties', {
@@ -2466,7 +2466,7 @@ async function startImport() {
         progressBar.classList.remove('indeterminate');
         progressBar.style.width = '100%';
         document.getElementById('progress-percent').textContent = '100%';
-        document.getElementById('import-progress').textContent = `${results.results.successful} of ${toImport.length} properties created`;
+        document.getElementById('import-progress').textContent = `\${results.results.successful} of \${toImport.length} properties created`;
         
         // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 500));
@@ -2587,7 +2587,7 @@ function handleWellsFileSelect(e) {
 // Process wells file
 async function processWellsFile(file) {
     document.getElementById('wells-filename').textContent = file.name;
-    document.getElementById('wells-filesize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('wells-filesize').textContent = `\${(file.size / 1024).toFixed(1)} KB`;
     document.getElementById('wells-file-info').style.display = 'flex';
     document.getElementById('wells-parse-error').style.display = 'none';
     
@@ -2684,9 +2684,9 @@ async function validateAndPreviewWells() {
 function renderWellsSummary() {
     const summary = wellsValidationResults.summary;
     const html = `
-        <div class="validation-badge badge-valid">✓ ${summary.valid} Valid</div>
-        ${summary.invalid > 0 ? `<div class="validation-badge badge-invalid">❌ ${summary.invalid} Invalid</div>` : ''}
-        ${summary.duplicates > 0 ? `<div class="validation-badge badge-duplicate">↺ ${summary.duplicates} Duplicates</div>` : ''}
+        <div class="validation-badge badge-valid">✓ \${summary.valid} Valid</div>
+        \${summary.invalid > 0 ? `<div class="validation-badge badge-invalid">❌ \${summary.invalid} Invalid</div>` : ''}
+        \${summary.duplicates > 0 ? `<div class="validation-badge badge-duplicate">↺ \${summary.duplicates} Duplicates</div>` : ''}
     `;
     document.getElementById('wells-validation-summary').innerHTML = html;
 }
@@ -2697,14 +2697,14 @@ function renderWellsPlanCheck() {
     const wouldExceed = plan.wouldExceedLimit;
     
     const html = `
-        <div class="plan-check-box ${wouldExceed ? 'exceeded' : 'ok'}">
+        <div class="plan-check-box \${wouldExceed ? 'exceeded' : 'ok'}">
             <div class="plan-check-header">
-                ${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
+                \${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
             </div>
             <div class="plan-check-details">
-                Current: ${plan.current} wells · 
-                Adding: ${wellsValidationResults.summary.willImport} · 
-                Total: ${plan.afterUpload} of ${plan.limit} (${plan.plan} plan)
+                Current: \${plan.current} wells · 
+                Adding: \${wellsValidationResults.summary.willImport} · 
+                Total: \${plan.afterUpload} of \${plan.limit} (\${plan.plan} plan)
             </div>
         </div>
     `;
@@ -2727,8 +2727,8 @@ function renderWellsPreviewTable() {
                            (result.warnings.length > 0 ? 'status-cell-warning' : 'status-cell-valid'));
         
         const statusText = result.isDuplicate ? '↺ Duplicate' :
-                          (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
-                          (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
+                          (result.errors.length > 0 ? `❌ \${result.errors[0]}` :
+                          (result.warnings.length > 0 ? `⚠️ \${result.warnings[0]}` : '✓ Valid'));
         
         // Truncate notes for preview and escape
         const notesRaw = result.normalized.notes ? 
@@ -2736,12 +2736,12 @@ function renderWellsPreviewTable() {
         const notesPreview = escapeHtmlBulk(notesRaw);
         
         html += `
-            <tr class="${rowClass}">
-                <td>${index + 1}</td>
-                <td>${escapeHtmlBulk(result.normalized.apiNumber) || '-'}</td>
-                <td>${escapeHtmlBulk(result.normalized.wellName) || '-'}</td>
-                <td style="font-size: 12px; color: var(--slate-blue);">${notesPreview}</td>
-                <td class="status-cell ${statusClass}">${statusText}</td>
+            <tr class="\${rowClass}">
+                <td>\${index + 1}</td>
+                <td>\${escapeHtmlBulk(result.normalized.apiNumber) || '-'}</td>
+                <td>\${escapeHtmlBulk(result.normalized.wellName) || '-'}</td>
+                <td style="font-size: 12px; color: var(--slate-blue);">\${notesPreview}</td>
+                <td class="status-cell \${statusClass}">\${statusText}</td>
             </tr>
         `;
     });
@@ -2758,7 +2758,7 @@ async function startWellsImport() {
         .filter(r => r.isValid && !r.isDuplicate)
         .map(r => r.normalized);
     
-    document.getElementById('wells-import-progress').textContent = `Importing ${toImport.length} wells...`;
+    document.getElementById('wells-import-progress').textContent = `Importing \${toImport.length} wells...`;
     
     try {
         const response = await fetch('/api/bulk-upload-wells', {
