@@ -449,7 +449,7 @@ async function handleListActivity(request, env) {
   const cutoffISO = cutoffDate.toISOString();
   
   // Build formula: user's records, after cutoff date, sorted by date desc
-  const formula = `AND(FIND('${user.id}', ARRAYJOIN({User})) > 0, {Detected At} >= '${cutoffISO}')`;
+  const formula = `AND(FIND('${user.email}', ARRAYJOIN({User})) > 0, {Detected At} >= '${cutoffISO}')`;
   
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc&maxRecords=100`;
   
@@ -479,7 +479,7 @@ async function handleActivityStats(request, env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Get all activity for this user (for stats, we count everything)
-  const formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
   
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc`;
   
