@@ -1,47 +1,91 @@
 # Mineral Watch
 
-Complete Oklahoma mineral rights monitoring platform with automated OCC filing alerts.
+Oklahoma mineral rights monitoring service with automated OCC filing alerts and well tracking.
 
-## 🏗️ Project Structure
+## 🏗️ Repository Structure
 
 ```
-mineral-watch/
-├── site/                        # Marketing website (static HTML)
-│   ├── index.html              # Landing page - https://mymineralwatch.com
+mineral-watch-site/
+├── site/                        # Marketing website (mymineralwatch.com)
+│   ├── index.html              # Landing page
 │   ├── pricing.html            # Pricing page
-│   ├── success.html            # Success/thank you page
+│   ├── contact.html            # Contact form
 │   └── assets/                 # Static assets
-└── portal-worker/              # Portal application (Cloudflare Worker)
-    ├── index.js                # Portal app + API endpoints
-    ├── wrangler.toml           # Cloudflare Worker configuration
-    └── package.json            # Dependencies
+├── portal-worker/              # User portal (portal.mymineralwatch.com)
+│   └── src/                    # Modular TypeScript architecture
+│       ├── index.ts            # Main router
+│       ├── handlers/           # Route handlers (8 modules)
+│       ├── services/           # External services (Airtable, Postmark)
+│       ├── templates/          # HTML pages
+│       ├── utils/              # Utilities (auth, responses)
+│       ├── types/              # TypeScript interfaces
+│       └── constants.ts        # Configuration
+├── Contact-Handler/            # Contact form handler
+└── stripe-webhook/            # Stripe webhook receiver
 ```
 
 ## 🚀 Components
 
 ### Marketing Site (`/site/`)
-Static HTML pages for marketing and onboarding:
+Static HTML pages hosted at mymineralwatch.com:
 - **Landing Page**: Product overview, features, CTA
-- **Pricing Page**: Plans, features, Stripe integration
-- **Success Page**: Post-signup confirmation
+- **Pricing Page**: Plans, features, Stripe integration  
+- **Contact Page**: Contact form with validation
 
-### Portal Application (`/portal-worker/`)
-Full-stack Cloudflare Worker serving:
-- **Portal Pages**: Dashboard, login, account management
-- **API Endpoints**: Authentication, properties, wells, billing
-- **Database Integration**: Airtable for data storage
-- **Email System**: Postmark for transactional emails
-- **Payment Processing**: Stripe for subscriptions
+### Portal Worker (`/portal-worker/`) ⭐
+**Fully modularized TypeScript Cloudflare Worker** serving portal.mymineralwatch.com:
+- **Dashboard**: Property & well monitoring, activity feeds
+- **Authentication**: Magic link auth, session management
+- **Property Management**: CRUD operations, bulk uploads
+- **Well Monitoring**: OCC API integration, well tracking
+- **Billing**: Stripe integration, subscription management
+- **Bulk Operations**: CSV/Excel import with validation
+
+### Support Services
+- **Contact Handler**: Processes contact form submissions
+- **Stripe Webhook**: Handles subscription lifecycle events
+
+## 🏗️ Portal Worker Architecture
+
+The portal-worker has been refactored into a **modular TypeScript architecture**:
+
+```
+src/
+├── index.ts              # Main router with TypeScript types
+├── handlers/             # Route handlers (8 modules)
+│   ├── activity.ts       # Activity log endpoints
+│   ├── auth.ts          # Authentication flow
+│   ├── billing.ts       # Stripe integration
+│   ├── bulk.ts          # CSV/Excel bulk operations  
+│   ├── properties.ts    # Property CRUD
+│   ├── wells.ts         # Well monitoring + OCC API
+│   ├── track-well.ts    # Email well tracking
+│   └── index.ts         # Handler re-exports
+├── services/            # External service integrations
+│   ├── airtable.ts      # Database operations
+│   └── postmark.ts      # Email services
+├── templates/           # HTML pages
+│   ├── dashboard.html   # Main portal interface
+│   ├── login.html       # Authentication page
+│   ├── account.html     # User settings
+│   └── upgrade.html     # Subscription management
+├── utils/               # Utility functions
+│   ├── auth.ts          # JWT auth, sessions
+│   └── responses.ts     # HTTP response helpers
+├── types/               # TypeScript interfaces
+│   └── env.ts           # Environment & data types
+└── constants.ts         # Configuration constants
+```
 
 ## ⚙️ Tech Stack
 
-- **Frontend**: Vanilla HTML/CSS/JavaScript
-- **Backend**: Cloudflare Workers
+- **Backend**: Cloudflare Workers (TypeScript)
 - **Database**: Airtable
 - **Email**: Postmark
 - **Payments**: Stripe
 - **Storage**: Cloudflare KV
-- **Deployment**: Cloudflare
+- **External APIs**: Oklahoma Corporation Commission (OCC)
+- **Frontend**: Vanilla HTML/CSS/JavaScript
 
 ## 🌐 Live URLs
 
@@ -53,33 +97,31 @@ Full-stack Cloudflare Worker serving:
 - [Portal Worker README](./portal-worker/README.md) - Portal-specific documentation
 - [API Documentation](./portal-worker/README.md#api-endpoints) - API endpoint details
 
-## 🚀 Quick Start
+## 🚀 Deployment
 
-1. **Clone repository**
-   ```bash
-   git clone https://github.com/your-username/mineral-watch.git
-   cd mineral-watch
-   ```
+### Manual Deployment
+```bash
+cd portal-worker
+wrangler deploy
+```
 
-2. **Deploy marketing site**
-   ```bash
-   # Deploy site/ folder to your web host
-   # (Cloudflare Pages, Netlify, etc.)
-   ```
+### Automated Deployment  
+**CI/CD via GitHub Actions** - automatically deploys on push to `main` branch when `portal-worker/` files change.
 
-3. **Deploy portal worker**
-   ```bash
-   cd portal-worker
-   npm install
-   npm run deploy
-   ```
+*Note: Requires `CLOUDFLARE_API_TOKEN` secret configured in GitHub repository settings.*
 
 ## 🔧 Development
 
-Each component can be developed independently:
+### Portal Worker
+```bash
+cd portal-worker
+npm install
+wrangler dev    # Local development server
+wrangler deploy # Deploy to production
+```
 
-- **Marketing site**: Edit HTML/CSS in `/site/` directory
-- **Portal worker**: See [portal-worker/README.md](./portal-worker/README.md) for development workflow
+### Marketing Site
+Static HTML files in `/site/` directory. Deploy to any static host (Cloudflare Pages, etc.)
 
 ## 📄 License
 
