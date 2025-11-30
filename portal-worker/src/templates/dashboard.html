@@ -120,38 +120,145 @@
         /* Bulk Selection Styles */
         .bulk-checkbox-column { width: 50px; text-align: center; }
         .bulk-checkbox { cursor: pointer; width: 16px; height: 16px; }
-        .bulk-action-bar { 
-            display: none; 
-            background: var(--paper); 
-            border: 1px solid var(--border); 
-            border-radius: 6px; 
-            padding: 12px 20px; 
-            margin-bottom: 15px; 
-            align-items: center; 
-            gap: 15px; 
+        .bulk-action-bar {
+            display: none;
+            background: linear-gradient(135deg, #FEF3C7 0%, #FED7AA 100%);
+            border: 2px solid #F59E0B;
+            border-radius: 8px;
+            padding: 16px 24px;
+            margin-bottom: 20px;
+            align-items: center;
+            gap: 20px;
             flex-wrap: wrap;
             position: sticky;
             top: 10px;
             z-index: 100;
+            box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
         }
         .bulk-action-bar.active { display: flex; }
-        .bulk-count { color: var(--slate-blue); font-size: 14px; font-weight: 600; }
-        .bulk-actions { display: flex; gap: 10px; flex-wrap: wrap; }
-        .bulk-btn { 
-            background: var(--red-dirt); 
-            color: white; 
-            border: none; 
-            padding: 8px 16px; 
-            border-radius: 4px; 
-            font-size: 13px; 
-            font-weight: 600; 
-            cursor: pointer; 
+        
+        .bulk-count {
+            color: var(--oil-navy);
+            font-size: 15px;
+            font-weight: 700;
         }
-        .bulk-btn:hover { background: var(--red-dirt-dark); }
-        .bulk-btn.secondary { background: var(--slate-blue); }
-        .bulk-btn.secondary:hover { background: #2A4B5D; }
+        
+        .bulk-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        
+        .bulk-btn {
+            background: var(--red-dirt);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .bulk-btn:hover:not(:disabled) {
+            background: var(--red-dirt-dark);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(192, 86, 33, 0.3);
+        }
+        
+        .bulk-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        /* Add loading state */
+        .bulk-btn.loading {
+            position: relative;
+            color: transparent;
+        }
+        
+        .bulk-btn.loading::after {
+            content: "";
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            top: 50%;
+            left: 50%;
+            margin-left: -8px;
+            margin-top: -8px;
+            border: 2px solid white;
+            border-radius: 50%;
+            border-top-color: transparent;
+            animation: spinner 0.6s linear infinite;
+        }
+        
+        @keyframes spinner {
+            to { transform: rotate(360deg); }
+        }
+        
         .bulk-clear { color: var(--slate-blue); text-decoration: underline; cursor: pointer; font-size: 13px; }
         .bulk-clear:hover { color: var(--oil-navy); }
+        
+        /* Toast Notifications */
+        .toast {
+            position: fixed;
+            top: 80px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 16px 20px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            z-index: 10000;
+            min-width: 300px;
+            transform: translateX(400px);
+            opacity: 0;
+            transition: all 0.3s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+        }
+        
+        .toast-show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+        
+        .toast-icon {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+        
+        .toast-success {
+            border-left: 4px solid var(--success);
+        }
+        
+        .toast-success .toast-icon {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+        
+        .toast-error {
+            border-left: 4px solid #DC2626;
+        }
+        
+        .toast-error .toast-icon {
+            background: #FEE2E2;
+            color: #DC2626;
+        }
+        
+        .toast-message {
+            color: var(--oil-navy);
+            font-size: 14px;
+            font-weight: 500;
+            line-height: 1.4;
+        }
         .data-table tr.selected { background-color: #F0F9FF; }
         .data-table tr.selected td { border-color: #BFDBFE; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
@@ -196,6 +303,11 @@
             .activity-item { flex-direction: column; gap: 12px; }
             .activity-header { flex-direction: column; gap: 8px; }
             .activity-date { align-self: flex-start; }
+            .toast {
+                left: 20px;
+                right: 20px;
+                min-width: auto;
+            }
         }
         /* Skeleton Loading */
         .skeleton {
@@ -384,10 +496,11 @@
                         <span id="propertiesResultsCount" class="results-count"></span>
                     </div>
                    <div id="propertiesBulkActionBar" class="bulk-action-bar">
-                        <div class="bulk-count selected-count">0 selected</div>
+                        <div class="bulk-count"><span class="selected-count">0</span> selected</div>
                         <div class="bulk-actions">
-                            <button class="bulk-btn secondary" onclick="bulkAddToWells()">Add to Wells</button>
-                            <button class="bulk-btn" onclick="bulkDeleteSelected('properties')">Delete</button>
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('properties')">
+                                <span>🗑️</span> Delete Selected
+                            </button>
                         </div>
                         <span class="bulk-clear" onclick="clearSelection('properties')">Clear selection</span>
                     </div>
@@ -419,9 +532,11 @@
                         <span id="wellsResultsCount" class="results-count"></span>
                     </div>
                    <div id="wellsBulkActionBar" class="bulk-action-bar">
-                        <div class="bulk-count selected-count">0 selected</div>
+                        <div class="bulk-count"><span class="selected-count">0</span> selected</div>
                         <div class="bulk-actions">
-                            <button class="bulk-btn" onclick="bulkDeleteSelected('wells')">Delete</button>
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('wells')">
+                                <span>🗑️</span> Delete Selected
+                            </button>
                         </div>
                         <span class="bulk-clear" onclick="clearSelection('wells')">Clear selection</span>
                     </div>
@@ -651,15 +766,15 @@
             const wellBar = document.getElementById('wellsBulkActionBar');
             
             if (propBar) {
-                propBar.style.display = selectedProperties.size > 0 ? 'block' : 'none';
+                propBar.style.display = selectedProperties.size > 0 ? 'flex' : 'none';
                 const count = document.querySelector('#propertiesBulkActionBar .selected-count');
-                if (count) count.textContent = `${selectedProperties.size} selected`;
+                if (count) count.textContent = selectedProperties.size;
             }
             
             if (wellBar) {
-                wellBar.style.display = selectedWells.size > 0 ? 'block' : 'none';
+                wellBar.style.display = selectedWells.size > 0 ? 'flex' : 'none';
                 const count = document.querySelector('#wellsBulkActionBar .selected-count');
-                if (count) count.textContent = `${selectedWells.size} selected`;
+                if (count) count.textContent = selectedWells.size;
             }
         }
         
@@ -728,15 +843,20 @@
             
             if (selectedSet.size === 0) return;
             
-            const confirmMsg = `Are you sure you want to delete ${selectedSet.size} ${itemName}? This action cannot be undone.`;
+            const confirmMsg = `Delete ${selectedSet.size} ${itemName}? This cannot be undone.`;
             if (!confirm(confirmMsg)) return;
+            
+            // Get the delete button and add loading state
+            const deleteBtn = event.target;
+            deleteBtn.classList.add('loading');
+            deleteBtn.disabled = true;
             
             try {
                 const itemsToDelete = Array.from(selectedSet);
                 let successCount = 0;
                 let failCount = 0;
                 
-                // Batch deletes in groups of 5 to respect Airtable rate limits (5 req/sec)
+                // Batch deletes in groups of 5 (Airtable rate limit)
                 for (let i = 0; i < itemsToDelete.length; i += 5) {
                     const batch = itemsToDelete.slice(i, i + 5);
                     const deletePromises = batch.map(id => {
@@ -748,26 +868,33 @@
                     
                     await Promise.all(deletePromises);
                     
-                    // Wait 1 second between batches to stay under rate limit
+                    // Wait 1 second between batches for rate limiting
                     if (i + 5 < itemsToDelete.length) {
                         await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 }
                 
+                // Clear selection
                 selectedSet.clear();
                 updateBulkActionVisibility();
+                
+                // Reload data
                 await loadAllData();
                 
+                // Show success toast
                 if (failCount === 0) {
-                    // More prominent feedback for bulk deletions
-                    const duration = successCount > 5 ? 5000 : 3000;
-                    showToast(`✓ Successfully deleted ${successCount} ${itemName}`, 'success', duration);
+                    showToast(`Successfully deleted ${successCount} ${itemName}`, 'success', 4000);
                 } else {
-                    showToast(`⚠ Deleted ${successCount} ${itemName}. ${failCount} failed - please refresh and try again.`, 'error', 6000);
+                    showToast(`Deleted ${successCount} ${itemName}. ${failCount} failed.`, 'error', 6000);
                 }
+                
             } catch (err) {
                 console.error(`Bulk delete ${itemName} error:`, err);
                 showToast(`Failed to delete ${itemName}. Please try again.`, 'error');
+            } finally {
+                // Remove loading state
+                deleteBtn.classList.remove('loading');
+                deleteBtn.disabled = false;
             }
         }
         
@@ -1719,6 +1846,37 @@
             await fetch('/api/auth/logout', { method: 'POST' });
             window.location.href = '/portal/login';
         });
+        
+        // Toast notification system
+        function showToast(message, type = 'success', duration = 3000) {
+            // Remove any existing toasts
+            const existingToast = document.getElementById('toast-notification');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            const toast = document.createElement('div');
+            toast.id = 'toast-notification';
+            toast.className = `toast toast-${type}`;
+            
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+            
+            toast.innerHTML = `
+                <span class="toast-icon">${icon}</span>
+                <span class="toast-message">${escapeHtml(message)}</span>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('toast-show'), 10);
+            
+            // Auto dismiss
+            setTimeout(() => {
+                toast.classList.remove('toast-show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration);
+        }
     </script>
 
 <!-- BULK UPLOAD MODAL - REDESIGNED -->

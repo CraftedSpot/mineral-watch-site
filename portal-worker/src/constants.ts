@@ -41,6 +41,14 @@ export const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type"
 } as const;
 
+// Security Headers
+export const SECURITY_HEADERS = {
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;",
+  "X-Content-Type-Options": "nosniff",
+  "X-Frame-Options": "DENY",
+  "Referrer-Policy": "strict-origin-when-cross-origin"
+} as const;
+
 // Stripe Price IDs - NEW pricing
 export const PRICE_IDS = {
   starter_monthly: 'price_1SXDS9641UqM8A7NeSc0MOTv',    // $9/mo

@@ -4,7 +4,7 @@
  * Common response helpers and utilities for the Portal Worker
  */
 
-import { CORS_HEADERS } from '../constants.js';
+import { CORS_HEADERS, SECURITY_HEADERS } from '../constants.js';
 
 /**
  * Create a JSON response with CORS headers
@@ -20,15 +20,18 @@ export function jsonResponse(data: any, status = 200): Response {
 }
 
 /**
- * Serve an HTML page
+ * Serve an HTML page with security headers
  * @param html The HTML content to serve
  * @param request The incoming request (for potential future use)
  * @param env The environment bindings (for potential future use)
- * @returns Response object with HTML content type
+ * @returns Response object with HTML content type and security headers
  */
 export function servePage(html: string, request?: Request, env?: any): Response {
   return new Response(html, {
-    headers: { "Content-Type": "text/html; charset=utf-8" }
+    headers: { 
+      "Content-Type": "text/html; charset=utf-8",
+      ...SECURITY_HEADERS
+    }
   });
 }
 
