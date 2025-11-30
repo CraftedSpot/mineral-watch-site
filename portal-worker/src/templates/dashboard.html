@@ -420,23 +420,146 @@
             .form-row { grid-template-columns: 1fr; } 
             .form-group.full { grid-column: span 1; } 
             .user-name { display: none; } 
-            .data-table { font-size: 13px; } 
-            .data-table th, .data-table td { padding: 12px; }
+            
+            /* Hide checkboxes and bulk actions completely on mobile */
             .bulk-only,
             .bulk-action-bar,
             th.bulk-only,
-            td.bulk-only { 
+            td.bulk-only,
+            .bulk-checkbox,
+            .bulk-checkbox-column { 
                 display: none !important; 
             }
-            .plan-usage { gap: 10px; }
-            .header-actions { flex-direction: column; width: 100%; }
-            .btn-add { width: 100%; justify-content: center; }
-            .stats-card { flex-direction: column; gap: 15px; padding: 15px 20px; }
-            .stat-divider { width: 60px; height: 1px; }
-            .stat-value { font-size: 20px; }
-            .activity-item { flex-direction: column; gap: 12px; }
-            .activity-header { flex-direction: column; gap: 8px; }
-            .activity-date { align-self: flex-start; }
+            
+            /* Mobile table optimization */
+            .data-table { 
+                font-size: 12px;
+                table-layout: auto; 
+            } 
+            .data-table th, .data-table td { 
+                padding: 8px 6px;
+                vertical-align: top;
+            }
+            
+            /* Adjust column widths for mobile */
+            .col-select { display: none; }
+            .col-prop-county { width: 25%; }
+            .col-prop-legal { width: 35%; }
+            .col-prop-notes { width: 25%; }
+            .col-actions { width: 15%; }
+            .col-well-name { width: 30%; }
+            .col-operator { width: 25%; }
+            .col-api { width: 20%; }
+            .col-county { width: 15%; }
+            
+            /* Mobile header improvements */
+            .page-header { 
+                flex-direction: column; 
+                align-items: flex-start; 
+                gap: 15px; 
+            }
+            .page-header h1 { 
+                font-size: 24px; 
+                margin-bottom: 5px; 
+            }
+            .header-actions { 
+                flex-direction: column; 
+                width: 100%; 
+                gap: 8px;
+            }
+            .action-group {
+                width: 100%;
+            }
+            .btn-add { 
+                width: 100%; 
+                justify-content: center; 
+                padding: 12px 16px;
+            }
+            .btn-secondary-action {
+                width: 100%;
+                justify-content: center;
+            }
+            .action-divider { display: none; }
+            
+            /* Plan info mobile */
+            .plan-info { 
+                flex-direction: column; 
+                align-items: flex-start; 
+                gap: 10px; 
+            }
+            .plan-usage { 
+                gap: 15px; 
+                width: 100%;
+            }
+            .upgrade-link { 
+                margin-left: 0; 
+                align-self: flex-start;
+            }
+            
+            /* Stats card mobile */
+            .stats-card { 
+                flex-direction: column; 
+                gap: 15px; 
+                padding: 15px 20px; 
+            }
+            .stat-divider { 
+                width: 60px; 
+                height: 1px; 
+            }
+            .stat-value { 
+                font-size: 20px; 
+            }
+            
+            /* Activity mobile */
+            .activity-item { 
+                flex-direction: column; 
+                gap: 12px; 
+                padding: 15px;
+            }
+            .activity-header { 
+                flex-direction: column; 
+                gap: 8px; 
+            }
+            .activity-date { 
+                align-self: flex-start; 
+            }
+            .activity-actions {
+                flex-wrap: wrap;
+                gap: 6px;
+            }
+            .activity-btn {
+                font-size: 11px;
+                padding: 4px 8px;
+            }
+            
+            /* Tabs mobile */
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                padding-bottom: 2px;
+            }
+            .tab {
+                flex-shrink: 0;
+                padding: 10px 16px;
+                font-size: 13px;
+            }
+            .tab-icon {
+                width: 14px;
+                height: 14px;
+            }
+            
+            /* Modal mobile */
+            .modal {
+                margin: 10px;
+                width: calc(100vw - 20px);
+                max-width: none;
+            }
+            .modal-content {
+                max-height: 90vh;
+                overflow-y: auto;
+            }
+            
+            /* Toast mobile */
             .toast {
                 left: 20px;
                 right: 20px;
@@ -2483,6 +2606,31 @@
     .bulk-two-col {
         grid-template-columns: 1fr;
     }
+    
+    /* Extra small screens */
+    .container { padding: 0 15px; }
+    main { padding: 20px 0; }
+    
+    .page-header h1 { font-size: 22px; }
+    
+    /* More compact tables on small screens */
+    .data-table th, .data-table td { 
+        padding: 6px 4px;
+        font-size: 11px;
+    }
+    
+    /* Stack table action buttons vertically on tiny screens */
+    .col-actions { width: 20%; }
+    .details-actions { flex-direction: column; }
+    .details-btn { margin-bottom: 8px; }
+    
+    /* Compact plan info */
+    .plan-info { padding: 12px 16px; }
+    .plan-usage { flex-direction: column; gap: 8px; }
+    
+    /* Smaller stats */
+    .stats-card { padding: 12px 15px; }
+    .stat-value { font-size: 18px; }
 }
 
 /* Column Names */
