@@ -84,6 +84,8 @@
             text-align: center;
             transition: all 0.2s;
             position: relative;
+            display: flex;
+            flex-direction: column;
         }
         .plan-card.current {
             border-color: var(--oil-navy);
@@ -122,7 +124,7 @@
         .plan-price span { font-size: 16px; font-weight: 400; color: var(--slate-blue); }
         .plan-interval { color: var(--slate-blue); font-size: 14px; margin-bottom: 24px; }
         
-        .plan-features { list-style: none; text-align: left; margin-bottom: 24px; }
+        .plan-features { list-style: none; text-align: left; margin-bottom: 24px; flex: 1; min-height: 220px; }
         .plan-features li { padding: 8px 0; font-size: 14px; color: var(--slate-blue); display: flex; align-items: center; gap: 10px; }
         .plan-features li::before { content: "✓"; color: var(--success); font-weight: bold; }
         
@@ -430,14 +432,49 @@
                     // Redirect to Stripe Checkout
                     window.location.href = data.url;
                 } else if (data.success) {
-                    // Direct update succeeded
-                    alert(data.message);
-                    window.location.href = '/portal';
+                    // Direct update succeeded (e.g., Free → downgrade)
+                    // Show custom success message instead of alert
+                    showSuccessMessage(data.message || 'Plan updated successfully!');
+                    
+                    // Redirect after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = '/portal';
+                    }, 2000);
                 }
             } catch (err) {
                 document.getElementById('loadingOverlay').classList.remove('show');
-                alert(err.message || 'Something went wrong. Please try again.');
+                showErrorMessage(err.message || 'Something went wrong. Please try again.');
             }
+        }
+
+        // Add these new functions
+        function showSuccessMessage(message) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="width: 64px; height: 64px; background: var(--success-bg); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                        <span style="font-size: 32px; color: var(--success);">✓</span>
+                    </div>
+                    <h2 style="color: var(--oil-navy); margin-bottom: 10px;">Success!</h2>
+                    <p style="color: var(--slate-blue);">${message}</p>
+                    <p style="color: var(--slate-blue); font-size: 14px; margin-top: 10px;">Redirecting to dashboard...</p>
+                </div>
+            `;
+        }
+
+        function showErrorMessage(message) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.innerHTML = `
+                <div style="text-align: center;">
+                    <div style="width: 64px; height: 64px; background: #FEE2E2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 20px;">
+                        <span style="font-size: 32px; color: #DC2626;">✕</span>
+                    </div>
+                    <h2 style="color: var(--oil-navy); margin-bottom: 10px;">Error</h2>
+                    <p style="color: var(--slate-blue);">${message}</p>
+                    <button onclick="location.reload()" style="margin-top: 20px; padding: 10px 24px; background: var(--red-dirt); color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600;">Try Again</button>
+                </div>
+            `;
+            overlay.classList.add('show');
         }
     </script>
 </body>
