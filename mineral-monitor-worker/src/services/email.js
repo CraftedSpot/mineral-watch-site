@@ -349,19 +349,23 @@ async function buildHtmlBody(data, env) {
                   ` : ''}
                   
                   <!-- Action Buttons -->
-                  <table width="100%" cellpadding="0" cellspacing="0">
+                  <table width="100%" cellpadding="0" cellspacing="0" style="padding-top: 8px;">
                     <tr>
-                      <td align="center" style="padding-top: 8px;">
-                        ${occLink ? `
-                        <a href="${occLink}" style="display: inline-block; background: #C05621; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-right: 8px;">View OCC Filing →</a>
-                        ` : ''}
-                        ${mapLink ? `
-                        <a href="${mapLink}" style="display: inline-block; background: #1C2B36; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; margin-right: 8px;">View on Map →</a>
-                        ` : ''}
-                        ${trackingLink ? `
-                        <a href="${trackingLink}" style="display: inline-block; background: #047857; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px;">Track This Well →</a>
-                        ` : ''}
+                      ${occLink ? `
+                      <td align="center" style="padding: 2px;">
+                        <a href="${occLink}" style="display: block; width: 100%; background: #C05621; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View OCC Filing →</a>
                       </td>
+                      ` : ''}
+                      ${mapLink ? `
+                      <td align="center" style="padding: 2px;">
+                        <a href="${mapLink}" style="display: block; width: 100%; background: #1C2B36; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View on Map →</a>
+                      </td>
+                      ` : ''}
+                      ${trackingLink ? `
+                      <td align="center" style="padding: 2px;">
+                        <a href="${trackingLink}" style="display: block; width: 100%; background: #047857; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">Track This Well →</a>
+                      </td>
+                      ` : ''}
                     </tr>
                   </table>
                   

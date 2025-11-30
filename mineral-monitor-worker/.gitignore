@@ -1,0 +1,9 @@
+# Wrangler state and cache
+.wrangler/
+
+# Large binaries (can be reinstalled with npm install)
+node_modules/@cloudflare/workerd-*/
+node_modules/@esbuild/*/
+
+# Mac files
+.DS_Store
