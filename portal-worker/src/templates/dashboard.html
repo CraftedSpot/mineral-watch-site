@@ -63,10 +63,10 @@
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-        .tab { background: white; border: 2px solid transparent; padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--slate-blue); transition: all 0.2s; }
-        .tab.active { background: white; color: var(--oil-navy); box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-bottom: 2px solid white; }
-        .tab:not(.active) { background: rgba(255,255,255,0.6); border: 2px solid var(--border); border-bottom: none; color: #64748B; }
-        .tab:not(.active):hover { background: rgba(255,255,255,0.9); color: var(--oil-navy); }
+        .tab { padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; position: relative; border: 1px solid transparent; }
+        .tab.active { background: white; color: var(--oil-navy); border-bottom: 3px solid #3B82F6; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-top: 1px solid var(--border); box-shadow: none; }
+        .tab:not(.active) { background: #f8f9fa; color: #94A3B8; border: 1px solid #e9ecef; opacity: 0.9; }
+        .tab:not(.active):hover { background: #f1f3f4; color: #64748B; opacity: 1; border-color: #d6d9dc; }
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
@@ -75,8 +75,8 @@
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
         .data-table tr:last-child td { border-bottom: none; }
         .status-active { color: var(--success); font-weight: 600; }
-        .btn-link { background: none; border: none; color: var(--red-dirt); cursor: pointer; font-size: 13px; text-decoration: underline; margin-right: 12px; }
-        .btn-link:hover { color: var(--red-dirt-dark); }
+        .btn-link { background: none; border: none; color: #3B82F6; cursor: pointer; font-size: 13px; text-decoration: underline; margin-right: 12px; }
+        .btn-link:hover { color: #1D4ED8; }
         .btn-delete { background: none; border: none; color: #DC2626; cursor: pointer; font-size: 13px; }
         .btn-delete:hover { text-decoration: underline; }
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
@@ -84,6 +84,44 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
+        
+        /* Bulk Selection Styles */
+        .bulk-checkbox-column { width: 50px; text-align: center; }
+        .bulk-checkbox { cursor: pointer; width: 16px; height: 16px; }
+        .bulk-action-bar { 
+            display: none; 
+            background: var(--paper); 
+            border: 1px solid var(--border); 
+            border-radius: 6px; 
+            padding: 12px 20px; 
+            margin-bottom: 15px; 
+            align-items: center; 
+            gap: 15px; 
+            flex-wrap: wrap;
+            position: sticky;
+            top: 10px;
+            z-index: 100;
+        }
+        .bulk-action-bar.active { display: flex; }
+        .bulk-count { color: var(--slate-blue); font-size: 14px; font-weight: 600; }
+        .bulk-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+        .bulk-btn { 
+            background: var(--red-dirt); 
+            color: white; 
+            border: none; 
+            padding: 8px 16px; 
+            border-radius: 4px; 
+            font-size: 13px; 
+            font-weight: 600; 
+            cursor: pointer; 
+        }
+        .bulk-btn:hover { background: var(--red-dirt-dark); }
+        .bulk-btn.secondary { background: var(--slate-blue); }
+        .bulk-btn.secondary:hover { background: #2A4B5D; }
+        .bulk-clear { color: var(--slate-blue); text-decoration: underline; cursor: pointer; font-size: 13px; }
+        .bulk-clear:hover { color: var(--oil-navy); }
+        .data-table tr.selected { background-color: #F0F9FF; }
+        .data-table tr.selected td { border-color: #BFDBFE; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
         .form-group { margin-bottom: 15px; }
         .form-group.full { grid-column: span 2; }
@@ -111,6 +149,12 @@
             .user-name { display: none; } 
             .data-table { font-size: 13px; } 
             .data-table th, .data-table td { padding: 12px; }
+            .bulk-only,
+            .bulk-action-bar,
+            th.bulk-only,
+            td.bulk-only { 
+                display: none !important; 
+            }
             .plan-usage { gap: 10px; }
             .header-actions { flex-direction: column; width: 100%; }
             .btn-add { width: 100%; justify-content: center; }
@@ -271,16 +315,18 @@
                     <div id="propertiesControls" class="table-controls" style="display: none;">
                         <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range...">
                         <select id="propertiesSort" class="sort-select">
-                            <option value="county-asc">County (A-Z)</option>
-                            <option value="county-desc">County (Z-A)</option>
-                            <option value="section-asc">Section (1-36)</option>
-                            <option value="section-desc">Section (36-1)</option>
-                            <option value="township-asc">Township (A-Z)</option>
-                            <option value="township-desc">Township (Z-A)</option>
-                            <option value="range-asc">Range (A-Z)</option>
-                            <option value="range-desc">Range (Z-A)</option>
+                            <option value="legal-asc" selected>Legal Description</option>
+                            <option value="date-desc">Date Added</option>
                         </select>
                         <span id="propertiesResultsCount" class="results-count"></span>
+                    </div>
+                   <div id="propertiesBulkActionBar" class="bulk-action-bar">
+                        <div class="bulk-count selected-count">0 selected</div>
+                        <div class="bulk-actions">
+                            <button class="bulk-btn secondary" onclick="bulkAddToWells()">Add to Wells</button>
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('properties')">Delete</button>
+                        </div>
+                        <span class="bulk-clear" onclick="clearSelection('properties')">Clear selection</span>
                     </div>
                    <div id="propertiesContent">
     <div class="skeleton-table">
@@ -306,16 +352,19 @@
                     <div id="wellsControls" class="table-controls" style="display: none;">
                         <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
                         <select id="wellsSort" class="sort-select">
-                            <option value="name-asc">Well Name (A-Z)</option>
-                            <option value="name-desc">Well Name (Z-A)</option>
-                            <option value="operator-asc">Operator (A-Z)</option>
-                            <option value="operator-desc">Operator (Z-A)</option>
-                            <option value="county-asc">County (A-Z)</option>
-                            <option value="county-desc">County (Z-A)</option>
-                            <option value="api-asc">API (Low-High)</option>
-                            <option value="api-desc">API (High-Low)</option>
+                            <option value="legal-asc" selected>Legal Description</option>
+                            <option value="date-desc">Date Added</option>
+                            <option value="name-asc">Well Name</option>
+                            <option value="operator-asc">Operator</option>
                         </select>
                         <span id="wellsResultsCount" class="results-count"></span>
+                    </div>
+                   <div id="wellsBulkActionBar" class="bulk-action-bar">
+                        <div class="bulk-count selected-count">0 selected</div>
+                        <div class="bulk-actions">
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('wells')">Delete</button>
+                        </div>
+                        <span class="bulk-clear" onclick="clearSelection('wells')">Clear selection</span>
                     </div>
                    <div id="wellsContent">
     <div class="skeleton-table">
@@ -536,6 +585,194 @@
         let currentTab = 'properties';
         let currentUser = null; // Store user data globally
         
+        // Bulk Selection State
+        let selectedProperties = new Set();
+        let selectedWells = new Set();
+        
+        // Bulk Selection Functions
+        function updateBulkActionVisibility() {
+            // Show/hide bulk action bars based on selection state
+            const propBar = document.getElementById('propertiesBulkActionBar');
+            const wellBar = document.getElementById('wellsBulkActionBar');
+            
+            if (propBar) {
+                propBar.style.display = selectedProperties.size > 0 ? 'block' : 'none';
+                const count = document.querySelector('#propertiesBulkActionBar .selected-count');
+                if (count) count.textContent = `${selectedProperties.size} selected`;
+            }
+            
+            if (wellBar) {
+                wellBar.style.display = selectedWells.size > 0 ? 'block' : 'none';
+                const count = document.querySelector('#wellsBulkActionBar .selected-count');
+                if (count) count.textContent = `${selectedWells.size} selected`;
+            }
+        }
+        
+        function togglePropertySelection(propertyId, checked) {
+            if (checked) {
+                selectedProperties.add(propertyId);
+            } else {
+                selectedProperties.delete(propertyId);
+            }
+            updateBulkActionVisibility();
+            updateSelectAllState('properties');
+        }
+        
+        function toggleWellSelection(wellId, checked) {
+            if (checked) {
+                selectedWells.add(wellId);
+            } else {
+                selectedWells.delete(wellId);
+            }
+            updateBulkActionVisibility();
+            updateSelectAllState('wells');
+        }
+        
+        function selectAllItems(type, checked) {
+            if (type === 'properties') {
+                const checkboxes = document.querySelectorAll('.property-checkbox');
+                selectedProperties.clear();
+                checkboxes.forEach(cb => {
+                    cb.checked = checked;
+                    if (checked) selectedProperties.add(cb.dataset.id);
+                });
+            } else if (type === 'wells') {
+                const checkboxes = document.querySelectorAll('.well-checkbox');
+                selectedWells.clear();
+                checkboxes.forEach(cb => {
+                    cb.checked = checked;
+                    if (checked) selectedWells.add(cb.dataset.id);
+                });
+            }
+            updateBulkActionVisibility();
+        }
+        
+        function updateSelectAllState(type) {
+            const selectAllId = type === 'properties' ? 'selectAllProperties' : 'selectAllWells';
+            const checkboxes = document.querySelectorAll(type === 'properties' ? '.property-checkbox' : '.well-checkbox');
+            const selectedSet = type === 'properties' ? selectedProperties : selectedWells;
+            const selectAllCheckbox = document.getElementById(selectAllId);
+            
+            if (!selectAllCheckbox) return;
+            
+            if (selectedSet.size === 0) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = false;
+            } else if (selectedSet.size === checkboxes.length) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.indeterminate = true;
+                selectAllCheckbox.checked = false;
+            }
+        }
+        
+        async function bulkDeleteSelected(type) {
+            const selectedSet = type === 'properties' ? selectedProperties : selectedWells;
+            const itemName = type === 'properties' ? 'properties' : 'wells';
+            
+            if (selectedSet.size === 0) return;
+            
+            const confirmMsg = `Are you sure you want to delete ${selectedSet.size} ${itemName}? This action cannot be undone.`;
+            if (!confirm(confirmMsg)) return;
+            
+            try {
+                const deletePromises = Array.from(selectedSet).map(id => {
+                    const endpoint = type === 'properties' ? `/api/properties/${id}` : `/api/wells/${id}`;
+                    return fetch(endpoint, { method: 'DELETE' });
+                });
+                
+                await Promise.all(deletePromises);
+                
+                // Clear selection and reload data
+                selectedSet.clear();
+                updateBulkActionVisibility();
+                await loadAllData();
+                
+                showToast(`Successfully deleted ${deletePromises.length} ${itemName}`);
+            } catch (err) {
+                console.error(`Bulk delete ${itemName} error:`, err);
+                showToast(`Failed to delete ${itemName}. Please try again.`, 'error');
+            }
+        }
+        
+        function clearSelection(type) {
+            if (type === 'properties') {
+                selectedProperties.clear();
+                document.querySelectorAll('.property-checkbox').forEach(cb => cb.checked = false);
+                document.getElementById('selectAllProperties').checked = false;
+                document.getElementById('selectAllProperties').indeterminate = false;
+            } else if (type === 'wells') {
+                selectedWells.clear();
+                document.querySelectorAll('.well-checkbox').forEach(cb => cb.checked = false);
+                document.getElementById('selectAllWells').checked = false;
+                document.getElementById('selectAllWells').indeterminate = false;
+            }
+            updateBulkActionVisibility();
+        }
+        
+        async function bulkAddToWells() {
+            if (selectedProperties.size === 0) return;
+            
+            // Get selected property data
+            const selectedPropData = loadedProperties.filter(p => selectedProperties.has(p.id));
+            
+            try {
+                const addPromises = selectedPropData.map(async (prop) => {
+                    const fields = prop.fields;
+                    
+                    // Check if well already exists for this property
+                    const existingWell = loadedWells.find(w => 
+                        w.fields.Section === fields.SEC &&
+                        w.fields.Township === fields.TWN &&
+                        w.fields.Range === fields.RNG &&
+                        w.fields.County === fields.COUNTY
+                    );
+                    
+                    if (existingWell) {
+                        console.log(`Well already exists for ${fields.COUNTY} S${fields.SEC} T${fields.TWN} R${fields.RNG}`);
+                        return null;
+                    }
+                    
+                    // Create well data from property
+                    const wellData = {
+                        'Well Name': `${fields.COUNTY} S${fields.SEC} T${fields.TWN} R${fields.RNG}`,
+                        'County': fields.COUNTY,
+                        'Section': fields.SEC,
+                        'Township': fields.TWN,
+                        'Range': fields.RNG,
+                        'API Number': '', // Will be filled when user adds it
+                        'Email': currentUser.email
+                    };
+                    
+                    const res = await fetch('/api/wells', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(wellData)
+                    });
+                    
+                    if (!res.ok) throw new Error(`Failed to create well for ${wellData['Well Name']}`);
+                    return await res.json();
+                });
+                
+                const results = await Promise.all(addPromises);
+                const created = results.filter(r => r !== null).length;
+                const skipped = results.length - created;
+                
+                // Clear selection and reload data
+                clearSelection('properties');
+                await loadWells();
+                
+                let message = `Successfully created ${created} wells`;
+                if (skipped > 0) message += ` (${skipped} already existed)`;
+                showToast(message);
+                
+            } catch (err) {
+                console.error('Bulk add to wells error:', err);
+                showToast('Failed to add some properties as wells. Please try again.', 'error');
+            }
+        }
+        
         document.addEventListener('DOMContentLoaded', async () => {
             try {
                 const res = await fetch('/api/auth/me');
@@ -579,6 +816,22 @@
                         loadActivity();
                     }
                 });
+            });
+            
+            // Bulk selection event listeners
+            document.addEventListener('change', (e) => {
+                // Handle select all checkboxes
+                if (e.target.id === 'selectAllProperties') {
+                    selectAllItems('properties', e.target.checked);
+                } else if (e.target.id === 'selectAllWells') {
+                    selectAllItems('wells', e.target.checked);
+                }
+                // Handle individual checkboxes
+                else if (e.target.classList.contains('property-checkbox')) {
+                    togglePropertySelection(e.target.dataset.id, e.target.checked);
+                } else if (e.target.classList.contains('well-checkbox')) {
+                    toggleWellSelection(e.target.dataset.id, e.target.checked);
+                }
             });
         });
         
@@ -630,7 +883,7 @@
 
         // Properties Search & Sort State
         let propertiesSearchTerm = '';
-        let propertiesSortBy = 'county-asc';
+        let propertiesSortBy = 'legal-asc';
 
         // Initialize Properties Controls (call this after user loads)
         function initPropertiesControls() {
@@ -679,32 +932,56 @@
             const multiplier = direction === 'asc' ? 1 : -1;
             
             return [...properties].sort((a, b) => {
-                let aVal, bVal;
-                
-                switch(field) {
-                    case 'county':
-                        aVal = (a.fields.COUNTY || '').toLowerCase();
-                        bVal = (b.fields.COUNTY || '').toLowerCase();
-                        break;
-                    case 'section':
-                        aVal = parseInt(a.fields.SEC) || 0;
-                        bVal = parseInt(b.fields.SEC) || 0;
-                        break;
-                    case 'township':
-                        aVal = (a.fields.TWN || '').toLowerCase();
-                        bVal = (b.fields.TWN || '').toLowerCase();
-                        break;
-                    case 'range':
-                        aVal = (a.fields.RNG || '').toLowerCase();
-                        bVal = (b.fields.RNG || '').toLowerCase();
-                        break;
-                    default:
-                        aVal = '';
-                        bVal = '';
+                if (field === 'legal') {
+                    // Legal Description: County → Township → Range → Section
+                    const aCounty = (a.fields.COUNTY || '').toLowerCase();
+                    const bCounty = (b.fields.COUNTY || '').toLowerCase();
+                    if (aCounty !== bCounty) {
+                        return aCounty < bCounty ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Parse township (e.g., "T24N" -> { num: 24, dir: "N" })
+                    const parseTownship = (twp) => {
+                        const match = (twp || '').match(/T?(\d+)([NS])?/i);
+                        return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
+                    };
+                    
+                    const aTwp = parseTownship(a.fields.TWN);
+                    const bTwp = parseTownship(b.fields.TWN);
+                    if (aTwp.num !== bTwp.num) {
+                        return aTwp.num < bTwp.num ? -1 * multiplier : 1 * multiplier;
+                    }
+                    if (aTwp.dir !== bTwp.dir) {
+                        return aTwp.dir < bTwp.dir ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Parse range (e.g., "R10W" -> { num: 10, dir: "W" })
+                    const parseRange = (rng) => {
+                        const match = (rng || '').match(/R?(\d+)([EW])?/i);
+                        return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
+                    };
+                    
+                    const aRng = parseRange(a.fields.RNG);
+                    const bRng = parseRange(b.fields.RNG);
+                    if (aRng.num !== bRng.num) {
+                        return aRng.num < bRng.num ? -1 * multiplier : 1 * multiplier;
+                    }
+                    if (aRng.dir !== bRng.dir) {
+                        return aRng.dir < bRng.dir ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Section (numeric)
+                    const aSection = parseInt(a.fields.SEC) || 0;
+                    const bSection = parseInt(b.fields.SEC) || 0;
+                    return aSection < bSection ? -1 * multiplier : (aSection > bSection ? 1 * multiplier : 0);
+                    
+                } else if (field === 'date') {
+                    // Date Added - use createdTime from Airtable
+                    const aDate = new Date(a.createdTime || 0);
+                    const bDate = new Date(b.createdTime || 0);
+                    return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
                 }
                 
-                if (aVal < bVal) return -1 * multiplier;
-                if (aVal > bVal) return 1 * multiplier;
                 return 0;
             });
         }
@@ -739,7 +1016,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><thead><tr><th>County</th><th>Legal Description</th><th>Notes</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Notes</th><th></th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
@@ -748,23 +1025,28 @@
                 const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 
                 html += `<tr>
+                    <td class="bulk-only"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
                     <td>${escapeHtml(f.COUNTY) || '—'}</td>
                     <td><strong>${str}</strong></td>
                     <td>${notes}</td>
                     <td style="white-space: nowrap;">
                         <button class="btn-link" onclick="openPropertyDetails('${p.id}')">Details</button>
-                        <button class="btn-delete" onclick="deleteProperty('${p.id}')">Remove</button>
+                        <button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
                     </td>
                 </tr>`;
             });
             
             html += '</tbody></table>';
             document.getElementById('propertiesContent').innerHTML = html;
+            
+            // Update bulk selection state after table render
+            updateSelectAllState('properties');
+            updateBulkActionVisibility();
         }
 
         // Wells Search & Sort State
         let wellsSearchTerm = '';
-        let wellsSortBy = 'name-asc';
+        let wellsSortBy = 'legal-asc';
 
         // Initialize Wells Controls (call this after user loads)
         function initWellsControls() {
@@ -811,32 +1093,68 @@
             const multiplier = direction === 'asc' ? 1 : -1;
             
             return [...wells].sort((a, b) => {
-                let aVal, bVal;
-                
-                switch(field) {
-                    case 'name':
-                        aVal = (a.fields['Well Name'] || '').toLowerCase();
-                        bVal = (b.fields['Well Name'] || '').toLowerCase();
-                        break;
-                    case 'operator':
-                        aVal = (a.fields['Operator'] || '').toLowerCase();
-                        bVal = (b.fields['Operator'] || '').toLowerCase();
-                        break;
-                    case 'county':
-                        aVal = (a.fields['County'] || '').toLowerCase();
-                        bVal = (b.fields['County'] || '').toLowerCase();
-                        break;
-                    case 'api':
-                        aVal = a.fields['API Number'] || '';
-                        bVal = b.fields['API Number'] || '';
-                        break;
-                    default:
-                        aVal = '';
-                        bVal = '';
+                if (field === 'legal') {
+                    // Legal Description: County → Township → Range → Section
+                    const aCounty = (a.fields['County'] || '').toLowerCase();
+                    const bCounty = (b.fields['County'] || '').toLowerCase();
+                    if (aCounty !== bCounty) {
+                        return aCounty < bCounty ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Parse township (e.g., "T24N" -> { num: 24, dir: "N" })
+                    const parseTownship = (twp) => {
+                        const match = (twp || '').match(/T?(\d+)([NS])?/i);
+                        return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
+                    };
+                    
+                    const aTwp = parseTownship(a.fields['Township']);
+                    const bTwp = parseTownship(b.fields['Township']);
+                    if (aTwp.num !== bTwp.num) {
+                        return aTwp.num < bTwp.num ? -1 * multiplier : 1 * multiplier;
+                    }
+                    if (aTwp.dir !== bTwp.dir) {
+                        return aTwp.dir < bTwp.dir ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Parse range (e.g., "R10W" -> { num: 10, dir: "W" })
+                    const parseRange = (rng) => {
+                        const match = (rng || '').match(/R?(\d+)([EW])?/i);
+                        return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
+                    };
+                    
+                    const aRng = parseRange(a.fields['Range']);
+                    const bRng = parseRange(b.fields['Range']);
+                    if (aRng.num !== bRng.num) {
+                        return aRng.num < bRng.num ? -1 * multiplier : 1 * multiplier;
+                    }
+                    if (aRng.dir !== bRng.dir) {
+                        return aRng.dir < bRng.dir ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Section (numeric)
+                    const aSection = parseInt(a.fields['Section']) || 0;
+                    const bSection = parseInt(b.fields['Section']) || 0;
+                    return aSection < bSection ? -1 * multiplier : (aSection > bSection ? 1 * multiplier : 0);
+                    
+                } else if (field === 'date') {
+                    // Date Added - use createdTime from Airtable
+                    const aDate = new Date(a.createdTime || 0);
+                    const bDate = new Date(b.createdTime || 0);
+                    return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
+                    
+                } else if (field === 'name') {
+                    // Well Name
+                    const aVal = (a.fields['Well Name'] || '').toLowerCase();
+                    const bVal = (b.fields['Well Name'] || '').toLowerCase();
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
+                    
+                } else if (field === 'operator') {
+                    // Operator
+                    const aVal = (a.fields['Operator'] || '').toLowerCase();
+                    const bVal = (b.fields['Operator'] || '').toLowerCase();
+                    return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
                 }
                 
-                if (aVal < bVal) return -1 * multiplier;
-                if (aVal > bVal) return 1 * multiplier;
                 return 0;
             });
         }
@@ -871,7 +1189,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><thead><tr><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Location</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Legal</th><th></th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
@@ -885,6 +1203,7 @@
                 const mapLink = f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? f['OCC Map Link'] : null;
                 
                 html += `<tr>
+                    <td class="bulk-only"><input type="checkbox" class="well-checkbox" data-id="${w.id}"></td>
                     <td><strong>${wellName}</strong></td>
                     <td>${operator}</td>
                     <td>${escapeHtml(f['API Number'])}</td>
@@ -893,13 +1212,17 @@
                     <td style="white-space: nowrap;">
                         <button class="btn-link" onclick="openWellDetails('${w.id}')">Details</button>
                         ${mapLink ? `<button class="btn-link" onclick="window.open('${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
-                        <button class="btn-delete" onclick="deleteWell('${w.id}')">Remove</button>
+                        <button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
                     </td>
                 </tr>`;
             });
             
             html += '</tbody></table>';
             document.getElementById('wellsContent').innerHTML = html;
+            
+            // Update bulk selection state after table render
+            updateSelectAllState('wells');
+            updateBulkActionVisibility();
         }
 
         function updateTotalCount() {
