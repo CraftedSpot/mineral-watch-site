@@ -21,11 +21,18 @@
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
         main { padding: 40px 0; }
-        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px; }
-        .page-header h1 { font-size: 28px; }
-        .header-actions { display: flex; gap: 12px; }
-        .btn-add { background: var(--red-dirt); color: white; padding: 12px 20px; border: none; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 8px; }
-        .btn-add:hover { background: var(--red-dirt-dark); }
+        .page-header { display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 30px; flex-wrap: wrap; gap: 20px; }
+        .page-header h1 { font-size: 28px; margin: 0; line-height: 1.2; }
+        .header-actions { display: flex; gap: 10px; align-items: center; }
+        
+        /* Action Groups with Dividers */
+        .action-group { display: flex; gap: 8px; align-items: center; }
+        .action-divider { width: 1px; height: 24px; background: var(--border); margin: 0 8px; }
+        .btn-add { background: var(--red-dirt); color: white; padding: 10px 16px; border: 1px solid var(--red-dirt); border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; text-decoration: none; transition: all 0.2s; }
+        .btn-add:hover { background: var(--red-dirt-dark); border-color: var(--red-dirt-dark); }
+        
+        .btn-secondary-action { background: white; color: var(--slate-blue); border: 1px solid var(--border); padding: 10px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .btn-secondary-action:hover { border-color: var(--slate-blue); color: var(--oil-navy); background: #f8fafc; }
         .plan-info { background: white; border-radius: 8px; padding: 16px 20px; margin-bottom: 25px; display: flex; align-items: center; gap: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; }
         .plan-badge { background: var(--success-bg); color: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
         .plan-usage { font-size: 14px; color: var(--slate-blue); display: flex; gap: 20px; flex-wrap: wrap; }
@@ -57,33 +64,58 @@
         .activity-meta { font-size: 13px; color: var(--slate-blue); }
         .activity-change { background: var(--paper); padding: 8px 12px; border-radius: 4px; font-size: 13px; margin-top: 8px; display: inline-block; }
         .activity-actions { display: flex; gap: 8px; margin-top: 10px; }
-        .activity-btn { display: inline-block; padding: 6px 12px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 4px; background: var(--paper); color: var(--slate-blue); border: 1px solid var(--border); transition: all 0.2s; }
-        .activity-btn:hover { background: var(--red-dirt); color: white; border-color: var(--red-dirt); }
+        .activity-btn { display: inline-block; padding: 6px 12px; font-size: 12px; font-weight: 600; text-decoration: none; border-radius: 4px; background: var(--paper); color: var(--slate-blue); border: 1px solid var(--border); transition: all 0.2s; cursor: pointer; }
+        .activity-btn:hover { background: #E2E8F0; color: var(--oil-navy); }
+        .activity-btn.track-btn { background: white; border-color: var(--red-dirt); color: var(--red-dirt); }
+        .activity-btn.track-btn:hover { background: var(--red-dirt); color: white; }
         .activity-date { font-size: 12px; color: #718096; white-space: nowrap; }
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
-        .tab { padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; position: relative; border: 1px solid transparent; }
+        .tab { padding: 12px 24px; border-radius: 6px 6px 0 0; cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; position: relative; border: 1px solid transparent; display: flex; align-items: center; gap: 8px; }
+        
+        .tab-icon { width: 16px; height: 16px; opacity: 0.7; }
+        .tab.active .tab-icon { opacity: 1; color: var(--red-dirt); }
         .tab.active { background: white; color: var(--oil-navy); border-bottom: 3px solid #3B82F6; border-left: 1px solid var(--border); border-right: 1px solid var(--border); border-top: 1px solid var(--border); box-shadow: none; }
         .tab:not(.active) { background: #f8f9fa; color: #94A3B8; border: 1px solid #e9ecef; opacity: 0.9; }
         .tab:not(.active):hover { background: #f1f3f4; color: #64748B; opacity: 1; border-color: #d6d9dc; }
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        
+        /* --- COLUMN WIDTHS --- */
+        .col-select { width: 50px; text-align: center; padding: 16px 10px !important; }
+        .col-actions { width: 160px; text-align: right; }
+        
+        /* Properties Table */
+        .col-prop-county { width: 18%; }
+        .col-prop-legal { width: 25%; }
+        .col-prop-notes { width: auto; }
+        
+        /* Wells Table */
+        .col-well-name { width: 22%; }
+        .col-operator { width: 18%; }
+        .col-api { width: 16%; }
+        .col-county { width: 14%; }
+        .col-location { width: 15%; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
         .data-table tr:last-child td { border-bottom: none; }
         .status-active { color: var(--success); font-weight: 600; }
-        .btn-link { background: none; border: none; color: #3B82F6; cursor: pointer; font-size: 13px; text-decoration: underline; margin-right: 12px; }
-        .btn-link:hover { color: #1D4ED8; }
-        .btn-delete { background: none; border: none; color: #DC2626; cursor: pointer; font-size: 13px; }
-        .btn-delete:hover { text-decoration: underline; }
+        .btn-link { background: none; border: none; color: var(--red-dirt); cursor: pointer; font-size: 13px; text-decoration: underline; margin-right: 12px; }
+        .btn-link:hover { color: var(--red-dirt-dark); }
+        .btn-delete { background: none; border: none; color: #94A3B8; cursor: pointer; font-size: 13px; padding: 4px; border-radius: 4px; transition: all 0.2s; }
+        .btn-delete:hover { color: #DC2626; background: #FEE2E2; }
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
         .empty-state p { margin-bottom: 20px; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
+        
+        /* Delete Modal Specifics */
+        .delete-icon-wrapper { width: 48px; height: 48px; border-radius: 50%; background: #FEE2E2; color: #DC2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
+        .delete-warning-text { text-align: center; color: var(--slate-blue); font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
         
         /* Bulk Selection Styles */
         .bulk-checkbox-column { width: 50px; text-align: center; }
@@ -258,16 +290,32 @@
     </header>
     <main>
         <div class="container">
-            <div class="page-header" style="flex-direction: column; align-items: flex-start; gap: 16px;">
+            <div class="page-header">
                 <h1 style="margin: 0;">My Monitoring</h1>
-                <div class="header-actions" style="flex-wrap: wrap; gap: 8px;">
-                    <button class="btn-add" id="addPropertyBtn">+ Add Property</button>
-                    <button class="btn-add" id="bulkUploadBtn" style="background: var(--slate-blue);">📄 Import Properties</button>
-                    <button class="btn-add" id="exportPropertiesBtn" style="background: var(--success); display: none;" onclick="exportPropertiesCSV()">⬇️ Export Properties</button>
-                    <span style="width: 1px; height: 24px; background: var(--border); margin: 0 4px;"></span>
-                    <button class="btn-add" id="addWellBtn">+ Add Well</button>
-                    <button class="btn-add" id="bulkUploadWellsBtn" style="background: var(--slate-blue);">🛢️ Import Wells</button>
-                    <button class="btn-add" id="exportWellsBtn" style="background: var(--success); display: none;" onclick="exportWellsCSV()">⬇️ Export Wells</button>
+                <div class="header-actions">
+                    <div class="action-group">
+                        <button class="btn-add" id="addPropertyBtn">
+                            <span>➕</span> Property
+                        </button>
+                        <button class="btn-secondary-action" id="bulkUploadBtn" title="Import Properties">
+                            Import
+                        </button>
+                        <button class="btn-secondary-action" id="exportPropertiesBtn" style="display: none;" onclick="exportPropertiesCSV()" title="Export Properties">
+                            Export
+                        </button>
+                    </div>
+                    <div class="action-divider"></div>
+                    <div class="action-group">
+                        <button class="btn-add" id="addWellBtn">
+                            <span>➕</span> Well
+                        </button>
+                        <button class="btn-secondary-action" id="bulkUploadWellsBtn" title="Import Wells">
+                            Import
+                        </button>
+                        <button class="btn-secondary-action" id="exportWellsBtn" style="display: none;" onclick="exportWellsCSV()" title="Export Wells">
+                            Export
+                        </button>
+                    </div>
                 </div>
             </div>
             
@@ -305,9 +353,24 @@
             </div>
 
             <div class="tabs">
-                <button class="tab active" data-tab="properties">Properties</button>
-                <button class="tab" data-tab="wells">Wells</button>
-                <button class="tab" data-tab="activity">📋 Activity Log</button>
+                <button class="tab active" data-tab="properties">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                    Properties
+                </button>
+                <button class="tab" data-tab="wells">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                    </svg>
+                    Wells
+                </button>
+                <button class="tab" data-tab="activity">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                    Activity Log
+                </button>
             </div>
 
             <div class="content-card">
@@ -342,10 +405,6 @@
         <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
     </div>
 </div>
-                    <div id="removeAllPropertiesSection" style="display: none; text-align: center; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 20px;">
-                        <span style="color: #94a3b8; font-size: 13px;">Need to start over? </span>
-                        <button onclick="confirmRemoveAllProperties()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all properties</button>
-                    </div>
                 </div>
                 
                 <div id="wells-tab" class="tab-content">
@@ -380,10 +439,6 @@
         <div class="skeleton-row"><div class="skeleton skeleton-cell"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
     </div>
 </div>
-                    <div id="removeAllWellsSection" style="display: none; text-align: center; padding: 20px 0 10px; border-top: 1px solid var(--border); margin-top: 20px;">
-                        <span style="color: #94a3b8; font-size: 13px;">Need to start over? </span>
-                        <button onclick="confirmRemoveAllWells()" style="background: none; border: none; color: #94a3b8; font-size: 13px; cursor: pointer; text-decoration: underline;">Remove all wells</button>
-                    </div>
                 </div>
 
                 <div id="activity-tab" class="tab-content">
@@ -677,19 +732,39 @@
             if (!confirm(confirmMsg)) return;
             
             try {
-                const deletePromises = Array.from(selectedSet).map(id => {
-                    const endpoint = type === 'properties' ? `/api/properties/${id}` : `/api/wells/${id}`;
-                    return fetch(endpoint, { method: 'DELETE' });
-                });
+                const itemsToDelete = Array.from(selectedSet);
+                let successCount = 0;
+                let failCount = 0;
                 
-                await Promise.all(deletePromises);
+                // Batch deletes in groups of 5 to respect Airtable rate limits (5 req/sec)
+                for (let i = 0; i < itemsToDelete.length; i += 5) {
+                    const batch = itemsToDelete.slice(i, i + 5);
+                    const deletePromises = batch.map(id => {
+                        const endpoint = type === 'properties' ? `/api/properties/${id}` : `/api/wells/${id}`;
+                        return fetch(endpoint, { method: 'DELETE' })
+                            .then(res => res.ok ? successCount++ : failCount++)
+                            .catch(() => failCount++);
+                    });
+                    
+                    await Promise.all(deletePromises);
+                    
+                    // Wait 1 second between batches to stay under rate limit
+                    if (i + 5 < itemsToDelete.length) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
                 
-                // Clear selection and reload data
                 selectedSet.clear();
                 updateBulkActionVisibility();
                 await loadAllData();
                 
-                showToast(`Successfully deleted ${deletePromises.length} ${itemName}`);
+                if (failCount === 0) {
+                    // More prominent feedback for bulk deletions
+                    const duration = successCount > 5 ? 5000 : 3000;
+                    showToast(`✓ Successfully deleted ${successCount} ${itemName}`, 'success', duration);
+                } else {
+                    showToast(`⚠ Deleted ${successCount} ${itemName}. ${failCount} failed - please refresh and try again.`, 'error', 6000);
+                }
             } catch (err) {
                 console.error(`Bulk delete ${itemName} error:`, err);
                 showToast(`Failed to delete ${itemName}. Please try again.`, 'error');
@@ -848,8 +923,6 @@
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All section (2+ items)
-                document.getElementById('removeAllPropertiesSection').style.display = (properties.length > 1) ? 'block' : 'none';
                 
                 // Render the table (handles empty state internally)
                 renderPropertiesTable();
@@ -873,8 +946,6 @@
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
                 
-                // Show/hide Remove All section (2+ items)
-                document.getElementById('removeAllWellsSection').style.display = (wells.length > 1) ? 'block' : 'none';
                 
                 // Render the table (handles empty state internally)
                 renderWellsTable();
@@ -1016,7 +1087,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Notes</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Notes</th><th></th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
@@ -1189,7 +1260,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Legal</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-well-name"><col class="col-operator"><col class="col-api"><col class="col-county"><col class="col-location"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Name</th><th>Operator</th><th>API</th><th>County</th><th>Legal</th><th></th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
@@ -1450,58 +1521,6 @@
                 await fetch('/api/wells/' + id, { method: 'DELETE' });
                 await loadWells();
             } catch { alert('Error deleting.'); }
-        }
-        
-        // Remove All Properties with confirmation
-        async function confirmRemoveAllProperties() {
-            const count = loadedProperties.length;
-            if (count === 0) return;
-            
-            const confirmText = `Are you sure you want to remove ALL ${count} properties?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
-            const userInput = prompt(confirmText);
-            
-            if (userInput !== 'DELETE ALL') {
-                if (userInput !== null) alert('Removal cancelled. You must type "DELETE ALL" exactly to confirm.');
-                return;
-            }
-            
-            try {
-                // Delete all properties one by one
-                for (const prop of loadedProperties) {
-                    await fetch('/api/properties/' + prop.id, { method: 'DELETE' });
-                }
-                alert(`Successfully removed ${count} properties.`);
-                await loadProperties();
-            } catch (err) {
-                alert('Error removing properties. Some may have been deleted.');
-                await loadProperties();
-            }
-        }
-        
-        // Remove All Wells with confirmation
-        async function confirmRemoveAllWells() {
-            const count = loadedWells.length;
-            if (count === 0) return;
-            
-            const confirmText = `Are you sure you want to remove ALL ${count} wells?\\n\\nThis action cannot be undone.\\n\\nType "DELETE ALL" to confirm:`;
-            const userInput = prompt(confirmText);
-            
-            if (userInput !== 'DELETE ALL') {
-                if (userInput !== null) alert('Removal cancelled. You must type "DELETE ALL" exactly to confirm.');
-                return;
-            }
-            
-            try {
-                // Delete all wells one by one
-                for (const well of loadedWells) {
-                    await fetch('/api/wells/' + well.id, { method: 'DELETE' });
-                }
-                alert(`Successfully removed ${count} wells.`);
-                await loadWells();
-            } catch (err) {
-                alert('Error removing wells. Some may have been deleted.');
-                await loadWells();
-            }
         }
         
         // Store loaded data for details modals
