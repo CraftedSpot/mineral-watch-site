@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Privacy Policy - Mineral Watch</title>
+    <meta name="description" content="Privacy Policy for Mineral Watch. Learn how we protect your mineral property data and never sell to mineral buyers.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #fff;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            letter-spacing: -0.5px;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: var(--slate-blue);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--oil-navy);
+        }
+        
+        .nav-links .btn-login {
+            background: var(--oil-navy);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .nav-links .btn-login:hover {
+            background: var(--slate-blue);
+            color: white;
+        }
+
+        /* Page Header */
+        .page-header {
+            background: var(--paper);
+            padding: 60px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .page-header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .page-header .last-updated {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        /* Content */
+        .legal-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        
+        .legal-content h2 {
+            font-size: 22px;
+            margin-top: 40px;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+        }
+        
+        .legal-content h2:first-of-type {
+            margin-top: 0;
+        }
+        
+        .legal-content p {
+            margin-bottom: 16px;
+            color: var(--slate-blue);
+            font-size: 15px;
+            line-height: 1.7;
+        }
+        
+        .legal-content ul {
+            margin-bottom: 16px;
+            padding-left: 24px;
+            color: var(--slate-blue);
+        }
+        
+        .legal-content li {
+            margin-bottom: 10px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        
+        .legal-content li ul {
+            margin-top: 10px;
+            margin-bottom: 0;
+        }
+        
+        .legal-content strong {
+            color: var(--oil-navy);
+        }
+
+        /* Callout Box */
+        .callout-box {
+            background: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 20px 24px;
+            border-radius: 0 8px 8px 0;
+            margin: 24px 0;
+        }
+        
+        .callout-box p {
+            margin: 0;
+            color: #92400E;
+            font-weight: 500;
+        }
+        
+        .callout-box.green {
+            background: #DEF7EC;
+            border-left-color: #03543F;
+        }
+        
+        .callout-box.green p {
+            color: #03543F;
+        }
+
+        /* Contact Box */
+        .contact-box {
+            background: var(--paper);
+            padding: 24px;
+            border-radius: 8px;
+            margin-top: 40px;
+            border: 1px solid var(--border);
+        }
+        
+        .contact-box h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+        
+        .contact-box p {
+            margin-bottom: 8px;
+        }
+        
+        .contact-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--oil-navy);
+            color: #A0AEC0;
+            padding: 40px 0;
+            font-size: 14px;
+        }
+        
+        footer a {
+            color: #A0AEC0;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            color: white;
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 25px;
+            margin-top: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .page-header {
+                padding: 40px 0;
+            }
+            
+            .page-header h1 {
+                font-size: 28px;
+            }
+            
+            .legal-content {
+                padding: 40px 20px;
+            }
+            
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                    <a href="https://mymineralwatch.com/about">About</a>
+                    <a href="https://portal.mymineralwatch.com" class="btn-login">Log In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <h1>Privacy Policy</h1>
+            <p class="last-updated">Last Updated: November 26, 2025</p>
+        </div>
+    </div>
+
+    <div class="legal-content">
+        
+        <p>Mineral Watch LLC ("we," "us," or "our") recognizes that the privacy and security of your mineral portfolio data is critical. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you visit our website or use our monitoring services.</p>
+        
+        <div class="callout-box">
+            <p><strong>Key Commitment:</strong> We do not sell, trade, or rent your property lists, API numbers, or portfolio data to third parties, hedge funds, land brokers, or mineral buyers. Your data is used strictly to provide monitoring alerts. Period.</p>
+        </div>
+
+        <h2>1. Information We Collect</h2>
+        <p>We collect information that you provide directly to us when you register for an account, subscribe to a plan, or upload portfolio data:</p>
+        <ul>
+            <li><strong>Account Information:</strong> Name, email address, and account credentials.</li>
+            <li><strong>Portfolio Data:</strong> Legal descriptions (Section-Township-Range), API numbers, and well identifiers you wish to monitor.</li>
+            <li><strong>Payment Information:</strong> We do not store credit card details. All financial transactions are processed by Stripe, a PCI-DSS compliant payment processor.</li>
+            <li><strong>Usage Data:</strong> Basic information about how you interact with our service, such as login timestamps and alert delivery confirmations.</li>
+        </ul>
+
+        <h2>2. How We Use Your Information</h2>
+        <p>We use the collected data for the following specific purposes:</p>
+        <ul>
+            <li>To cross-reference your portfolio data against public records from the Oklahoma Corporation Commission (OCC) databases.</li>
+            <li>To send automated email alerts regarding permits, drilling activity, status changes, and regulatory filings.</li>
+            <li>To process subscription payments and manage your account status.</li>
+            <li>To respond to your inquiries and provide customer support.</li>
+            <li>To improve our scanning algorithms and website functionality.</li>
+        </ul>
+
+        <h2>3. Disclosure of Your Information</h2>
+        <p>We maintain strict confidentiality regarding your portfolio data. We may share information only in the following limited situations:</p>
+        <ul>
+            <li><strong>Service Providers:</strong> We use trusted third-party vendors to operate our infrastructure:
+                <ul>
+                    <li><strong>Stripe:</strong> Payment processing (PCI-DSS compliant)</li>
+                    <li><strong>Postmark:</strong> Email alert delivery</li>
+                    <li><strong>Cloudflare:</strong> Website security, hosting, and content delivery</li>
+                    <li><strong>Airtable:</strong> Database management (SOC 2 Type II certified)</li>
+                </ul>
+            </li>
+            <li><strong>Legal Requirements:</strong> If required by law or in response to valid requests by public authorities (e.g., a court order or subpoena).</li>
+            <li><strong>Business Transfers:</strong> In the event of a merger, acquisition, or sale of assets, your data may be transferred. We will provide notice before your data becomes subject to a different privacy policy.</li>
+        </ul>
+        
+        <div class="callout-box green">
+            <p><strong>We explicitly do NOT sell your data to:</strong> Data brokers, mineral acquisition companies, land buyers, marketing firms, hedge funds, or any third party seeking to contact you about purchasing your minerals.</p>
+        </div>
+
+        <h2>4. Data Security</h2>
+        <p>We implement industry-standard security measures designed to protect your information:</p>
+        <ul>
+            <li><strong>Encryption in Transit:</strong> All data transmitted between your browser and our servers is encrypted using Transport Layer Security (TLS/SSL).</li>
+            <li><strong>Encryption at Rest:</strong> Portfolio data is stored in encrypted databases.</li>
+            <li><strong>Access Control:</strong> Access to backend databases is restricted to authorized personnel with a specific business need.</li>
+            <li><strong>Vendor Compliance:</strong> We utilize vendors that adhere to industry-standard security certifications (SOC 2, PCI-DSS).</li>
+            <li><strong>Secure Authentication:</strong> We use passwordless magic link authentication to eliminate password-related vulnerabilities.</li>
+        </ul>
+
+        <h2>5. Data Location</h2>
+        <p>Your data is stored on servers located in the United States. By using our service, you consent to the transfer of your information to the United States.</p>
+
+        <h2>6. Data Retention</h2>
+        <p>We retain your personal and portfolio data only for as long as your account remains active or as needed to provide you services. Upon account cancellation:</p>
+        <ul>
+            <li>You may request permanent deletion of your portfolio data from our active monitoring databases.</li>
+            <li>We will delete your data within 30 days of a verified deletion request.</li>
+            <li>Certain information may be retained as required by law or for legitimate business purposes (e.g., transaction records for accounting).</li>
+        </ul>
+
+        <h2>7. Your Rights</h2>
+        <p>You have the following rights regarding your personal data:</p>
+        <ul>
+            <li><strong>Access:</strong> Request a copy of the personal data we hold about you.</li>
+            <li><strong>Correction:</strong> Request that we correct inaccurate or incomplete data.</li>
+            <li><strong>Deletion:</strong> Request that we delete your personal data.</li>
+            <li><strong>Export:</strong> Request your data in a portable, machine-readable format.</li>
+            <li><strong>Opt-Out:</strong> Unsubscribe from marketing communications at any time (note: transactional alerts are part of the service).</li>
+        </ul>
+        <p>To exercise any of these rights, contact us at <a href="mailto:support@mymineralwatch.com">support@mymineralwatch.com</a>.</p>
+
+        <h2>8. Cookies and Tracking</h2>
+        <p>We use minimal cookies necessary to operate the service:</p>
+        <ul>
+            <li><strong>Authentication Cookies:</strong> To keep you logged in during your session.</li>
+            <li><strong>Security Cookies:</strong> To protect against cross-site request forgery and other threats.</li>
+        </ul>
+        <p>We do not use third-party advertising cookies or sell data to ad networks. We do not use tracking pixels from social media platforms.</p>
+
+        <h2>9. Children's Privacy</h2>
+        <p>Our service is not intended for individuals under the age of 18. We do not knowingly collect personal information from children. If you believe we have inadvertently collected information from a minor, please contact us immediately so we can delete it.</p>
+
+        <h2>10. Third-Party Links</h2>
+        <p>Our alerts contain links to government websites (e.g., occ.ok.gov, ok.gov). We are not responsible for the privacy practices or content of these third-party sites. We encourage you to review their privacy policies.</p>
+
+        <h2>11. Changes to This Policy</h2>
+        <p>We may update this Privacy Policy from time to time. We will notify you of significant changes by:</p>
+        <ul>
+            <li>Posting the new policy on this page with an updated "Last Updated" date.</li>
+            <li>Sending an email notification for material changes that affect how we handle your portfolio data.</li>
+        </ul>
+        <p>Your continued use of the service after changes become effective constitutes acceptance of the revised policy.</p>
+
+        <div class="contact-box">
+            <h3>Contact Us</h3>
+            <p>If you have questions about this Privacy Policy, our data practices, or wish to exercise your privacy rights, please contact us:</p>
+            <p><strong>Email:</strong> <a href="mailto:support@mymineralwatch.com">support@mymineralwatch.com</a></p>
+            <p><strong>Mail:</strong> Mineral Watch LLC, Oklahoma City, OK</p>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Mineral Watch LLC. All rights reserved.</p>
+            
+            <div class="footer-links">
+                <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                <a href="https://mymineralwatch.com/about">About</a>
+                <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+                <a href="https://mymineralwatch.com/terms">Terms of Service</a>
+                <a href="https://mymineralwatch.com/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>

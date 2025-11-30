@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mineral Watch - Automated OCC Alerts for Oklahoma Mineral Owners</title>
+    <meta name="description" content="Get email alerts the moment a permit is filed. Automated OCC monitoring for Oklahoma mineral owners. Track permits, completions, and status changes.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+            --success: #03543F;
+            --success-bg: #DEF7EC;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #fff;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            letter-spacing: -0.5px;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: var(--slate-blue);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--oil-navy);
+        }
+        
+        .nav-links .btn-login {
+            background: var(--oil-navy);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .nav-links .btn-login:hover {
+            background: var(--slate-blue);
+            color: white;
+        }
+
+        /* Hero Section */
+        .hero {
+            background: linear-gradient(rgba(28, 43, 54, 0.9), rgba(28, 43, 54, 0.75)), url('assets/hero-bg-2.jpg');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            padding: 100px 0;
+            position: relative;
+        }
+        
+        .hero-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 60px;
+            align-items: center;
+        }
+        
+        .hero h1 {
+            font-size: 46px;
+            margin-bottom: 24px;
+            line-height: 1.2;
+            font-weight: 900;
+        }
+        
+        .hero .subtitle {
+            font-size: 20px;
+            margin-bottom: 30px;
+            opacity: 0.9;
+            font-weight: 400;
+            max-width: 500px;
+        }
+        
+        .trust-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 30px;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        /* CTA Box */
+        .cta-box {
+            background: white;
+            padding: 40px;
+            border-radius: 4px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            border-top: 4px solid var(--red-dirt);
+            text-align: center;
+        }
+        
+        .cta-box h2 {
+            color: var(--oil-navy);
+            margin-bottom: 10px;
+            font-size: 26px;
+            font-weight: 700;
+        }
+        
+        .cta-box p {
+            color: #4A5568;
+            margin-bottom: 25px;
+            font-size: 16px;
+        }
+        
+        .free-tag {
+            background-color: var(--success-bg);
+            color: var(--success);
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+        }
+
+        .cta-button {
+            display: block;
+            width: 100%;
+            padding: 16px;
+            background: var(--red-dirt);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            text-decoration: none;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .cta-button:hover {
+            background: var(--red-dirt-dark);
+        }
+        
+        .cta-secondary {
+            display: inline-block;
+            color: var(--slate-blue);
+            font-weight: 600;
+            text-decoration: none;
+            font-size: 15px;
+        }
+        
+        .cta-secondary:hover {
+            color: var(--oil-navy);
+            text-decoration: underline;
+        }
+        
+        .privacy-note {
+            margin-top: 20px;
+            font-size: 12px;
+            color: #718096;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        /* Sections */
+        .section-padding {
+            padding: 80px 0;
+        }
+        
+        .section-header {
+            text-align: center;
+            margin-bottom: 50px;
+        }
+        
+        .section-header h2 {
+            font-size: 36px;
+            margin-bottom: 15px;
+            font-weight: 700;
+        }
+        
+        .section-header p {
+            color: var(--slate-blue);
+            font-size: 18px;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Cards Grid */
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 25px;
+        }
+        
+        .card {
+            background: #fff;
+            padding: 30px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            transition: box-shadow 0.2s;
+        }
+        
+        .card:hover {
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+        }
+        
+        .icon-box {
+            width: 50px;
+            height: 50px;
+            background-color: #EDF2F7;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: var(--red-dirt);
+        }
+        
+        .card h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        
+        .card p {
+            color: var(--slate-blue);
+            font-size: 15px;
+        }
+
+        /* ===== HOW IT WORKS + CAROUSEL SECTION ===== */
+        .how-it-works-section {
+            padding: 80px 0;
+            background: #fff;
+        }
+        
+        .how-it-works-layout {
+            display: grid;
+            grid-template-columns: 1.15fr 0.85fr;
+            gap: 50px;
+            align-items: center;
+        }
+        
+        .steps-side h2 {
+            font-size: 32px;
+            margin-bottom: 12px;
+            font-weight: 700;
+        }
+        
+        .steps-side > p {
+            color: var(--slate-blue);
+            font-size: 17px;
+            margin-bottom: 40px;
+        }
+        
+        .step-compact {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 28px;
+            align-items: flex-start;
+        }
+        
+        .step-compact:last-child {
+            margin-bottom: 0;
+        }
+        
+        .step-num {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            background: var(--red-dirt);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: 700;
+            font-family: 'Merriweather', serif;
+        }
+        
+        .step-content h3 {
+            font-size: 18px;
+            margin-bottom: 6px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+        
+        .step-content p {
+            color: var(--slate-blue);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+
+        /* Phone Mockup Carousel */
+        .phone-mockup {
+            background: #1C2B36;
+            border-radius: 32px;
+            padding: 12px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.25);
+            max-width: 340px;
+            margin: 0 auto;
+        }
+        
+        .phone-screen {
+            background: #fff;
+            border-radius: 24px;
+            overflow: hidden;
+        }
+        
+        .phone-notch {
+            background: #1C2B36;
+            height: 28px;
+            border-radius: 0 0 16px 16px;
+            width: 120px;
+            margin: 0 auto;
+            position: relative;
+            top: -1px;
+        }
+        
+        /* Tab Navigation inside phone */
+        .alert-tabs-phone {
+            display: flex;
+            background: #F8F9FA;
+            border-bottom: 1px solid #E2E8F0;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .alert-tab-phone {
+            flex: 1;
+            padding: 10px 6px;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            color: #64748B;
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-bottom: 2px solid transparent;
+            white-space: nowrap;
+            text-align: center;
+        }
+        
+        .alert-tab-phone:hover {
+            color: #1C2B36;
+            background: #EDF2F7;
+        }
+        
+        .alert-tab-phone.active {
+            color: var(--red-dirt);
+            border-bottom-color: var(--red-dirt);
+            background: #fff;
+        }
+        
+        .alert-tab-phone .tab-icon {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 2px;
+        }
+        
+        /* Email content wrapper */
+        .email-scroll {
+            height: 420px;
+            overflow-y: auto;
+            position: relative;
+        }
+        
+        .email-content-phone {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        .email-content-phone.active {
+            display: block;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Mockup Buttons */
+        .mockup-btn-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .mockup-btn-primary {
+            flex: 1;
+            text-align: center;
+            background: var(--red-dirt);
+            color: #ffffff;
+            padding: 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            border: 1px solid var(--red-dirt);
+        }
+
+        .mockup-btn-outline {
+            flex: 1;
+            text-align: center;
+            background: #fff;
+            border: 1px solid var(--red-dirt);
+            color: var(--red-dirt);
+            padding: 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        
+        .mockup-btn-outline-gray {
+            flex: 1;
+            text-align: center;
+            background: #fff;
+            border: 1px solid #718096;
+            color: #718096;
+            padding: 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        
+        .mockup-btn-primary-gray {
+            flex: 1;
+            text-align: center;
+            background: #718096;
+            color: #ffffff;
+            padding: 8px 0;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 10px;
+            cursor: pointer;
+            text-decoration: none;
+            border: 1px solid #718096;
+        }
+        
+        /* Arrow buttons */
+        .carousel-nav {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            padding: 16px;
+            background: #F8F9FA;
+            border-top: 1px solid #E2E8F0;
+        }
+        
+        .nav-btn {
+            width: 36px;
+            height: 36px;
+            background: #fff;
+            border: 1px solid #E2E8F0;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 16px;
+            color: #334E68;
+            transition: all 0.2s;
+        }
+        
+        .nav-btn:hover {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+        
+        /* Dot indicators */
+        .dots-phone {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+            padding-bottom: 4px;
+            background: #F8F9FA;
+        }
+        
+        .dot-phone {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #CBD5E0;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .dot-phone.active {
+            background: var(--red-dirt);
+            transform: scale(1.3);
+        }
+
+        /* CTA Section */
+        .cta-section {
+            background: var(--oil-navy);
+            color: white;
+            padding: 80px 0;
+            text-align: center;
+        }
+        
+        .cta-section h2 {
+            font-size: 36px;
+            margin-bottom: 15px;
+        }
+        
+        .cta-section p {
+            font-size: 18px;
+            opacity: 0.9;
+            margin-bottom: 30px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .cta-section .cta-button {
+            display: inline-block;
+            width: auto;
+            padding: 16px 40px;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--oil-navy);
+            color: #A0AEC0;
+            padding: 40px 0;
+            font-size: 14px;
+        }
+        
+        footer a {
+            color: #A0AEC0;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            color: white;
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 25px;
+            margin-top: 15px;
+        }
+        
+        .disclaimer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #2D3748;
+            font-size: 11px;
+            color: #718096;
+            line-height: 1.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 900px) {
+            .hero-layout {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+            
+            .hero h1 {
+                font-size: 36px;
+            }
+            
+            .grid-3 {
+                grid-template-columns: 1fr;
+            }
+            
+            .nav-links {
+                gap: 15px;
+            }
+            
+            .how-it-works-layout {
+                grid-template-columns: 1fr;
+                gap: 50px;
+            }
+            
+            .phone-mockup {
+                max-width: 300px;
+            }
+        }
+        
+        @media (max-width: 600px) {
+            .hero {
+                padding: 60px 0;
+            }
+            
+            .hero h1 {
+                font-size: 30px;
+            }
+            
+            .cta-box {
+                padding: 25px;
+            }
+            
+            .section-header h2 {
+                font-size: 28px;
+            }
+            
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .steps-side h2 {
+                font-size: 26px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                    <a href="https://mymineralwatch.com/about">About</a>
+                    <a href="https://portal.mymineralwatch.com" class="btn-login">Log In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <div class="hero-layout">
+                <div class="hero-content">
+                    <div class="trust-badge">
+                        <svg width="16" height="16" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        Built by Oklahoma Mineral Owners
+                    </div>
+                    <h1>Know Before the Rig Shows Up on Your Land</h1>
+                    <p class="subtitle">Automated OCC monitoring for your Oklahoma mineral properties. Get email alerts for new permits, completions, and status changes.</p>
+                </div>
+                
+                <div class="cta-box">
+                    <span class="free-tag">Free Forever</span>
+                    <h2>Start Monitoring Today</h2>
+                    <p>Track your first property completely free. No credit card required.</p>
+                    
+                    <a href="https://mymineralwatch.com/pricing" class="cta-button">Start Free Monitoring</a>
+                    
+                    <a href="https://mymineralwatch.com/pricing" class="cta-secondary">Compare all plans →</a>
+                    
+                    <div class="privacy-note">
+                        <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                        We never sell your data or make offers to buy.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section-padding" style="background: #F7FAFC;">
+        <div class="container">
+            <div class="section-header">
+                <h2>Are You Missing Critical Updates?</h2>
+                <p>Operators know about activity before you do. We level the playing field.</p>
+            </div>
+            
+            <div class="grid-3">
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <h3>Deciphering the Data</h3>
+                    <p>OCC permits and completion reports arrive in dense codes. We translate them into plain English summaries.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h3>Missed Deadlines</h3>
+                    <p>By the time you see the letter, the window to respond or protest may have closed.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </div>
+                    <h3>Horizontal Wells</h3>
+                    <p>Modern drilling can affect your minerals even when the rig is on someone else's land. We track adjacent sections.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h3>Lost Revenue</h3>
+                    <p>Without monitoring, you might miss reworking opportunities or new production on your properties.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h3>Constant Worry</h3>
+                    <p>Checking the OCC website manually is time-consuming and you're never sure you caught everything.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3>Information Asymmetry</h3>
+                    <p>You get one lease offer while five operators are active nearby. Know what they know.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="how-it-works-section">
+        <div class="container">
+            <div class="how-it-works-layout">
+                
+                <div class="steps-side">
+                    <h2>How Mineral Watch Works</h2>
+                    <p>From alert to dashboard in one click.</p>
+                    
+                    <div class="step-compact">
+                        <div class="step-num">1</div>
+                        <div class="step-content">
+                            <h3>Add Your Properties</h3>
+                            <p>Enter your legal description (Sec-Twn-Rng). We automatically watch the 8 surrounding sections for new horizontal permits.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="step-compact">
+                        <div class="step-num">2</div>
+                        <div class="step-content">
+                            <h3>Get Instant Alerts</h3>
+                            <p>Receive emails for Permits, Completions, Transfers, and Status Changes. Includes plain English summaries and PDF links.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="step-compact">
+                        <div class="step-num">3</div>
+                        <div class="step-content">
+                            <h3>One-Click Tracking</h3>
+                            <p>Hit "Track Well" in any email to auto-fill your dashboard with the Operator, API, Well Name, and Maps. No manual data entry.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="phone-mockup">
+                    <div class="phone-screen">
+                        <div class="phone-notch"></div>
+                        
+                        <div class="alert-tabs-phone">
+                            <button class="alert-tab-phone active" data-tab="permit">
+                                <span class="tab-icon">📋</span>
+                                Permit
+                            </button>
+                            <button class="alert-tab-phone" data-tab="complete">
+                                <span class="tab-icon">💰</span>
+                                Complete
+                            </button>
+                            <button class="alert-tab-phone" data-tab="transfer">
+                                <span class="tab-icon">🔄</span>
+                                Transfer
+                            </button>
+                            <button class="alert-tab-phone" data-tab="plugged">
+                                <span class="tab-icon">🔌</span>
+                                Plugged
+                            </button>
+                        </div>
+                        
+                        <div class="email-scroll">
+                            
+                            <div class="email-content-phone active" id="permit">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Daily Alert</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Activity on Your Property</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 update.</p>
+                                    
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #DC2626; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #FEF2F2; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #DC2626; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">YOUR PROPERTY</span>
+                                                <span style="background: #DBEAFE; color: #1E40AF; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">NEW PERMIT</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
+                                            
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> An operator has filed a permit to drill a new well on your property.
+                                                </p>
+                                            </div>
+                                            
+                                            <div style="background: #FEF3C7; border-radius: 4px; padding: 10px; border-left: 3px solid #F59E0B;">
+                                                <p style="margin: 0; font-size: 11px; color: #92400E; line-height: 1.4;">
+                                                    Watch for pooling notices or lease offers in the coming weeks.
+                                                </p>
+                                            </div>
+                                            
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="email-content-phone" id="complete">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Weekly Review</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Well Now Producing</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 update.</p>
+                                    
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #047857; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #F0FDFA; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #DC2626; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">YOUR PROPERTY</span>
+                                                <span style="background: #D1FAE5; color: #047857; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">WELL COMPLETED</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <div style="background: #D1FAE5; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 10px; color: #047857;"><strong>Status changed:</strong> SP → AC</p>
+                                            </div>
+                                            
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
+                                            
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> Drilling is complete and the well is now producing oil or gas.
+                                                </p>
+                                            </div>
+                                            
+                                            <div style="background: #F0FDF4; border-radius: 4px; padding: 10px; border-left: 3px solid #22C55E;">
+                                                <p style="margin: 0; font-size: 11px; color: #166534; line-height: 1.4;">
+                                                    🎉 Royalty checks should follow. First payment typically arrives 3-6 months after completion.
+                                                </p>
+                                            </div>
+                                            
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="email-content-phone" id="transfer">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Weekly Review</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Operator Transfer</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, we found 1 change.</p>
+                                    
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #0D9488; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #F0FDFA; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #0D9488; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">TRACKED WELL</span>
+                                                <span style="background: #EDE9FE; color: #6D28D9; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">OPERATOR TRANSFER</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">API: 35-051-12345</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <div style="background: #EDE9FE; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 10px; color: #6D28D9;"><strong>Operator changed:</strong> Chesapeake → Citizen</p>
+                                            </div>
+                                            
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Grandpa Joe 1-14H</span></p>
+                                            
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> Operational control transferred. New operator handles royalty payments.
+                                                </p>
+                                            </div>
+                                            
+                                            <div style="background: #FEF2F2; border-radius: 4px; padding: 10px; border-left: 3px solid #EF4444;">
+                                                <p style="margin: 0; font-size: 11px; color: #991B1B; line-height: 1.4;">
+                                                    ⚠️ Your checks will come from Citizen Energy. Watch for new division order.
+                                                </p>
+                                            </div>
+                                            
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="email-content-phone" id="plugged">
+                                <div style="background: #1C2B36; padding: 14px 16px;">
+                                    <span style="color: #ffffff; font-size: 16px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                                </div>
+                                <div style="padding: 16px;">
+                                    <p style="font-size: 10px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 4px;">Status Alert</p>
+                                    <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 6px; font-family: Georgia, serif;">Well Plugged & Abandoned</h2>
+                                    <p style="font-size: 13px; color: #334E68; margin: 0 0 16px;">Hi Sarah, status change detected.</p>
+                                    
+                                    <div style="border: 1px solid #E2E8F0; border-left: 4px solid #718096; border-radius: 0 6px 6px 0; overflow: hidden;">
+                                        <div style="background: #F1F5F9; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 6px;">
+                                                <span style="background: #718096; color: white; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">TRACKED WELL</span>
+                                                <span style="background: #CBD5E0; color: #475569; font-size: 8px; font-weight: 700; padding: 3px 6px; border-radius: 3px;">PLUGGED</span>
+                                            </div>
+                                            <p style="margin: 8px 0 0 0; font-size: 9px; color: #64748B; text-transform: uppercase;">14-12N-08W-IM</p>
+                                        </div>
+                                        <div style="padding: 12px;">
+                                            <div style="background: #CBD5E0; border-radius: 4px; padding: 8px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 10px; color: #1E293B;"><strong>Status changed:</strong> AC → PA</p>
+                                            </div>
+                                            
+                                            <p style="margin: 0 0 4px; font-size: 11px;"><strong style="color: #64748B;">Well:</strong> <span style="color: #1C2B36;">Charlotte 1H-14X</span></p>
+                                            <p style="margin: 0 0 10px; font-size: 11px;"><strong style="color: #64748B;">Operator:</strong> <span style="color: #1C2B36;">Continental Resources</span></p>
+                                            
+                                            <div style="background: #F8FAFC; border-radius: 4px; padding: 10px; margin-bottom: 10px;">
+                                                <p style="margin: 0; font-size: 11px; color: #334E68; line-height: 1.4;">
+                                                    <strong style="color: #1C2B36;">What this means:</strong> Production has ceased and the well has been permanently plugged.
+                                                </p>
+                                            </div>
+                                            
+                                            <div class="mockup-btn-row">
+                                                <a href="#" class="mockup-btn-outline-gray">View PDF</a>
+                                                <a href="#" class="mockup-btn-primary-gray">+ Track Well</a>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                        </div>
+                        
+                        <div class="carousel-nav">
+                            <button class="nav-btn" onclick="prevAlert()">←</button>
+                            <button class="nav-btn" onclick="nextAlert()">→</button>
+                        </div>
+                        
+                        <div class="dots-phone">
+                            <div class="dot-phone active" data-tab="permit"></div>
+                            <div class="dot-phone" data-tab="complete"></div>
+                            <div class="dot-phone" data-tab="transfer"></div>
+                            <div class="dot-phone" data-tab="plugged"></div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Stop Wondering. Start Knowing.</h2>
+            <p>Join Oklahoma mineral owners who sleep better knowing their properties are being watched.</p>
+            <a href="https://mymineralwatch.com/pricing" class="cta-button">View Pricing & Start Free</a>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
+            
+            <div class="footer-links">
+                <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                <a href="https://mymineralwatch.com/about">About</a>
+                <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+                <a href="https://mymineralwatch.com/terms">Terms of Service</a>
+                <a href="https://portal.mymineralwatch.com">Log In</a>
+                <a href="https://mymineralwatch.com/contact">Contact</a>
+            </div>
+            
+            <div class="disclaimer">
+                <p style="margin-bottom: 10px;">
+                    <strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. 
+                    We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, 
+                    or timeliness of this data. Government databases frequently contain errors, delays, or omissions.
+                </p>
+                <p>
+                    This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any 
+                    missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always 
+                    verify official records directly with the OCC or a qualified attorney before making decisions.
+                </p>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        const tabs = ['permit', 'complete', 'transfer', 'plugged'];
+        let currentIndex = 0;
+        
+        // Tab click handler
+        document.querySelectorAll('.alert-tab-phone').forEach(tab => {
+            tab.addEventListener('click', () => {
+                const tabId = tab.dataset.tab;
+                switchToTab(tabId);
+            });
+        });
+        
+        // Dot click handler
+        document.querySelectorAll('.dot-phone').forEach(dot => {
+            dot.addEventListener('click', () => {
+                const tabId = dot.dataset.tab;
+                switchToTab(tabId);
+            });
+        });
+        
+        function switchToTab(tabId) {
+            currentIndex = tabs.indexOf(tabId);
+            
+            // Update tabs
+            document.querySelectorAll('.alert-tab-phone').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.alert-tab-phone[data-tab="${tabId}"]`).classList.add('active');
+            
+            // Update content
+            document.querySelectorAll('.email-content-phone').forEach(c => c.classList.remove('active'));
+            document.getElementById(tabId).classList.add('active');
+            
+            // Update dots
+            document.querySelectorAll('.dot-phone').forEach(d => d.classList.remove('active'));
+            document.querySelector(`.dot-phone[data-tab="${tabId}"]`).classList.add('active');
+        }
+        
+        function nextAlert() {
+            currentIndex = (currentIndex + 1) % tabs.length;
+            switchToTab(tabs[currentIndex]);
+        }
+        
+        function prevAlert() {
+            currentIndex = (currentIndex - 1 + tabs.length) % tabs.length;
+            switchToTab(tabs[currentIndex]);
+        }
+        
+        // Swipe support
+        let touchStartX = 0;
+        const wrapper = document.querySelector('.email-scroll');
+        
+        wrapper.addEventListener('touchstart', e => {
+            touchStartX = e.changedTouches[0].screenX;
+        }, { passive: true });
+        
+        wrapper.addEventListener('touchend', e => {
+            const diff = touchStartX - e.changedTouches[0].screenX;
+            if (Math.abs(diff) > 50) {
+                diff > 0 ? nextAlert() : prevAlert();
+            }
+        }, { passive: true });
+    </script>
+
+</body>
+</html>

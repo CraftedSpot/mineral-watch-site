@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terms of Service - Mineral Watch</title>
+    <meta name="description" content="Terms of Service for Mineral Watch automated OCC monitoring service.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #fff;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        /* Header */
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            letter-spacing: -0.5px;
+            text-decoration: none;
+        }
+        
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            align-items: center;
+        }
+        
+        .nav-links a {
+            color: var(--slate-blue);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 15px;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover {
+            color: var(--oil-navy);
+        }
+        
+        .nav-links .btn-login {
+            background: var(--oil-navy);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 4px;
+            font-weight: 600;
+        }
+        
+        .nav-links .btn-login:hover {
+            background: var(--slate-blue);
+            color: white;
+        }
+
+        /* Page Header */
+        .page-header {
+            background: var(--paper);
+            padding: 60px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .page-header h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            font-weight: 700;
+        }
+        
+        .page-header .last-updated {
+            font-size: 14px;
+            color: #718096;
+        }
+
+        /* Content */
+        .legal-content {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+        
+        .legal-content h2 {
+            font-size: 22px;
+            margin-top: 40px;
+            margin-bottom: 16px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid var(--border);
+            font-weight: 700;
+        }
+        
+        .legal-content h2:first-of-type {
+            margin-top: 0;
+        }
+        
+        .legal-content p {
+            margin-bottom: 16px;
+            color: var(--slate-blue);
+            font-size: 15px;
+            line-height: 1.7;
+        }
+        
+        .legal-content ul {
+            margin-bottom: 16px;
+            padding-left: 24px;
+            color: var(--slate-blue);
+        }
+        
+        .legal-content li {
+            margin-bottom: 10px;
+            font-size: 15px;
+            line-height: 1.6;
+        }
+        
+        .legal-content li ul {
+            margin-top: 10px;
+            margin-bottom: 0;
+        }
+        
+        .legal-content strong {
+            color: var(--oil-navy);
+        }
+
+        /* Callout Box */
+        .callout-box {
+            background: #FEF3C7;
+            border-left: 4px solid #F59E0B;
+            padding: 20px 24px;
+            border-radius: 0 8px 8px 0;
+            margin: 24px 0;
+        }
+        
+        .callout-box p {
+            margin: 0;
+            color: #92400E;
+            font-weight: 500;
+        }
+        
+        .callout-box.blue {
+            background: #DBEAFE;
+            border-left-color: #2563EB;
+        }
+        
+        .callout-box.blue p {
+            color: #1E40AF;
+        }
+
+        /* Contact Box */
+        .contact-box {
+            background: var(--paper);
+            padding: 24px;
+            border-radius: 8px;
+            margin-top: 40px;
+            border: 1px solid var(--border);
+        }
+        
+        .contact-box h3 {
+            font-size: 18px;
+            margin-bottom: 12px;
+        }
+        
+        .contact-box p {
+            margin-bottom: 8px;
+        }
+        
+        .contact-box p:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--oil-navy);
+            color: #A0AEC0;
+            padding: 40px 0;
+            font-size: 14px;
+        }
+        
+        footer a {
+            color: #A0AEC0;
+            text-decoration: none;
+        }
+        
+        footer a:hover {
+            color: white;
+        }
+        
+        .footer-links {
+            display: flex;
+            gap: 25px;
+            margin-top: 15px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .page-header {
+                padding: 40px 0;
+            }
+            
+            .page-header h1 {
+                font-size: 28px;
+            }
+            
+            .legal-content {
+                padding: 40px 20px;
+            }
+            
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                gap: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="https://mymineralwatch.com" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                    <a href="https://mymineralwatch.com/about">About</a>
+                    <a href="https://portal.mymineralwatch.com" class="btn-login">Log In</a>
+                </nav>
+            </div>
+        </div>
+    </header>
+
+    <div class="page-header">
+        <div class="container">
+            <h1>Terms of Service</h1>
+            <p class="last-updated">Last Updated: November 26, 2025</p>
+        </div>
+    </div>
+
+    <div class="legal-content">
+        
+        <p>Welcome to Mineral Watch. These Terms of Service ("Terms") govern your use of the Mineral Watch website and monitoring services operated by Mineral Watch LLC ("we," "us," or "our"). By accessing or using our service, you agree to be bound by these Terms.</p>
+
+        <h2>1. Description of Service</h2>
+        <p>Mineral Watch is an automated monitoring service that scans public records from the Oklahoma Corporation Commission (OCC) and delivers email alerts about drilling permits, well status changes, and other regulatory filings related to oil and gas wells in Oklahoma.</p>
+        
+        <div class="callout-box blue">
+            <p><strong>Important:</strong> Mineral Watch is an informational tool only. We do not provide legal, financial, investment, or tax advice. Always consult qualified professionals before making decisions regarding your mineral rights.</p>
+        </div>
+
+        <h2>2. Eligibility</h2>
+        <p>To use Mineral Watch, you must:</p>
+        <ul>
+            <li>Be at least 18 years of age.</li>
+            <li>Provide accurate and complete registration information.</li>
+            <li>Have the legal authority to enter into these Terms.</li>
+        </ul>
+        <p>By using our service, you represent and warrant that you meet these requirements.</p>
+
+        <h2>3. Account Registration</h2>
+        <p>To access our monitoring features, you must create an account. You agree to:</p>
+        <ul>
+            <li>Provide accurate, current, and complete information during registration.</li>
+            <li>Maintain the security of your account credentials.</li>
+            <li>Promptly update your information if it changes.</li>
+            <li>Accept responsibility for all activities that occur under your account.</li>
+        </ul>
+        <p>We use passwordless authentication via email magic links. You are responsible for maintaining access to the email address associated with your account.</p>
+
+        <h2>4. Subscription Plans and Payment</h2>
+        <p>Mineral Watch offers various subscription tiers:</p>
+        <ul>
+            <li><strong>Free Plan:</strong> Monitor one property at no cost, forever.</li>
+            <li><strong>Paid Plans:</strong> Additional properties and features available for monthly or annual subscription fees.</li>
+        </ul>
+        <p>For paid subscriptions:</p>
+        <ul>
+            <li>Payment is processed securely through Stripe.</li>
+            <li>Subscriptions automatically renew unless canceled before the renewal date.</li>
+            <li>You may cancel at any time through your account dashboard.</li>
+            <li>Refunds are handled on a case-by-case basis; contact support for assistance.</li>
+        </ul>
+
+        <h2>5. Acceptable Use</h2>
+        <p>You agree NOT to use Mineral Watch to:</p>
+        <ul>
+            <li>Resell, redistribute, or commercially exploit our data or alerts without permission.</li>
+            <li>Scrape, harvest, or automatically collect data from our service.</li>
+            <li>Attempt to gain unauthorized access to our systems or other users' accounts.</li>
+            <li>Use the service for any illegal purpose or in violation of any laws.</li>
+            <li>Interfere with or disrupt the integrity or performance of the service.</li>
+            <li>Impersonate any person or entity.</li>
+        </ul>
+        <p>We reserve the right to suspend or terminate accounts that violate these terms.</p>
+
+        <h2>6. Data Accuracy and Limitations</h2>
+        
+        <div class="callout-box">
+            <p><strong>Critical Disclaimer:</strong> Mineral Watch relies on public data from the Oklahoma Corporation Commission. Government databases may contain errors, delays, omissions, or inaccuracies. We cannot guarantee the completeness, accuracy, or timeliness of any information provided.</p>
+        </div>
+        
+        <p>You acknowledge and agree that:</p>
+        <ul>
+            <li>Alerts are generated based on publicly available OCC data, which may be incomplete or delayed.</li>
+            <li>The absence of an alert does not guarantee that no activity has occurred on your properties.</li>
+            <li>You should always verify important information directly with the OCC or qualified legal counsel.</li>
+            <li>We are not responsible for any decisions made or actions taken based on our alerts.</li>
+        </ul>
+
+        <h2>7. Intellectual Property</h2>
+        <p>The Mineral Watch service, including its website design, logos, software, and original content, is owned by Mineral Watch LLC and protected by intellectual property laws. You may not:</p>
+        <ul>
+            <li>Copy, modify, or distribute our proprietary materials without permission.</li>
+            <li>Use our trademarks without prior written consent.</li>
+            <li>Reverse engineer or attempt to extract source code from our software.</li>
+        </ul>
+        <p>Your portfolio data remains your property. By uploading data, you grant us a limited license to use it solely for providing the monitoring service.</p>
+
+        <h2>8. Limitation of Liability</h2>
+        <p>TO THE MAXIMUM EXTENT PERMITTED BY LAW:</p>
+        <ul>
+            <li>Mineral Watch is provided "as is" and "as available" without warranties of any kind, express or implied.</li>
+            <li>We disclaim all warranties, including implied warranties of merchantability, fitness for a particular purpose, and non-infringement.</li>
+            <li>We are not liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to lost profits, lost revenue, missed deadlines, or loss of data.</li>
+            <li>Our total liability for any claim arising from your use of the service shall not exceed the amount you paid us in the twelve (12) months preceding the claim.</li>
+        </ul>
+
+        <h2>9. Indemnification</h2>
+        <p>You agree to indemnify, defend, and hold harmless Mineral Watch LLC, its officers, directors, employees, and agents from any claims, liabilities, damages, losses, or expenses (including reasonable attorneys' fees) arising out of:</p>
+        <ul>
+            <li>Your use of the service.</li>
+            <li>Your violation of these Terms.</li>
+            <li>Your violation of any rights of another party.</li>
+            <li>Any decisions or actions you take based on information from our service.</li>
+        </ul>
+
+        <h2>10. Service Availability</h2>
+        <p>We strive to maintain reliable service, but we do not guarantee uninterrupted access. We may:</p>
+        <ul>
+            <li>Modify, suspend, or discontinue any part of the service at any time.</li>
+            <li>Perform scheduled or emergency maintenance that may temporarily affect availability.</li>
+            <li>Change features, functionality, or pricing with reasonable notice.</li>
+        </ul>
+        <p>We will make reasonable efforts to notify users of significant changes or planned downtime.</p>
+
+        <h2>11. Termination</h2>
+        <p>You may cancel your account at any time through the account dashboard or by contacting support.</p>
+        <p>We may suspend or terminate your account if:</p>
+        <ul>
+            <li>You violate these Terms.</li>
+            <li>You engage in fraudulent or illegal activity.</li>
+            <li>Continued service is not commercially viable.</li>
+        </ul>
+        <p>Upon termination, your right to use the service ceases immediately. You may request deletion of your portfolio data per our Privacy Policy.</p>
+
+        <h2>12. Governing Law and Disputes</h2>
+        <p>These Terms are governed by the laws of the State of Oklahoma, without regard to conflict of law principles.</p>
+        <p>Any disputes arising from these Terms or your use of the service shall be resolved through:</p>
+        <ul>
+            <li><strong>Informal Resolution:</strong> We encourage you to contact us first to resolve any issues.</li>
+            <li><strong>Binding Arbitration:</strong> If informal resolution fails, disputes shall be settled by binding arbitration in Oklahoma County, Oklahoma, under the rules of the American Arbitration Association.</li>
+            <li><strong>Class Action Waiver:</strong> You agree to resolve disputes individually and waive any right to participate in class action lawsuits or class-wide arbitration.</li>
+        </ul>
+
+        <h2>13. Changes to Terms</h2>
+        <p>We may update these Terms from time to time. When we make changes:</p>
+        <ul>
+            <li>We will post the revised Terms on this page with a new "Last Updated" date.</li>
+            <li>For material changes, we will notify you via email.</li>
+            <li>Your continued use of the service after changes take effect constitutes acceptance of the new Terms.</li>
+        </ul>
+
+        <h2>14. Severability</h2>
+        <p>If any provision of these Terms is found to be unenforceable or invalid, that provision shall be limited or eliminated to the minimum extent necessary, and the remaining provisions shall remain in full force and effect.</p>
+
+        <h2>15. Entire Agreement</h2>
+        <p>These Terms, together with our Privacy Policy, constitute the entire agreement between you and Mineral Watch LLC regarding your use of Mineral Watch, superseding any prior agreements.</p>
+
+        <div class="contact-box">
+            <h3>Contact Us</h3>
+            <p>If you have questions about these Terms of Service, please contact us:</p>
+            <p><strong>Email:</strong> <a href="mailto:support@mymineralwatch.com">support@mymineralwatch.com</a></p>
+            <p><strong>Mail:</strong> Mineral Watch LLC, Oklahoma City, OK</p>
+        </div>
+
+    </div>
+
+    <footer>
+        <div class="container">
+            <p>&copy; 2025 Mineral Watch LLC. All rights reserved.</p>
+            
+            <div class="footer-links">
+                <a href="https://mymineralwatch.com/pricing">Pricing</a>
+                <a href="https://mymineralwatch.com/about">About</a>
+                <a href="https://mymineralwatch.com/privacy">Privacy Policy</a>
+                <a href="https://mymineralwatch.com/terms">Terms of Service</a>
+                <a href="https://mymineralwatch.com/contact">Contact</a>
+            </div>
+        </div>
+    </footer>
+
+</body>
+</html>
