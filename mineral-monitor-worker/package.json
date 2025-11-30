@@ -1,0 +1,30 @@
+{
+  "name": "mineral-watch-monitor",
+  "version": "2.0.0",
+  "description": "Oklahoma well monitoring system - processes OCC filings and alerts mineral rights owners",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --test-scheduled",
+    "deploy": "wrangler deploy",
+    "test-daily": "curl 'http://localhost:8787/__scheduled?cron=0+12+*+*+*'",
+    "test-weekly": "curl 'http://localhost:8787/__scheduled?cron=0+8+*+*+0'",
+    "tail": "wrangler tail"
+  },
+  "dependencies": {
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  },
+  "keywords": [
+    "cloudflare-workers",
+    "mineral-rights",
+    "oklahoma",
+    "oil-gas",
+    "well-monitoring"
+  ],
+  "author": "James Price",
+  "license": "UNLICENSED",
+  "private": true
+}

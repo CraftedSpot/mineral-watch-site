@@ -1,0 +1,115 @@
+/**
+ * Mineral Watch Oklahoma - Well Monitoring Worker
+ * 
+ * Processes OCC Excel files to detect new drilling permits, completions,
+ * and operator transfers, then alerts users with matching properties/wells.
+ */
+
+import { runDailyMonitor } from './monitors/daily.js';
+import { runWeeklyMonitor } from './monitors/weekly.js';
+import { updateHealthStatus, getHealthStatus } from './utils/health.js';
+
+export default {
+  /**
+   * Scheduled handler for cron triggers
+   */
+  async scheduled(controller, env, ctx) {
+    const startTime = Date.now();
+    const cronPattern = controller.cron;
+    
+    console.log(`[Mineral Watch] Cron triggered: ${cronPattern} at ${new Date().toISOString()}`);
+    
+    try {
+      let result;
+      
+      // Daily run (permits and completions)
+      if (cronPattern === '0 12 * * *') {
+        result = await runDailyMonitor(env);
+        await updateHealthStatus(env, 'daily', {
+          timestamp: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          permits_processed: result.permitsProcessed,
+          alerts_sent: result.alertsSent,
+          status: 'success'
+        });
+      }
+      
+      // Weekly run (transfers, status changes)
+      if (cronPattern === '0 8 * * 0') {
+        result = await runWeeklyMonitor(env);
+        await updateHealthStatus(env, 'weekly', {
+          timestamp: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          transfers_processed: result.transfersProcessed,
+          status_changes: result.statusChanges,
+          alerts_sent: result.alertsSent,
+          status: 'success'
+        });
+      }
+      
+      console.log(`[Mineral Watch] Completed in ${Date.now() - startTime}ms`);
+      
+    } catch (error) {
+      console.error(`[Mineral Watch] Error:`, error);
+      
+      await updateHealthStatus(env, 'last-error', {
+        timestamp: new Date().toISOString(),
+        cron: cronPattern,
+        error_message: error.message,
+        stack: error.stack
+      });
+      
+      throw error; // Re-throw so Cloudflare marks the run as failed
+    }
+  },
+  
+  /**
+   * HTTP handler for manual triggers and health checks
+   */
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+    
+    // Health check endpoint
+    if (url.pathname === '/health') {
+      const health = await getHealthStatus(env);
+      return new Response(JSON.stringify(health, null, 2), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Manual trigger for daily run (protected)
+    if (url.pathname === '/trigger/daily') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      
+      ctx.waitUntil(runDailyMonitor(env));
+      return new Response(JSON.stringify({ status: 'started', type: 'daily' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Manual trigger for weekly run (protected)
+    if (url.pathname === '/trigger/weekly') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      
+      ctx.waitUntil(runWeeklyMonitor(env));
+      return new Response(JSON.stringify({ status: 'started', type: 'weekly' }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
+    // Default response
+    return new Response(JSON.stringify({
+      service: 'Mineral Watch Oklahoma',
+      version: '2.0.0',
+      endpoints: ['/health', '/trigger/daily', '/trigger/weekly']
+    }), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+};

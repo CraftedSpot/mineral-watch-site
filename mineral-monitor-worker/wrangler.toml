@@ -1,0 +1,32 @@
+name = "mineral-watch-monitor"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Environment Variables
+[vars]
+AIRTABLE_BASE_ID = "app3j3X29Uvp5stza"
+AIRTABLE_USERS_TABLE = "tblmb8sZtfn2EW900"
+AIRTABLE_PROPERTIES_TABLE = "tblbexFvBkow2ErYm"
+AIRTABLE_WELLS_TABLE = "tblqWp3rb7rT3p9SA"
+AIRTABLE_ACTIVITY_TABLE = "tblhBZNR5pDr620NY"
+
+# Set to "true" to test without sending emails or creating records
+# Change to "false" when ready for production
+DRY_RUN = "false"
+
+# Cron Triggers (UTC)
+# Daily at 6 AM Central = 12:00 UTC (or 11:00 UTC during DST)
+# Weekly on Sunday at 2 AM Central = 08:00 UTC Sunday
+# DISABLED FOR TESTING - uncomment when ready
+# [triggers]
+# crons = ["0 12 * * *", "0 8 * * 0"]
+
+# KV Namespace for health tracking and caching
+[[kv_namespaces]]
+binding = "MINERAL_CACHE"
+id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
+
+# Secrets (add via wrangler secret put)
+# - MINERAL_AIRTABLE_API_KEY
+# - POSTMARK_API_KEY
+# - TRIGGER_SECRET
