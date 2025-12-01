@@ -8,6 +8,7 @@
 import { runDailyMonitor } from './monitors/daily.js';
 import { runWeeklyMonitor } from './monitors/weekly.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
+import { sendDailySummary, sendWeeklySummary, sendFailureAlert } from './services/adminAlerts.js';
 
 export default {
   /**
@@ -32,6 +33,12 @@ export default {
           alerts_sent: result.alertsSent,
           status: 'success'
         });
+        
+        // Send admin summary
+        await sendDailySummary(env, {
+          ...result,
+          duration: Date.now() - startTime
+        });
       }
       
       // Weekly run (transfers, status changes)
@@ -44,6 +51,12 @@ export default {
           status_changes: result.statusChanges,
           alerts_sent: result.alertsSent,
           status: 'success'
+        });
+        
+        // Send admin summary
+        await sendWeeklySummary(env, {
+          ...result,
+          duration: Date.now() - startTime
         });
       }
       
@@ -58,6 +71,9 @@ export default {
         error_message: error.message,
         stack: error.stack
       });
+      
+      // Alert admin of failure
+      await sendFailureAlert(env, cronPattern, error);
       
       throw error; // Re-throw so Cloudflare marks the run as failed
     }

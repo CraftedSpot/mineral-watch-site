@@ -129,6 +129,7 @@ export async function createActivityLog(env, data) {
   if (data.previousValue) fields['Previous Value'] = data.previousValue;
   if (data.newValue) fields['New Value'] = data.newValue;
   if (data.occLink) fields['OCC Link'] = data.occLink;
+  if (data.operatorPhone) fields['Operator Phone'] = data.operatorPhone;
   // Always include Map Link field (empty string if no link) - matches old worker behavior
   fields['Map Link'] = data.mapLink || "";
   console.log(`[Airtable] Map Link field set to: ${fields['Map Link']}`);

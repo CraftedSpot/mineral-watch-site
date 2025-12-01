@@ -9,6 +9,7 @@ import { hasRecentAlert, createActivityLog, updateActivityLog } from '../service
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
+import { getOperatorPhone, updateOperatorInfo } from '../services/operators.js';
 
 /**
  * Check if we're in dry-run mode
@@ -190,6 +191,34 @@ async function processPermit(permit, env, results, dryRun = false) {
       : `${permit.Well_Name || ''} ${permit.Well_Number || ''}`.trim();
     const location = `S${normalizeSection(permit.Section)} T${permit.Township} R${permit.Range}`;
     
+    // Extract operator phone number from permit data
+    const permitOperatorPhone = permit.Phone || permit.Phone_Number || permit.Entity_Phone || 
+                               permit.Operator_Phone || permit.Contact_Phone || permit.Contact_Number ||
+                               permit.Phone_Num || permit.PHONE || null;
+
+    // Get operator phone from comprehensive database, update if permit has newer data
+    let operatorPhone = null;
+    if (permit.Entity_Name) {
+      try {
+        operatorPhone = await getOperatorPhone(permit.Entity_Name, env);
+        
+        // If permit has phone data and it's different from our database, update our database
+        if (permitOperatorPhone && permitOperatorPhone !== operatorPhone) {
+          console.log(`[Daily] Updating operator phone: ${permit.Entity_Name} from ${operatorPhone} to ${permitOperatorPhone}`);
+          await updateOperatorInfo(permit.Entity_Name, { phone: permitOperatorPhone }, env);
+          operatorPhone = permitOperatorPhone;
+        }
+        
+        // If we don't have phone in database but permit does, use permit data
+        if (!operatorPhone && permitOperatorPhone) {
+          operatorPhone = permitOperatorPhone;
+        }
+      } catch (error) {
+        console.warn(`[Daily] Failed to lookup/update operator phone for ${permit.Entity_Name}:`, error);
+        operatorPhone = permitOperatorPhone; // Fallback to permit data
+      }
+    }
+    
     // Record match for dry-run logging
     results.matchesFound.push({
       activityType,
@@ -200,6 +229,7 @@ async function processPermit(permit, env, results, dryRun = false) {
       location,
       county: permit.County,
       operator: permit.Entity_Name,
+      operatorPhone,
       hasMapLink: !!mapLink
     });
     
@@ -218,6 +248,7 @@ async function processPermit(permit, env, results, dryRun = false) {
       apiNumber: api10,
       activityType: activityType,
       operator: permit.Entity_Name,
+      operatorPhone,
       alertLevel: alert.alertLevel,
       sectionTownshipRange: location,
       county: permit.County,
@@ -335,6 +366,34 @@ async function processCompletion(completion, env, results, dryRun = false) {
     const location = `S${normalizeSection(completion.Section)} T${completion.Township} R${completion.Range}`;
     const operator = completion.Entity_Name || completion.Operator;
     
+    // Extract operator phone number from completion data
+    const completionOperatorPhone = completion.Phone || completion.Phone_Number || completion.Entity_Phone || 
+                                   completion.Operator_Phone || completion.Contact_Phone || completion.Contact_Number ||
+                                   completion.Phone_Num || completion.PHONE || null;
+
+    // Get operator phone from comprehensive database, update if completion has newer data  
+    let operatorPhone = null;
+    if (operator) {
+      try {
+        operatorPhone = await getOperatorPhone(operator, env);
+        
+        // If completion has phone data and it's different from our database, update our database
+        if (completionOperatorPhone && completionOperatorPhone !== operatorPhone) {
+          console.log(`[Daily] Updating operator phone from completion: ${operator} from ${operatorPhone} to ${completionOperatorPhone}`);
+          await updateOperatorInfo(operator, { phone: completionOperatorPhone }, env);
+          operatorPhone = completionOperatorPhone;
+        }
+        
+        // If we don't have phone in database but completion does, use completion data
+        if (!operatorPhone && completionOperatorPhone) {
+          operatorPhone = completionOperatorPhone;
+        }
+      } catch (error) {
+        console.warn(`[Daily] Failed to lookup/update operator phone for ${operator}:`, error);
+        operatorPhone = completionOperatorPhone; // Fallback to completion data
+      }
+    }
+    
     // Record match for dry-run logging
     results.matchesFound.push({
       activityType: 'Well Completed',
@@ -345,6 +404,7 @@ async function processCompletion(completion, env, results, dryRun = false) {
       location,
       county: completion.County,
       operator,
+      operatorPhone,
       hasMapLink: !!mapLink
     });
     
@@ -362,6 +422,7 @@ async function processCompletion(completion, env, results, dryRun = false) {
       apiNumber: api10,
       activityType: 'Well Completed',
       operator,
+      operatorPhone,
       alertLevel: alert.alertLevel,
       sectionTownshipRange: location,
       county: completion.County,

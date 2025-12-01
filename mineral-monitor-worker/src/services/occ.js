@@ -64,6 +64,14 @@ export async function fetchOCCFile(fileType, env) {
   // The file already contains "Last 7 Days" but we can add extra filtering if needed
   const filteredRecords = filterRecentRecords(records, fileType);
   
+  // Sanity check: warn if zero records (could indicate OCC file format change)
+  if (filteredRecords.length === 0) {
+    const { sendSanityWarning } = await import('./adminAlerts.js');
+    await sendSanityWarning(env, 'Zero permits in OCC file', 
+      `File type: ${fileType}\nURL: ${url}\nThis could indicate OCC changed their file format or the file is temporarily unavailable.`
+    );
+  }
+  
   // Cache the parsed results
   await env.MINERAL_CACHE.put(cacheKey, JSON.stringify(filteredRecords), {
     expirationTtl: 4 * 60 * 60 // 4 hours
