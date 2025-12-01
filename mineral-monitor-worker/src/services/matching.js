@@ -65,6 +65,7 @@ export async function findMatchingProperties(location, env) {
 
 /**
  * Find users who are monitoring sections adjacent to the given location
+ * OPTIMIZED: Single batched query instead of 8 separate queries
  * @param {Object} location - S-T-R of the permit
  * @param {Object} env - Worker environment
  * @returns {Array} - Users who should get ADJACENT SECTION alerts
@@ -79,44 +80,51 @@ async function findUsersMonitoringAdjacentTo(location, env) {
   console.log(`[Matching] Checking adjacent sections for ${section}-${township}-${range}:`, 
     adjacentSections.map(a => `${a.section}-${a.township}-${a.range}`).join(', '));
   
+  // OPTIMIZATION: Build single OR query for all 8 adjacent sections
+  const sectionConditions = adjacentSections.map(adj => 
+    `AND({SEC} = "${normalizeSection(adj.section)}", {TWN} = "${adj.township}", {RNG} = "${adj.range}")`
+  ).join(', ');
+  
+  const formula = `AND(
+    OR(${sectionConditions}),
+    {Monitor Adjacent} = TRUE(),
+    {Status} = "Active"
+  )`;
+  
+  console.log(`[Matching] Batched adjacent query formula length: ${formula.length} chars`);
+  
+  const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
+  
+  console.log(`[Matching] Found ${properties.length} properties monitoring adjacent sections`);
+  
   const matches = [];
   const seenUsers = new Set();
   
-  for (const adj of adjacentSections) {
-    // Find properties in this adjacent section with Monitor Adjacent enabled
-    const formula = `AND(
-      {SEC} = "${normalizeSection(adj.section)}",
-      {TWN} = "${adj.township}",
-      {RNG} = "${adj.range}",
-      {Monitor Adjacent} = TRUE(),
-      {Status} = "Active"
-    )`;
+  for (const prop of properties) {
+    const userIds = prop.fields.User;
+    if (!userIds || userIds.length === 0) continue;
     
-    const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
+    const userId = userIds[0];
+    if (seenUsers.has(userId)) continue;
+    seenUsers.add(userId);
     
-    for (const prop of properties) {
-      const userIds = prop.fields.User;
-      if (!userIds || userIds.length === 0) continue;
-      
-      const userId = userIds[0];
-      if (seenUsers.has(userId)) continue;
-      seenUsers.add(userId);
-      
-      const user = await getUserById(env, userId);
-      if (!user || user.fields.Status !== 'Active') continue;
-      
-      matches.push({
-        property: prop,
-        user: {
-          id: user.id,
-          email: user.fields.Email,
-          name: user.fields.Name
-        },
-        alertLevel: 'ADJACENT SECTION',
-        matchedSection: `${normalizeSection(adj.section)}-${adj.township}-${adj.range}`,
-        permitSection: `${normalizeSection(section)}-${township}-${range}`
-      });
-    }
+    const user = await getUserById(env, userId);
+    if (!user || user.fields.Status !== 'Active') continue;
+    
+    // Determine which adjacent section this property is in
+    const propSection = `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`;
+    
+    matches.push({
+      property: prop,
+      user: {
+        id: user.id,
+        email: user.fields.Email,
+        name: user.fields.Name
+      },
+      alertLevel: 'ADJACENT SECTION',
+      matchedSection: propSection,
+      permitSection: `${normalizeSection(section)}-${township}-${range}`
+    });
   }
   
   return matches;
