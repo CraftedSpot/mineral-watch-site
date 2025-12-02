@@ -6,7 +6,7 @@
 
 // Authentication & Session Constants
 export const COOKIE_NAME = "mw_session";
-export const TOKEN_EXPIRY = 15 * 60 * 1000; // 15 minutes
+export const TOKEN_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
 export const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Airtable Configuration
@@ -43,20 +43,20 @@ export const CORS_HEADERS = {
 
 // Security Headers
 export const SECURITY_HEADERS = {
-  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;",
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com https://r2cdn.perplexity.ai;",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin"
 } as const;
 
-// Stripe Price IDs - NEW pricing
+// Stripe Price IDs - LIVE MODE
 export const PRICE_IDS = {
-  starter_monthly: 'price_1SXDS9641UqM8A7NeSc0MOTv',    // $9/mo
-  starter_annual: 'price_1SXDSG641UqM8A7N9PbCLsvG',     // $86/yr
-  standard_monthly: 'price_1SXDSL641UqM8A7NSS10CWBd',   // $29/mo
-  standard_annual: 'price_1SXDSQ641UqM8A7NIWcuCzmp',    // $278/yr
-  professional_monthly: 'price_1SXDSV641UqM8A7NZTXdvUls', // $99/mo
-  professional_annual: 'price_1SXDSZ641UqM8A7NvTHEJy9s'   // $950/yr
+  starter_monthly: 'price_1SZZbv9OfJmRCDOqciJ5AIlK',    // $9/mo
+  starter_annual: 'price_1SZZbv9OfJmRCDOqhN2HIBtc',     // $86/yr
+  standard_monthly: 'price_1SZZbu9OfJmRCDOquBBFk0dY',   // $29/mo
+  standard_annual: 'price_1SZZbu9OfJmRCDOqYZm2Hbi6',    // $278/yr
+  professional_monthly: 'price_1SZZbu9OfJmRCDOqOp2YjT1N', // $99/mo
+  professional_annual: 'price_1SZZbt9OfJmRCDOquMh7kSyI'   // $950/yr
 } as const;
 
 // Map price ID to plan name

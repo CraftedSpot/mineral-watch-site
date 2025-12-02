@@ -212,6 +212,22 @@ var index_default = {
         return handleUpgradeSuccess(request, env, url);
       }
       
+      // TEMPORARY: Debug Stripe key endpoint
+      if (path === "/debug/stripe" && request.method === "GET") {
+        const keyPrefix = env.STRIPE_SECRET_KEY?.substring(0, 12) || 'not set';
+        const isLive = keyPrefix.includes('sk_live');
+        return jsonResponse({ 
+          prefix: keyPrefix,
+          mode: isLive ? 'LIVE' : 'TEST',
+          timestamp: new Date().toISOString()
+        });
+      }
+
+      // TEMPORARY: Domain bridge for testing
+      if (path === "/test-upgrade" && request.method === "GET") {
+        return Response.redirect(`https://portal-worker.photog12.workers.dev/portal/upgrade`, 302);
+      }
+
       // Track This Well endpoint
       if (path === "/add-well" && request.method === "GET") {
         return handleTrackThisWell(request, env, url);

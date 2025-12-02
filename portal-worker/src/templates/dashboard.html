@@ -17,7 +17,7 @@
         .nav-links { display: flex; gap: 25px; }
         .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-weight: 500; font-size: 14px; }
         .nav-links a:hover, .nav-links a.active { color: white; }
-        .user-menu { display: flex; align-items: center; gap: 15px; }
+        .user-menu { display: flex; align-items: center; gap: 40px; }
         .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
         .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
         main { padding: 40px 0; }
@@ -28,10 +28,10 @@
         /* Action Groups with Dividers */
         .action-group { display: flex; gap: 8px; align-items: center; }
         .action-divider { width: 1px; height: 24px; background: var(--border); margin: 0 8px; }
-        .btn-add { background: var(--red-dirt); color: white; padding: 10px 16px; border: 1px solid var(--red-dirt); border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; text-decoration: none; transition: all 0.2s; }
+        .btn-add { background: var(--red-dirt); color: white; padding: 10px 16px; border: 1px solid var(--red-dirt); border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; text-decoration: none; transition: all 0.2s; min-width: 100px; }
         .btn-add:hover { background: var(--red-dirt-dark); border-color: var(--red-dirt-dark); }
         
-        .btn-secondary-action { background: white; color: var(--slate-blue); border: 1px solid var(--border); padding: 10px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 6px; transition: all 0.2s; }
+        .btn-secondary-action { background: white; color: var(--slate-blue); border: 1px solid var(--border); padding: 10px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; min-width: 80px; }
         .btn-secondary-action:hover { border-color: var(--slate-blue); color: var(--oil-navy); background: #f8fafc; }
         .plan-info { background: white; border-radius: 8px; padding: 16px 20px; margin-bottom: 25px; display: flex; align-items: center; gap: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; }
         .plan-badge { background: var(--success-bg); color: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
@@ -253,6 +253,15 @@
             color: #DC2626;
         }
         
+        .toast-info {
+            border-left: 4px solid #3B82F6;
+        }
+        
+        .toast-info .toast-icon {
+            background: #DBEAFE;
+            color: #3B82F6;
+        }
+        
         .toast-message {
             color: var(--oil-navy);
             font-size: 14px;
@@ -449,8 +458,19 @@
             .col-actions { width: 15%; }
             .col-well-name { width: 30%; }
             .col-operator { width: 25%; }
-            .col-api { width: 20%; }
-            .col-county { width: 15%; }
+            .col-api { display: none; } /* Hide API column on mobile */
+            .col-county { width: 20%; }
+            .col-location { width: 15%; }
+            .col-actions { width: 20%; } /* More space for buttons on mobile */
+            
+            /* Hide API column headers and cells specifically on mobile */
+            .data-table th:nth-child(4),
+            .data-table td:nth-child(4) {
+                display: none; /* Hide 4th column (API) on mobile */
+            }
+            
+            /* Hide delete button on mobile - too cramped */
+            .btn-delete { display: none; }
             
             /* Mobile header improvements */
             .page-header { 
@@ -907,6 +927,14 @@
                     <span class="details-value" id="wellDetailsOperator">—</span>
                 </div>
                 <div class="details-row">
+                    <span class="details-label">Phone</span>
+                    <span class="details-value" id="wellDetailsPhone">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Contact</span>
+                    <span class="details-value" id="wellDetailsContact">—</span>
+                </div>
+                <div class="details-row">
                     <span class="details-label">Location</span>
                     <span class="details-value" id="wellDetailsLocation">—</span>
                 </div>
@@ -1000,6 +1028,21 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+        
+        // Format phone number for display (e.g., 4051234567 -> (405) 123-4567)
+        function formatPhoneNumber(phone) {
+            if (!phone) return '';
+            // Remove all non-digits
+            const digits = phone.replace(/\D/g, '');
+            
+            if (digits.length === 10) {
+                return `(${digits.substr(0,3)}) ${digits.substr(3,3)}-${digits.substr(6,4)}`;
+            } else if (digits.length === 11 && digits.startsWith('1')) {
+                return `+1 (${digits.substr(1,3)}) ${digits.substr(4,3)}-${digits.substr(7,4)}`;
+            } else {
+                return phone; // Return original if format doesn't match
+            }
         }
         
         const planConfigs = { 
@@ -1669,7 +1712,6 @@
                     <td>${str}</td>
                     <td style="white-space: nowrap;">
                         <button class="btn-link" onclick="openWellDetails('${w.id}')">Details</button>
-                        ${mapLink ? `<button class="btn-link" onclick="window.open('${escapeHtml(mapLink)}', '_blank')">Map</button>` : ''}
                         <button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
                     </td>
                 </tr>`;
@@ -1776,9 +1818,21 @@
                     // Build action buttons
                     const occLink = f['OCC Link'];
                     const mapLink = f['Map Link'];
+                    const apiNumber = f['API Number'];
+                    
+                    // Check if this activity type should have a Track Well button
+                    const shouldShowTrackButton = apiNumber && (
+                        activityType.toLowerCase().includes('permit') ||
+                        activityType.toLowerCase().includes('rework') ||
+                        activityType.toLowerCase().includes('completed')
+                    );
+                    
                     let actionsHtml = '<div class="activity-actions">';
                     if (occLink) {
                         actionsHtml += `<a href="${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
+                    }
+                    if (shouldShowTrackButton) {
+                        actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', this)">+ Track Well</button>`;
                     }
                     if (mapLink) {
                         actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>`;
@@ -1841,11 +1895,19 @@
                 });
                 if (!res.ok) { 
                     const err = await res.json(); 
-                    throw new Error(err.error); 
+                    if (err.error && err.error.includes('already monitoring')) {
+                        showToast('Already tracking this property', 'info');
+                    } else {
+                        showToast(err.error || 'Failed to add property', 'error');
+                    }
+                    return;
                 }
+                showToast('Success, Property Added', 'success');
                 closePropertyModal();
                 await loadProperties();
-            } catch (err) { alert(err.message); }
+            } catch (err) { 
+                showToast('Error adding property: ' + err.message, 'error');
+            }
         });
 
         // Well Modal
@@ -1887,11 +1949,19 @@
                 });
                 if (!res.ok) { 
                     const err = await res.json(); 
-                    throw new Error(err.error); 
+                    if (err.error && err.error.includes('already monitoring')) {
+                        showToast('Already tracking this well', 'info');
+                    } else {
+                        showToast(err.error || 'Failed to add well', 'error');
+                    }
+                    return;
                 }
+                showToast('Success, Well Added', 'success');
                 closeWellModal();
                 await loadWells();
-            } catch (err) { alert(err.message); }
+            } catch (err) { 
+                showToast('Error adding well: ' + err.message, 'error');
+            }
         });
         
         async function deleteProperty(id) {
@@ -1917,6 +1987,51 @@
                 await loadWells();
             } catch { alert('Error deleting.'); }
         }
+
+        async function trackWellFromActivity(apiNumber, wellName, buttonElement) {
+            try {
+                // Disable the button while processing
+                buttonElement.disabled = true;
+                buttonElement.textContent = 'Adding...';
+                
+                // Check if well is already tracked by checking current wells
+                const isAlreadyTracked = loadedWells.some(w => w.fields['API Number'] === apiNumber);
+                
+                if (isAlreadyTracked) {
+                    showToast('Already tracking this well', 'info');
+                    buttonElement.textContent = 'Already Tracking';
+                    return;
+                }
+                
+                // Add the well
+                const response = await fetch('/api/wells', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ apiNumber: apiNumber })
+                });
+                
+                if (response.ok) {
+                    showToast('Success, Well Added', 'success');
+                    buttonElement.textContent = 'Added ✓';
+                    buttonElement.style.background = '#22C55E';
+                    buttonElement.style.color = 'white';
+                    buttonElement.style.borderColor = '#22C55E';
+                    
+                    // Refresh wells list to include the new well
+                    await loadWells();
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to add well', 'error');
+                    buttonElement.disabled = false;
+                    buttonElement.textContent = '+ Track Well';
+                }
+            } catch (error) {
+                console.error('Error tracking well:', error);
+                showToast('Error adding well', 'error');
+                buttonElement.disabled = false;
+                buttonElement.textContent = '+ Track Well';
+            }
+        }
         
         // Store loaded data for details modals
         let loadedProperties = [];
@@ -1932,6 +2047,23 @@
             document.getElementById('wellDetailsTitle').textContent = f['Well Name'] || 'Unknown Well';
             document.getElementById('wellDetailsApi').textContent = 'API: ' + (f['API Number'] || '—');
             document.getElementById('wellDetailsOperator').textContent = f['Operator'] || '—';
+            
+            // Handle phone number with formatting and clickable link
+            const rawPhone = f['Operator Phone'];
+            if (rawPhone) {
+                const formattedPhone = formatPhoneNumber(rawPhone);
+                document.getElementById('wellDetailsPhone').innerHTML = `<a href="tel:${rawPhone}" style="color: var(--red-dirt); text-decoration: none;">${formattedPhone}</a>`;
+            } else {
+                document.getElementById('wellDetailsPhone').innerHTML = '<span style="color: #94A3B8; font-style: italic;">Available from permit data</span>';
+            }
+            
+            // Handle contact name
+            const contactName = f['Contact Name'];
+            if (contactName) {
+                document.getElementById('wellDetailsContact').textContent = contactName;
+            } else {
+                document.getElementById('wellDetailsContact').innerHTML = '<span style="color: #94A3B8; font-style: italic;">—</span>';
+            }
             
             const sec = f['Section'] || '';
             const twn = f['Township'] || '';
@@ -1977,11 +2109,11 @@
                 const well = loadedWells.find(w => w.id === wellId);
                 if (well) well.fields['Notes'] = notes;
                 
-                alert('Notes saved!');
+                showToast('Notes saved!', 'success');
                 closeWellDetailsModal();
                 await loadWells();
             } catch (err) {
-                alert('Error saving notes.');
+                showToast('Error saving notes', 'error');
             }
         }
         
@@ -2034,11 +2166,11 @@
                     prop.fields['MERIDIAN'] = meridian;
                 }
                 
-                alert('Changes saved!');
+                showToast('Changes saved!', 'success');
                 closePropertyDetailsModal();
                 await loadProperties();
             } catch (err) {
-                alert('Error saving changes.');
+                showToast('Error saving changes', 'error');
             }
         }
         
@@ -3668,8 +3800,7 @@ function finishBulkUploadWells() {
 <!-- Add Papa Parse library (CSV parsing) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
-<!-- Add SheetJS library (Excel parsing) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- SheetJS library removed - now using server-side JSON processing -->
 
 <!-- Custom Confirm Dialog -->
 <div class="confirm-overlay" id="confirmDialog">

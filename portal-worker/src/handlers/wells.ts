@@ -26,6 +26,8 @@ import {
   authenticateRequest
 } from '../utils/auth.js';
 
+import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
+
 import type { Env } from '../types/env.js';
 
 /**
@@ -220,6 +222,12 @@ export async function handleAddWell(request: Request, env: Env) {
     // If user didn't provide a well name, use the one from OCC
     if (!suggestedWellName && wellDetails.wellName) {
       suggestedWellName = wellDetails.wellName;
+    } else if (suggestedWellName && suggestedWellName.includes('#')) {
+      // User provided a well name with # - use it as-is to avoid double hashtags
+      // Don't override with OCC well name
+    } else if (!suggestedWellName || !suggestedWellName.includes('#')) {
+      // User provided no name or name without #, prefer OCC well name if available
+      suggestedWellName = wellDetails.wellName || suggestedWellName;
     }
     
     // Capture all OCC data
@@ -232,9 +240,32 @@ export async function handleAddWell(request: Request, env: Env) {
     wellStatus = wellDetails.wellStatus || "";
     
     console.log(`OCC well found: ${wellDetails.wellName} - ${operator} - ${county} County`);
+    console.log(`[DEBUG] Raw OCC operator: "${operator}"`);
   } else {
     console.warn(`Well API ${cleanApi} not found in OCC database - may be pending or invalid`);
     // Still allow adding, but with placeholder link and empty fields
+  }
+  
+  // Look up operator information from comprehensive operator database
+  let operatorPhone: string | null = null;
+  let contactName: string | null = null;
+  if (operator) {
+    try {
+      const operatorInfo = await findOperatorByName(operator, env);
+      console.log(`[DEBUG] Operator lookup for "${operator}" returned:`, operatorInfo);
+      if (operatorInfo) {
+        operatorPhone = operatorInfo.phone || null;
+        contactName = operatorInfo.contactName || null;
+        console.log(`Found operator info for ${operator}: phone=${operatorPhone}, contact=${contactName}`);
+      } else {
+        console.log(`No operator info found for: ${operator}`);
+        console.log(`[DEBUG] Normalized search name would be: "${operator.trim().toLowerCase()}"`);
+      }
+    } catch (error) {
+      console.warn(`Failed to lookup operator info for ${operator}:`, error);
+      console.warn(`Error details:`, error.message);
+      // Continue without operator info - don't let this block well creation
+    }
   }
   
   const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
@@ -251,13 +282,15 @@ export async function handleAddWell(request: Request, env: Env) {
         "Well Name": suggestedWellName,
         Status: "Active",
         "OCC Map Link": occMapLink,
-        Operator: operator,
+        Operator: operator || "",
         County: county,
         Section: section,
         Township: township,
         Range: range,
         "Well Type": wellType,
         "Well Status": wellStatus,
+        ...(operatorPhone && { "Operator Phone": operatorPhone }),
+        ...(contactName && { "Contact Name": contactName }),
         Notes: body.notes || ""
       }
     })

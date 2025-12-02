@@ -10,11 +10,10 @@
     "test": "vitest",
     "cf-typegen": "wrangler types"
   },
-  "dependencies": {},
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241106.0",
-    "wrangler": "^3.78.12",
-    "vitest": "^1.6.0"
+    "vitest": "^1.6.0",
+    "wrangler": "^4.51.0"
   },
   "engines": {
     "node": ">=18"

@@ -2,6 +2,10 @@ name = "portal-worker"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+# Static assets - use public directory
+[assets]
+directory = "./public"
+
 [[kv_namespaces]]
 binding = "AUTH_TOKENS"
 id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"

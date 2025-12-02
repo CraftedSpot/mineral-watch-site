@@ -50,6 +50,16 @@ async function createCheckoutSession(env: Env, user: any, priceId: string, exist
     params.append('customer', existingCustomerId);
   }
   
+  // Debug: Check if we're using live or test key
+  const keyPrefix = env.STRIPE_SECRET_KEY?.substring(0, 8) || 'unknown';
+  const isLiveKey = keyPrefix.includes('sk_live');
+  console.log(`[Billing] Using Stripe key: ${keyPrefix}... MODE: ${isLiveKey ? 'LIVE' : 'TEST'}`);
+  
+  // If still test mode, throw error to help debug
+  if (!isLiveKey) {
+    console.error(`[Billing] ERROR: Still using test key! Full prefix: ${env.STRIPE_SECRET_KEY?.substring(0, 12)}`);
+  }
+  
   const response = await fetch('https://api.stripe.com/v1/checkout/sessions', {
     method: 'POST',
     headers: {
@@ -66,6 +76,7 @@ async function createCheckoutSession(env: Env, user: any, priceId: string, exist
   }
   
   const session = await response.json();
+  console.log(`[Billing] Created session: ${session.id} (mode: ${session.mode || 'unknown'})`);
   return jsonResponse({ url: session.url, type: 'checkout' });
 }
 

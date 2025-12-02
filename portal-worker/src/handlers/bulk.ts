@@ -32,6 +32,8 @@ import {
   fetchWellDetailsFromOCC
 } from './wells.js';
 
+import { findOperatorByName } from '../services/operators.js';
+
 import type { Env } from '../types/env.js';
 
 // Normalization Helper Functions
@@ -551,7 +553,18 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
     const occBatch = toCreate.slice(i, i + occBatchSize);
     const occPromises = occBatch.map(async (well: any) => {
       const occData = await fetchWellDetailsFromOCC(well.apiNumber, env);
-      return { ...well, occData };
+      
+      // Look up operator information if we have an operator
+      let operatorInfo = null;
+      if (occData?.operator) {
+        try {
+          operatorInfo = await findOperatorByName(occData.operator, env);
+        } catch (error) {
+          console.warn(`[Bulk] Failed to lookup operator info for ${occData.operator}:`, error);
+        }
+      }
+      
+      return { ...well, occData, operatorInfo };
     });
     const batchResults = await Promise.all(occPromises);
     wellsWithData.push(...batchResults);
@@ -589,13 +602,16 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
       body: JSON.stringify({
         records: batch.map((well: any) => {
           const occ = well.occData || {};
+          const operatorInfo = well.operatorInfo || {};
           const mapLink = occ.lat && occ.lon ? generateMapLink(occ.lat, occ.lon, occ.wellName) : '#';
           
           return {
             fields: {
               User: [user.id],
               "API Number": well.apiNumber,
-              "Well Name": occ.wellName || well.wellName || "",
+              "Well Name": (well.wellName && well.wellName.includes('#')) 
+                ? well.wellName 
+                : (occ.wellName || well.wellName || ""),
               Status: "Active",
               "OCC Map Link": mapLink,
               Operator: occ.operator || "",
@@ -605,6 +621,8 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
               Range: occ.range || "",
               "Well Type": occ.wellType || "",
               "Well Status": occ.wellStatus || "",
+              ...(operatorInfo.phone && { "Operator Phone": operatorInfo.phone }),
+              ...(operatorInfo.contactName && { "Contact Name": operatorInfo.contactName }),
               Notes: well.notes || ""
             }
           };

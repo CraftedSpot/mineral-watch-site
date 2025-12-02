@@ -416,7 +416,7 @@
             document.getElementById('loadingOverlay').classList.add('show');
             
             try {
-                const res = await fetch('/api/upgrade', {
+                const res = await fetch('https://portal.mymineralwatch.com/api/upgrade?t=' + Date.now(), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ plan, interval: currentInterval })

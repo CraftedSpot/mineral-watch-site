@@ -18,33 +18,19 @@ const BASE_ID = 'app3j3X29Uvp5stza';
 const USERS_TABLE = '👤 Users';
 const BASE_URL = 'https://portal.mymineralwatch.com';
 
-// Price ID to Plan mapping - includes both old and new pricing
+// PRICE_TO_PLAN MAPPING - LIVE MODE ONLY
 const PRICE_TO_PLAN = {
-  // === NEW PRICING (Current) ===
   // Starter - $9/mo, $86/yr
-  'price_1SXDS9641UqM8A7NeSc0MOTv': 'Starter',   // monthly $9
-  'price_1SXDSG641UqM8A7N9PbCLsvG': 'Starter',   // annual $86
+  "price_1SZZbv9OfJmRCDOqciJ5AIlK": "Starter",   // monthly $9
+  "price_1SZZbv9OfJmRCDOqhN2HIBtc": "Starter",   // annual $86
   
   // Standard - $29/mo, $278/yr
-  'price_1SXDSL641UqM8A7NSS10CWBd': 'Standard',  // monthly $29
-  'price_1SXDSQ641UqM8A7NIWcuCzmp': 'Standard',  // annual $278
+  "price_1SZZbu9OfJmRCDOquBBFk0dY": "Standard",  // monthly $29
+  "price_1SZZbu9OfJmRCDOqYZm2Hbi6": "Standard",  // annual $278
   
   // Professional - $99/mo, $950/yr
-  'price_1SXDSV641UqM8A7NZTXdvUls': 'Professional', // monthly $99
-  'price_1SXDSZ641UqM8A7NvTHEJy9s': 'Professional', // annual $950
-  
-  // === OLD PRICING (Legacy - keep for existing subscribers) ===
-  // Starter - $5/mo, $50/yr
-  'price_1SX2LM641UqM8A7N3JXKtI33': 'Starter',   // monthly $5
-  'price_1SX2PI641UqM8A7NbFpAMFWs': 'Starter',   // annual $50
-  
-  // Standard - $15/mo, $150/yr
-  'price_1SX2PV641UqM8A7NXDe4n0EX': 'Standard',  // monthly $15
-  'price_1SX2Pa641UqM8A7NODMJKKq9': 'Standard',  // annual $150
-  
-  // Professional - $49/mo, $490/yr
-  'price_1SX2Pi641UqM8A7NfBdy2pfU': 'Professional', // monthly $49
-  'price_1SX2Pm641UqM8A7NW9rK46cn': 'Professional'  // annual $490
+  "price_1SZZbu9OfJmRCDOqOp2YjT1N": "Professional", // monthly $99
+  "price_1SZZbt9OfJmRCDOquMh7kSyI": "Professional", // annual $950
 };
 
 // Plan limits for email content
