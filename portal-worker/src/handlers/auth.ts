@@ -155,7 +155,7 @@ export async function handleRegister(request: Request, env: Env) {
     const body = await request.json();
     console.log("Request body parsed successfully");
     
-    const { email, name } = body;
+    const { email, name, newsletter } = body;
     
     // Validate email
     if (!email || !email.includes('@')) {
@@ -190,7 +190,8 @@ export async function handleRegister(request: Request, env: Env) {
           Email: normalizedEmail,
           Name: name || normalizedEmail.split('@')[0],
           Plan: "Free",
-          Status: "Active"
+          Status: "Active",
+          Newsletter: newsletter === true // Convert to boolean and save to Airtable
         }
       })
     });

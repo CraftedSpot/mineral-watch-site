@@ -67,6 +67,12 @@
                         <label for="signupEmail">Email Address</label>
                         <input type="email" id="signupEmail" placeholder="you@example.com" required>
                     </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; font-weight: normal; cursor: pointer;">
+                            <input type="checkbox" id="newsletter" checked style="margin-right: 8px; width: auto; cursor: pointer;">
+                            <span style="font-size: 14px; color: var(--slate-blue);">Subscribe to product updates and mineral rights insights (optional)</span>
+                        </label>
+                    </div>
                     <button type="submit" class="btn" id="signupBtn">Create Free Account</button>
                 </form>
                 <div class="toggle-mode">
@@ -133,6 +139,7 @@
             const btn = document.getElementById('signupBtn');
             const name = document.getElementById('signupName').value;
             const email = document.getElementById('signupEmail').value;
+            const newsletter = document.getElementById('newsletter').checked;
             
             btn.disabled = true;
             btn.textContent = 'Creating account...';
@@ -141,7 +148,7 @@
                 const res = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, email })
+                    body: JSON.stringify({ name, email, newsletter })
                 });
                 
                 const data = await res.json();
