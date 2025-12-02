@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mineral Watch - Automated Alerts for Oklahoma Owners</title>
+    <meta name="description" content="Get an email alert the moment a rig shows up on your land. Automated OCC monitoring for Oklahoma mineral owners.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background-color: #fff;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+        
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        header {
+            background: #fff;
+            padding: 20px 0;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .logo {
+            font-size: 22px;
+            font-weight: 900;
+            color: var(--oil-navy);
+            letter-spacing: -0.5px;
+        }
+        
+     /* Hero Section */
+        .hero {
+            background: linear-gradient(rgba(28, 43, 54, 0.9), rgba(28, 43, 54, 0.75)), url('hero-bg-2.jpg');
+            background-size: cover;
+            background-position: center;
+            color: white;
+            padding: 100px 0;
+            position: relative;
+        }
+        
+        .hero-layout {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr;
+            gap: 60px;
+            align-items: center;
+        }
+        
+        .hero h1 {
+            font-size: 46px;
+            margin-bottom: 24px;
+            line-height: 1.2;
+            font-weight: 900;
+        }
+        
+        .hero .subtitle {
+            font-size: 20px;
+            margin-bottom: 30px;
+            opacity: 0.9;
+            font-weight: 400;
+            max-width: 500px;
+        }
+        
+        .trust-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            margin-bottom: 30px;
+            font-family: 'Inter', sans-serif;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-weight: 600;
+        }
+
+        .cta-box {
+            background: white;
+            padding: 35px;
+            border-radius: 4px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+            border-top: 4px solid var(--red-dirt);
+        }
+        
+        .cta-box h2 {
+            color: var(--oil-navy);
+            margin-bottom: 10px;
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .beta-tag {
+            background-color: #DEF7EC;
+            color: #03543F;
+            font-size: 12px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-family: 'Inter', sans-serif;
+            text-transform: uppercase;
+        }
+
+        .signup-form {
+            margin-top: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 6px;
+            color: #4A5568;
+            font-size: 14px;
+            font-weight: 600;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #CBD5E0;
+            border-radius: 4px;
+            font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+            box-shadow: 0 0 0 3px rgba(192, 86, 33, 0.1);
+        }
+        
+        .cta-button {
+            width: 100%;
+            padding: 16px;
+            background: var(--red-dirt);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .cta-button:hover {
+            background: #9C4215;
+        }
+        
+        .privacy-note {
+            margin-top: 15px;
+            font-size: 12px;
+            color: #718096;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .section-padding {
+            padding: 80px 0;
+        }
+        
+        .section-header {
+            text-align: center;
+            max-width: 700px;
+            margin: 0 auto 60px auto;
+        }
+        
+        .section-header h2 {
+            font-size: 36px;
+            color: var(--oil-navy);
+            margin-bottom: 16px;
+        }
+
+        .section-header p {
+            color: #4A5568;
+            font-size: 18px;
+        }
+        
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 40px;
+        }
+        
+        .card {
+            background: white;
+            padding: 30px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+        }
+        
+        .icon-box {
+            width: 48px;
+            height: 48px;
+            background: #EDF2F7;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            color: var(--red-dirt);
+        }
+        
+        .card h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        
+        .card p {
+            font-size: 15px;
+            color: #4A5568;
+        }
+
+        footer {
+            background: var(--oil-navy);
+            color: #A0AEC0;
+            padding: 40px 0;
+            text-align: center;
+            font-size: 14px;
+        }
+
+        footer a {
+            color: #90cdf4;
+            text-decoration: none;
+        }
+
+        @media (max-width: 768px) {
+            .hero-layout {
+                grid-template-columns: 1fr;
+                gap: 40px;
+            }
+            .hero {
+                padding: 60px 0;
+                text-align: center;
+            }
+            .hero .subtitle, .trust-badge {
+                margin-left: auto;
+                margin-right: auto;
+            }
+            .cta-box {
+                padding: 25px;
+            }
+            .hero h1 {
+                font-size: 34px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+   <header>
+        <div class="container">
+            <div class="logo">Mineral Watch</div>
+        </div>
+    </header>
+
+    <section class="hero">
+        <div class="container hero-layout">
+            
+            <div class="hero-text">
+                <div class="trust-badge">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    Now Live in Oklahoma
+                </div>
+                
+                <h1>Know when permits are filed on your land—<em>before</em> the trucks arrive.</h1>
+                
+                <p class="subtitle">We monitor the Oklahoma Corporation Commission 24/7 so you don't have to. Get plain English email alerts for new permits, pooling orders, and activity.</p>
+            </div>
+            
+            <div class="hero-form">
+                <div class="cta-box">
+                    <div class="beta-tag">Limited Early Access</div>
+                    <h2>Join the Waitlist</h2>
+                    <p style="margin-bottom: 20px; font-size: 14px; color: #4A5568;">Free for the first year, for the first 10 "Founding Members".</p>
+                    
+                    <form class="signup-form" id="waitlistForm">
+                        <div class="form-group">
+                            <label for="name">First Name</label>
+                            <input type="text" id="name" name="name" placeholder="Jane" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="email">Email Address</label>
+                            <input type="email" id="email" name="email" placeholder="jane@example.com" required>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label style="display: flex; align-items: start; gap: 10px; cursor: pointer;">
+                                <input type="checkbox" name="newsletter" id="newsletter" checked style="width: auto; margin-top: 3px;">
+                                <span style="font-size: 14px; color: #4A5568; font-weight: 400;">Send me monthly Oklahoma mineral market updates</span>
+                            </label>
+                        </div>
+                        
+                        <button type="submit" class="cta-button">Start My Watchdog</button>
+                        
+                        <div class="privacy-note">
+                            <svg width="12" height="12" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
+                            We never sell your data or make offers to buy.
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <section class="section-padding" style="background: #F7FAFC;">
+        <div class="container">
+            <div class="section-header">
+                <h2>Are you missing critical updates?</h2>
+                <p>Operators know about activity before you do. We level the playing field.</p>
+            </div>
+            
+            <div class="grid-3">
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>
+                    </div>
+                    <h3>Confusing Paperwork</h3>
+                    <p>Pooling orders and permits arrive in dense legal jargon. We send you plain English alerts.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h3>Missed Deadlines</h3>
+                    <p>By the time you see the letter in the mail, the window to respond or protest may have closed.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path></svg>
+                    </div>
+                    <h3>Horizontal Wells</h3>
+                    <p>Modern drilling can affect your minerals even when the rig is on someone else's land. We track adjacent sections.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                    </div>
+                    <h3>Lost Revenue</h3>
+                    <p>Without monitoring, you might miss reworking opportunities or new production on your properties.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path></svg>
+                    </div>
+                    <h3>Constant Worry</h3>
+                    <p>Checking the OCC website manually is time-consuming and you're never sure you caught everything.</p>
+                </div>
+                
+                <div class="card">
+                    <div class="icon-box">
+                        <svg width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"></path></svg>
+                    </div>
+                    <h3>Information Asymmetry</h3>
+                    <p>You get one lease offer while five operators are active nearby. Know what they know.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="section-padding">
+        <div class="container">
+            <div class="section-header">
+                <h2>How Mineral Watch Works</h2>
+                <p>Simple, automated monitoring in three steps</p>
+            </div>
+            
+            <div style="max-width: 700px; margin: 0 auto;">
+                <div style="display: flex; gap: 30px; margin-bottom: 40px; align-items: start;">
+                    <div style="flex-shrink: 0; width: 50px; height: 50px; background: var(--red-dirt); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">1</div>
+                    <div>
+                        <h3 style="margin-bottom: 10px;">Add Your Properties</h3>
+                        <p style="color: #4A5568;">After you sign up, we'll help you add your Oklahoma mineral properties and wells to monitor.</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 30px; margin-bottom: 40px; align-items: start;">
+                    <div style="flex-shrink: 0; width: 50px; height: 50px; background: var(--red-dirt); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">2</div>
+                    <div>
+                        <h3 style="margin-bottom: 10px;">We Monitor 24/7</h3>
+                        <p style="color: #4A5568;">Our system checks the OCC database every day for new permits, drilling activity, and status changes.</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 30px; align-items: start;">
+                    <div style="flex-shrink: 0; width: 50px; height: 50px; background: var(--red-dirt); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 700;">3</div>
+                    <div>
+                        <h3 style="margin-bottom: 10px;">Get Instant Alerts</h3>
+                        <p style="color: #4A5568;">Receive clear email alerts with direct links to official OCC records. Take action confidently.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+<footer>
+        <div class="container">
+            <p>&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
+            
+            <div style="margin-top: 30px; border-top: 1px solid #2D3748; padding-top: 20px; text-align: left;">
+                <p style="font-size: 11px; color: #718096; line-height: 1.6; margin-bottom: 10px;">
+                    <strong>Disclaimer:</strong> Mineral Watch is an automated monitoring tool provided for informational purposes only. 
+                    We rely on public data from the Oklahoma Corporation Commission (OCC) and cannot guarantee the accuracy, completeness, 
+                    or timeliness of this data. Government databases frequently contain errors, delays, or omissions.
+                </p>
+                <p style="font-size: 11px; color: #718096; line-height: 1.6;">
+                    This service does not constitute legal, financial, or investment advice. Mineral Watch is not responsible for any 
+                    missed deadlines, lost revenue, financial losses, or actions taken based on these alerts. Users should always 
+                    verify official records directly with the OCC or a qualified attorney before making decisions.
+                </p>
+            </div>
+            <p style="margin-top: 20px; font-size: 12px;">
+                <a href="/cdn-cgi/l/email-protection#bac9cfcacad5c8cefad7c3d7d3d4dfc8dbd6cddbced9d294d9d5d7" style="color: #A0AEC0; text-decoration: none;">Contact Us</a>
+            </p>
+        </div>
+    </footer>
+
+    <script>
+    document.getElementById("waitlistForm").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      
+      const button = e.target.querySelector("button[type=\"submit\"]");
+      const originalText = button.textContent;
+      button.textContent = "Joining...";
+      button.disabled = true;
+      
+      const formData = new FormData(e.target);
+      const data = {
+        firstName: formData.get("name"),
+        email: formData.get("email"),
+        newsletter: formData.get("newsletter") === "on"
+      };
+      
+      try {
+        const response = await fetch("https://form-worker.photog12.workers.dev", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+        
+        if (response.ok) {
+          alert("🎉 Welcome to Mineral Watch! Check your email for next steps.");
+          e.target.reset();
+        } else {
+          throw new Error("Submission failed");
+        }
+      } catch (error) {
+        alert("Something went wrong. Please try again or email us at james@mymineralwatch.com");
+      } finally {
+        button.textContent = originalText;
+        button.disabled = false;
+      }
+    });
+    </script>
+
+</body>
+</html>
