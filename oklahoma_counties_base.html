@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oklahoma Counties Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+        .controls {
+            position: absolute; top: 10px; right: 10px;
+            background: white; padding: 10px; border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); z-index: 1000;
+        }
+        .controls h3 { margin: 0 0 10px 0; font-size: 16px; }
+        .controls label { display: block; margin: 5px 0; font-size: 14px; }
+        .controls input[type="checkbox"] { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="controls">
+        <h3>🗺️ Map Controls</h3>
+        <label><input type="checkbox" id="toggle-counties" checked> Show County Boundaries</label>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Initialize map centered on Oklahoma
+        const map = L.map('map').setView([35.5, -97.5], 7);
+
+        // Add OpenStreetMap base tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // County layer variable
+        let countyLayer;
+
+        // Function to load and display county data
+        async function loadCountyData() {
+            try {
+                console.log('Loading county data...');
+                
+                const response = await fetch('./County_Boundaries_2423125635378062927.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const countyData = await response.json();
+                console.log('County data loaded:', countyData.features.length, 'counties');
+                
+                // Create county layer with styling and popups
+                countyLayer = L.geoJSON(countyData, {
+                    style: {
+                        color: '#2980b9',
+                        weight: 2,
+                        fillOpacity: 0.1,
+                        fillColor: '#3498db'
+                    },
+                    onEachFeature: function(feature, layer) {
+                        // Get county name from properties
+                        const countyName = feature.properties.COUNTY_NAME || 'Unknown County';
+                        
+                        // Add popup with county name and details
+                        layer.bindPopup(`
+                            <strong>${countyName} County</strong><br>
+                            County #: ${feature.properties.COUNTY_NO || 'N/A'}<br>
+                            FIPS: ${feature.properties.COUNTY_FIPS_NO || 'N/A'}
+                        `);
+                        
+                        // Add hover effects
+                        layer.on('mouseover', function() {
+                            this.setStyle({
+                                weight: 3,
+                                fillOpacity: 0.3
+                            });
+                        });
+                        
+                        layer.on('mouseout', function() {
+                            this.setStyle({
+                                weight: 2,
+                                fillOpacity: 0.1
+                            });
+                        });
+                    }
+                }).addTo(map);
+
+                console.log('County layers created and added to map');
+                
+                // Fit map to county boundaries with some padding
+                map.fitBounds(countyLayer.getBounds(), {padding: [20, 20]});
+                
+            } catch (error) {
+                console.error('Error loading county data:', error);
+                alert(`Could not load county data: ${error.message}`);
+            }
+        }
+
+        // Toggle county boundaries visibility
+        function toggleCounties() {
+            const checkbox = document.getElementById('toggle-counties');
+            const isChecked = checkbox.checked;
+            
+            if (isChecked && countyLayer) {
+                if (!map.hasLayer(countyLayer)) {
+                    map.addLayer(countyLayer);
+                }
+            } else if (countyLayer) {
+                if (map.hasLayer(countyLayer)) {
+                    map.removeLayer(countyLayer);
+                }
+            }
+        }
+
+        // Event listener for county toggle
+        document.getElementById('toggle-counties').addEventListener('change', toggleCounties);
+
+        // Load county data when page loads
+        loadCountyData();
+        
+        console.log('🗺️ Oklahoma Counties Map initialized');
+    </script>
+</body>
+</html>
