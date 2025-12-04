@@ -103,11 +103,56 @@
             document.getElementById('loginSection').style.display = 'block';
         }
         
+        // Keep track of last email for resend
+        let lastEmail = '';
+        
+        // Show resend button and form
+        function showResendButton() {
+            document.getElementById('loginMessage').innerHTML = `
+                <div class="message">
+                    <p style="margin-bottom: 10px;">We can send another login link to: <strong>${lastEmail}</strong></p>
+                    <button onclick="resendLoginLink()" class="btn">Resend Login Link</button>
+                    <p style="margin-top: 10px; font-size: 12px; color: var(--slate-blue);">
+                        Still having issues? Email us at <a href="mailto:support@mymineralwatch.com">support@mymineralwatch.com</a>
+                    </p>
+                </div>`;
+        }
+        
+        // Resend login link
+        async function resendLoginLink() {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            
+            try {
+                const res = await fetch('/api/auth/send-magic-link', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: lastEmail })
+                });
+                
+                if (res.ok) {
+                    document.getElementById('loginMessage').innerHTML = `
+                        <div class="message success">
+                            <strong>New login link sent!</strong><br>
+                            <span style="font-size: 13px;">Check all your email folders including Spam</span>
+                        </div>`;
+                } else {
+                    throw new Error('Failed to resend');
+                }
+            } catch (err) {
+                document.getElementById('loginMessage').innerHTML = '<div class="message error">Failed to resend. Please try again or contact support.</div>';
+            }
+        }
+        
         // Login form handler
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
             const btn = document.getElementById('loginBtn');
             const email = document.getElementById('loginEmail').value;
+            
+            // Store email for resend functionality
+            lastEmail = email;
             
             btn.disabled = true;
             btn.textContent = 'Sending...';
@@ -120,7 +165,16 @@
                 });
                 
                 if (res.ok) {
-                    document.getElementById('loginMessage').innerHTML = '<div class="message success">Check your email for a login link!</div>';
+                    document.getElementById('loginMessage').innerHTML = `
+                        <div class="message success">
+                            <strong>Check your email for a login link!</strong><br>
+                            <span style="font-size: 13px;">Also check your Promotions, Updates, or Spam folders</span>
+                        </div>
+                        <div style="margin-top: 20px; text-align: center;">
+                            <button onclick="showResendButton()" style="background: transparent; border: none; color: var(--red-dirt); font-size: 14px; text-decoration: underline; cursor: pointer;">
+                                Didn't receive the email?
+                            </button>
+                        </div>`;
                     document.getElementById('loginForm').style.display = 'none';
                 } else {
                     const data = await res.json();

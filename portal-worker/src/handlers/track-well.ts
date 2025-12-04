@@ -22,7 +22,8 @@ import {
 } from '../services/airtable.js';
 
 import {
-  fetchWellDetailsFromOCC
+  fetchWellDetailsFromOCC,
+  lookupCompletionData
 } from './wells.js';
 
 import type { Env } from '../types/env.js';
@@ -319,6 +320,22 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
         wellStatus = wellDetails.wellStatus || "";
       }
       
+      // Look up completion data to enrich the well record
+      console.log(`🔍 Looking up completion data for tracked API ${cleanApi}...`);
+      const completionData = await lookupCompletionData(cleanApi, env);
+      
+      // Merge completion data (takes precedence)
+      if (completionData) {
+        console.log(`📊 Enriching tracked well with completion data: ${completionData.formationName || 'Unknown formation'}`);
+        
+        if (completionData.wellName && !wellName) wellName = completionData.wellName;
+        if (completionData.operator && !operator) operator = completionData.operator;
+        if (completionData.county && !county) county = completionData.county;
+        if (completionData.surfaceSection && !section) section = completionData.surfaceSection;
+        if (completionData.surfaceTownship && !township) township = completionData.surfaceTownship;
+        if (completionData.surfaceRange && !range) range = completionData.surfaceRange;
+      }
+      
       // Add the well to Airtable
       const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
       const response = await fetch(createUrl, {
@@ -341,7 +358,25 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
             Range: range,
             "Well Type": wellType,
             "Well Status": wellStatus,
-            Notes: "Added via signed email tracking link"
+            Notes: "Added via signed email tracking link",
+            
+            // Enhanced fields from completion data
+            ...(completionData?.formationName && { "Formation": completionData.formationName }),
+            ...(completionData?.formationDepth && { "Formation Depth": completionData.formationDepth }),
+            ...(completionData?.ipGas && { "IP Gas": completionData.ipGas }),
+            ...(completionData?.ipOil && { "IP Oil": completionData.ipOil }),
+            ...(completionData?.ipWater && { "IP Water": completionData.ipWater }),
+            ...(completionData?.pumpingFlowing && { "Pumping Flowing": completionData.pumpingFlowing }),
+            ...(completionData?.spudDate && { "Spud Date": completionData.spudDate }),
+            ...(completionData?.completionDate && { "Completion Date": completionData.completionDate }),
+            ...(completionData?.firstProdDate && { "First Prod Date": completionData.firstProdDate }),
+            ...(completionData?.drillType && { "Drill Type": completionData.drillType }),
+            ...(completionData?.lateralLength && { "Lateral Length": completionData.lateralLength }),
+            ...(completionData?.totalDepth && { "Total Depth": completionData.totalDepth }),
+            ...(completionData?.bhSection && { "BH Section": completionData.bhSection }),
+            ...(completionData?.bhTownship && { "BH Township": completionData.bhTownship }),
+            ...(completionData?.bhRange && { "BH Range": completionData.bhRange }),
+            ...(completionData && { "Last Updated": new Date().toISOString() })
           }
         })
       });

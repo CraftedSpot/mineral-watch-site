@@ -18,6 +18,10 @@ AIRTABLE_ACTIVITY_TABLE = "tblhBZNR5pDr620NY"
 # Change to "false" when ready for production
 DRY_RUN = "false"
 
+# Worker limits
+[limits]
+cpu_ms = 300000  # 5 minutes CPU time for completion processing
+
 # Cron Triggers (UTC)
 # Daily at 6 AM Central = 12:00 UTC (or 11:00 UTC during DST)
 # Weekly on Sunday at 2 AM Central = 08:00 UTC Sunday
@@ -29,6 +33,11 @@ DRY_RUN = "false"
 [[kv_namespaces]]
 binding = "MINERAL_CACHE"
 id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
+
+# KV Namespace for completions data cache
+[[kv_namespaces]]
+binding = "COMPLETIONS_CACHE"
+id = "d39109ffa98d4f4d999ee37098d0c13e"
 
 # Secrets (add via wrangler secret put)
 # - MINERAL_AIRTABLE_API_KEY

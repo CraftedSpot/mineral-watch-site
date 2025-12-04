@@ -28,7 +28,55 @@ import {
 
 import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
 
-import type { Env } from '../types/env.js';
+import type { Env, CompletionData } from '../types/env.js';
+
+/**
+ * Convert ISO date to US format for Airtable (YYYY-MM-DD -> M/D/YY)
+ * @param isoDate ISO date string like "1965-12-20" 
+ * @returns US formatted date like "12/20/65" or null if invalid
+ */
+function formatDateForAirtable(isoDate: string): string | null {
+  if (!isoDate) return null;
+  try {
+    const date = new Date(isoDate);
+    if (isNaN(date.getTime())) return null;
+    
+    const month = date.getMonth() + 1; // 0-based to 1-based
+    const day = date.getDate();
+    const year = date.getFullYear() % 100; // Get last 2 digits of year
+    
+    return `${month}/${day}/${year.toString().padStart(2, '0')}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Extract well number from well name (e.g., "2" from "MYRTLE COLLINS ##2")
+ * @param wellName The well name string
+ * @returns Well number or null if not found
+ */
+function extractWellNumber(wellName: string): string | null {
+  if (!wellName) return null;
+  
+  // Match patterns like "#2", "##2", "No. 2", "No.2", " 2" (at end)
+  const patterns = [
+    /##+(\d+)/i,           // ##2, ###2
+    /#(\d+)/i,             // #2
+    /no\.?\s*(\d+)/i,      // No. 2, No.2, no 2
+    /\s+(\d+)$/i,          // ending with space and number
+    /-(\d+)$/i             // ending with dash and number
+  ];
+  
+  for (const pattern of patterns) {
+    const match = wellName.match(pattern);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  
+  return null;
+}
 
 /**
  * Generate OCC map link with coordinates and title
@@ -76,7 +124,7 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
   
   const params = new URLSearchParams({
     where: `api=${apiNumber}`,
-    outFields: "api,well_name,well_num,operator,county,section,township,range,welltype,wellstatus,sh_lat,sh_lon",
+    outFields: "*", // Get ALL fields to see what's available
     returnGeometry: "false",
     f: "json",
     resultRecordCount: "1"
@@ -96,6 +144,12 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
     
     if (data.features && data.features.length > 0) {
       const attr = data.features[0].attributes;
+      
+      // LOG ALL AVAILABLE FIELDS for analysis
+      console.log(`=== FULL OCC API RESPONSE FOR API ${apiNumber} ===`);
+      console.log(JSON.stringify(attr, null, 2));
+      console.log(`=== END OCC RESPONSE ===`);
+      
       const wellDetails = {
         api: attr.api,
         wellName: attr.well_name && attr.well_num && !attr.well_name.includes('#') 
@@ -110,7 +164,10 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
         wellStatus: attr.wellstatus || null,
         lat: attr.sh_lat,
         lon: attr.sh_lon,
-        cachedAt: Date.now()
+        cachedAt: Date.now(),
+        
+        // Raw attributes for analysis
+        _rawAttributes: attr
       };
       
       // Cache the result
@@ -138,6 +195,30 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
 }
 
 /**
+ * Lookup completion data from KV cache
+ * @param apiNumber 10-digit API number
+ * @param env Worker environment
+ * @returns Completion data or null if not found
+ */
+export async function lookupCompletionData(apiNumber: string, env: Env): Promise<CompletionData | null> {
+  try {
+    const cacheKey = `well:${apiNumber}`;
+    const cached = await env.COMPLETIONS_CACHE.get(cacheKey, 'json') as CompletionData | null;
+    
+    if (cached) {
+      console.log(`✅ Completion data found for API ${apiNumber}: ${cached.wellName || 'Unknown'} (${cached.source})`);
+      return cached;
+    } else {
+      console.log(`ℹ️ No completion data found for API ${apiNumber}`);
+      return null;
+    }
+  } catch (error) {
+    console.error(`❌ Failed to lookup completion data for API ${apiNumber}:`, error);
+    return null;
+  }
+}
+
+/**
  * List all wells for the authenticated user
  * @param request The incoming request
  * @param env Worker environment
@@ -160,20 +241,22 @@ export async function handleListWells(request: Request, env: Env) {
  * @returns JSON response with created well
  */
 export async function handleAddWell(request: Request, env: Env) {
-  const user = await authenticateRequest(request, env);
-  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  const body = await request.json();
-  
-  // Validate API Number (required, 10 digits)
-  if (!body.apiNumber) {
-    return jsonResponse({ error: "API Number is required" }, 400);
-  }
-  
-  // Clean and validate API format (10 digits, Oklahoma format: 35-XXX-XXXXX)
-  const cleanApi = body.apiNumber.replace(/\D/g, '');
-  if (cleanApi.length !== 10 || !cleanApi.startsWith('35')) {
-    return jsonResponse({ error: "Invalid API format. Must be 10 digits starting with 35 (e.g., 3515322352)" }, 400);
-  }
+  try {
+    const user = await authenticateRequest(request, env);
+    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+    
+    const body = await request.json();
+    
+    // Validate API Number (required, 10 digits)
+    if (!body.apiNumber) {
+      return jsonResponse({ error: "API Number is required" }, 400);
+    }
+    
+    // Clean and validate API format (10 digits, Oklahoma format: 35-XXX-XXXXX)
+    const cleanApi = body.apiNumber.replace(/\D/g, '');
+    if (cleanApi.length !== 10 || !cleanApi.startsWith('35')) {
+      return jsonResponse({ error: "Invalid API format. Must be 10 digits starting with 35 (e.g., 3515322352)" }, 400);
+    }
   
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
@@ -268,43 +351,119 @@ export async function handleAddWell(request: Request, env: Env) {
     }
   }
   
+  // Look up historical completion data from KV cache
+  console.log(`🔍 Looking up completion data for API ${cleanApi}...`);
+  const completionData = await lookupCompletionData(cleanApi, env);
+  
+  // Merge completion data with existing well data (completion data takes precedence)
+  if (completionData) {
+    console.log(`📊 Enriching well with completion data: ${completionData.formationName || 'Unknown formation'}`);
+    console.log(`📊 DEBUG - Completion data details:`, JSON.stringify({
+      formationName: completionData.formationName,
+      ipGas: completionData.ipGas,
+      ipOil: completionData.ipOil,
+      completionDate: completionData.completionDate,
+      spudDate: completionData.spudDate
+    }, null, 2));
+    
+    // Use completion data for better accuracy, fall back to GIS data
+    if (completionData.wellName && !suggestedWellName) {
+      suggestedWellName = completionData.wellName;
+    }
+    if (completionData.operator && !operator) {
+      operator = completionData.operator;
+    }
+    if (completionData.county && !county) {
+      county = completionData.county;
+    }
+    if (completionData.surfaceSection && !section) {
+      section = completionData.surfaceSection;
+    }
+    if (completionData.surfaceTownship && !township) {
+      township = completionData.surfaceTownship;
+    }
+    if (completionData.surfaceRange && !range) {
+      range = completionData.surfaceRange;
+    }
+  } else {
+    console.log(`ℹ️ No completion data found for API ${cleanApi} - well will be created with OCC data only`);
+  }
+  
   const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
+  
+  // Extract well number as fallback if not in completion data
+  const wellNumber = completionData?.wellNumber || extractWellNumber(suggestedWellName);
+
+  // Build the fields object for Airtable (using record ID for linked field)
+  const airtableFields = {
+    User: [user.id],
+    "API Number": cleanApi,
+    "Well Name": suggestedWellName,
+    Status: "Active",
+    "OCC Map Link": occMapLink,
+    Operator: operator || "",
+    County: county,
+    Section: section,
+    Township: township,
+    Range: range,
+    "Well Type": wellType,
+    "Well Status": wellStatus,
+    ...(operatorPhone && { "Operator Phone": operatorPhone }),
+    ...(contactName && { "Contact Name": contactName }),
+    Notes: body.notes || "",
+    
+    // Enhanced fields from completion data (using exact Airtable field names)
+    ...(completionData?.formationName && { "Formation Name": completionData.formationName }),
+    ...(completionData?.formationDepth && { "Formation Depth": completionData.formationDepth }),
+    ...(completionData?.ipGas && { "IP Gas (MCF/day)": completionData.ipGas }),
+    ...(completionData?.ipOil && { "IP Oil (BBL/day)": completionData.ipOil }),
+    ...(completionData?.ipWater && { "IP Water (BBL/day)": completionData.ipWater }),
+    ...(completionData?.spudDate && { "Spud Date": formatDateForAirtable(completionData.spudDate) }),
+    ...(completionData?.completionDate && { "Completion Date": formatDateForAirtable(completionData.completionDate) }),
+    ...(completionData?.lateralLength && { "Lateral Length": completionData.lateralLength })
+    // Note: BH Location field exists but would need proper formatting for BH coordinates  
+    // Note: Is Multi-Section field exists but would need logic to determine multi-section wells
+    // Note: Removed "Last Updated" field as it doesn't exist in Airtable table
+  };
+  
+  console.log(`📤 DEBUG - Sending to Airtable:`, JSON.stringify(airtableFields, null, 2));
+  
+  console.log(`📤 Creating well in Airtable...`);
+  
   const response = await fetch(createUrl, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
       "Content-Type": "application/json"
     },
-    body: JSON.stringify({
-      fields: {
-        User: [user.id],
-        "API Number": cleanApi,
-        "Well Name": suggestedWellName,
-        Status: "Active",
-        "OCC Map Link": occMapLink,
-        Operator: operator || "",
-        County: county,
-        Section: section,
-        Township: township,
-        Range: range,
-        "Well Type": wellType,
-        "Well Status": wellStatus,
-        ...(operatorPhone && { "Operator Phone": operatorPhone }),
-        ...(contactName && { "Contact Name": contactName }),
-        Notes: body.notes || ""
-      }
-    })
+    body: JSON.stringify({ fields: airtableFields })
   });
   
   if (!response.ok) {
     const err = await response.text();
-    console.error("Airtable create well error:", err);
-    throw new Error("Failed to create well");
+    console.error("❌ Airtable create well error:", {
+      status: response.status,
+      statusText: response.statusText,
+      error: err,
+      sentFields: Object.keys(airtableFields)
+    });
+    return jsonResponse({ 
+      error: "Failed to create well", 
+      details: err,
+      status: response.status 
+    }, 500);
   }
   
-  const newRecord = await response.json();
-  console.log(`Well added: API ${cleanApi} for ${user.email}`);
-  return jsonResponse(newRecord, 201);
+    const newRecord = await response.json();
+    console.log(`Well added: API ${cleanApi} for ${user.email}`);
+    return jsonResponse(newRecord, 201);
+  } catch (error) {
+    console.error("Error in handleAddWell:", error);
+    return jsonResponse({ 
+      error: "Internal server error", 
+      message: error.message 
+    }, 500);
+  }
 }
 
 /**

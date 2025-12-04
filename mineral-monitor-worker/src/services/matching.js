@@ -33,7 +33,12 @@ export async function findMatchingProperties(location, env) {
     {Status} = "Active"
   )`;
   
+  console.log(`[Matching] Direct match query: S${normalizedSec} T${township} R${range} M${effectiveMeridian} (normalized from M${meridian})`);
+  console.log(`[Matching] Airtable formula: ${formula}`);
+  
   const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
+  
+  console.log(`[Matching] Found ${properties.length} direct property matches`);
   
   for (const prop of properties) {
     // Get the linked user

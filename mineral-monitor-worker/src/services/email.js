@@ -42,6 +42,20 @@ async function generateTrackToken(userId, apiNumber, expiration, secret) {
  * @param {string} [data.apiNumber] - 10-digit API number
  * @param {string} [data.wellType] - OIL, GAS, etc.
  * @param {string} [data.userId] - Airtable user record ID for signed links
+ * @param {boolean} [data.isMultiSection] - Horizontal well crosses multiple sections
+ * @param {string} [data.bhLocation] - Bottom hole location (S31 T19N R11W)
+ * @param {number} [data.lateralLength] - Lateral length in feet
+ * @param {string} [data.lateralDirection] - Lateral direction (SW, NE, etc.)
+ * @param {string} [data.sectionsAffected] - Sections affected (S19, S31)
+ * @param {string} [data.formationName] - Formation name (Woodford)
+ * @param {number} [data.formationDepth] - Formation depth in feet
+ * @param {number} [data.ipGas] - Initial gas production MCF/day
+ * @param {number} [data.ipOil] - Initial oil production BBL/day
+ * @param {number} [data.ipWater] - Initial water production BBL/day
+ * @param {string} [data.pumpingFlowing] - FLOWING or PUMPING
+ * @param {string} [data.spudDate] - Formatted spud date
+ * @param {string} [data.completionDate] - Formatted completion date
+ * @param {string} [data.firstProdDate] - Formatted first production date
  */
 export async function sendAlertEmail(env, data) {
   const {
@@ -59,7 +73,24 @@ export async function sendAlertEmail(env, data) {
     drillType,
     apiNumber,
     wellType,
-    userId
+    userId,
+    // Horizontal well data (completions only)
+    isMultiSection,
+    bhLocation,
+    lateralLength,
+    lateralDirection,
+    sectionsAffected,
+    // Production data
+    formationName,
+    formationDepth,
+    ipGas,
+    ipOil,
+    ipWater,
+    pumpingFlowing,
+    // Timeline
+    spudDate,
+    completionDate,
+    firstProdDate
   } = data;
   
   const subject = buildSubject(alertLevel, activityType, county);
@@ -162,7 +193,7 @@ function getActivityStyle(activityType) {
 /**
  * Get contextual explanation based on activity type
  */
-function getExplanation(activityType, alertLevel) {
+function getExplanation(activityType, alertLevel, isMultiSection = false) {
   const explanations = {
     'New Permit': {
       meaning: alertLevel === 'YOUR PROPERTY' 
@@ -172,8 +203,10 @@ function getExplanation(activityType, alertLevel) {
       tipType: 'warning'
     },
     'Well Completed': {
-      meaning: 'Drilling is complete and the well is now producing oil or gas.',
-      tip: '🎉 Royalty checks should follow. First payment typically arrives 3-6 months after completion.',
+      meaning: isMultiSection 
+        ? 'This horizontal well crosses multiple sections and is now producing. If you received a pooling order for this unit, royalties should follow.'
+        : 'Drilling is complete and the well is now producing oil or gas.',
+      tip: 'Royalty checks should follow. First payment typically arrives 3-6 months after completion.',
       tipType: 'success'
     },
     'Operator Transfer': {
@@ -213,7 +246,7 @@ async function buildHtmlBody(data, env) {
   
   const levelStyle = getAlertLevelStyle(alertLevel);
   const activityStyle = getActivityStyle(activityType);
-  const explanation = getExplanation(activityType, alertLevel);
+  const explanation = getExplanation(activityType, alertLevel, isMultiSection);
   
   const drillTypeLabel = {
     'HH': 'Horizontal',
@@ -279,11 +312,19 @@ async function buildHtmlBody(data, env) {
                       <td>
                         <span style="display: inline-block; background: ${levelStyle.color}; color: white; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; margin-right: 8px;">${alertLevel}</span>
                         <span style="display: inline-block; background: ${activityStyle.bgColor}; color: ${activityStyle.color}; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px;">${activityStyle.label}</span>
+                        ${isMultiSection ? `
+                        <span style="display: inline-block; background: #9F580A; color: white; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; margin-left: 4px;">⚠️ MULTI-SECTION</span>
+                        ` : ''}
                       </td>
                     </tr>
                     <tr>
                       <td style="padding-top: 10px;">
-                        <span style="font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px;">${location} · ${county} County</span>
+                        <span style="font-size: 11px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px;">
+                          ${bhLocation && bhLocation !== location 
+                            ? `${location} → ${bhLocation}${lateralDirection ? ` (${lateralDirection})` : ''}${lateralLength ? ` · ${lateralLength.toLocaleString()} ft lateral` : ''} · ${county} County`
+                            : `${location} · ${county} County`
+                          }
+                        </span>
                       </td>
                     </tr>
                   </table>
@@ -330,7 +371,37 @@ async function buildHtmlBody(data, env) {
                       </td>
                     </tr>
                     ` : ''}
+                    ${formationName ? `
+                    <tr>
+                      <td style="padding: 4px 0; font-size: 13px;">
+                        <span style="color: #64748B;">Formation:</span>
+                        <span style="color: #1C2B36; margin-left: 8px;">${formationName}${formationDepth ? ` @ ${formationDepth.toLocaleString()} ft` : ''}</span>
+                      </td>
+                    </tr>
+                    ` : ''}
+                    ${(ipGas || ipOil) ? `
+                    <tr>
+                      <td style="padding: 4px 0; font-size: 13px;">
+                        <span style="color: #64748B;">Initial Production:</span>
+                        <span style="color: #1C2B36; margin-left: 8px;">
+                          ${ipGas ? `Gas: ${ipGas.toLocaleString()} MCF/day` : ''}${ipGas && ipOil ? ' · ' : ''}${ipOil ? `Oil: ${ipOil.toLocaleString()} BBL/day` : ''}
+                          ${pumpingFlowing ? ` <span style="color: #64748B; font-size: 11px;">(${pumpingFlowing.toLowerCase()})</span>` : ''}
+                        </span>
+                      </td>
+                    </tr>
+                    ` : ''}
                   </table>
+                  
+                  <!-- Timeline Section -->
+                  ${(spudDate || completionDate || firstProdDate) ? `
+                  <div style="background: #F0F9FF; border-radius: 6px; padding: 12px; margin-bottom: 12px; border-left: 3px solid #0EA5E9;">
+                    <p style="margin: 0 0 6px; font-size: 12px; font-weight: 600; color: #0369A1;">Timeline</p>
+                    <p style="margin: 0; font-size: 13px; color: #334E68;">
+                      ${spudDate ? `Spud: ${spudDate}` : ''}${spudDate && completionDate ? ' · ' : ''}${completionDate ? `Completed: ${completionDate}` : ''}${(spudDate || completionDate) && firstProdDate ? ' · ' : ''}${firstProdDate ? `First Prod: ${firstProdDate}` : ''}
+                    </p>
+                    ${firstProdDate ? `<p style="margin: 8px 0 0; font-size: 12px; color: #64748B;">Expect your first royalty check 60-90 days after first sales</p>` : ''}
+                  </div>
+                  ` : ''}
                   
                   <!-- What This Means -->
                   <div style="background: #F8FAFC; border-radius: 6px; padding: 12px; margin-bottom: 12px;">
@@ -424,10 +495,27 @@ function buildTextBody(data) {
     occLink,
     mapLink,
     previousOperator,
-    apiNumber
+    apiNumber,
+    // Horizontal well data
+    isMultiSection,
+    bhLocation,
+    lateralLength,
+    lateralDirection,
+    sectionsAffected,
+    // Production data
+    formationName,
+    formationDepth,
+    ipGas,
+    ipOil,
+    ipWater,
+    pumpingFlowing,
+    // Timeline
+    spudDate,
+    completionDate,
+    firstProdDate
   } = data;
   
-  const explanation = getExplanation(activityType, alertLevel);
+  const explanation = getExplanation(activityType, alertLevel, isMultiSection);
   
   let text = `
 MINERAL WATCH - ${activityType.toUpperCase()}
@@ -441,8 +529,9 @@ We found activity that matches your monitored ${alertLevel === 'TRACKED WELL' ? 
 
 Well: ${wellName || 'Not specified'}
 ${apiNumber ? `API: ${apiNumber}\n` : ''}Operator: ${operator || 'Not specified'}
-${previousOperator ? `Previous Operator: ${previousOperator}\n` : ''}Location: ${location}
+${previousOperator ? `Previous Operator: ${previousOperator}\n` : ''}${isMultiSection ? 'Type: Multi-Section Horizontal\n' : ''}Location: ${bhLocation && bhLocation !== location ? `${location} → ${bhLocation}${lateralDirection ? ` (${lateralDirection})` : ''}${lateralLength ? ` · ${lateralLength.toLocaleString()} ft lateral` : ''}` : location}
 County: ${county}
+${formationName ? `Formation: ${formationName}${formationDepth ? ` @ ${formationDepth.toLocaleString()} ft` : ''}\n` : ''}${(ipGas || ipOil) ? `Initial Production: ${ipGas ? `Gas: ${ipGas.toLocaleString()} MCF/day` : ''}${ipGas && ipOil ? ' · ' : ''}${ipOil ? `Oil: ${ipOil.toLocaleString()} BBL/day` : ''}${pumpingFlowing ? ` (${pumpingFlowing.toLowerCase()})` : ''}\n` : ''}${(spudDate || completionDate || firstProdDate) ? `\nTimeline:\n${spudDate ? `Spud: ${spudDate}` : ''}${spudDate && completionDate ? ' · ' : ''}${completionDate ? `Completed: ${completionDate}` : ''}${(spudDate || completionDate) && firstProdDate ? ' · ' : ''}${firstProdDate ? `First Prod: ${firstProdDate}` : ''}${firstProdDate ? '\nExpected first royalty check: 60-90 days after first sales' : ''}\n` : ''}
 
 WHAT THIS MEANS:
 ${explanation.meaning}

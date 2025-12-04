@@ -476,9 +476,9 @@
             <p>Start free. Upgrade when you need more power. Cancel anytime.</p>
             
             <div class="billing-toggle">
-                <span class="monthly-label active">Monthly</span>
-                <div class="toggle-switch" id="billingToggle"></div>
-                <span class="annual-label">Annual</span>
+                <span class="monthly-label">Monthly</span>
+                <div class="toggle-switch annual" id="billingToggle"></div>
+                <span class="annual-label active">Annual</span>
                 <span class="save-badge">2 Months Free</span>
             </div>
         </div>
@@ -665,7 +665,7 @@
         const monthlyLabel = document.querySelector('.monthly-label');
         const annualLabel = document.querySelector('.annual-label');
         
-        let isAnnual = false;
+        let isAnnual = true; // Default to annual pricing
         
         toggle.addEventListener('click', () => {
             isAnnual = !isAnnual;
@@ -709,6 +709,9 @@
                 }
             });
         });
+
+        // Initialize page with annual pricing
+        toggle.dispatchEvent(new Event('click'));
 
         document.querySelectorAll('.pricing-cta').forEach(btn => {
             btn.addEventListener('click', (e) => {

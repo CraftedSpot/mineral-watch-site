@@ -1,0 +1,16 @@
+{
+  "name": "mineral-watch-scripts",
+  "version": "1.0.0",
+  "description": "Utility scripts for Mineral Watch data management",
+  "private": true,
+  "scripts": {
+    "backfill": "node backfill-completions.js",
+    "test-backfill": "node test-backfill.js"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

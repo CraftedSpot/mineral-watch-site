@@ -131,6 +131,12 @@ export function getFreeWelcomeEmailHtml(name: string, magicLink: string): string
           This link expires in 15 minutes.
         </p>
         
+        <div style="background: #FEF3CD; border: 1px solid #F59E0B; border-radius: 6px; padding: 16px; margin: 0 0 30px;">
+          <p style="font-size: 14px; color: #92400E; margin: 0; text-align: center;">
+            <strong>📧 Email delivery note:</strong> Your first few emails may take 5-10 minutes as email providers verify our sender reputation. After that, emails arrive instantly. Also check Promotions, Updates, or Spam folders if you don't see future alerts in your inbox.
+          </p>
+        </div>
+        
         <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
         
         <!-- What You're Getting -->
@@ -260,6 +266,8 @@ Click here to verify your email and log in:
 ${magicLink}
 
 This link expires in 15 minutes.
+
+📧 EMAIL DELIVERY NOTE: Your first few emails may take 5-10 minutes as email providers verify our sender reputation. After that, emails arrive instantly. Also check Promotions, Updates, or Spam folders if you don't see future alerts in your inbox.
 
 ----
 

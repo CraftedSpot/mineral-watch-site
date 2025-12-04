@@ -6,7 +6,7 @@
 
 // Authentication & Session Constants
 export const COOKIE_NAME = "mw_session";
-export const TOKEN_EXPIRY = 4 * 60 * 60 * 1000; // 4 hours
+export const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours
 export const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
 
 // Airtable Configuration

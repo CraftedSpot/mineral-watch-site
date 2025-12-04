@@ -29,7 +29,8 @@ import {
 } from '../services/airtable.js';
 
 import {
-  fetchWellDetailsFromOCC
+  fetchWellDetailsFromOCC,
+  lookupCompletionData
 } from './wells.js';
 
 import { findOperatorByName } from '../services/operators.js';
@@ -554,17 +555,21 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
     const occPromises = occBatch.map(async (well: any) => {
       const occData = await fetchWellDetailsFromOCC(well.apiNumber, env);
       
+      // Look up completion data from KV cache
+      const completionData = await lookupCompletionData(well.apiNumber, env);
+      
       // Look up operator information if we have an operator
       let operatorInfo = null;
-      if (occData?.operator) {
+      const operator = completionData?.operator || occData?.operator;
+      if (operator) {
         try {
-          operatorInfo = await findOperatorByName(occData.operator, env);
+          operatorInfo = await findOperatorByName(operator, env);
         } catch (error) {
-          console.warn(`[Bulk] Failed to lookup operator info for ${occData.operator}:`, error);
+          console.warn(`[Bulk] Failed to lookup operator info for ${operator}:`, error);
         }
       }
       
-      return { ...well, occData, operatorInfo };
+      return { ...well, occData, completionData, operatorInfo };
     });
     const batchResults = await Promise.all(occPromises);
     wellsWithData.push(...batchResults);
@@ -602,28 +607,55 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
       body: JSON.stringify({
         records: batch.map((well: any) => {
           const occ = well.occData || {};
+          const completion = well.completionData || {};
           const operatorInfo = well.operatorInfo || {};
           const mapLink = occ.lat && occ.lon ? generateMapLink(occ.lat, occ.lon, occ.wellName) : '#';
+          
+          // Merge data with completion taking precedence
+          const wellName = (well.wellName && well.wellName.includes('#')) 
+            ? well.wellName 
+            : (completion.wellName || occ.wellName || well.wellName || "");
+          const operator = completion.operator || occ.operator || "";
+          const county = completion.county || occ.county || "";
+          const section = completion.surfaceSection || (occ.section ? String(occ.section) : "");
+          const township = completion.surfaceTownship || occ.township || "";
+          const range = completion.surfaceRange || occ.range || "";
           
           return {
             fields: {
               User: [user.id],
               "API Number": well.apiNumber,
-              "Well Name": (well.wellName && well.wellName.includes('#')) 
-                ? well.wellName 
-                : (occ.wellName || well.wellName || ""),
+              "Well Name": wellName,
               Status: "Active",
               "OCC Map Link": mapLink,
-              Operator: occ.operator || "",
-              County: occ.county || "",
-              Section: occ.section ? String(occ.section) : "",
-              Township: occ.township || "",
-              Range: occ.range || "",
+              Operator: operator,
+              County: county,
+              Section: section,
+              Township: township,
+              Range: range,
               "Well Type": occ.wellType || "",
               "Well Status": occ.wellStatus || "",
               ...(operatorInfo.phone && { "Operator Phone": operatorInfo.phone }),
               ...(operatorInfo.contactName && { "Contact Name": operatorInfo.contactName }),
-              Notes: well.notes || ""
+              Notes: well.notes || "",
+              
+              // Enhanced fields from completion data
+              ...(completion.formationName && { "Formation": completion.formationName }),
+              ...(completion.formationDepth && { "Formation Depth": completion.formationDepth }),
+              ...(completion.ipGas && { "IP Gas": completion.ipGas }),
+              ...(completion.ipOil && { "IP Oil": completion.ipOil }),
+              ...(completion.ipWater && { "IP Water": completion.ipWater }),
+              ...(completion.pumpingFlowing && { "Pumping Flowing": completion.pumpingFlowing }),
+              ...(completion.spudDate && { "Spud Date": completion.spudDate }),
+              ...(completion.completionDate && { "Completion Date": completion.completionDate }),
+              ...(completion.firstProdDate && { "First Prod Date": completion.firstProdDate }),
+              ...(completion.drillType && { "Drill Type": completion.drillType }),
+              ...(completion.lateralLength && { "Lateral Length": completion.lateralLength }),
+              ...(completion.totalDepth && { "Total Depth": completion.totalDepth }),
+              ...(completion.bhSection && { "BH Section": completion.bhSection }),
+              ...(completion.bhTownship && { "BH Township": completion.bhTownship }),
+              ...(completion.bhRange && { "BH Range": completion.bhRange }),
+              ...(completion && { "Last Updated": new Date().toISOString() })
             }
           };
         })

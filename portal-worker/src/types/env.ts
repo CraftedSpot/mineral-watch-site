@@ -12,6 +12,7 @@ export interface Env {
   // KV Namespaces
   AUTH_TOKENS: KVNamespace;
   OCC_CACHE: KVNamespace;
+  COMPLETIONS_CACHE: KVNamespace;
 
   // Environment Variables (secrets)
   MINERAL_AIRTABLE_API_KEY: string;
@@ -53,4 +54,46 @@ export interface Well {
   operator?: string;
   county?: string;
   status: string;
+}
+
+/**
+ * Completion data from KV cache
+ */
+export interface CompletionData {
+  api: string;
+  wellName?: string;
+  operator?: string;
+  county?: string;
+  
+  // Location data
+  surfaceSection?: string;
+  surfaceTownship?: string;
+  surfaceRange?: string;
+  bhSection?: string;
+  bhTownship?: string;
+  bhRange?: string;
+  
+  // Production data
+  formationName?: string;
+  formationDepth?: number;
+  ipGas?: number;
+  ipOil?: number;
+  ipWater?: number;
+  pumpingFlowing?: string;
+  
+  // Timeline data
+  spudDate?: string;
+  completionDate?: string;
+  firstProdDate?: string;
+  
+  // Well details
+  drillType?: string;
+  lateralLength?: number;
+  totalDepth?: number;
+  wellNumber?: string;
+  leaseName?: string;
+  
+  // Metadata
+  cachedAt: number;
+  source: string;
 }
