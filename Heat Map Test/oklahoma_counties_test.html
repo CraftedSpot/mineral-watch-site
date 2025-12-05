@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oklahoma Counties Test Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { margin: 0; padding: 0; font-family: Arial, sans-serif; }
+        #map { position: absolute; top: 0; bottom: 0; left: 0; right: 0; }
+        .controls {
+            position: absolute; top: 10px; right: 10px;
+            background: white; padding: 10px; border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2); z-index: 1000;
+        }
+        .controls h3 { margin: 0 0 10px 0; font-size: 16px; }
+        .controls label { display: block; margin: 5px 0; font-size: 14px; }
+        .controls input[type="checkbox"] { margin-right: 5px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="controls">
+        <h3>🗺️ Map Test</h3>
+        <label><input type="checkbox" id="toggle-counties" checked> Show Counties</label>
+        <label><input type="checkbox" id="toggle-townships"> Show Township Grid</label>
+        <button onclick="showTownshipGrid(); console.log('Manual grid test')">🧪 Test Grid</button>
+        <div id="status">Loading...</div>
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // Sample county data (first few counties from your GeoJSON)
+        const sampleCountyData = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "COUNTY_NAME": "COAL",
+                        "COUNTY_NO": 15,
+                        "COUNTY_FIPS_NO": 29
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[-96.512073459,34.680021325],[-96.494424578,34.679973869],[-96.476842753,34.6799757800001],[-96.4593511319999,34.679987758],[-96.441351932,34.680069464],[-96.423820028,34.680153762],[-96.4063178819999,34.680050281],[-96.406272573,34.6842383420001],[-96.406160018,34.6946401910001],[-96.4063252889999,34.7091800650001],[-96.406299001,34.716419006],[-96.4062727089999,34.723657948],[-96.4064220509999,34.735507093],[-96.4064543379999,34.7380683220001],[-96.406422832,34.7528912610001],[-96.406272421,34.767474587],[-96.393131936,34.767330696],[-96.360235727,34.7670216860001],[-96.345796508,34.7669932150001],[-96.328819368,34.76682599],[-96.307690131,34.7667674750001],[-96.2794037899999,34.7667385550001],[-96.255814247,34.766873005],[-96.224814924,34.7669613410001],[-96.193309788,34.766932339],[-96.15807181,34.7671769790001],[-96.1252982189999,34.767042857],[-96.1127139,34.767354406],[-96.108731553,34.7674273980001],[-96.091988923,34.767475505],[-96.092081708,34.752981746],[-96.092125213,34.7384311640001],[-96.0920820869999,34.728926964],[-96.092058964,34.723829976],[-96.09209112,34.7093693320001],[-96.091964746,34.70229418],[-96.092087733,34.694924965],[-96.0920823289999,34.680460554],[-96.092014712,34.666994812],[-96.091991654,34.658565691],[-96.091925227,34.634272674],[-96.091983994,34.5731795040001],[-96.091972583,34.527217873],[-96.091969991,34.516574276],[-96.0919673989999,34.505930687],[-96.101189275,34.5059425320001],[-96.110411154,34.505953666],[-96.13243535,34.505969813],[-96.145417413,34.5060218740001],[-96.145312387,34.463087774],[-96.14536832,34.4182540080001],[-96.1933887279999,34.4183168920001],[-96.2033374,34.4183275090001],[-96.2207381599999,34.4183206440001],[-96.297078359,34.4182606090001],[-96.4070159349999,34.418404637],[-96.42456342,34.418311304],[-96.441994901,34.4183111470001],[-96.453242599,34.4183143280001],[-96.453358314,34.4194869880001],[-96.4609956199999,34.419499821],[-96.478512931,34.41952401],[-96.496117921,34.4194610420001],[-96.513648522,34.4195781920001],[-96.5136988039999,34.434202213],[-96.51365057,34.4484681480001],[-96.513698666,34.4632140420001],[-96.513856689,34.477691486],[-96.513698368,34.4922346560001],[-96.513687306,34.5054324550001],[-96.512051865,34.505429942],[-96.512018362,34.5199892470001],[-96.511986574,34.5344766590001],[-96.511931051,34.549083162],[-96.512099812,34.563596633],[-96.5120786419999,34.5782321550001],[-96.512040203,34.592789419],[-96.512100521,34.607384408],[-96.512066659,34.6218808040001],[-96.512129977,34.636369143],[-96.512059141,34.650897656],[-96.5121167199999,34.665404639],[-96.512073459,34.680021325]]]
+                    }
+                },
+                {
+                    "type": "Feature",
+                    "properties": {
+                        "COUNTY_NAME": "COMANCHE",
+                        "COUNTY_NO": 16,
+                        "COUNTY_FIPS_NO": 31
+                    },
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [[[-98.825968781,34.5849855930001],[-98.826008615,34.594362904],[-98.8260539889999,34.610291487],[-98.826092667,34.62664655],[-98.82613663,34.643523569],[-98.8261260739999,34.6645182560001],[-98.8261155119999,34.6855129570001],[-98.826218916,34.715433423],[-98.82622459,34.73239055],[-98.826230267,34.74934768],[-98.826151663,34.7874745030001],[-98.826140832,34.812636824],[-98.826028902,34.840917765],[-98.8261754499999,34.8554123910001],[-98.794076408,34.855409867],[-98.77829267,34.855458373],[-98.749708374,34.8554212020001],[-98.7073966199999,34.8554587850001],[-98.6716492799999,34.8553355880001],[-98.6363662699999,34.8551993080001],[-98.619856055,34.8552291300001],[-98.578602033,34.8551629610001],[-98.528463957,34.855010887],[-98.483897344,34.8549250140001],[-98.47659592,34.8549883480001],[-98.457226614,34.855154215],[-98.4114322,34.8553052710001],[-98.3441651809999,34.8550232860001],[-98.306032654,34.8551263900001],[-98.27356487,34.8550302240001],[-98.266479607,34.8550461360001],[-98.217696474,34.854935885],[-98.1934242469999,34.85497738],[-98.169151997,34.8550139760001],[-98.150497978,34.8550852830001],[-98.1238811429999,34.8551820180001],[-98.0931637579999,34.8552363590001],[-98.089318781,34.855242608],[-98.089090695,34.840604818],[-98.088952736,34.8359346340001],[-98.088863669,34.8224859600001],[-98.089032776,34.8069184560001],[-98.088980195,34.7927942430001],[-98.08889398,34.7819247740001],[-98.089062359,34.765773876],[-98.089026495,34.732827548],[-98.0889866799999,34.7304018900001],[-98.089192597,34.714711541],[-98.089143023,34.703320064],[-98.089016487,34.6894722590001],[-98.089122193,34.681090021],[-98.0965856129999,34.6810839770001],[-98.112596539,34.6811007250001],[-98.1253384729999,34.681149501],[-98.1336224299999,34.6810791510001],[-98.141795195,34.6811618840001],[-98.1417472379999,34.678404276],[-98.141947827,34.662063275],[-98.141844777,34.645452069],[-98.141853514,34.6290556770001],[-98.141870845,34.6069021380001],[-98.1419862499999,34.5985349470001],[-98.142028378,34.590720533],[-98.142054289,34.58425715],[-98.141929503,34.5764736450001],[-98.142027,34.568505653],[-98.142012774,34.560292158],[-98.142001049,34.5535217830001],[-98.1420068309999,34.5461526510001],[-98.1420859839999,34.538322867],[-98.142075666,34.532366175],[-98.142043329,34.5243983600001],[-98.1420671119999,34.516722176],[-98.142074354,34.510197439],[-98.14210552,34.5069883690001],[-98.1764233009999,34.507034897],[-98.184567068,34.5070506760001],[-98.196332261,34.5071010030001],[-98.226841096,34.50713011],[-98.236980477,34.507140855],[-98.2383277069999,34.507135039],[-98.2389358789999,34.5071419000001],[-98.2441656189999,34.5071341760001],[-98.243891187,34.4637491070001],[-98.245422191,34.4637541110001],[-98.267915963,34.463754668],[-98.277386381,34.4637168240001],[-98.2959048719999,34.463550454],[-98.2959361059999,34.4490757180001],[-98.3143068799999,34.4490003970001],[-98.332233888,34.44898856],[-98.3365366469999,34.449005006],[-98.348164375,34.449040875],[-98.3625686399999,34.44899402],[-98.368887715,34.448982836],[-98.3746670099999,34.4489486090001],[-98.378140533,34.4489417500001],[-98.38304163,34.44890989],[-98.392490654,34.448862997],[-98.409083348,34.4488806210001],[-98.412140116,34.448927069],[-98.4185378619999,34.448949597],[-98.426005152,34.448972048],[-98.434056229,34.448983782],[-98.4346154569999,34.4489695510001],[-98.4481861799999,34.449017097],[-98.460510745,34.4490638360001],[-98.4765887739999,34.449147285],[-98.4871870439999,34.449299819],[-98.504948408,34.449449863],[-98.5049621809999,34.4204484160001],[-98.522430635,34.420477277],[-98.543238555,34.4203262940001],[-98.557357859,34.420407035],[-98.5649538709999,34.420458819],[-98.5923729309999,34.4205100930001],[-98.609501692,34.4205655440001],[-98.6095610359999,34.4060792980001],[-98.6271567969999,34.406178272],[-98.6487667229999,34.4061162100001],[-98.661983011,34.405915194],[-98.661975481,34.4525861000001],[-98.6619666139999,34.507468429],[-98.665553819,34.5074960910001],[-98.669229628,34.507506081],[-98.672459094,34.507503227],[-98.680095834,34.5075096260001],[-98.686701941,34.507498594],[-98.692825027,34.507489987],[-98.7165404849999,34.507521867],[-98.731784179,34.507540153],[-98.750489623,34.5074634110001],[-98.766634835,34.5073294750001],[-98.7788805179999,34.507344346],[-98.795940528,34.507312712],[-98.809417331,34.5072946610001],[-98.818367713,34.507291626],[-98.8259732669999,34.5072885210001],[-98.825968781,34.5849855930001]]]
+                    }
+                }
+            ]
+        };
+
+        // Initialize map
+        const map = L.map('map').setView([35.5, -97.5], 7);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+
+        // Layer variables
+        let countyLayer;
+        let townshipLayer;
+
+        // PLSS Constants for Oklahoma
+        const INDIAN_MERIDIAN = -97.916667; // 97°55' W
+        const INDIAN_BASE_LINE = 35.233333; // 35°14' N
+        const MILES_PER_TOWNSHIP = 6;
+        const LAT_MILES_RATIO = 1 / 69; // Rough conversion: 1 mile ≈ 1/69 degrees latitude
+        const LNG_MILES_RATIO = 1 / 54.6; // Rough conversion at Oklahoma latitude
+
+        // Function to load real PLSS township boundaries
+        async function loadRealTownshipData() {
+            try {
+                console.log('Loading real PLSS township boundaries...');
+                
+                const response = await fetch('./PLSS_Township_simplified.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const townshipData = await response.json();
+                console.log('PLSS township data loaded:', townshipData.features.length, 'townships');
+                
+                // Remove mathematical grid if it exists
+                if (townshipLayer && map.hasLayer(townshipLayer)) {
+                    map.removeLayer(townshipLayer);
+                }
+                
+                // Create township layer with real boundaries
+                townshipLayer = L.geoJSON(townshipData, {
+                    style: {
+                        color: '#e74c3c',
+                        weight: 1.5,
+                        fillOpacity: 0,
+                        opacity: 0.7,
+                        dashArray: '5, 5'
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const townshipLabel = feature.properties.TWNSHPLAB || 'Unknown';
+                        layer.bindPopup(`
+                            <strong>Township ${townshipLabel}</strong><br>
+                            ${feature.properties.PRINMER || 'Indian Meridian'}
+                        `);
+                        
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 3, opacity: 1.0 });
+                        });
+                        
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 1.5, opacity: 0.7 });
+                        });
+                    }
+                });
+                
+                // Don't add to map yet - let toggle control it
+                document.getElementById('status').textContent += ', Real townships loaded';
+                
+            } catch (error) {
+                console.error('Could not load real PLSS data, using mathematical grid:', error);
+                // Fall back to mathematical grid
+                showTownshipGrid();
+            }
+        }
+
+        // Function to load the full county data
+        async function loadFullCountyData() {
+            try {
+                document.getElementById('status').textContent = 'Loading full county data...';
+                
+                const response = await fetch('./County_Boundaries_2423125635378062927.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const countyData = await response.json();
+                console.log('Full county data loaded:', countyData.features.length, 'counties');
+                
+                // Remove sample layer
+                if (countyLayer && map.hasLayer(countyLayer)) {
+                    map.removeLayer(countyLayer);
+                }
+                
+                // Create full county layer
+                countyLayer = L.geoJSON(countyData, {
+                    style: {
+                        color: '#2980b9',
+                        weight: 2,
+                        fillOpacity: 0.1,
+                        fillColor: '#3498db'
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const countyName = feature.properties.COUNTY_NAME || 'Unknown County';
+                        layer.bindPopup(`
+                            <strong>${countyName} County</strong><br>
+                            County #: ${feature.properties.COUNTY_NO || 'N/A'}<br>
+                            FIPS: ${feature.properties.COUNTY_FIPS_NO || 'N/A'}
+                        `);
+                        
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 3, fillOpacity: 0.3 });
+                        });
+                        
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 2, fillOpacity: 0.1 });
+                        });
+                    }
+                }).addTo(map);
+
+                document.getElementById('status').textContent = `${countyData.features.length} counties loaded`;
+                map.fitBounds(countyLayer.getBounds(), {padding: [20, 20]});
+                
+            } catch (error) {
+                console.error('Could not load full data, using sample:', error);
+                document.getElementById('status').textContent = 'Using sample data (CORS issue)';
+            }
+        }
+
+        // Create sample county layer immediately
+        function loadSampleData() {
+            console.log('Loading sample county data...');
+            
+            countyLayer = L.geoJSON(sampleCountyData, {
+                style: {
+                    color: '#e74c3c',
+                    weight: 2,
+                    fillOpacity: 0.2,
+                    fillColor: '#e74c3c'
+                },
+                onEachFeature: function(feature, layer) {
+                    const countyName = feature.properties.COUNTY_NAME || 'Unknown County';
+                    layer.bindPopup(`
+                        <strong>${countyName} County</strong><br>
+                        County #: ${feature.properties.COUNTY_NO || 'N/A'}<br>
+                        FIPS: ${feature.properties.COUNTY_FIPS_NO || 'N/A'}<br>
+                        <em>(Sample data)</em>
+                    `);
+                    
+                    layer.on('mouseover', function() {
+                        this.setStyle({ weight: 3, fillOpacity: 0.4 });
+                    });
+                    
+                    layer.on('mouseout', function() {
+                        this.setStyle({ weight: 2, fillOpacity: 0.2 });
+                    });
+                }
+            }).addTo(map);
+
+            document.getElementById('status').textContent = 'Sample data loaded - trying full data...';
+            map.fitBounds(countyLayer.getBounds(), {padding: [20, 20]});
+        }
+
+        // Toggle counties
+        function toggleCounties() {
+            const checkbox = document.getElementById('toggle-counties');
+            if (checkbox.checked && countyLayer) {
+                if (!map.hasLayer(countyLayer)) map.addLayer(countyLayer);
+            } else if (countyLayer) {
+                if (map.hasLayer(countyLayer)) map.removeLayer(countyLayer);
+            }
+        }
+
+        // Generate PLSS Township Grid
+        function generateTownshipGrid() {
+            console.log('Generating township grid...');
+            
+            const gridLines = [];
+            
+            // Oklahoma roughly spans:
+            // Latitude: 33.6° to 37.0° (about 3.4 degrees)
+            // Longitude: -103.0° to -94.4° (about 8.6 degrees)
+            
+            // Generate horizontal township lines (every 6 miles north-south)
+            for (let t = -20; t <= 20; t++) {
+                const lat = INDIAN_BASE_LINE + (t * MILES_PER_TOWNSHIP * LAT_MILES_RATIO);
+                if (lat >= 33.5 && lat <= 37.5) {
+                    gridLines.push({
+                        type: "horizontal",
+                        coordinates: [[lat, -103.5], [lat, -94.0]],
+                        label: `T${Math.abs(t)}${t >= 0 ? 'N' : 'S'}`
+                    });
+                }
+            }
+            
+            // Generate vertical township lines (every 6 miles east-west)  
+            for (let r = -30; r <= 30; r++) {
+                const lng = INDIAN_MERIDIAN + (r * MILES_PER_TOWNSHIP * LNG_MILES_RATIO);
+                if (lng >= -103.5 && lng <= -94.0) {
+                    gridLines.push({
+                        type: "vertical",
+                        coordinates: [[33.5, lng], [37.5, lng]],
+                        label: `R${Math.abs(r)}${r >= 0 ? 'E' : 'W'}`
+                    });
+                }
+            }
+            
+            return gridLines;
+        }
+
+        // Create and display township grid
+        function showTownshipGrid() {
+            if (townshipLayer) {
+                map.removeLayer(townshipLayer);
+            }
+            
+            townshipLayer = L.layerGroup();
+            const gridLines = generateTownshipGrid();
+            
+            gridLines.forEach(line => {
+                const polyline = L.polyline(line.coordinates, {
+                    color: '#e74c3c',     // Red but not too bright
+                    weight: 1.5,          // Thinner for cleaner look
+                    opacity: 0.7,         // Semi-transparent
+                    dashArray: '5, 5'     // Dashed lines
+                });
+                
+                // Add popup showing township/range
+                polyline.bindPopup(`<strong>PLSS Grid Line</strong><br>${line.label}`, {
+                    closeOnClick: true
+                });
+                
+                // Make lines slightly thicker on hover for better interaction
+                polyline.on('mouseover', function() {
+                    this.setStyle({weight: 3, opacity: 1.0});
+                });
+                
+                polyline.on('mouseout', function() {
+                    this.setStyle({weight: 1.5, opacity: 0.7});
+                });
+                
+                townshipLayer.addLayer(polyline);
+            });
+            
+            map.addLayer(townshipLayer);
+            
+            console.log(`Township grid created: ${gridLines.length} lines`);
+        }
+
+        // Toggle township grid
+        function toggleTownships() {
+            const checkbox = document.getElementById('toggle-townships');
+            console.log('Township toggle clicked:', checkbox.checked);
+            
+            if (checkbox.checked) {
+                if (townshipLayer && townshipLayer._layers) {
+                    // If we already have real townships loaded, just add them
+                    map.addLayer(townshipLayer);
+                } else {
+                    // Otherwise use mathematical grid
+                    showTownshipGrid();
+                }
+            } else if (townshipLayer) {
+                console.log('Removing township layer');
+                map.removeLayer(townshipLayer);
+            }
+        }
+
+        // Event listeners
+        document.getElementById('toggle-counties').addEventListener('change', toggleCounties);
+        
+        // Debug: Check if township element exists
+        const townshipCheckbox = document.getElementById('toggle-townships');
+        console.log('Township checkbox found:', townshipCheckbox);
+        
+        if (townshipCheckbox) {
+            townshipCheckbox.addEventListener('change', toggleTownships);
+            console.log('Township event listener added');
+        } else {
+            console.error('Township checkbox not found!');
+        }
+
+        // Load data
+        loadSampleData();
+        loadFullCountyData(); // Will try to load full data, fallback to sample if CORS fails
+        loadRealTownshipData(); // Load real PLSS townships
+
+        console.log('🗺️ Oklahoma Counties & Township Grid Map initialized');
+    </script>
+</body>
+</html>
