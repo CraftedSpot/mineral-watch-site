@@ -33,12 +33,7 @@ export async function findMatchingProperties(location, env) {
     {Status} = "Active"
   )`;
   
-  console.log(`[Matching] Direct match query: S${normalizedSec} T${township} R${range} M${effectiveMeridian} (normalized from M${meridian})`);
-  console.log(`[Matching] Airtable formula: ${formula}`);
-  
   const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
-  
-  console.log(`[Matching] Found ${properties.length} direct property matches`);
   
   for (const prop of properties) {
     // Get the linked user
@@ -82,9 +77,6 @@ async function findUsersMonitoringAdjacentTo(location, env) {
   // Get the 8 sections adjacent to the permit location
   const adjacentSections = getAdjacentSections(normalizedSec, township, range);
   
-  console.log(`[Matching] Checking adjacent sections for ${section}-${township}-${range}:`, 
-    adjacentSections.map(a => `${a.section}-${a.township}-${a.range}`).join(', '));
-  
   // OPTIMIZATION: Build single OR query for all 8 adjacent sections
   const sectionConditions = adjacentSections.map(adj => 
     `AND({SEC} = "${normalizeSection(adj.section)}", {TWN} = "${adj.township}", {RNG} = "${adj.range}")`
@@ -96,11 +88,7 @@ async function findUsersMonitoringAdjacentTo(location, env) {
     {Status} = "Active"
   )`;
   
-  console.log(`[Matching] Batched adjacent query formula length: ${formula.length} chars`);
-  
   const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
-  
-  console.log(`[Matching] Found ${properties.length} properties monitoring adjacent sections`);
   
   const matches = [];
   const seenUsers = new Set();
