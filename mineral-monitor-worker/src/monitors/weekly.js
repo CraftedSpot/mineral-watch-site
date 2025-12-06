@@ -248,8 +248,15 @@ export async function runWeeklyMonitor(env) {
     console.log(`[Weekly] Fetched ${transfers.length} transfers from OCC file`);
     
     // Filter to unprocessed transfers and valid operator changes
+    // Note: OCC uses 'API Number' (with space), 'FromOperatorName', 'ToOperatorName'
     const newTransfers = transfers.filter(transfer => {
-      const api10 = normalizeAPI(transfer.API_Number);
+      const api10 = normalizeAPI(transfer['API Number']);
+      
+      // Skip if no valid API
+      if (!api10) {
+        console.log(`[Weekly] Skipping transfer with missing API`);
+        return false;
+      }
       
       // Skip already processed
       if (processedTransfers.has(api10)) {
@@ -258,8 +265,8 @@ export async function runWeeklyMonitor(env) {
       }
       
       // Skip if operators are effectively the same
-      const prevOp = normalizeOperator(transfer.Previous_Operator);
-      const newOp = normalizeOperator(transfer.New_Operator);
+      const prevOp = normalizeOperator(transfer.FromOperatorName);
+      const newOp = normalizeOperator(transfer.ToOperatorName);
       if (prevOp === newOp) {
         results.transfersSkippedSameOperator++;
         // Still mark as processed so we don't check again
@@ -297,11 +304,11 @@ export async function runWeeklyMonitor(env) {
         results.transfersProcessed++;
         
         // Mark as processed
-        const api10 = normalizeAPI(transfer.API_Number);
+        const api10 = normalizeAPI(transfer['API Number']);
         processedTransfers.add(api10);
       } catch (err) {
-        console.error(`[Weekly] Error processing transfer ${transfer.API_Number}:`, err);
-        results.errors.push({ api: transfer.API_Number, error: err.message });
+        console.error(`[Weekly] Error processing transfer ${transfer['API Number']}:`, err);
+        results.errors.push({ api: transfer['API Number'], error: err.message });
       }
     }
     
@@ -321,9 +328,24 @@ export async function runWeeklyMonitor(env) {
 
 /**
  * Process a single transfer record
+ * 
+ * OCC Transfer File Column Mapping:
+ *   API Number (not API_Number)
+ *   FromOperatorName (not Previous_Operator)
+ *   ToOperatorName (not New_Operator)
+ *   ToOperatorPhone, FromOperatorPhone
+ *   WellName, WellNum
+ *   EventDate (not Transfer_Date)
+ *   Section, Township, Range, PM, County
  */
 async function processTransfer(transfer, env, results, propertyMap, userCache, recentAlerts) {
-  const api10 = normalizeAPI(transfer.API_Number);
+  // Use correct column names from OCC file
+  const api10 = normalizeAPI(transfer['API Number']);
+  const previousOperator = transfer.FromOperatorName;
+  const newOperator = transfer.ToOperatorName;
+  const newOperatorPhone = transfer.ToOperatorPhone;
+  const wellName = transfer.WellName || '';
+  const wellNum = transfer.WellNum || '';
   
   const alertsToSend = [];
   
@@ -372,6 +394,13 @@ async function processTransfer(transfer, env, results, propertyMap, userCache, r
     }
   }
   
+  // Build display well name
+  const displayWellName = wellData?.well_name 
+    ? (wellData.well_num && !wellData.well_name.includes(wellData.well_num) 
+        ? `${wellData.well_name} ${wellData.well_num}`.trim()
+        : wellData.well_name)
+    : (wellNum && !wellName.includes(wellNum) ? `${wellName} ${wellNum}`.trim() : wellName);
+  
   // Send alerts with dedup check
   for (const alert of alertsToSend) {
     // OPTIMIZATION: Use preloaded alert set
@@ -383,27 +412,26 @@ async function processTransfer(transfer, env, results, propertyMap, userCache, r
       continue;
     }
     
-    // Use well name from GIS API if available
-    const wellName = wellData?.well_name 
-      ? (wellData.well_num && !wellData.well_name.includes(wellData.well_num) 
-          ? `${wellData.well_name} ${wellData.well_num}`.trim()
-          : wellData.well_name)
-      : transfer.Well_Name || '';
-    
     // Only include map link for tracked well alerts
     const includeMapLink = alert.reason === 'tracked_well';
     
+    // Parse county - OCC format is "015-CADDO", we want just "CADDO"
+    const countyDisplay = transfer.County?.includes('-') 
+      ? transfer.County.split('-')[1] 
+      : transfer.County;
+    
     const activityData = {
-      wellName,
+      wellName: displayWellName,
       apiNumber: api10,
       activityType: 'Operator Transfer',
-      operator: transfer.New_Operator,
-      previousOperator: transfer.Previous_Operator,
+      operator: newOperator,
+      operatorPhone: newOperatorPhone,
+      previousOperator: previousOperator,
       alertLevel: alert.alertLevel,
       sectionTownshipRange: `S${normalizeSection(transfer.Section)} T${transfer.Township} R${transfer.Range}`,
-      county: transfer.County,
-      previousValue: transfer.Previous_Operator,
-      newValue: transfer.New_Operator,
+      county: countyDisplay,
+      previousValue: previousOperator,
+      newValue: newOperator,
       mapLink: includeMapLink ? mapLink : null,
       userId: alert.user.id
     };
@@ -416,11 +444,12 @@ async function processTransfer(transfer, env, results, propertyMap, userCache, r
         userName: alert.user.name,
         alertLevel: alert.alertLevel,
         activityType: 'Operator Transfer',
-        wellName: activityData.wellName,
-        operator: transfer.New_Operator,
-        previousOperator: transfer.Previous_Operator,
+        wellName: displayWellName,
+        operator: newOperator,
+        operatorPhone: newOperatorPhone,
+        previousOperator: previousOperator,
         location: activityData.sectionTownshipRange,
-        county: transfer.County,
+        county: countyDisplay,
         mapLink: includeMapLink ? mapLink : null,
         apiNumber: api10,
         wellType: wellData?.welltype || null,
