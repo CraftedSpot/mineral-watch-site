@@ -1,0 +1,2605 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Map (In Development) - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <style>
+        :root { 
+            /* UI Palette */
+            --oil-navy: #1C2B36; 
+            --slate-blue: #334E68; 
+            --red-dirt: #C05621; 
+            --red-dirt-dark: #9C4215; 
+            --paper: #F8F9FA; 
+            --border: #E2E8F0; 
+            --success: #03543F; 
+            --success-bg: #DEF7EC; 
+            --error: #DC2626; 
+            
+            /* Notification Alert Colors */
+            --your-property: #FCA5A5;
+            --your-property-dark: #DC2626;
+            --adjacent-section: #FDBA74;
+            --adjacent-section-dark: #EA580C;
+            --tracked-well: #5EEAD4;
+            --tracked-well-dark: #0D9488;
+            
+            /* Activity Type Colors */
+            --permit: #93C5FD;
+            --permit-dark: #2563EB;
+            --completed: #86EFAC;
+            --completed-dark: #16A34A;
+            --drilling: #FDBA74;
+            --drilling-dark: #EA580C;
+            
+            /* Heatmap Gradient */
+            --status-active: #22C55E;
+            --status-recent: #F59E0B;
+            --status-quiet: #3B82F6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
+        h1, h2, .logo { font-family: 'Merriweather', serif; }
+        
+        header { background: var(--oil-navy); padding: 15px 0; color: white; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 20px; }
+        .header-inner { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: 900; color: white; text-decoration: none; }
+        .nav-back { color: #E2E8F0; text-decoration: none; font-size: 14px; }
+        .nav-back:hover { color: white; text-decoration: underline; }
+        
+        main { padding: 20px 0; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .page-header h1 { font-size: 28px; margin: 0; }
+        
+        /* Map Container */
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            overflow: hidden;
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 700px;
+            position: relative;
+        }
+        
+        /* Removed white overlay - using opacity on tiles instead */
+        
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 240px;
+        }
+        
+        .controls-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--oil-navy);
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-label {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            margin: 8px 0;
+            cursor: pointer;
+            color: var(--slate-blue);
+        }
+        
+        .control-label input[type="checkbox"] {
+            margin-right: 8px;
+            transform: scale(1.1);
+        }
+        
+        .control-label:hover {
+            color: var(--oil-navy);
+        }
+        
+        .map-status {
+            font-size: 12px;
+            color: var(--slate-blue);
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+        
+        /* Loading overlay */
+        .map-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--red-dirt);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--slate-blue);
+        }
+        
+        /* Info Panel */
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 320px;
+        }
+        
+        .info-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--oil-navy);
+        }
+        
+        .info-description {
+            font-size: 13px;
+            color: var(--slate-blue);
+            line-height: 1.4;
+        }
+        
+        /* Well Legend */
+        .well-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 160px;
+            font-size: 13px;
+        }
+        
+        .legend-subtitle {
+            font-weight: 600;
+            color: var(--slate-blue);
+        }
+        
+        /* Leaflet popup customization */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+        }
+        
+        .leaflet-popup-content {
+            margin: 12px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .popup-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: var(--oil-navy);
+        }
+        
+        .popup-detail {
+            font-size: 12px;
+            color: var(--slate-blue);
+            margin: 3px 0;
+        }
+        
+        .popup-link {
+            display: inline-block;
+            margin-top: 8px;
+            color: var(--red-dirt);
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+        }
+        
+        .popup-link:hover {
+            text-decoration: underline;
+        }
+        
+        /* Well Clustering Styles */
+        .well-cluster-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+        
+        .well-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .well-count {
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            line-height: 1;
+        }
+
+        /* Layer Toggle Button */
+        .layer-toggle-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border: none;
+            border-radius: 8px;
+            padding: 12px;
+            cursor: pointer;
+            z-index: 1000;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--oil-navy);
+            transition: all 0.2s;
+        }
+        
+        .layer-toggle-btn:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+            transform: translateY(-1px);
+        }
+        
+        .layer-toggle-btn.hidden {
+            display: none;
+        }
+
+        /* Layer Panel */
+        .layer-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100%;
+            background: white;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.15);
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .layer-panel.open {
+            transform: translateX(0);
+        }
+        
+        .layer-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--paper);
+        }
+        
+        .layer-panel-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--oil-navy);
+        }
+        
+        .layer-panel-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--slate-blue);
+            padding: 4px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        
+        .layer-panel-close:hover {
+            background: var(--border);
+        }
+        
+        .layer-panel-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* County Search */
+        .county-search {
+            margin-bottom: 24px;
+        }
+        
+        .search-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--oil-navy);
+            font-size: 14px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+            box-shadow: 0 0 0 2px rgba(192, 86, 33, 0.1);
+        }
+
+        /* Layer Groups */
+        .layer-group {
+            margin-bottom: 24px;
+        }
+        
+        .layer-group-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--oil-navy);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .layer-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            cursor: pointer;
+        }
+        
+        .layer-option input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .layer-option-label {
+            font-size: 14px;
+            color: var(--slate-blue);
+            cursor: pointer;
+        }
+        
+        .layer-option:hover .layer-option-label {
+            color: var(--oil-navy);
+        }
+
+        /* Popup Styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            padding: 0;
+            min-width: 240px;
+            max-width: 300px;
+        }
+        
+        .leaflet-popup-close-button {
+            position: absolute !important;
+            top: 8px !important;
+            right: 8px !important;
+            z-index: 1000 !important;
+            background: rgba(255,255,255,0.9) !important;
+            border-radius: 50% !important;
+            width: 24px !important;
+            height: 24px !important;
+            line-height: 20px !important;
+            text-align: center !important;
+            font-size: 16px !important;
+            color: var(--slate-blue) !important;
+            border: none !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        
+        .leaflet-popup-close-button:hover {
+            background: white !important;
+            color: var(--oil-navy) !important;
+        }
+        
+        /* Ensure popup has enough space */
+        .leaflet-popup {
+            margin-bottom: 20px !important;
+        }
+        
+        .leaflet-popup-tip-container {
+            margin-top: 0 !important;
+        }
+        
+        .leaflet-popup-content {
+            margin: 24px;
+            padding: 8px 0;  /* Extra padding top/bottom for badges */
+            font-family: 'Inter', sans-serif;
+            min-width: 200px;
+            min-height: 120px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .popup-header {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;    /* Extra space above tags */
+            margin-bottom: 16px;
+        }
+        
+        .popup-tag {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        
+        .popup-tag.your-property {
+            background: var(--your-property);
+            color: var(--your-property-dark);
+        }
+        
+        .popup-tag.adjacent-section {
+            background: var(--adjacent-section);
+            color: var(--adjacent-section-dark);
+        }
+        
+        .popup-tag.tracked-well {
+            background: var(--tracked-well);
+            color: var(--tracked-well-dark);
+        }
+        
+        .popup-tag.permit {
+            background: var(--permit);
+            color: var(--permit-dark);
+        }
+        
+        .popup-tag.completed {
+            background: var(--completed);
+            color: var(--completed-dark);
+        }
+        
+        .popup-tag.drilling {
+            background: var(--drilling);
+            color: var(--drilling-dark);
+        }
+        
+        .popup-well-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--oil-navy);
+            line-height: 1.3;
+            text-transform: none;
+        }
+        
+        .popup-details {
+            font-size: 14px;
+            color: var(--slate-blue);
+            line-height: 1.5;
+            margin-bottom: 18px;
+            text-transform: none;
+        }
+        
+        .popup-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 4px;  /* Extra space below buttons */
+        }
+        
+        .popup-btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        
+        .popup-btn-primary {
+            background: var(--red-dirt);
+            color: white;
+        }
+        
+        .popup-btn-primary:hover {
+            background: var(--red-dirt-dark);
+        }
+        
+        .popup-btn-secondary {
+            background: var(--border);
+            color: var(--slate-blue);
+        }
+        
+        .popup-btn-secondary:hover {
+            background: var(--oil-navy);
+            color: white;
+        }
+
+        /* Legend Strip */
+        .legend-strip {
+            background: white;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+        
+        .legend-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .legend-group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .legend-items {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .legend-text {
+            font-size: 11px;
+            color: var(--slate-blue);
+        }
+
+        /* Toast animations */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            #map {
+                height: 500px;
+            }
+            
+            .layer-panel {
+                width: 100%;
+            }
+            
+            .layer-toggle-btn {
+                top: 10px;
+                right: 10px;
+                padding: 10px;
+                font-size: 13px;
+            }
+            
+            .legend-strip {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/portal/" class="logo">Mineral Watch</a>
+                <a href="/portal/" class="nav-back">← Back to Dashboard</a>
+            </div>
+        </div>
+    </header>
+    
+    <main>
+        <div class="container">
+            <div class="page-header">
+                <h1>My Map (In Development)</h1>
+            </div>
+            
+            <div class="map-container">
+                <div id="map"></div>
+                
+                <!-- Loading overlay -->
+                <div class="map-loading" id="mapLoading">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading map data...</div>
+                </div>
+                
+                <!-- Layer Toggle Button -->
+                <button class="layer-toggle-btn" id="layerToggleBtn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="6" height="6"></rect>
+                        <rect x="14" y="3" width="6" height="6"></rect>
+                        <rect x="14" y="14" width="6" height="6"></rect>
+                        <rect x="3" y="14" width="6" height="6"></rect>
+                    </svg>
+                    Layers
+                </button>
+                
+                <!-- Layer Panel -->
+                <div class="layer-panel" id="layerPanel">
+                    <div class="layer-panel-header">
+                        <div class="layer-panel-title">Map Layers</div>
+                        <button class="layer-panel-close" id="layerPanelClose">×</button>
+                    </div>
+                    <div class="layer-panel-content">
+                        <!-- County Search -->
+                        <div class="county-search">
+                            <label class="search-label">Quick County Search</label>
+                            <input type="text" class="search-input" id="countySearch" placeholder="Type county name..." autocomplete="off">
+                        </div>
+                        
+                        <!-- My Monitoring -->
+                        <div class="layer-group">
+                            <div class="layer-group-title">My Monitoring</div>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-properties" checked>
+                                <span class="layer-option-label">My Properties</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-wells" checked>
+                                <span class="layer-option-label">Tracked Wells</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Activity Layers -->
+                        <div class="layer-group">
+                            <div class="layer-group-title">Activity</div>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-permits" checked>
+                                <span class="layer-option-label">New Permits</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-completions" checked>
+                                <span class="layer-option-label">Completions</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-drilling" checked>
+                                <span class="layer-option-label">Drilling Activity</span>
+                            </label>
+                        </div>
+                        
+                        <!-- Overlay Layers -->
+                        <div class="layer-group">
+                            <div class="layer-group-title">Overlays</div>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-heatmap" checked>
+                                <span class="layer-option-label">Activity Heatmap</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-townships" checked>
+                                <span class="layer-option-label">Township Grid</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-counties" checked>
+                                <span class="layer-option-label">County Boundaries</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-county-labels">
+                                <span class="layer-option-label">County Names</span>
+                            </label>
+                            <label class="layer-option">
+                                <input type="checkbox" id="toggle-section-numbers">
+                                <span class="layer-option-label">Section Numbers</span>
+                            </label>
+                        </div>
+                        
+                        <div class="map-status" id="mapStatus">Ready</div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Legend Strip -->
+            <div class="legend-strip">
+                <div class="legend-group">
+                    <div class="legend-group-title">Monitoring</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--your-property); border-color: var(--your-property-dark);"></div>
+                            <span class="legend-text">My Property</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="16" height="20" viewBox="-2 -1 28 36" xmlns="http://www.w3.org/2000/svg" style="margin: 2px 4px;">
+                                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                                      fill="#22C55E" stroke="#16A34A" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="4.5" fill="#16A34A"/>
+                            </svg>
+                            <span class="legend-text">Tracked Well (pin = tracked, color = status)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="legend-group">
+                    <div class="legend-group-title">Activity Type</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--permit); border-color: var(--permit-dark);"></div>
+                            <span class="legend-text">New Permit</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--completed); border-color: var(--completed-dark);"></div>
+                            <span class="legend-text">Completed</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--drilling); border-color: var(--drilling-dark);"></div>
+                            <span class="legend-text">Drilling</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="legend-group">
+                    <div class="legend-group-title">Activity Density</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div style="width: 40px; height: 14px; background: linear-gradient(to right, var(--status-quiet), var(--status-recent), var(--status-active)); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
+                            <span class="legend-text">Low → High</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Layer Panel Controls
+        document.getElementById('layerToggleBtn').addEventListener('click', function() {
+            document.getElementById('layerPanel').classList.add('open');
+            this.classList.add('hidden');
+        });
+        
+        document.getElementById('layerPanelClose').addEventListener('click', function() {
+            document.getElementById('layerPanel').classList.remove('open');
+            document.getElementById('layerToggleBtn').classList.remove('hidden');
+        });
+        
+        // Close panel when clicking outside
+        document.addEventListener('click', function(event) {
+            const panel = document.getElementById('layerPanel');
+            const toggle = document.getElementById('layerToggleBtn');
+            
+            if (!panel.contains(event.target) && !toggle.contains(event.target)) {
+                if (panel.classList.contains('open')) {
+                    panel.classList.remove('open');
+                    toggle.classList.remove('hidden');
+                }
+            }
+        });
+        
+        // County Search with Autocomplete
+        const oklahmaCounties = [
+            'Adair', 'Alfalfa', 'Atoka', 'Beaver', 'Beckham', 'Blaine', 'Bryan', 'Caddo', 'Canadian',
+            'Carter', 'Cherokee', 'Choctaw', 'Cimarron', 'Cleveland', 'Coal', 'Comanche', 'Cotton',
+            'Craig', 'Creek', 'Custer', 'Delaware', 'Dewey', 'Ellis', 'Garfield', 'Garvin', 'Grady',
+            'Grant', 'Greer', 'Harmon', 'Harper', 'Haskell', 'Hughes', 'Jackson', 'Jefferson', 'Johnston',
+            'Kay', 'Kingfisher', 'Kiowa', 'Latimer', 'Le Flore', 'Lincoln', 'Logan', 'Love', 'Major',
+            'Marshall', 'Mayes', 'McClain', 'McCurtain', 'McIntosh', 'Murray', 'Muskogee', 'Noble',
+            'Nowata', 'Okfuskee', 'Oklahoma', 'Okmulgee', 'Osage', 'Ottawa', 'Pawnee', 'Payne',
+            'Pittsburg', 'Pontotoc', 'Pottawatomie', 'Pushmataha', 'Roger Mills', 'Rogers', 'Seminole',
+            'Sequoyah', 'Stephens', 'Texas', 'Tillman', 'Tulsa', 'Wagoner', 'Washington', 'Washita',
+            'Woods', 'Woodward'
+        ];
+        
+        // County bounds mapping (simplified - key counties only)
+        const countyBounds = {
+            'oklahoma': [[35.4, -97.7], [35.7, -97.3]],
+            'tulsa': [[35.9, -96.2], [36.4, -95.8]],
+            'cleveland': [[35.1, -97.6], [35.4, -97.2]],
+            'canadian': [[35.4, -98.2], [35.7, -97.4]],
+            'comanche': [[34.5, -98.8], [34.9, -98.2]],
+            'payne': [[35.9, -97.2], [36.2, -96.8]],
+            'garfield': [[36.3, -97.8], [36.6, -97.4]],
+            'kay': [[36.6, -97.2], [37.0, -96.8]],
+            'washington': [[36.5, -96.2], [37.0, -95.8]],
+            'carter': [[34.1, -97.7], [34.5, -97.2]],
+            'grady': [[35.0, -98.2], [35.4, -97.6]],
+            'stephens': [[34.4, -98.1], [34.8, -97.7]],
+            'mcclain': [[35.0, -97.6], [35.3, -97.2]],
+            'pottawatomie': [[35.1, -97.2], [35.4, -96.8]],
+            'lincoln': [[35.7, -97.1], [36.0, -96.7]],
+            'creek': [[35.8, -96.8], [36.2, -96.0]],
+            'okmulgee': [[35.5, -96.3], [35.9, -95.9]],
+            'muskogee': [[35.6, -95.6], [36.0, -95.2]],
+            'wagoner': [[35.8, -95.6], [36.1, -95.2]],
+            'mayes': [[36.1, -95.4], [36.5, -95.0]],
+            'rogers': [[36.2, -95.8], [36.5, -95.4]],
+            'delaware': [[36.3, -95.0], [36.7, -94.6]],
+            'cherokee': [[35.8, -95.0], [36.2, -94.6]],
+            'adair': [[35.6, -94.8], [36.0, -94.4]],
+            'sequoyah': [[35.2, -95.0], [35.6, -94.6]],
+            'le flore': [[34.7, -95.0], [35.2, -94.6]],
+            'mccurtain': [[33.9, -95.2], [34.3, -94.4]],
+            'choctaw': [[34.0, -95.8], [34.4, -95.2]],
+            'pushmataha': [[34.3, -95.8], [34.7, -95.2]],
+            'atoka': [[34.2, -96.2], [34.6, -95.8]],
+            'coal': [[34.4, -96.4], [34.8, -96.0]],
+            'pontotoc': [[34.5, -96.8], [34.9, -96.4]],
+            'garvin': [[34.7, -97.6], [35.1, -97.2]],
+            'murray': [[34.3, -97.2], [34.7, -96.8]],
+            'johnston': [[34.1, -97.0], [34.5, -96.6]],
+            'marshall': [[33.9, -97.0], [34.3, -96.6]],
+            'bryan': [[33.9, -96.4], [34.3, -95.8]],
+            'love': [[33.6, -97.4], [34.0, -97.0]],
+            'jefferson': [[34.0, -98.0], [34.4, -97.6]],
+            'cotton': [[34.1, -98.8], [34.5, -98.4]],
+            'tillman': [[34.2, -99.2], [34.6, -98.8]],
+            'jackson': [[34.6, -99.6], [35.0, -99.2]],
+            'harmon': [[34.8, -100.0], [35.2, -99.6]],
+            'greer': [[34.8, -99.6], [35.2, -99.2]],
+            'kiowa': [[34.8, -99.2], [35.2, -98.8]],
+            'washita': [[35.2, -99.6], [35.6, -98.8]],
+            'caddo': [[35.0, -98.8], [35.4, -98.4]],
+            'blaine': [[35.6, -98.8], [36.0, -98.0]],
+            'kingfisher': [[35.6, -98.0], [36.0, -97.6]],
+            'logan': [[35.8, -97.6], [36.2, -97.2]],
+            'noble': [[36.1, -97.6], [36.5, -97.2]],
+            'grant': [[36.5, -98.0], [36.9, -97.6]],
+            'alfalfa': [[36.5, -98.8], [36.9, -98.4]],
+            'woods': [[36.7, -99.2], [37.1, -98.8]],
+            'major': [[36.1, -98.8], [36.5, -98.4]],
+            'woodward': [[36.1, -99.6], [36.5, -99.2]],
+            'dewey': [[35.7, -99.2], [36.1, -98.8]],
+            'custer': [[35.4, -99.2], [35.8, -98.8]],
+            'roger mills': [[35.6, -100.0], [36.0, -99.6]],
+            'beckham': [[35.0, -100.0], [35.4, -99.6]],
+            'ellis': [[36.0, -100.0], [36.4, -99.6]],
+            'harper': [[36.6, -100.0], [37.0, -99.6]],
+            'beaver': [[36.4, -100.8], [36.8, -100.4]],
+            'texas': [[36.4, -101.6], [36.8, -100.8]],
+            'cimarron': [[36.4, -103.0], [36.8, -102.0]]
+        };
+        
+        const countySearchInput = document.getElementById('countySearch');
+        
+        // Simple autocomplete
+        countySearchInput.addEventListener('input', function() {
+            // This is a simplified version - you could add a dropdown with suggestions
+        });
+        
+        countySearchInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const query = this.value.trim().toLowerCase();
+                const bounds = countyBounds[query];
+                
+                if (bounds) {
+                    map.fitBounds(bounds, { padding: [50, 50] });
+                    updateStatus(`Zoomed to ${this.value} County`);
+                    setTimeout(() => updateStatus('Map ready'), 2000);
+                } else {
+                    // Try partial match
+                    const match = oklahmaCounties.find(county => 
+                        county.toLowerCase().startsWith(query)
+                    );
+                    if (match) {
+                        const matchBounds = countyBounds[match.toLowerCase()];
+                        if (matchBounds) {
+                            map.fitBounds(matchBounds, { padding: [50, 50] });
+                            this.value = match;
+                            updateStatus(`Zoomed to ${match} County`);
+                            setTimeout(() => updateStatus('Map ready'), 2000);
+                        }
+                    } else {
+                        updateStatus('County not found');
+                        setTimeout(() => updateStatus('Map ready'), 2000);
+                    }
+                }
+                
+                // Close panel after search
+                document.getElementById('layerPanel').classList.remove('open');
+                document.getElementById('layerToggleBtn').classList.remove('hidden');
+            }
+        });
+
+        // Initialize map centered on Oklahoma
+        const map = L.map('map').setView([35.5, -97.5], 7);
+        
+        // Add Esri Light Gray Canvas basemap - perfect for data visualization
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Add Esri reference overlay (place names, etc.) with subtle opacity
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '',
+            maxZoom: 19,
+            opacity: 0.8
+        }).addTo(map);
+        
+        
+        // Add map click handler for location identification
+        map.on('click', async function(e) {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            
+            // Only identify if clicked within Oklahoma bounds (roughly)
+            if (lat < 33.6 || lat > 37.0 || lon < -103.0 || lon > -94.4) {
+                return; // Outside Oklahoma
+            }
+            
+            try {
+                updateStatus('Identifying location...');
+                const location = await identifyLocation(lat, lon);
+                
+                if (location) {
+                    createLocationInfoBox(
+                        location.county, 
+                        location.township, 
+                        location.range, 
+                        location.section, 
+                        lat, 
+                        lon
+                    );
+                    updateStatus('Map ready');
+                } else {
+                    updateStatus('Location not found');
+                    setTimeout(() => updateStatus('Map ready'), 2000);
+                }
+            } catch (error) {
+                console.error('Error identifying location:', error);
+                updateStatus('Location identification failed');
+                setTimeout(() => updateStatus('Map ready'), 2000);
+            }
+        });
+        
+        // Add zoom/move handlers for section lines
+        map.on('zoomend moveend', updateSectionLines);
+
+        // Layer variables
+        let countyLayer;
+        let townshipLayer;
+        let countyLabelsLayer = L.layerGroup();
+        let propertiesLayer = L.featureGroup();
+        let wellsLayer = L.featureGroup();
+        let sectionLayer = L.featureGroup();
+        let locationInfoBox;
+        
+        // Property loading state
+        let userProperties = [];
+        let geometryCache = {};
+        let sectionCache = {};
+        let sectionBounds = null;
+        
+        // OCC API Configuration
+        const OCC_API_BASE = 'https://gis.occ.ok.gov/server/rest/services/Hosted/STR/FeatureServer';
+        const OCC_PROXY = '/api/occ-proxy';
+        const SECTION_LAYER = 226; // OK_SEC layer
+        
+        // Property status colors
+        const STATUS_COLORS = {
+            active: '#22C55E',   // Green - permits nearby
+            recent: '#F59E0B',   // Yellow - activity in last 30 days  
+            quiet: '#3B82F6',    // Blue - no recent activity
+            default: '#8B5CF6'   // Purple - default
+        };
+        
+        // Well status colors
+        const WELL_STATUS_COLORS = {
+            'AC': '#22C55E',     // Active - Green
+            'PA': '#6B7280',     // Plugged & Abandoned - Gray
+            'ND': '#F97316',     // New Drill - Orange
+            'SI': '#3B82F6',     // Shut In - Blue
+            'TA': '#DC2626',     // Temp Abandoned - Red
+            default: '#8B5CF6'   // Default - Purple
+        };
+        
+        // Top operator colors
+        const OPERATOR_COLORS = {
+            'DEVON': '#1E40AF',              // Blue
+            'CONTINENTAL': '#DC2626',        // Red
+            'MEWBOURNE': '#059669',          // Green
+            'MARATHON': '#7C3AED',           // Purple
+            'EOG': '#F59E0B',               // Amber
+            'OVINTIV': '#0891B2',           // Cyan
+            'CIMAREX': '#EC4899',           // Pink
+            'GULFPORT': '#84CC16',          // Lime
+            'CITIZENS': '#F97316',          // Orange
+            'CHESAPEAKE': '#06B6D4',        // Sky
+            default: '#6B7280'              // Gray
+        };
+        
+        // Update status
+        function updateStatus(message) {
+            document.getElementById('mapStatus').textContent = message;
+        }
+        
+        function showLoading(message = 'Loading map data...') {
+            document.getElementById('mapLoading').style.display = 'flex';
+            document.querySelector('.loading-text').textContent = message;
+        }
+        
+        function hideLoading() {
+            document.getElementById('mapLoading').style.display = 'none';
+        }
+        
+        // Location identification functions
+        async function identifyLocation(lat, lon) {
+            try {
+                const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` + 
+                    `geometry=${lon},${lat}&` +
+                    `geometryType=esriGeometryPoint&` +
+                    `spatialRel=esriSpatialRelIntersects&` +
+                    `outFields=*&` +
+                    `f=json`;
+                
+                const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    console.error('Location query failed:', response.status);
+                    return null;
+                }
+                
+                const data = await response.json();
+                
+                if (data.features && data.features.length > 0) {
+                    const attrs = data.features[0].attributes;
+                    
+                    // Parse PLSS ID to extract township/range info
+                    // Format is like "OK170210N0180W0" 
+                    const plssId = attrs.plssid || '';
+                    let township = 'Unknown';
+                    let range = 'Unknown';
+                    
+                    if (plssId) {
+                        // Extract township (e.g., "21N" from "OK170210N0180W0")
+                        const townshipMatch = plssId.match(/(\d{2,3})([NS])/);
+                        if (townshipMatch) {
+                            township = parseInt(townshipMatch[1]) + townshipMatch[2];
+                        }
+                        
+                        // Extract range (e.g., "18W" from "OK170210N0180W0")
+                        const rangeMatch = plssId.match(/(\d{2,3})([EW])/);
+                        if (rangeMatch) {
+                            range = parseInt(rangeMatch[1]) + rangeMatch[2];
+                        }
+                    }
+                    
+                    // Get county from PLSS ID lookup or fall back to method
+                    const countyCode = plssId.substring(2, 4); // Extract county code from PLSS
+                    const county = getCountyFromPlssCode(countyCode) || 'Unknown';
+                    
+                    return {
+                        county: county,
+                        township: township,
+                        range: range,
+                        section: attrs.frstdivno || 'Unknown'
+                    };
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error identifying location:', error);
+                return null;
+            }
+        }
+        
+        function createLocationInfoBox(county, township, range, section, lat, lon) {
+            // Remove existing info box
+            if (locationInfoBox) {
+                map.removeControl(locationInfoBox);
+            }
+            
+            // Format location string: 'Woodward 21N 18W S12'
+            const locationText = `${county} ${township} ${range} S${section}`;
+            
+            // Create custom control for location info
+            const LocationInfo = L.Control.extend({
+                onAdd: function(map) {
+                    const div = L.DomUtil.create('div', 'location-info');
+                    div.innerHTML = `
+                        <div style="background: rgba(255,255,255,0.95); padding: 8px 12px; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,0.3); font-size: 13px; font-weight: 500; color: #1f2937; border-left: 4px solid #3b82f6;">
+                            📍 ${locationText}
+                            <span style="display: block; font-size: 11px; color: #6b7280; margin-top: 2px;">${lat.toFixed(5)}, ${lon.toFixed(5)}</span>
+                        </div>
+                    `;
+                    
+                    // Prevent map interactions on the info box
+                    L.DomEvent.disableClickPropagation(div);
+                    L.DomEvent.disableScrollPropagation(div);
+                    
+                    return div;
+                },
+                
+                onRemove: function(map) {
+                    // Nothing to do here
+                }
+            });
+            
+            locationInfoBox = new LocationInfo({ position: 'topright' });
+            locationInfoBox.addTo(map);
+            
+            // Auto-hide after 8 seconds
+            setTimeout(() => {
+                if (locationInfoBox) {
+                    map.removeControl(locationInfoBox);
+                    locationInfoBox = null;
+                }
+            }, 8000);
+        }
+        
+        // County code to name mapping (from PLSS codes)
+        function getCountyFromPlssCode(code) {
+            const countyMap = {
+                '01': 'Adair', '02': 'Alfalfa', '03': 'Atoka', '04': 'Beaver',
+                '05': 'Beckham', '06': 'Blaine', '07': 'Bryan', '08': 'Caddo',
+                '09': 'Canadian', '10': 'Carter', '11': 'Cherokee', '12': 'Choctaw',
+                '13': 'Cimarron', '14': 'Cleveland', '15': 'Coal', '16': 'Comanche',
+                '17': 'Cotton', '18': 'Craig', '19': 'Creek', '20': 'Custer',
+                '21': 'Delaware', '22': 'Dewey', '23': 'Ellis', '24': 'Garfield',
+                '25': 'Garvin', '26': 'Grady', '27': 'Grant', '28': 'Greer',
+                '29': 'Harmon', '30': 'Harper', '31': 'Haskell', '32': 'Hughes',
+                '33': 'Jackson', '34': 'Jefferson', '35': 'Johnston', '36': 'Kay',
+                '37': 'Kingfisher', '38': 'Kiowa', '39': 'Latimer', '40': 'Le Flore',
+                '41': 'Lincoln', '42': 'Logan', '43': 'Love', '44': 'McClain',
+                '45': 'McCurtain', '46': 'McIntosh', '47': 'Major', '48': 'Marshall',
+                '49': 'Mayes', '50': 'Murray', '51': 'Muskogee', '52': 'Noble',
+                '53': 'Nowata', '54': 'Okfuskee', '55': 'Oklahoma', '56': 'Okmulgee',
+                '57': 'Osage', '58': 'Ottawa', '59': 'Pawnee', '60': 'Payne',
+                '61': 'Pittsburg', '62': 'Pontotoc', '63': 'Pottawatomie', '64': 'Pushmataha',
+                '65': 'Roger Mills', '66': 'Rogers', '67': 'Seminole', '68': 'Sequoyah',
+                '69': 'Stephens', '70': 'Texas', '71': 'Tillman', '72': 'Tulsa',
+                '73': 'Wagoner', '74': 'Washington', '75': 'Washita', '76': 'Woods',
+                '77': 'Woodward'
+            };
+            return countyMap[code];
+        }
+        
+        // Section lines functionality
+        async function loadSectionsInBounds(bounds) {
+            const boundsKey = `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`;
+            
+            // Check cache
+            if (sectionCache[boundsKey]) {
+                return sectionCache[boundsKey];
+            }
+            
+            try {
+                // Correct order: minX,minY,maxX,maxY
+                const minX = bounds.getWest();
+                const minY = bounds.getSouth();
+                const maxX = bounds.getEast();
+                const maxY = bounds.getNorth();
+                const bbox = `${minX},${minY},${maxX},${maxY}`;
+                
+                // Use correct field names: frstdivno (section), plssid (township/range info)
+                const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
+                    `geometry=${bbox}&` +
+                    `geometryType=esriGeometryEnvelope&` +
+                    `inSR=4326&` +  // WGS84
+                    `outSR=4326&` +  // WGS84
+                    `spatialRel=esriSpatialRelIntersects&` +
+                    `outFields=objectid,plssid,frstdivno,frstdivtyp,frstdivtxt&` +
+                    `returnGeometry=true&` +
+                    `f=geojson&` +
+                    `resultRecordCount=2000`;  // Get more sections
+                    
+                const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                console.log('Fetching sections:', url);
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Section query error:', response.status, errorText);
+                    throw new Error(`Section query failed: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                sectionCache[boundsKey] = data;
+                return data;
+                
+            } catch (error) {
+                console.error('Error loading sections:', error);
+                return null;
+            }
+        }
+        
+        function renderSectionLines(geojsonData) {
+            if (!geojsonData || !geojsonData.features) return;
+            
+            // Clear existing section lines
+            sectionLayer.clearLayers();
+            
+            geojsonData.features.forEach(feature => {
+                const sectionLine = L.geoJSON(feature, {
+                    style: {
+                        color: '#F59E0B',        // Orange - distinct from townships
+                        weight: 0.5,             // Very thin for sections
+                        opacity: 0.6,
+                        fillOpacity: 0,          // No fill - stroke only
+                        fill: false,
+                        dashArray: '1, 2'       // Tight dots for sections
+                    },
+                    onEachFeature: function(feature, layer) {
+                        if (feature.properties) {
+                            const props = feature.properties;
+                            // frstdivno is section number, plssid has township/range info
+                            const sectionNum = props.frstdivno || 'Unknown';
+                            const plssId = props.plssid || '';
+                            const divType = props.frstdivtxt || 'Section';
+                            
+                            const sectionInfo = `${divType} ${sectionNum} (${plssId})`;
+                            layer.bindTooltip(sectionInfo, {
+                                sticky: true,
+                                opacity: 0.9
+                            });
+                        }
+                    }
+                });
+                
+                sectionLayer.addLayer(sectionLine);
+            });
+        }
+        
+        async function updateSectionLines() {
+            const zoom = map.getZoom();
+            
+            if (zoom >= 12) {
+                const bounds = map.getBounds();
+                
+                // Only update if bounds changed significantly
+                if (!sectionBounds || !sectionBounds.contains(bounds)) {
+                    updateStatus('Loading section lines...');
+                    
+                    const sectionsData = await loadSectionsInBounds(bounds);
+                    if (sectionsData) {
+                        renderSectionLines(sectionsData);
+                        
+                        // Add to map if not already added
+                        if (!map.hasLayer(sectionLayer)) {
+                            map.addLayer(sectionLayer);
+                        }
+                        
+                        sectionBounds = bounds.pad(0.5); // Pad for less frequent updates
+                    }
+                    updateStatus('Map ready');
+                }
+            } else {
+                // Remove section lines at low zoom
+                if (map.hasLayer(sectionLayer)) {
+                    map.removeLayer(sectionLayer);
+                }
+                sectionBounds = null;
+            }
+        }
+        
+        // Oklahoma Principal Meridians
+        const OKLAHOMA_MERIDIANS = {
+            'INDIAN': 'OK17',
+            'CIMARRON': 'OK11' // Confirmed from OCC API data
+        };
+        
+        // Determine meridian based on county location
+        function getMeridianCode(twn, rng, county = '') {
+            // Cimarron Meridian is only used in Oklahoma panhandle counties
+            const panhandleCounties = ['BEAVER', 'CIMARRON', 'TEXAS'];
+            
+            if (panhandleCounties.includes(county.toUpperCase())) {
+                return 'OK11'; // Cimarron Meridian for panhandle
+            }
+            
+            return 'OK17'; // Indian Meridian for all other Oklahoma counties
+        }
+        
+        // PLSS ID formatter for OCC API with meridian detection
+        function formatPlssId(twn, rng, county = '', meridianCode = null) {
+            // Parse township: "22N" -> { num: 22, dir: 'N' }
+            const twnMatch = twn.match(/(\d+)([NS])/i);
+            if (!twnMatch) return null;
+            const twnNum = twnMatch[1].padStart(3, '0');
+            const twnDir = twnMatch[2].toUpperCase();
+            
+            // Parse range: "19W" -> { num: 19, dir: 'W' }
+            const rngMatch = rng.match(/(\d+)([EW])/i);
+            if (!rngMatch) return null;
+            const rngNum = rngMatch[1].padStart(3, '0');
+            const rngDir = rngMatch[2].toUpperCase();
+            
+            // Determine meridian if not provided
+            if (!meridianCode) {
+                meridianCode = getMeridianCode(twn, rng, county);
+            }
+            
+            // Format: [MERIDIAN]TTTT0DRRRR0D0
+            return `${meridianCode}${twnNum}0${twnDir}${rngNum}0${rngDir}0`;
+        }
+        
+        // Get PLSS ID for a location (single meridian based on county)
+        function getPlssId(twn, rng, county = '') {
+            const meridianCode = getMeridianCode(twn, rng, county);
+            const plssId = formatPlssId(twn, rng, county, meridianCode);
+            
+            if (!plssId) {
+                console.error('Invalid township/range format:', twn, rng);
+                return null;
+            }
+            
+            return {
+                id: plssId,
+                meridian: meridianCode === 'OK11' ? 'cimarron' : 'indian'
+            };
+        }
+        
+        // Fetch section geometry from OCC API with caching and fallback
+        async function fetchSectionGeometry(section, twn, rng, county = '') {
+            const cacheKey = `${section}-${twn}-${rng}`;
+            
+            // Check memory cache first
+            if (geometryCache[cacheKey]) {
+                return geometryCache[cacheKey];
+            }
+            
+            // Check localStorage cache
+            const stored = localStorage.getItem(`mw_section_${cacheKey}`);
+            if (stored) {
+                try {
+                    const parsed = JSON.parse(stored);
+                    geometryCache[cacheKey] = parsed;
+                    return parsed;
+                } catch (e) {
+                    console.warn('Invalid cached data, removing:', cacheKey);
+                    localStorage.removeItem(`mw_section_${cacheKey}`);
+                }
+            }
+            
+            // Try primary meridian first
+            const primaryPlss = getPlssId(twn, rng, county);
+            if (primaryPlss) {
+                const result = await tryFetchWithPlssId(section, primaryPlss, cacheKey);
+                if (result) return result;
+            }
+            
+            // If primary fails, try the other meridian as fallback
+            const fallbackMeridian = primaryPlss?.meridian === 'cimarron' ? 'OK17' : 'OK11';
+            const fallbackPlss = formatPlssId(twn, rng, county, fallbackMeridian);
+            if (fallbackPlss) {
+                console.log(`Primary meridian failed, trying fallback: ${fallbackPlss}`);
+                const fallbackData = {
+                    id: fallbackPlss,
+                    meridian: fallbackMeridian === 'OK11' ? 'cimarron' : 'indian'
+                };
+                const result = await tryFetchWithPlssId(section, fallbackData, cacheKey);
+                if (result) return result;
+            }
+            
+            console.error(`❌ No geometry found for Section ${section} T${twn} R${rng} in ${county} County`);
+            return null;
+        }
+        
+        // Helper function to try fetching with a specific PLSS ID
+        async function tryFetchWithPlssId(section, plssData, cacheKey) {
+            const { id: plssId, meridian } = plssData;
+            console.log(`Fetching PLSS ID ${plssId} (${meridian} meridian) for S${section}`);
+            
+            const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
+                `where=frstdivno='${section}' AND plssid='${plssId}'` +
+                `&outFields=frstdivno,frstdivlab,gisacre,plssid,survtyptxt` +
+                `&f=geojson` +
+                `&outSR=4326`;
+            
+            try {
+                const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    const errorData = await response.text();
+                    console.warn(`HTTP ${response.status} for PLSS ID ${plssId}:`, errorData.substring(0, 200));
+                    return null;
+                }
+                
+                const data = await response.json();
+                
+                if (data.features && data.features.length > 0) {
+                    const feature = data.features[0];
+                    console.log(`✅ Found geometry using ${plssId} (${meridian} meridian)`, feature.properties);
+                    
+                    // Cache in memory and localStorage
+                    geometryCache[cacheKey] = feature;
+                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                    return feature;
+                } else {
+                    console.log(`No features found for PLSS ID ${plssId} (${meridian})`);
+                    return null;
+                }
+            } catch (err) {
+                console.warn(`Error fetching PLSS ID ${plssId} (${meridian}):`, err.message);
+                return null;
+            }
+        }
+        
+        // Fetch user properties from API
+        async function fetchUserProperties() {
+            try {
+                console.log('Fetching user properties...');
+                const response = await fetch('/api/properties');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const properties = await response.json();
+                console.log(`Loaded ${properties.length} properties`);
+                return properties;
+            } catch (error) {
+                console.error('Error fetching properties:', error);
+                return [];
+            }
+        }
+        
+        // Parse coordinates from OCC Map Link URL
+        function parseOccMapLink(occMapLink) {
+            if (!occMapLink || occMapLink === '#') return null;
+            
+            // Pattern: marker=<lon>,<lat>
+            const match = occMapLink.match(/marker=(-?\d+\.?\d*),(-?\d+\.?\d*)/);
+            if (match) {
+                return {
+                    lon: parseFloat(match[1]),
+                    lat: parseFloat(match[2])
+                };
+            }
+            return null;
+        }
+        
+        // Get operator color with normalization
+        function getOperatorColor(operator) {
+            if (!operator) return OPERATOR_COLORS.default;
+            
+            // Normalize operator name for matching
+            const normalized = operator.toUpperCase().trim();
+            
+            // Check for exact match first
+            if (OPERATOR_COLORS[normalized]) {
+                return OPERATOR_COLORS[normalized];
+            }
+            
+            // Check if operator name contains any of our key operators
+            for (const [key, color] of Object.entries(OPERATOR_COLORS)) {
+                if (key !== 'default' && normalized.includes(key)) {
+                    return color;
+                }
+            }
+            
+            return OPERATOR_COLORS.default;
+        }
+        
+        // Fetch tracked wells from API
+        async function fetchTrackedWells() {
+            try {
+                console.log('Fetching tracked wells...');
+                const response = await fetch('/api/wells');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                const data = await response.json();
+                console.log(`Loaded ${data.length} wells`);
+                return data;
+            } catch (error) {
+                console.error('Error fetching wells:', error);
+                return [];
+            }
+        }
+        
+        // Create clustered marker for multiple wells at same location
+        function createClusteredWellMarker(wellsAtLocation) {
+            const firstWell = wellsAtLocation[0];
+            const coords = parseOccMapLink(firstWell.fields['OCC Map Link']);
+            const count = wellsAtLocation.length;
+            
+            // Use the most prominent status for the main marker color
+            const statusPriority = { 'AC': 4, 'ND': 3, 'SI': 2, 'PA': 1, 'TA': 1 };
+            const dominantWell = wellsAtLocation.reduce((prev, curr) => {
+                const prevStatus = prev.fields['Well Status'] || '';
+                const currStatus = curr.fields['Well Status'] || '';
+                return (statusPriority[currStatus] || 0) > (statusPriority[prevStatus] || 0) ? curr : prev;
+            });
+            
+            const dominantStatus = dominantWell.fields['Well Status'] || 'Unknown';
+            const statusColor = WELL_STATUS_COLORS[dominantStatus] || WELL_STATUS_COLORS.default;
+            const operatorColor = getOperatorColor(dominantWell.fields['Operator'] || '');
+            
+            let marker;
+            
+            // Create pin marker for tracked wells (like classic map pins)
+            const markerSize = count === 1 ? 24 : 32;
+            const markerHeight = count === 1 ? 30 : 40;
+            const icon = L.divIcon({
+                className: 'tracked-well-pin',
+                html: `
+                    <svg width="${markerSize}" height="${markerHeight}" viewBox="-2 -1 28 36" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                              fill="${statusColor}" stroke="${operatorColor}" stroke-width="2"/>
+                        <circle cx="12" cy="12" r="4.5" fill="${operatorColor}"/>
+                        ${count > 1 ? `<text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${count}</text>` : ''}
+                    </svg>
+                `,
+                iconSize: [markerSize, markerHeight],
+                iconAnchor: [markerSize/2, markerHeight-1],
+                popupAnchor: [0, -markerHeight+1]
+            });
+            marker = L.marker([coords.lat, coords.lon], { icon: icon });
+            
+            // Create popup content for clustered wells
+            let popupContent;
+            if (count === 1) {
+                // Single well popup with enhanced styling
+                const well = firstWell;
+                const fields = well.fields || {};
+                const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
+                const operator = toTitleCase(fields['Operator'] || 'Unknown');
+                const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
+                const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
+                const apiNumber = fields['API Number'];
+                
+                popupContent = `
+                    <div class="popup-header">
+                        <span class="popup-tag tracked-well">Tracked Well</span>
+                    </div>
+                    <div class="popup-well-name">${wellName}</div>
+                    <div class="popup-details">
+                        ${operator}<br>
+                        ${fields['Section'] ? `S${fields['Section']} T${fields['Township']} R${fields['Range']} • ` : ''}${fields['County'] || 'Unknown'}<br>
+                        Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
+                    </div>
+                    <div class="popup-actions">
+                        <button class="popup-btn popup-btn-primary" onclick="trackWell('${apiNumber}', '${wellName}'); return false;">+ Track Well</button>
+                        <button class="popup-btn popup-btn-secondary" onclick="expandWellCard('${well.id}'); return false;">View Details</button>
+                    </div>
+                `;
+            } else {
+                // Multiple wells popup with enhanced styling
+                popupContent = `
+                    <div class="popup-header">
+                        <span class="popup-tag tracked-well">Tracked Wells</span>
+                    </div>
+                    <div class="popup-well-name">${count} Wells at this Location</div>
+                    <div class="popup-details" style="max-height: 200px; overflow-y: auto;">
+                `;
+                
+                wellsAtLocation.forEach(well => {
+                    const fields = well.fields || {};
+                    const wellName = fields['Well Name'] || `API ${fields['API Number']}`;
+                    const operator = fields['Operator'] || 'Unknown';
+                    const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
+                    const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+                    
+                    popupContent += `
+                        <div class="well-cluster-item" style="padding: 6px 0; border-bottom: 1px solid #eee;">
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <div style="width: 12px; height: 12px; background: ${statusColor}; border-radius: 50%; flex-shrink: 0;"></div>
+                                <div style="flex: 1;">
+                                    <div class="popup-title" style="margin-bottom: 2px;">${wellName}</div>
+                                    <div class="popup-detail" style="margin: 0;"><strong>${operator}</strong> • ${wellStatus}</div>
+                                </div>
+                            </div>
+                            <a href="#" class="popup-link" onclick="expandWellCard('${well.id}'); return false;" style="font-size: 11px;">View Details</a>
+                        </div>
+                    `;
+                });
+                
+                popupContent += '</div>';
+            }
+            
+            marker.bindPopup(popupContent, { maxWidth: 300 });
+            
+            // Add hover effects
+            marker.on('mouseover', function() {
+                if (typeof this.setStyle === 'function') {
+                    this.setStyle({ fillOpacity: 1, weight: 4 });
+                }
+            });
+            
+            marker.on('mouseout', function() {
+                if (typeof this.setStyle === 'function') {
+                    this.setStyle({ fillOpacity: 0.7, weight: 3 });
+                }
+            });
+            
+            return marker;
+        }
+        
+        // Load and display tracked wells with clustering
+        async function loadTrackedWells() {
+            try {
+                updateStatus('Loading tracked wells...');
+                
+                const wells = await fetchTrackedWells();
+                
+                if (wells.length === 0) {
+                    console.log('No wells to display');
+                    return;
+                }
+                
+                // Group wells by coordinates (rounded to avoid tiny differences)
+                const wellsByLocation = {};
+                let addedWells = 0;
+                
+                for (const well of wells) {
+                    const fields = well.fields || {};
+                    
+                    // Parse coordinates from OCC Map Link
+                    const coords = parseOccMapLink(fields['OCC Map Link']);
+                    if (!coords) {
+                        console.warn(`No coordinates found for well ${fields['API Number']}`);
+                        continue;
+                    }
+                    
+                    // Round coordinates to group nearby wells (within ~50 feet)
+                    const roundedLat = Math.round(coords.lat * 1000) / 1000;
+                    const roundedLon = Math.round(coords.lon * 1000) / 1000;
+                    const locationKey = `${roundedLat},${roundedLon}`;
+                    
+                    if (!wellsByLocation[locationKey]) {
+                        wellsByLocation[locationKey] = [];
+                    }
+                    wellsByLocation[locationKey].push(well);
+                    addedWells++;
+                }
+                
+                // Create markers for each location
+                for (const [locationKey, wellsAtLocation] of Object.entries(wellsByLocation)) {
+                    const marker = createClusteredWellMarker(wellsAtLocation);
+                    wellsLayer.addLayer(marker);
+                }
+                
+                // Add wells layer to map
+                if (wellsLayer.getLayers().length > 0) {
+                    map.addLayer(wellsLayer);
+                    // Show well legend when wells are loaded
+                    // Well legend removed - will be added back later
+                    // document.getElementById('wellLegend').style.display = 'block';
+                }
+                
+                console.log(`Added ${Object.keys(wellsByLocation).length} well markers (${addedWells} total wells) to map`);
+                updateStatus(`${addedWells} wells loaded`);
+                
+            } catch (error) {
+                console.error('Error loading wells:', error);
+                updateStatus('Error loading wells');
+            }
+        }
+        
+        // Placeholder for expanding well card
+        function expandWellCard(wellId) {
+            console.log('Expand well card:', wellId);
+            // TODO: Implement well card expansion
+            alert(`View details for well ${wellId} - Feature coming soon!`);
+        }
+        
+        // Track a well (add to user's tracked wells)
+        async function trackWell(apiNumber, wellName) {
+            try {
+                updateStatus('Adding well to tracking...');
+                
+                const response = await fetch('/api/wells', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        'API Number': apiNumber,
+                        'Well Name': wellName
+                    })
+                });
+                
+                if (response.ok) {
+                    showToast(`✅ ${wellName} added to tracking`, 'success');
+                    updateStatus('Map ready');
+                    
+                    // Reload wells to show the new tracked well
+                    setTimeout(() => {
+                        loadWells();
+                    }, 1000);
+                } else {
+                    const error = await response.json();
+                    showToast(`❌ ${error.error || 'Failed to track well'}`, 'error');
+                    updateStatus('Map ready');
+                }
+            } catch (error) {
+                console.error('Error tracking well:', error);
+                showToast('❌ Failed to track well', 'error');
+                updateStatus('Map ready');
+            }
+        }
+        
+        // Convert text to title case (handles all caps)
+        function toTitleCase(str) {
+            if (!str) return '';
+            return str.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <div style="padding: 12px 16px; background: ${type === 'success' ? '#10B981' : '#EF4444'}; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px;">
+                    ${message}
+                </div>
+            `;
+            
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+        
+        // Add property section to map with styling
+        function addPropertyToMap(property, geometry) {
+            if (!geometry) return;
+            
+            const fields = property.fields || property;
+            
+            // Use section polygon styling (subtle red, solid borders)
+            const layer = L.geoJSON(geometry, {
+                style: {
+                    color: '#DC2626',        // --your-property-dark
+                    weight: 2,
+                    fillColor: '#FCA5A5',   // --your-property  
+                    fillOpacity: 0.2,       // More subtle than before
+                    opacity: 0.7            // Solid borders for properties
+                }
+            });
+            
+            // Build ownership details
+            const riAcres = parseFloat(fields['RI Acres']) || 0;
+            const wiAcres = parseFloat(fields['WI Acres']) || 0;
+            const totalUserAcres = riAcres + wiAcres;
+            const sectionTotalAcres = geometry.properties?.gisacre ? Math.round(geometry.properties.gisacre) : 640;
+            
+            let ownershipText = '';
+            if (totalUserAcres > 0) {
+                const parts = [];
+                if (riAcres > 0) parts.push(`${riAcres} RI`);
+                if (wiAcres > 0) parts.push(`${wiAcres} WI`);
+                ownershipText = `Your ${parts.join(' + ')} acres (of ${sectionTotalAcres} total)`;
+            } else {
+                ownershipText = `${sectionTotalAcres} acres total`;
+            }
+            
+            // Create popup content with dual-tag system
+            const popupContent = `
+                <div class="popup-header">
+                    <span class="popup-tag your-property">Your Property</span>
+                </div>
+                <div class="popup-well-name">${toTitleCase(fields.COUNTY || fields.County || 'Unknown')} County</div>
+                <div class="popup-details">
+                    <strong>S${fields.SEC || fields.Section} T${fields.TWN || fields.Township} R${fields.RNG || fields.Range}</strong><br>
+                    ${ownershipText}<br>
+                    ${(riAcres > 0 || wiAcres > 0) ? `<em>Your ownership: ${riAcres > 0 ? riAcres + ' RI' : ''}${(riAcres > 0 && wiAcres > 0) ? ' + ' : ''}${wiAcres > 0 ? wiAcres + ' WI' : ''} acres</em><br>` : ''}
+                    ${fields.Notes ? `<em>"${fields.Notes}"</em><br>` : ''}
+                </div>
+            `;
+            
+            layer.bindPopup(popupContent);
+            
+            // Add hover effects
+            layer.on('mouseover', function() {
+                this.setStyle({ fillOpacity: 0.4, weight: 3 });
+            });
+            
+            layer.on('mouseout', function() {
+                this.setStyle({ fillOpacity: 0.2, weight: 2 });
+            });
+            
+            propertiesLayer.addLayer(layer);
+        }
+        
+        // Batch fetch geometries for multiple sections
+        async function batchFetchGeometries(propertyBatch) {
+            const batchSize = 20; // OCC API can handle ~20 sections per request
+            const results = [];
+            
+            for (let i = 0; i < propertyBatch.length; i += batchSize) {
+                const batch = propertyBatch.slice(i, i + batchSize);
+                
+                // Group by PLSS ID (township/range) for efficient querying
+                const plssGroups = {};
+                batch.forEach(prop => {
+                    const { plssId } = prop;
+                    if (!plssGroups[plssId]) plssGroups[plssId] = [];
+                    plssGroups[plssId].push(prop);
+                });
+                
+                // Fetch each PLSS group
+                for (const [plssId, props] of Object.entries(plssGroups)) {
+                    const sections = props.map(p => p.section).join("','");
+                    
+                    const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
+                        `where=plssid='${plssId}' AND frstdivno IN ('${sections}')` +
+                        `&outFields=frstdivno,frstdivlab,gisacre,plssid,survtyptxt` +
+                        `&f=geojson` +
+                        `&outSR=4326`;
+                    
+                    try {
+                        const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                        console.log(`Batch fetching ${props.length} sections for ${plssId}`);
+                        const response = await fetch(proxyUrl);
+                        
+                        if (response.ok) {
+                            const data = await response.json();
+                            
+                            // Match features back to properties
+                            data.features?.forEach(feature => {
+                                const sectionNum = feature.properties.frstdivno;
+                                const matchingProp = props.find(p => p.section === sectionNum);
+                                if (matchingProp) {
+                                    results.push({
+                                        property: matchingProp.property,
+                                        geometry: feature
+                                    });
+                                    
+                                    // Cache individually for future single requests
+                                    const cacheKey = `${sectionNum}-${matchingProp.township}-${matchingProp.range}`;
+                                    geometryCache[cacheKey] = feature;
+                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                                }
+                            });
+                        } else {
+                            console.warn(`Batch request failed for ${plssId}:`, response.status);
+                        }
+                    } catch (error) {
+                        console.warn(`Error in batch request for ${plssId}:`, error);
+                    }
+                    
+                    // Small delay between batches
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            return results;
+        }
+        
+        // Load and display user properties with batch optimization
+        async function loadUserProperties() {
+            try {
+                showLoading('Loading your properties...');
+                updateStatus('Loading properties...');
+                
+                // Fetch properties from API
+                userProperties = await fetchUserProperties();
+                
+                if (userProperties.length === 0) {
+                    console.log('No properties found');
+                    updateStatus('No properties to display');
+                    hideLoading();
+                    return;
+                }
+                
+                const total = userProperties.length;
+                console.log(`Loading ${total} properties with batch optimization`);
+                
+                // Normalize and prepare all properties
+                const normalizedProperties = [];
+                const propertiesNeedingGeometry = [];
+                
+                for (const property of userProperties) {
+                    const fields = property.fields || property;
+                    
+                    // Extract section, township, range - handle various field name formats
+                    let section = (fields.SEC || fields.Section || '').toString().trim();
+                    let township = (fields.TWN || fields.Township || '').toString().trim();
+                    let range = (fields.RNG || fields.Range || '').toString().trim();
+                    
+                    // Remove common prefixes and normalize
+                    section = section.replace(/^(S|SEC|SECTION)\s*/i, '').trim();
+                    township = township.replace(/^(T|TOWN|TOWNSHIP)\s*/i, '').replace(/\s+/g, '').toUpperCase();
+                    range = range.replace(/^(R|RANGE)\s*/i, '').replace(/\s+/g, '').toUpperCase();
+                    
+                    // Validate normalized formats
+                    if (!section || !/^\d+$/.test(section) || !township || !/^\d+[NS]$/.test(township) || !range || !/^\d+[EW]$/.test(range)) {
+                        console.warn('Invalid property format:', { section, township, range });
+                        continue;
+                    }
+                    
+                    const county = fields.COUNTY || fields.County || '';
+                    const cacheKey = `${section}-${township}-${range}`;
+                    
+                    // Check if already cached
+                    if (geometryCache[cacheKey] || localStorage.getItem(`mw_section_${cacheKey}`)) {
+                        // Load from cache immediately
+                        const geometry = geometryCache[cacheKey] || JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`));
+                        addPropertyToMap(property, geometry);
+                        console.log(`Loaded from cache: S${section} T${township} R${range}`);
+                    } else {
+                        // Add to batch fetch list
+                        const plssData = getPlssId(township, range, county);
+                        if (plssData) {
+                            propertiesNeedingGeometry.push({
+                                property,
+                                section,
+                                township, 
+                                range,
+                                county,
+                                plssId: plssData.id
+                            });
+                        }
+                    }
+                }
+                
+                updateStatus(`${propertiesNeedingGeometry.length} properties need geometry fetch`);
+                
+                // Batch fetch remaining geometries
+                if (propertiesNeedingGeometry.length > 0) {
+                    document.querySelector('.loading-text').textContent = 
+                        `Batch loading ${propertiesNeedingGeometry.length} section geometries...`;
+                    
+                    const geometryResults = await batchFetchGeometries(propertiesNeedingGeometry);
+                    
+                    // Add batch results to map
+                    geometryResults.forEach(({ property, geometry }) => {
+                        addPropertyToMap(property, geometry);
+                    });
+                    
+                    console.log(`✅ Batch loaded ${geometryResults.length} geometries`);
+                }
+                
+                // Add properties layer to map
+                if (propertiesLayer.getLayers().length > 0) {
+                    map.addLayer(propertiesLayer);
+                    // Fit map to show properties and counties
+                    const allLayers = L.featureGroup([propertiesLayer, countyLayer]);
+                    if (allLayers.getLayers().length > 0) {
+                        map.fitBounds(allLayers.getBounds(), { padding: [50, 50] });
+                    }
+                }
+                
+                updateStatus(`${total} properties loaded`);
+                hideLoading();
+                
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                updateStatus('Error loading properties');
+                hideLoading();
+            }
+        }
+        
+        // Function to load county data
+        async function loadCountyData() {
+            try {
+                console.log('Loading county boundaries...');
+                updateStatus('Loading counties...');
+                
+                // Fetch from the worker's own assets (works around Pages routing issues)
+                const response = await fetch('/assets/County_Boundaries_2423125635378062927.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const countyData = await response.json();
+                console.log('County data loaded:', countyData.features.length, 'counties');
+                
+                // Create county layer with enhanced visibility
+                countyLayer = L.geoJSON(countyData, {
+                    style: {
+                        color: '#1C2B36',        // Brand navy blue from navigation  
+                        weight: 3,               // Thicker for counties
+                        fillOpacity: 0,          // No fill at all
+                        fillColor: 'transparent',
+                        opacity: 0.8            // Higher opacity for counties
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const countyName = feature.properties.COUNTY_NAME || 'Unknown County';
+                        
+                        // No popup for county boundaries to avoid interference
+                        
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 3, fillOpacity: 0.3 });
+                        });
+                        
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 2, fillOpacity: 0.1 });
+                        });
+                    }
+                }).addTo(map);
+
+                console.log('County layers created and added to map');
+                map.fitBounds(countyLayer.getBounds(), {padding: [20, 20]});
+                updateStatus(`${countyData.features.length} counties loaded`);
+                
+            } catch (error) {
+                console.error('Error loading county data:', error);
+                updateStatus('Using sample county data');
+                console.log('Using fallback county data - real data will be loaded later');
+                createFallbackCountyData();
+            }
+        }
+        
+        // Function to load real PLSS township boundaries
+        async function loadTownshipData() {
+            try {
+                console.log('Loading PLSS township boundaries...');
+                updateStatus('Loading townships...');
+                
+                const response = await fetch('/assets/PLSS_Township_simplified.geojson');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const townshipData = await response.json();
+                console.log('PLSS township data loaded:', townshipData.features.length, 'townships');
+                
+                // Remove any existing mathematical grid
+                if (townshipLayer && map.hasLayer(townshipLayer)) {
+                    map.removeLayer(townshipLayer);
+                }
+                
+                // Create township layer with real boundaries  
+                townshipLayer = L.geoJSON(townshipData, {
+                    style: {
+                        color: '#94A3B8',        // Lighter slate-gray - more subtle
+                        weight: 1,               // Thinner for townships
+                        fillOpacity: 0,
+                        opacity: 0.4,           // Lower opacity - more subtle
+                        dashArray: '3, 6'       // Shorter dashes, more spacing
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const townshipLabel = feature.properties.TWNSHPLAB || 'Unknown';
+                        
+                        layer.bindPopup(`
+                            <div class="popup-title">Township ${townshipLabel}</div>
+                            <div class="popup-detail">${feature.properties.PRINMER || 'Indian Meridian'}</div>
+                        `);
+                        
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 3, opacity: 1.0 });
+                        });
+                        
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 1.5, opacity: 0.7 });
+                        });
+                    }
+                });
+                
+                // Don't add to map yet - let toggle control it
+                updateStatus('Townships ready');
+                
+            } catch (error) {
+                console.error('Could not load PLSS data:', error);
+                updateStatus('Using sample township grid');
+                console.log('Using mathematical township grid - real data will be loaded later');
+                createFallbackTownshipGrid();
+            }
+        }
+        
+        // Fallback county data for testing - enhanced with more Oklahoma counties
+        function createFallbackCountyData() {
+            const fallbackData = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": { "COUNTY_NAME": "OKLAHOMA", "COUNTY_NO": 55, "COUNTY_FIPS_NO": 109 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-97.7, 35.7], [-97.3, 35.7], [-97.3, 35.3], [-97.7, 35.3], [-97.7, 35.7]]]
+                        }
+                    },
+                    {
+                        "type": "Feature", 
+                        "properties": { "COUNTY_NAME": "CLEVELAND", "COUNTY_NO": 14, "COUNTY_FIPS_NO": 27 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-97.7, 35.3], [-97.3, 35.3], [-97.3, 34.9], [-97.7, 34.9], [-97.7, 35.3]]]
+                        }
+                    },
+                    {
+                        "type": "Feature", 
+                        "properties": { "COUNTY_NAME": "CANADIAN", "COUNTY_NO": 12, "COUNTY_FIPS_NO": 17 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-98.1, 35.7], [-97.7, 35.7], [-97.7, 35.3], [-98.1, 35.3], [-98.1, 35.7]]]
+                        }
+                    },
+                    {
+                        "type": "Feature", 
+                        "properties": { "COUNTY_NAME": "TULSA", "COUNTY_NO": 72, "COUNTY_FIPS_NO": 143 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-96.3, 36.4], [-95.9, 36.4], [-95.9, 36.0], [-96.3, 36.0], [-96.3, 36.4]]]
+                        }
+                    },
+                    {
+                        "type": "Feature", 
+                        "properties": { "COUNTY_NAME": "COMANCHE", "COUNTY_NO": 16, "COUNTY_FIPS_NO": 31 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-98.9, 34.9], [-98.5, 34.9], [-98.5, 34.5], [-98.9, 34.5], [-98.9, 34.9]]]
+                        }
+                    }
+                ]
+            };
+            
+            countyLayer = L.geoJSON(fallbackData, {
+                style: { color: '#2980b9', weight: 2, fillOpacity: 0.1, fillColor: '#3498db' },
+                onEachFeature: function(feature, layer) {
+                    const countyName = feature.properties.COUNTY_NAME;
+                    layer.bindPopup(`<div class="popup-title">${countyName} County (Sample)</div>`);
+                }
+            }).addTo(map);
+            
+            map.fitBounds(countyLayer.getBounds(), {padding: [50, 50]});
+        }
+        
+        // Fallback mathematical grid
+        function createFallbackTownshipGrid() {
+            const INDIAN_MERIDIAN = -97.916667;
+            const INDIAN_BASE_LINE = 35.233333;
+            const MILES_PER_TOWNSHIP = 6;
+            const LAT_MILES_RATIO = 1 / 69;
+            const LNG_MILES_RATIO = 1 / 54.6;
+            
+            const gridLines = [];
+            
+            // Generate horizontal lines
+            for (let t = -10; t <= 10; t++) {
+                const lat = INDIAN_BASE_LINE + (t * MILES_PER_TOWNSHIP * LAT_MILES_RATIO);
+                if (lat >= 34.0 && lat <= 37.0) {
+                    gridLines.push({
+                        coordinates: [[lat, -99.0], [lat, -94.0]],
+                        label: `T${Math.abs(t)}${t >= 0 ? 'N' : 'S'}`
+                    });
+                }
+            }
+            
+            // Generate vertical lines
+            for (let r = -15; r <= 15; r++) {
+                const lng = INDIAN_MERIDIAN + (r * MILES_PER_TOWNSHIP * LNG_MILES_RATIO);
+                if (lng >= -99.0 && lng <= -94.0) {
+                    gridLines.push({
+                        coordinates: [[34.0, lng], [37.0, lng]],
+                        label: `R${Math.abs(r)}${r >= 0 ? 'E' : 'W'}`
+                    });
+                }
+            }
+            
+            townshipLayer = L.layerGroup();
+            
+            gridLines.forEach(line => {
+                const polyline = L.polyline(line.coordinates, {
+                    color: '#64748B',        // Blue-gray (not red)
+                    weight: 1.5,
+                    opacity: 0.6,
+                    dashArray: '5, 5'       // Keep dashed for townships
+                });
+                
+                polyline.bindPopup(`<div class="popup-title">PLSS Grid Line</div><div class="popup-detail">${line.label}</div>`);
+                townshipLayer.addLayer(polyline);
+            });
+        }
+        
+        // Create county labels layer
+        function createCountyLabels() {
+            countyLabelsLayer.clearLayers();
+            
+            // Oklahoma county centroids for label placement
+            const countyLabels = [
+                // Major metro counties
+                { name: 'OKLAHOMA', lat: 35.467, lng: -97.516 },
+                { name: 'TULSA', lat: 36.154, lng: -95.990 },
+                { name: 'CLEVELAND', lat: 35.244, lng: -97.335 },
+                { name: 'CANADIAN', lat: 35.544, lng: -97.958 },
+                { name: 'COMANCHE', lat: 34.620, lng: -98.420 },
+                
+                // Oil & gas active counties
+                { name: 'ROGER MILLS', lat: 35.635, lng: -99.680 },
+                { name: 'BECKHAM', lat: 35.285, lng: -99.680 },
+                { name: 'GRADY', lat: 35.025, lng: -97.889 },
+                { name: 'PAYNE', lat: 36.070, lng: -97.088 },
+                { name: 'CREEK', lat: 35.907, lng: -96.383 },
+                { name: 'GARFIELD', lat: 36.388, lng: -97.781 },
+                { name: 'CARTER', lat: 34.255, lng: -97.268 },
+                { name: 'POTTAWATOMIE', lat: 35.235, lng: -96.930 },
+                { name: 'LINCOLN', lat: 35.680, lng: -96.870 },
+                { name: 'KAY', lat: 36.830, lng: -97.150 },
+                
+                // Additional important counties
+                { name: 'KINGFISHER', lat: 35.860, lng: -97.930 },
+                { name: 'BLAINE', lat: 35.890, lng: -98.430 },
+                { name: 'CADDO', lat: 35.280, lng: -98.360 },
+                { name: 'STEPHENS', lat: 34.550, lng: -97.930 },
+                { name: 'MCCLAIN', lat: 35.040, lng: -97.470 },
+                { name: 'NOBLE', lat: 36.360, lng: -97.280 },
+                { name: 'GRANT', lat: 36.720, lng: -97.930 },
+                { name: 'WOODS', lat: 36.730, lng: -98.730 },
+                { name: 'WOODWARD', lat: 36.430, lng: -99.230 },
+                { name: 'ELLIS', lat: 36.230, lng: -99.730 },
+                { name: 'HARPER', lat: 36.730, lng: -99.730 },
+                { name: 'ALFALFA', lat: 36.730, lng: -98.230 },
+                { name: 'MAJOR', lat: 36.530, lng: -98.630 },
+                { name: 'CUSTER', lat: 35.630, lng: -98.930 },
+                { name: 'WASHITA', lat: 35.280, lng: -99.130 },
+                { name: 'KIOWA', lat: 34.980, lng: -98.930 }
+            ];
+            
+            countyLabels.forEach(county => {
+                const label = L.divIcon({
+                    className: 'county-label',
+                    html: `<div style="
+                        color: rgba(52, 73, 94, 0.8);
+                        font-family: 'Inter', sans-serif;
+                        font-size: 12px;
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 1.5px;
+                        text-align: center;
+                        white-space: nowrap;
+                        pointer-events: none;
+                        text-shadow: 0 0 3px rgba(255,255,255,1), 0 0 2px rgba(255,255,255,1);
+                    ">${county.name}</div>`,
+                    iconSize: [100, 20],
+                    iconAnchor: [50, 10]
+                });
+                
+                const marker = L.marker([county.lat, county.lng], { 
+                    icon: label,
+                    interactive: false
+                });
+                
+                countyLabelsLayer.addLayer(marker);
+            });
+        }
+        
+        // Toggle functions
+        function toggleCounties() {
+            const checkbox = document.getElementById('toggle-counties');
+            if (checkbox.checked && countyLayer) {
+                if (!map.hasLayer(countyLayer)) map.addLayer(countyLayer);
+            } else if (countyLayer) {
+                if (map.hasLayer(countyLayer)) map.removeLayer(countyLayer);
+            }
+        }
+        
+        function toggleTownships() {
+            const checkbox = document.getElementById('toggle-townships');
+            if (checkbox.checked && townshipLayer) {
+                if (!map.hasLayer(townshipLayer)) map.addLayer(townshipLayer);
+            } else if (townshipLayer) {
+                if (map.hasLayer(townshipLayer)) map.removeLayer(townshipLayer);
+            }
+        }
+        
+        function toggleProperties() {
+            const checkbox = document.getElementById('toggle-properties');
+            if (checkbox.checked && propertiesLayer) {
+                if (!map.hasLayer(propertiesLayer)) map.addLayer(propertiesLayer);
+            } else if (propertiesLayer) {
+                if (map.hasLayer(propertiesLayer)) map.removeLayer(propertiesLayer);
+            }
+        }
+        
+        function toggleWells() {
+            const checkbox = document.getElementById('toggle-wells');
+            // Legend elements removed - will be added back later
+            
+            if (checkbox.checked && wellsLayer) {
+                if (!map.hasLayer(wellsLayer)) map.addLayer(wellsLayer);
+            } else if (wellsLayer) {
+                if (map.hasLayer(wellsLayer)) map.removeLayer(wellsLayer);
+            }
+        }
+        
+        function toggleCountyLabels() {
+            const checkbox = document.getElementById('toggle-county-labels');
+            if (checkbox.checked) {
+                if (!map.hasLayer(countyLabelsLayer)) {
+                    createCountyLabels();
+                    map.addLayer(countyLabelsLayer);
+                }
+            } else {
+                if (map.hasLayer(countyLabelsLayer)) {
+                    map.removeLayer(countyLabelsLayer);
+                }
+            }
+        }
+        
+        // Smooth fade effects based on zoom level
+        function updateLayerVisibility() {
+            const zoom = map.getZoom();
+            
+            // County labels: more visible at medium to high zoom
+            if (map.hasLayer(countyLabelsLayer)) {
+                const labelOpacity = zoom < 6 ? 0.2 : zoom < 8 ? 0.5 : zoom < 10 ? 0.8 : 1;
+                const labelSize = zoom < 7 ? '10px' : zoom < 9 ? '12px' : zoom < 11 ? '14px' : '16px';
+                
+                document.querySelectorAll('.county-label div').forEach(label => {
+                    label.style.opacity = labelOpacity;
+                    label.style.fontSize = labelSize;
+                    label.style.transition = 'opacity 0.3s ease, font-size 0.3s ease';
+                });
+            }
+            
+            // Township lines: fade out at high zoom to reduce clutter  
+            if (townshipLayer && map.hasLayer(townshipLayer)) {
+                const townshipOpacity = zoom < 10 ? 0.4 : zoom < 12 ? 0.2 : 0.1;
+                townshipLayer.setStyle({
+                    opacity: townshipOpacity
+                });
+            }
+            
+            // County boundaries: consistent but slightly fade at very high zoom
+            if (countyLayer && map.hasLayer(countyLayer)) {
+                const countyOpacity = zoom < 12 ? 0.8 : 0.6;
+                countyLayer.setStyle({
+                    opacity: countyOpacity
+                });
+            }
+        }
+        
+        // PLSS Section Number Functions
+        let sectionNumberLayer;
+        
+        function getSectionNumber(row, col) {
+            // PLSS section numbering pattern (row 0-5 from north, col 0-5 from west)
+            const isEvenRow = row % 2 === 0;
+            const baseNumber = row * 6 + 1;
+            
+            if (isEvenRow) {
+                // Even rows go right to left: 6,5,4,3,2,1 then 18,17,16...
+                return baseNumber + (5 - col);
+            } else {
+                // Odd rows go left to right: 7,8,9,10,11,12 then 19,20,21...
+                return baseNumber + col;
+            }
+        }
+        
+        function getSectionCenter(townshipBounds, row, col) {
+            const [[south, west], [north, east]] = townshipBounds;
+            const sectionWidth = (east - west) / 6;
+            const sectionHeight = (north - south) / 6;
+            
+            const centerLng = west + sectionWidth * (col + 0.5);
+            const centerLat = north - sectionHeight * (row + 0.5); // Subtract because map coords are inverted
+            
+            return [centerLat, centerLng];
+        }
+        
+        function createSectionNumbers() {
+            if (!sectionNumberLayer) {
+                sectionNumberLayer = L.layerGroup();
+            } else {
+                sectionNumberLayer.clearLayers();
+            }
+            
+            // Only show section numbers at high zoom levels
+            const zoom = map.getZoom();
+            if (zoom < 10) return;
+            
+            // Get current map bounds
+            const bounds = map.getBounds();
+            const viewBounds = [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]];
+            
+            // Calculate which townships are visible
+            const INDIAN_MERIDIAN = -97.916667;
+            const INDIAN_BASE_LINE = 35.233333;
+            const MILES_PER_TOWNSHIP = 6;
+            const MILES_PER_DEGREE_LAT = 69;
+            const MILES_PER_DEGREE_LNG = 54.6; // Approximate for Oklahoma latitude
+            
+            // Convert bounds to township coordinates
+            const minTownshipCol = Math.floor((viewBounds[0][1] - INDIAN_MERIDIAN) * MILES_PER_DEGREE_LNG / MILES_PER_TOWNSHIP) - 1;
+            const maxTownshipCol = Math.ceil((viewBounds[1][1] - INDIAN_MERIDIAN) * MILES_PER_DEGREE_LNG / MILES_PER_TOWNSHIP) + 1;
+            const minTownshipRow = Math.floor((viewBounds[0][0] - INDIAN_BASE_LINE) * MILES_PER_DEGREE_LAT / MILES_PER_TOWNSHIP) - 1;
+            const maxTownshipRow = Math.ceil((viewBounds[1][0] - INDIAN_BASE_LINE) * MILES_PER_DEGREE_LAT / MILES_PER_TOWNSHIP) + 1;
+            
+            // Generate section numbers for visible townships
+            for (let tRow = minTownshipRow; tRow <= maxTownshipRow; tRow++) {
+                for (let tCol = minTownshipCol; tCol <= maxTownshipCol; tCol++) {
+                    // Calculate township bounds
+                    const townshipWest = INDIAN_MERIDIAN + (tCol * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LNG;
+                    const townshipEast = INDIAN_MERIDIAN + ((tCol + 1) * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LNG;
+                    const townshipSouth = INDIAN_BASE_LINE + (tRow * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LAT;
+                    const townshipNorth = INDIAN_BASE_LINE + ((tRow + 1) * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LAT;
+                    
+                    const townshipBounds = [[townshipSouth, townshipWest], [townshipNorth, townshipEast]];
+                    
+                    // Add section numbers for this township
+                    for (let sRow = 0; sRow < 6; sRow++) {
+                        for (let sCol = 0; sCol < 6; sCol++) {
+                            const sectionNumber = getSectionNumber(sRow, sCol);
+                            const [lat, lng] = getSectionCenter(townshipBounds, sRow, sCol);
+                            
+                            // Check if section center is in view
+                            if (lat >= bounds.getSouth() && lat <= bounds.getNorth() && 
+                                lng >= bounds.getWest() && lng <= bounds.getEast()) {
+                                
+                                const sectionLabel = L.divIcon({
+                                    className: 'section-number-label',
+                                    html: `<div style="
+                                        color: rgba(245, 158, 11, 0.9);
+                                        font-family: 'Inter', monospace;
+                                        font-size: ${zoom < 12 ? '10px' : zoom < 14 ? '12px' : '14px'};
+                                        font-weight: 700;
+                                        text-align: center;
+                                        white-space: nowrap;
+                                        pointer-events: none;
+                                        text-shadow: 0 0 2px rgba(255,255,255,0.8);
+                                        border: 1px solid rgba(245, 158, 11, 0.3);
+                                        background: rgba(255, 255, 255, 0.7);
+                                        border-radius: 3px;
+                                        padding: 1px 3px;
+                                        line-height: 1;
+                                    ">${sectionNumber}</div>`,
+                                    iconSize: [20, 16],
+                                    iconAnchor: [10, 8]
+                                });
+                                
+                                const marker = L.marker([lat, lng], { 
+                                    icon: sectionLabel,
+                                    interactive: false
+                                });
+                                
+                                sectionNumberLayer.addLayer(marker);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        function toggleSectionNumbers() {
+            const checkbox = document.getElementById('toggle-section-numbers');
+            if (checkbox.checked) {
+                if (!sectionNumberLayer) {
+                    sectionNumberLayer = L.layerGroup();
+                }
+                createSectionNumbers();
+                if (!map.hasLayer(sectionNumberLayer)) {
+                    map.addLayer(sectionNumberLayer);
+                }
+            } else {
+                if (sectionNumberLayer && map.hasLayer(sectionNumberLayer)) {
+                    map.removeLayer(sectionNumberLayer);
+                }
+            }
+        }
+        
+        // Update section numbers when map moves or zooms
+        function updateSectionNumbers() {
+            const checkbox = document.getElementById('toggle-section-numbers');
+            if (checkbox && checkbox.checked && sectionNumberLayer) {
+                createSectionNumbers();
+            }
+        }
+        
+        // Apply fade effects on zoom
+        map.on('zoomend', function() {
+            updateLayerVisibility();
+            updateSectionNumbers();
+        });
+        map.on('zoom', updateLayerVisibility);  // Smooth during zoom
+        map.on('moveend', updateSectionNumbers); // Update when map pans
+        
+        // Event listeners
+        document.getElementById('toggle-counties').addEventListener('change', toggleCounties);
+        document.getElementById('toggle-townships').addEventListener('change', toggleTownships);
+        document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
+        document.getElementById('toggle-section-numbers').addEventListener('change', toggleSectionNumbers);
+        document.getElementById('toggle-properties').addEventListener('change', toggleProperties);
+        document.getElementById('toggle-wells').addEventListener('change', toggleWells);
+        
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            showLoading();
+            
+            try {
+                // Load base map layers first
+                await loadCountyData();
+                await loadTownshipData();
+                
+                hideLoading();
+                
+                // Add layers that are checked by default
+                if (countyLayer && document.getElementById('toggle-counties').checked) {
+                    map.addLayer(countyLayer);
+                }
+                if (townshipLayer && document.getElementById('toggle-townships').checked) {
+                    map.addLayer(townshipLayer);
+                }
+                
+                // Note: Properties and wells layers are added automatically when loaded
+                // Permits, completions, drilling, and heatmap will be added when data loads
+                
+                updateStatus('Map ready - Loading properties...');
+                
+                // Load properties after a delay to ensure map is ready
+                setTimeout(async () => {
+                    try {
+                        await loadUserProperties();
+                        // Load tracked wells after properties
+                        await loadTrackedWells();
+                        updateStatus('Map ready');
+                    } catch (error) {
+                        console.error('Error loading properties:', error);
+                        updateStatus('Map ready (property loading failed)');
+                    }
+                }, 1000);
+                
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                hideLoading();
+                updateStatus('Map loaded with limited data');
+            }
+        });
+        
+        console.log('🗺️ Oklahoma Land Survey Map initialized');
+    </script>
+</body>
+</html>
