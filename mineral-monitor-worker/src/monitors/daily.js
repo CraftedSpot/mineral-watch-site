@@ -1,11 +1,22 @@
 /**
  * Daily Monitor - Processes Intent to Drill and Completion files
+ * OPTIMIZED: 
+ *   1. Tracks processed APIs to skip re-processing 7-day window overlap
+ *   2. Batch loads users instead of individual lookups
+ *   3. Preloads recent alerts for O(1) dedup checking
  */
 
 import { fetchOCCFile } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
 import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
-import { hasRecentAlert, createActivityLog, updateActivityLog, queryAirtable, getUserById } from '../services/airtable.js';
+import { 
+  preloadRecentAlerts, 
+  hasRecentAlertInSet, 
+  createActivityLog, 
+  updateActivityLog, 
+  queryAirtable, 
+  batchGetUsers 
+} from '../services/airtable.js';
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
@@ -17,6 +28,46 @@ import { getAdjacentSections } from '../utils/plss.js';
  */
 function isDryRun(env) {
   return env.DRY_RUN === 'true' || env.DRY_RUN === true;
+}
+
+/**
+ * OPTIMIZATION: Load set of already-processed API numbers from KV
+ * Uses COMPLETIONS_CACHE with 8-day TTL to avoid reprocessing 7-day window overlap
+ * @param {Object} env - Worker environment
+ * @returns {Set<string>} - Set of "apiNumber|activityType" keys already processed
+ */
+async function loadProcessedAPIs(env) {
+  try {
+    const cached = await env.COMPLETIONS_CACHE.get('processed-apis', { type: 'json' });
+    if (cached && cached.apis) {
+      console.log(`[Daily] Loaded ${cached.apis.length} previously processed API keys`);
+      return new Set(cached.apis);
+    }
+  } catch (err) {
+    console.warn('[Daily] Failed to load processed APIs cache:', err.message);
+  }
+  return new Set();
+}
+
+/**
+ * OPTIMIZATION: Save processed API numbers to KV
+ * @param {Object} env - Worker environment
+ * @param {Set<string>} processedSet - Set of processed "apiNumber|activityType" keys
+ */
+async function saveProcessedAPIs(env, processedSet) {
+  try {
+    const data = {
+      apis: Array.from(processedSet),
+      updatedAt: new Date().toISOString()
+    };
+    // 8-day TTL ensures we don't reprocess within the 7-day OCC window
+    await env.COMPLETIONS_CACHE.put('processed-apis', JSON.stringify(data), {
+      expirationTtl: 8 * 24 * 60 * 60 // 8 days in seconds
+    });
+    console.log(`[Daily] Saved ${processedSet.size} processed API keys to cache`);
+  } catch (err) {
+    console.warn('[Daily] Failed to save processed APIs cache:', err.message);
+  }
 }
 
 /**
@@ -126,13 +177,14 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
 }
 
 /**
- * Find matches in the property map for a given location
+ * OPTIMIZATION: Find matches using preloaded property map and batch-loaded users
  * @param {Object} location - Section, Township, Range, Meridian
  * @param {Map} propertyMap - Pre-loaded property map
- * @param {Object} env - Worker environment
+ * @param {Map} userCache - Pre-loaded user cache
+ * @param {Object} env - Worker environment (fallback only)
  * @returns {Array} - Matching properties with user info
  */
-async function findMatchesInMap(location, propertyMap, env) {
+async function findMatchesInMap(location, propertyMap, userCache, env) {
   const { section, township, range, meridian } = location;
   const normalizedSec = normalizeSection(section);
   const effectiveMeridian = meridian || 'IM';
@@ -151,8 +203,9 @@ async function findMatchesInMap(location, propertyMap, env) {
     const userId = userIds[0];
     if (seenUsers.has(userId)) continue;
     
-    const user = await getUserById(userId, env);
-    if (!user || user.fields.Status !== 'Active') continue;
+    // Use cached user or skip if not in cache (user not active)
+    const user = userCache.get(userId);
+    if (!user) continue;
     
     seenUsers.add(userId);
     matches.push({
@@ -184,8 +237,9 @@ async function findMatchesInMap(location, propertyMap, env) {
       const userId = userIds[0];
       if (seenUsers.has(userId)) continue;
       
-      const user = await getUserById(userId, env);
-      if (!user || user.fields.Status !== 'Active') continue;
+      // Use cached user or skip if not in cache
+      const user = userCache.get(userId);
+      if (!user) continue;
       
       seenUsers.add(userId);
       matches.push({
@@ -206,6 +260,24 @@ async function findMatchesInMap(location, propertyMap, env) {
 }
 
 /**
+ * OPTIMIZATION: Collect all user IDs from properties for batch loading
+ * @param {Map} propertyMap - Pre-loaded property map
+ * @returns {string[]} - Array of unique user IDs
+ */
+function collectUserIdsFromProperties(propertyMap) {
+  const userIds = new Set();
+  for (const properties of propertyMap.values()) {
+    for (const prop of properties) {
+      const propUserIds = prop.fields.User || [];
+      for (const id of propUserIds) {
+        userIds.add(id);
+      }
+    }
+  }
+  return Array.from(userIds);
+}
+
+/**
  * Main daily monitoring function
  * @param {Object} env - Worker environment bindings
  * @returns {Object} - Processing results
@@ -217,6 +289,8 @@ export async function runDailyMonitor(env) {
   const results = {
     permitsProcessed: 0,
     completionsProcessed: 0,
+    permitsSkippedAsProcessed: 0,
+    completionsSkippedAsProcessed: 0,
     alertsSent: 0,
     alertsSkipped: 0,
     matchesFound: [],
@@ -224,38 +298,90 @@ export async function runDailyMonitor(env) {
   };
   
   try {
-    // Fetch and process Intent to Drill file
+    // OPTIMIZATION 1: Load already-processed APIs
+    const processedAPIs = await loadProcessedAPIs(env);
+    console.log(`[Daily] Starting with ${processedAPIs.size} previously processed API keys`);
+    
+    // Fetch OCC files
     const permits = await fetchOCCFile('itd', env);
     console.log(`[Daily] Fetched ${permits.length} permits from ITD file`);
     
-    // Fetch and process Completions file
     const completions = await fetchOCCFile('completions', env);
     console.log(`[Daily] Fetched ${completions.length} completions`);
     
-    // Batch load all properties we'll need to check
-    const propertyMap = await batchLoadProperties(permits, completions, env);
+    // Filter to only unprocessed records
+    const newPermits = permits.filter(p => {
+      const api = normalizeAPI(p.API_Number);
+      const key = `${api}|permit`;
+      if (processedAPIs.has(key)) {
+        results.permitsSkippedAsProcessed++;
+        return false;
+      }
+      return true;
+    });
     
-    // Process permits with the property map
-    for (const permit of permits) {
+    const newCompletions = completions.filter(c => {
+      const api = normalizeAPI(c.API_Number);
+      const key = `${api}|completion`;
+      if (processedAPIs.has(key)) {
+        results.completionsSkippedAsProcessed++;
+        return false;
+      }
+      return true;
+    });
+    
+    console.log(`[Daily] After filtering: ${newPermits.length} new permits, ${newCompletions.length} new completions`);
+    console.log(`[Daily] Skipped: ${results.permitsSkippedAsProcessed} permits, ${results.completionsSkippedAsProcessed} completions (already processed)`);
+    
+    // If nothing new to process, we're done
+    if (newPermits.length === 0 && newCompletions.length === 0) {
+      console.log('[Daily] No new records to process');
+      return results;
+    }
+    
+    // OPTIMIZATION 2: Preload recent alerts for dedup checking
+    const recentAlerts = await preloadRecentAlerts(env);
+    
+    // Batch load all properties we'll need to check (only for new records)
+    const propertyMap = await batchLoadProperties(newPermits, newCompletions, env);
+    
+    // OPTIMIZATION 3: Batch load all users referenced in properties
+    const userIds = collectUserIdsFromProperties(propertyMap);
+    const userCache = await batchGetUsers(env, userIds);
+    console.log(`[Daily] Batch loaded ${userCache.size} users for property matching`);
+    
+    // Process permits with the optimizations
+    for (const permit of newPermits) {
       try {
-        await processPermit(permit, env, results, dryRun, propertyMap);
+        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts);
         results.permitsProcessed++;
+        
+        // Mark as processed
+        const api = normalizeAPI(permit.API_Number);
+        processedAPIs.add(`${api}|permit`);
       } catch (err) {
         console.error(`[Daily] Error processing permit ${permit.API_Number}:`, err);
         results.errors.push({ api: permit.API_Number, error: err.message });
       }
     }
     
-    // Process completions with the property map
-    for (const completion of completions) {
+    // Process completions with the optimizations
+    for (const completion of newCompletions) {
       try {
-        await processCompletion(completion, env, results, dryRun, propertyMap);
+        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts);
         results.completionsProcessed++;
+        
+        // Mark as processed
+        const api = normalizeAPI(completion.API_Number);
+        processedAPIs.add(`${api}|completion`);
       } catch (err) {
         console.error(`[Daily] Error processing completion ${completion.API_Number}:`, err);
         results.errors.push({ api: completion.API_Number, error: err.message });
       }
     }
+    
+    // Save updated processed APIs
+    await saveProcessedAPIs(env, processedAPIs);
     
   } catch (err) {
     console.error('[Daily] Fatal error:', err);
@@ -277,22 +403,21 @@ export async function runDailyMonitor(env) {
 /**
  * Process a single permit record
  */
-async function processPermit(permit, env, results, dryRun = false, propertyMap = null) {
+async function processPermit(permit, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null) {
   const api10 = normalizeAPI(permit.API_Number);
   const activityType = mapApplicationType(permit.Application_Type);
-  
   
   // Collect all users who should be alerted
   const alertsToSend = [];
   
   // 1. Check property matches (surface location)
-  const propertyMatches = propertyMap 
+  const propertyMatches = propertyMap && userCache
     ? await findMatchesInMap({
         section: permit.Section,
         township: permit.Township,
         range: permit.Range,
         meridian: permit.PM
-      }, propertyMap, env)
+      }, propertyMap, userCache, env)
     : await findMatchingProperties({
         section: permit.Section,
         township: permit.Township,
@@ -300,7 +425,6 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         meridian: permit.PM,
         county: permit.County
       }, env);
-  
   
   for (const match of propertyMatches) {
     alertsToSend.push({
@@ -314,13 +438,13 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   // 2. For horizontal wells, also check bottom hole location
   if (permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH') {
     if (permit.PBH_Section && permit.PBH_Township && permit.PBH_Range) {
-      const bhMatches = propertyMap
+      const bhMatches = propertyMap && userCache
         ? await findMatchesInMap({
             section: permit.PBH_Section,
             township: permit.PBH_Township,
             range: permit.PBH_Range,
             meridian: permit.PM
-          }, propertyMap, env)
+          }, propertyMap, userCache, env)
         : await findMatchingProperties({
             section: permit.PBH_Section,
             township: permit.PBH_Township,
@@ -357,28 +481,25 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     }
   }
   
-  // 4. If we have alerts to send, fetch well coordinates for map link
+  // 4. If we have alerts to send, fetch well coordinates for map link (only for tracked wells)
   let wellData = null;
   let mapLink = null;
-  if (alertsToSend.length > 0) {
+  const hasTrackedWellAlerts = alertsToSend.some(alert => alert.reason === 'tracked_well');
+  
+  if (hasTrackedWellAlerts) {
     wellData = await fetchWellCoordinates(api10, env);
     mapLink = getMapLinkFromWellData(wellData);
     if (mapLink) {
-      console.log(`[Daily] Generated map link for ${api10}: ${mapLink}`);
-    } else {
-      console.log(`[Daily] No map link generated for ${api10} - wellData:`, wellData ? 'present but missing coords' : 'not found');
+      console.log(`[Daily] Generated map link for tracked well ${api10}: ${mapLink}`);
     }
   }
   
-  // 5. Send alerts (with deduplication check)
+  // 5. Send alerts (with deduplication check using preloaded set)
   for (const alert of alertsToSend) {
-    // Check if we've already alerted this user about this API + activity type
-    const alreadyAlerted = await hasRecentAlert(
-      env,
-      alert.user.email,
-      api10,
-      activityType
-    );
+    // OPTIMIZATION: Use preloaded alert set instead of individual queries
+    const alreadyAlerted = recentAlerts 
+      ? hasRecentAlertInSet(recentAlerts, api10, activityType, alert.user.id)
+      : false; // Fallback: don't skip if no preloaded data
     
     if (alreadyAlerted) {
       console.log(`[Daily] Skipping duplicate alert for ${alert.user.email} on ${api10}`);
@@ -399,7 +520,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
                                permit.Operator_Phone || permit.Contact_Phone || permit.Contact_Number ||
                                permit.Phone_Num || permit.PHONE || null;
 
-    // Get operator phone from comprehensive database, update if permit has newer data
+    // Get operator phone from comprehensive database
     let operatorPhone = null;
     if (permit.Entity_Name) {
       try {
@@ -427,6 +548,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       activityType,
       wellName,
       api: api10,
+      userEmail: alert.user.email,
       userId: alert.user.id,
       alertLevel: alert.alertLevel,
       location,
@@ -443,8 +565,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       continue;
     }
     
-    // Create activity log entry (with Email Sent = false initially)
-    // Only include map link for tracked well alerts
+    // Create activity log entry
     const includeMapLink = alert.reason === 'tracked_well';
     const activityData = {
       wellName,
@@ -496,9 +617,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
 /**
  * Process a single completion record
  */
-async function processCompletion(completion, env, results, dryRun = false, propertyMap = null) {
-  // Similar logic to processPermit but for completions
-  // Activity type will be "Well Completed"
+async function processCompletion(completion, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null) {
   const api10 = normalizeAPI(completion.API_Number);
   
   // Collect all users who should be alerted
@@ -510,13 +629,13 @@ async function processCompletion(completion, env, results, dryRun = false, prope
                       completion.Location_Type_Sub === 'HH';
   
   // 1. Check property matches (surface location)
-  const propertyMatches = propertyMap
+  const propertyMatches = propertyMap && userCache
     ? await findMatchesInMap({
         section: completion.Section,
         township: completion.Township,
         range: completion.Range,
         meridian: completion.PM
-      }, propertyMap, env)
+      }, propertyMap, userCache, env)
     : await findMatchingProperties({
         section: completion.Section,
         township: completion.Township,
@@ -536,13 +655,13 @@ async function processCompletion(completion, env, results, dryRun = false, prope
   
   // 2. For horizontal wells, also check bottom hole location
   if (isHorizontal && completion.BH_Section && completion.BH_Township && completion.BH_Range) {
-    const bhMatches = propertyMap
+    const bhMatches = propertyMap && userCache
       ? await findMatchesInMap({
           section: completion.BH_Section,
           township: completion.BH_Township,
           range: completion.BH_Range,
           meridian: completion.BH_PM || completion.PM
-        }, propertyMap, env)
+        }, propertyMap, userCache, env)
       : await findMatchingProperties({
           section: completion.BH_Section,
           township: completion.BH_Township,
@@ -564,7 +683,7 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     }
   }
   
-  // Check tracked wells
+  // 3. Check tracked wells
   const wellMatches = await findMatchingWells(api10, env);
   for (const match of wellMatches) {
     if (!alertsToSend.some(a => a.user.email === match.user.email)) {
@@ -577,7 +696,7 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     }
   }
   
-  // Check if we need map links (only for tracked well alerts)
+  // 4. Fetch well coordinates only for tracked well alerts
   let wellData = null;
   let mapLink = null;
   const hasTrackedWellAlerts = alertsToSend.some(alert => alert.reason === 'tracked_well');
@@ -587,16 +706,16 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     mapLink = getMapLinkFromWellData(wellData);
     if (mapLink) {
       console.log(`[Daily] Generated map link for tracked well completion ${api10}: ${mapLink}`);
-    } else {
-      console.log(`[Daily] No map link generated for tracked well completion ${api10} - wellData:`, wellData ? 'present but missing coords' : 'not found');
     }
-  } else {
-    console.log(`[Daily] No tracked well alerts for completion ${api10} - skipping map link generation`);
   }
   
-  // Send alerts
+  // 5. Send alerts
   for (const alert of alertsToSend) {
-    const alreadyAlerted = await hasRecentAlert(env, alert.user.email, api10, 'Well Completed');
+    // OPTIMIZATION: Use preloaded alert set
+    const alreadyAlerted = recentAlerts 
+      ? hasRecentAlertInSet(recentAlerts, api10, 'Well Completed', alert.user.id)
+      : false;
+    
     if (alreadyAlerted) {
       results.alertsSkipped = (results.alertsSkipped || 0) + 1;
       continue;
@@ -611,31 +730,23 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     const location = `S${normalizeSection(completion.Section)} T${completion.Township} R${completion.Range}`;
     const operator = completion.Entity_Name || completion.Operator;
     
-    // Extract operator phone number from completion data
+    // Get operator phone
     const completionOperatorPhone = completion.Phone || completion.Phone_Number || completion.Entity_Phone || 
-                                   completion.Operator_Phone || completion.Contact_Phone || completion.Contact_Number ||
-                                   completion.Phone_Num || completion.PHONE || null;
+                                   completion.Operator_Phone || completion.Contact_Phone || null;
 
-    // Get operator phone from comprehensive database, update if completion has newer data  
     let operatorPhone = null;
     if (operator) {
       try {
         operatorPhone = await getOperatorPhone(operator, env);
-        
-        // If completion has phone data and it's different from our database, update our database
         if (completionOperatorPhone && completionOperatorPhone !== operatorPhone) {
-          console.log(`[Daily] Updating operator phone from completion: ${operator} from ${operatorPhone} to ${completionOperatorPhone}`);
           await updateOperatorInfo(operator, { phone: completionOperatorPhone }, env);
           operatorPhone = completionOperatorPhone;
         }
-        
-        // If we don't have phone in database but completion does, use completion data
         if (!operatorPhone && completionOperatorPhone) {
           operatorPhone = completionOperatorPhone;
         }
       } catch (error) {
-        console.warn(`[Daily] Failed to lookup/update operator phone for ${operator}:`, error);
-        operatorPhone = completionOperatorPhone; // Fallback to completion data
+        operatorPhone = completionOperatorPhone;
       }
     }
     
@@ -644,6 +755,7 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       activityType: 'Well Completed',
       wellName,
       api: api10,
+      userEmail: alert.user.email,
       userId: alert.user.id,
       alertLevel: alert.alertLevel,
       location,
@@ -727,7 +839,6 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       console.log(`[Daily] Email sent and activity updated for ${alert.user.email} on ${api10}`);
     } catch (emailError) {
       console.error(`[Daily] Failed to send email to ${alert.user.email}: ${emailError.message}`);
-      // Activity log remains with Email Sent = false
     }
     
     results.alertsSent++;
