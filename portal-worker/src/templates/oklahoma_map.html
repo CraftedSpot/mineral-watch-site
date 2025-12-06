@@ -263,6 +263,22 @@
             line-height: 1;
         }
 
+        /* Township tooltip - clean, minimal */
+        .township-tooltip {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 4px !important;
+            padding: 4px 8px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 12px !important;
+            color: var(--slate-blue) !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        
+        .township-tooltip::before {
+            border-top-color: rgba(255, 255, 255, 0.95) !important;
+        }
+
         /* Layer Toggle Button */
         .layer-toggle-btn {
             position: absolute;
@@ -563,6 +579,168 @@
             color: white;
         }
 
+        /* Well Detail Modal */
+        .well-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+        
+        .well-modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        .well-modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 480px;
+            width: 90%;
+            max-height: 85vh;
+            overflow: hidden;
+            transform: translateY(20px);
+            transition: transform 0.2s ease;
+        }
+        
+        .well-modal-overlay.active .well-modal {
+            transform: translateY(0);
+        }
+        
+        .well-modal-header {
+            background: var(--oil-navy);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        
+        .well-modal-title {
+            font-family: 'Merriweather', serif;
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+            line-height: 1.3;
+        }
+        
+        .well-modal-subtitle {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        
+        .well-modal-close {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            flex-shrink: 0;
+            margin-left: 12px;
+        }
+        
+        .well-modal-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .well-modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(85vh - 140px);
+        }
+        
+        .well-detail-section {
+            margin-bottom: 20px;
+        }
+        
+        .well-detail-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .well-detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--slate-blue);
+            margin-bottom: 4px;
+        }
+        
+        .well-detail-value {
+            font-size: 15px;
+            color: var(--oil-navy);
+        }
+        
+        .well-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+        
+        .well-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .well-modal-actions {
+            padding: 16px 20px;
+            background: var(--paper);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+        }
+        
+        .well-modal-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .well-modal-btn-primary {
+            background: var(--red-dirt);
+            color: white;
+        }
+        
+        .well-modal-btn-primary:hover {
+            background: var(--red-dirt-dark);
+        }
+        
+        .well-modal-btn-secondary {
+            background: white;
+            color: var(--slate-blue);
+            border: 1px solid var(--border);
+        }
+        
+        .well-modal-btn-secondary:hover {
+            background: var(--oil-navy);
+            color: white;
+            border-color: var(--oil-navy);
+        }
+
         /* Legend Strip */
         .legend-strip {
             background: white;
@@ -735,12 +913,8 @@
                                 <span class="layer-option-label">Activity Heatmap</span>
                             </label>
                             <label class="layer-option">
-                                <input type="checkbox" id="toggle-townships" checked>
-                                <span class="layer-option-label">Township Grid</span>
-                            </label>
-                            <label class="layer-option">
-                                <input type="checkbox" id="toggle-counties" checked>
-                                <span class="layer-option-label">County Boundaries</span>
+                                <input type="checkbox" id="toggle-land-grid" checked>
+                                <span class="layer-option-label">Land Grid (Counties + TRS)</span>
                             </label>
                             <label class="layer-option">
                                 <input type="checkbox" id="toggle-county-labels">
@@ -748,7 +922,7 @@
                             </label>
                             <label class="layer-option">
                                 <input type="checkbox" id="toggle-section-numbers">
-                                <span class="layer-option-label">Section Numbers</span>
+                                <span class="layer-option-label">Section Numbers (zoom 12+)</span>
                             </label>
                         </div>
                         
@@ -807,6 +981,25 @@
             </div>
         </div>
     </main>
+
+    <!-- Well Detail Modal -->
+    <div class="well-modal-overlay" id="wellModal">
+        <div class="well-modal">
+            <div class="well-modal-header">
+                <div>
+                    <h3 class="well-modal-title" id="wellModalTitle">Well Name</h3>
+                    <div class="well-modal-subtitle" id="wellModalSubtitle">API Number</div>
+                </div>
+                <button class="well-modal-close" onclick="closeWellModal()">&times;</button>
+            </div>
+            <div class="well-modal-body" id="wellModalBody">
+                <!-- Dynamic content inserted here -->
+            </div>
+            <div class="well-modal-actions" id="wellModalActions">
+                <!-- Dynamic actions inserted here -->
+            </div>
+        </div>
+    </div>
 
     <script>
         // Layer Panel Controls
@@ -993,7 +1186,8 @@
                         location.county, 
                         location.township, 
                         location.range, 
-                        location.section, 
+                        location.section,
+                        location.meridian,
                         lat, 
                         lon
                     );
@@ -1019,6 +1213,8 @@
         let propertiesLayer = L.featureGroup();
         let wellsLayer = L.featureGroup();
         let sectionLayer = L.featureGroup();
+        let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
+        let showSectionNumbers = false;  // Track if user wants to see section numbers
         let locationInfoBox;
         
         // Property loading state
@@ -1026,6 +1222,7 @@
         let geometryCache = {};
         let sectionCache = {};
         let sectionBounds = null;
+        let wellsById = {};  // Lookup for wells by Airtable record ID
         
         // OCC API Configuration
         const OCC_API_BASE = 'https://gis.occ.ok.gov/server/rest/services/Hosted/STR/FeatureServer';
@@ -1126,11 +1323,17 @@
                     const countyCode = plssId.substring(2, 4); // Extract county code from PLSS
                     const county = getCountyFromPlssCode(countyCode) || 'Unknown';
                     
+                    // Determine meridian from PLSS state code
+                    // OK11 = Cimarron Meridian (panhandle), OK17 = Indian Meridian (rest of state)
+                    const stateCode = plssId.substring(0, 4);
+                    const meridian = stateCode === 'OK11' ? 'CM' : 'IM';
+                    
                     return {
                         county: county,
                         township: township,
                         range: range,
-                        section: attrs.frstdivno || 'Unknown'
+                        section: attrs.frstdivno || 'Unknown',
+                        meridian: meridian
                     };
                 }
                 
@@ -1141,14 +1344,14 @@
             }
         }
         
-        function createLocationInfoBox(county, township, range, section, lat, lon) {
+        function createLocationInfoBox(county, township, range, section, meridian, lat, lon) {
             // Remove existing info box
             if (locationInfoBox) {
                 map.removeControl(locationInfoBox);
             }
             
-            // Format location string: 'Woodward 21N 18W S12'
-            const locationText = `${county} ${township} ${range} S${section}`;
+            // Format location string: 'Woodward S12 21N 18W • IM'
+            const locationText = `${county} S${section} ${township} ${range} • ${meridian}`;
             
             // Create custom control for location info
             const LocationInfo = L.Control.extend({
@@ -1264,10 +1467,14 @@
         function renderSectionLines(geojsonData) {
             if (!geojsonData || !geojsonData.features) return;
             
-            // Clear existing section lines
+            // Clear existing section lines and labels
             sectionLayer.clearLayers();
+            sectionLabelsLayer.clearLayers();
+            
+            const zoom = map.getZoom();
             
             geojsonData.features.forEach(feature => {
+                // Add section boundary line
                 const sectionLine = L.geoJSON(feature, {
                     style: {
                         color: '#F59E0B',        // Orange - distinct from townships
@@ -1280,12 +1487,28 @@
                     onEachFeature: function(feature, layer) {
                         if (feature.properties) {
                             const props = feature.properties;
-                            // frstdivno is section number, plssid has township/range info
-                            const sectionNum = props.frstdivno || 'Unknown';
+                            const sectionNum = props.frstdivno || '?';
                             const plssId = props.plssid || '';
-                            const divType = props.frstdivtxt || 'Section';
                             
-                            const sectionInfo = `${divType} ${sectionNum} (${plssId})`;
+                            // Parse township and range from PLSS ID
+                            let township = '', range = '', meridian = 'IM';
+                            if (plssId) {
+                                const townshipMatch = plssId.match(/(\d{2,3})([NS])/);
+                                if (townshipMatch) {
+                                    township = parseInt(townshipMatch[1]) + townshipMatch[2];
+                                }
+                                const rangeMatch = plssId.match(/(\d{2,3})([EW])/);
+                                if (rangeMatch) {
+                                    range = parseInt(rangeMatch[1]) + rangeMatch[2];
+                                }
+                                // Check meridian from state code
+                                if (plssId.startsWith('OK11')) {
+                                    meridian = 'CM';
+                                }
+                            }
+                            
+                            // Format: "S12 • 21N 18W • IM"
+                            const sectionInfo = `S${sectionNum} • ${township} ${range} • ${meridian}`;
                             layer.bindTooltip(sectionInfo, {
                                 sticky: true,
                                 opacity: 0.9
@@ -1295,7 +1518,78 @@
                 });
                 
                 sectionLayer.addLayer(sectionLine);
+                
+                // Add section number label at centroid (only if checkbox is checked)
+                if (showSectionNumbers && feature.properties && feature.properties.frstdivno) {
+                    const sectionNum = feature.properties.frstdivno;
+                    
+                    // Calculate centroid of the section polygon
+                    let centroid = null;
+                    if (feature.geometry && feature.geometry.coordinates) {
+                        try {
+                            // Handle Polygon and MultiPolygon
+                            let coords;
+                            if (feature.geometry.type === 'Polygon') {
+                                coords = feature.geometry.coordinates[0]; // outer ring
+                            } else if (feature.geometry.type === 'MultiPolygon') {
+                                coords = feature.geometry.coordinates[0][0]; // first polygon's outer ring
+                            }
+                            
+                            if (coords && coords.length > 0) {
+                                // Simple centroid calculation (average of coordinates)
+                                let sumLat = 0, sumLng = 0;
+                                coords.forEach(coord => {
+                                    sumLng += coord[0];
+                                    sumLat += coord[1];
+                                });
+                                centroid = {
+                                    lat: sumLat / coords.length,
+                                    lng: sumLng / coords.length
+                                };
+                            }
+                        } catch (e) {
+                            console.warn('Could not calculate centroid for section', sectionNum, e);
+                        }
+                    }
+                    
+                    if (centroid) {
+                        // Scale font size based on zoom
+                        const fontSize = zoom < 13 ? '10px' : zoom < 15 ? '12px' : '14px';
+                        
+                        const sectionLabel = L.divIcon({
+                            className: 'section-number-label',
+                            html: `<div style="
+                                color: rgba(180, 83, 9, 0.95);
+                                font-family: 'Inter', sans-serif;
+                                font-size: ${fontSize};
+                                font-weight: 700;
+                                text-align: center;
+                                white-space: nowrap;
+                                pointer-events: none;
+                                text-shadow: 
+                                    -1px -1px 0 rgba(255,255,255,0.9),
+                                    1px -1px 0 rgba(255,255,255,0.9),
+                                    -1px 1px 0 rgba(255,255,255,0.9),
+                                    1px 1px 0 rgba(255,255,255,0.9);
+                            ">${sectionNum}</div>`,
+                            iconSize: [24, 16],
+                            iconAnchor: [12, 8]
+                        });
+                        
+                        const marker = L.marker([centroid.lat, centroid.lng], { 
+                            icon: sectionLabel,
+                            interactive: false
+                        });
+                        
+                        sectionLabelsLayer.addLayer(marker);
+                    }
+                }
             });
+            
+            // Add labels layer to map if it should be visible
+            if (showSectionNumbers && !map.hasLayer(sectionLabelsLayer)) {
+                map.addLayer(sectionLabelsLayer);
+            }
         }
         
         async function updateSectionLines() {
@@ -1312,7 +1606,7 @@
                     if (sectionsData) {
                         renderSectionLines(sectionsData);
                         
-                        // Add to map if not already added
+                        // Add section lines to map if not already added
                         if (!map.hasLayer(sectionLayer)) {
                             map.addLayer(sectionLayer);
                         }
@@ -1322,9 +1616,12 @@
                     updateStatus('Map ready');
                 }
             } else {
-                // Remove section lines at low zoom
+                // Remove section lines and labels at low zoom
                 if (map.hasLayer(sectionLayer)) {
                     map.removeLayer(sectionLayer);
+                }
+                if (map.hasLayer(sectionLabelsLayer)) {
+                    map.removeLayer(sectionLabelsLayer);
                 }
                 sectionBounds = null;
             }
@@ -1566,21 +1863,35 @@
             let marker;
             
             // Create pin marker for tracked wells (like classic map pins)
-            const markerSize = count === 1 ? 24 : 32;
-            const markerHeight = count === 1 ? 30 : 40;
+            // Scale slightly for clusters, but don't exaggerate
+            const markerSize = count === 1 ? 24 : 28;
+            const markerHeight = count === 1 ? 30 : 36;
+            
+            // For clusters, show count as a badge
+            let badgeHtml = '';
+            if (count > 1) {
+                const badgeSize = count >= 10 ? 16 : 14;
+                const fontSize = count >= 10 ? 8 : 9;
+                badgeHtml = `
+                    <circle cx="20" cy="6" r="${badgeSize/2 + 2}" fill="white" stroke="${statusColor}" stroke-width="1"/>
+                    <circle cx="20" cy="6" r="${badgeSize/2}" fill="${statusColor}"/>
+                    <text x="20" y="${count >= 10 ? 9 : 9}" text-anchor="middle" fill="white" font-size="${fontSize}" font-weight="bold">${count}</text>
+                `;
+            }
+            
             const icon = L.divIcon({
                 className: 'tracked-well-pin',
                 html: `
-                    <svg width="${markerSize}" height="${markerHeight}" viewBox="-2 -1 28 36" xmlns="http://www.w3.org/2000/svg">
+                    <svg width="${markerSize + 8}" height="${markerHeight + 4}" viewBox="-2 -1 32 40" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
                               fill="${statusColor}" stroke="${operatorColor}" stroke-width="2"/>
                         <circle cx="12" cy="12" r="4.5" fill="${operatorColor}"/>
-                        ${count > 1 ? `<text x="12" y="16" text-anchor="middle" fill="white" font-size="8" font-weight="bold">${count}</text>` : ''}
+                        ${badgeHtml}
                     </svg>
                 `,
-                iconSize: [markerSize, markerHeight],
-                iconAnchor: [markerSize/2, markerHeight-1],
-                popupAnchor: [0, -markerHeight+1]
+                iconSize: [markerSize + 8, markerHeight + 4],
+                iconAnchor: [(markerSize + 8)/2, markerHeight + 3],
+                popupAnchor: [0, -markerHeight]
             });
             marker = L.marker([coords.lat, coords.lon], { icon: icon });
             
@@ -1607,42 +1918,68 @@
                         Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
                     </div>
                     <div class="popup-actions">
-                        <button class="popup-btn popup-btn-primary" onclick="trackWell('${apiNumber}', '${wellName}'); return false;">+ Track Well</button>
-                        <button class="popup-btn popup-btn-secondary" onclick="expandWellCard('${well.id}'); return false;">View Details</button>
+                        <button class="popup-btn popup-btn-primary" onclick="trackWell('${apiNumber}', '${wellName}'); return false;">+ Track</button>
+                        <button class="popup-btn popup-btn-secondary" onclick="expandWellCard('${well.id}'); return false;">More →</button>
                     </div>
                 `;
             } else {
-                // Multiple wells popup with enhanced styling
+                // Multiple wells popup - show location context
+                const firstFields = firstWell.fields || {};
+                const locationStr = firstFields['Section'] 
+                    ? `S${firstFields['Section']} T${firstFields['Township']} R${firstFields['Range']}`
+                    : (firstFields['County'] || 'this location');
+                
                 popupContent = `
                     <div class="popup-header">
-                        <span class="popup-tag tracked-well">Tracked Wells</span>
+                        <span class="popup-tag tracked-well">${count} Wells</span>
                     </div>
-                    <div class="popup-well-name">${count} Wells at this Location</div>
-                    <div class="popup-details" style="max-height: 200px; overflow-y: auto;">
+                    <div class="popup-well-name" style="font-size: 14px; margin-bottom: 8px;">Wells in ${locationStr}</div>
+                    <div class="popup-details" style="max-height: 220px; overflow-y: auto;" id="well-list-container">
                 `;
                 
-                wellsAtLocation.forEach(well => {
+                // Show first 4 wells, collapse the rest
+                const showInitially = 4;
+                const hasMore = count > showInitially;
+                
+                wellsAtLocation.forEach((well, index) => {
                     const fields = well.fields || {};
                     const wellName = fields['Well Name'] || `API ${fields['API Number']}`;
                     const operator = fields['Operator'] || 'Unknown';
                     const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
                     const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+                    const isHidden = hasMore && index >= showInitially;
                     
                     popupContent += `
-                        <div class="well-cluster-item" style="padding: 6px 0; border-bottom: 1px solid #eee;">
+                        <div class="well-cluster-item" style="padding: 6px 0; border-bottom: 1px solid #eee; ${isHidden ? 'display: none;' : ''}" data-well-item="${isHidden ? 'hidden' : 'visible'}">
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <div style="width: 12px; height: 12px; background: ${statusColor}; border-radius: 50%; flex-shrink: 0;"></div>
-                                <div style="flex: 1;">
-                                    <div class="popup-title" style="margin-bottom: 2px;">${wellName}</div>
-                                    <div class="popup-detail" style="margin: 0;"><strong>${operator}</strong> • ${wellStatus}</div>
+                                <div style="width: 10px; height: 10px; background: ${statusColor}; border-radius: 50%; flex-shrink: 0;"></div>
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 500; font-size: 13px; margin-bottom: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${wellName}</div>
+                                    <div style="font-size: 11px; color: #64748b;">${operator} • ${wellStatus}</div>
                                 </div>
+                                <a href="#" onclick="expandWellCard('${well.id}'); return false;" style="color: #C05621; font-size: 12px; text-decoration: none; padding: 4px;">→</a>
                             </div>
-                            <a href="#" class="popup-link" onclick="expandWellCard('${well.id}'); return false;" style="font-size: 11px;">View Details</a>
                         </div>
                     `;
                 });
                 
                 popupContent += '</div>';
+                
+                // Add "show more" link if needed
+                if (hasMore) {
+                    const remaining = count - showInitially;
+                    popupContent += `
+                        <div style="padding-top: 8px; border-top: 1px solid #e2e8f0; margin-top: 4px;">
+                            <a href="#" onclick="
+                                document.querySelectorAll('[data-well-item=hidden]').forEach(el => el.style.display = 'block');
+                                this.parentElement.style.display = 'none';
+                                return false;
+                            " style="color: #C05621; font-size: 12px; text-decoration: none;">
+                                Show ${remaining} more well${remaining > 1 ? 's' : ''} ↓
+                            </a>
+                        </div>
+                    `;
+                }
             }
             
             marker.bindPopup(popupContent, { maxWidth: 300 });
@@ -1674,6 +2011,12 @@
                     console.log('No wells to display');
                     return;
                 }
+                
+                // Store wells by ID for lookup (used by modal)
+                wellsById = {};
+                wells.forEach(well => {
+                    wellsById[well.id] = well;
+                });
                 
                 // Group wells by coordinates (rounded to avoid tiny differences)
                 const wellsByLocation = {};
@@ -1724,12 +2067,137 @@
             }
         }
         
-        // Placeholder for expanding well card
+        // Expand well card - show detailed modal
         function expandWellCard(wellId) {
-            console.log('Expand well card:', wellId);
-            // TODO: Implement well card expansion
-            alert(`View details for well ${wellId} - Feature coming soon!`);
+            const well = wellsById[wellId];
+            if (!well) {
+                console.warn('Well not found:', wellId);
+                return;
+            }
+            
+            const fields = well.fields || {};
+            const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
+            const apiNumber = fields['API Number'] || 'Unknown';
+            const operator = toTitleCase(fields['Operator'] || 'Unknown');
+            const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
+            const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+            const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
+            const county = toTitleCase(fields['County'] || '');
+            const section = fields['Section'] || '';
+            const township = fields['Township'] || '';
+            const range = fields['Range'] || '';
+            const occMapLink = fields['OCC Map Link'] || '';
+            
+            // Format location string
+            const locationStr = section && township && range 
+                ? `Section ${section}, T${township}, R${range}` 
+                : 'Location not available';
+            
+            // Status badge color
+            const statusBgColor = statusColor + '20'; // 20% opacity version
+            
+            // Set modal title
+            document.getElementById('wellModalTitle').textContent = wellName;
+            document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
+            
+            // Build modal body content
+            let bodyContent = `
+                <div class="well-detail-grid">
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Status</div>
+                        <div class="well-detail-value">
+                            <span class="well-status-badge" style="background: ${statusBgColor}; color: ${statusColor};">${wellStatus}</span>
+                        </div>
+                    </div>
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Operator</div>
+                        <div class="well-detail-value">${operator}</div>
+                    </div>
+                </div>
+                
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Location</div>
+                    <div class="well-detail-value">${locationStr}</div>
+                </div>
+            `;
+            
+            if (county) {
+                bodyContent += `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">County</div>
+                        <div class="well-detail-value">${county} County, Oklahoma</div>
+                    </div>
+                `;
+            }
+            
+            if (formation) {
+                bodyContent += `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Formation</div>
+                        <div class="well-detail-value">${formation}</div>
+                    </div>
+                `;
+            }
+            
+            // Add any additional fields that might be present
+            const additionalFields = ['Spud Date', 'Completion Date', 'Total Depth', 'Initial Production'];
+            additionalFields.forEach(fieldName => {
+                if (fields[fieldName]) {
+                    bodyContent += `
+                        <div class="well-detail-section">
+                            <div class="well-detail-label">${fieldName}</div>
+                            <div class="well-detail-value">${fields[fieldName]}</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            document.getElementById('wellModalBody').innerHTML = bodyContent;
+            
+            // Build modal actions
+            let actionsContent = '';
+            
+            if (occMapLink && occMapLink !== '#') {
+                actionsContent += `
+                    <a href="${occMapLink}" target="_blank" class="well-modal-btn well-modal-btn-primary">
+                        View on OCC Map ↗
+                    </a>
+                `;
+            }
+            
+            actionsContent += `
+                <button class="well-modal-btn well-modal-btn-secondary" onclick="closeWellModal()">
+                    Close
+                </button>
+            `;
+            
+            document.getElementById('wellModalActions').innerHTML = actionsContent;
+            
+            // Show modal
+            document.getElementById('wellModal').classList.add('active');
+            
+            // Close popup if open
+            map.closePopup();
         }
+        
+        // Close well modal
+        function closeWellModal() {
+            document.getElementById('wellModal').classList.remove('active');
+        }
+        
+        // Close modal on overlay click
+        document.getElementById('wellModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeWellModal();
+            }
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeWellModal();
+            }
+        });
         
         // Track a well (add to user's tracked wells)
         async function trackWell(apiNumber, wellName) {
@@ -2112,19 +2580,27 @@
                     },
                     onEachFeature: function(feature, layer) {
                         const townshipLabel = feature.properties.TWNSHPLAB || 'Unknown';
+                        const meridianFull = feature.properties.PRINMER || 'Indian Meridian';
+                        // Abbreviate meridian: IM = Indian Meridian, CM = Cimarron Meridian
+                        const meridian = meridianFull.includes('Cimarron') ? 'CM' : 'IM';
                         
-                        layer.bindPopup(`
-                            <div class="popup-title">Township ${townshipLabel}</div>
-                            <div class="popup-detail">${feature.properties.PRINMER || 'Indian Meridian'}</div>
-                        `);
+                        // Use tooltip on hover instead of popup (cleaner, doesn't persist)
+                        layer.bindTooltip(`${townshipLabel} • ${meridian}`, {
+                            sticky: true,
+                            opacity: 0.9,
+                            className: 'township-tooltip'
+                        });
                         
                         layer.on('mouseover', function() {
-                            this.setStyle({ weight: 3, opacity: 1.0 });
+                            this.setStyle({ weight: 2, opacity: 0.8 });
                         });
                         
                         layer.on('mouseout', function() {
-                            this.setStyle({ weight: 1.5, opacity: 0.7 });
+                            this.setStyle({ weight: 1, opacity: 0.4 });
                         });
+                        
+                        // Click uses the existing identifyLocation system
+                        // which shows section info in the corner box
                     }
                 });
                 
@@ -2245,94 +2721,83 @@
             });
         }
         
-        // Create county labels layer
+        // Create county labels layer - calculates centroids from actual GeoJSON data
         function createCountyLabels() {
             countyLabelsLayer.clearLayers();
             
-            // Oklahoma county centroids for label placement
-            const countyLabels = [
-                // Major metro counties
-                { name: 'OKLAHOMA', lat: 35.467, lng: -97.516 },
-                { name: 'TULSA', lat: 36.154, lng: -95.990 },
-                { name: 'CLEVELAND', lat: 35.244, lng: -97.335 },
-                { name: 'CANADIAN', lat: 35.544, lng: -97.958 },
-                { name: 'COMANCHE', lat: 34.620, lng: -98.420 },
-                
-                // Oil & gas active counties
-                { name: 'ROGER MILLS', lat: 35.635, lng: -99.680 },
-                { name: 'BECKHAM', lat: 35.285, lng: -99.680 },
-                { name: 'GRADY', lat: 35.025, lng: -97.889 },
-                { name: 'PAYNE', lat: 36.070, lng: -97.088 },
-                { name: 'CREEK', lat: 35.907, lng: -96.383 },
-                { name: 'GARFIELD', lat: 36.388, lng: -97.781 },
-                { name: 'CARTER', lat: 34.255, lng: -97.268 },
-                { name: 'POTTAWATOMIE', lat: 35.235, lng: -96.930 },
-                { name: 'LINCOLN', lat: 35.680, lng: -96.870 },
-                { name: 'KAY', lat: 36.830, lng: -97.150 },
-                
-                // Additional important counties
-                { name: 'KINGFISHER', lat: 35.860, lng: -97.930 },
-                { name: 'BLAINE', lat: 35.890, lng: -98.430 },
-                { name: 'CADDO', lat: 35.280, lng: -98.360 },
-                { name: 'STEPHENS', lat: 34.550, lng: -97.930 },
-                { name: 'MCCLAIN', lat: 35.040, lng: -97.470 },
-                { name: 'NOBLE', lat: 36.360, lng: -97.280 },
-                { name: 'GRANT', lat: 36.720, lng: -97.930 },
-                { name: 'WOODS', lat: 36.730, lng: -98.730 },
-                { name: 'WOODWARD', lat: 36.430, lng: -99.230 },
-                { name: 'ELLIS', lat: 36.230, lng: -99.730 },
-                { name: 'HARPER', lat: 36.730, lng: -99.730 },
-                { name: 'ALFALFA', lat: 36.730, lng: -98.230 },
-                { name: 'MAJOR', lat: 36.530, lng: -98.630 },
-                { name: 'CUSTER', lat: 35.630, lng: -98.930 },
-                { name: 'WASHITA', lat: 35.280, lng: -99.130 },
-                { name: 'KIOWA', lat: 34.980, lng: -98.930 }
-            ];
+            // If county layer isn't loaded yet, wait
+            if (!countyLayer) {
+                console.log('County layer not loaded yet, cannot create labels');
+                return;
+            }
             
-            countyLabels.forEach(county => {
+            const zoom = map.getZoom();
+            const fontSize = zoom < 7 ? '9px' : zoom < 9 ? '11px' : zoom < 11 ? '13px' : '15px';
+            
+            // Iterate through county features and calculate centroids
+            countyLayer.eachLayer(function(layer) {
+                const feature = layer.feature;
+                if (!feature || !feature.properties) return;
+                
+                const countyName = feature.properties.COUNTY_NAME || feature.properties.NAME || 'Unknown';
+                
+                // Calculate centroid from geometry
+                let centroid = null;
+                try {
+                    if (feature.geometry) {
+                        const bounds = layer.getBounds();
+                        centroid = bounds.getCenter();
+                    }
+                } catch (e) {
+                    console.warn('Could not calculate centroid for', countyName);
+                    return;
+                }
+                
+                if (!centroid) return;
+                
                 const label = L.divIcon({
                     className: 'county-label',
                     html: `<div style="
-                        color: rgba(52, 73, 94, 0.8);
+                        color: rgba(28, 43, 54, 0.85);
                         font-family: 'Inter', sans-serif;
-                        font-size: 12px;
+                        font-size: ${fontSize};
                         font-weight: 600;
                         text-transform: uppercase;
-                        letter-spacing: 1.5px;
+                        letter-spacing: 1px;
                         text-align: center;
                         white-space: nowrap;
                         pointer-events: none;
-                        text-shadow: 0 0 3px rgba(255,255,255,1), 0 0 2px rgba(255,255,255,1);
-                    ">${county.name}</div>`,
-                    iconSize: [100, 20],
-                    iconAnchor: [50, 10]
+                        text-shadow: 
+                            -1px -1px 0 rgba(255,255,255,0.95),
+                            1px -1px 0 rgba(255,255,255,0.95),
+                            -1px 1px 0 rgba(255,255,255,0.95),
+                            1px 1px 0 rgba(255,255,255,0.95),
+                            0 0 4px rgba(255,255,255,0.9);
+                    ">${countyName}</div>`,
+                    iconSize: [120, 20],
+                    iconAnchor: [60, 10]
                 });
                 
-                const marker = L.marker([county.lat, county.lng], { 
+                const marker = L.marker([centroid.lat, centroid.lng], { 
                     icon: label,
                     interactive: false
                 });
                 
                 countyLabelsLayer.addLayer(marker);
             });
+            
+            console.log(`Created ${countyLabelsLayer.getLayers().length} county labels`);
         }
         
         // Toggle functions
-        function toggleCounties() {
-            const checkbox = document.getElementById('toggle-counties');
-            if (checkbox.checked && countyLayer) {
-                if (!map.hasLayer(countyLayer)) map.addLayer(countyLayer);
-            } else if (countyLayer) {
-                if (map.hasLayer(countyLayer)) map.removeLayer(countyLayer);
-            }
-        }
-        
-        function toggleTownships() {
-            const checkbox = document.getElementById('toggle-townships');
-            if (checkbox.checked && townshipLayer) {
-                if (!map.hasLayer(townshipLayer)) map.addLayer(townshipLayer);
-            } else if (townshipLayer) {
-                if (map.hasLayer(townshipLayer)) map.removeLayer(townshipLayer);
+        function toggleLandGrid() {
+            const checkbox = document.getElementById('toggle-land-grid');
+            if (checkbox.checked) {
+                if (countyLayer && !map.hasLayer(countyLayer)) map.addLayer(countyLayer);
+                if (townshipLayer && !map.hasLayer(townshipLayer)) map.addLayer(townshipLayer);
+            } else {
+                if (countyLayer && map.hasLayer(countyLayer)) map.removeLayer(countyLayer);
+                if (townshipLayer && map.hasLayer(townshipLayer)) map.removeLayer(townshipLayer);
             }
         }
         
@@ -2403,153 +2868,46 @@
             }
         }
         
-        // PLSS Section Number Functions
-        let sectionNumberLayer;
-        
-        function getSectionNumber(row, col) {
-            // PLSS section numbering pattern (row 0-5 from north, col 0-5 from west)
-            const isEvenRow = row % 2 === 0;
-            const baseNumber = row * 6 + 1;
-            
-            if (isEvenRow) {
-                // Even rows go right to left: 6,5,4,3,2,1 then 18,17,16...
-                return baseNumber + (5 - col);
-            } else {
-                // Odd rows go left to right: 7,8,9,10,11,12 then 19,20,21...
-                return baseNumber + col;
-            }
-        }
-        
-        function getSectionCenter(townshipBounds, row, col) {
-            const [[south, west], [north, east]] = townshipBounds;
-            const sectionWidth = (east - west) / 6;
-            const sectionHeight = (north - south) / 6;
-            
-            const centerLng = west + sectionWidth * (col + 0.5);
-            const centerLat = north - sectionHeight * (row + 0.5); // Subtract because map coords are inverted
-            
-            return [centerLat, centerLng];
-        }
-        
-        function createSectionNumbers() {
-            if (!sectionNumberLayer) {
-                sectionNumberLayer = L.layerGroup();
-            } else {
-                sectionNumberLayer.clearLayers();
-            }
-            
-            // Only show section numbers at high zoom levels
-            const zoom = map.getZoom();
-            if (zoom < 10) return;
-            
-            // Get current map bounds
-            const bounds = map.getBounds();
-            const viewBounds = [[bounds.getSouth(), bounds.getWest()], [bounds.getNorth(), bounds.getEast()]];
-            
-            // Calculate which townships are visible
-            const INDIAN_MERIDIAN = -97.916667;
-            const INDIAN_BASE_LINE = 35.233333;
-            const MILES_PER_TOWNSHIP = 6;
-            const MILES_PER_DEGREE_LAT = 69;
-            const MILES_PER_DEGREE_LNG = 54.6; // Approximate for Oklahoma latitude
-            
-            // Convert bounds to township coordinates
-            const minTownshipCol = Math.floor((viewBounds[0][1] - INDIAN_MERIDIAN) * MILES_PER_DEGREE_LNG / MILES_PER_TOWNSHIP) - 1;
-            const maxTownshipCol = Math.ceil((viewBounds[1][1] - INDIAN_MERIDIAN) * MILES_PER_DEGREE_LNG / MILES_PER_TOWNSHIP) + 1;
-            const minTownshipRow = Math.floor((viewBounds[0][0] - INDIAN_BASE_LINE) * MILES_PER_DEGREE_LAT / MILES_PER_TOWNSHIP) - 1;
-            const maxTownshipRow = Math.ceil((viewBounds[1][0] - INDIAN_BASE_LINE) * MILES_PER_DEGREE_LAT / MILES_PER_TOWNSHIP) + 1;
-            
-            // Generate section numbers for visible townships
-            for (let tRow = minTownshipRow; tRow <= maxTownshipRow; tRow++) {
-                for (let tCol = minTownshipCol; tCol <= maxTownshipCol; tCol++) {
-                    // Calculate township bounds
-                    const townshipWest = INDIAN_MERIDIAN + (tCol * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LNG;
-                    const townshipEast = INDIAN_MERIDIAN + ((tCol + 1) * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LNG;
-                    const townshipSouth = INDIAN_BASE_LINE + (tRow * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LAT;
-                    const townshipNorth = INDIAN_BASE_LINE + ((tRow + 1) * MILES_PER_TOWNSHIP) / MILES_PER_DEGREE_LAT;
-                    
-                    const townshipBounds = [[townshipSouth, townshipWest], [townshipNorth, townshipEast]];
-                    
-                    // Add section numbers for this township
-                    for (let sRow = 0; sRow < 6; sRow++) {
-                        for (let sCol = 0; sCol < 6; sCol++) {
-                            const sectionNumber = getSectionNumber(sRow, sCol);
-                            const [lat, lng] = getSectionCenter(townshipBounds, sRow, sCol);
-                            
-                            // Check if section center is in view
-                            if (lat >= bounds.getSouth() && lat <= bounds.getNorth() && 
-                                lng >= bounds.getWest() && lng <= bounds.getEast()) {
-                                
-                                const sectionLabel = L.divIcon({
-                                    className: 'section-number-label',
-                                    html: `<div style="
-                                        color: rgba(245, 158, 11, 0.9);
-                                        font-family: 'Inter', monospace;
-                                        font-size: ${zoom < 12 ? '10px' : zoom < 14 ? '12px' : '14px'};
-                                        font-weight: 700;
-                                        text-align: center;
-                                        white-space: nowrap;
-                                        pointer-events: none;
-                                        text-shadow: 0 0 2px rgba(255,255,255,0.8);
-                                        border: 1px solid rgba(245, 158, 11, 0.3);
-                                        background: rgba(255, 255, 255, 0.7);
-                                        border-radius: 3px;
-                                        padding: 1px 3px;
-                                        line-height: 1;
-                                    ">${sectionNumber}</div>`,
-                                    iconSize: [20, 16],
-                                    iconAnchor: [10, 8]
-                                });
-                                
-                                const marker = L.marker([lat, lng], { 
-                                    icon: sectionLabel,
-                                    interactive: false
-                                });
-                                
-                                sectionNumberLayer.addLayer(marker);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
+        // Section Number Toggle - uses real OCC API data
         function toggleSectionNumbers() {
             const checkbox = document.getElementById('toggle-section-numbers');
-            if (checkbox.checked) {
-                if (!sectionNumberLayer) {
-                    sectionNumberLayer = L.layerGroup();
-                }
-                createSectionNumbers();
-                if (!map.hasLayer(sectionNumberLayer)) {
-                    map.addLayer(sectionNumberLayer);
+            showSectionNumbers = checkbox.checked;
+            
+            if (showSectionNumbers) {
+                const zoom = map.getZoom();
+                if (zoom >= 12) {
+                    // Re-render sections to include labels
+                    sectionBounds = null; // Force refresh
+                    updateSectionLines();
+                } else {
+                    updateStatus('Zoom in to see section numbers (zoom 12+)');
+                    setTimeout(() => updateStatus('Map ready'), 2000);
                 }
             } else {
-                if (sectionNumberLayer && map.hasLayer(sectionNumberLayer)) {
-                    map.removeLayer(sectionNumberLayer);
+                // Hide labels
+                if (map.hasLayer(sectionLabelsLayer)) {
+                    map.removeLayer(sectionLabelsLayer);
                 }
             }
         }
         
-        // Update section numbers when map moves or zooms
-        function updateSectionNumbers() {
-            const checkbox = document.getElementById('toggle-section-numbers');
-            if (checkbox && checkbox.checked && sectionNumberLayer) {
-                createSectionNumbers();
+        // Update section labels when map moves (if enabled)
+        function updateSectionLabelsOnMove() {
+            if (showSectionNumbers && map.getZoom() >= 12) {
+                // Labels are recreated when sections are loaded via updateSectionLines
+                // This just ensures they stay in sync
             }
         }
         
         // Apply fade effects on zoom
         map.on('zoomend', function() {
             updateLayerVisibility();
-            updateSectionNumbers();
+            // Section labels are updated via updateSectionLines
         });
         map.on('zoom', updateLayerVisibility);  // Smooth during zoom
-        map.on('moveend', updateSectionNumbers); // Update when map pans
         
         // Event listeners
-        document.getElementById('toggle-counties').addEventListener('change', toggleCounties);
-        document.getElementById('toggle-townships').addEventListener('change', toggleTownships);
+        document.getElementById('toggle-land-grid').addEventListener('change', toggleLandGrid);
         document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
         document.getElementById('toggle-section-numbers').addEventListener('change', toggleSectionNumbers);
         document.getElementById('toggle-properties').addEventListener('change', toggleProperties);
@@ -2566,12 +2924,10 @@
                 
                 hideLoading();
                 
-                // Add layers that are checked by default
-                if (countyLayer && document.getElementById('toggle-counties').checked) {
-                    map.addLayer(countyLayer);
-                }
-                if (townshipLayer && document.getElementById('toggle-townships').checked) {
-                    map.addLayer(townshipLayer);
+                // Add layers that are checked by default (land grid combines counties + townships)
+                if (document.getElementById('toggle-land-grid').checked) {
+                    if (countyLayer) map.addLayer(countyLayer);
+                    if (townshipLayer) map.addLayer(townshipLayer);
                 }
                 
                 // Note: Properties and wells layers are added automatically when loaded
