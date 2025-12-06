@@ -1,5 +1,6 @@
 /**
  * Airtable Service - Handles all Airtable API interactions
+ * OPTIMIZED: Added batch user lookups and preloaded alert checking
  */
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
@@ -57,6 +58,38 @@ export async function getUserById(env, userId) {
 }
 
 /**
+ * OPTIMIZATION: Batch get multiple users by their Airtable record IDs
+ * @param {Object} env - Worker environment
+ * @param {string[]} userIds - Array of Airtable record IDs
+ * @returns {Map<string, Object>} - Map of userId to user record
+ */
+export async function batchGetUsers(env, userIds) {
+  const uniqueIds = [...new Set(userIds.filter(id => id))];
+  const userMap = new Map();
+  
+  if (uniqueIds.length === 0) return userMap;
+  
+  // Airtable's RECORD_ID() function lets us query by ID
+  // Chunk into batches of 50 to avoid formula length limits
+  const CHUNK_SIZE = 50;
+  
+  for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
+    const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
+    const orConditions = chunk.map(id => `RECORD_ID() = "${id}"`).join(', ');
+    const formula = `AND(OR(${orConditions}), {Status} = "Active")`;
+    
+    const users = await queryAirtable(env, env.AIRTABLE_USERS_TABLE, formula);
+    
+    for (const user of users) {
+      userMap.set(user.id, user);
+    }
+  }
+  
+  console.log(`[Airtable] Batch loaded ${userMap.size} users from ${uniqueIds.length} IDs`);
+  return userMap;
+}
+
+/**
  * Find a user by their email address
  * @param {Object} env - Worker environment
  * @param {string} email - User email
@@ -69,7 +102,55 @@ export async function findUserByEmail(env, email) {
 }
 
 /**
+ * OPTIMIZATION: Preload all recent alerts from the last 7 days
+ * Returns a Set for O(1) lookup instead of querying per-alert
+ * @param {Object} env - Worker environment
+ * @returns {Set<string>} - Set of "apiNumber|activityType|userId" keys
+ */
+export async function preloadRecentAlerts(env) {
+  const sevenDaysAgo = new Date();
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+  const isoDate = sevenDaysAgo.toISOString().split('T')[0];
+  
+  const formula = `IS_AFTER({Detected At}, "${isoDate}")`;
+  
+  console.log(`[Airtable] Preloading alerts since ${isoDate}`);
+  const activities = await queryAirtable(env, env.AIRTABLE_ACTIVITY_TABLE, formula);
+  
+  const alertSet = new Set();
+  
+  for (const activity of activities) {
+    const api = activity.fields['API Number'];
+    const activityType = activity.fields['Activity Type'];
+    const userIds = activity.fields.User || [];
+    
+    for (const userId of userIds) {
+      // Key format: "apiNumber|activityType|userId"
+      alertSet.add(`${api}|${activityType}|${userId}`);
+    }
+  }
+  
+  console.log(`[Airtable] Preloaded ${alertSet.size} recent alert keys from ${activities.length} activity records`);
+  return alertSet;
+}
+
+/**
+ * OPTIMIZATION: Check if alert exists using preloaded Set
+ * @param {Set<string>} alertSet - Preloaded alert set
+ * @param {string} apiNumber - Well API number
+ * @param {string} activityType - Type of activity
+ * @param {string} userId - User's Airtable record ID
+ * @returns {boolean} - Whether a recent alert exists
+ */
+export function hasRecentAlertInSet(alertSet, apiNumber, activityType, userId) {
+  const key = `${apiNumber}|${activityType}|${userId}`;
+  return alertSet.has(key);
+}
+
+/**
  * Check if a user has been alerted about this API + activity type recently
+ * DEPRECATED: Use preloadRecentAlerts() + hasRecentAlertInSet() for batch processing
+ * Kept for backwards compatibility with weekly.js
  * @param {Object} env - Worker environment
  * @param {string} userEmail - User's email address
  * @param {string} apiNumber - Well API number
