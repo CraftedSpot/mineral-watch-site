@@ -131,14 +131,14 @@ function filterRecentRecords(records, fileType) {
         dateField = record.Create_Date || record.Created_Date || record.DATE_CREATED;
         break;
       case 'transfers':
-        dateField = record.Transfer_Date || record.Effective_Date;
+        dateField = record.EventDate;
         break;
       default:
         return true;
     }
     
     if (!dateField) {
-      console.log(`[OCC] Record with no date field - including: API ${record.API_Number || 'unknown'}`);
+      console.log(`[OCC] Record with no date field - including: API ${record.API_Number || record['API Number'] || 'unknown'}`);
       return true; // Include if no date to filter on
     }
     
@@ -148,7 +148,7 @@ function filterRecentRecords(records, fileType) {
       if (!isRecent) {
         filteredCount++;
         if (filteredCount <= 3) { // Log first 3 filtered records
-          console.log(`[OCC] Filtering out old record: ${dateField} (API ${record.API_Number || 'unknown'})`);
+          console.log(`[OCC] Filtering out old record: ${dateField} (API ${record.API_Number || record['API Number'] || 'unknown'})`);
         }
       }
       return isRecent;
