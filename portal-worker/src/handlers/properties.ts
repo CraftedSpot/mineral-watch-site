@@ -99,7 +99,9 @@ export async function handleAddProperty(request: Request, env: Env) {
         TWN: township,
         RNG: range,
         MERIDIAN: meridian,
-        "OCC Map Link": occMapLink
+        "OCC Map Link": occMapLink,
+        "Monitor Adjacent": true,
+        Status: "Active"
       }
     })
   });
