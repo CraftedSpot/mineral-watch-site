@@ -21,7 +21,8 @@ import {
 
 import { 
   jsonResponse, 
-  servePage, 
+  servePage,
+  serveProtectedPage,
   redirectWithError, 
   notFoundResponse, 
   corsResponse, 
@@ -107,6 +108,12 @@ var index_default = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
+    
+    // Debug logging
+    console.log(`[Portal] Incoming request: ${request.method} ${path}`);
+    console.log(`[Portal] Full URL: ${url.href}`);
+    console.log(`[Portal] AUTH_WORKER binding available: ${!!env.AUTH_WORKER}`);
+    
     if (request.method === "OPTIONS") {
       return corsResponse();
     }
@@ -134,6 +141,7 @@ var index_default = {
       }
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
+        console.log(`[Portal] Proxying auth request: ${path}`);
         try {
           let authResponse: Response;
           
@@ -142,7 +150,8 @@ var index_default = {
             const authRequest = new Request(`https://auth-worker${path}${url.search}`, {
               method: request.method,
               headers: request.headers,
-              body: request.body
+              body: request.body,
+              redirect: 'manual' // Don't follow redirects automatically
             });
             authResponse = await env.AUTH_WORKER.fetch(authRequest);
           } else {
@@ -152,8 +161,44 @@ var index_default = {
             authResponse = await fetch(authUrl, {
               method: request.method,
               headers: request.headers,
-              body: request.body
+              body: request.body,
+              redirect: 'manual' // Don't follow redirects automatically
             });
+          }
+          
+          // Handle redirects from auth-worker specially
+          if (authResponse.status === 302 || authResponse.status === 301) {
+            const location = authResponse.headers.get('Location');
+            if (location) {
+              // If it's a relative redirect, make it absolute
+              const absoluteLocation = location.startsWith('http') 
+                ? location 
+                : `https://portal.mymineralwatch.com${location}`;
+              
+              // Create new headers without duplicating Location
+              const responseHeaders = new Headers();
+              
+              // Copy all headers except Location
+              authResponse.headers.forEach((value, key) => {
+                if (key.toLowerCase() !== 'location') {
+                  responseHeaders.set(key, value);
+                }
+              });
+              
+              // Set the corrected Location
+              responseHeaders.set('Location', absoluteLocation);
+              
+              // Add CORS headers
+              Object.entries(CORS_HEADERS).forEach(([key, value]) => {
+                responseHeaders.set(key, value);
+              });
+              
+              // Return the redirect
+              return new Response(null, {
+                status: authResponse.status,
+                headers: responseHeaders
+              });
+            }
           }
           
           // Return auth-worker response with CORS headers
@@ -274,6 +319,8 @@ var index_default = {
         return handleTrackThisWell(request, env, url);
       }
       
+      console.log(`[Portal] No route matched for: ${request.method} ${path}`);
+      console.log(`[Portal] Path starts with /api/auth/: ${path.startsWith("/api/auth/")}`);
       return notFoundResponse();
     } catch (err) {
       console.error("Worker error:", err);

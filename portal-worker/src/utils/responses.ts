@@ -5,6 +5,7 @@
  */
 
 import { CORS_HEADERS, SECURITY_HEADERS } from '../constants.js';
+import { authenticateRequest } from './auth.js';
 
 /**
  * Create a JSON response with CORS headers
@@ -72,4 +73,30 @@ export function corsResponse(): Response {
  */
 export function errorResponse(message: string, status = 500): Response {
   return jsonResponse({ error: message }, status);
+}
+
+/**
+ * Serve a protected HTML page (requires authentication)
+ * @param html The HTML content to serve
+ * @param request The incoming request
+ * @param env The environment bindings
+ * @returns Response object with HTML or redirect to login
+ */
+export async function serveProtectedPage(html: string, request: Request, env: any): Promise<Response> {
+  // Check if user is authenticated
+  const authResult = await authenticateRequest(request, env);
+  if (!authResult.authenticated || !authResult.user) {
+    // Not authenticated - redirect to login
+    const url = new URL(request.url);
+    const returnPath = encodeURIComponent(url.pathname + url.search);
+    return new Response(null, {
+      status: 302,
+      headers: {
+        "Location": `/portal/login?return=${returnPath}`
+      }
+    });
+  }
+  
+  // User is authenticated - serve the page
+  return servePage(html, request, env);
 }

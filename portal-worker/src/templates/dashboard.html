@@ -85,9 +85,11 @@
         .data-table { width: 100%; border-collapse: collapse; }
         
         /* Properties Table */
-        .col-prop-county { width: 18%; }
-        .col-prop-legal { width: 25%; }
+        .col-prop-county { width: 15%; }
+        .col-prop-legal { width: 20%; }
+        .col-prop-acres { width: 12%; }
         .col-prop-notes { width: auto; }
+        .col-actions { width: 15%; }
         .col-location { width: 15%; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -704,8 +706,9 @@
             
             /* Adjust column widths for mobile */
             .col-select { display: none; }
-            .col-prop-county { width: 25%; }
-            .col-prop-legal { width: 35%; }
+            .col-prop-county { width: 20%; }
+            .col-prop-legal { width: 25%; }
+            .col-prop-acres { width: 15%; }
             .col-prop-notes { width: 25%; }
             .col-actions { width: 15%; }
             .col-well-name { width: 30%; }
@@ -1238,7 +1241,8 @@
     
     <!-- Property Details Modal -->
     <div class="modal-overlay" id="propertyDetailsModal">
-        <div class="modal" style="max-width: 500px;">
+        <div class="modal" style="max-width: 500px; position: relative;">
+            <button class="modal-close" onclick="closePropertyDetailsModal()" aria-label="Close">×</button>
             <h2 style="margin-bottom: 5px;" id="propertyDetailsTitle">Property Details</h2>
             <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="propertyDetailsLegal">—</p>
             
@@ -1867,11 +1871,15 @@
                 return;
             }
             
-            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Notes</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Total Acres</th><th>Notes</th><th></th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
                 const str = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+                const riAcres = parseFloat(f['RI Acres'] || 0);
+                const wiAcres = parseFloat(f['WI Acres'] || 0);
+                const totalAcres = riAcres + wiAcres;
+                const acresDisplay = totalAcres > 0 ? totalAcres.toFixed(2) : '—';
                 const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
                 const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 
@@ -1879,6 +1887,7 @@
                     <td class="bulk-only"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
                     <td>${escapeHtml(f.COUNTY) || '—'}</td>
                     <td><strong>${str}</strong></td>
+                    <td style="text-align: right; padding-right: 30px;">${acresDisplay}</td>
                     <td>${notes}</td>
                     <td style="white-space: nowrap; text-align: right;">
                         <a href="#" class="text-link" onclick="openPropertyDetails('${p.id}'); return false;">Detail</a>

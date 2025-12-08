@@ -10,6 +10,9 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
     
+    console.log(`[Auth] Incoming request: ${request.method} ${path}`);
+    console.log(`[Auth] Full URL: ${url.href}`);
+    
     const corsHeaders = {
       "Access-Control-Allow-Origin": "*",
       "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -28,7 +31,8 @@ export default {
       }
       
       // Verify token and create session
-      if (path === "/api/auth/verify" && request.method === "GET") {
+      if (path === "/api/auth/verify" && (request.method === "GET" || request.method === "HEAD")) {
+        console.log(`[Auth] Handling verify request for path: ${path}`);
         return await handleVerifyToken(request, env, url);
       }
       
@@ -42,7 +46,9 @@ export default {
         return await handleGetCurrentUser(request, env, corsHeaders);
       }
       
-      return new Response("Not Found", { status: 404 });
+      console.log(`[Auth] No route matched for: ${request.method} ${path}`);
+      console.log(`[Auth] Available routes: /api/auth/send-magic-link, /api/auth/verify, /api/auth/logout, /api/auth/me`);
+      return new Response(`Not Found: ${path}`, { status: 404, headers: corsHeaders });
     } catch (err) {
       console.error("Auth error:", err);
       return new Response(JSON.stringify({ error: "Internal server error" }), {
@@ -91,7 +97,7 @@ async function handleSendMagicLink(request, env, corsHeaders) {
     exp: Date.now() + TOKEN_EXPIRY
   });
   
-  const magicLink = `https://mymineralwatch.com/api/auth/verify?token=${token}`;
+  const magicLink = `https://portal.mymineralwatch.com/api/auth/verify?token=${encodeURIComponent(token)}`;
   
   // Send email
   await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
@@ -106,14 +112,17 @@ async function handleSendMagicLink(request, env, corsHeaders) {
 
 async function handleVerifyToken(request, env, url) {
   const token = url.searchParams.get("token");
+  console.log(`[Auth] Verify token request, token present: ${!!token}`);
   
   if (!token) {
+    console.log(`[Auth] No token provided in verify request`);
     return redirectWithError("Missing token");
   }
   
   let payload;
   try {
     payload = await verifyToken(env, token);
+    console.log(`[Auth] Token verified successfully for: ${payload.email}`);
   } catch (err) {
     console.error("Token verification failed:", err.message);
     return redirectWithError("Invalid or expired link. Please request a new one.");
@@ -137,8 +146,8 @@ async function handleVerifyToken(request, env, url) {
   const response = new Response(null, {
     status: 302,
     headers: {
-      "Location": "/portal",
-      "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}`
+      "Location": "https://portal.mymineralwatch.com/portal",
+      "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}; Domain=.mymineralwatch.com`
     }
   });
   
@@ -151,7 +160,7 @@ function handleLogout(corsHeaders) {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
+      "Set-Cookie": `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0; Domain=.mymineralwatch.com`,
       ...corsHeaders
     }
   });
@@ -230,6 +239,11 @@ async function generateToken(env, payload) {
   const encoder = new TextEncoder();
   const data = JSON.stringify(payload);
   
+  if (!env.AUTH_SECRET) {
+    console.error(`[Auth] AUTH_SECRET is not configured!`);
+    throw new Error("AUTH_SECRET not configured");
+  }
+  
   const key = await crypto.subtle.importKey(
     "raw",
     encoder.encode(env.AUTH_SECRET),
@@ -246,8 +260,10 @@ async function generateToken(env, payload) {
 }
 
 async function verifyToken(env, token) {
+  console.log(`[Auth] Verifying token: ${token.substring(0, 20)}...`);
   const [dataBase64, sigBase64] = token.split(".");
   if (!dataBase64 || !sigBase64) {
+    console.error(`[Auth] Invalid token format - missing parts`);
     throw new Error("Invalid token format");
   }
   
@@ -266,10 +282,13 @@ async function verifyToken(env, token) {
   const valid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(data));
   
   if (!valid) {
+    console.error(`[Auth] Invalid signature for token`);
     throw new Error("Invalid signature");
   }
   
-  return JSON.parse(data);
+  const payload = JSON.parse(data);
+  console.log(`[Auth] Token payload: email=${payload.email}, exp=${new Date(payload.exp).toISOString()}`);
+  return payload;
 }
 
 async function sendMagicLinkEmail(env, email, name, magicLink) {
@@ -358,7 +377,7 @@ function redirectWithError(message) {
   return new Response(null, {
     status: 302,
     headers: {
-      "Location": `/portal/login?error=${encodedMessage}`
+      "Location": `https://portal.mymineralwatch.com/portal/login?error=${encodedMessage}`
     }
   });
 }
