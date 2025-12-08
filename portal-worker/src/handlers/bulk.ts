@@ -146,7 +146,9 @@ function normalizePropertyData(prop: any) {
     RNG: normalizeRange(prop.RNG || prop.Range || prop.R),
     MERIDIAN: normalizeMeridian(prop.MERIDIAN || prop.Meridian || prop.MER || prop.Mer || prop.M),
     COUNTY: normalizeCounty(prop.COUNTY || prop.County || prop.Co || prop.C),
-    NOTES: notes
+    NOTES: notes,
+    'RI Acres': parseFloat(prop['RI Acres'] || prop.RI_Acres || prop.RIAcres || '0') || 0,
+    'WI Acres': parseFloat(prop['WI Acres'] || prop.WI_Acres || prop.WIAcres || '0') || 0
   };
 }
 
@@ -349,7 +351,9 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
             COUNTY: prop.COUNTY || "",
             "Monitor Adjacent": true,
             Status: "Active",
-            Notes: prop.NOTES || ""
+            Notes: prop.NOTES || "",
+            "RI Acres": prop['RI Acres'] || 0,
+            "WI Acres": prop['WI Acres'] || 0
           }
         }))
       })

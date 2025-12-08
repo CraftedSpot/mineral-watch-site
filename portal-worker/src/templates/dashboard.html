@@ -82,15 +82,28 @@
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .data-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+        .data-table { width: 100%; border-collapse: collapse; }
+        #propertiesContent .data-table { table-layout: fixed; }
         
         /* Properties Table */
         .col-select { width: 40px; }
         .col-prop-county { width: 15%; }
-        .col-prop-legal { width: 21%; }
-        .col-prop-acres { width: 15%; }
-        .col-prop-notes { width: auto; }
-        .col-actions { width: 120px; }
+        .col-prop-legal { width: 20%; }
+        .col-prop-acres { width: 16%; }
+        .col-prop-notes { width: calc(100% - 40px - 15% - 20% - 16% - 110px); }
+        .col-actions { width: 110px; }
+        
+        /* Add extra left padding to Notes column for visual separation */
+        /* Notes is 5th column: checkbox(1), county(2), legal(3), acres(4), notes(5), actions(6) */
+        #propertiesContent .data-table td:nth-child(5),
+        #propertiesContent .data-table th:nth-child(5) {
+            padding-left: 45px;
+        }
+        
+        /* Right-align Total Acres header to match the values */
+        #propertiesContent .data-table th:nth-child(4) {
+            text-align: right;
+        }
         .col-location { width: 15%; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -1032,6 +1045,8 @@
                         <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range...">
                         <select id="propertiesSort" class="sort-select">
                             <option value="legal-asc" selected>Legal Description</option>
+                            <option value="acres-desc">Total Acres (High to Low)</option>
+                            <option value="acres-asc">Total Acres (Low to High)</option>
                             <option value="date-desc">Date Added</option>
                         </select>
                         <span id="propertiesResultsCount" class="results-count"></span>
@@ -1837,6 +1852,12 @@
                     const aDate = new Date(a.createdTime || 0);
                     const bDate = new Date(b.createdTime || 0);
                     return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
+                    
+                } else if (field === 'acres') {
+                    // Total Acres - sum of RI and WI acres
+                    const aTotal = (parseFloat(a.fields['RI Acres'] || 0) + parseFloat(a.fields['WI Acres'] || 0));
+                    const bTotal = (parseFloat(b.fields['RI Acres'] || 0) + parseFloat(b.fields['WI Acres'] || 0));
+                    return aTotal < bTotal ? -1 * multiplier : (aTotal > bTotal ? 1 * multiplier : 0);
                 }
                 
                 return 0;
@@ -1889,8 +1910,8 @@
                     <td class="bulk-only"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
                     <td>${escapeHtml(f.COUNTY) || '—'}</td>
                     <td><strong>${str}</strong></td>
-                    <td style="text-align: right; padding-left: 10px; padding-right: 40px;">${acresDisplay}</td>
-                    <td style="padding-left: 10px;">${notes}</td>
+                    <td style="text-align: right;">${acresDisplay}</td>
+                    <td>${notes}</td>
                     <td style="white-space: nowrap; text-align: right;">
                         <a href="#" class="text-link" onclick="openPropertyDetails('${p.id}'); return false;">Detail</a>
                         &nbsp;&nbsp;<button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
@@ -3032,7 +3053,7 @@
                 return;
             }
             
-            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Notes'];
+            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'RI Acres', 'WI Acres', 'Notes'];
             const rows = loadedProperties.map(p => {
                 const f = p.fields;
                 return [
@@ -3041,6 +3062,8 @@
                     f['TWN'] || '',
                     f['RNG'] || '',
                     f['MERIDIAN'] || 'IM',
+                    f['RI Acres'] || '0',
+                    f['WI Acres'] || '0',
                     (f['Notes'] || '').replace(/,/g, ';').replace(/\\n/g, ' ')
                 ].join(',');
             });
@@ -3172,7 +3195,8 @@
                             <div><strong>Township:</strong> <code>TWN</code> <code>Township</code> <code>Town</code> <code>T</code></div>
                             <div><strong>Range:</strong> <code>RNG</code> <code>Range</code> <code>R</code></div>
                             <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
-                            <div><strong>Optional:</strong> County, Meridian</div>
+                            <div><strong>Acres:</strong> <code>RI Acres</code> <code>WI Acres</code> <code>RIAcres</code> <code>WIAcres</code></div>
+                            <div><strong>Optional:</strong> County, Meridian, RI Acres, WI Acres</div>
                         </div>
                     </div>
                     
