@@ -134,21 +134,41 @@ function normalizeCounty(value: any): string {
 }
 
 function normalizePropertyData(prop: any) {
-  let notes = prop.NOTES || prop.Notes || prop.Note || prop.Comments || "";
+  let notes = prop.NOTES || prop.Notes || prop.Note || prop.Comments || prop.Comment || "";
   // Truncate notes to prevent abuse
   if (notes.length > MAX_NOTES_LENGTH) {
     notes = notes.substring(0, MAX_NOTES_LENGTH);
   }
   
+  // Handle acreage - if no RI/WI specified but Total Acres exists, default to RI
+  let riAcres = parseFloat(prop['RI Acres'] || prop.RI_Acres || prop.RIAcres || '0') || 0;
+  let wiAcres = parseFloat(prop['WI Acres'] || prop.WI_Acres || prop.WIAcres || '0') || 0;
+  
+  // If neither RI nor WI specified, but Total Acres exists, assume it's all RI
+  if (riAcres === 0 && wiAcres === 0) {
+    const totalAcres = parseFloat(
+      prop['Total Acres'] || prop.Total_Acres || prop.TotalAcres || 
+      prop.Acres || prop.acres || '0'
+    ) || 0;
+    if (totalAcres > 0) {
+      riAcres = totalAcres; // Default to RI interest
+    }
+  }
+
+  // Handle Group/Entity field
+  const group = prop.Group || prop.GROUP || prop.Entity || prop.ENTITY || 
+               prop.group || prop.entity || "";
+
   return {
     SEC: normalizeSectionNumber(prop.SEC || prop.Section || prop.Sec || prop.S),
     TWN: normalizeTownship(prop.TWN || prop.Township || prop.Town || prop.T),
     RNG: normalizeRange(prop.RNG || prop.Range || prop.R),
     MERIDIAN: normalizeMeridian(prop.MERIDIAN || prop.Meridian || prop.MER || prop.Mer || prop.M),
     COUNTY: normalizeCounty(prop.COUNTY || prop.County || prop.Co || prop.C),
+    GROUP: group,
     NOTES: notes,
-    'RI Acres': parseFloat(prop['RI Acres'] || prop.RI_Acres || prop.RIAcres || '0') || 0,
-    'WI Acres': parseFloat(prop['WI Acres'] || prop.WI_Acres || prop.WIAcres || '0') || 0
+    'RI Acres': riAcres,
+    'WI Acres': wiAcres
   };
 }
 
@@ -349,6 +369,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
             RNG: prop.RNG,
             MERIDIAN: prop.MERIDIAN,
             COUNTY: prop.COUNTY || "",
+            Group: prop.GROUP || "",
             "Monitor Adjacent": true,
             Status: "Active",
             Notes: prop.NOTES || "",

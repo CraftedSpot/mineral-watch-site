@@ -25,6 +25,7 @@ export const PLAN_LIMITS = {
   "Starter": { properties: 10, wells: 10, activityRecords: 25 },
   "Standard": { properties: 50, wells: 50, activityRecords: 50 },
   "Professional": { properties: 250, wells: 250, activityRecords: 100 },
+  "Enterprise 500": { properties: 500, wells: 500, activityRecords: 200 },
   "Enterprise": { properties: Infinity, wells: Infinity, activityRecords: Infinity }
 } as const;
 

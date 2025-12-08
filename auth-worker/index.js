@@ -142,12 +142,11 @@ async function handleVerifyToken(request, env, url) {
   // Update login tracking
   await updateLoginTracking(env, payload.id);
   
-  // Set cookie and redirect to portal
+  // Instead of setting cookie here, redirect with token to portal for Safari compatibility
   const response = new Response(null, {
     status: 302,
     headers: {
-      "Location": "https://portal.mymineralwatch.com/portal",
-      "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}; Domain=.mymineralwatch.com`
+      "Location": `https://portal.mymineralwatch.com/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`
     }
   });
   
@@ -160,7 +159,7 @@ function handleLogout(corsHeaders) {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0; Domain=.mymineralwatch.com`,
+      "Set-Cookie": `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
       ...corsHeaders
     }
   });

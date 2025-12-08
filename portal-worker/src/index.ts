@@ -222,6 +222,73 @@ var index_default = {
         return handleRegister(request, env);
       }
       
+      // Safari-compatible session setting endpoint - serves intermediate HTML page
+      if (path === "/api/auth/set-session" && request.method === "GET") {
+        const token = url.searchParams.get("token");
+        if (!token) {
+          return Response.redirect(`${BASE_URL}/portal/login?error=Missing%20session%20token`, 302);
+        }
+        
+        // Serve an intermediate HTML page that sets cookie via JavaScript
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Completing login...</title>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    .loading {
+      text-align: center;
+      color: #334E68;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e0e0;
+      border-top: 4px solid #C05621;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div class="spinner"></div>
+    <div>Completing login...</div>
+  </div>
+  <script>
+    // Set cookie via JavaScript for Safari compatibility
+    document.cookie = "${COOKIE_NAME}=${token}; path=/; secure; samesite=lax; max-age=2592000";
+    
+    // Small delay to ensure cookie is set
+    setTimeout(() => {
+      window.location.href = "/portal";
+    }, 100);
+  </script>
+</body>
+</html>`;
+        
+        return new Response(html, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        });
+      }
+      
       // Properties endpoints
       if (path === "/api/properties" && request.method === "GET") {
         return handleListProperties(request, env);

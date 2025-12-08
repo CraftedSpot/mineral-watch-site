@@ -104,6 +104,13 @@
         #propertiesContent .data-table th:nth-child(4) {
             text-align: right;
         }
+        
+        /* Wells Table - just adjust Well Name spacing to match Properties */
+        #wellsContent .data-table td:nth-child(2),
+        #wellsContent .data-table th:nth-child(2) {
+            padding-left: 15px;
+        }
+        
         .col-location { width: 15%; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -1525,6 +1532,10 @@
             deleteBtn.classList.add('loading');
             deleteBtn.disabled = true;
             
+            // Show immediate feedback
+            const totalItems = selectedSet.size;
+            showToast(`Deleting ${totalItems} ${itemName}...`, 'info', 0); // 0 = persistent until manually dismissed
+            
             try {
                 const itemsToDelete = Array.from(selectedSet);
                 let successCount = 0;
@@ -1542,11 +1553,22 @@
                     
                     await Promise.all(deletePromises);
                     
+                    // Update progress in toast
+                    const processed = Math.min(i + 5, totalItems);
+                    if (processed < totalItems) {
+                        // Dismiss previous toast and show updated progress
+                        dismissToast();
+                        showToast(`Deleting ${itemName}... ${processed}/${totalItems}`, 'info', 0);
+                    }
+                    
                     // Wait 1 second between batches for rate limiting
                     if (i + 5 < itemsToDelete.length) {
                         await new Promise(resolve => setTimeout(resolve, 1000));
                     }
                 }
+                
+                // Dismiss progress toast before showing final result
+                dismissToast();
                 
                 // Clear selection
                 selectedSet.clear();
@@ -3053,7 +3075,7 @@
                 return;
             }
             
-            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'RI Acres', 'WI Acres', 'Notes'];
+            const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres', 'Notes'];
             const rows = loadedProperties.map(p => {
                 const f = p.fields;
                 return [
@@ -3062,6 +3084,7 @@
                     f['TWN'] || '',
                     f['RNG'] || '',
                     f['MERIDIAN'] || 'IM',
+                    f['Group'] || '',
                     f['RI Acres'] || '0',
                     f['WI Acres'] || '0',
                     (f['Notes'] || '').replace(/,/g, ';').replace(/\\n/g, ' ')
@@ -3109,11 +3132,21 @@
             // Trigger animation
             setTimeout(() => toast.classList.add('toast-show'), 10);
             
-            // Auto dismiss
-            setTimeout(() => {
-                toast.classList.remove('toast-show');
-                setTimeout(() => toast.remove(), 300);
-            }, duration);
+            // Auto dismiss if duration > 0, otherwise keep persistent
+            if (duration > 0) {
+                setTimeout(() => {
+                    toast.classList.remove('toast-show');
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+        }
+        
+        function dismissToast() {
+            const existingToast = document.getElementById('toast-notification');
+            if (existingToast) {
+                existingToast.classList.remove('toast-show');
+                setTimeout(() => existingToast.remove(), 300);
+            }
         }
 
         // Custom confirm dialog
@@ -3195,8 +3228,10 @@
                             <div><strong>Township:</strong> <code>TWN</code> <code>Township</code> <code>Town</code> <code>T</code></div>
                             <div><strong>Range:</strong> <code>RNG</code> <code>Range</code> <code>R</code></div>
                             <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
-                            <div><strong>Acres:</strong> <code>RI Acres</code> <code>WI Acres</code> <code>RIAcres</code> <code>WIAcres</code></div>
-                            <div><strong>Optional:</strong> County, Meridian, RI Acres, WI Acres</div>
+                            <div><strong>Acres:</strong> <code>RI Acres</code> <code>WI Acres</code> <code>Total Acres</code> <code>Acres</code></div>
+                            <div><strong>Group:</strong> <code>Group</code> <code>Entity</code></div>
+                            <div><strong>Optional:</strong> County, Meridian, Group, RI Acres, WI Acres, Total Acres</div>
+                            <div style="font-size: 12px; color: var(--slate-blue); margin-top: 8px;">💡 If only "Total Acres" is provided, it defaults to RI interest</div>
                         </div>
                     </div>
                     
@@ -3271,7 +3306,7 @@
                                 <th>RNG</th>
                                 <th>MER</th>
                                 <th>County</th>
-                                <th>Notes</th>
+                                <th>Total Acres</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -4238,9 +4273,11 @@ function renderPreviewTable() {
                           (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
                           (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
         
-        // Truncate notes for preview (max 25 chars) and escape
-        const notesRaw = prop.NOTES ? (prop.NOTES.length > 25 ? prop.NOTES.substring(0, 25) + '...' : prop.NOTES) : '-';
-        const notesPreview = escapeHtmlBulk(notesRaw);
+        // Calculate total acres for preview
+        const riAcres = parseFloat(prop['RI Acres']) || 0;
+        const wiAcres = parseFloat(prop['WI Acres']) || 0;
+        const totalAcres = riAcres + wiAcres;
+        const acresDisplay = totalAcres > 0 ? totalAcres.toFixed(2) : '-';
         
         html += `
             <tr class="${rowClass}">
@@ -4250,7 +4287,7 @@ function renderPreviewTable() {
                 <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
-                <td style="font-size: 12px; color: var(--slate-blue);">${notesPreview}</td>
+                <td style="text-align: right;">${acresDisplay}</td>
                 <td class="status-cell ${statusClass}">
                     ${statusText}
                 </td>
