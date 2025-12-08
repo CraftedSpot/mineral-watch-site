@@ -215,7 +215,7 @@ async function findUserByEmail(env, email) {
   const url = `https://api.airtable.com/v0/${baseId}/${encodeURIComponent(tableName)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.AIRTABLE_API_KEY}` }
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
   if (!response.ok) {
@@ -314,7 +314,7 @@ async function updateLoginTracking(env, userId) {
     // First get current login count
     const userResponse = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Users/${userId}`, {
       headers: {
-        "Authorization": `Bearer ${env.AIRTABLE_API_KEY}`,
+        "Authorization": `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       }
     });
@@ -331,7 +331,7 @@ async function updateLoginTracking(env, userId) {
     const updateResponse = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Users/${userId}`, {
       method: "PATCH",
       headers: {
-        "Authorization": `Bearer ${env.AIRTABLE_API_KEY}`,
+        "Authorization": `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
       },
       body: JSON.stringify({

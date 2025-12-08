@@ -14,7 +14,7 @@ Handles authentication for Mineral Watch using magic links.
 Set these using `wrangler secret put`:
 
 ```bash
-wrangler secret put AIRTABLE_API_KEY
+wrangler secret put MINERAL_AIRTABLE_API_KEY
 wrangler secret put AUTH_SECRET
 wrangler secret put POSTMARK_API_KEY
 wrangler secret put AIRTABLE_BASE_ID
