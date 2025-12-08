@@ -2530,9 +2530,15 @@
                     }
                     
                     let actionsHtml = '<div class="activity-actions">';
+                    // OCC Filing first
                     if (occLink) {
                         actionsHtml += `<a href="${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
                     }
+                    // OCC Map second  
+                    if (mapLink) {
+                        actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">OCC Map</a>`;
+                    }
+                    // Track Well last
                     if (shouldShowTrackButton) {
                         // Check if well is already tracked
                         const isTracked = loadedWells.some(w => w.fields['API Number'] === apiNumber);
@@ -2541,9 +2547,6 @@
                         } else {
                             actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', '${escapeHtml(occLink || '')}', this)">+ Track Well</button>`;
                         }
-                    }
-                    if (mapLink) {
-                        actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>`;
                     }
                     actionsHtml += '</div>';
                     

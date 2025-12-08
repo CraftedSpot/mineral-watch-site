@@ -248,6 +248,11 @@ var index_default = {
         return handleTrackThisWell(request, env, url);
       }
       
+      // Debug endpoint for token validation
+      if (path === "/debug-token" && request.method === "GET") {
+        return handleTrackThisWell(request, env, url);
+      }
+      
       return notFoundResponse();
     } catch (err) {
       console.error("Worker error:", err);

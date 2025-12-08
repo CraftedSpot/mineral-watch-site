@@ -81,6 +81,8 @@ export async function validateTrackToken(
   console.log(`[ValidateToken] Payload: ${userId}:${apiNumber}:${expiration}:***`);
   console.log(`[ValidateToken] Expected token first 8 chars: ${expectedToken.substring(0, 8)}`);
   console.log(`[ValidateToken] Received token first 8 chars: ${token.substring(0, 8)}`);
+  console.log(`[ValidateToken] API type: ${typeof apiNumber}, value: '${apiNumber}'`);
+  console.log(`[ValidateToken] Secret length: ${secret?.length || 0}`);
   
   // Compare tokens
   if (token !== expectedToken) {
@@ -224,6 +226,34 @@ export function generateTrackWellErrorPage(message: string, showUpgrade: boolean
  * @returns HTML response with tracking result
  */
 export async function handleTrackThisWell(request: Request, env: Env, url: URL): Promise<Response> {
+  // Debug endpoint
+  if (url.pathname === '/debug-token') {
+    const apiNumber = url.searchParams.get('api');
+    const userId = url.searchParams.get('user');
+    const token = url.searchParams.get('token');
+    const exp = url.searchParams.get('exp');
+    
+    if (!apiNumber || !userId || !token || !exp) {
+      return new Response('Missing parameters', { status: 400 });
+    }
+    
+    const expiration = parseInt(exp);
+    const result = await validateTrackToken(userId, apiNumber, expiration, token, env.TRACK_WELL_SECRET || '');
+    
+    return new Response(JSON.stringify({
+      valid: result.valid,
+      error: result.error,
+      apiNumber,
+      userId,
+      tokenFirst8: token.substring(0, 8),
+      hasSecret: !!env.TRACK_WELL_SECRET,
+      secretFirst4: env.TRACK_WELL_SECRET?.substring(0, 4)
+    }, null, 2), {
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+  
+  // Normal track-well flow
   const apiNumber = url.searchParams.get('api');
   const userId = url.searchParams.get('user');
   const token = url.searchParams.get('token');
@@ -252,9 +282,11 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
     
     // Validate token
     const expiration = parseInt(exp);
-    console.log(`[Track Well] Validating token for API ${cleanApi}, user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
+    console.log(`[Track Well] Validating token for API ${apiNumber} (cleaned: ${cleanApi}), user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
     console.log(`[Track Well] Has TRACK_WELL_SECRET: ${!!env.TRACK_WELL_SECRET}`);
-    const tokenValidation = await validateTrackToken(userId, cleanApi, expiration, token, env.TRACK_WELL_SECRET);
+    console.log(`[Track Well] Secret first 4 chars: ${env.TRACK_WELL_SECRET?.substring(0, 4)}`);
+    // Use original apiNumber for token validation (not cleaned)
+    const tokenValidation = await validateTrackToken(userId, apiNumber, expiration, token, env.TRACK_WELL_SECRET);
     
     if (!tokenValidation.valid) {
       console.log(`[Track Well] Token validation failed: ${tokenValidation.error}`);
@@ -266,19 +298,24 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
     
     try {
       // Get user record
+      console.log(`[Track Well] Getting user record for ID: ${userId}`);
       const userRecord = await getUserById(env, userId);
       if (!userRecord) {
+        console.log(`[Track Well] User not found: ${userId}`);
         return new Response(generateTrackWellErrorPage('User not found. Please contact support.'), {
           headers: { 'Content-Type': 'text/html' },
           status: 404
         });
       }
+      console.log(`[Track Well] Found user: ${userRecord.fields.Email}`);
       
       const userEmail = userRecord.fields.Email;
       
       // Check for duplicate well API for this user
+      console.log(`[Track Well] Checking for duplicate well: ${cleanApi} for ${userEmail}`);
       const isDuplicate = await checkDuplicateWell(env, userEmail, cleanApi);
       if (isDuplicate) {
+        console.log(`[Track Well] Well already tracked: ${cleanApi}`);
         return new Response(generateTrackWellSuccessPage(cleanApi, true), {
           headers: { 'Content-Type': 'text/html' }
         });
@@ -304,7 +341,9 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       }
       
       // Query OCC API to get well details
+      console.log(`[Track Well] Fetching well details from OCC for API: ${cleanApi}`);
       const wellDetails = await fetchWellDetailsFromOCC(cleanApi, env);
+      console.log(`[Track Well] OCC details fetched: ${wellDetails ? 'Found' : 'Not found'}`);
       
       let occMapLink = "#";
       let wellName = "";
@@ -338,13 +377,32 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
         
         if (completionData.wellName && !wellName) wellName = completionData.wellName;
         if (completionData.operator && !operator) operator = completionData.operator;
-        if (completionData.county && !county) county = completionData.county;
+        if (completionData.county && !county) {
+          // Clean county format "017-CANADIAN" -> "CANADIAN"
+          county = completionData.county.includes('-') 
+            ? completionData.county.split('-')[1] 
+            : completionData.county;
+        }
         if (completionData.surfaceSection && !section) section = completionData.surfaceSection;
         if (completionData.surfaceTownship && !township) township = completionData.surfaceTownship;
         if (completionData.surfaceRange && !range) range = completionData.surfaceRange;
       }
       
+      // Log final data before creating well
+      console.log(`Creating well with data:`, {
+        api: cleanApi,
+        wellName,
+        operator,
+        county,
+        section,
+        township,
+        range,
+        wellType,
+        wellStatus
+      });
+      
       // Add the well to Airtable
+      console.log(`[Track Well] Creating well record in Airtable`);
       const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
       const response = await fetch(createUrl, {
         method: "POST",
@@ -368,23 +426,24 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
             "Well Status": wellStatus,
             Notes: "Added via signed email tracking link",
             
-            // Enhanced fields from completion data
-            ...(completionData?.formationName && { "Formation": completionData.formationName }),
+            // Enhanced fields from completion data - using correct field names
+            ...(completionData?.formationName && { "Formation Name": completionData.formationName }),
             ...(completionData?.formationDepth && { "Formation Depth": completionData.formationDepth }),
-            ...(completionData?.ipGas && { "IP Gas": completionData.ipGas }),
-            ...(completionData?.ipOil && { "IP Oil": completionData.ipOil }),
-            ...(completionData?.ipWater && { "IP Water": completionData.ipWater }),
-            ...(completionData?.pumpingFlowing && { "Pumping Flowing": completionData.pumpingFlowing }),
+            ...(completionData?.ipGas && { "IP Gas (MCF/day)": completionData.ipGas }),
+            ...(completionData?.ipOil && { "IP Oil (BBL/day)": completionData.ipOil }),
+            ...(completionData?.ipWater && { "IP Water (BBL/day)": completionData.ipWater }),
             ...(completionData?.spudDate && { "Spud Date": completionData.spudDate }),
             ...(completionData?.completionDate && { "Completion Date": completionData.completionDate }),
-            ...(completionData?.firstProdDate && { "First Prod Date": completionData.firstProdDate }),
-            ...(completionData?.drillType && { "Drill Type": completionData.drillType }),
+            ...(completionData?.firstProdDate && { "First Production Date": completionData.firstProdDate }),
             ...(completionData?.lateralLength && { "Lateral Length": completionData.lateralLength }),
             ...(completionData?.totalDepth && { "Total Depth": completionData.totalDepth }),
+            ...(completionData && { "Data Last Updated": new Date().toISOString() }),
+            // Fields that need to be created in Airtable:
+            ...(completionData?.pumpingFlowing && { "Pumping Flowing": completionData.pumpingFlowing }),
+            ...(completionData?.drillType && { "Drill Type": completionData.drillType }),
             ...(completionData?.bhSection && { "BH Section": completionData.bhSection }),
             ...(completionData?.bhTownship && { "BH Township": completionData.bhTownship }),
-            ...(completionData?.bhRange && { "BH Range": completionData.bhRange }),
-            ...(completionData && { "Last Updated": new Date().toISOString() })
+            ...(completionData?.bhRange && { "BH Range": completionData.bhRange })
           }
         })
       });
@@ -392,7 +451,25 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       if (!response.ok) {
         const err = await response.text();
         console.error("Airtable create well error:", err);
-        return new Response(generateTrackWellErrorPage('Failed to add well. Please try again later.'), {
+        console.error("Failed to create well with data:", {
+          api: cleanApi,
+          wellName,
+          operator,
+          county,
+          section,
+          township,
+          range
+        });
+        
+        // Check for specific error messages
+        let errorMessage = 'Failed to add well. Please try again later.';
+        if (err.includes('DUPLICATE_VALUE')) {
+          errorMessage = 'This well is already being tracked.';
+        } else if (err.includes('INVALID_REQUEST')) {
+          errorMessage = 'Invalid well data. Please check the API number.';
+        }
+        
+        return new Response(generateTrackWellErrorPage(errorMessage), {
           headers: { 'Content-Type': 'text/html' },
           status: 500
         });
@@ -405,7 +482,19 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       
     } catch (error) {
       console.error("Track well error:", error);
-      return new Response(generateTrackWellErrorPage('An error occurred. Please try again later.'), {
+      console.error("Error stack:", error.stack);
+      
+      // More specific error messages
+      let errorMessage = 'An error occurred. Please try again later.';
+      if (error.message?.includes('INVALID_REQUEST_UNKNOWN')) {
+        errorMessage = 'Invalid user ID. Please request a new tracking link.';
+      } else if (error.message?.includes('fetch failed')) {
+        errorMessage = 'Unable to connect to services. Please try again.';
+      } else if (error.message?.includes('AUTHENTICATION_FAILED')) {
+        errorMessage = 'Authentication error. Please contact support.';
+      }
+      
+      return new Response(generateTrackWellErrorPage(errorMessage), {
         headers: { 'Content-Type': 'text/html' },
         status: 500
       });
