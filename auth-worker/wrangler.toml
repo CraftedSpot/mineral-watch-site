@@ -1,0 +1,14 @@
+name = "auth-worker"
+main = "index.js"
+compatibility_date = "2024-01-01"
+
+# Environment variables (set via wrangler secret)
+# AIRTABLE_API_KEY - API key for Airtable access
+# AUTH_SECRET - Secret for token signing
+# POSTMARK_API_KEY - API key for sending emails
+# AIRTABLE_BASE_ID - Base ID for Airtable (app3j3X29Uvp5stza)
+
+# Add route configuration if using custom domain
+# [[routes]]
+# pattern = "auth.mymineralwatch.com/*"
+# zone_name = "mymineralwatch.com"

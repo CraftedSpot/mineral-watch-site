@@ -30,21 +30,38 @@ export function getCookieValue(cookieString: string, name: string): string | nul
 }
 
 /**
- * Authenticate a request by verifying the session cookie
+ * Authenticate a request by verifying the session cookie with auth-worker
  * @param request The incoming request
  * @param env Worker environment
  * @returns User session payload or null if not authenticated
  */
 export async function authenticateRequest(request: Request, env: Env): Promise<SessionPayload | null> {
+  // Get the session cookie from the request
   const cookie = request.headers.get("Cookie") || "";
-  const sessionToken = getCookieValue(cookie, COOKIE_NAME);
-  if (!sessionToken) return null;
   
+  // Forward the request to auth-worker to validate the session
   try {
-    const payload = await verifySession(env, sessionToken);
-    if (Date.now() > payload.exp) return null;
-    return payload;
-  } catch {
+    const authResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/me', {
+      headers: {
+        'Cookie': cookie
+      }
+    });
+    
+    if (!authResponse.ok) {
+      return null;
+    }
+    
+    const userData = await authResponse.json();
+    
+    // Convert auth-worker response to SessionPayload format
+    return {
+      id: userData.id,
+      email: userData.email,
+      name: userData.name,
+      exp: Date.now() + 30 * 24 * 60 * 60 * 1000 // Session valid for 30 days
+    };
+  } catch (error) {
+    console.error('Auth verification failed:', error);
     return null;
   }
 }
@@ -78,15 +95,6 @@ export async function verifyToken(env: Env, token: string): Promise<any> {
   return data;
 }
 
-/**
- * Verify a session token without consuming it (for repeated checks)
- * @param env Worker environment  
- * @param token Session token to verify
- * @returns Session payload data
- * @throws Error if session not found or expired
- */
-export async function verifySession(env: Env, token: string): Promise<SessionPayload> {
-  const data = await env.AUTH_TOKENS.get(token, "json");
-  if (!data) throw new Error("Session not found or expired");
-  return data;
-}
+// Note: Session verification is now handled by auth-worker
+// The generateToken and verifyToken functions below are still used
+// for the Track This Well feature, not for user authentication

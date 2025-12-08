@@ -39,108 +39,33 @@ import type { Env } from '../types/env.js';
 
 /**
  * Send a magic link email for user authentication
+ * Delegates to auth-worker for processing
  * @param request The incoming request with email
  * @param env Worker environment
  * @returns JSON response confirming email sent
  */
 export async function handleSendMagicLink(request: Request, env: Env) {
-  const { email } = await request.json();
-  if (!email || !email.includes("@")) {
-    return jsonResponse({ error: "Valid email required" }, 400);
-  }
-  const normalizedEmail = email.toLowerCase().trim();
-  const user = await findUserByEmail(env, normalizedEmail);
-  if (!user || user.fields.Status !== "Active") {
-    console.log(`Login attempt for non-existent/inactive user: ${normalizedEmail}`);
-    return jsonResponse({ success: true });
-  }
-  const token = await generateToken(env, {
-    email: normalizedEmail,
-    id: user.id,
-    exp: Date.now() + TOKEN_EXPIRY
-  });
-  const magicLink = `${BASE_URL}/api/auth/verify?token=${token}`;
-  await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
-  console.log(`Magic link sent to: ${normalizedEmail}`);
-  return jsonResponse({ success: true });
-}
-
-/**
- * Verify token and create user session
- * @param request The incoming request
- * @param env Worker environment
- * @param url URL object with token parameter
- * @returns Redirect to portal with session cookie
- */
-export async function handleVerifyToken(request: Request, env: Env, url: URL) {
-  const token = url.searchParams.get("token");
-  if (!token) {
-    return redirectWithError("Missing token");
-  }
-  let payload;
-  try {
-    payload = await verifyToken(env, token);
-  } catch (err) {
-    console.error("Token verification failed:", (err as Error).message);
-    return redirectWithError("Invalid or expired link. Please request a new one.");
-  }
-  if (Date.now() > payload.exp) {
-    return redirectWithError("This link has expired. Please request a new one.");
-  }
-  const sessionToken = await generateToken(env, {
-    email: payload.email,
-    id: payload.id,
-    exp: Date.now() + SESSION_EXPIRY
-  }, 30 * 24 * 60 * 60);
-  console.log(`User logged in: ${payload.email}`);
-  return new Response(null, {
-    status: 302,
+  // Forward the request to auth-worker
+  const authResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/send-magic-link', {
+    method: 'POST',
     headers: {
-      "Location": "/portal",
-      "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=${30 * 24 * 60 * 60}`
-    }
+      'Content-Type': 'application/json'
+    },
+    body: await request.text() // Pass through the raw body
   });
-}
-
-/**
- * Handle user logout by clearing session cookie
- * @returns JSON response with success and cleared cookie
- */
-export function handleLogout(): Response {
-  return new Response(JSON.stringify({ success: true }), {
-    status: 200,
+  
+  // Return the auth-worker response directly
+  return new Response(await authResponse.text(), {
+    status: authResponse.status,
     headers: {
-      "Content-Type": "application/json",
-      "Set-Cookie": `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=0`,
+      'Content-Type': 'application/json',
       ...CORS_HEADERS
     }
   });
 }
 
-/**
- * Get current authenticated user information
- * @param request The incoming request
- * @param env Worker environment
- * @returns JSON response with user data
- */
-export async function handleGetCurrentUser(request: Request, env: Env) {
-  const user = await authenticateRequest(request, env);
-  if (!user) {
-    return jsonResponse({ error: "Not authenticated" }, 401);
-  }
-  const userRecord = await findUserByEmail(env, user.email);
-  if (!userRecord) {
-    return jsonResponse({ error: "User not found" }, 401);
-  }
-  return jsonResponse({
-    id: userRecord.id,
-    email: userRecord.fields.Email,
-    name: userRecord.fields.Name,
-    plan: userRecord.fields.Plan || "Free",
-    status: userRecord.fields.Status,
-    stripeCustomerId: userRecord.fields["Stripe Customer ID"]
-  });
-}
+// Note: handleVerifyToken, handleLogout, and handleGetCurrentUser
+// have been moved to auth-worker for better separation of concerns
 
 /**
  * Register a new user account

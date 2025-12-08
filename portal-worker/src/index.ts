@@ -12,8 +12,7 @@ import {
   WELLS_TABLE, 
   ACTIVITY_TABLE,
   BASE_URL, 
-  PLAN_LIMITS, 
-  ACTIVITY_LIMITS,
+  PLAN_LIMITS,
   OCC_CACHE_TTL, 
   CORS_HEADERS,
   PRICE_IDS,
@@ -54,7 +53,6 @@ import {
   authenticateRequest,
   generateToken,
   verifyToken,
-  verifySession,
   getCookieValue
 } from './utils/auth.js';
 
@@ -81,12 +79,6 @@ import {
   handleDeleteWell,
   handleUpdateWellNotes,
   fetchWellDetailsFromOCC,
-  // Auth handlers
-  handleSendMagicLink,
-  handleVerifyToken,
-  handleLogout,
-  handleGetCurrentUser,
-  handleRegister,
   // Billing handlers
   handleBillingPortal,
   handleUpgrade,
@@ -140,19 +132,39 @@ var index_default = {
       if (path === "/portal/oklahoma-map" || path === "/portal/oklahoma-map/") {
         return servePage(oklahomaMapHtml, request, env);
       }
-      if (path === "/api/auth/send-magic-link" && request.method === "POST") {
-        return handleSendMagicLink(request, env);
+      // Proxy auth endpoints to auth-worker
+      if (path.startsWith("/api/auth/")) {
+        // Special handling for verify - need to redirect back to portal
+        if (path === "/api/auth/verify" && request.method === "GET") {
+          const authUrl = new URL(`https://auth-worker.photog12.workers.dev${path}`);
+          authUrl.search = url.search; // Copy query params
+          return fetch(authUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.body
+          });
+        }
+        
+        // For other auth endpoints, proxy the request
+        const authUrl = `https://auth-worker.photog12.workers.dev${path}`;
+        const authResponse = await fetch(authUrl, {
+          method: request.method,
+          headers: request.headers,
+          body: request.body
+        });
+        
+        // Return auth-worker response with CORS headers
+        return new Response(await authResponse.text(), {
+          status: authResponse.status,
+          headers: {
+            ...Object.fromEntries(authResponse.headers.entries()),
+            ...CORS_HEADERS
+          }
+        });
       }
-      if (path === "/api/auth/verify" && request.method === "GET") {
-        return handleVerifyToken(request, env, url);
-      }
-      if (path === "/api/auth/logout" && request.method === "POST") {
-        return handleLogout();
-      }
-      if (path === "/api/auth/me" && request.method === "GET") {
-        return handleGetCurrentUser(request, env);
-      }
+      // Registration stays in portal-worker (creates users, sends welcome emails)
       if (path === "/api/auth/register" && request.method === "POST") {
+        const { handleRegister } = await import('./handlers/auth.js');
         return handleRegister(request, env);
       }
       

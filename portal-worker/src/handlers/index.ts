@@ -27,12 +27,8 @@ export {
   fetchWellDetailsFromOCC
 } from './wells.js';
 
-// Auth handlers
+// Auth handlers - most moved to auth-worker, keeping only registration
 export {
-  handleSendMagicLink,
-  handleVerifyToken,
-  handleLogout,
-  handleGetCurrentUser,
   handleRegister
 } from './auth.js';
 
