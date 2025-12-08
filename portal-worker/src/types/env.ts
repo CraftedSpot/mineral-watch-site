@@ -14,6 +14,9 @@ export interface Env {
   OCC_CACHE: KVNamespace;
   COMPLETIONS_CACHE: KVNamespace;
 
+  // Service Bindings
+  AUTH_WORKER: Fetcher;
+
   // Environment Variables (secrets)
   MINERAL_AIRTABLE_API_KEY: string;
   POSTMARK_API_KEY: string;

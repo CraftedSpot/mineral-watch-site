@@ -131,53 +131,25 @@ export async function handleRegister(request: Request, env: Env) {
     const newUser = await response.json();
     console.log(`New Free user registered: ${normalizedEmail}`);
     
-    // Generate magic link token and send login email
-    const token = crypto.randomUUID();
-    const expiresAt = Date.now() + (15 * 60 * 1000); // 15 min
-    
-    // Store token (using same logic as handleLogin)
-    await env.AUTH_TOKENS.put(token, JSON.stringify({
-      email: normalizedEmail,
-      expiresAt
-    }), { expirationTtl: 900 });
-    
-    // Send welcome/login email via Postmark
-    const magicLink = `${BASE_URL}/api/auth/verify?token=${token}`;
-    
-    console.log(`Sending welcome email to: ${normalizedEmail}`);
-    
-    let htmlBody, textBody;
-    try {
-      const userName = name || normalizedEmail.split("@")[0];
-      console.log(`Generating email templates for user: ${userName}`);
-      htmlBody = getFreeWelcomeEmailHtml(userName, magicLink);
-      textBody = getFreeWelcomeEmailText(userName, magicLink);
-      console.log("Email templates generated successfully");
-    } catch (templateError) {
-      console.error("Error generating email templates:", templateError);
-      throw templateError;
-    }
-    
-    const emailResponse = await fetch("https://api.postmarkapp.com/email", {
-      method: "POST",
+    // Delegate magic link generation to auth-worker
+    // This ensures consistent token format and handling
+    const magicLinkResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/send-magic-link', {
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "X-Postmark-Server-Token": env.POSTMARK_API_KEY
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        From: "support@mymineralwatch.com",
-        To: normalizedEmail,
-        Subject: "Welcome to Mineral Watch - Verify Your Account",
-        HtmlBody: htmlBody,
-        TextBody: textBody
+        email: normalizedEmail
       })
     });
     
-    if (!emailResponse.ok) {
-      const emailError = await emailResponse.text();
-      console.error("Postmark email error:", emailError);
-      // Don't fail registration if email fails - just log the error
+    if (!magicLinkResponse.ok) {
+      console.error('Failed to generate magic link via auth-worker');
+      return jsonResponse({ error: 'Failed to send verification email' }, 500);
     }
+    
+    // Auth-worker has already sent the magic link email
+    console.log(`Magic link sent via auth-worker to: ${normalizedEmail}`);
     
     return jsonResponse({ 
       success: true, 

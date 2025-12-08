@@ -134,33 +134,42 @@ var index_default = {
       }
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
-        // Special handling for verify - need to redirect back to portal
-        if (path === "/api/auth/verify" && request.method === "GET") {
-          const authUrl = new URL(`https://auth-worker.photog12.workers.dev${path}`);
-          authUrl.search = url.search; // Copy query params
-          return fetch(authUrl.toString(), {
-            method: request.method,
-            headers: request.headers,
-            body: request.body
-          });
-        }
-        
-        // For other auth endpoints, proxy the request
-        const authUrl = `https://auth-worker.photog12.workers.dev${path}`;
-        const authResponse = await fetch(authUrl, {
-          method: request.method,
-          headers: request.headers,
-          body: request.body
-        });
-        
-        // Return auth-worker response with CORS headers
-        return new Response(await authResponse.text(), {
-          status: authResponse.status,
-          headers: {
-            ...Object.fromEntries(authResponse.headers.entries()),
-            ...CORS_HEADERS
+        try {
+          let authResponse: Response;
+          
+          if (env.AUTH_WORKER) {
+            // Use service binding (faster, more reliable)
+            const authRequest = new Request(`https://auth-worker${path}${url.search}`, {
+              method: request.method,
+              headers: request.headers,
+              body: request.body
+            });
+            authResponse = await env.AUTH_WORKER.fetch(authRequest);
+          } else {
+            // Fallback to HTTP
+            console.warn('AUTH_WORKER service binding not configured, using HTTP');
+            const authUrl = `https://auth-worker.photog12.workers.dev${path}${url.search}`;
+            authResponse = await fetch(authUrl, {
+              method: request.method,
+              headers: request.headers,
+              body: request.body
+            });
           }
-        });
+          
+          // Return auth-worker response with CORS headers
+          return new Response(await authResponse.text(), {
+            status: authResponse.status,
+            headers: {
+              ...Object.fromEntries(authResponse.headers.entries()),
+              ...CORS_HEADERS
+            }
+          });
+        } catch (error) {
+          console.error('Auth proxy error:', error);
+          return jsonResponse({ 
+            error: 'Authentication service temporarily unavailable. Please try again later.' 
+          }, 503);
+        }
       }
       // Registration stays in portal-worker (creates users, sends welcome emails)
       if (path === "/api/auth/register" && request.method === "POST") {

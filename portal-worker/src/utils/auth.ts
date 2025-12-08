@@ -39,19 +39,33 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
   // Get the session cookie from the request
   const cookie = request.headers.get("Cookie") || "";
   
-  // Forward the request to auth-worker to validate the session
+  // Use service binding if available, otherwise fall back to HTTP
   try {
-    const authResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/me', {
-      headers: {
-        'Cookie': cookie
-      }
-    });
+    let authResponse: Response;
+    
+    if (env.AUTH_WORKER) {
+      // Use service binding (faster, no request limits)
+      const authRequest = new Request('https://auth-worker/api/auth/me', {
+        headers: {
+          'Cookie': cookie
+        }
+      });
+      authResponse = await env.AUTH_WORKER.fetch(authRequest);
+    } else {
+      // Fallback to HTTP
+      console.warn('AUTH_WORKER service binding not configured, using HTTP');
+      authResponse = await fetch('https://auth-worker.photog12.workers.dev/api/auth/me', {
+        headers: {
+          'Cookie': cookie
+        }
+      });
+    }
     
     if (!authResponse.ok) {
       return null;
     }
     
-    const userData = await authResponse.json();
+    const userData = await authResponse.json() as any;
     
     // Convert auth-worker response to SessionPayload format
     return {
