@@ -77,6 +77,11 @@ export async function validateTrackToken(
   const hashArray = new Uint8Array(hashBuffer);
   const expectedToken = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
   
+  // Debug logging
+  console.log(`[ValidateToken] Payload: ${userId}:${apiNumber}:${expiration}:***`);
+  console.log(`[ValidateToken] Expected token first 8 chars: ${expectedToken.substring(0, 8)}`);
+  console.log(`[ValidateToken] Received token first 8 chars: ${token.substring(0, 8)}`);
+  
   // Compare tokens
   if (token !== expectedToken) {
     return { valid: false, error: 'Invalid token' };
@@ -247,9 +252,12 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
     
     // Validate token
     const expiration = parseInt(exp);
+    console.log(`[Track Well] Validating token for API ${cleanApi}, user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
+    console.log(`[Track Well] Has TRACK_WELL_SECRET: ${!!env.TRACK_WELL_SECRET}`);
     const tokenValidation = await validateTrackToken(userId, cleanApi, expiration, token, env.TRACK_WELL_SECRET);
     
     if (!tokenValidation.valid) {
+      console.log(`[Track Well] Token validation failed: ${tokenValidation.error}`);
       return new Response(generateTrackWellErrorPage(`Tracking link is ${tokenValidation.error}. Please request a new alert email.`), {
         headers: { 'Content-Type': 'text/html' },
         status: 400

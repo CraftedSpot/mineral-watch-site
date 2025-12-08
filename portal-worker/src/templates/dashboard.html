@@ -629,7 +629,15 @@
         @media (max-width: 768px) { 
             .form-row { grid-template-columns: 1fr; } 
             .form-group.full { grid-column: span 1; } 
-            .user-name { display: none; } 
+            .user-name { display: none; }
+            
+            /* Mobile navigation */
+            .nav-links {
+                gap: 15px;
+            }
+            .nav-links a {
+                font-size: 13px;
+            } 
             
             /* Hide checkboxes and bulk actions completely on mobile */
             .bulk-only,
@@ -919,6 +927,7 @@
                 <a href="/" class="logo">Mineral Watch</a>
                 <nav class="nav-links">
                     <a href="/portal" class="active">Dashboard</a>
+                    <a href="/portal/oklahoma-map">Map</a>
                     <a href="/portal/account">Account</a>
                 </nav>
                 <div class="user-menu">
@@ -1115,18 +1124,18 @@
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="section">Section</label>
-                        <input type="text" id="section" placeholder="e.g. 15" required>
-                    </div>
-                    <div class="form-group">
                         <label for="township">Township</label>
                         <input type="text" id="township" placeholder="e.g. 12N" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="range">Range</label>
+                        <input type="text" id="range" placeholder="e.g. 4W" required>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
-                        <label for="range">Range</label>
-                        <input type="text" id="range" placeholder="e.g. 4W" required>
+                        <label for="section">Section</label>
+                        <input type="text" id="section" placeholder="e.g. 15" required>
                     </div>
                     <div class="form-group">
                         <label for="meridian">Meridian</label>
@@ -1239,16 +1248,16 @@
                     <span class="details-value" id="propertyDetailsCounty">—</span>
                 </div>
                 <div class="details-row">
-                    <span class="details-label">Section</span>
-                    <span class="details-value" id="propertyDetailsSection">—</span>
-                </div>
-                <div class="details-row">
                     <span class="details-label">Township</span>
                     <span class="details-value" id="propertyDetailsTownship">—</span>
                 </div>
                 <div class="details-row">
                     <span class="details-label">Range</span>
                     <span class="details-value" id="propertyDetailsRange">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Section</span>
+                    <span class="details-value" id="propertyDetailsSection">—</span>
                 </div>
                 <div class="details-row">
                     <span class="details-label">Meridian</span>
@@ -1260,6 +1269,14 @@
                 <div class="details-row">
                     <span class="details-label">Monitor Adjacent</span>
                     <span class="details-value" id="propertyDetailsAdjacent">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">RI Acres</span>
+                    <input type="number" id="propertyDetailsRIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0">
+                </div>
+                <div class="details-row">
+                    <span class="details-label">WI Acres</span>
+                    <input type="number" id="propertyDetailsWIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0">
                 </div>
                 <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                     <span class="details-label" style="margin-bottom: 8px;">Notes</span>
@@ -1286,6 +1303,21 @@
                 .replace(/>/g, '&gt;')
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
+        }
+        
+        // Format activity location from S15-T12N-R5W to T12N R5W 15
+        function formatActivityLocation(location) {
+            if (!location) return '';
+            
+            // Try to parse S15-T12N-R5W format
+            const match = location.match(/S(\d+)-T([^-]+)-R(.+)/i);
+            if (match) {
+                const [_, section, township, range] = match;
+                return `T${township} R${range} ${section}`;
+            }
+            
+            // Return original if can't parse
+            return escapeHtml(location);
         }
 
         // OCC Status Code Definitions for Hover Tooltips
@@ -1839,7 +1871,7 @@
             
             displayProperties.forEach(p => {
                 const f = p.fields;
-                const str = `S${f.SEC} T${f.TWN} R${f.RNG}`;
+                const str = `T${f.TWN} R${f.RNG} ${f.SEC}`;
                 const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
                 const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 
@@ -1848,9 +1880,9 @@
                     <td>${escapeHtml(f.COUNTY) || '—'}</td>
                     <td><strong>${str}</strong></td>
                     <td>${notes}</td>
-                    <td style="white-space: nowrap;">
-                        <button class="btn-link" onclick="openPropertyDetails('${p.id}')">Details</button>
-                        <button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
+                    <td style="white-space: nowrap; text-align: right;">
+                        <a href="#" class="text-link" onclick="openPropertyDetails('${p.id}'); return false;">Detail</a>
+                        &nbsp;&nbsp;<button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
                     </td>
                 </tr>`;
             });
@@ -2335,7 +2367,7 @@
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
-                const str = (section && township && range) ? `S${section} T${township} R${range}` : '—';
+                const str = (section && township && range) ? `T${township} R${range} ${section}` : '—';
                 
                 // Check if production data exists
                 const hasProductionData = f['Formation Name'] || f['IP Gas (MCF/day)'] || f['IP Oil (BBL/day)'] || 
@@ -2438,7 +2470,11 @@
                 
                 records.forEach(r => {
                     const f = r.fields;
-                    const activityType = f['Activity Type'] || 'Status Change';
+                    let activityType = f['Activity Type'] || 'Status Change';
+                    // Make "New Permit" more specific
+                    if (activityType === 'New Permit') {
+                        activityType = 'New Drilling Permit';
+                    }
                     const alertLevel = f['Alert Level'] || 'YOUR PROPERTY';
                     
                     // Icon and class based on activity type
@@ -2471,22 +2507,40 @@
                     
                     // Build action buttons
                     const occLink = f['OCC Link'];
-                    const mapLink = f['Map Link'];
+                    const mapLink = f['OCC Map Link'] || f['Map Link']; // Support both field names
                     const apiNumber = f['API Number'];
                     
                     // Check if this activity type should have a Track Well button
                     const shouldShowTrackButton = apiNumber && (
-                        activityType.toLowerCase().includes('permit') ||
-                        activityType.toLowerCase().includes('rework') ||
-                        activityType.toLowerCase().includes('completed')
+                        activityType === 'New Permit' ||
+                        activityType === 'New Drilling Permit' ||
+                        activityType === 'Well Completed' ||
+                        activityType.toLowerCase().includes('rework')
                     );
+                    
+                    // Debug logging
+                    if (apiNumber && activityType === 'Well Completed') {
+                        console.log('Well Completed activity:', {
+                            activityType,
+                            apiNumber,
+                            shouldShowTrackButton,
+                            occLink,
+                            mapLink
+                        });
+                    }
                     
                     let actionsHtml = '<div class="activity-actions">';
                     if (occLink) {
                         actionsHtml += `<a href="${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
                     }
                     if (shouldShowTrackButton) {
-                        actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', this)">+ Track Well</button>`;
+                        // Check if well is already tracked
+                        const isTracked = loadedWells.some(w => w.fields['API Number'] === apiNumber);
+                        if (isTracked) {
+                            actionsHtml += `<button class="activity-btn track-btn" disabled style="background: #22C55E; color: white; border-color: #22C55E; cursor: default;">Added ✓</button>`;
+                        } else {
+                            actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', '${escapeHtml(occLink || '')}', this)">+ Track Well</button>`;
+                        }
                     }
                     if (mapLink) {
                         actionsHtml += `<a href="${escapeHtml(mapLink)}" target="_blank" class="activity-btn">View Map</a>`;
@@ -2502,7 +2556,7 @@
                                     <span class="activity-level ${levelClass}">${escapeHtml(alertLevel.replace('_', ' '))}</span>
                                 </div>
                                 <div class="activity-well">${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
-                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${escapeHtml(f['Section-Township-Range']) || ''} • ${escapeHtml(f['County']) || ''}</div>
+                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${formatActivityLocation(f['Section-Township-Range'])} • ${escapeHtml(f['County']) || ''}</div>
                                 ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
                                 ${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
@@ -2641,7 +2695,7 @@
             } catch { alert('Error deleting.'); }
         }
 
-        async function trackWellFromActivity(apiNumber, wellName, buttonElement) {
+        async function trackWellFromActivity(apiNumber, wellName, occLink, buttonElement) {
             try {
                 // Disable the button while processing
                 buttonElement.disabled = true;
@@ -2656,11 +2710,14 @@
                     return;
                 }
                 
-                // Add the well
+                // Add the well with OCC Link
                 const response = await fetch('/api/wells', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiNumber: apiNumber })
+                    body: JSON.stringify({ 
+                        apiNumber: apiNumber,
+                        occLink: occLink // Pass the permit PDF URL
+                    })
                 });
                 
                 if (response.ok) {
@@ -2716,7 +2773,7 @@
             const section = f['Section'] || '';
             const township = f['Township'] || '';
             const range = f['Range'] || '';
-            const location = (section && township && range) ? `S${section} T${township} R${range}` : '—';
+            const location = (section && township && range) ? `T${township} R${range} ${section}` : '—';
             document.getElementById('wellDetailsLocation').textContent = location;
             
             document.getElementById('wellDetailsCounty').textContent = f['County'] || '—';
@@ -2745,12 +2802,18 @@
                 mapLink.style.display = 'none';
             }
             
-            // OCC Filing link - construct from API
+            // OCC Filing link - only show if we have a direct PDF link (not search page)
             const occLink = document.getElementById('wellDetailsOccLink');
-            if (f['API Number']) {
-                occLink.href = `https://imaging.occ.ok.gov/imaging/OGWellRecords.aspx?api=${f['API Number']}`;
+            if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Docview.aspx')) {
+                // We have a direct permit/completion PDF link
+                occLink.href = f['OCC Filing Link'];
                 occLink.style.display = 'inline-block';
+                
+                // Update button text based on document type (if we can determine it)
+                // Completion reports typically have higher doc IDs than permits
+                occLink.textContent = '📄 OCC Filing';
             } else {
+                // No useful link - hide the button entirely
                 occLink.style.display = 'none';
             }
             
@@ -2866,13 +2929,16 @@
             const f = prop.fields;
             document.getElementById('propertyDetailsId').value = propId;
             document.getElementById('propertyDetailsTitle').textContent = f['COUNTY'] || 'Property Details';
-            document.getElementById('propertyDetailsLegal').textContent = `S${f.SEC} T${f.TWN} R${f.RNG}`;
+            document.getElementById('propertyDetailsLegal').textContent = `T${f.TWN} R${f.RNG} ${f.SEC}`;
             document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || '—';
             document.getElementById('propertyDetailsSection').textContent = f['SEC'] || '—';
             document.getElementById('propertyDetailsTownship').textContent = f['TWN'] || '—';
             document.getElementById('propertyDetailsRange').textContent = f['RNG'] || '—';
             document.getElementById('propertyDetailsMeridian').value = f['MERIDIAN'] || 'IM';
-            document.getElementById('propertyDetailsAdjacent').textContent = f['Monitor Adjacent'] ? 'Yes' : 'No';
+            // Default to 'Yes' for monitoring adjacent sections
+            document.getElementById('propertyDetailsAdjacent').textContent = (f['Monitor Adjacent'] === false) ? 'No' : 'Yes';
+            document.getElementById('propertyDetailsRIAcres').value = f['RI Acres'] || 0;
+            document.getElementById('propertyDetailsWIAcres').value = f['WI Acres'] || 0;
             document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
             document.getElementById('propertyDetailsModal').style.display = 'flex';
@@ -2882,12 +2948,14 @@
             const propId = document.getElementById('propertyDetailsId').value;
             const notes = document.getElementById('propertyDetailsNotes').value;
             const meridian = document.getElementById('propertyDetailsMeridian').value;
+            const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
             
             try {
                 const res = await fetch('/api/properties/' + propId, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notes, meridian })
+                    body: JSON.stringify({ notes, meridian, riAcres, wiAcres })
                 });
                 
                 if (!res.ok) throw new Error('Failed to save');
@@ -3473,6 +3541,31 @@
     /* Extra small screens */
     .container { padding: 0 15px; }
     main { padding: 20px 0; }
+    
+    /* Mobile header adjustments */
+    .header-inner {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    .logo {
+        font-size: 18px;
+    }
+    .nav-links {
+        gap: 10px;
+    }
+    .nav-links a {
+        font-size: 12px;
+        padding: 5px;
+    }
+    .user-menu {
+        gap: 10px;
+        width: 100%;
+        justify-content: flex-end;
+    }
+    .btn-logout {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
     
     .page-header h1 { font-size: 22px; }
     

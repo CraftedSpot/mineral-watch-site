@@ -372,7 +372,7 @@
         // CONFIGURATION
         // =============================================
         const OCC_API_BASE = 'https://gis.occ.ok.gov/server/rest/services/Hosted/STR/FeatureServer';
-        const CORS_PROXY = 'https://corsproxy.io/?';
+        const OCC_PROXY = '/api/occ-proxy';
         const SECTION_LAYER = 226; // OK_SEC layer
         
         // Activity status colors
@@ -454,7 +454,8 @@
                 `&outSR=4326`;
             
             try {
-                const response = await fetch(CORS_PROXY + encodeURIComponent(url));
+                const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
                 const data = await response.json();
                 
                 if (data.features && data.features.length > 0) {
@@ -548,10 +549,8 @@
         async function loadProperties() {
             document.getElementById('mapLoading').style.display = 'flex';
             
-            // In production, replace with:
-            // const res = await fetch('/api/properties');
-            // const properties = await res.json();
-            const properties = DEMO_PROPERTIES;
+            const res = await fetch('/api/properties');
+            const properties = await res.json();
             
             let loaded = 0;
             const total = properties.length;
@@ -598,11 +597,27 @@
                 }
             });
             
+            // Build ownership details
+            const riAcres = parseFloat(f['RI Acres']) || 0;
+            const wiAcres = parseFloat(f['WI Acres']) || 0;
+            const totalUserAcres = riAcres + wiAcres;
+            const sectionTotalAcres = geometry.properties?.gisacre ? Math.round(geometry.properties.gisacre) : 640;
+            
+            let ownershipText = '';
+            if (totalUserAcres > 0) {
+                const parts = [];
+                if (riAcres > 0) parts.push(`${riAcres} RI`);
+                if (wiAcres > 0) parts.push(`${wiAcres} WI`);
+                ownershipText = `Your ${parts.join(' + ')} acres (of ${sectionTotalAcres} total)`;
+            } else {
+                ownershipText = `${sectionTotalAcres} acres total`;
+            }
+            
             // Popup content
             const popupContent = `
                 <div class="popup-title">${f.COUNTY} County</div>
                 <div class="popup-detail"><strong>S${f.SEC} T${f.TWN} R${f.RNG}</strong></div>
-                <div class="popup-detail">${geometry.properties?.gisacre ? Math.round(geometry.properties.gisacre) + ' acres' : ''}</div>
+                <div class="popup-detail">${ownershipText}</div>
                 ${f.Notes ? `<div class="popup-detail" style="font-style: italic; margin-top: 8px;">"${f.Notes}"</div>` : ''}
                 <a href="#" class="popup-link" onclick="showPropertyDetail('${property.id}'); return false;">View Details →</a>
             `;

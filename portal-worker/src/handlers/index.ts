@@ -58,3 +58,8 @@ export {
   generateTrackWellSuccessPage,
   generateTrackWellErrorPage
 } from './track-well.js';
+
+// OCC proxy handler
+export {
+  handleOccProxy
+} from './occ-proxy.js';

@@ -3,6 +3,8 @@
  * Design matches Mineral Watch homepage mockups
  */
 
+import { normalizeSection } from '../utils/normalize.js';
+
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
 
 /**
@@ -56,6 +58,11 @@ async function generateTrackToken(userId, apiNumber, expiration, secret) {
  * @param {string} [data.spudDate] - Formatted spud date
  * @param {string} [data.completionDate] - Formatted completion date
  * @param {string} [data.firstProdDate] - Formatted first production date
+ * @param {string} [data.approvalDate] - Permit approval date
+ * @param {string} [data.expireDate] - Permit expiration date
+ * @param {string} [data.bhSection] - Bottom hole section for directional wells
+ * @param {string} [data.bhTownship] - Bottom hole township for directional wells
+ * @param {string} [data.bhRange] - Bottom hole range for directional wells
  */
 export async function sendAlertEmail(env, data) {
   const {
@@ -193,13 +200,15 @@ function getActivityStyle(activityType) {
 /**
  * Get contextual explanation based on activity type
  */
-function getExplanation(activityType, alertLevel, isMultiSection = false) {
+function getExplanation(activityType, alertLevel, isMultiSection = false, isDirectional = false) {
   const explanations = {
     'New Permit': {
       meaning: alertLevel === 'YOUR PROPERTY' 
-        ? 'An operator has filed a permit to drill a new well on your property.'
+        ? (isDirectional 
+          ? 'An operator has filed a permit to drill a directional well. The drilling rig will be on your property, but the well path may target minerals in another section.'
+          : 'An operator has filed a permit to drill a new well on your property.')
         : 'An operator has filed a permit to drill a new well in a section adjacent to yours. Your minerals may be included in the drilling unit.',
-      tip: 'Watch for pooling notices or lease offers in the coming weeks.',
+      tip: 'If you haven\'t already leased your minerals, you may receive a pooling notice or lease offer.',
       tipType: 'warning'
     },
     'Well Completed': {
@@ -224,6 +233,21 @@ function getExplanation(activityType, alertLevel, isMultiSection = false) {
 }
 
 /**
+ * Format date string to MMM D, YYYY format
+ */
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    if (isNaN(date.getTime())) return dateStr; // Return original if invalid
+    const options = { month: 'short', day: 'numeric', year: 'numeric' };
+    return date.toLocaleDateString('en-US', options);
+  } catch (err) {
+    return dateStr; // Return original on error
+  }
+}
+
+/**
  * Build HTML email body - matches homepage mockup design
  */
 async function buildHtmlBody(data, env) {
@@ -241,18 +265,50 @@ async function buildHtmlBody(data, env) {
     drillType,
     apiNumber,
     wellType,
-    userId
+    userId,
+    // Horizontal well data
+    isMultiSection,
+    bhLocation,
+    lateralLength,
+    lateralDirection,
+    sectionsAffected,
+    // Production data
+    formationName,
+    formationDepth,
+    ipGas,
+    ipOil,
+    ipWater,
+    spudDate,
+    completionDate,
+    firstProdDate,
+    operatorPhone,
+    pumpingFlowing,
+    // Permit-specific data
+    approvalDate,
+    expireDate,
+    bhSection,
+    bhTownship,
+    bhRange
   } = data;
   
   const levelStyle = getAlertLevelStyle(alertLevel);
   const activityStyle = getActivityStyle(activityType);
-  const explanation = getExplanation(activityType, alertLevel, isMultiSection);
   
   const drillTypeLabel = {
     'HH': 'Horizontal',
     'DH': 'Directional',
     'VH': 'Vertical'
   }[drillType] || '';
+  
+  // Check if this is a directional well (for permits)
+  const isDirectional = activityType === 'New Permit' && 
+    bhSection && bhTownship && bhRange &&
+    (bhSection !== '0' && bhTownship !== '0' && bhRange !== '0') &&
+    (normalizeSection(bhSection) !== normalizeSection(location.split(' ')[0].replace('S', '')) ||
+     bhTownship !== location.split(' ')[1].replace('T', '') ||
+     bhRange !== location.split(' ')[2].replace('R', ''));
+  
+  const explanation = getExplanation(activityType, alertLevel, isMultiSection, isDirectional);
   
   const tipStyles = {
     warning: { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },
@@ -267,6 +323,9 @@ async function buildHtmlBody(data, env) {
     const expiration = Math.floor(Date.now() / 1000) + (48 * 60 * 60); // 48 hours from now
     const token = await generateTrackToken(userId, apiNumber, expiration, env.TRACK_WELL_SECRET);
     trackingLink = `https://portal.mymineralwatch.com/add-well?api=${apiNumber}&user=${userId}&token=${token}&exp=${expiration}`;
+    console.log(`[Email] Generated track link for API ${apiNumber}, user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
+  } else {
+    console.log(`[Email] Track link not generated: apiNumber=${apiNumber}, userId=${userId}, hasSecret=${!!env.TRACK_WELL_SECRET}`);
   }
   
   return `
@@ -296,7 +355,7 @@ async function buildHtmlBody(data, env) {
               <!-- Greeting -->
               <p style="font-size: 12px; color: #64748B; text-transform: uppercase; letter-spacing: 0.5px; margin: 0 0 6px;">Daily Alert</p>
               <h1 style="font-size: 20px; color: #1C2B36; margin: 0 0 8px; font-family: Georgia, serif; font-weight: 700;">
-                ${activityType === 'New Permit' ? 'New Permit Filed' : activityType}
+                ${activityType === 'New Permit' ? 'New Drilling Permit Filed' : activityType}
               </h1>
               <p style="font-size: 15px; color: #334E68; margin: 0 0 20px;">
                 Hi ${userName || 'there'}, we found activity that matches your monitored ${alertLevel === 'TRACKED WELL' ? 'well' : 'properties'}.
@@ -314,6 +373,9 @@ async function buildHtmlBody(data, env) {
                         <span style="display: inline-block; background: ${activityStyle.bgColor}; color: ${activityStyle.color}; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px;">${activityStyle.label}</span>
                         ${isMultiSection ? `
                         <span style="display: inline-block; background: #9F580A; color: white; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; margin-left: 4px;">⚠️ MULTI-SECTION</span>
+                        ` : ''}
+                        ${isDirectional ? `
+                        <span style="display: inline-block; background: #7C3AED; color: white; font-size: 10px; font-weight: 700; padding: 4px 8px; border-radius: 4px; margin-left: 4px;">↗️ DIRECTIONAL</span>
                         ` : ''}
                       </td>
                     </tr>
@@ -355,6 +417,15 @@ async function buildHtmlBody(data, env) {
                         <span style="color: #1C2B36; font-weight: 600; margin-left: 8px;">${operator || 'Not specified'}</span>
                       </td>
                     </tr>
+                    ${(approvalDate || expireDate) && activityType === 'New Permit' ? `
+                    <tr>
+                      <td style="padding: 4px 0; font-size: 13px;">
+                        ${approvalDate ? `<span style="color: #64748B;">Approved:</span> <span style="color: #1C2B36; margin-left: 8px;">${formatDate(approvalDate)}</span>` : ''}
+                        ${approvalDate && expireDate ? ' · ' : ''}
+                        ${expireDate ? `<span style="color: #64748B;">Expires:</span> <span style="color: #1C2B36; margin-left: 8px;">${formatDate(expireDate)}</span>` : ''}
+                      </td>
+                    </tr>
+                    ` : ''}
                     ${previousOperator ? `
                     <tr>
                       <td style="padding: 4px 0; font-size: 13px;">
@@ -368,6 +439,14 @@ async function buildHtmlBody(data, env) {
                       <td style="padding: 4px 0; font-size: 13px;">
                         <span style="color: #64748B;">Type:</span>
                         <span style="color: #1C2B36; margin-left: 8px;">${drillTypeLabel}</span>
+                      </td>
+                    </tr>
+                    ` : ''}
+                    ${isDirectional ? `
+                    <tr>
+                      <td style="padding: 4px 0; font-size: 13px;">
+                        <span style="color: #64748B; display: block; margin-bottom: 4px;">⚠️ Surface location on your property</span>
+                        <span style="color: #6B7280;">Well targets: <strong style="color: #1C2B36;">S${normalizeSection(bhSection)} T${bhTownship} R${bhRange}</strong></span>
                       </td>
                     </tr>
                     ` : ''}
@@ -429,7 +508,7 @@ async function buildHtmlBody(data, env) {
                       ` : ''}
                       ${mapLink ? `
                       <td align="center" style="padding: 2px;">
-                        <a href="${mapLink}" style="display: block; width: 100%; background: #1C2B36; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View on Map →</a>
+                        <a href="${mapLink}" style="display: block; width: 100%; background: #1C2B36; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">OCC Map →</a>
                       </td>
                       ` : ''}
                       ${trackingLink ? `
@@ -455,9 +534,9 @@ async function buildHtmlBody(data, env) {
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="font-size: 12px;">
-                    <a href="https://mymineralwatch.com/dashboard" style="color: #334E68; text-decoration: none; margin-right: 16px;">Dashboard</a>
-                    <a href="https://mymineralwatch.com/settings" style="color: #334E68; text-decoration: none; margin-right: 16px;">Settings</a>
-                    <a href="https://mymineralwatch.com/unsubscribe" style="color: #64748B; text-decoration: none;">Unsubscribe</a>
+                    <a href="https://portal.mymineralwatch.com" style="color: #334E68; text-decoration: none; margin-right: 16px;">Dashboard</a>
+                    <a href="https://portal.mymineralwatch.com/settings" style="color: #334E68; text-decoration: none; margin-right: 16px;">Settings</a>
+                    <a href="https://portal.mymineralwatch.com/settings" style="color: #64748B; text-decoration: none;">Unsubscribe</a>
                   </td>
                 </tr>
               </table>

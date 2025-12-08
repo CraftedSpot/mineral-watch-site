@@ -917,11 +917,11 @@
                                 <span class="layer-option-label">Land Grid (Counties + TRS)</span>
                             </label>
                             <label class="layer-option">
-                                <input type="checkbox" id="toggle-county-labels">
+                                <input type="checkbox" id="toggle-county-labels" checked>
                                 <span class="layer-option-label">County Names</span>
                             </label>
                             <label class="layer-option">
-                                <input type="checkbox" id="toggle-section-numbers">
+                                <input type="checkbox" id="toggle-section-numbers" checked>
                                 <span class="layer-option-label">Section Numbers (zoom 12+)</span>
                             </label>
                         </div>
@@ -1167,7 +1167,9 @@
         }).addTo(map);
         
         
-        // Add map click handler for location identification
+        // Map click handler for location identification - DISABLED
+        // (Was showing unreadable info in top-right corner)
+        /*
         map.on('click', async function(e) {
             const lat = e.latlng.lat;
             const lon = e.latlng.lng;
@@ -1202,6 +1204,7 @@
                 setTimeout(() => updateStatus('Map ready'), 2000);
             }
         });
+        */
         
         // Add zoom/move handlers for section lines
         map.on('zoomend moveend', updateSectionLines);
@@ -1214,7 +1217,7 @@
         let wellsLayer = L.featureGroup();
         let sectionLayer = L.featureGroup();
         let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
-        let showSectionNumbers = false;  // Track if user wants to see section numbers
+        let showSectionNumbers = true;  // Track if user wants to see section numbers
         let locationInfoBox;
         
         // Property loading state
@@ -1282,8 +1285,10 @@
                 const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` + 
                     `geometry=${lon},${lat}&` +
                     `geometryType=esriGeometryPoint&` +
+                    `inSR=4326&` +  // WGS84 input
+                    `outSR=4326&` +  // WGS84 output
                     `spatialRel=esriSpatialRelIntersects&` +
-                    `outFields=*&` +
+                    `outFields=plssid,frstdivno,frstdivtxt&` +
                     `f=json`;
                 
                 const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
@@ -1298,6 +1303,7 @@
                 
                 if (data.features && data.features.length > 0) {
                     const attrs = data.features[0].attributes;
+                    console.log('OCC response - PLSS ID:', attrs.plssid, 'Section:', attrs.frstdivno); // Debug log
                     
                     // Parse PLSS ID to extract township/range info
                     // Format is like "OK170210N0180W0" 
@@ -1306,16 +1312,37 @@
                     let range = 'Unknown';
                     
                     if (plssId) {
-                        // Extract township (e.g., "21N" from "OK170210N0180W0")
-                        const townshipMatch = plssId.match(/(\d{2,3})([NS])/);
-                        if (townshipMatch) {
-                            township = parseInt(townshipMatch[1]) + townshipMatch[2];
-                        }
+                        console.log('Parsing PLSS ID:', plssId);
                         
-                        // Extract range (e.g., "18W" from "OK170210N0180W0")
-                        const rangeMatch = plssId.match(/(\d{2,3})([EW])/);
-                        if (rangeMatch) {
-                            range = parseInt(rangeMatch[1]) + rangeMatch[2];
+                        // Try new format first: "OK170230N0080W0"
+                        let plssMatch = plssId.match(/OK\d{2}(\d{3})([NS])(\d{3})([EW])/);
+                        if (plssMatch) {
+                            // Remove leading zeros and format properly
+                            const twpNum = parseInt(plssMatch[1], 10);
+                            const twpDir = plssMatch[2];
+                            township = twpNum + twpDir;
+                            
+                            const rngNum = parseInt(plssMatch[3], 10);
+                            const rngDir = plssMatch[4];
+                            range = rngNum + rngDir;
+                        } else {
+                            // Try simpler format - look for patterns like "18N" and "14W"
+                            // Handle cases where there might be leading zeros or different formatting
+                            const parts = plssId.match(/(\d+)([NS])\D*(\d+)([EW])/);
+                            if (parts) {
+                                // Take last 2 digits if number is too large (e.g., 180 -> 18, 140 -> 14)
+                                let twpNum = parseInt(parts[1]);
+                                if (twpNum > 36) {
+                                    twpNum = parseInt(parts[1].slice(-2));
+                                }
+                                township = twpNum + parts[2];
+                                
+                                let rngNum = parseInt(parts[3]);
+                                if (rngNum > 36) {
+                                    rngNum = parseInt(parts[3].slice(-2));
+                                }
+                                range = rngNum + parts[4];
+                            }
                         }
                     }
                     
@@ -1350,8 +1377,10 @@
                 map.removeControl(locationInfoBox);
             }
             
-            // Format location string: 'Woodward S12 21N 18W • IM'
-            const locationText = `${county} S${section} ${township} ${range} • ${meridian}`;
+            // Format location string to show section prominently: '21N 18W 12 • Woodward • IM'
+            const locationText = section ? 
+                `${township} ${range} ${section} • ${county} • ${meridian}` :
+                `${township} ${range} • ${county} • ${meridian}`;
             
             // Create custom control for location info
             const LocationInfo = L.Control.extend({
@@ -1616,7 +1645,7 @@
                     updateStatus('Map ready');
                 }
             } else {
-                // Remove section lines and labels at low zoom
+                // Remove section lines and labels at zoom < 11
                 if (map.hasLayer(sectionLayer)) {
                     map.removeLayer(sectionLayer);
                 }
@@ -1918,7 +1947,6 @@
                         Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
                     </div>
                     <div class="popup-actions">
-                        <button class="popup-btn popup-btn-primary" onclick="trackWell('${apiNumber}', '${wellName}'); return false;">+ Track</button>
                         <button class="popup-btn popup-btn-secondary" onclick="expandWellCard('${well.id}'); return false;">More →</button>
                     </div>
                 `;
@@ -2839,32 +2867,70 @@
         function updateLayerVisibility() {
             const zoom = map.getZoom();
             
-            // County labels: more visible at medium to high zoom
+            // County labels: hide completely when zoomed out, fade in at medium zoom
             if (map.hasLayer(countyLabelsLayer)) {
-                const labelOpacity = zoom < 6 ? 0.2 : zoom < 8 ? 0.5 : zoom < 10 ? 0.8 : 1;
-                const labelSize = zoom < 7 ? '10px' : zoom < 9 ? '12px' : zoom < 11 ? '14px' : '16px';
-                
-                document.querySelectorAll('.county-label div').forEach(label => {
-                    label.style.opacity = labelOpacity;
-                    label.style.fontSize = labelSize;
-                    label.style.transition = 'opacity 0.3s ease, font-size 0.3s ease';
-                });
+                if (zoom < 8) {
+                    // Hide county labels when viewing whole state
+                    map.removeLayer(countyLabelsLayer);
+                } else {
+                    // Show and adjust opacity for readable zoom levels
+                    if (!map.hasLayer(countyLabelsLayer)) {
+                        map.addLayer(countyLabelsLayer);
+                    }
+                    const labelOpacity = zoom < 10 ? 0.7 : zoom < 12 ? 0.9 : 1;
+                    const labelSize = zoom < 10 ? '12px' : zoom < 12 ? '14px' : '16px';
+                    
+                    document.querySelectorAll('.county-label div').forEach(label => {
+                        label.style.opacity = labelOpacity;
+                        label.style.fontSize = labelSize;
+                        label.style.transition = 'opacity 0.3s ease, font-size 0.3s ease';
+                    });
+                }
+            } else if (zoom >= 8 && document.getElementById('toggle-county-labels').checked) {
+                // Re-add labels if zoom level is now appropriate and checkbox is checked
+                if (countyLabelsLayer.getLayers().length > 0) {
+                    map.addLayer(countyLabelsLayer);
+                }
             }
             
             // Township lines: fade out at high zoom to reduce clutter  
             if (townshipLayer && map.hasLayer(townshipLayer)) {
                 const townshipOpacity = zoom < 10 ? 0.4 : zoom < 12 ? 0.2 : 0.1;
-                townshipLayer.setStyle({
-                    opacity: townshipOpacity
-                });
+                // Check if it's a GeoJSON layer (has setStyle) or a LayerGroup (fallback)
+                if (typeof townshipLayer.setStyle === 'function') {
+                    townshipLayer.setStyle({
+                        opacity: townshipOpacity
+                    });
+                } else {
+                    // For LayerGroup fallback, iterate through layers
+                    townshipLayer.eachLayer(function(layer) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                opacity: townshipOpacity
+                            });
+                        }
+                    });
+                }
             }
             
             // County boundaries: consistent but slightly fade at very high zoom
             if (countyLayer && map.hasLayer(countyLayer)) {
                 const countyOpacity = zoom < 12 ? 0.8 : 0.6;
-                countyLayer.setStyle({
-                    opacity: countyOpacity
-                });
+                // Check if it's a GeoJSON layer (has setStyle) or a LayerGroup (fallback)
+                if (typeof countyLayer.setStyle === 'function') {
+                    countyLayer.setStyle({
+                        opacity: countyOpacity
+                    });
+                } else {
+                    // For LayerGroup fallback, iterate through layers
+                    countyLayer.eachLayer(function(layer) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                opacity: countyOpacity
+                            });
+                        }
+                    });
+                }
             }
         }
         
@@ -2930,8 +2996,16 @@
                     if (townshipLayer) map.addLayer(townshipLayer);
                 }
                 
+                // Add county labels if checked by default
+                if (document.getElementById('toggle-county-labels').checked) {
+                    createCountyLabels();
+                    if (countyLabelsLayer.getLayers().length > 0) {
+                        map.addLayer(countyLabelsLayer);
+                    }
+                }
+                
                 // Note: Properties and wells layers are added automatically when loaded
-                // Permits, completions, drilling, and heatmap will be added when data loads
+                // Section numbers will be added when sections are loaded (zoom 12+)
                 
                 updateStatus('Map ready - Loading properties...');
                 

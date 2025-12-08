@@ -31,12 +31,23 @@ export async function handleListActivity(request: Request, env: Env) {
   // Add debug logging
   console.log(`Activity handler - User: ${user.email}, Plan: ${plan}, Record Limit: ${recordLimit}`);
   
+  // Get query parameters
+  const url = new URL(request.url);
+  const days = url.searchParams.get('days');
+  
   // Build formula: user's records, sorted by date desc
-  const formula = `{Email} = '${user.email}'`;
+  let formula = `{Email} = '${user.email}'`;
   
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc&maxRecords=${recordLimit}`;
+  // If days parameter provided, add date filter
+  if (days) {
+    const sinceDate = new Date();
+    sinceDate.setDate(sinceDate.getDate() - parseInt(days));
+    formula = `AND(${formula}, {Detected At} >= "${sinceDate.toISOString()}")`;  
+  }
   
-  const response = await fetch(url, {
+  const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc&maxRecords=${recordLimit}`;
+  
+  const response = await fetch(airtableUrl, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
   
@@ -48,9 +59,27 @@ export async function handleListActivity(request: Request, env: Env) {
   
   const data = await response.json();
   
+  // Add Track This Well URL for activities with API numbers
+  const enhancedRecords = data.records.map((record: any) => {
+    const apiNumber = record.fields['API Number'];
+    const activityType = record.fields['Activity Type'];
+    
+    // Add track URL for both New Permit and Well Completed
+    if (apiNumber && (activityType === 'New Permit' || activityType === 'Well Completed')) {
+      record.fields.trackWellUrl = `https://portal.mymineralwatch.com/add-well?api=${apiNumber}`;
+    }
+    
+    return record;
+  });
+  
+  // If this is for the map (days parameter provided), return simplified format
+  if (days) {
+    return jsonResponse(enhancedRecords);
+  }
+  
   // Include the limit info for the UI
   return jsonResponse({
-    records: data.records,
+    records: enhancedRecords,
     recordLimit: recordLimit,
     plan: plan
   });

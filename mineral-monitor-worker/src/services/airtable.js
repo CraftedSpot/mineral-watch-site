@@ -211,9 +211,10 @@ export async function createActivityLog(env, data) {
   if (data.newValue) fields['New Value'] = data.newValue;
   if (data.occLink) fields['OCC Link'] = data.occLink;
   if (data.operatorPhone) fields['Operator Phone'] = data.operatorPhone;
-  // Always include Map Link field (empty string if no link) - matches old worker behavior
-  fields['Map Link'] = data.mapLink || "";
-  console.log(`[Airtable] Map Link field set to: ${fields['Map Link']}`);
+  if (data.notes) fields['Notes'] = data.notes;
+  // Always include OCC Map Link field (empty string if no link)
+  fields['OCC Map Link'] = data.mapLink || "";
+  console.log(`[Airtable] OCC Map Link field set to: ${fields['OCC Map Link']}`);
   
   const response = await fetch(url, {
     method: 'POST',

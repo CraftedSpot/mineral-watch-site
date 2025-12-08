@@ -19,8 +19,10 @@ async function loadOperatorData() {
   const operatorMap = new Map();
 
   try {
-    // Fetch the pre-processed JSON file instead of parsing Excel in the worker
-    const response = await fetch('/operators.json');
+    // Fetch the pre-processed JSON file from assets
+    // In production, this is served from the worker's assets
+    const url = new URL('/operators.json', 'https://mineral-watch-monitor.photog12.workers.dev');
+    const response = await fetch(url.toString());
     if (!response.ok) {
       throw new Error(`Failed to fetch operators data: ${response.status}`);
     }

@@ -20,7 +20,7 @@ import {
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
-import { getOperatorPhone, updateOperatorInfo } from '../services/operators.js';
+// Operator lookups handled by contact-handler and weekly worker
 import { getAdjacentSections } from '../utils/plss.js';
 
 /**
@@ -320,9 +320,11 @@ export async function runDailyMonitor(env) {
       return true;
     });
     
-    const newCompletions = completions.filter(c => {
+    let newCompletions = completions.filter(c => {
       const api = normalizeAPI(c.API_Number);
-      const key = `${api}|completion`;
+      // Include completion date in key to allow multiple zone completions
+      const completionDate = c.Well_Completion || 'unknown';
+      const key = `${api}|completion|${completionDate}`;
       if (processedAPIs.has(key)) {
         results.completionsSkippedAsProcessed++;
         return false;
@@ -332,6 +334,29 @@ export async function runDailyMonitor(env) {
     
     console.log(`[Daily] After filtering: ${newPermits.length} new permits, ${newCompletions.length} new completions`);
     console.log(`[Daily] Skipped: ${results.permitsSkippedAsProcessed} permits, ${results.completionsSkippedAsProcessed} completions (already processed)`);
+    
+    // Check for and remove duplicate completions
+    const completionAPIs = newCompletions.map(c => normalizeAPI(c.API_Number));
+    const duplicateAPIs = completionAPIs.filter((api, index) => completionAPIs.indexOf(api) !== index);
+    if (duplicateAPIs.length > 0) {
+      console.log(`[Daily] WARNING: Duplicate completion APIs found:`, [...new Set(duplicateAPIs)]);
+      
+      // Deduplicate completions - keep only the first occurrence of each API
+      const seenAPIs = new Set();
+      const dedupedCompletions = newCompletions.filter(c => {
+        const api = normalizeAPI(c.API_Number);
+        if (seenAPIs.has(api)) {
+          console.log(`[Daily] Removing duplicate completion for API ${api}`);
+          return false;
+        }
+        seenAPIs.add(api);
+        return true;
+      });
+      
+      // Replace newCompletions with deduplicated array
+      newCompletions = dedupedCompletions;
+      console.log(`[Daily] After deduplication: ${newCompletions.length} unique completions`);
+    }
     
     // If nothing new to process, we're done
     if (newPermits.length === 0 && newCompletions.length === 0) {
@@ -371,9 +396,10 @@ export async function runDailyMonitor(env) {
         await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts);
         results.completionsProcessed++;
         
-        // Mark as processed
+        // Mark as processed with date to allow multiple zone completions
         const api = normalizeAPI(completion.API_Number);
-        processedAPIs.add(`${api}|completion`);
+        const completionDate = completion.Well_Completion || 'unknown';
+        processedAPIs.add(`${api}|completion|${completionDate}`);
       } catch (err) {
         console.error(`[Daily] Error processing completion ${completion.API_Number}:`, err);
         results.errors.push({ api: completion.API_Number, error: err.message });
@@ -481,17 +507,17 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     }
   }
   
-  // 4. If we have alerts to send, fetch well coordinates for map link (only for tracked wells)
+  // 4. Fetch well coordinates for map link generation
   let wellData = null;
   let mapLink = null;
-  const hasTrackedWellAlerts = alertsToSend.some(alert => alert.reason === 'tracked_well');
   
-  if (hasTrackedWellAlerts) {
-    wellData = await fetchWellCoordinates(api10, env);
-    mapLink = getMapLinkFromWellData(wellData);
-    if (mapLink) {
-      console.log(`[Daily] Generated map link for tracked well ${api10}: ${mapLink}`);
-    }
+  // Always try to fetch coordinates for map link
+  wellData = await fetchWellCoordinates(api10, env);
+  mapLink = getMapLinkFromWellData(wellData);
+  if (mapLink) {
+    console.log(`[Daily] Generated map link for permit ${api10}`);
+  } else {
+    console.log(`[Daily] No coordinates found for permit ${api10}`);
   }
   
   // 5. Send alerts (with deduplication check using preloaded set)
@@ -515,33 +541,8 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       : `${permit.Well_Name || ''} ${permit.Well_Number || ''}`.trim();
     const location = `S${normalizeSection(permit.Section)} T${permit.Township} R${permit.Range}`;
     
-    // Extract operator phone number from permit data
-    const permitOperatorPhone = permit.Phone || permit.Phone_Number || permit.Entity_Phone || 
-                               permit.Operator_Phone || permit.Contact_Phone || permit.Contact_Number ||
-                               permit.Phone_Num || permit.PHONE || null;
-
-    // Get operator phone from comprehensive database
+    // Skip operator phone lookup - handled by contact-handler and weekly worker
     let operatorPhone = null;
-    if (permit.Entity_Name) {
-      try {
-        operatorPhone = await getOperatorPhone(permit.Entity_Name, env);
-        
-        // If permit has phone data and it's different from our database, update our database
-        if (permitOperatorPhone && permitOperatorPhone !== operatorPhone) {
-          console.log(`[Daily] Updating operator phone: ${permit.Entity_Name} from ${operatorPhone} to ${permitOperatorPhone}`);
-          await updateOperatorInfo(permit.Entity_Name, { phone: permitOperatorPhone }, env);
-          operatorPhone = permitOperatorPhone;
-        }
-        
-        // If we don't have phone in database but permit does, use permit data
-        if (!operatorPhone && permitOperatorPhone) {
-          operatorPhone = permitOperatorPhone;
-        }
-      } catch (error) {
-        console.warn(`[Daily] Failed to lookup/update operator phone for ${permit.Entity_Name}:`, error);
-        operatorPhone = permitOperatorPhone; // Fallback to permit data
-      }
-    }
     
     // Record match for dry-run logging
     results.matchesFound.push({
@@ -566,7 +567,6 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     }
     
     // Create activity log entry
-    const includeMapLink = alert.reason === 'tracked_well';
     const activityData = {
       wellName,
       apiNumber: api10,
@@ -577,7 +577,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       sectionTownshipRange: location,
       county: permit.County,
       occLink: permit.IMAGE_URL || null,
-      mapLink: includeMapLink ? mapLink : null,
+      mapLink: mapLink || "", // Always include map link
       userId: alert.user.id
     };
     
@@ -595,11 +595,20 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         location: activityData.sectionTownshipRange,
         county: permit.County,
         occLink: permit.IMAGE_URL,
-        mapLink: includeMapLink ? mapLink : null,
+        mapLink: mapLink || null,
         drillType: permit.Drill_Type,
         apiNumber: api10,
         wellType: wellData?.welltype || null,
-        userId: alert.user.id
+        userId: alert.user.id,
+        // Additional permit data
+        approvalDate: permit.Approval_Date,
+        expireDate: permit.Expire_Date,
+        // Bottom hole location for directional wells
+        bhSection: permit.PBH_Section,
+        bhTownship: permit.PBH_Township,
+        bhRange: permit.PBH_Range,
+        // Horizontal well data
+        isMultiSection: false
       });
       
       // Email sent successfully - update activity log
@@ -671,8 +680,11 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         }, env);
     
     for (const match of bhMatches) {
-      // Avoid duplicate alerts to same user
-      if (!alertsToSend.some(a => a.user.email === match.user.email)) {
+      // Avoid duplicate alerts to same user with same alert level
+      if (!alertsToSend.some(a => 
+        a.user.email === match.user.email && 
+        a.alertLevel === match.alertLevel
+      )) {
         alertsToSend.push({
           user: match.user,
           alertLevel: match.alertLevel,
@@ -696,20 +708,26 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     }
   }
   
-  // 4. Fetch well coordinates only for tracked well alerts
+  // 4. Fetch well coordinates for map link generation
   let wellData = null;
   let mapLink = null;
-  const hasTrackedWellAlerts = alertsToSend.some(alert => alert.reason === 'tracked_well');
   
-  if (hasTrackedWellAlerts) {
-    wellData = await fetchWellCoordinates(api10, env);
-    mapLink = getMapLinkFromWellData(wellData);
-    if (mapLink) {
-      console.log(`[Daily] Generated map link for tracked well completion ${api10}: ${mapLink}`);
-    }
+  // Always try to fetch coordinates for map link
+  wellData = await fetchWellCoordinates(api10, env);
+  mapLink = getMapLinkFromWellData(wellData);
+  if (mapLink) {
+    console.log(`[Daily] Generated map link for completion ${api10}`);
+  } else {
+    console.log(`[Daily] No coordinates found for completion ${api10}`);
   }
   
   // 5. Send alerts
+  if (alertsToSend.length > 1) {
+    console.log(`[Daily] Completion ${api10} has ${alertsToSend.length} alerts for user ${alertsToSend[0].user.email}:`);
+    alertsToSend.forEach((a, i) => {
+      console.log(`  ${i+1}. Alert Level: ${a.alertLevel}, Reason: ${a.reason}, Location: ${a.matchedLocation}`);
+    });
+  }
   for (const alert of alertsToSend) {
     // OPTIMIZATION: Use preloaded alert set
     const alreadyAlerted = recentAlerts 
@@ -728,27 +746,10 @@ async function processCompletion(completion, env, results, dryRun = false, prope
           : wellData.well_name)
       : `${completion.Well_Name || ''} ${completion.Well_Number || ''}`.trim();
     const location = `S${normalizeSection(completion.Section)} T${completion.Township} R${completion.Range}`;
-    const operator = completion.Entity_Name || completion.Operator;
+    const operator = completion.Operator_Name || completion.Operator;
     
-    // Get operator phone
-    const completionOperatorPhone = completion.Phone || completion.Phone_Number || completion.Entity_Phone || 
-                                   completion.Operator_Phone || completion.Contact_Phone || null;
-
+    // Skip operator phone lookup - handled by contact-handler and weekly worker
     let operatorPhone = null;
-    if (operator) {
-      try {
-        operatorPhone = await getOperatorPhone(operator, env);
-        if (completionOperatorPhone && completionOperatorPhone !== operatorPhone) {
-          await updateOperatorInfo(operator, { phone: completionOperatorPhone }, env);
-          operatorPhone = completionOperatorPhone;
-        }
-        if (!operatorPhone && completionOperatorPhone) {
-          operatorPhone = completionOperatorPhone;
-        }
-      } catch (error) {
-        operatorPhone = completionOperatorPhone;
-      }
-    }
     
     // Record match for dry-run logging
     results.matchesFound.push({
@@ -787,8 +788,7 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       }
     }
     
-    // Only include map link for tracked well alerts
-    const includeMapLink = alert.reason === 'tracked_well';
+    // Include map link for all completions
     const activityData = {
       wellName,
       apiNumber: api10,
@@ -798,8 +798,11 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       alertLevel: alert.alertLevel,
       sectionTownshipRange: location,
       county: completion.County,
-      mapLink: includeMapLink ? mapLink : null,
-      userId: alert.user.id
+      occLink: null, // Completions don't have IMAGE_URL field
+      mapLink: mapLink || "", // Always include map link
+      userId: alert.user.id,
+      // Include completion date to differentiate multiple zone completions
+      notes: completion.Well_Completion ? `Completion Date: ${completion.Well_Completion}` : null
     };
     
     const activityRecord = await createActivityLog(env, activityData);
@@ -815,7 +818,8 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         operator: activityData.operator,
         location: activityData.sectionTownshipRange,
         county: completion.County,
-        mapLink: includeMapLink ? mapLink : null,
+        occLink: null, // Completions don't have IMAGE_URL field
+        mapLink: mapLink || null,
         apiNumber: api10,
         wellType: wellData?.welltype || null,
         userId: alert.user.id,
@@ -829,6 +833,7 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         ipGas: completion.Gas_MCF_Per_Day,
         ipOil: completion.Oil_BBL_Per_Day,
         ipWater: completion.Water_BBL_Per_Day,
+        pumpingFlowing: completion.Pumping_Flowing || null,
         spudDate: completion.Spud,
         completionDate: completion.Well_Completion,
         firstProdDate: completion.First_Prod

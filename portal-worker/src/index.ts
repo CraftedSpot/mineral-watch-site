@@ -33,7 +33,9 @@ import {
   dashboardHtml, 
   loginHtml, 
   accountHtml, 
-  upgradeHtml 
+  upgradeHtml,
+  myPropertiesMapHtml,
+  oklahomaMapHtml
 } from './templates/index.js';
 
 import {
@@ -98,7 +100,9 @@ import {
   handleTrackThisWell,
   validateTrackToken,
   generateTrackWellSuccessPage,
-  generateTrackWellErrorPage
+  generateTrackWellErrorPage,
+  // OCC proxy handler
+  handleOccProxy
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -129,6 +133,12 @@ var index_default = {
       }
       if (path === "/portal/upgrade" || path === "/portal/upgrade/") {
         return servePage(upgradeHtml, request, env);
+      }
+      if (path === "/portal/map" || path === "/portal/map/") {
+        return servePage(myPropertiesMapHtml, request, env);
+      }
+      if (path === "/portal/oklahoma-map" || path === "/portal/oklahoma-map/") {
+        return servePage(oklahomaMapHtml, request, env);
       }
       if (path === "/api/auth/send-magic-link" && request.method === "POST") {
         return handleSendMagicLink(request, env);
@@ -210,6 +220,11 @@ var index_default = {
       }
       if (path === "/api/upgrade/success" && request.method === "GET") {
         return handleUpgradeSuccess(request, env, url);
+      }
+      
+      // OCC proxy endpoint
+      if (path === "/api/occ-proxy" && request.method === "GET") {
+        return handleOccProxy(request, env);
       }
       
       // TEMPORARY: Debug Stripe key endpoint

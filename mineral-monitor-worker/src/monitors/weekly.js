@@ -453,7 +453,9 @@ async function processTransfer(transfer, env, results, propertyMap, userCache, r
         mapLink: includeMapLink ? mapLink : null,
         apiNumber: api10,
         wellType: wellData?.welltype || null,
-        userId: alert.user.id
+        userId: alert.user.id,
+        // Horizontal well data - transfers don't have this info
+        isMultiSection: false
       });
       
       // Email sent successfully - update activity log

@@ -58,7 +58,13 @@ export async function findMatchingProperties(location, env) {
   // ALWAYS check for adjacent section matches (users who own sections adjacent to this permit)
   // This runs independently of direct matches
   const adjacentMatches = await findUsersMonitoringAdjacentTo(location, env);
-  matches.push(...adjacentMatches);
+  
+  // Filter out users who already have a direct match to avoid duplicates
+  const uniqueAdjacentMatches = adjacentMatches.filter(adjMatch => 
+    !matches.some(m => m.user.id === adjMatch.user.id)
+  );
+  
+  matches.push(...uniqueAdjacentMatches);
   
   return matches;
 }

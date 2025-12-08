@@ -81,8 +81,7 @@ export async function handleAddProperty(request: Request, env: Env) {
     return jsonResponse({ error: "You are already monitoring this property." }, 409);
   }
   
-  // Generate OCC Map Link (placeholder - adjust as needed for section lookups)
-  const occMapLink = `https://occeweb.occ.ok.gov/PublicDocs/`;
+  // No OCC Map Link needed for properties
   
   const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
   const response = await fetch(createUrl, {
@@ -99,7 +98,6 @@ export async function handleAddProperty(request: Request, env: Env) {
         TWN: township,
         RNG: range,
         MERIDIAN: meridian,
-        "OCC Map Link": occMapLink,
         "Monitor Adjacent": true,
         Status: "Active"
       }

@@ -401,6 +401,7 @@ export async function handleAddWell(request: Request, env: Env) {
     "Well Name": suggestedWellName,
     Status: "Active",
     "OCC Map Link": occMapLink,
+    ...(body.occLink && { "OCC Filing Link": body.occLink }), // Save the permit PDF URL if provided
     Operator: operator || "",
     County: county,
     Section: section,
