@@ -82,14 +82,15 @@
         .content-card { background: white; border-radius: 0 8px 8px 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden; }
         .tab-content { display: none; }
         .tab-content.active { display: block; }
-        .data-table { width: 100%; border-collapse: collapse; }
+        .data-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
         
         /* Properties Table */
+        .col-select { width: 40px; }
         .col-prop-county { width: 15%; }
-        .col-prop-legal { width: 20%; }
-        .col-prop-acres { width: 12%; }
+        .col-prop-legal { width: 21%; }
+        .col-prop-acres { width: 15%; }
         .col-prop-notes { width: auto; }
-        .col-actions { width: 15%; }
+        .col-actions { width: 120px; }
         .col-location { width: 15%; }
         .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
         .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; }
@@ -705,7 +706,7 @@
             }
             
             /* Adjust column widths for mobile */
-            .col-select { display: none; }
+            .col-select { display: none !important; }
             .col-prop-county { width: 20%; }
             .col-prop-legal { width: 25%; }
             .col-prop-acres { width: 15%; }
@@ -1052,10 +1053,11 @@
             <div class="skeleton skeleton-cell narrow"></div>
             <div class="skeleton skeleton-cell narrow"></div>
             <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
         </div>
-        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
-        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
-        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
     </div>
 </div>
                 </div>
@@ -1887,8 +1889,8 @@
                     <td class="bulk-only"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
                     <td>${escapeHtml(f.COUNTY) || '—'}</td>
                     <td><strong>${str}</strong></td>
-                    <td style="text-align: right; padding-right: 30px;">${acresDisplay}</td>
-                    <td>${notes}</td>
+                    <td style="text-align: right; padding-left: 10px; padding-right: 40px;">${acresDisplay}</td>
+                    <td style="padding-left: 10px;">${notes}</td>
                     <td style="white-space: nowrap; text-align: right;">
                         <a href="#" class="text-link" onclick="openPropertyDetails('${p.id}'); return false;">Detail</a>
                         &nbsp;&nbsp;<button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
