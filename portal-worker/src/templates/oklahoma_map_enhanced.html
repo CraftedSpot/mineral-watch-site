@@ -800,6 +800,17 @@
             letter-spacing: 0.5px;
         }
         
+        .legend-subtitle {
+            display: block;
+            font-size: 10px;
+            font-weight: 400;
+            color: var(--slate-blue);
+            text-transform: none;
+            letter-spacing: normal;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+        
         .legend-items {
             display: flex;
             gap: 12px;
@@ -809,6 +820,7 @@
             display: flex;
             align-items: center;
             gap: 6px;
+            position: relative;
         }
         
         .legend-color {
@@ -828,6 +840,71 @@
         .legend-text {
             font-size: 11px;
             color: var(--slate-blue);
+        }
+        
+        /* Info icon styles */
+        .legend-info {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background: var(--border);
+            color: var(--slate-blue);
+            font-size: 10px;
+            font-weight: 600;
+            cursor: help;
+            margin-left: 4px;
+            position: relative;
+            transition: background-color 0.2s;
+            font-family: 'Inter', sans-serif;
+            line-height: 1;
+        }
+        
+        .legend-info:hover {
+            background: var(--slate-blue);
+            color: white;
+        }
+        
+        /* Tooltip styles */
+        .legend-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(28, 43, 54, 0.95);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            white-space: nowrap;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            max-width: 200px;
+            text-align: center;
+        }
+        
+        .legend-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 6px 6px 0 6px;
+            border-color: rgba(28, 43, 54, 0.95) transparent transparent transparent;
+        }
+        
+        .legend-info:hover .legend-tooltip {
+            opacity: 1;
+            visibility: visible;
         }
 
         /* Toast animations */
@@ -935,7 +1012,7 @@
                             </label>
                             <label class="layer-option">
                                 <input type="checkbox" id="toggle-completions" checked>
-                                <span class="layer-option-label">🟢 Completions</span>
+                                <span class="layer-option-label">🟢 Recent Completions</span>
                             </label>
                         </div>
                         
@@ -998,15 +1075,33 @@
                 </div>
                 
                 <div class="legend-group">
-                    <div class="legend-group-title">Activity</div>
+                    <div class="legend-group-title">Activity
+                        <span class="legend-subtitle">Near your properties • Last 90 days</span>
+                    </div>
                     <div class="legend-items">
                         <div class="legend-item">
                             <div class="legend-dot" style="background: var(--permit); border-color: var(--permit-dark);"></div>
-                            <span class="legend-text">New Permit</span>
+                            <span class="legend-text">New Drilling Permit</span>
                         </div>
                         <div class="legend-item">
                             <div class="legend-dot" style="background: var(--completed); border-color: var(--completed-dark);"></div>
-                            <span class="legend-text">Completed</span>
+                            <span class="legend-text">Recently Completed</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="legend-group">
+                    <div class="legend-group-title">Activity Density
+                        <span class="legend-subtitle">Statewide • Last 90 days</span>
+                    </div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: var(--permit); border-color: var(--permit-dark); opacity: 0.5;"></div>
+                            <span class="legend-text">Permits</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-dot" style="background: var(--completed); border-color: var(--completed-dark); opacity: 0.5;"></div>
+                            <span class="legend-text">Completions</span>
                         </div>
                     </div>
                 </div>
@@ -1809,6 +1904,9 @@
                     return;
                 }
                 
+                const totalWells = wells.length;
+                let processedWells = 0;
+                
                 // Store wells and API numbers
                 wells.forEach(well => {
                     wellsById[well.id] = well;
@@ -1833,13 +1931,27 @@
                         wellsByLocation[locationKey] = [];
                     }
                     wellsByLocation[locationKey].push(well);
+                    
+                    processedWells++;
+                    // Update status every 10 wells or on the last well
+                    if (processedWells % 10 === 0 || processedWells === totalWells) {
+                        updateStatus(`Loading ${processedWells} of ${totalWells} wells...`);
+                    }
                 }
                 
                 // Create markers
+                let markerCount = 0;
+                const totalLocations = Object.values(wellsByLocation).length;
+                
                 for (const wellsAtLocation of Object.values(wellsByLocation)) {
                     const marker = createTrackedWellMarker(wellsAtLocation);
                     if (marker) {
                         wellsLayer.addLayer(marker);
+                    }
+                    markerCount++;
+                    // Update status for marker creation
+                    if (markerCount % 5 === 0 || markerCount === totalLocations) {
+                        updateStatus(`Creating ${markerCount} of ${totalLocations} well markers...`);
                     }
                 }
                 
