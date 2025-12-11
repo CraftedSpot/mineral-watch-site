@@ -153,7 +153,7 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
       const wellDetails = {
         api: attr.api,
         wellName: attr.well_name && attr.well_num && !attr.well_name.includes('#') 
-          ? `${attr.well_name} #${attr.well_num}` 
+          ? `${attr.well_name} ${attr.well_num.startsWith('#') ? attr.well_num : '#' + attr.well_num}` 
           : (attr.well_name || ''),
         operator: attr.operator || null,
         county: attr.county || null,
