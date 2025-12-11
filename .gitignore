@@ -52,3 +52,8 @@ temp/
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Test scripts with hardcoded credentials
+portal-worker/check-*.js
+portal-worker/test-*.js
+portal-worker/fix-*.js

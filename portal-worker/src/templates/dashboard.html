@@ -1295,6 +1295,7 @@
             <div class="details-actions">
                 <a href="#" target="_blank" class="details-btn primary" id="wellDetailsMapLink">📍 View on Map</a>
                 <a href="#" target="_blank" class="details-btn" id="wellDetailsOccLink">📄 OCC Filing</a>
+                <a href="#" target="_blank" class="details-btn" id="wellDetailsRecordsLink">📂 Well Records</a>
             </div>
             
             <input type="hidden" id="wellDetailsId">
@@ -2329,6 +2330,36 @@
                         </div>
                     </div>
                     
+                    <!-- OCC Links Section -->
+                    <div style="margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
+                        ${(function() {
+                            let buttons = [];
+                            
+                            // OCC Map link
+                            if (f['OCC Map Link'] && f['OCC Map Link'] !== '#') {
+                                buttons.push(`<a href="${f['OCC Map Link']}" target="_blank" class="details-btn primary" style="padding: 8px 16px; font-size: 13px;">📍 OCC Map</a>`);
+                            }
+                            
+                            // Well Records - always show if we have API
+                            if (f['API Number']) {
+                                let recordsUrl = '';
+                                
+                                if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Search.aspx')) {
+                                    // Fix WebLink URL by removing &cr=1
+                                    recordsUrl = f['OCC Filing Link'].replace(/&cr=1/g, '');
+                                } else {
+                                    // Fallback to imaging PDF
+                                    const api8digit = f['API Number'].substring(2);
+                                    recordsUrl = 'https://imaging.occ.ok.gov/OG/Well/' + api8digit + '.pdf';
+                                }
+                                
+                                buttons.push(`<a href="${recordsUrl}" target="_blank" class="details-btn" style="padding: 8px 16px; font-size: 13px;">📂 Well Records</a>`);
+                            }
+                            
+                            return buttons.join('');
+                        })()}
+                    </div>
+                    
                     <div class="production-sections">
                         <!-- Production Section -->
                         <div class="production-section">
@@ -2631,7 +2662,9 @@
                     let actionsHtml = '<div class="activity-actions">';
                     // OCC Filing first
                     if (occLink) {
-                        actionsHtml += `<a href="${escapeHtml(occLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
+                        // Remove &cr=1 from URLs to fix Laserfiche cookie error
+                        const fixedOccLink = occLink.replace(/&cr=1/g, '');
+                        actionsHtml += `<a href="${escapeHtml(fixedOccLink)}" target="_blank" class="activity-btn">OCC Filing</a>`;
                     }
                     // OCC Map second  
                     if (mapLink) {
@@ -2904,19 +2937,38 @@
                 mapLink.style.display = 'none';
             }
             
-            // OCC Filing link - only show if we have a direct PDF link (not search page)
+            // OCC Filing link - for direct permit/completion PDFs
             const occLink = document.getElementById('wellDetailsOccLink');
+            const recordsLink = document.getElementById('wellDetailsRecordsLink');
+            
+            // Handle direct permit/completion PDF
             if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Docview.aspx')) {
-                // We have a direct permit/completion PDF link
+                // Direct permit/completion PDF link
                 occLink.href = f['OCC Filing Link'];
                 occLink.style.display = 'inline-block';
-                
-                // Update button text based on document type (if we can determine it)
-                // Completion reports typically have higher doc IDs than permits
-                occLink.textContent = '📄 OCC Filing';
+                occLink.textContent = '📄 Permit/Completion';
             } else {
-                // No useful link - hide the button entirely
                 occLink.style.display = 'none';
+            }
+            
+            // Always show Well Records link if we have API
+            if (f['API Number']) {
+                // First try to use Search.aspx link if available
+                if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Search.aspx')) {
+                    // Fix the URL by removing the problematic &cr=1 parameter
+                    let fixedUrl = f['OCC Filing Link'].replace(/&cr=1/g, '');
+                    recordsLink.href = fixedUrl;
+                    recordsLink.style.display = 'inline-block';
+                    recordsLink.textContent = '📂 Well Records';
+                } else {
+                    // Otherwise create imaging PDF link as fallback
+                    const api8digit = f['API Number'].substring(2); // Remove state code
+                    recordsLink.href = `https://imaging.occ.ok.gov/OG/Well/${api8digit}.pdf`;
+                    recordsLink.style.display = 'inline-block';
+                    recordsLink.textContent = '📂 Well File (PDF)';
+                }
+            } else {
+                recordsLink.style.display = 'none';
             }
             
             // Store well ID for saving
