@@ -97,10 +97,12 @@ export async function sendAlertEmail(env, data) {
     // Timeline
     spudDate,
     completionDate,
-    firstProdDate
+    firstProdDate,
+    // Status change data
+    statusChange
   } = data;
   
-  const subject = buildSubject(alertLevel, activityType, county);
+  const subject = buildSubject(alertLevel, activityType, county, statusChange);
   const htmlBody = await buildHtmlBody(data, env);
   const textBody = buildTextBody(data);
   
@@ -133,14 +135,30 @@ export async function sendAlertEmail(env, data) {
 /**
  * Build email subject line
  */
-function buildSubject(alertLevel, activityType, county) {
+function buildSubject(alertLevel, activityType, county, statusChange = null) {
   const levelEmoji = {
     'YOUR PROPERTY': '🔴',
     'ADJACENT SECTION': '🟠',
-    'TRACKED WELL': '🔵'
+    'TRACKED WELL': '🔵',
+    'STATUS CHANGE': '🔵'
   };
   
   const emoji = levelEmoji[alertLevel] || '⚡';
+  
+  // For status changes, make the subject more specific
+  if (activityType === 'Status Change' && statusChange) {
+    const { current } = statusChange;
+    if (current === 'Plugged & Abandoned') {
+      return `${emoji} Well Plugged & Abandoned - ${county} County | Mineral Watch`;
+    }
+    if (current === 'Active' || current === 'Producing') {
+      return `${emoji} Well Now Active - ${county} County | Mineral Watch`;
+    }
+    if (current === 'Shut In') {
+      return `${emoji} Well Shut In - ${county} County | Mineral Watch`;
+    }
+  }
+  
   return `${emoji} ${activityType} - ${county} County | Mineral Watch`;
 }
 
@@ -200,7 +218,7 @@ function getActivityStyle(activityType) {
 /**
  * Get contextual explanation based on activity type
  */
-function getExplanation(activityType, alertLevel, isMultiSection = false, isDirectional = false) {
+function getExplanation(activityType, alertLevel, isMultiSection = false, isDirectional = false, statusChange = null) {
   const explanations = {
     'New Permit': {
       meaning: alertLevel === 'YOUR PROPERTY' 
@@ -224,12 +242,83 @@ function getExplanation(activityType, alertLevel, isMultiSection = false, isDire
       tipType: 'warning'
     },
     'Status Change': {
-      meaning: 'The well status has been updated in OCC records.',
-      tip: 'Review the filing for details on what changed.',
-      tipType: 'info'
+      meaning: statusChange ? getStatusChangeMeaning(statusChange) : 'The well status has been updated in OCC records.',
+      tip: statusChange ? getStatusChangeTip(statusChange) : 'Review the filing for details on what changed.',
+      tipType: statusChange ? getStatusChangeTipType(statusChange) : 'info'
     }
   };
   return explanations[activityType] || { meaning: 'New activity detected on this well.', tip: '', tipType: 'info' };
+}
+
+/**
+ * Get status change specific meaning based on the transition
+ */
+function getStatusChangeMeaning(statusChange) {
+  const { previous, current } = statusChange;
+  
+  // Common status transitions with specific meanings
+  if (previous === 'Active' && current === 'Plugged & Abandoned') {
+    return 'This well has been permanently plugged and abandoned. No further production is expected.';
+  }
+  if (previous === 'Never Drilled' && current === 'Active') {
+    return 'This permitted well is now active! Drilling has been completed and the well is in production.';
+  }
+  if (previous === 'Active' && current === 'Shut In') {
+    return 'This well has been temporarily shut in. Production has been suspended but may resume in the future.';
+  }
+  if (previous === 'Shut In' && current === 'Active') {
+    return 'Good news! This well has been reactivated and is now producing again.';
+  }
+  if (current === 'Producing') {
+    return 'This well is now actively producing oil or gas.';
+  }
+  if (current === 'Drilling') {
+    return 'Drilling operations have commenced on this well.';
+  }
+  if (current === 'Completed') {
+    return 'Drilling is complete and the well is being prepared for production.';
+  }
+  
+  // Default message with status names
+  return `Well status changed from ${previous} to ${current}.`;
+}
+
+/**
+ * Get status change specific tip
+ */
+function getStatusChangeTip(statusChange) {
+  const { previous, current } = statusChange;
+  
+  if (previous === 'Active' && current === 'Plugged & Abandoned') {
+    return '⚠️ Final royalty payments should arrive within 90 days. Save records for tax purposes.';
+  }
+  if (previous === 'Never Drilled' && current === 'Active') {
+    return '✅ First royalty checks typically arrive 3-6 months after production begins.';
+  }
+  if (previous === 'Active' && current === 'Shut In') {
+    return '⏸️ Royalty payments will pause until the well is reactivated.';
+  }
+  if (previous === 'Shut In' && current === 'Active') {
+    return '▶️ Royalty payments should resume within 60-90 days.';
+  }
+  if (current === 'Producing') {
+    return '✅ Monitor your mail for division orders and royalty checks.';
+  }
+  
+  return 'Monitor your royalty statements for any changes.';
+}
+
+/**
+ * Get status change tip type (affects color)
+ */
+function getStatusChangeTipType(statusChange) {
+  const { current } = statusChange;
+  
+  if (current === 'Plugged & Abandoned') return 'warning';
+  if (current === 'Active' || current === 'Producing') return 'success';
+  if (current === 'Shut In') return 'warning';
+  
+  return 'info';
 }
 
 /**
@@ -288,7 +377,9 @@ async function buildHtmlBody(data, env) {
     expireDate,
     bhSection,
     bhTownship,
-    bhRange
+    bhRange,
+    // Status change data
+    statusChange
   } = data;
   
   const levelStyle = getAlertLevelStyle(alertLevel);
@@ -308,7 +399,7 @@ async function buildHtmlBody(data, env) {
      bhTownship !== location.split(' ')[1].replace('T', '') ||
      bhRange !== location.split(' ')[2].replace('R', ''));
   
-  const explanation = getExplanation(activityType, alertLevel, isMultiSection, isDirectional);
+  const explanation = getExplanation(activityType, alertLevel, isMultiSection, isDirectional, statusChange);
   
   const tipStyles = {
     warning: { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },
@@ -431,6 +522,18 @@ async function buildHtmlBody(data, env) {
                       <td style="padding: 4px 0; font-size: 13px;">
                         <span style="color: #64748B;">Previous:</span>
                         <span style="color: #1C2B36; margin-left: 8px;">${previousOperator}</span>
+                      </td>
+                    </tr>
+                    ` : ''}
+                    ${statusChange ? `
+                    <tr>
+                      <td style="padding: 8px 0; font-size: 14px;">
+                        <div style="background: #F0F9FF; border-radius: 6px; padding: 10px; border-left: 3px solid #0EA5E9;">
+                          <span style="color: #64748B;">Status Changed:</span>
+                          <span style="color: #DC2626; font-weight: 600; margin-left: 8px;">${statusChange.previous}</span>
+                          <span style="color: #64748B; margin: 0 8px;">→</span>
+                          <span style="color: #047857; font-weight: 600;">${statusChange.current}</span>
+                        </div>
                       </td>
                     </tr>
                     ` : ''}
@@ -591,10 +694,12 @@ function buildTextBody(data) {
     // Timeline
     spudDate,
     completionDate,
-    firstProdDate
+    firstProdDate,
+    // Status change data
+    statusChange
   } = data;
   
-  const explanation = getExplanation(activityType, alertLevel, isMultiSection);
+  const explanation = getExplanation(activityType, alertLevel, isMultiSection, false, statusChange);
   
   let text = `
 MINERAL WATCH - ${activityType.toUpperCase()}
@@ -608,7 +713,7 @@ We found activity that matches your monitored ${alertLevel === 'TRACKED WELL' ? 
 
 Well: ${wellName || 'Not specified'}
 ${apiNumber ? `API: ${apiNumber}\n` : ''}Operator: ${operator || 'Not specified'}
-${previousOperator ? `Previous Operator: ${previousOperator}\n` : ''}${isMultiSection ? 'Type: Multi-Section Horizontal\n' : ''}Location: ${bhLocation && bhLocation !== location ? `${location} → ${bhLocation}${lateralDirection ? ` (${lateralDirection})` : ''}${lateralLength ? ` · ${lateralLength.toLocaleString()} ft lateral` : ''}` : location}
+${previousOperator ? `Previous Operator: ${previousOperator}\n` : ''}${statusChange ? `\nSTATUS CHANGED: ${statusChange.previous} → ${statusChange.current}\n\n` : ''}${isMultiSection ? 'Type: Multi-Section Horizontal\n' : ''}Location: ${bhLocation && bhLocation !== location ? `${location} → ${bhLocation}${lateralDirection ? ` (${lateralDirection})` : ''}${lateralLength ? ` · ${lateralLength.toLocaleString()} ft lateral` : ''}` : location}
 County: ${county}
 ${formationName ? `Formation: ${formationName}${formationDepth ? ` @ ${formationDepth.toLocaleString()} ft` : ''}\n` : ''}${(ipGas || ipOil) ? `Initial Production: ${ipGas ? `Gas: ${ipGas.toLocaleString()} MCF/day` : ''}${ipGas && ipOil ? ' · ' : ''}${ipOil ? `Oil: ${ipOil.toLocaleString()} BBL/day` : ''}${pumpingFlowing ? ` (${pumpingFlowing.toLowerCase()})` : ''}\n` : ''}${(spudDate || completionDate || firstProdDate) ? `\nTimeline:\n${spudDate ? `Spud: ${spudDate}` : ''}${spudDate && completionDate ? ' · ' : ''}${completionDate ? `Completed: ${completionDate}` : ''}${(spudDate || completionDate) && firstProdDate ? ' · ' : ''}${firstProdDate ? `First Prod: ${firstProdDate}` : ''}${firstProdDate ? '\nExpected first royalty check: 60-90 days after first sales' : ''}\n` : ''}
 

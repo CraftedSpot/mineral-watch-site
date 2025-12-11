@@ -134,7 +134,8 @@ export async function checkWellStatusChange(api10, currentData, env) {
           body: JSON.stringify({
             fields: {
               'Well Status': currentStatus,
-              'Last Status Check': new Date().toISOString()
+              'Last Status Check': new Date().toISOString(),
+              'Status Last Changed': new Date().toISOString()
             }
           })
         });
