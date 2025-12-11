@@ -375,13 +375,16 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       if (completionData) {
         console.log(`📊 Enriching tracked well with completion data: ${completionData.formationName || 'Unknown formation'}`);
         
-        if (completionData.wellName && !wellName) wellName = completionData.wellName;
+        // IMPORTANT: Prefer OCC wellName as it includes well numbers
+        // Only use completion data wellName if OCC didn't provide one
+        if (!wellName && completionData.wellName) wellName = completionData.wellName;
         if (completionData.operator && !operator) operator = completionData.operator;
-        if (completionData.county && !county) {
-          // Clean county format "017-CANADIAN" -> "CANADIAN"
-          county = completionData.county.includes('-') 
-            ? completionData.county.split('-')[1] 
-            : completionData.county;
+        
+        // Always prefer completion data county but clean it
+        if (completionData.county) {
+          // Clean county format "017-CANADIAN" -> "CANADIAN" 
+          // But keep the full value for data consistency
+          county = completionData.county;
         }
         if (completionData.surfaceSection && !section) section = completionData.surfaceSection;
         if (completionData.surfaceTownship && !township) township = completionData.surfaceTownship;
