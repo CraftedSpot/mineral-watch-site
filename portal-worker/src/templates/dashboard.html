@@ -90,15 +90,15 @@
         .col-prop-county { width: 15%; }
         .col-prop-legal { width: 20%; }
         .col-prop-acres { width: 16%; }
-        .col-prop-notes { width: calc(100% - 40px - 15% - 20% - 16% - 110px); }
-        .col-actions { width: 110px; }
+        .col-prop-notes { width: calc(100% - 40px - 15% - 20% - 16% - 140px); }
+        .col-actions { width: 140px; } /* Increased to prevent button cutoff */
         
         /* Wells table specific column widths - desktop */
         #wellsContent .data-table { table-layout: fixed; }
-        .col-well-name-wide { width: calc(100% - 40px - 22% - 12% - 12% - 110px); } /* More space for well names */
-        .col-well-operator { width: 22%; }
+        .col-well-name-wide { width: 30%; } /* Fixed width for well names */
+        .col-well-operator { width: 25%; }
         .col-well-county { width: 12%; } /* Less space needed without county codes */
-        .col-well-location { width: 12%; }
+        .col-well-location { width: 15%; }
         
         /* Add extra left padding to Notes column for visual separation */
         /* Notes is 5th column: checkbox(1), county(2), legal(3), acres(4), notes(5), actions(6) */
