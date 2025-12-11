@@ -93,6 +93,13 @@
         .col-prop-notes { width: calc(100% - 40px - 15% - 20% - 16% - 110px); }
         .col-actions { width: 110px; }
         
+        /* Wells table specific column widths - desktop */
+        #wellsContent .data-table { table-layout: fixed; }
+        .col-well-name-wide { width: calc(100% - 40px - 22% - 12% - 12% - 110px); } /* More space for well names */
+        .col-well-operator { width: 22%; }
+        .col-well-county { width: 12%; } /* Less space needed without county codes */
+        .col-well-location { width: 12%; }
+        
         /* Add extra left padding to Notes column for visual separation */
         /* Notes is 5th column: checkbox(1), county(2), legal(3), acres(4), notes(5), actions(6) */
         #propertiesContent .data-table td:nth-child(5),
@@ -654,6 +661,46 @@
             .form-group.full { grid-column: span 1; } 
             .user-name { display: none; }
             
+            /* Reset table layout for mobile */
+            #propertiesContent .data-table, 
+            #wellsContent .data-table { 
+                table-layout: auto !important; 
+            }
+            
+            /* Remove fixed widths on mobile - let content flow naturally */
+            .col-select,
+            .col-prop-county,
+            .col-prop-legal,
+            .col-prop-acres,
+            .col-prop-notes,
+            .col-well-name-wide,
+            .col-well-operator,
+            .col-well-county,
+            .col-well-location,
+            .col-actions { 
+                width: auto !important; 
+            }
+            
+            /* Ensure minimum widths for readability */
+            #propertiesContent .data-table td:nth-child(2) { min-width: 80px; } /* County */
+            #propertiesContent .data-table td:nth-child(3) { 
+                min-width: 100px; /* Legal - increased to prevent wrapping */
+                white-space: nowrap; /* Prevent section number from wrapping */
+            }
+            #propertiesContent .data-table td:nth-child(4) { min-width: 50px; } /* Acres */
+            #propertiesContent .data-table td:nth-child(5) { min-width: 100px; } /* Notes */
+            
+            /* Adjust padding for mobile */
+            #propertiesContent .data-table td:nth-child(5) {
+                padding-left: 8px !important;
+            }
+            
+            /* Make action buttons smaller on mobile */
+            #propertiesContent .data-table td:nth-child(6) {
+                white-space: nowrap;
+                font-size: 13px;
+            }
+            
             /* Mobile navigation */
             .nav-links {
                 gap: 15px;
@@ -725,13 +772,8 @@
                 display: none;
             }
             
-            /* Adjust column widths for mobile */
-            .col-select { display: none !important; }
-            .col-prop-county { width: 20%; }
-            .col-prop-legal { width: 25%; }
-            .col-prop-acres { width: 15%; }
-            .col-prop-notes { width: 25%; }
-            .col-actions { width: 15%; }
+            /* Hide bulk selection on mobile */
+            .bulk-only { display: none !important; }
             .col-well-name { width: 30%; }
             .col-well-name-wide { width: 37%; } /* Even more space on mobile for readability */
             .col-well-operator { width: 28%; } /* Well-specific operator mobile styling */
@@ -1268,43 +1310,38 @@
         <div class="modal" style="max-width: 500px; position: relative;">
             <button class="modal-close" onclick="closePropertyDetailsModal()" aria-label="Close">×</button>
             <h2 style="margin-bottom: 5px;" id="propertyDetailsTitle">Property Details</h2>
-            <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="propertyDetailsLegal">—</p>
+            <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="propertyDetailsCounty">—</p>
             
             <div class="details-grid">
                 <div class="details-row">
-                    <span class="details-label">County</span>
-                    <span class="details-value" id="propertyDetailsCounty">—</span>
+                    <span class="details-label">Legal</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="details-value" id="propertyDetailsLegal" style="font-family: monospace;">—</span>
+                        <select id="propertyDetailsMeridian" style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: white;">
+                            <option value="IM">IM</option>
+                            <option value="CM">CM</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="details-row" id="propertyDetailsGroupRow" style="display: none;">
+                    <span class="details-label">Group</span>
+                    <span class="details-value" id="propertyDetailsGroup">—</span>
                 </div>
                 <div class="details-row">
-                    <span class="details-label">Township</span>
-                    <span class="details-value" id="propertyDetailsTownship">—</span>
+                    <span class="details-label">Total Acres</span>
+                    <span class="details-value" id="propertyDetailsTotalAcres" style="font-weight: 500;">—</span>
                 </div>
                 <div class="details-row">
-                    <span class="details-label">Range</span>
-                    <span class="details-value" id="propertyDetailsRange">—</span>
+                    <span class="details-label">RI Acres</span>
+                    <input type="number" id="propertyDetailsRIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0" oninput="updateTotalAcres()">
                 </div>
                 <div class="details-row">
-                    <span class="details-label">Section</span>
-                    <span class="details-value" id="propertyDetailsSection">—</span>
-                </div>
-                <div class="details-row">
-                    <span class="details-label">Meridian</span>
-                    <select id="propertyDetailsMeridian" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white;">
-                        <option value="IM">IM (Indian Meridian)</option>
-                        <option value="CM">CM (Cimarron Meridian)</option>
-                    </select>
+                    <span class="details-label">WI Acres</span>
+                    <input type="number" id="propertyDetailsWIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0" oninput="updateTotalAcres()">
                 </div>
                 <div class="details-row">
                     <span class="details-label">Monitor Adjacent</span>
                     <span class="details-value" id="propertyDetailsAdjacent">—</span>
-                </div>
-                <div class="details-row">
-                    <span class="details-label">RI Acres</span>
-                    <input type="number" id="propertyDetailsRIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0">
-                </div>
-                <div class="details-row">
-                    <span class="details-label">WI Acres</span>
-                    <input type="number" id="propertyDetailsWIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0">
                 </div>
                 <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                     <span class="details-label" style="margin-bottom: 8px;">Notes</span>
@@ -1428,6 +1465,7 @@
             'Starter': { properties: 10, wells: 10 }, 
             'Standard': { properties: 50, wells: 50 }, 
             'Professional': { properties: 250, wells: 250 }, 
+            'Enterprise 500': { properties: 500, wells: 500 },
             'Enterprise': { properties: Infinity, wells: Infinity } 
         };
         let currentTab = 'properties';
@@ -1683,12 +1721,12 @@
                 document.getElementById('wellLimit').textContent = limits.wells === Infinity ? '∞' : limits.wells;
                 
                 // Hide upgrade link for Enterprise users
-                if (currentUser.plan === 'Enterprise') {
+                if (currentUser.plan === 'Enterprise' || currentUser.plan === 'Enterprise 500') {
                     document.getElementById('upgradeLink').style.display = 'none';
                 }
                 
                 // Show export buttons for Professional and Enterprise users
-                if (currentUser.plan === 'Professional' || currentUser.plan === 'Enterprise') {
+                if (currentUser.plan === 'Professional' || currentUser.plan === 'Enterprise' || currentUser.plan === 'Enterprise 500') {
                     document.getElementById('exportPropertiesBtn').style.display = 'inline-flex';
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
@@ -2411,13 +2449,16 @@
             }
             
             // Simplified grid without API column - give well name more space
-            let html = '<table class="data-table"><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Name</th><th>Operator</th><th>County</th><th>Legal</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-well-name-wide"><col class="col-well-operator"><col class="col-well-county"><col class="col-well-location"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Name</th><th>Operator</th><th>County</th><th>Legal</th><th></th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
                 const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
                 const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
-                const county = escapeHtml(f['County']) || '—';
+                // Extract just the county name (remove "011-" prefix if present)
+                const countyRaw = f['County'] || '';
+                const countyName = countyRaw.includes('-') ? countyRaw.split('-')[1] : countyRaw;
+                const county = escapeHtml(countyName) || '—';
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
@@ -2434,7 +2475,7 @@
                     <td>${operator}</td>
                     <td>${county}</td>
                     <td>${str}</td>
-                    <td style="text-align: right;">
+                    <td style="white-space: nowrap; text-align: right;">
                         ${hasProductionData ? `<a href="javascript:void(0)" class="text-link" onclick="toggleWellProduction('${w.id}')">Prod.</a>&nbsp;&nbsp;` : ''}
                         <a href="#" class="text-link" onclick="openWellDetailsModal('${w.id}'); return false;">Detail</a>
                         &nbsp;&nbsp;<button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
@@ -2985,20 +3026,44 @@
             
             const f = prop.fields;
             document.getElementById('propertyDetailsId').value = propId;
-            document.getElementById('propertyDetailsTitle').textContent = f['COUNTY'] || 'Property Details';
+            
+            // Set title to property name or just "Property Details"
+            const propertyName = f['Name'] || f['Property Name'] || 'Property Details';
+            document.getElementById('propertyDetailsTitle').textContent = propertyName;
+            
+            // Set subtitle to county name
+            document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || 'Unknown County';
+            
+            // Set legal description as one line (without "Sec" to save space)
             document.getElementById('propertyDetailsLegal').textContent = `T${f.TWN} R${f.RNG} ${f.SEC}`;
-            document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || '—';
-            document.getElementById('propertyDetailsSection').textContent = f['SEC'] || '—';
-            document.getElementById('propertyDetailsTownship').textContent = f['TWN'] || '—';
-            document.getElementById('propertyDetailsRange').textContent = f['RNG'] || '—';
             document.getElementById('propertyDetailsMeridian').value = f['MERIDIAN'] || 'IM';
-            // Default to 'Yes' for monitoring adjacent sections
+            
+            // Show/hide Group row based on whether it has a value
+            const groupRow = document.getElementById('propertyDetailsGroupRow');
+            if (f['Group']) {
+                document.getElementById('propertyDetailsGroup').textContent = f['Group'];
+                groupRow.style.display = 'flex';
+            } else {
+                groupRow.style.display = 'none';
+            }
+            
+            // Set other fields
             document.getElementById('propertyDetailsAdjacent').textContent = (f['Monitor Adjacent'] === false) ? 'No' : 'Yes';
             document.getElementById('propertyDetailsRIAcres').value = f['RI Acres'] || 0;
             document.getElementById('propertyDetailsWIAcres').value = f['WI Acres'] || 0;
             document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
+            // Calculate and display total acres
+            updateTotalAcres();
+            
             document.getElementById('propertyDetailsModal').style.display = 'flex';
+        }
+        
+        function updateTotalAcres() {
+            const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
+            const totalAcres = riAcres + wiAcres;
+            document.getElementById('propertyDetailsTotalAcres').textContent = totalAcres > 0 ? totalAcres.toFixed(2) : '—';
         }
         
         async function savePropertyDetails() {
@@ -3022,6 +3087,8 @@
                 if (prop) {
                     prop.fields['Notes'] = notes;
                     prop.fields['MERIDIAN'] = meridian;
+                    prop.fields['RI Acres'] = riAcres;
+                    prop.fields['WI Acres'] = wiAcres;
                 }
                 
                 showToast('Changes saved!', 'success');
@@ -3228,7 +3295,7 @@
                             <div><strong>Township:</strong> <code>TWN</code> <code>Township</code> <code>Town</code> <code>T</code></div>
                             <div><strong>Range:</strong> <code>RNG</code> <code>Range</code> <code>R</code></div>
                             <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
-                            <div><strong>Acres:</strong> <code>RI Acres</code> <code>WI Acres</code> <code>Total Acres</code> <code>Acres</code></div>
+                            <div><strong>Acres:</strong> <code>RI Acres</code> <code>RI</code> <code>WI Acres</code> <code>WI</code> <code>Total Acres</code> <code>Acres</code></div>
                             <div><strong>Group:</strong> <code>Group</code> <code>Entity</code></div>
                             <div><strong>Optional:</strong> County, Meridian, Group, RI Acres, WI Acres, Total Acres</div>
                             <div style="font-size: 12px; color: var(--slate-blue); margin-top: 8px;">💡 If only "Total Acres" is provided, it defaults to RI interest</div>
@@ -3306,7 +3373,6 @@
                                 <th>RNG</th>
                                 <th>MER</th>
                                 <th>County</th>
-                                <th>Total Acres</th>
                                 <th>Status</th>
                             </tr>
                         </thead>
@@ -4273,12 +4339,6 @@ function renderPreviewTable() {
                           (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
                           (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
         
-        // Calculate total acres for preview
-        const riAcres = parseFloat(prop['RI Acres']) || 0;
-        const wiAcres = parseFloat(prop['WI Acres']) || 0;
-        const totalAcres = riAcres + wiAcres;
-        const acresDisplay = totalAcres > 0 ? totalAcres.toFixed(2) : '-';
-        
         html += `
             <tr class="${rowClass}">
                 <td>${index + 1}</td>
@@ -4287,7 +4347,6 @@ function renderPreviewTable() {
                 <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
-                <td style="text-align: right;">${acresDisplay}</td>
                 <td class="status-cell ${statusClass}">
                     ${statusText}
                 </td>
@@ -4298,49 +4357,84 @@ function renderPreviewTable() {
     tbody.innerHTML = html;
 }
 
-// Start import
+// Start import - with chunking to avoid Worker timeouts
 async function startImport() {
     // Show import step
     document.getElementById('preview-step').style.display = 'none';
     document.getElementById('import-step').style.display = 'block';
     
-    // Start indeterminate progress animation
+    // Progress tracking
     const progressBar = document.getElementById('progress-bar');
-    progressBar.classList.add('indeterminate');
-    document.getElementById('progress-percent').textContent = '';
+    progressBar.classList.remove('indeterminate');
     
     // Prepare valid properties for upload
     const toImport = validationResults.results
         .filter(r => r.isValid && !r.isDuplicate)
         .map(r => r.normalized);
     
+    const CHUNK_SIZE = 50; // Upload 50 at a time to avoid timeouts
+    const totalChunks = Math.ceil(toImport.length / CHUNK_SIZE);
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+    let totalErrors = [];
+    
     document.getElementById('import-progress').textContent = `Importing ${toImport.length} properties...`;
     
     try {
-        const response = await fetch('/api/bulk-upload-properties', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ properties: toImport })
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Upload failed');
+        // Process chunks sequentially
+        for (let i = 0; i < toImport.length; i += CHUNK_SIZE) {
+            const chunk = toImport.slice(i, i + CHUNK_SIZE);
+            const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+            
+            // Update progress
+            const progress = Math.round((i / toImport.length) * 100);
+            progressBar.style.width = `${progress}%`;
+            document.getElementById('progress-percent').textContent = `${progress}%`;
+            document.getElementById('import-progress').textContent = 
+                `Importing batch ${chunkNumber}/${totalChunks} (${i + chunk.length}/${toImport.length} properties)...`;
+            
+            // Upload chunk
+            const response = await fetch('/api/bulk-upload-properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ properties: chunk })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || `Batch ${chunkNumber} failed`);
+            }
+            
+            const chunkResults = await response.json();
+            totalSuccessful += chunkResults.results.successful;
+            totalFailed += chunkResults.results.failed;
+            if (chunkResults.results.errors) {
+                totalErrors = totalErrors.concat(chunkResults.results.errors);
+            }
+            
+            // Small delay between chunks to avoid overwhelming the server
+            if (i + CHUNK_SIZE < toImport.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
         }
         
-        const results = await response.json();
-        
-        // Show completion briefly
-        progressBar.classList.remove('indeterminate');
+        // Show completion
         progressBar.style.width = '100%';
         document.getElementById('progress-percent').textContent = '100%';
-        document.getElementById('import-progress').textContent = `${results.results.successful} of ${toImport.length} properties created`;
+        document.getElementById('import-progress').textContent = `${totalSuccessful} of ${toImport.length} properties created`;
         
         // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 500));
         
         // Show results
-        showResults(results);
+        showResults({
+            results: {
+                successful: totalSuccessful,
+                failed: totalFailed,
+                skipped: 0,
+                errors: totalErrors
+            }
+        });
         
     } catch (error) {
         console.error('Upload error:', error);
@@ -4621,28 +4715,76 @@ async function startWellsImport() {
     document.getElementById('wells-preview-step').style.display = 'none';
     document.getElementById('wells-import-step').style.display = 'block';
     
+    // Progress tracking
+    const progressBar = document.getElementById('wells-progress-bar');
+    progressBar.classList.remove('indeterminate');
+    
     const toImport = wellsValidationResults.results
         .filter(r => r.isValid && !r.isDuplicate)
         .map(r => r.normalized);
     
+    const CHUNK_SIZE = 50; // Upload 50 at a time to avoid timeouts
+    const totalChunks = Math.ceil(toImport.length / CHUNK_SIZE);
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+    let totalSkipped = 0;
+    let totalErrors = [];
+    
     document.getElementById('wells-import-progress').textContent = `Importing ${toImport.length} wells...`;
     
     try {
-        const response = await fetch('/api/bulk-upload-wells', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wells: toImport })
-        });
-        
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Upload failed');
+        // Process chunks sequentially
+        for (let i = 0; i < toImport.length; i += CHUNK_SIZE) {
+            const chunk = toImport.slice(i, i + CHUNK_SIZE);
+            const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+            
+            // Update progress
+            const progress = Math.round((i / toImport.length) * 100);
+            progressBar.style.width = `${progress}%`;
+            document.getElementById('wells-import-progress').textContent = 
+                `Importing batch ${chunkNumber}/${totalChunks} (${i + chunk.length}/${toImport.length} wells)...`;
+            
+            const response = await fetch('/api/bulk-upload-wells', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wells: chunk })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || `Batch ${chunkNumber} failed`);
+            }
+            
+            const chunkResults = await response.json();
+            totalSuccessful += chunkResults.results.successful;
+            totalFailed += chunkResults.results.failed;
+            totalSkipped += chunkResults.results.skipped;
+            if (chunkResults.results.errors) {
+                totalErrors = totalErrors.concat(chunkResults.results.errors);
+            }
+            
+            // Small delay between chunks to avoid rate limiting
+            if (i + CHUNK_SIZE < toImport.length) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+            }
         }
         
-        const results = await response.json();
+        // Update final progress
+        progressBar.style.width = '100%';
+        document.getElementById('wells-import-progress').textContent = 'Processing complete!';
         
-        // Brief delay to show progress
+        // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Show results
+        const results = {
+            results: {
+                successful: totalSuccessful,
+                failed: totalFailed,
+                skipped: totalSkipped,
+                errors: totalErrors
+            }
+        };
         
         showWellsResults(results);
         
