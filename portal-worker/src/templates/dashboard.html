@@ -95,7 +95,7 @@
         
         /* Wells table specific column widths - desktop */
         #wellsContent .data-table { table-layout: fixed; }
-        .col-well-name-wide { width: 30%; } /* Fixed width for well names */
+        .col-well-name-wide { width: 25%; } /* Reduced to tighten layout */
         .col-well-operator { width: 25%; }
         .col-well-county { width: 12%; } /* Less space needed without county codes */
         .col-well-location { width: 15%; }
@@ -2480,7 +2480,7 @@
                     <td>${county}</td>
                     <td>${str}</td>
                     <td style="white-space: nowrap; text-align: right;">
-                        ${hasProductionData ? `<a href="javascript:void(0)" class="text-link" onclick="toggleWellProduction('${w.id}')">Prod.</a>&nbsp;&nbsp;` : ''}
+                        <span style="display: inline-block; min-width: 52px; text-align: left;">${hasProductionData ? `<a href="javascript:void(0)" class="text-link" onclick="toggleWellProduction('${w.id}')">Prod.</a>` : ''}</span>
                         <a href="#" class="text-link" onclick="openWellDetailsModal('${w.id}'); return false;">Detail</a>
                         &nbsp;&nbsp;<button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
                     </td>
