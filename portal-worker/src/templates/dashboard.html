@@ -1370,6 +1370,13 @@
                 .replace(/'/g, '&#039;');
         }
         
+        // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"
+        function cleanCountyDisplay(county) {
+            if (!county) return '';
+            // Remove any leading digits followed by a hyphen
+            return county.replace(/^\d+-/, '');
+        }
+        
         // Format activity location from S15-T12N-R5W to T12N R5W 15
         function formatActivityLocation(location) {
             if (!location) return '';
@@ -1968,7 +1975,7 @@
                 
                 html += `<tr>
                     <td class="bulk-only"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
-                    <td>${escapeHtml(f.COUNTY) || '—'}</td>
+                    <td>${escapeHtml(cleanCountyDisplay(f.COUNTY)) || '—'}</td>
                     <td><strong>${str}</strong></td>
                     <td style="text-align: right;">${acresDisplay}</td>
                     <td>${notes}</td>
@@ -2455,10 +2462,7 @@
                 const f = w.fields;
                 const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
                 const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
-                // Extract just the county name (remove "011-" prefix if present)
-                const countyRaw = f['County'] || '';
-                const countyName = countyRaw.includes('-') ? countyRaw.split('-')[1] : countyRaw;
-                const county = escapeHtml(countyName) || '—';
+                const county = escapeHtml(cleanCountyDisplay(f['County'])) || '—';
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
@@ -2654,7 +2658,7 @@
                                     <span class="activity-level ${levelClass}">${escapeHtml(alertLevel.replace('_', ' '))}</span>
                                 </div>
                                 <div class="activity-well">${escapeHtml(f['Well Name']) || 'Unknown Well'}</div>
-                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${formatActivityLocation(f['Section-Township-Range'])} • ${escapeHtml(f['County']) || ''}</div>
+                                <div class="activity-meta">${escapeHtml(f['Operator']) || ''} • ${formatActivityLocation(f['Section-Township-Range'])} • ${escapeHtml(cleanCountyDisplay(f['County'])) || ''}</div>
                                 ${changeText ? `<div class="activity-change">${escapeHtml(changeText)}</div>` : ''}
                                 ${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
@@ -2874,7 +2878,7 @@
             const location = (section && township && range) ? `T${township} R${range} ${section}` : '—';
             document.getElementById('wellDetailsLocation').textContent = location;
             
-            document.getElementById('wellDetailsCounty').textContent = f['County'] || '—';
+            document.getElementById('wellDetailsCounty').textContent = cleanCountyDisplay(f['County']) || '—';
             
             // Well Type with hover helper
             document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
@@ -3032,7 +3036,7 @@
             document.getElementById('propertyDetailsTitle').textContent = propertyName;
             
             // Set subtitle to county name
-            document.getElementById('propertyDetailsCounty').textContent = f['COUNTY'] || 'Unknown County';
+            document.getElementById('propertyDetailsCounty').textContent = cleanCountyDisplay(f['COUNTY']) || 'Unknown County';
             
             // Set legal description as one line (without "Sec" to save space)
             document.getElementById('propertyDetailsLegal').textContent = `T${f.TWN} R${f.RNG} ${f.SEC}`;
@@ -4346,7 +4350,7 @@ function renderPreviewTable() {
                 <td>${escapeHtmlBulk(prop.TWN) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
-                <td>${escapeHtmlBulk(prop.COUNTY) || '-'}</td>
+                <td>${escapeHtmlBulk(cleanCountyDisplay(prop.COUNTY)) || '-'}</td>
                 <td class="status-cell ${statusClass}">
                     ${statusText}
                 </td>
