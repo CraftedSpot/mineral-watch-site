@@ -11,6 +11,7 @@ import {
   PROPERTIES_TABLE, 
   WELLS_TABLE, 
   ACTIVITY_TABLE,
+  WELL_LOCATIONS_TABLE,
   BASE_URL, 
   PLAN_LIMITS,
   OCC_CACHE_TTL, 
@@ -35,7 +36,8 @@ import {
   accountHtml, 
   upgradeHtml,
   myPropertiesMapHtml,
-  oklahomaMapHtml
+  oklahomaMapHtml,
+  adminBackfillHtml
 } from './templates/index.js';
 
 import {
@@ -95,7 +97,16 @@ import {
   generateTrackWellSuccessPage,
   generateTrackWellErrorPage,
   // OCC proxy handler
-  handleOccProxy
+  handleOccProxy,
+  // Formation backfill handlers
+  handleBackfillFormations,
+  handleGetFormationForActivity,
+  // Well locations backfill handler
+  handleBackfillWellLocations,
+  // Statewide activity handler
+  handleStatewideActivity,
+  // Statewide activity backfill handler
+  handleBackfillStatewideActivity
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -139,6 +150,74 @@ var index_default = {
       if (path === "/portal/oklahoma-map" || path === "/portal/oklahoma-map/") {
         return servePage(oklahomaMapHtml, request, env);
       }
+      
+      // Safari-compatible session setting endpoint - MUST come before auth proxy
+      if (path === "/api/auth/set-session" && request.method === "GET") {
+        const token = url.searchParams.get("token");
+        if (!token) {
+          return Response.redirect(`${BASE_URL}/portal/login?error=Missing%20session%20token`, 302);
+        }
+        
+        // Serve an intermediate HTML page that sets cookie via JavaScript
+        const html = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Completing login...</title>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    .loading {
+      text-align: center;
+      color: #334E68;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid #e0e0e0;
+      border-top: 4px solid #C05621;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div class="loading">
+    <div class="spinner"></div>
+    <div>Completing login...</div>
+  </div>
+  <script>
+    // Set cookie via JavaScript for Safari compatibility
+    document.cookie = "${COOKIE_NAME}=${token}; path=/; secure; samesite=lax; max-age=2592000";
+    
+    // Small delay to ensure cookie is set
+    setTimeout(() => {
+      window.location.href = "/portal";
+    }, 100);
+  </script>
+</body>
+</html>`;
+        
+        return new Response(html, {
+          status: 200,
+          headers: {
+            "Content-Type": "text/html; charset=utf-8"
+          }
+        });
+      }
+      
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
         console.log(`[Portal] Proxying auth request: ${path}`);
@@ -222,73 +301,6 @@ var index_default = {
         return handleRegister(request, env);
       }
       
-      // Safari-compatible session setting endpoint - serves intermediate HTML page
-      if (path === "/api/auth/set-session" && request.method === "GET") {
-        const token = url.searchParams.get("token");
-        if (!token) {
-          return Response.redirect(`${BASE_URL}/portal/login?error=Missing%20session%20token`, 302);
-        }
-        
-        // Serve an intermediate HTML page that sets cookie via JavaScript
-        const html = `<!DOCTYPE html>
-<html>
-<head>
-  <title>Completing login...</title>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      height: 100vh;
-      margin: 0;
-      background: #f5f5f5;
-    }
-    .loading {
-      text-align: center;
-      color: #334E68;
-    }
-    .spinner {
-      width: 40px;
-      height: 40px;
-      border: 4px solid #e0e0e0;
-      border-top: 4px solid #C05621;
-      border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 0 auto 20px;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-  </style>
-</head>
-<body>
-  <div class="loading">
-    <div class="spinner"></div>
-    <div>Completing login...</div>
-  </div>
-  <script>
-    // Set cookie via JavaScript for Safari compatibility
-    document.cookie = "${COOKIE_NAME}=${token}; path=/; secure; samesite=lax; max-age=2592000";
-    
-    // Small delay to ensure cookie is set
-    setTimeout(() => {
-      window.location.href = "/portal";
-    }, 100);
-  </script>
-</body>
-</html>`;
-        
-        return new Response(html, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/html; charset=utf-8"
-          }
-        });
-      }
-      
       // Properties endpoints
       if (path === "/api/properties" && request.method === "GET") {
         return handleListProperties(request, env);
@@ -328,6 +340,11 @@ var index_default = {
         return handleActivityStats(request, env);
       }
       
+      // Statewide activity endpoint (for heatmap)
+      if (path === "/api/activity/statewide" && request.method === "GET") {
+        return handleStatewideActivity(request, env);
+      }
+      
       // Bulk upload endpoints
       if (path === "/api/bulk-validate-properties" && request.method === "POST") {
         return handleBulkValidateProperties(request, env);
@@ -358,6 +375,24 @@ var index_default = {
       // OCC proxy endpoint
       if (path === "/api/occ-proxy" && request.method === "GET") {
         return handleOccProxy(request, env);
+      }
+      
+      // Formation backfill endpoints
+      if (path === "/api/backfill-formations" && request.method === "POST") {
+        return handleBackfillFormations(request, env);
+      }
+      if (path === "/api/formation-for-activity" && request.method === "GET") {
+        return handleGetFormationForActivity(request, env);
+      }
+      
+      // Well locations backfill endpoint
+      if (path === "/api/backfill-well-locations" && request.method === "POST") {
+        return handleBackfillWellLocations(request, env);
+      }
+      
+      // Statewide activity backfill endpoint
+      if (path === "/api/backfill-statewide-activity" && request.method === "POST") {
+        return handleBackfillStatewideActivity(request, env);
       }
       
       // TEMPORARY: Debug Stripe key endpoint

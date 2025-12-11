@@ -15,6 +15,7 @@ export const USERS_TABLE = "👤 Users";
 export const PROPERTIES_TABLE = "📍 Client Properties";
 export const WELLS_TABLE = "🛢️ Client Wells";
 export const ACTIVITY_TABLE = "📋 Activity Log";
+export const WELL_LOCATIONS_TABLE = "📍 Well Locations";
 
 // Application URLs
 export const BASE_URL = "https://portal.mymineralwatch.com";

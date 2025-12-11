@@ -141,8 +141,16 @@ function normalizePropertyData(prop: any) {
   }
   
   // Handle acreage - if no RI/WI specified but Total Acres exists, default to RI
-  let riAcres = parseFloat(prop['RI Acres'] || prop.RI_Acres || prop.RIAcres || '0') || 0;
-  let wiAcres = parseFloat(prop['WI Acres'] || prop.WI_Acres || prop.WIAcres || '0') || 0;
+  let riAcres = parseFloat(
+    prop['RI Acres'] || prop.RI_Acres || prop.RIAcres || 
+    prop['RI'] || prop.RI || prop.ri ||
+    prop['PROD RI'] || prop.PROD_RI || prop['Prod RI'] || '0'
+  ) || 0;
+  let wiAcres = parseFloat(
+    prop['WI Acres'] || prop.WI_Acres || prop.WIAcres || 
+    prop['WI'] || prop.WI || prop.wi ||
+    prop['PROD WI'] || prop.PROD_WI || prop['Prod WI'] || '0'
+  ) || 0;
   
   // If neither RI nor WI specified, but Total Acres exists, assume it's all RI
   if (riAcres === 0 && wiAcres === 0) {
@@ -391,8 +399,9 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
     }
     
     // Small delay between batches to be nice to Airtable
+    // Increased delay for larger imports to avoid rate limits
     if (i + batchSize < toCreate.length) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   
@@ -665,22 +674,22 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
               Notes: well.notes || "",
               
               // Enhanced fields from completion data
-              ...(completion.formationName && { "Formation": completion.formationName }),
+              ...(completion.formationName && { "Formation Name": completion.formationName }),
               ...(completion.formationDepth && { "Formation Depth": completion.formationDepth }),
-              ...(completion.ipGas && { "IP Gas": completion.ipGas }),
-              ...(completion.ipOil && { "IP Oil": completion.ipOil }),
-              ...(completion.ipWater && { "IP Water": completion.ipWater }),
+              ...(completion.ipGas && { "IP Gas (MCF/day)": completion.ipGas }),
+              ...(completion.ipOil && { "IP Oil (BBL/day)": completion.ipOil }),
+              ...(completion.ipWater && { "IP Water (BBL/day)": completion.ipWater }),
               ...(completion.pumpingFlowing && { "Pumping Flowing": completion.pumpingFlowing }),
               ...(completion.spudDate && { "Spud Date": completion.spudDate }),
               ...(completion.completionDate && { "Completion Date": completion.completionDate }),
-              ...(completion.firstProdDate && { "First Prod Date": completion.firstProdDate }),
+              ...(completion.firstProdDate && { "First Production Date": completion.firstProdDate }),
               ...(completion.drillType && { "Drill Type": completion.drillType }),
               ...(completion.lateralLength && { "Lateral Length": completion.lateralLength }),
               ...(completion.totalDepth && { "Total Depth": completion.totalDepth }),
               ...(completion.bhSection && { "BH Section": completion.bhSection }),
               ...(completion.bhTownship && { "BH Township": completion.bhTownship }),
               ...(completion.bhRange && { "BH Range": completion.bhRange }),
-              ...(completion && { "Last Updated": new Date().toISOString() })
+              ...(completion && { "Data Last Updated": new Date().toISOString() })
             }
           };
         })
@@ -699,7 +708,7 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
     
     // Small delay between batches
     if (i + batchSize < toCreate.length) {
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
   

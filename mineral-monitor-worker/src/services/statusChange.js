@@ -1,0 +1,176 @@
+/**
+ * Status Change Detection Service
+ * Detects and alerts on well status changes during daily monitoring
+ */
+
+import { queryAirtable, createActivityLog } from './airtable.js';
+import { sendAlertEmail } from './email.js';
+import { normalizeAPI } from '../utils/normalize.js';
+
+/**
+ * Check if a well's status has changed and alert users
+ * @param {string} api10 - 10-digit API number
+ * @param {Object} currentData - Current well data from OCC with wellstatus field
+ * @param {Object} env - Worker environment
+ * @returns {Object} - Result of status check
+ */
+export async function checkWellStatusChange(api10, currentData, env) {
+  const result = {
+    hasChange: false,
+    previousStatus: null,
+    currentStatus: null,
+    alertsSent: 0,
+    errors: []
+  };
+
+  try {
+    // Get current status from OCC data
+    const currentStatus = currentData?.wellstatus || null;
+    if (!currentStatus) {
+      return result; // No status to compare
+    }
+    
+    result.currentStatus = currentStatus;
+
+    // Query tracked wells for this API
+    const formula = `AND({API Number}="${api10}",{Status}="Active")`;
+    const wellsResponse = await queryAirtable(
+      env,
+      env.AIRTABLE_WELLS_TABLE,
+      formula,
+      ['Well Name', 'Well Status', 'User', 'Operator']
+    );
+
+    if (!wellsResponse.success || wellsResponse.records.length === 0) {
+      return result; // No tracked wells
+    }
+
+    // Check each tracked well
+    for (const well of wellsResponse.records) {
+      const previousStatus = well.fields['Well Status'];
+      const userIds = well.fields.User;
+      
+      if (!userIds || userIds.length === 0) continue;
+      if (!previousStatus) continue; // No previous status to compare
+      
+      result.previousStatus = previousStatus;
+      
+      // Check if status changed
+      if (previousStatus !== currentStatus) {
+        result.hasChange = true;
+        console.log(`[Status Change] Well ${api10} changed from ${previousStatus} to ${currentStatus}`);
+        
+        // Get user email
+        const userQuery = await queryAirtable(
+          env,
+          env.AIRTABLE_USERS_TABLE,
+          `RECORD_ID()="${userIds[0]}"`,
+          ['Email', 'Name']
+        );
+        
+        if (userQuery.success && userQuery.records.length > 0) {
+          const user = userQuery.records[0];
+          const userName = user.fields.Name || user.fields.Email;
+          
+          // Create activity log
+          const activityResult = await createActivityLog(env, {
+            userEmail: user.fields.Email,
+            apiNumber: api10,
+            activityType: 'Status Change',
+            alertLevel: 'STATUS CHANGE',
+            changeType: `${previousStatus} → ${currentStatus}`,
+            previousValue: previousStatus,
+            newValue: currentStatus,
+            wellName: well.fields['Well Name'] || `API ${api10}`,
+            operator: well.fields.Operator || currentData.operator || 'Unknown',
+            notes: `Well status changed from ${getStatusDescription(previousStatus)} to ${getStatusDescription(currentStatus)}`
+          });
+          
+          if (!activityResult.success) {
+            console.error(`[Status Change] Failed to create activity log: ${activityResult.error}`);
+            result.errors.push(`Activity log failed: ${activityResult.error}`);
+          }
+          
+          // Send alert email
+          if (!env.DRY_RUN || env.DRY_RUN === 'false') {
+            try {
+              await sendAlertEmail(env, {
+                to: user.fields.Email,
+                subject: `Well Status Change Alert - ${well.fields['Well Name'] || api10}`,
+                userName: userName,
+                wellName: well.fields['Well Name'] || `API ${api10}`,
+                apiNumber: api10,
+                activityType: 'Status Change',
+                alertLevel: 'STATUS CHANGE',
+                operator: well.fields.Operator || 'Unknown',
+                county: currentData.county || 'Unknown',
+                section: currentData.section || '',
+                township: currentData.township || '',
+                range: currentData.range || '',
+                statusChange: {
+                  previous: getStatusDescription(previousStatus),
+                  current: getStatusDescription(currentStatus)
+                },
+                occMapLink: `https://imaging.occ.ok.gov/OG/Well/${api10.substring(2)}.pdf`
+              });
+              
+              result.alertsSent++;
+              console.log(`[Status Change] Alert sent to ${user.fields.Email} for well ${api10}`);
+            } catch (emailErr) {
+              console.error(`[Status Change] Failed to send email: ${emailErr.message}`);
+              result.errors.push(`Email failed: ${emailErr.message}`);
+            }
+          }
+        }
+        
+        // Update well record with new status
+        const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+        const updateResponse = await fetch(updateUrl, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              'Well Status': currentStatus,
+              'Last Status Check': new Date().toISOString()
+            }
+          })
+        });
+        
+        if (!updateResponse.ok) {
+          console.error(`[Status Change] Failed to update well status in Airtable`);
+          result.errors.push('Failed to update well record');
+        }
+      }
+    }
+    
+  } catch (err) {
+    console.error(`[Status Change] Error checking status for ${api10}:`, err);
+    result.errors.push(err.message);
+  }
+  
+  return result;
+}
+
+/**
+ * Get human-readable status description
+ */
+function getStatusDescription(status) {
+  const statusDescriptions = {
+    'AC': 'Active',
+    'SI': 'Shut In',
+    'PA': 'Plugged & Abandoned',
+    'TA': 'Temporarily Abandoned',
+    'DG': 'Drilling',
+    'WO': 'Waiting on Completion',
+    'ND': 'Never Drilled',
+    'LA': 'Location Abandoned',
+    'UC': 'Under Construction',
+    'CM': 'Completed',
+    'PR': 'Producing'
+  };
+  
+  return statusDescriptions[status] || status;
+}

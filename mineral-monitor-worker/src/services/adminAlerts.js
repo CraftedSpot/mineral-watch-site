@@ -51,7 +51,7 @@ export async function sendAdminAlert(env, subject, body, priority = 'info') {
  * Send daily run summary
  */
 export async function sendDailySummary(env, results) {
-  const { permitsProcessed, completionsProcessed, alertsSent, errors, duration } = results;
+  const { permitsProcessed, completionsProcessed, statusChanges, alertsSent, errors, duration } = results;
   
   const hasErrors = errors && errors.length > 0;
   const priority = hasErrors ? 'warning' : 'info';
@@ -62,6 +62,7 @@ Daily Monitor Run Complete
 
 Permits Processed: ${permitsProcessed || 0}
 Completions Processed: ${completionsProcessed || 0}
+Status Changes Detected: ${statusChanges || 0}
 Alerts Sent: ${alertsSent || 0}
 Duration: ${duration}ms
 ${hasErrors ? `\nErrors (${errors.length}):\n${errors.map(e => `  - ${e}`).join('\n')}` : ''}

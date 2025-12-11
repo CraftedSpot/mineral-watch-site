@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>My Map (In Development) - Mineral Watch</title>
+    <title>My Map - Mineral Watch</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -123,27 +123,14 @@
             position: relative;
         }
         
-        .count-label[title]::after {
-            content: "ⓘ";
-            font-size: 10px;
-            margin-left: 3px;
-            opacity: 0.6;
-        }
-        
         /* Enhanced native tooltips */
         .count-label[title]:hover {
             color: var(--red-dirt);
+            cursor: help;
         }
         
         .legend-group-title[title] {
             cursor: help;
-        }
-        
-        .legend-group-title[title]::after {
-            content: "ⓘ";
-            font-size: 11px;
-            margin-left: 4px;
-            opacity: 0.6;
         }
         
         .count-separator {
@@ -989,6 +976,31 @@
             font-weight: 700;
             margin: 0 0 4px 0;
             line-height: 1.3;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .well-type-badge {  /* Formation badge */
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .well-date-badge {  /* Completion date badge */
+            background: rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.9);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
         }
         
         .well-modal-subtitle {
@@ -1046,6 +1058,30 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 16px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .well-detail-full {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .well-contact-info {
+            font-size: 13px;
+            color: var(--slate-blue);
+            margin-top: 2px;
+        }
+        
+        .well-detail-value a {
+            color: var(--red-dirt);
+            text-decoration: none;
+        }
+        
+        .well-detail-value a:hover {
+            text-decoration: underline;
         }
         
         .well-status-badge {
@@ -1170,6 +1206,17 @@
             color: var(--oil-navy);
             text-transform: uppercase;
             letter-spacing: 0.5px;
+        }
+        
+        .legend-subtitle {
+            display: block;
+            font-size: 10px;
+            font-weight: 400;
+            color: var(--slate-blue);
+            text-transform: none;
+            letter-spacing: normal;
+            margin-top: 2px;
+            opacity: 0.8;
         }
         
         .legend-items {
@@ -1299,6 +1346,16 @@
         .high-z-popup .leaflet-popup-tip-container {
             z-index: 1500 !important;
         }
+        
+        /* Footer */
+        footer { 
+            background: var(--oil-navy); 
+            color: #A0AEC0; 
+            padding: 20px 0; 
+            font-size: 13px; 
+            text-align: center; 
+            margin-top: auto; 
+        }
     </style>
 </head>
 <body>
@@ -1314,7 +1371,7 @@
     <main>
         <div class="container">
             <div class="page-header">
-                <h1>My Map (In Development)</h1>
+                <h1>My Map</h1>
                 
                 <!-- Search Bar -->
                 <div class="map-search-container">
@@ -1433,7 +1490,7 @@
                                       fill="#22C55E" stroke="#16A34A" stroke-width="2"/>
                                 <circle cx="12" cy="12" r="4.5" fill="#16A34A"/>
                             </svg>
-                            <span class="legend-text">Tracked Well (pin = tracked, color = status)</span>
+                            <span class="legend-text">Tracked Well</span>
                         </div>
                     </div>
                 </div>
@@ -1445,33 +1502,42 @@
                             <svg width="20" height="20" viewBox="0 0 20 20" style="margin: 0 2px;">
                                 <circle cx="10" cy="10" r="8" fill="var(--permit)" stroke="var(--permit-dark)" stroke-width="2" opacity="0.7"/>
                             </svg>
-                            <span class="legend-text">New Drilling Permit</span>
+                            <span class="legend-text">New Drilling Permit
+                                <span class="legend-subtitle">Near your properties • Last 90 days</span>
+                            </span>
                         </div>
                         <div class="legend-item">
                             <svg width="20" height="20" viewBox="0 0 20 20" style="margin: 0 2px;">
                                 <circle cx="10" cy="10" r="8" fill="var(--completed)" stroke="var(--completed-dark)" stroke-width="2" opacity="0.7"/>
                             </svg>
-                            <span class="legend-text">Recently Completed</span>
+                            <span class="legend-text">Recently Completed
+                                <span class="legend-subtitle">Near your properties • Last 90 days</span>
+                            </span>
                         </div>
                     </div>
                 </div>
                 
                 <div class="legend-group">
-                    <div class="legend-group-title" title="All drilling permits and completions statewide within 90 days">Activity Density</div>
+                    <div class="legend-group-title">Activity Density</div>
                     <div class="legend-items">
                         <div class="legend-item">
                             <div style="width: 40px; height: 14px; background: linear-gradient(to right, rgba(255, 255, 0, 0.4), rgba(245, 158, 11, 0.8), rgba(220, 38, 38, 1)); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
-                            <span class="legend-text">Permits</span>
+                            <span class="legend-text">Permits
+                                <span class="legend-subtitle">Statewide • Last 90 days</span>
+                            </span>
                         </div>
                         <div class="legend-item">
                             <div style="width: 40px; height: 14px; background: linear-gradient(to right, rgba(96, 165, 250, 0.4), rgba(59, 130, 246, 0.8), rgba(124, 58, 237, 1)); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
-                            <span class="legend-text">Completions</span>
+                            <span class="legend-text">Completions
+                                <span class="legend-subtitle">Statewide • Last 90 days</span>
+                            </span>
                         </div>
                     </div>
                 </div>
             </div>
         </div>
     </main>
+    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
 
     <!-- Well Detail Modal -->
     <div class="well-modal-overlay" id="wellModal">
@@ -2817,13 +2883,18 @@
             const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
             const apiNumber = fields['API Number'] || 'Unknown';
             const operator = toTitleCase(fields['Operator'] || 'Unknown');
+            const operatorPhone = fields['Operator Phone'] || '';
+            const contactName = toTitleCase(fields['Contact Name'] || fields['Operator Contact'] || '');
             const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
             const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
+            const wellType = fields['Well Type'] || 'Oil Well';
             const county = toTitleCase(fields['County'] || '');
             const section = fields['Section'] || '';
             const township = fields['Township'] || '';
             const range = fields['Range'] || '';
+            const completionDate = fields['Completion Date'] || '';
+            const totalDepth = fields['Total Depth'] || '';
             const occMapLink = fields['OCC Map Link'] || '';
             
             // Format location string (T10N R07W 06 format)
@@ -2834,11 +2905,15 @@
             // Status badge color
             const statusBgColor = statusColor + '20'; // 20% opacity version
             
-            // Set modal title
-            document.getElementById('wellModalTitle').textContent = wellName;
+            // Set modal title with completion date badge
+            const titleHtml = `
+                <span>${wellName}</span>
+                ${completionDate ? `<span class="well-date-badge">${completionDate}</span>` : ''}
+            `;
+            document.getElementById('wellModalTitle').innerHTML = titleHtml;
             document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
             
-            // Build modal body content
+            // Build modal body content with new layout
             let bodyContent = `
                 <div class="well-detail-grid">
                     <div class="well-detail-section">
@@ -2848,47 +2923,54 @@
                         </div>
                     </div>
                     <div class="well-detail-section">
-                        <div class="well-detail-label">Operator</div>
-                        <div class="well-detail-value">${operator}</div>
+                        <div class="well-detail-label">Well Type</div>
+                        <div class="well-detail-value">${wellType || 'N/A'}</div>
                     </div>
                 </div>
                 
-                <div class="well-detail-section">
-                    <div class="well-detail-label">Location</div>
-                    <div class="well-detail-value">${locationStr}</div>
+                <div class="well-detail-full">
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Operator</div>
+                        <div class="well-detail-value">
+                            ${operator}
+                            ${operatorPhone || contactName ? `
+                                <div class="well-contact-info">
+                                    ${operatorPhone ? `<a href="tel:${operatorPhone.replace(/\D/g, '')}">${operatorPhone}</a>` : ''}
+                                    ${operatorPhone && contactName ? ' • ' : ''}
+                                    ${contactName || ''}
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="well-detail-grid">
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Location</div>
+                        <div class="well-detail-value">${locationStr}</div>
+                    </div>
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">County</div>
+                        <div class="well-detail-value">${county ? `${county} County` : 'Unknown'}</div>
+                    </div>
                 </div>
             `;
             
-            if (county) {
+            // Add formation/depth row if either exists
+            if (formation || totalDepth) {
                 bodyContent += `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">County</div>
-                        <div class="well-detail-value">${county} County, Oklahoma</div>
-                    </div>
-                `;
-            }
-            
-            if (formation) {
-                bodyContent += `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Formation</div>
-                        <div class="well-detail-value">${formation}</div>
-                    </div>
-                `;
-            }
-            
-            // Add any additional fields that might be present
-            const additionalFields = ['Spud Date', 'Completion Date', 'Total Depth', 'Initial Production'];
-            additionalFields.forEach(fieldName => {
-                if (fields[fieldName]) {
-                    bodyContent += `
+                    <div class="well-detail-grid" style="border-bottom: none;">
                         <div class="well-detail-section">
-                            <div class="well-detail-label">${fieldName}</div>
-                            <div class="well-detail-value">${fields[fieldName]}</div>
+                            <div class="well-detail-label">Formation</div>
+                            <div class="well-detail-value">${formation || 'N/A'}</div>
                         </div>
-                    `;
-                }
-            });
+                        <div class="well-detail-section">
+                            <div class="well-detail-label">Depth</div>
+                            <div class="well-detail-value">${totalDepth ? `${totalDepth} ft` : 'N/A'}</div>
+                        </div>
+                    </div>
+                `;
+            }
             
             document.getElementById('wellModalBody').innerHTML = bodyContent;
             

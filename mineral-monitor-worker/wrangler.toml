@@ -13,6 +13,8 @@ AIRTABLE_USERS_TABLE = "tblmb8sZtfn2EW900"
 AIRTABLE_PROPERTIES_TABLE = "tblbexFvBkow2ErYm"
 AIRTABLE_WELLS_TABLE = "tblqWp3rb7rT3p9SA"
 AIRTABLE_ACTIVITY_TABLE = "tblhBZNR5pDr620NY"
+AIRTABLE_WELL_LOCATIONS_TABLE = "tblAvTwkBjU8Qwlm7"
+AIRTABLE_STATEWIDE_ACTIVITY_TABLE = "tblbM8kwkRyFS9eaj"
 
 # Set to "true" to test without sending emails or creating records
 # Change to "false" when ready for production

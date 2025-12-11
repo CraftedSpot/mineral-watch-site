@@ -59,3 +59,18 @@ export {
 export {
   handleOccProxy
 } from './occ-proxy.js';
+
+// Formation backfill handlers
+export {
+  handleBackfillFormations,
+  handleGetFormationForActivity
+} from './backfill-formations.js';
+
+// Well locations backfill handler
+export { default as handleBackfillWellLocations } from './backfill-well-locations.js';
+
+// Statewide activity handler
+export { handleStatewideActivity } from './statewide.js';
+
+// Statewide activity backfill handler
+export { handleBackfillStatewideActivity } from './backfill-statewide-activity.js';

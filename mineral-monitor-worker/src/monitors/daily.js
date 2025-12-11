@@ -22,6 +22,18 @@ import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 // Operator lookups handled by contact-handler and weekly worker
 import { getAdjacentSections } from '../utils/plss.js';
+import { 
+  upsertWellLocation, 
+  createWellLocationFromPermit, 
+  createWellLocationFromCompletion 
+} from '../services/wellLocations.js';
+import {
+  createStatewideActivity,
+  createStatewideActivityFromPermit,
+  createStatewideActivityFromCompletion,
+  cleanupOldStatewideRecords
+} from '../services/statewideActivity.js';
+import { checkWellStatusChange } from '../services/statusChange.js';
 
 /**
  * Check if we're in dry-run mode
@@ -291,6 +303,7 @@ export async function runDailyMonitor(env) {
     completionsProcessed: 0,
     permitsSkippedAsProcessed: 0,
     completionsSkippedAsProcessed: 0,
+    statusChanges: 0,
     alertsSent: 0,
     alertsSkipped: 0,
     matchesFound: [],
@@ -414,13 +427,28 @@ export async function runDailyMonitor(env) {
     throw err;
   }
   
-  console.log(`[Daily] Completed. Permits: ${results.permitsProcessed}, Completions: ${results.completionsProcessed}, Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}`);
+  console.log(`[Daily] Completed. Permits: ${results.permitsProcessed}, Completions: ${results.completionsProcessed}, Status Changes: ${results.statusChanges}, Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}`);
   
   if (dryRun && results.matchesFound.length > 0) {
     console.log(`[Daily] DRY RUN - Matches found:`);
     results.matchesFound.forEach(m => {
       console.log(`  - ${m.activityType}: ${m.wellName} (${m.api}) → ${m.userEmail} [${m.alertLevel}]`);
     });
+  }
+  
+  // Run cleanup for old statewide activity records (90 days)
+  if (!dryRun) {
+    try {
+      const cleanupResult = await cleanupOldStatewideRecords(env, 90);
+      if (cleanupResult.success) {
+        console.log(`[Daily] Cleaned up ${cleanupResult.deletedCount} old statewide activity records`);
+        results.statewideCleanup = cleanupResult.deletedCount;
+      } else {
+        console.error(`[Daily] Failed to cleanup old records: ${cleanupResult.error}`);
+      }
+    } catch (err) {
+      console.error(`[Daily] Error during statewide cleanup:`, err.message);
+    }
   }
   
   return results;
@@ -520,6 +548,49 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     console.log(`[Daily] No coordinates found for permit ${api10}`);
   }
   
+  // Check for well status changes
+  if (wellData && wellData.wellstatus) {
+    const statusResult = await checkWellStatusChange(api10, wellData, env);
+    if (statusResult.hasChange) {
+      console.log(`[Daily] Status change detected for ${api10}: ${statusResult.previousStatus} → ${statusResult.currentStatus}`);
+      results.statusChanges = (results.statusChanges || 0) + 1;
+      results.alertsSent += statusResult.alertsSent;
+    }
+  }
+  
+  // Step 1: ALWAYS write to Statewide Activity if coordinates available
+  try {
+    if (wellData && wellData.sh_lat && wellData.sh_lon) {
+      const activityData = createStatewideActivityFromPermit(permit, wellData, mapLink);
+      const activityResult = await createStatewideActivity(env, activityData);
+      if (activityResult.success) {
+        console.log(`[Daily] Statewide activity created for permit ${api10} (heatmap tracking)`);
+      } else {
+        console.error(`[Daily] Failed to store statewide activity for permit ${api10}: ${activityResult.error}`);
+      }
+    } else {
+      console.log(`[Daily] Skipping statewide activity for permit ${api10} - no coordinates for heatmap`);
+      results.coordinateFailures = (results.coordinateFailures || 0) + 1;
+    }
+  } catch (err) {
+    console.error(`[Daily] Error storing statewide activity for permit ${api10}:`, err.message);
+  }
+  
+  // Step 2: If user matches exist, ALSO write to Well Locations
+  try {
+    if (alertsToSend.length > 0) {
+      const locationData = createWellLocationFromPermit(permit, wellData, mapLink);
+      const locationResult = await upsertWellLocation(env, locationData);
+      if (locationResult.success) {
+        console.log(`[Daily] Well location ${locationResult.action} for permit ${api10} (user-related)`);
+      } else {
+        console.error(`[Daily] Failed to store well location for permit ${api10}: ${locationResult.error}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[Daily] Error storing well location for permit ${api10}:`, err.message);
+  }
+  
   // 5. Send alerts (with deduplication check using preloaded set)
   for (const alert of alertsToSend) {
     // OPTIMIZATION: Use preloaded alert set instead of individual queries
@@ -578,7 +649,11 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       county: permit.County,
       occLink: permit.IMAGE_URL || null,
       mapLink: mapLink || "", // Always include map link
-      userId: alert.user.id
+      userId: alert.user.id,
+      // Check various possible formation fields in permit data
+      formation: permit.Target_Zone || permit.Target_Formation || 
+                 permit.Zone_Of_Significance || permit.Formation ||
+                 permit.Target || null
     };
     
     const activityRecord = await createActivityLog(env, activityData);
@@ -628,6 +703,18 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
  */
 async function processCompletion(completion, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null) {
   const api10 = normalizeAPI(completion.API_Number);
+  
+  // Try to get enhanced completion data from cache (if available)
+  let enhancedFormation = null;
+  try {
+    const cached = await env.COMPLETIONS_CACHE.get(`well:${api10}`, { type: 'json' });
+    if (cached && cached.formationName) {
+      enhancedFormation = cached.formationName;
+      console.log(`[Daily] Found enhanced formation data for ${api10}: ${enhancedFormation}`);
+    }
+  } catch (err) {
+    console.log(`[Daily] No enhanced completion data found for ${api10}`);
+  }
   
   // Collect all users who should be alerted
   const alertsToSend = [];
@@ -721,6 +808,49 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     console.log(`[Daily] No coordinates found for completion ${api10}`);
   }
   
+  // Check for well status changes
+  if (wellData && wellData.wellstatus) {
+    const statusResult = await checkWellStatusChange(api10, wellData, env);
+    if (statusResult.hasChange) {
+      console.log(`[Daily] Status change detected for ${api10}: ${statusResult.previousStatus} → ${statusResult.currentStatus}`);
+      results.statusChanges = (results.statusChanges || 0) + 1;
+      results.alertsSent += statusResult.alertsSent;
+    }
+  }
+  
+  // Step 1: ALWAYS write to Statewide Activity if coordinates available
+  try {
+    if (wellData && wellData.sh_lat && wellData.sh_lon) {
+      const activityData = createStatewideActivityFromCompletion(completion, wellData, mapLink);
+      const activityResult = await createStatewideActivity(env, activityData);
+      if (activityResult.success) {
+        console.log(`[Daily] Statewide activity created for completion ${api10} (heatmap tracking)`);
+      } else {
+        console.error(`[Daily] Failed to store statewide activity for completion ${api10}: ${activityResult.error}`);
+      }
+    } else {
+      console.log(`[Daily] Skipping statewide activity for completion ${api10} - no coordinates for heatmap`);
+      results.coordinateFailures = (results.coordinateFailures || 0) + 1;
+    }
+  } catch (err) {
+    console.error(`[Daily] Error storing statewide activity for completion ${api10}:`, err.message);
+  }
+  
+  // Step 2: If user matches exist, ALSO write to Well Locations
+  try {
+    if (alertsToSend.length > 0) {
+      const locationData = createWellLocationFromCompletion(completion, wellData, mapLink);
+      const locationResult = await upsertWellLocation(env, locationData);
+      if (locationResult.success) {
+        console.log(`[Daily] Well location ${locationResult.action} for completion ${api10} (user-related)`);
+      } else {
+        console.error(`[Daily] Failed to store well location for completion ${api10}: ${locationResult.error}`);
+      }
+    }
+  } catch (err) {
+    console.error(`[Daily] Error storing well location for completion ${api10}:`, err.message);
+  }
+  
   // 5. Send alerts
   if (alertsToSend.length > 1) {
     console.log(`[Daily] Completion ${api10} has ${alertsToSend.length} alerts for user ${alertsToSend[0].user.email}:`);
@@ -802,7 +932,9 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       mapLink: mapLink || "", // Always include map link
       userId: alert.user.id,
       // Include completion date to differentiate multiple zone completions
-      notes: completion.Well_Completion ? `Completion Date: ${completion.Well_Completion}` : null
+      notes: completion.Well_Completion ? `Completion Date: ${completion.Well_Completion}` : null,
+      // Add formation data if available (prefer enhanced data from cache)
+      formation: enhancedFormation || completion.Formation_Name || null
     };
     
     const activityRecord = await createActivityLog(env, activityData);
