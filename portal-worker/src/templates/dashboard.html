@@ -2630,7 +2630,8 @@
                     }
                     if (contactPerson) contactParts.push(`${contactPerson}`);
                     if (contactParts.length > 0) {
-                        operatorContactDisplay += ` (${contactParts.join(', ')})`;
+                        // Don't wrap in parentheses since phone already has them
+                        operatorContactDisplay += ` ${contactParts.join(' • ')}`;
                     }
                 }
                 
