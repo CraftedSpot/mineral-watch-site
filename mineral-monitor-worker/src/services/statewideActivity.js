@@ -95,7 +95,7 @@ export async function cleanupOldStatewideRecords(env, daysToKeep = 90) {
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
   
   // Find records older than cutoff
-  const formula = `DATETIME_DIFF(NOW(), {Created At}, 'days') > ${daysToKeep}`;
+  const formula = `DATETIME_DIFF(NOW(), {Created Date}, 'days') > ${daysToKeep}`;
   const url = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_STATEWIDE_ACTIVITY_TABLE}?filterByFormula=${encodeURIComponent(formula)}&fields[]=id`;
   
   try {
@@ -160,7 +160,26 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
     township: permit.Township,
     range: permit.Range,
     pm: permit.PM || 'IM',
-    permitDate: (permit.Approval_Date && permit.Approval_Date.trim()) || new Date().toISOString().split('T')[0],
+    permitDate: (() => {
+      const rawDate = permit.Approval_Date;
+      console.log(`[Debug] Raw permit date for ${permit.API_Number}: "${rawDate}" (type: ${typeof rawDate})`);
+      
+      if (rawDate && typeof rawDate === 'string' && rawDate.trim()) {
+        const trimmed = rawDate.trim();
+        // Try to parse and reformat the date
+        const parsed = new Date(trimmed);
+        if (!isNaN(parsed)) {
+          const formatted = parsed.toISOString().split('T')[0];
+          console.log(`[Debug] Formatted permit date: "${formatted}"`);
+          return formatted;
+        }
+        console.log(`[Debug] Invalid date string: "${trimmed}"`);
+      }
+      
+      const fallback = new Date().toISOString().split('T')[0];
+      console.log(`[Debug] Using fallback permit date: "${fallback}"`);
+      return fallback;
+    })(),
     isHorizontal: permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH'
   };
   
