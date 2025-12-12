@@ -48,6 +48,12 @@ export async function createStatewideActivity(env, activityData) {
   if (activityData.longitude !== undefined && activityData.longitude !== null) {
     fields['Longitude'] = activityData.longitude;
   }
+  if (activityData.bhLatitude !== undefined && activityData.bhLatitude !== null) {
+    fields['BH Latitude'] = activityData.bhLatitude;
+  }
+  if (activityData.bhLongitude !== undefined && activityData.bhLongitude !== null) {
+    fields['BH Longitude'] = activityData.bhLongitude;
+  }
   
   // Optional fields
   if (activityData.mapLink) fields['OCC Map Link'] = activityData.mapLink;
@@ -154,7 +160,7 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
     township: permit.Township,
     range: permit.Range,
     pm: permit.PM || 'IM',
-    permitDate: permit.Approval_Date || new Date().toISOString(),
+    permitDate: permit.Approval_Date || new Date().toISOString().split('T')[0],
     isHorizontal: permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH'
   };
   
@@ -182,6 +188,23 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
     activityData.longitude = wellCoords.sh_lon;
   }
   
+  // Extract BH coordinates if available for horizontal wells
+  if (permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH') {
+    if (permit.BH_Lat_Y && permit.BH_Long_X) {
+      const bhLatitude = parseFloat(permit.BH_Lat_Y);
+      const bhLongitude = parseFloat(permit.BH_Long_X);
+      
+      // Validate BH coordinates are reasonable for Oklahoma
+      if (!isNaN(bhLatitude) && !isNaN(bhLongitude) && 
+          bhLatitude > 33 && bhLatitude < 37 && 
+          bhLongitude > -103 && bhLongitude < -94) {
+        activityData.bhLatitude = bhLatitude;
+        activityData.bhLongitude = bhLongitude;
+        console.log(`[Statewide] Using OCC permit BH coordinates for ${permit.API_Number}: ${bhLatitude}, ${bhLongitude}`);
+      }
+    }
+  }
+  
   // Add map link if available
   if (mapLink) {
     activityData.mapLink = mapLink;
@@ -205,7 +228,7 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
     range: completion.Range,
     pm: completion.PM || 'IM',
     formation: completion.Formation_Name,
-    completionDate: completion.Well_Completion || new Date().toISOString(),
+    completionDate: completion.Well_Completion || new Date().toISOString().split('T')[0],
     isHorizontal: completion.Drill_Type === 'HORIZONTAL HOLE'
   };
   
@@ -231,6 +254,23 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
   if (!activityData.latitude && !activityData.longitude && wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     activityData.latitude = wellCoords.sh_lat;
     activityData.longitude = wellCoords.sh_lon;
+  }
+  
+  // Extract BH coordinates if available for horizontal wells
+  if (completion.Drill_Type === 'HORIZONTAL HOLE') {
+    if (completion.BH_Lat_Y && completion.BH_Long_X) {
+      const bhLatitude = parseFloat(completion.BH_Lat_Y);
+      const bhLongitude = parseFloat(completion.BH_Long_X);
+      
+      // Validate BH coordinates are reasonable for Oklahoma
+      if (!isNaN(bhLatitude) && !isNaN(bhLongitude) && 
+          bhLatitude > 33 && bhLatitude < 37 && 
+          bhLongitude > -103 && bhLongitude < -94) {
+        activityData.bhLatitude = bhLatitude;
+        activityData.bhLongitude = bhLongitude;
+        console.log(`[Statewide] Using OCC completion BH coordinates for ${completion.API_Number}: ${bhLatitude}, ${bhLongitude}`);
+      }
+    }
   }
   
   // Add map link if available

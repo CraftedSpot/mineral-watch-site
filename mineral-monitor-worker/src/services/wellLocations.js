@@ -119,6 +119,8 @@ export async function upsertWellLocation(env, wellData) {
   // Coordinates
   if (wellData.latitude !== undefined && wellData.latitude !== null) fields['Latitude'] = wellData.latitude;
   if (wellData.longitude !== undefined && wellData.longitude !== null) fields['Longitude'] = wellData.longitude;
+  if (wellData.bhLatitude !== undefined && wellData.bhLatitude !== null) fields['BH Latitude'] = wellData.bhLatitude;
+  if (wellData.bhLongitude !== undefined && wellData.bhLongitude !== null) fields['BH Longitude'] = wellData.bhLongitude;
   if (wellData.mapLink) fields['OCC Map Link'] = wellData.mapLink;
   if (wellData.coordinateSource) fields['Coordinate Source'] = wellData.coordinateSource;
   
@@ -193,7 +195,7 @@ export async function createWellLocationFromPermit(permit, wellCoords = null, ma
     
     // Flags
     hasPermit: true,
-    permitDate: permit.Approval_Date || new Date().toISOString(),
+    permitDate: permit.Approval_Date || new Date().toISOString().split('T')[0],
     isHorizontal
   };
   
@@ -256,6 +258,21 @@ export async function createWellLocationFromPermit(permit, wellCoords = null, ma
     locationData.bhRange = permit.PBH_Range;
     locationData.bhPM = permit.PBH_PM || permit.PM || 'IM';
     
+    // Extract BH coordinates if available
+    if (permit.BH_Lat_Y && permit.BH_Long_X) {
+      const bhLatitude = parseFloat(permit.BH_Lat_Y);
+      const bhLongitude = parseFloat(permit.BH_Long_X);
+      
+      // Validate BH coordinates are reasonable for Oklahoma
+      if (!isNaN(bhLatitude) && !isNaN(bhLongitude) && 
+          bhLatitude > 33 && bhLatitude < 37 && 
+          bhLongitude > -103 && bhLongitude < -94) {
+        locationData.bhLatitude = bhLatitude;
+        locationData.bhLongitude = bhLongitude;
+        console.log(`[WellLocations] Using OCC permit BH coordinates for ${permit.API_Number}: ${bhLatitude}, ${bhLongitude}`);
+      }
+    }
+    
     // Check if multi-section
     locationData.isMultiSection = isMultiSectionWell(
       { section: permit.Section, township: permit.Township, range: permit.Range },
@@ -292,7 +309,7 @@ export async function createWellLocationFromCompletion(completion, wellCoords = 
     
     // Flags
     hasCompletion: true,
-    completionDate: completion.Well_Completion || new Date().toISOString(),
+    completionDate: completion.Well_Completion || new Date().toISOString().split('T')[0],
     isHorizontal
   };
   
@@ -355,6 +372,21 @@ export async function createWellLocationFromCompletion(completion, wellCoords = 
     locationData.bhRange = completion.BH_Range;
     locationData.bhPM = completion.BH_PM || completion.PM || 'IM';
     locationData.lateralLength = completion.Length || completion.Lateral_Length;
+    
+    // Extract BH coordinates if available
+    if (completion.BH_Lat_Y && completion.BH_Long_X) {
+      const bhLatitude = parseFloat(completion.BH_Lat_Y);
+      const bhLongitude = parseFloat(completion.BH_Long_X);
+      
+      // Validate BH coordinates are reasonable for Oklahoma
+      if (!isNaN(bhLatitude) && !isNaN(bhLongitude) && 
+          bhLatitude > 33 && bhLatitude < 37 && 
+          bhLongitude > -103 && bhLongitude < -94) {
+        locationData.bhLatitude = bhLatitude;
+        locationData.bhLongitude = bhLongitude;
+        console.log(`[WellLocations] Using OCC completion BH coordinates for ${completion.API_Number}: ${bhLatitude}, ${bhLongitude}`);
+      }
+    }
     
     // Check if multi-section
     locationData.isMultiSection = isMultiSectionWell(
