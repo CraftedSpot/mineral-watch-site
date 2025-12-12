@@ -95,10 +95,62 @@
         
         /* Wells table specific column widths - desktop */
         #wellsContent .data-table { table-layout: fixed; }
-        .col-well-name-wide { width: 25%; } /* Reduced to tighten layout */
-        .col-well-operator { width: 25%; }
-        .col-well-county { width: 12%; } /* Less space needed without county codes */
-        .col-well-location { width: 15%; }
+        .col-well-info { width: 50%; }
+        .col-well-operator { width: calc(100% - 50% - 40px - 40px); }
+        
+        /* Expandable well table styles */
+        .wells-expandable .well-row {
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        .wells-expandable .well-row:hover {
+            background-color: #F8FAFC;
+        }
+        .wells-expandable .well-row.expanded {
+            background-color: #F0F9FF;
+        }
+        .well-name-line {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+        .well-details-line {
+            font-size: 13px;
+            color: #6B7280;
+        }
+        .well-details-line .well-api {
+            font-family: monospace;
+            color: #64748B;
+        }
+        .well-details-line .well-status {
+            font-weight: 600;
+            color: var(--slate-blue);
+        }
+        .well-details-line .well-status.status-active {
+            color: var(--success);
+        }
+        .well-details-line .well-formation {
+            color: #8B5CF6;
+        }
+        .well-details-line .well-firstprod {
+            color: #0891B2;
+        }
+        .expand-icon {
+            color: #94A3B8;
+            font-size: 10px;
+            transition: transform 0.2s;
+        }
+        .well-row.expanded .expand-icon {
+            transform: rotate(180deg);
+        }
+        .well-expanded-row td {
+            padding: 0 !important;
+            background: #F8FAFC;
+        }
+        .well-expanded-card {
+            box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+        }
         
         /* Add extra left padding to Notes column for visual separation */
         /* Notes is 5th column: checkbox(1), county(2), legal(3), acres(4), notes(5), actions(6) */
@@ -246,6 +298,77 @@
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
+        
+        /* Well Card Modal Styles */
+        .well-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        
+        /* Card Header */
+        .card-header { background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; }
+        .card-header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
+        .well-name { font-family: 'Merriweather', serif; font-size: 20px; font-weight: 700; margin: 0; }
+        .date-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
+        .api-number { font-size: 13px; opacity: 0.8; }
+        .close-btn { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .close-btn:hover { background: rgba(255,255,255,0.2); }
+        
+        /* Card Content */
+        .card-content { padding: 20px 24px; }
+        
+        /* Status Row */
+        .status-row { display: flex; gap: 24px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .status-item { display: flex; flex-direction: column; gap: 6px; }
+        .status-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-blue); }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; background: var(--success-bg); color: var(--success); }
+        .status-badge.horizontal { background: #DBEAFE; color: #1E40AF; }
+        .status-value { font-size: 14px; font-weight: 600; color: var(--oil-navy); }
+        
+        /* Info Sections */
+        .info-section { margin-bottom: 16px; }
+        .info-section:last-child { margin-bottom: 0; }
+        .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-blue); margin-bottom: 6px; }
+        .section-value { font-size: 15px; font-weight: 500; color: var(--oil-navy); }
+        .section-value a { color: var(--red-dirt); text-decoration: none; }
+        .section-value a:hover { text-decoration: underline; }
+        .contact-line { font-size: 14px; color: var(--slate-blue); margin-top: 2px; }
+        
+        /* Two Column Grid */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        
+        /* Production Section */
+        .production-section { background: var(--paper); border-radius: 8px; padding: 16px; margin-top: 16px; }
+        .production-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .production-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--oil-navy); }
+        .formation-badge { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--slate-blue); }
+        .production-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .production-item { text-align: center; }
+        .production-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 4px; }
+        .production-value { font-size: 16px; font-weight: 700; color: var(--oil-navy); }
+        .production-unit { font-size: 11px; font-weight: 500; color: var(--slate-blue); }
+        
+        /* Dates Row */
+        .dates-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+        .date-item { text-align: center; }
+        .date-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px; }
+        .date-value { font-size: 12px; font-weight: 600; color: var(--oil-navy); }
+        
+        /* Card Footer Actions */
+        .card-footer { padding: 16px 24px 24px; display: flex; gap: 12px; }
+        .action-btn { flex: 1; padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; }
+        .action-btn.primary { background: var(--red-dirt); color: white; }
+        .action-btn.primary:hover { background: var(--red-dirt-dark); }
+        .action-btn.secondary { background: white; color: var(--red-dirt); border: 1px solid var(--red-dirt); }
+        .action-btn.secondary:hover { background: #FFF5F0; }
+        .action-btn.outline { background: white; color: var(--slate-blue); border: 1px solid var(--border); }
+        .action-btn.outline:hover { border-color: var(--slate-blue); color: var(--oil-navy); }
+        
+        /* Mobile Responsive */
+        @media (max-width: 480px) {
+            .two-col { grid-template-columns: 1fr; gap: 12px; }
+            .production-grid { grid-template-columns: repeat(2, 1fr); }
+            .dates-row { grid-template-columns: 1fr; }
+            .card-footer { flex-direction: column; }
+            .status-row { flex-wrap: wrap; }
+        }
         
         /* Delete Modal Specifics */
         .delete-icon-wrapper { width: 48px; height: 48px; border-radius: 50%; background: #FEE2E2; color: #DC2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
@@ -1244,64 +1367,110 @@
         </div>
     </div>
     
-    <!-- Well Details Modal -->
+    <!-- Well Details Modal - New Card Design -->
     <div class="modal-overlay" id="wellDetailsModal">
-        <div class="modal" style="max-width: 550px; position: relative;">
-            <button class="modal-close" onclick="closeWellDetailsModal()" aria-label="Close">×</button>
-            <h2 style="margin-bottom: 5px;" id="wellDetailsTitle">Well Details</h2>
-            <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="wellDetailsApi">API: —</p>
+        <div class="well-card" style="max-width: 520px; width: 100%; position: relative;">
+            <!-- Header -->
+            <div class="card-header">
+                <button class="close-btn" onclick="closeWellDetailsModal()" aria-label="Close">×</button>
+                <div class="card-header-top">
+                    <h2 class="well-name" id="wellDetailsTitle">Well Details</h2>
+                    <span class="date-badge" id="wellDetailsDateBadge">2018-08-05</span>
+                </div>
+                <div class="api-number" id="wellDetailsApi">API: —</div>
+            </div>
             
-            <div class="details-grid">
-                <div class="details-row">
-                    <span class="details-label">Operator</span>
-                    <span class="details-value" id="wellDetailsOperator">—</span>
-                </div>
-                <div class="details-row">
-                    <span class="details-label">Phone</span>
-                    <span class="details-value" id="wellDetailsPhone">—</span>
-                </div>
-                <div class="details-row">
-                    <span class="details-label">Contact</span>
-                    <span class="details-value" id="wellDetailsContact">—</span>
-                </div>
-                <div class="details-row">
-                    <span class="details-label">Location</span>
-                    <span class="details-value" id="wellDetailsLocation">—</span>
-                </div>
-                <div class="details-row">
-                    <span class="details-label">County</span>
-                    <span class="details-value" id="wellDetailsCounty">—</span>
-                </div>
-                <div class="details-row" id="wellTypeRow" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <span class="details-label">Well Type</span>
-                        <span class="details-value" id="wellDetailsType">—</span>
+            <!-- Content -->
+            <div class="card-content">
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" id="wellDetailsStatusBadge">AC</span>
                     </div>
-                    <div id="wellTypeExplanation" style="display: none; font-size: 12px; color: var(--slate-blue); padding-top: 4px; border-top: 1px solid #E5E7EB; width: 100%; font-style: italic;"></div>
-                </div>
-                <div class="details-row" id="occStatusRow" style="flex-direction: column; align-items: flex-start; gap: 4px;">
-                    <div style="display: flex; justify-content: space-between; width: 100%; align-items: center;">
-                        <span class="details-label">OCC Status</span>
-                        <span class="details-value" id="wellDetailsStatus">—</span>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value" id="wellDetailsType">GAS</span>
                     </div>
-                    <div id="occStatusExplanation" style="display: none; font-size: 12px; color: var(--slate-blue); padding-top: 4px; border-top: 1px solid #E5E7EB; width: 100%; font-style: italic;"></div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge horizontal" id="wellDetailsDirection">Horizontal</span>
+                    </div>
                 </div>
-                <div class="details-row" style="flex-direction: column; align-items: flex-start;">
-                    <span class="details-label" style="margin-bottom: 8px;">Notes</span>
-                    <textarea id="wellDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this well..."></textarea>
+                
+                <!-- Operator -->
+                <div class="info-section">
+                    <div class="section-label">Operator</div>
+                    <div class="section-value" id="wellDetailsOperator">Validus Energy II Midcon LLC</div>
+                    <div class="contact-line" id="wellDetailsContact">
+                        <a href="tel:7209742084" id="wellDetailsPhoneLink">(720) 974-2084</a> • <span id="wellDetailsContactPerson">Michelle Pettifor</span>
+                    </div>
+                </div>
+                
+                <!-- Location / County -->
+                <div class="two-col">
+                    <div class="info-section">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellDetailsLocation">T03N R03W 25</div>
+                    </div>
+                    <div class="info-section">
+                        <div class="section-label">County</div>
+                        <div class="section-value" id="wellDetailsCounty">Garvin County</div>
+                    </div>
+                </div>
+                
+                <!-- Production Section (conditionally shown) -->
+                <div class="production-section" id="wellDetailsProduction" style="display: none;">
+                    <div class="production-header">
+                        <span class="production-title">Production Data</span>
+                        <span class="formation-badge" id="wellDetailsFormationBadge">Woodford</span>
+                    </div>
+                    
+                    <div class="production-grid">
+                        <div class="production-item">
+                            <div class="production-label">IP Gas</div>
+                            <div class="production-value" id="wellDetailsIPGas">2,847</div>
+                            <div class="production-unit">MCF/day</div>
+                        </div>
+                        <div class="production-item">
+                            <div class="production-label">IP Oil</div>
+                            <div class="production-value" id="wellDetailsIPOil">156</div>
+                            <div class="production-unit">BBL/day</div>
+                        </div>
+                        <div class="production-item">
+                            <div class="production-label">Depth</div>
+                            <div class="production-value" id="wellDetailsDepth">15,004</div>
+                            <div class="production-unit">ft</div>
+                        </div>
+                    </div>
+                    
+                    <div class="dates-row">
+                        <div class="date-item">
+                            <div class="date-label">Completed</div>
+                            <div class="date-value" id="wellDetailsCompleted">2018-07-28</div>
+                        </div>
+                        <div class="date-item">
+                            <div class="date-label">First Prod</div>
+                            <div class="date-value" id="wellDetailsFirstProd">2018-08-05</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Notes Section -->
+                <div class="info-section" style="margin-top: 16px;">
+                    <div class="section-label">Notes</div>
+                    <textarea id="wellDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; margin-top: 6px;" placeholder="Add notes about this well..."></textarea>
                 </div>
             </div>
             
-            <div class="details-actions">
-                <a href="#" target="_blank" class="details-btn primary" id="wellDetailsMapLink">📍 OCC Map</a>
-                <a href="#" target="_blank" class="details-btn" id="wellDetailsRecordsLink">📂 Well Records</a>
+            <!-- Footer Actions -->
+            <div class="card-footer">
+                <a href="#" target="_blank" class="action-btn primary" id="wellDetailsMapLink">OCC Map ↗</a>
+                <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
+                <button class="action-btn outline" onclick="saveWellNotes()">Save Notes</button>
             </div>
             
             <input type="hidden" id="wellDetailsId">
-            <div class="modal-buttons" style="margin-top: 20px;">
-                <button type="button" class="btn-cancel" onclick="closeWellDetailsModal()">Close</button>
-                <button type="button" class="btn-submit" onclick="saveWellNotes()">Save Notes</button>
-            </div>
         </div>
     </div>
     
@@ -2278,8 +2447,8 @@
             return titles[helpKey] || helpKey;
         }
 
-        // Generate production accordion HTML for a single well
-        function generateProductionAccordion(w) {
+        // Generate expanded well card HTML
+        function generateExpandedWellCard(w) {
             const f = w.fields;
             
             // Helper functions for formatting
@@ -2299,153 +2468,95 @@
             };
             
             // Prepare data
+            const wellName = f['Well Name'] || 'Unknown Well';
+            const apiNumber = f['API Number'] || '';
+            const operator = f['Operator'] || '—';
+            const operatorPhone = f['Operator Phone'] || '';
+            const contactPerson = f['Contact Person'] || '';
+            const county = cleanCountyDisplay(f['County']) || '—';
+            const section = f['Section'] || '';
+            const township = f['Township'] || '';
+            const range = f['Range'] || '';
+            const location = (section && township && range) ? `T${township} R${range} ${section}` : '—';
+            
+            const completionDate = formatDate(f['Completion Date']);
+            const firstProdDate = formatDate(f['First Production Date']);
+            
+            const status = f['Well Status'] || f['OCC Status'] || '—';
+            const wellType = f['Well Type'] || '—';
             const formationName = f['Formation Name'] || '';
             const formationDepth = f['Formation Depth'];
             const formationDisplay = formationName && formationDepth 
                 ? `${formationName} @ ${formatNumber(formationDepth)} ft`
-                : formationName || 'UNKNOWN FORMATION';
+                : formationName || '—';
             
             const ipGas = f['IP Gas (MCF/day)'] ? formatNumber(f['IP Gas (MCF/day)']) : null;
             const ipOil = f['IP Oil (BBL/day)'] ? formatNumber(f['IP Oil (BBL/day)']) : null;
-            const ipWater = f['IP Water (BBL/day)'] ? formatNumber(f['IP Water (BBL/day)']) : null;
-            const lateralLength = f['Lateral Length'] ? formatNumber(f['Lateral Length']) : null;
             
-            const spudDate = formatDate(f['Spud Date']);
-            const completionDate = formatDate(f['Completion Date']);
-            const firstProdDate = formatDate(f['First Production Date']);
-            
-            const isMultiSection = f['Is Multi-Section'] === true || f['Is Multi-Section'] === 'true';
+            const notes = f['Notes'] || '';
             
             return `
-                <div class="production-accordion-floating" style="background: #F8FAFC; margin: 0; padding: 20px; border-radius: 0;">
-                    <div class="production-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 1px solid #E5E7EB;">
+                <div class="well-expanded-card" style="padding: 20px; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; margin: 10px;">
+                    <!-- Header (no well name repetition) -->
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 16px;">
+                        <div style="color: #6B7280; font-size: 12px; font-weight: 600; letter-spacing: 0.5px;">WELL DETAILS</div>
+                        ${completionDate ? `<span style="background: var(--red-dirt); color: white; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">Completed: ${completionDate}</span>` : ''}
+                    </div>
+                    
+                    <!-- Formation & Production Info -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 0 0 16px 0;">
+                    
+                    <!-- Info Grid -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 16px 0;">
                         <div>
-                            <h4 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Production Data</h4>
-                            ${f['Well Type'] ? `<span style="color: var(--slate-blue); font-size: 12px;">Well Type: ${f['Well Type']}</span>` : ''}
+                            <div style="color: #6B7280; font-size: 12px; margin-bottom: 4px;">STATUS</div>
+                            <div style="font-size: 14px; font-weight: 600; color: ${status === 'Active' || status === 'AC' ? '#059669' : 'var(--oil-navy)'};">${status}</div>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 8px;">
-                            <span style="color: var(--slate-blue); font-size: 13px;">Formation:</span>
-                            <span class="formation-badge" style="background: var(--red-dirt); color: white; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: 500;">${formationDisplay}</span>
+                        <div>
+                            <div style="color: #6B7280; font-size: 12px; margin-bottom: 4px;">FORMATION</div>
+                            <div style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">${formationDisplay}</div>
                         </div>
-                    </div>
-                    
-                    <!-- OCC Links Section -->
-                    <div style="margin-bottom: 16px; display: flex; gap: 10px; flex-wrap: wrap;">
-                        ${(function() {
-                            let buttons = [];
-                            
-                            // OCC Map link
-                            if (f['OCC Map Link'] && f['OCC Map Link'] !== '#') {
-                                buttons.push(`<a href="${f['OCC Map Link']}" target="_blank" class="details-btn primary" style="padding: 8px 16px; font-size: 13px;">📍 OCC Map</a>`);
-                            }
-                            
-                            // Well Records - always show if we have API
-                            if (f['API Number']) {
-                                // Use the OCC search URL with the API number
-                                const apiNumber = f['API Number'];
-                                const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`);
-                                const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}&cr=1`;
-                                
-                                buttons.push(`<a href="${recordsUrl}" target="_blank" class="details-btn" style="padding: 8px 16px; font-size: 13px;">📂 Well Records</a>`);
-                            }
-                            
-                            return buttons.join('');
-                        })()}
-                    </div>
-                    
-                    <div class="production-sections">
-                        <!-- Production Section -->
-                        <div class="production-section">
-                            <div class="section-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #E5E7EB;">
-                                <span style="font-size: 16px;">🛢️</span>
-                                <h5 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--slate-blue);">INITIAL PRODUCTION</h5>
-                            </div>
-                            <div class="prod-stats">
-                                ${ipGas ? `
-                                    <div class="production-term" data-help="ipGas">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="ipGas">Gas:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${ipGas} MCF/day</span>
-                                        </div>
-                                        <div class="production-explanation">Initial Production Gas - 24-hour flow test rate when well first came online</div>
-                                    </div>` : ''}
-                                ${ipOil ? `
-                                    <div class="production-term" data-help="ipOil">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="ipOil">Oil:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${ipOil} BBL/day</span>
-                                        </div>
-                                        <div class="production-explanation">Initial Production Oil - 24-hour flow test rate when well first came online</div>
-                                    </div>` : ''}
-                                ${ipWater ? `
-                                    <div class="production-term" data-help="ipWater">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="ipWater">Water:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${ipWater} BBL/day</span>
-                                        </div>
-                                        <div class="production-explanation">Initial Production Water - 24-hour flow test rate when well first came online</div>
-                                    </div>` : ''}
-                                ${lateralLength ? `
-                                    <div class="production-term" data-help="lateral">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="lateral">Lateral:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${lateralLength} ft</span>
-                                        </div>
-                                        <div class="production-explanation">Lateral Length - horizontal portion of wellbore drilled through the formation</div>
-                                    </div>` : ''}
-                                ${formationDepth ? `<div class="production-term" data-help="formationDepth">
-                                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="formationDepth">Depth:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${formatNumber(formationDepth)} ft</span>
-                                        </div>
-                                        <div class="production-explanation">Formation Depth - vertical depth to the producing geological formation</div>
-                                    </div>` : ''}
-                            </div>
+                        <div>
+                            <div style="color: #6B7280; font-size: 12px; margin-bottom: 4px;">WELL TYPE</div>
+                            <div style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">${wellType}</div>
                         </div>
-                        
-                        <!-- Timeline Section -->
-                        <div class="timeline-section">
-                            <div class="section-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 1px solid #E5E7EB;">
-                                <span style="font-size: 16px;">📅</span>
-                                <h5 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--slate-blue);">TIMELINE</h5>
-                            </div>
-                            <div class="timeline-stats">
-                                ${spudDate ? `
-                                    <div class="production-term" data-help="spudDate">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="spudDate">Spud:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${spudDate}</span>
-                                        </div>
-                                        <div class="production-explanation">Spud Date - when drilling operations began at this well location</div>
-                                    </div>` : ''}
-                                ${completionDate ? `
-                                    <div class="production-term" data-help="completedDate">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="completedDate">Completed:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${completionDate}</span>
-                                        </div>
-                                        <div class="production-explanation">Completion Date - when well construction finished and production equipment was installed</div>
-                                    </div>` : ''}
-                                ${firstProdDate ? `
-                                    <div class="production-term" data-help="firstProdDate">
-                                        <div style="display: flex; justify-content: space-between; align-items: baseline; width: 100%;">
-                                            <span style="color: var(--slate-blue); font-size: 13px;" class="hover-helper" data-help="firstProdDate">First Prod:</span>
-                                            <span style="font-weight: 600; color: var(--oil-navy);">${firstProdDate}</span>
-                                        </div>
-                                        <div class="production-explanation">First Production Date - when commercial oil/gas production began</div>
-                                    </div>` : ''}
-                            </div>
+                        <div>
+                            <div style="color: #6B7280; font-size: 12px; margin-bottom: 4px;">FIRST PRODUCTION</div>
+                            <div style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">${firstProdDate || '—'}</div>
                         </div>
                     </div>
                     
-                    ${isMultiSection ? `
-                    <div class="horizontal-section" style="margin-top: 20px; padding-top: 16px; border-top: 1px solid #E5E7EB;">
-                        <div class="section-header" style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
-                            <span style="font-size: 16px;">📍</span>
-                            <h5 style="margin: 0; font-size: 14px; font-weight: 600; color: var(--slate-blue);" class="hover-helper" data-help="multiSection">HORIZONTAL DETAILS</h5>
+                    <!-- Initial Production -->
+                    ${(ipGas || ipOil) ? `
+                    <div style="padding: 16px 0; border-bottom: 1px solid #E5E7EB;">
+                        <div style="color: #6B7280; font-size: 12px; margin-bottom: 8px;">INITIAL PRODUCTION</div>
+                        <div style="font-size: 14px; color: var(--oil-navy);">
+                            ${ipGas ? `Gas: <strong>${ipGas} MCF/day</strong>` : ''}
+                            ${ipGas && ipOil ? ' • ' : ''}
+                            ${ipOil ? `Oil: <strong>${ipOil} BBL/day</strong>` : ''}
                         </div>
-                        <div style="color: var(--slate-blue); font-size: 13px; font-style: italic;">Multi-section horizontal well</div>
-                    </div>` : ''}
+                    </div>
+                    ` : ''}
+                    
+                    <!-- Notes Section -->
+                    <div style="padding: 16px 0; border-bottom: 1px solid #E5E7EB;">
+                        <div style="color: #6B7280; font-size: 12px; margin-bottom: 8px;">NOTES</div>
+                        <textarea 
+                            id="well-notes-${w.id}" 
+                            style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid #E5E7EB; border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" 
+                            placeholder="Add notes about this well..."
+                            onchange="updateWellNotes('${w.id}')"
+                        >${escapeHtml(notes)}</textarea>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 16px;">
+                        <div style="display: flex; gap: 10px;">
+                            ${f['OCC Map Link'] && f['OCC Map Link'] !== '#' ? `<a href="${f['OCC Map Link']}" target="_blank" class="details-btn primary">📍 OCC Map</a>` : ''}
+                            ${apiNumber ? `<a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`)}&cr=1" target="_blank" class="details-btn">📂 Well Records</a>` : ''}
+                        </div>
+                        <button type="button" class="btn-submit" onclick="saveWellNotes('${w.id}')" style="padding: 8px 20px;">Save Note</button>
+                    </div>
                 </div>`;
         }
 
@@ -2479,46 +2590,63 @@
                 return;
             }
             
-            // Simplified grid without API column - give well name more space
-            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-well-name-wide"><col class="col-well-operator"><col class="col-well-county"><col class="col-well-location"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Name</th><th>Operator</th><th>County</th><th>Legal</th><th></th></tr></thead><tbody>';
+            // Clean table that opens modal on row click
+            let html = '<table class="data-table wells-table"><colgroup><col class="col-select"><col class="col-well-info"><col class="col-well-operator"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Information</th><th>Operator Contact</th><th style="width: 40px;"></th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
                 const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
                 const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
-                const county = escapeHtml(cleanCountyDisplay(f['County'])) || '—';
+                const operatorPhone = f['Operator Phone'] || '';
+                const contactPerson = f['Contact Person'] || '';
+                const apiNumber = f['API Number'] || '';
+                const status = f['Well Status'] || f['OCC Status'] || '—';
+                const wellType = f['Well Type'] || '';
+                
+                // Format location (county + legal)
+                const county = cleanCountyDisplay(f['County']) || '';
                 const section = f['Section'] || '';
                 const township = f['Township'] || '';
                 const range = f['Range'] || '';
-                const str = (section && township && range) ? `T${township} R${range} ${section}` : '—';
+                let locationDisplay = '';
+                if (county) {
+                    locationDisplay = county;
+                    if (section && township && range) {
+                        locationDisplay += ` • ${section}-${township}-${range}`;
+                    }
+                }
                 
-                // Check if production data exists
-                const hasProductionData = f['Formation Name'] || f['IP Gas (MCF/day)'] || f['IP Oil (BBL/day)'] || 
-                                        f['Spud Date'] || f['Completion Date'] || f['First Production Date'];
+                // Format operator contact for compact view
+                let operatorContactDisplay = operator;
+                if (operatorPhone || contactPerson) {
+                    const contactParts = [];
+                    if (operatorPhone) contactParts.push(`${formatPhoneNumber(operatorPhone)}`);
+                    if (contactPerson) contactParts.push(`${contactPerson}`);
+                    if (contactParts.length > 0) {
+                        operatorContactDisplay += ` (${contactParts.join(', ')})`;
+                    }
+                }
                 
-                // Main row - HTML table format
-                html += `<tr>
-                    <td class="bulk-only"><input type="checkbox" class="well-checkbox" data-id="${w.id}"></td>
-                    <td><strong>${wellName}</strong></td>
-                    <td>${operator}</td>
-                    <td>${county}</td>
-                    <td>${str}</td>
-                    <td style="white-space: nowrap; text-align: right;">
-                        <span style="display: inline-block; min-width: 52px; text-align: left;">${hasProductionData ? `<a href="javascript:void(0)" class="text-link" onclick="toggleWellProduction('${w.id}')">Prod.</a>` : ''}</span>
-                        <a href="#" class="text-link" onclick="openWellDetailsModal('${w.id}'); return false;">Detail</a>
-                        &nbsp;&nbsp;<button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
+                        // All wells now open modal on click
+                
+                // Clean row that opens modal on click
+                html += `<tr class="well-row" onclick="openWellDetailsModal('${w.id}')" style="cursor: pointer;">
+                    <td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="well-checkbox" data-id="${w.id}"></td>
+                    <td class="well-info-cell">
+                        <div class="well-name-line">
+                            <strong>${wellName}</strong>
+                        </div>
+                        <div class="well-details-line">
+                            ${apiNumber ? `<span class="well-api">${apiNumber}</span> • ` : ''}
+                            <span class="well-status ${status === 'Active' || status === 'AC' ? 'status-active' : ''}">${status}</span>
+                            ${locationDisplay ? ` • <span class="well-location">${locationDisplay}</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="operator-contact-cell">${operatorContactDisplay}</td>
+                    <td style="text-align: right;" onclick="event.stopPropagation()">
+                        <button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
                     </td>
                 </tr>`;
-                
-                // Add accordion row right after the well row
-                if (hasProductionData) {
-                    // Create accordion as a table row that spans all columns
-                    html += `<tr id="production-${w.id}" style="display: none;">
-                        <td colspan="6" style="padding: 0; border: none;">
-                            ${generateProductionAccordion(w)}
-                        </td>
-                    </tr>`;
-                }
             });
             
             html += '</tbody></table>';
@@ -2882,40 +3010,141 @@
             
             const f = well.fields;
             
-            // Populate modal fields
+            // Helper function to format dates
+            const formatDate = (dateStr) => {
+                if (!dateStr) return null;
+                try {
+                    const date = new Date(dateStr);
+                    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                } catch {
+                    return null;
+                }
+            };
+            
+            // Helper function to detect horizontal wells
+            const isHorizontal = (wellName) => {
+                if (!wellName) return false;
+                const name = wellName.toLowerCase();
+                return name.includes('h') && (name.endsWith('h') || name.endsWith('xh') || name.includes('wx'));
+            };
+            
+            // Helper function to strip existing phone formatting
+            const stripPhoneFormat = (phone) => {
+                if (!phone) return '';
+                return phone.replace(/[^0-9]/g, '');
+            };
+            
+            // Populate header
             document.getElementById('wellDetailsTitle').textContent = f['Well Name'] || 'Unknown Well';
             document.getElementById('wellDetailsApi').textContent = `API: ${f['API Number'] || '—'}`;
-            document.getElementById('wellDetailsOperator').textContent = f['Operator'] || '—';
             
-            // Phone - make it clickable if available
-            const phoneEl = document.getElementById('wellDetailsPhone');
-            if (f['Operator Phone']) {
-                phoneEl.innerHTML = `<a href="tel:${f['Operator Phone']}" style="color: var(--red-dirt);">${f['Operator Phone']}</a>`;
+            // Date badge - prefer completion date, fallback to first production
+            const completionDate = formatDate(f['Completion Date']);
+            const firstProdDate = formatDate(f['First Production Date']);
+            const badgeDate = completionDate || firstProdDate;
+            const dateBadge = document.getElementById('wellDetailsDateBadge');
+            if (badgeDate) {
+                dateBadge.textContent = badgeDate;
+                dateBadge.style.display = 'inline-block';
             } else {
-                phoneEl.textContent = '—';
+                dateBadge.style.display = 'none';
             }
             
-            document.getElementById('wellDetailsContact').textContent = f['Contact Name'] || '—';
+            // Status badge
+            const status = f['Well Status'] || f['OCC Status'] || '—';
+            const statusBadge = document.getElementById('wellDetailsStatusBadge');
+            statusBadge.textContent = status;
+            statusBadge.className = status === 'Active' || status === 'AC' ? 'status-badge' : 'status-badge';
             
-            // Location - combine S-T-R
+            // Well Type
+            document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
+            
+            // Direction (Horizontal/Vertical)
+            const direction = isHorizontal(f['Well Name']) ? 'Horizontal' : 'Vertical';
+            const directionEl = document.getElementById('wellDetailsDirection');
+            directionEl.textContent = direction;
+            directionEl.className = direction === 'Horizontal' ? 'status-badge horizontal' : 'status-badge';
+            
+            // Operator
+            document.getElementById('wellDetailsOperator').textContent = f['Operator'] || '—';
+            
+            // Contact line - phone + contact person
+            const rawPhone = f['Operator Phone'] || '';
+            const contactPerson = f['Contact Person'] || '';
+            const contactLine = document.getElementById('wellDetailsContact');
+            const phoneLink = document.getElementById('wellDetailsPhoneLink');
+            const contactPersonSpan = document.getElementById('wellDetailsContactPerson');
+            
+            if (rawPhone || contactPerson) {
+                let contactHtml = '';
+                
+                if (rawPhone) {
+                    const cleanPhone = stripPhoneFormat(rawPhone);
+                    const formattedPhone = formatPhoneNumber(cleanPhone);
+                    phoneLink.href = `tel:${cleanPhone}`;
+                    phoneLink.textContent = formattedPhone;
+                    phoneLink.style.display = 'inline';
+                } else {
+                    phoneLink.style.display = 'none';
+                }
+                
+                if (contactPerson) {
+                    contactPersonSpan.textContent = contactPerson;
+                    contactPersonSpan.style.display = 'inline';
+                } else {
+                    contactPersonSpan.style.display = 'none';
+                }
+                
+                // Show bullet separator if both exist
+                if (rawPhone && contactPerson) {
+                    contactLine.style.display = 'block';
+                } else if (rawPhone || contactPerson) {
+                    contactLine.style.display = 'block';
+                } else {
+                    contactLine.style.display = 'none';
+                }
+            } else {
+                contactLine.style.display = 'none';
+            }
+            
+            // Location
             const section = f['Section'] || '';
             const township = f['Township'] || '';
             const range = f['Range'] || '';
             const location = (section && township && range) ? `T${township} R${range} ${section}` : '—';
             document.getElementById('wellDetailsLocation').textContent = location;
             
+            // County
             document.getElementById('wellDetailsCounty').textContent = cleanCountyDisplay(f['County']) || '—';
             
-            // Well Type with hover helper
-            document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
-            if (f['Well Type'] && wellTypeHelp[f['Well Type']]) {
-                document.getElementById('wellTypeExplanation').textContent = wellTypeHelp[f['Well Type']];
-            }
+            // Production section - only show if any production data exists
+            const ipGas = f['IP Gas (MCF/day)'];
+            const ipOil = f['IP Oil (BBL/day)'];
+            const formationName = f['Formation Name'];
+            const formationDepth = f['Formation Depth'];
             
-            // OCC Status with hover helper
-            document.getElementById('wellDetailsStatus').textContent = f['Well Status'] || '—';
-            if (f['Well Status'] && occStatusHelp[f['Well Status']]) {
-                document.getElementById('occStatusExplanation').textContent = occStatusHelp[f['Well Status']];
+            const productionSection = document.getElementById('wellDetailsProduction');
+            if (ipGas || ipOil || formationName || formationDepth) {
+                // Show production section
+                productionSection.style.display = 'block';
+                
+                // Formation badge
+                document.getElementById('wellDetailsFormationBadge').textContent = formationName || 'Unknown';
+                
+                // IP Gas
+                document.getElementById('wellDetailsIPGas').textContent = ipGas ? Number(ipGas).toLocaleString() : '—';
+                
+                // IP Oil
+                document.getElementById('wellDetailsIPOil').textContent = ipOil ? Number(ipOil).toLocaleString() : '—';
+                
+                // Depth
+                document.getElementById('wellDetailsDepth').textContent = formationDepth ? Number(formationDepth).toLocaleString() : '—';
+                
+                // Dates
+                document.getElementById('wellDetailsCompleted').textContent = completionDate || '—';
+                document.getElementById('wellDetailsFirstProd').textContent = firstProdDate || '—';
+            } else {
+                productionSection.style.display = 'none';
             }
             
             // Notes
@@ -2925,22 +3154,20 @@
             const mapLink = document.getElementById('wellDetailsMapLink');
             if (f['OCC Map Link'] && f['OCC Map Link'] !== '#') {
                 mapLink.href = f['OCC Map Link'];
-                mapLink.style.display = 'inline-block';
+                mapLink.style.display = 'inline-flex';
             } else {
                 mapLink.style.display = 'none';
             }
             
-            // Well Records link - always show if we have API
+            // Well Records link - remove &cr=1 if present
             const recordsLink = document.getElementById('wellDetailsRecordsLink');
-            
             if (f['API Number']) {
-                // Use the OCC search URL with the API number
                 const apiNumber = f['API Number'];
                 const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`);
-                const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}&cr=1`;
+                const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}`;
                 
                 recordsLink.href = recordsUrl;
-                recordsLink.style.display = 'inline-block';
+                recordsLink.style.display = 'inline-flex';
             } else {
                 recordsLink.style.display = 'none';
             }
@@ -2953,45 +3180,20 @@
         }
         
         // Placeholder for Phase 2
-        function toggleWellProduction(wellId) {
-            console.log('toggleWellProduction called with wellId:', wellId);
-            const productionRow = document.getElementById(`production-${wellId}`);
-            console.log('Found production row:', productionRow);
-            
-            if (!productionRow) {
-                console.error('Production row not found for well ID:', wellId);
-                // Let's check what production rows exist
-                const allProdRows = document.querySelectorAll('.production-accordion-floating');
-                console.log('All production rows found:', allProdRows.length);
-                allProdRows.forEach(row => console.log('Row ID:', row.id));
-                return;
-            }
-            
-            const isVisible = productionRow.style.display === 'table-row';
-            console.log('Current visibility:', isVisible);
-            
-            // Hide all other open production accordions first
-            document.querySelectorAll('[id^="production-"]').forEach(row => {
-                if (row !== productionRow) {
-                    row.style.display = 'none';
-                }
-            });
-            
-            // Toggle this one
-            productionRow.style.display = isVisible ? 'none' : 'table-row';
-            console.log('Set display to:', productionRow.style.display);
-            
-            // Optional: Scroll to the production data when opened
-            if (!isVisible) {
-                setTimeout(() => {
-                    productionRow.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-                }, 100);
+        // Modal functionality replaces expandable rows
+        
+        // Update well notes in memory (for immediate feedback)
+        function updateWellNotes(wellId) {
+            const textarea = document.getElementById(`well-notes-${wellId}`);
+            const well = loadedWells.find(w => w.id === wellId);
+            if (well && textarea) {
+                well.fields['Notes'] = textarea.value;
             }
         }
 
-        async function saveWellNotes() {
-            const wellId = document.getElementById('wellDetailsId').value;
-            const notes = document.getElementById('wellDetailsNotes').value;
+        async function saveWellNotes(wellId) {
+            const textarea = document.getElementById(`well-notes-${wellId}`);
+            const notes = textarea ? textarea.value : '';
             
             try {
                 const res = await fetch('/api/wells/' + wellId + '/notes', {
@@ -3006,9 +3208,7 @@
                 const well = loadedWells.find(w => w.id === wellId);
                 if (well) well.fields['Notes'] = notes;
                 
-                showToast('Notes saved!', 'success');
-                closeWellDetailsModal();
-                await loadWells();
+                showToast('Note saved!', 'success');
             } catch (err) {
                 showToast('Error saving notes', 'error');
             }
