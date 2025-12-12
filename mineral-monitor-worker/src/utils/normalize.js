@@ -16,8 +16,10 @@ export function normalizeSection(section) {
 /**
  * Format API number to Oklahoma standard
  * 
- * OCC ITD file format: 10 digits with trailing 00 (e.g., 1290005600)
- * Standard OK format: 10 digits with state code 35 prefix (e.g., 3512900056)
+ * OCC ITD file formats:
+ * - 14-digit format: 35125002050000 (state + county + well + 4 trailing zeros)
+ * - 10-digit format: 1290005600 (well number + 2 trailing zeros)
+ * Standard OK format: 10 digits with state code 35 prefix (e.g., 3512500205)
  * 
  * @param {string|number} occAPI - API number from OCC file
  * @returns {string} - 10-digit API number with state code
@@ -25,6 +27,16 @@ export function normalizeSection(section) {
 export function normalizeAPI(occAPI) {
   if (!occAPI) return '';
   const str = String(occAPI).replace(/[^0-9]/g, ''); // Remove any non-digits
+  
+  // Handle 14-digit format: 35125002050000 -> 3512500205
+  if (str.length === 14 && str.startsWith('35') && str.endsWith('0000')) {
+    return str.slice(0, 10); // Remove trailing 4 zeros
+  }
+  
+  // Handle other 14+ digit formats
+  if (str.length >= 14) {
+    return str.slice(0, 10); // Take first 10 digits
+  }
   
   // If OCC format with trailing 00 (10 digits ending in 00)
   if (str.length === 10 && str.endsWith('00')) {
@@ -35,11 +47,6 @@ export function normalizeAPI(occAPI) {
   // If already has state code (starts with 35)
   if (str.startsWith('35') && str.length === 10) {
     return str;
-  }
-  
-  // Full 14-digit format: 35CCCWWWWWWWWWW
-  if (str.length >= 14) {
-    return str.slice(0, 10); // Take first 10 digits
   }
   
   // If 8 digits (missing state code), add it

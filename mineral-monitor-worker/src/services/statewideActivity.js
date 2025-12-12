@@ -158,8 +158,26 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
     isHorizontal: permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH'
   };
   
-  // Add coordinates if available
-  if (wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
+  // First priority: Extract coordinates directly from OCC permit data
+  if (permit.Surf_Lat_Y && permit.Surf_Long_X) {
+    // Parse coordinates from OCC data - they're usually strings
+    const latitude = parseFloat(permit.Surf_Lat_Y);
+    const longitude = parseFloat(permit.Surf_Long_X);
+    
+    // Validate the coordinates are reasonable for Oklahoma
+    if (!isNaN(latitude) && !isNaN(longitude) && 
+        latitude > 33 && latitude < 37 && 
+        longitude > -103 && longitude < -94) {
+      activityData.latitude = latitude;
+      activityData.longitude = longitude;
+      console.log(`[Statewide] Using OCC permit coordinates for ${permit.API_Number}: ${latitude}, ${longitude}`);
+    } else {
+      console.log(`[Statewide] Invalid OCC permit coordinates for ${permit.API_Number}: ${permit.Surf_Lat_Y}, ${permit.Surf_Long_X}`);
+    }
+  }
+  
+  // Second priority: Use GIS API or fallback coordinates if no OCC coordinates
+  if (!activityData.latitude && !activityData.longitude && wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     activityData.latitude = wellCoords.sh_lat;
     activityData.longitude = wellCoords.sh_lon;
   }
@@ -191,8 +209,26 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
     isHorizontal: completion.Drill_Type === 'HORIZONTAL HOLE'
   };
   
-  // Add coordinates if available
-  if (wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
+  // First priority: Extract coordinates directly from OCC completion data
+  if (completion.Surf_Lat_Y && completion.Surf_Long_X) {
+    // Parse coordinates from OCC data - they're usually strings
+    const latitude = parseFloat(completion.Surf_Lat_Y);
+    const longitude = parseFloat(completion.Surf_Long_X);
+    
+    // Validate the coordinates are reasonable for Oklahoma
+    if (!isNaN(latitude) && !isNaN(longitude) && 
+        latitude > 33 && latitude < 37 && 
+        longitude > -103 && longitude < -94) {
+      activityData.latitude = latitude;
+      activityData.longitude = longitude;
+      console.log(`[Statewide] Using OCC completion coordinates for ${completion.API_Number}: ${latitude}, ${longitude}`);
+    } else {
+      console.log(`[Statewide] Invalid OCC completion coordinates for ${completion.API_Number}: ${completion.Surf_Lat_Y}, ${completion.Surf_Long_X}`);
+    }
+  }
+  
+  // Second priority: Use GIS API or fallback coordinates if no OCC coordinates
+  if (!activityData.latitude && !activityData.longitude && wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     activityData.latitude = wellCoords.sh_lat;
     activityData.longitude = wellCoords.sh_lon;
   }

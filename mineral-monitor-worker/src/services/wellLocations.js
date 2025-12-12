@@ -197,14 +197,37 @@ export async function createWellLocationFromPermit(permit, wellCoords = null, ma
     isHorizontal
   };
   
-  // Use coordinate fallback system if coordinates not provided
+  // Use coordinate fallback system with OCC data priority
   let coordinateSource = null;
-  if (wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
+  
+  // First priority: Extract coordinates directly from OCC permit data
+  if (permit.Surf_Lat_Y && permit.Surf_Long_X) {
+    const latitude = parseFloat(permit.Surf_Lat_Y);
+    const longitude = parseFloat(permit.Surf_Long_X);
+    
+    // Validate the coordinates are reasonable for Oklahoma
+    if (!isNaN(latitude) && !isNaN(longitude) && 
+        latitude > 33 && latitude < 37 && 
+        longitude > -103 && longitude < -94) {
+      locationData.latitude = latitude;
+      locationData.longitude = longitude;
+      coordinateSource = 'OCC_PERMIT_DATA';
+      console.log(`[WellLocations] Using OCC permit coordinates for ${permit.API_Number}: ${latitude}, ${longitude}`);
+    } else {
+      console.log(`[WellLocations] Invalid OCC permit coordinates for ${permit.API_Number}: ${permit.Surf_Lat_Y}, ${permit.Surf_Long_X}`);
+    }
+  }
+  
+  // Second priority: Use GIS API coordinates if no valid OCC coordinates
+  if (!locationData.latitude && !locationData.longitude && wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     locationData.latitude = wellCoords.sh_lat;
     locationData.longitude = wellCoords.sh_lon;
     coordinateSource = 'OCC_GIS';
-  } else if (env) {
-    console.log(`[WellLocations] No OCC GIS coordinates for permit ${permit.API_Number}, using fallback system`);
+  } 
+  
+  // Third priority: Use fallback calculation system
+  if (!locationData.latitude && !locationData.longitude && env) {
+    console.log(`[WellLocations] No direct coordinates for permit ${permit.API_Number}, using fallback system`);
     const coordResult = await getCoordinatesWithFallback(normalizeAPI(permit.API_Number), permit, env);
     if (coordResult.coordinates) {
       locationData.latitude = coordResult.coordinates.latitude;
@@ -273,14 +296,37 @@ export async function createWellLocationFromCompletion(completion, wellCoords = 
     isHorizontal
   };
   
-  // Use coordinate fallback system if coordinates not provided
+  // Use coordinate fallback system with OCC data priority
   let coordinateSource = null;
-  if (wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
+  
+  // First priority: Extract coordinates directly from OCC completion data
+  if (completion.Surf_Lat_Y && completion.Surf_Long_X) {
+    const latitude = parseFloat(completion.Surf_Lat_Y);
+    const longitude = parseFloat(completion.Surf_Long_X);
+    
+    // Validate the coordinates are reasonable for Oklahoma
+    if (!isNaN(latitude) && !isNaN(longitude) && 
+        latitude > 33 && latitude < 37 && 
+        longitude > -103 && longitude < -94) {
+      locationData.latitude = latitude;
+      locationData.longitude = longitude;
+      coordinateSource = 'OCC_COMPLETION_DATA';
+      console.log(`[WellLocations] Using OCC completion coordinates for ${completion.API_Number}: ${latitude}, ${longitude}`);
+    } else {
+      console.log(`[WellLocations] Invalid OCC completion coordinates for ${completion.API_Number}: ${completion.Surf_Lat_Y}, ${completion.Surf_Long_X}`);
+    }
+  }
+  
+  // Second priority: Use GIS API coordinates if no valid OCC coordinates
+  if (!locationData.latitude && !locationData.longitude && wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     locationData.latitude = wellCoords.sh_lat;
     locationData.longitude = wellCoords.sh_lon;
     coordinateSource = 'OCC_GIS';
-  } else if (env) {
-    console.log(`[WellLocations] No OCC GIS coordinates for completion ${completion.API_Number}, using fallback system`);
+  } 
+  
+  // Third priority: Use fallback calculation system
+  if (!locationData.latitude && !locationData.longitude && env) {
+    console.log(`[WellLocations] No direct coordinates for completion ${completion.API_Number}, using fallback system`);
     const coordResult = await getCoordinatesWithFallback(normalizeAPI(completion.API_Number), completion, env);
     if (coordResult.coordinates) {
       locationData.latitude = coordResult.coordinates.latitude;
