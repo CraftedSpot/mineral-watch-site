@@ -2475,7 +2475,7 @@
             const apiNumber = f['API Number'] || '';
             const operator = f['Operator'] || '—';
             const operatorPhone = f['Operator Phone'] || '';
-            const contactPerson = f['Contact Person'] || '';
+            const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
             const county = cleanCountyDisplay(f['County']) || '—';
             const section = f['Section'] || '';
             const township = f['Township'] || '';
@@ -2601,7 +2601,7 @@
                 const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
                 const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
                 const operatorPhone = f['Operator Phone'] || '';
-                const contactPerson = f['Contact Person'] || '';
+                const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
                 const apiNumber = f['API Number'] || '';
                 const status = f['Well Status'] || f['OCC Status'] || '—';
                 const wellType = f['Well Type'] || '';
@@ -3077,7 +3077,7 @@
             
             // Contact line - phone + contact person
             const rawPhone = f['Operator Phone'] || '';
-            const contactPerson = f['Contact Person'] || '';
+            const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
             const contactLine = document.getElementById('wellDetailsContact');
             const phoneLink = document.getElementById('wellDetailsPhoneLink');
             const contactPersonSpan = document.getElementById('wellDetailsContactPerson');
