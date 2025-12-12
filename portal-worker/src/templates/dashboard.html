@@ -365,6 +365,8 @@
         .action-btn { flex: 1; padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; }
         .action-btn.primary { background: var(--red-dirt); color: white; }
         .action-btn.primary:hover { background: var(--red-dirt-dark); }
+        .action-btn.primary.well-blue { background: var(--slate-blue); }
+        .action-btn.primary.well-blue:hover { background: var(--oil-navy); }
         .action-btn.secondary { background: white; color: var(--red-dirt); border: 1px solid var(--red-dirt); }
         .action-btn.secondary:hover { background: #FFF5F0; }
         .action-btn.outline { background: white; color: var(--slate-blue); border: 1px solid var(--border); }
@@ -1477,7 +1479,7 @@
             
             <!-- Footer Actions -->
             <div class="card-footer">
-                <a href="#" target="_blank" class="action-btn primary" id="wellDetailsMapLink">OCC Map ↗</a>
+                <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsMapLink">OCC Map ↗</a>
                 <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
                 <button class="action-btn outline" onclick="saveWellNotesAndClose()">Save & Close</button>
             </div>
