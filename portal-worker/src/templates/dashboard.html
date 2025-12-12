@@ -302,12 +302,21 @@
         /* Well Card Modal Styles */
         .well-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
         
-        /* Card Header */
+        /* Property Card Modal Styles - Orange Theme */
+        .property-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
+        
+        /* Card Header - Blue for Wells */
         .card-header { background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; }
+        
+        /* Property Card Header - Orange for Land */
+        .property-card-header { background: linear-gradient(135deg, var(--red-dirt) 0%, var(--red-dirt-dark) 100%); color: white; padding: 20px 24px; position: relative; }
         .card-header-top { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 6px; }
         .well-name { font-family: 'Merriweather', serif; font-size: 20px; font-weight: 700; margin: 0; }
+        .property-name { font-family: 'Merriweather', serif; font-size: 20px; font-weight: 700; margin: 0; }
         .date-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .api-number { font-size: 13px; opacity: 0.8; }
+        .property-location { font-size: 13px; opacity: 0.8; }
+        .acreage-badge { background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; }
         .close-btn { position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
         .close-btn:hover { background: rgba(255,255,255,0.2); }
         
@@ -1477,12 +1486,21 @@
         </div>
     </div>
     
-    <!-- Property Details Modal -->
+    <!-- Property Details Modal - Orange Card Design -->
     <div class="modal-overlay" id="propertyDetailsModal">
-        <div class="modal" style="max-width: 500px; position: relative;">
-            <button class="modal-close" onclick="closePropertyDetailsModal()" aria-label="Close">×</button>
-            <h2 style="margin-bottom: 5px;" id="propertyDetailsTitle">Property Details</h2>
-            <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;" id="propertyDetailsCounty">—</p>
+        <div class="property-card" style="max-width: 520px; width: 100%; position: relative;">
+            <!-- Header with Orange Gradient -->
+            <div class="property-card-header">
+                <button class="close-btn" onclick="closePropertyDetailsModal()" aria-label="Close">×</button>
+                <div class="card-header-top">
+                    <h2 class="property-name" id="propertyDetailsTitle">Property Details</h2>
+                    <span class="acreage-badge" id="propertyDetailsAcreageBadge">47.5 acres</span>
+                </div>
+                <div class="property-location" id="propertyDetailsLocation">Garvin County • T03N R03W 25</div>
+            </div>
+            
+            <!-- Content -->
+            <div class="card-content">
             
             <div class="details-grid">
                 <div class="details-row">
@@ -1522,9 +1540,12 @@
             </div>
             
             <input type="hidden" id="propertyDetailsId">
-            <div class="modal-buttons" style="margin-top: 20px;">
-                <button type="button" class="btn-cancel" onclick="closePropertyDetailsModal()">Close</button>
-                <button type="button" class="btn-submit" onclick="savePropertyDetails()">Save Changes</button>
+            
+            <!-- Footer Actions -->
+            <div class="card-footer">
+                <a href="#" target="_blank" class="action-btn primary" id="propertyDetailsMapLink">OCC Map ↗</a>
+                <button class="action-btn secondary" onclick="closePropertyDetailsModal()">Close</button>
+                <button class="action-btn outline" onclick="savePropertyAndClose()">Save & Close</button>
             </div>
         </div>
     </div>
@@ -3303,15 +3324,31 @@
             const f = prop.fields;
             document.getElementById('propertyDetailsId').value = propId;
             
-            // Set title to property name or just "Property Details"
-            const propertyName = f['Name'] || f['Property Name'] || 'Property Details';
+            // Calculate total acres for header badge
+            const riAcres = parseFloat(f['RI Acres'] || 0);
+            const wiAcres = parseFloat(f['WI Acres'] || 0);
+            const totalAcres = riAcres + wiAcres;
+            
+            // Set header information
+            const propertyName = f['Name'] || f['Property Name'] || 'Mineral Property';
             document.getElementById('propertyDetailsTitle').textContent = propertyName;
             
-            // Set subtitle to county name
-            document.getElementById('propertyDetailsCounty').textContent = cleanCountyDisplay(f['COUNTY']) || 'Unknown County';
+            // Set acreage badge
+            const acreageBadge = document.getElementById('propertyDetailsAcreageBadge');
+            if (totalAcres > 0) {
+                acreageBadge.textContent = `${totalAcres.toFixed(2)} acres`;
+                acreageBadge.style.display = 'inline-block';
+            } else {
+                acreageBadge.style.display = 'none';
+            }
             
-            // Set legal description as one line (without "Sec" to save space)
-            document.getElementById('propertyDetailsLegal').textContent = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+            // Set location info (county + legal)
+            const county = cleanCountyDisplay(f['COUNTY']) || 'Unknown County';
+            const legal = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+            document.getElementById('propertyDetailsLocation').textContent = `${county} • ${legal}`;
+            
+            // Set form fields
+            document.getElementById('propertyDetailsLegal').textContent = legal;
             document.getElementById('propertyDetailsMeridian').value = f['MERIDIAN'] || 'IM';
             
             // Show/hide Group row based on whether it has a value
@@ -3325,11 +3362,11 @@
             
             // Set other fields
             document.getElementById('propertyDetailsAdjacent').textContent = (f['Monitor Adjacent'] === false) ? 'No' : 'Yes';
-            document.getElementById('propertyDetailsRIAcres').value = f['RI Acres'] || 0;
-            document.getElementById('propertyDetailsWIAcres').value = f['WI Acres'] || 0;
+            document.getElementById('propertyDetailsRIAcres').value = riAcres;
+            document.getElementById('propertyDetailsWIAcres').value = wiAcres;
             document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
-            // Calculate and display total acres
+            // Update total acres display in form
             updateTotalAcres();
             
             document.getElementById('propertyDetailsModal').style.display = 'flex';
@@ -3339,7 +3376,18 @@
             const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
             const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
             const totalAcres = riAcres + wiAcres;
+            
+            // Update total in form
             document.getElementById('propertyDetailsTotalAcres').textContent = totalAcres > 0 ? totalAcres.toFixed(2) : '—';
+            
+            // Update badge in header
+            const acreageBadge = document.getElementById('propertyDetailsAcreageBadge');
+            if (totalAcres > 0) {
+                acreageBadge.textContent = `${totalAcres.toFixed(2)} acres`;
+                acreageBadge.style.display = 'inline-block';
+            } else {
+                acreageBadge.style.display = 'none';
+            }
         }
         
         async function savePropertyDetails() {
@@ -3372,6 +3420,51 @@
                 await loadProperties();
             } catch (err) {
                 showToast('Error saving changes', 'error');
+            }
+        }
+        
+        async function savePropertyAndClose() {
+            const propId = document.getElementById('propertyDetailsId').value;
+            const notes = document.getElementById('propertyDetailsNotes').value;
+            const meridian = document.getElementById('propertyDetailsMeridian').value;
+            const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
+            
+            if (!propId) {
+                showToast('Error: Property ID not found', 'error');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/properties/' + propId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes, meridian, riAcres, wiAcres })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const prop = loadedProperties.find(p => p.id === propId);
+                if (prop) {
+                    prop.fields['Notes'] = notes;
+                    prop.fields['MERIDIAN'] = meridian;
+                    prop.fields['RI Acres'] = riAcres;
+                    prop.fields['WI Acres'] = wiAcres;
+                }
+                
+                // Close modal immediately after successful save
+                closePropertyDetailsModal();
+                
+                // Show success toast after modal closes and reload properties
+                setTimeout(() => {
+                    showToast('Changes saved!', 'success');
+                    loadProperties();
+                }, 100);
+            } catch (err) {
+                console.error('Save property error:', err);
+                showToast('Error saving changes', 'error');
+                // Don't close modal if there was an error
             }
         }
         
