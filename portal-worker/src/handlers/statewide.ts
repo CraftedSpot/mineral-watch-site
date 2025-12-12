@@ -45,8 +45,8 @@ export async function handleStatewideActivity(request: Request, env: Env) {
  * Fetch statewide activities from Statewide Activity table
  */
 async function fetchStatewideActivities(env: Env, daysAgo: number) {
-  // Use Airtable formula with exact field name "Created Time"
-  const formula = `IS_AFTER({Created Time}, DATEADD(TODAY(), -${daysAgo}, 'days'))`;
+  // Use Airtable formula with exact field name "Created Date"
+  const formula = `IS_AFTER({Created Date}, DATEADD(TODAY(), -${daysAgo}, 'days'))`;
   const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(STATEWIDE_ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1000`;
   
   const response = await fetch(airtableUrl, {
@@ -84,7 +84,7 @@ function formatStatewideActivities(records: any[]): any[] {
       'Section': record.fields['Section'],
       'Township': record.fields['Township'],
       'Range': record.fields['Range'],
-      'Detected At': record.fields['Created Time'], // Map Created Time to Detected At
+      'Detected At': record.fields['Created Date'], // Map Created Date to Detected At
       Latitude: record.fields['Latitude'],
       Longitude: record.fields['Longitude']
     }
