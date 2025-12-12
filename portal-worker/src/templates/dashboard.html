@@ -2145,15 +2145,14 @@
                 const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
                 const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 
-                html += `<tr>
-                    <td class="bulk-only"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
+                html += `<tr onclick="openPropertyDetails('${p.id}')" style="cursor: pointer;">
+                    <td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
                     <td>${escapeHtml(cleanCountyDisplay(f.COUNTY)) || '—'}</td>
                     <td><strong>${str}</strong></td>
                     <td style="text-align: right;">${acresDisplay}</td>
                     <td>${notes}</td>
-                    <td style="white-space: nowrap; text-align: right;">
-                        <a href="#" class="text-link" onclick="openPropertyDetails('${p.id}'); return false;">Detail</a>
-                        &nbsp;&nbsp;<button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
+                    <td style="white-space: nowrap; text-align: right;" onclick="event.stopPropagation()">
+                        <button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
                     </td>
                 </tr>`;
             });
@@ -2619,8 +2618,8 @@
                     }
                 }
                 
-                // Format operator contact for compact view
-                let operatorContactDisplay = operator;
+                // Format operator contact for compact view (with bold operator name)
+                let operatorContactDisplay = `<strong>${operator}</strong>`;
                 if (operatorPhone || contactPerson) {
                     const contactParts = [];
                     if (operatorPhone) {
