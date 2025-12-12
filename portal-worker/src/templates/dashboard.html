@@ -2341,16 +2341,10 @@
                             
                             // Well Records - always show if we have API
                             if (f['API Number']) {
-                                let recordsUrl = '';
-                                
-                                if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Search.aspx')) {
-                                    // Fix WebLink URL by removing &cr=1
-                                    recordsUrl = f['OCC Filing Link'].replace(/&cr=1/g, '');
-                                } else {
-                                    // Fallback to imaging PDF
-                                    const api8digit = f['API Number'].substring(2);
-                                    recordsUrl = 'https://imaging.occ.ok.gov/OG/Well/' + api8digit + '.pdf';
-                                }
+                                // Use the OCC search URL with the API number
+                                const apiNumber = f['API Number'];
+                                const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`);
+                                const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}&cr=1`;
                                 
                                 buttons.push(`<a href="${recordsUrl}" target="_blank" class="details-btn" style="padding: 8px 16px; font-size: 13px;">📂 Well Records</a>`);
                             }
@@ -2940,16 +2934,10 @@
             const recordsLink = document.getElementById('wellDetailsRecordsLink');
             
             if (f['API Number']) {
-                let recordsUrl = '';
-                
-                if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Search.aspx')) {
-                    // Fix WebLink URL by removing &cr=1
-                    recordsUrl = f['OCC Filing Link'].replace(/&cr=1/g, '');
-                } else {
-                    // Fallback to imaging PDF
-                    const api8digit = f['API Number'].substring(2);
-                    recordsUrl = 'https://imaging.occ.ok.gov/OG/Well/' + api8digit + '.pdf';
-                }
+                // Use the OCC search URL with the API number
+                const apiNumber = f['API Number'];
+                const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`);
+                const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}&cr=1`;
                 
                 recordsLink.href = recordsUrl;
                 recordsLink.style.display = 'inline-block';
