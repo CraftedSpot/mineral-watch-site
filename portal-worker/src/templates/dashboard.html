@@ -1293,8 +1293,7 @@
             </div>
             
             <div class="details-actions">
-                <a href="#" target="_blank" class="details-btn primary" id="wellDetailsMapLink">📍 View on Map</a>
-                <a href="#" target="_blank" class="details-btn" id="wellDetailsOccLink">📄 OCC Filing</a>
+                <a href="#" target="_blank" class="details-btn primary" id="wellDetailsMapLink">📍 OCC Map</a>
                 <a href="#" target="_blank" class="details-btn" id="wellDetailsRecordsLink">📂 Well Records</a>
             </div>
             
@@ -2937,36 +2936,23 @@
                 mapLink.style.display = 'none';
             }
             
-            // OCC Filing link - for direct permit/completion PDFs
-            const occLink = document.getElementById('wellDetailsOccLink');
+            // Well Records link - always show if we have API
             const recordsLink = document.getElementById('wellDetailsRecordsLink');
             
-            // Handle direct permit/completion PDF
-            if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Docview.aspx')) {
-                // Direct permit/completion PDF link
-                occLink.href = f['OCC Filing Link'];
-                occLink.style.display = 'inline-block';
-                occLink.textContent = '📄 Permit/Completion';
-            } else {
-                occLink.style.display = 'none';
-            }
-            
-            // Always show Well Records link if we have API
             if (f['API Number']) {
-                // First try to use Search.aspx link if available
+                let recordsUrl = '';
+                
                 if (f['OCC Filing Link'] && f['OCC Filing Link'].includes('Search.aspx')) {
-                    // Fix the URL by removing the problematic &cr=1 parameter
-                    let fixedUrl = f['OCC Filing Link'].replace(/&cr=1/g, '');
-                    recordsLink.href = fixedUrl;
-                    recordsLink.style.display = 'inline-block';
-                    recordsLink.textContent = '📂 Well Records';
+                    // Fix WebLink URL by removing &cr=1
+                    recordsUrl = f['OCC Filing Link'].replace(/&cr=1/g, '');
                 } else {
-                    // Otherwise create imaging PDF link as fallback
-                    const api8digit = f['API Number'].substring(2); // Remove state code
-                    recordsLink.href = `https://imaging.occ.ok.gov/OG/Well/${api8digit}.pdf`;
-                    recordsLink.style.display = 'inline-block';
-                    recordsLink.textContent = '📂 Well File (PDF)';
+                    // Fallback to imaging PDF
+                    const api8digit = f['API Number'].substring(2);
+                    recordsUrl = 'https://imaging.occ.ok.gov/OG/Well/' + api8digit + '.pdf';
                 }
+                
+                recordsLink.href = recordsUrl;
+                recordsLink.style.display = 'inline-block';
             } else {
                 recordsLink.style.display = 'none';
             }
