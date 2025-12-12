@@ -195,7 +195,7 @@ export async function createWellLocationFromPermit(permit, wellCoords = null, ma
     
     // Flags
     hasPermit: true,
-    permitDate: permit.Approval_Date || new Date().toISOString().split('T')[0],
+    permitDate: (permit.Approval_Date && permit.Approval_Date.trim()) || new Date().toISOString().split('T')[0],
     isHorizontal
   };
   
@@ -309,7 +309,7 @@ export async function createWellLocationFromCompletion(completion, wellCoords = 
     
     // Flags
     hasCompletion: true,
-    completionDate: completion.Well_Completion || new Date().toISOString().split('T')[0],
+    completionDate: (completion.Well_Completion && completion.Well_Completion.trim()) || new Date().toISOString().split('T')[0],
     isHorizontal
   };
   

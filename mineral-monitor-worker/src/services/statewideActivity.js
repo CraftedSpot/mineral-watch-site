@@ -160,7 +160,7 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
     township: permit.Township,
     range: permit.Range,
     pm: permit.PM || 'IM',
-    permitDate: permit.Approval_Date || new Date().toISOString().split('T')[0],
+    permitDate: (permit.Approval_Date && permit.Approval_Date.trim()) || new Date().toISOString().split('T')[0],
     isHorizontal: permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH'
   };
   
@@ -228,7 +228,7 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
     range: completion.Range,
     pm: completion.PM || 'IM',
     formation: completion.Formation_Name,
-    completionDate: completion.Well_Completion || new Date().toISOString().split('T')[0],
+    completionDate: (completion.Well_Completion && completion.Well_Completion.trim()) || new Date().toISOString(),
     isHorizontal: completion.Drill_Type === 'HORIZONTAL HOLE'
   };
   
