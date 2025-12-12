@@ -295,12 +295,12 @@
         .btn-delete:hover { color: #DC2626; background: #FEE2E2; }
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
         .empty-state p { margin-bottom: 20px; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
         
         /* Well Card Modal Styles */
-        .well-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .well-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
         
         /* Card Header */
         .card-header { background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; }
@@ -363,11 +363,14 @@
         
         /* Mobile Responsive */
         @media (max-width: 480px) {
+            .modal-overlay { padding: 10px; align-items: flex-start; padding-top: 20px; }
+            .well-card { max-width: 100%; max-height: calc(100vh - 40px); margin: 0; }
             .two-col { grid-template-columns: 1fr; gap: 12px; }
             .production-grid { grid-template-columns: repeat(2, 1fr); }
             .dates-row { grid-template-columns: 1fr; }
             .card-footer { flex-direction: column; }
-            .status-row { flex-wrap: wrap; }
+            .status-row { flex-wrap: wrap; gap: 16px; }
+            .close-btn { top: 12px; right: 12px; width: 36px; height: 36px; font-size: 18px; }
         }
         
         /* Delete Modal Specifics */
@@ -1467,7 +1470,7 @@
             <div class="card-footer">
                 <a href="#" target="_blank" class="action-btn primary" id="wellDetailsMapLink">OCC Map ↗</a>
                 <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
-                <button class="action-btn outline" onclick="saveWellNotes()">Save Notes</button>
+                <button class="action-btn outline" onclick="saveWellNotesAndClose()">Save & Close</button>
             </div>
             
             <input type="hidden" id="wellDetailsId">
@@ -2620,7 +2623,11 @@
                 let operatorContactDisplay = operator;
                 if (operatorPhone || contactPerson) {
                     const contactParts = [];
-                    if (operatorPhone) contactParts.push(`${formatPhoneNumber(operatorPhone)}`);
+                    if (operatorPhone) {
+                        // Strip existing formatting before re-formatting to avoid double parentheses
+                        const cleanPhone = operatorPhone.replace(/[^0-9]/g, '');
+                        contactParts.push(`${formatPhoneNumber(cleanPhone)}`);
+                    }
                     if (contactPerson) contactParts.push(`${contactPerson}`);
                     if (contactParts.length > 0) {
                         operatorContactDisplay += ` (${contactParts.join(', ')})`;
@@ -3214,6 +3221,69 @@
             }
         }
         
+        async function saveWellNotesFromModal() {
+            const wellId = document.getElementById('wellDetailsId').value;
+            const notes = document.getElementById('wellDetailsNotes').value;
+            
+            if (!wellId) {
+                showToast('Error: Well ID not found', 'error');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/wells/' + wellId + '/notes', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const well = loadedWells.find(w => w.id === wellId);
+                if (well) well.fields['Notes'] = notes;
+                
+                showToast('Note saved!', 'success');
+            } catch (err) {
+                console.error('Save notes error:', err);
+                showToast('Error saving notes', 'error');
+            }
+        }
+        
+        async function saveWellNotesAndClose() {
+            const wellId = document.getElementById('wellDetailsId').value;
+            const notes = document.getElementById('wellDetailsNotes').value;
+            
+            if (!wellId) {
+                showToast('Error: Well ID not found', 'error');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/wells/' + wellId + '/notes', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const well = loadedWells.find(w => w.id === wellId);
+                if (well) well.fields['Notes'] = notes;
+                
+                // Close modal immediately after successful save
+                closeWellDetailsModal();
+                
+                // Show success toast after modal closes
+                setTimeout(() => showToast('Note saved!', 'success'), 100);
+            } catch (err) {
+                console.error('Save notes error:', err);
+                showToast('Error saving notes', 'error');
+                // Don't close modal if there was an error
+            }
+        }
+        
         function closeWellDetailsModal() {
             document.getElementById('wellDetailsModal').style.display = 'none';
         }
@@ -3223,31 +3293,7 @@
         });
         
         // Add hover handlers for Well Type and OCC Status
-        document.getElementById('wellTypeRow').addEventListener('mouseenter', function() {
-            const wellType = document.getElementById('wellDetailsType').textContent;
-            if (wellType && wellType !== '—' && wellTypeHelp[wellType]) {
-                this.style.backgroundColor = '#E0F2FE';
-                document.getElementById('wellTypeExplanation').style.display = 'block';
-            }
-        });
-        
-        document.getElementById('wellTypeRow').addEventListener('mouseleave', function() {
-            this.style.backgroundColor = '';
-            document.getElementById('wellTypeExplanation').style.display = 'none';
-        });
-        
-        document.getElementById('occStatusRow').addEventListener('mouseenter', function() {
-            const status = document.getElementById('wellDetailsStatus').textContent;
-            if (status && status !== '—' && occStatusHelp[status]) {
-                this.style.backgroundColor = '#E0F2FE';
-                document.getElementById('occStatusExplanation').style.display = 'block';
-            }
-        });
-        
-        document.getElementById('occStatusRow').addEventListener('mouseleave', function() {
-            this.style.backgroundColor = '';
-            document.getElementById('occStatusExplanation').style.display = 'none';
-        });
+        // Removed obsolete hover handlers for old modal structure
         
         // Property Details Modal Functions
         function openPropertyDetails(propId) {
