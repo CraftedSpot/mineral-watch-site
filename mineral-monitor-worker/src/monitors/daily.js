@@ -20,6 +20,7 @@ import {
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
+import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 // Operator lookups handled by contact-handler and weekly worker
 import { getAdjacentSections } from '../utils/plss.js';
 import { 
@@ -535,17 +536,37 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     }
   }
   
-  // 4. Fetch well coordinates for map link generation
+  // 4. Fetch well coordinates with fallback system
   let wellData = null;
   let mapLink = null;
+  let coordinates = null;
+  let coordinateSource = null;
   
-  // Always try to fetch coordinates for map link
-  wellData = await fetchWellCoordinates(api10, env);
-  mapLink = getMapLinkFromWellData(wellData);
-  if (mapLink) {
-    console.log(`[Daily] Generated map link for permit ${api10}`);
+  // Use fallback coordinate system: OCC GIS -> TRS calculation -> County center
+  const coordResult = await getCoordinatesWithFallback(api10, permit, env);
+  wellData = coordResult.wellData;
+  coordinates = coordResult.coordinates;
+  coordinateSource = coordResult.source;
+  
+  if (coordinates) {
+    // Create a wellData-like object for map link generation if we only have calculated coords
+    const mapWellData = wellData || {
+      sh_lat: coordinates.latitude,
+      sh_lon: coordinates.longitude,
+      well_name: `${permit.Well_Name || ''} ${permit.Well_Number || ''}`.trim(),
+      api: api10
+    };
+    
+    // Ensure the wellData has coordinates for map link
+    if (!mapWellData.sh_lat || !mapWellData.sh_lon) {
+      mapWellData.sh_lat = coordinates.latitude;
+      mapWellData.sh_lon = coordinates.longitude;
+    }
+    
+    mapLink = getMapLinkFromWellData(mapWellData);
+    console.log(`[Daily] Generated map link for permit ${api10} using ${coordinateSource} coordinates`);
   } else {
-    console.log(`[Daily] No coordinates found for permit ${api10}`);
+    console.log(`[Daily] No coordinates available for permit ${api10} from any source`);
   }
   
   // Check for well status changes
@@ -558,18 +579,23 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     }
   }
   
-  // Step 1: ALWAYS write to Statewide Activity if coordinates available
+  // Step 1: ALWAYS write to Statewide Activity if ANY coordinates available (including fallback)
   try {
-    if (wellData && wellData.sh_lat && wellData.sh_lon) {
-      const activityData = createStatewideActivityFromPermit(permit, wellData, mapLink);
+    if (coordinates) {
+      // Create wellData-like object with coordinates for statewide activity
+      const activityWellData = wellData || {};
+      activityWellData.sh_lat = coordinates.latitude;
+      activityWellData.sh_lon = coordinates.longitude;
+      
+      const activityData = createStatewideActivityFromPermit(permit, activityWellData, mapLink);
       const activityResult = await createStatewideActivity(env, activityData);
       if (activityResult.success) {
-        console.log(`[Daily] Statewide activity created for permit ${api10} (heatmap tracking)`);
+        console.log(`[Daily] Statewide activity created for permit ${api10} using ${coordinateSource} coordinates (heatmap tracking)`);
       } else {
         console.error(`[Daily] Failed to store statewide activity for permit ${api10}: ${activityResult.error}`);
       }
     } else {
-      console.log(`[Daily] Skipping statewide activity for permit ${api10} - no coordinates for heatmap`);
+      console.log(`[Daily] Skipping statewide activity for permit ${api10} - no coordinates available from any source`);
       results.coordinateFailures = (results.coordinateFailures || 0) + 1;
     }
   } catch (err) {
@@ -579,7 +605,14 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   // Step 2: If user matches exist, ALSO write to Well Locations
   try {
     if (alertsToSend.length > 0) {
-      const locationData = createWellLocationFromPermit(permit, wellData, mapLink);
+      // Use wellData with fallback coordinates if available
+      const locationWellData = coordinates ? {
+        ...(wellData || {}),
+        sh_lat: coordinates.latitude,
+        sh_lon: coordinates.longitude
+      } : wellData;
+      
+      const locationData = await createWellLocationFromPermit(permit, locationWellData, mapLink, env);
       const locationResult = await upsertWellLocation(env, locationData);
       if (locationResult.success) {
         console.log(`[Daily] Well location ${locationResult.action} for permit ${api10} (user-related)`);
@@ -653,7 +686,9 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       // Check various possible formation fields in permit data
       formation: permit.Target_Zone || permit.Target_Formation || 
                  permit.Zone_Of_Significance || permit.Formation ||
-                 permit.Target || null
+                 permit.Target || null,
+      // Track coordinate source for user awareness
+      coordinateSource: coordinateSource
     };
     
     const activityRecord = await createActivityLog(env, activityData);
@@ -795,17 +830,37 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     }
   }
   
-  // 4. Fetch well coordinates for map link generation
+  // 4. Fetch well coordinates with fallback system
   let wellData = null;
   let mapLink = null;
+  let coordinates = null;
+  let coordinateSource = null;
   
-  // Always try to fetch coordinates for map link
-  wellData = await fetchWellCoordinates(api10, env);
-  mapLink = getMapLinkFromWellData(wellData);
-  if (mapLink) {
-    console.log(`[Daily] Generated map link for completion ${api10}`);
+  // Use fallback coordinate system: OCC GIS -> TRS calculation -> County center
+  const coordResult = await getCoordinatesWithFallback(api10, completion, env);
+  wellData = coordResult.wellData;
+  coordinates = coordResult.coordinates;
+  coordinateSource = coordResult.source;
+  
+  if (coordinates) {
+    // Create a wellData-like object for map link generation if we only have calculated coords
+    const mapWellData = wellData || {
+      sh_lat: coordinates.latitude,
+      sh_lon: coordinates.longitude,
+      well_name: `${completion.Well_Name || ''} ${completion.Well_Number || ''}`.trim(),
+      api: api10
+    };
+    
+    // Ensure the wellData has coordinates for map link
+    if (!mapWellData.sh_lat || !mapWellData.sh_lon) {
+      mapWellData.sh_lat = coordinates.latitude;
+      mapWellData.sh_lon = coordinates.longitude;
+    }
+    
+    mapLink = getMapLinkFromWellData(mapWellData);
+    console.log(`[Daily] Generated map link for completion ${api10} using ${coordinateSource} coordinates`);
   } else {
-    console.log(`[Daily] No coordinates found for completion ${api10}`);
+    console.log(`[Daily] No coordinates available for completion ${api10} from any source`);
   }
   
   // Check for well status changes
@@ -818,18 +873,23 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     }
   }
   
-  // Step 1: ALWAYS write to Statewide Activity if coordinates available
+  // Step 1: ALWAYS write to Statewide Activity if ANY coordinates available (including fallback)
   try {
-    if (wellData && wellData.sh_lat && wellData.sh_lon) {
-      const activityData = createStatewideActivityFromCompletion(completion, wellData, mapLink);
+    if (coordinates) {
+      // Create wellData-like object with coordinates for statewide activity
+      const activityWellData = wellData || {};
+      activityWellData.sh_lat = coordinates.latitude;
+      activityWellData.sh_lon = coordinates.longitude;
+      
+      const activityData = createStatewideActivityFromCompletion(completion, activityWellData, mapLink);
       const activityResult = await createStatewideActivity(env, activityData);
       if (activityResult.success) {
-        console.log(`[Daily] Statewide activity created for completion ${api10} (heatmap tracking)`);
+        console.log(`[Daily] Statewide activity created for completion ${api10} using ${coordinateSource} coordinates (heatmap tracking)`);
       } else {
         console.error(`[Daily] Failed to store statewide activity for completion ${api10}: ${activityResult.error}`);
       }
     } else {
-      console.log(`[Daily] Skipping statewide activity for completion ${api10} - no coordinates for heatmap`);
+      console.log(`[Daily] Skipping statewide activity for completion ${api10} - no coordinates available from any source`);
       results.coordinateFailures = (results.coordinateFailures || 0) + 1;
     }
   } catch (err) {
@@ -839,7 +899,14 @@ async function processCompletion(completion, env, results, dryRun = false, prope
   // Step 2: If user matches exist, ALSO write to Well Locations
   try {
     if (alertsToSend.length > 0) {
-      const locationData = createWellLocationFromCompletion(completion, wellData, mapLink);
+      // Use wellData with fallback coordinates if available
+      const locationWellData = coordinates ? {
+        ...(wellData || {}),
+        sh_lat: coordinates.latitude,
+        sh_lon: coordinates.longitude
+      } : wellData;
+      
+      const locationData = await createWellLocationFromCompletion(completion, locationWellData, mapLink, env);
       const locationResult = await upsertWellLocation(env, locationData);
       if (locationResult.success) {
         console.log(`[Daily] Well location ${locationResult.action} for completion ${api10} (user-related)`);
@@ -934,7 +1001,9 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       // Include completion date to differentiate multiple zone completions
       notes: completion.Well_Completion ? `Completion Date: ${completion.Well_Completion}` : null,
       // Add formation data if available (prefer enhanced data from cache)
-      formation: enhancedFormation || completion.Formation_Name || null
+      formation: enhancedFormation || completion.Formation_Name || null,
+      // Track coordinate source for user awareness
+      coordinateSource: coordinateSource
     };
     
     const activityRecord = await createActivityLog(env, activityData);

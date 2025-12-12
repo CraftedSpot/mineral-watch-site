@@ -9,6 +9,7 @@
 
 import { fetchOCCFile } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
+import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 import { findMatchingWells } from '../services/matching.js';
 import { 
   preloadRecentAlerts, 
@@ -387,10 +388,36 @@ async function processTransfer(transfer, env, results, propertyMap, userCache, r
   const hasTrackedWellAlerts = alertsToSend.some(alert => alert.reason === 'tracked_well');
   
   if (hasTrackedWellAlerts) {
-    wellData = await fetchWellCoordinates(api10, env);
-    mapLink = getMapLinkFromWellData(wellData);
-    if (mapLink) {
-      console.log(`[Weekly] Generated map link for tracked well transfer ${api10}`);
+    // Build a minimal record for coordinate fallback
+    const transferRecord = {
+      API_Number: api10,
+      Section: transfer.SECTION || transfer.Section,
+      Township: transfer.TOWNSHIP || transfer.Township, 
+      Range: transfer.RANGE || transfer.Range,
+      PM: transfer.PM || 'IM',
+      County: transfer.COUNTY || transfer.County
+    };
+    
+    // Use coordinate fallback system to ensure map links for tracked well transfers
+    const coordResult = await getCoordinatesWithFallback(api10, transferRecord, env);
+    wellData = coordResult.wellData;
+    
+    if (coordResult.coordinates) {
+      // Ensure wellData has coordinates for map link generation
+      if (!wellData) {
+        wellData = {};
+      }
+      if (!wellData.sh_lat || !wellData.sh_lon) {
+        wellData.sh_lat = coordResult.coordinates.latitude;
+        wellData.sh_lon = coordResult.coordinates.longitude;
+        wellData.well_name = wellData.well_name || `API ${api10}`;
+        wellData.api = api10;
+      }
+      
+      mapLink = getMapLinkFromWellData(wellData);
+      console.log(`[Weekly] Generated map link for tracked well transfer ${api10} using ${coordResult.source} coordinates`);
+    } else {
+      console.log(`[Weekly] WARNING: No coordinates available for tracked well transfer ${api10} - no map link generated`);
     }
   }
   

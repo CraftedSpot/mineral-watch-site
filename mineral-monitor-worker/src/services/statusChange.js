@@ -6,6 +6,8 @@
 import { queryAirtable, createActivityLog } from './airtable.js';
 import { sendAlertEmail } from './email.js';
 import { normalizeAPI } from '../utils/normalize.js';
+import { getCoordinatesWithFallback } from '../utils/coordinates.js';
+import { getMapLinkFromWellData } from '../utils/mapLink.js';
 
 /**
  * Check if a well's status has changed and alert users
@@ -72,6 +74,43 @@ export async function checkWellStatusChange(api10, currentData, env) {
           const user = userQuery.records[0];
           const userName = user.fields.Name || user.fields.Email;
           
+          // Try to get coordinates and map link with fallback system
+          let mapLink = null;
+          let coordinateSource = null;
+          
+          // Build a well record-like object for coordinate fallback
+          const wellRecord = {
+            API_Number: api10,
+            Section: currentData.section || well.fields.Section,
+            Township: currentData.township || well.fields.Township,
+            Range: currentData.range || well.fields.Range,
+            PM: currentData.pm || well.fields.PM || 'IM',
+            County: currentData.county || well.fields.County
+          };
+          
+          // Use coordinate fallback to ensure we have location data for alerts
+          const coordResult = await getCoordinatesWithFallback(api10, wellRecord, env);
+          if (coordResult.coordinates) {
+            coordinateSource = coordResult.source;
+            const mapWellData = coordResult.wellData || {
+              sh_lat: coordResult.coordinates.latitude,
+              sh_lon: coordResult.coordinates.longitude,
+              well_name: well.fields['Well Name'] || `API ${api10}`,
+              api: api10
+            };
+            
+            // Ensure coordinates are in the wellData
+            if (!mapWellData.sh_lat || !mapWellData.sh_lon) {
+              mapWellData.sh_lat = coordResult.coordinates.latitude;
+              mapWellData.sh_lon = coordResult.coordinates.longitude;
+            }
+            
+            mapLink = getMapLinkFromWellData(mapWellData);
+            console.log(`[Status Change] Using ${coordinateSource} coordinates for status change alert ${api10}`);
+          } else {
+            console.log(`[Status Change] WARNING: No coordinates available for ${api10} - using fallback OCC link`);
+          }
+          
           // Create activity log
           const activityResult = await createActivityLog(env, {
             userEmail: user.fields.Email,
@@ -83,7 +122,9 @@ export async function checkWellStatusChange(api10, currentData, env) {
             newValue: currentStatus,
             wellName: well.fields['Well Name'] || `API ${api10}`,
             operator: well.fields.Operator || currentData.operator || 'Unknown',
-            notes: `Well status changed from ${getStatusDescription(previousStatus)} to ${getStatusDescription(currentStatus)}`
+            notes: `Well status changed from ${getStatusDescription(previousStatus)} to ${getStatusDescription(currentStatus)}`,
+            mapLink: mapLink || "",
+            coordinateSource: coordinateSource
           });
           
           if (!activityResult.success) {
@@ -111,7 +152,8 @@ export async function checkWellStatusChange(api10, currentData, env) {
                   previous: getStatusDescription(previousStatus),
                   current: getStatusDescription(currentStatus)
                 },
-                occMapLink: `https://imaging.occ.ok.gov/OG/Well/${api10.substring(2)}.pdf`
+                mapLink: mapLink,
+                occLink: `https://imaging.occ.ok.gov/OG/Well/${api10.substring(2)}.pdf`
               });
               
               result.alertsSent++;

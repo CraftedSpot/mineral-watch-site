@@ -213,6 +213,7 @@ export async function createActivityLog(env, data) {
   if (data.operatorPhone) fields['Operator Phone'] = data.operatorPhone;
   if (data.notes) fields['Notes'] = data.notes;
   if (data.formation) fields['Formation'] = data.formation; // Add formation field
+  if (data.coordinateSource) fields['Coordinate Source'] = data.coordinateSource; // Track data quality
   // Always include OCC Map Link field (empty string if no link)
   fields['OCC Map Link'] = data.mapLink || "";
   console.log(`[Airtable] OCC Map Link field set to: ${fields['OCC Map Link']}`);

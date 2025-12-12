@@ -4,6 +4,7 @@
  */
 
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
+import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
@@ -119,6 +120,7 @@ export async function upsertWellLocation(env, wellData) {
   if (wellData.latitude !== undefined && wellData.latitude !== null) fields['Latitude'] = wellData.latitude;
   if (wellData.longitude !== undefined && wellData.longitude !== null) fields['Longitude'] = wellData.longitude;
   if (wellData.mapLink) fields['OCC Map Link'] = wellData.mapLink;
+  if (wellData.coordinateSource) fields['Coordinate Source'] = wellData.coordinateSource;
   
   try {
     if (existingData.records && existingData.records.length > 0) {
@@ -168,12 +170,13 @@ export async function upsertWellLocation(env, wellData) {
 }
 
 /**
- * Create well location data from a permit
+ * Create well location data from a permit with coordinate fallback
  * @param {Object} permit - Permit data
  * @param {Object} wellCoords - Optional well coordinates from OCC GIS
  * @param {string} mapLink - Optional OCC map link
+ * @param {Object} env - Worker environment (for coordinate fallback)
  */
-export function createWellLocationFromPermit(permit, wellCoords = null, mapLink = null) {
+export async function createWellLocationFromPermit(permit, wellCoords = null, mapLink = null, env = null) {
   const isHorizontal = isHorizontalWell(permit);
   
   const locationData = {
@@ -194,10 +197,28 @@ export function createWellLocationFromPermit(permit, wellCoords = null, mapLink 
     isHorizontal
   };
   
-  // Add coordinates if available
+  // Use coordinate fallback system if coordinates not provided
+  let coordinateSource = null;
   if (wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     locationData.latitude = wellCoords.sh_lat;
     locationData.longitude = wellCoords.sh_lon;
+    coordinateSource = 'OCC_GIS';
+  } else if (env) {
+    console.log(`[WellLocations] No OCC GIS coordinates for permit ${permit.API_Number}, using fallback system`);
+    const coordResult = await getCoordinatesWithFallback(normalizeAPI(permit.API_Number), permit, env);
+    if (coordResult.coordinates) {
+      locationData.latitude = coordResult.coordinates.latitude;
+      locationData.longitude = coordResult.coordinates.longitude;
+      coordinateSource = coordResult.source;
+      console.log(`[WellLocations] Using ${coordinateSource} coordinates for permit ${permit.API_Number} - ensures user alerts are sent`);
+    } else {
+      console.log(`[WellLocations] WARNING: No coordinates available for permit ${permit.API_Number} from any source - user may miss alerts`);
+    }
+  }
+  
+  // Track coordinate source for data quality
+  if (coordinateSource) {
+    locationData.coordinateSource = coordinateSource;
   }
   
   // Add map link if available
@@ -223,12 +244,13 @@ export function createWellLocationFromPermit(permit, wellCoords = null, mapLink 
 }
 
 /**
- * Create well location data from a completion
+ * Create well location data from a completion with coordinate fallback
  * @param {Object} completion - Completion data
  * @param {Object} wellCoords - Optional well coordinates from OCC GIS
  * @param {string} mapLink - Optional OCC map link
+ * @param {Object} env - Worker environment (for coordinate fallback)
  */
-export function createWellLocationFromCompletion(completion, wellCoords = null, mapLink = null) {
+export async function createWellLocationFromCompletion(completion, wellCoords = null, mapLink = null, env = null) {
   const isHorizontal = isHorizontalWell(completion);
   
   const locationData = {
@@ -251,10 +273,28 @@ export function createWellLocationFromCompletion(completion, wellCoords = null, 
     isHorizontal
   };
   
-  // Add coordinates if available
+  // Use coordinate fallback system if coordinates not provided
+  let coordinateSource = null;
   if (wellCoords && wellCoords.sh_lat && wellCoords.sh_lon) {
     locationData.latitude = wellCoords.sh_lat;
     locationData.longitude = wellCoords.sh_lon;
+    coordinateSource = 'OCC_GIS';
+  } else if (env) {
+    console.log(`[WellLocations] No OCC GIS coordinates for completion ${completion.API_Number}, using fallback system`);
+    const coordResult = await getCoordinatesWithFallback(normalizeAPI(completion.API_Number), completion, env);
+    if (coordResult.coordinates) {
+      locationData.latitude = coordResult.coordinates.latitude;
+      locationData.longitude = coordResult.coordinates.longitude;
+      coordinateSource = coordResult.source;
+      console.log(`[WellLocations] Using ${coordinateSource} coordinates for completion ${completion.API_Number} - ensures user alerts are sent`);
+    } else {
+      console.log(`[WellLocations] WARNING: No coordinates available for completion ${completion.API_Number} from any source - user may miss alerts`);
+    }
+  }
+  
+  // Track coordinate source for data quality
+  if (coordinateSource) {
+    locationData.coordinateSource = coordinateSource;
   }
   
   // Add map link if available

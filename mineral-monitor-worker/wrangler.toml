@@ -27,9 +27,8 @@ cpu_ms = 300000  # 5 minutes CPU time for completion processing
 # Cron Triggers (UTC)
 # Daily at 6 AM Central = 12:00 UTC (or 11:00 UTC during DST)
 # Weekly on Sunday at 2 AM Central = 08:00 UTC Sunday
-# DISABLED FOR TESTING - uncomment when ready
-# [triggers]
-# crons = ["0 12 * * *", "0 8 * * 0"]
+[triggers]
+crons = ["0 12 * * *", "0 8 * * 7"]
 
 # KV Namespace for health tracking and caching
 [[kv_namespaces]]
