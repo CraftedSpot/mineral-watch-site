@@ -1703,8 +1703,19 @@
         
         // View property on My Map
         function viewOnMap(propertyId) {
-            // Open My Map with the property centered/highlighted
-            window.open(`/portal/oklahoma-map?property=${propertyId}`, '_blank');
+            const property = currentProperties.find(p => p.id === propertyId);
+            if (property) {
+                const f = property.fields;
+                // Pass property ID and location info for centering
+                const params = new URLSearchParams({
+                    property: propertyId,
+                    county: f.COUNTY,
+                    section: f.SEC,
+                    township: f.TWN,
+                    range: f.RNG
+                });
+                window.open(`/portal/oklahoma-map?${params.toString()}`, '_blank');
+            }
         }
         
         const planConfigs = { 

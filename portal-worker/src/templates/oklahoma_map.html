@@ -4639,6 +4639,25 @@
                 setTimeout(async () => {
                     try {
                         await loadUserProperties();
+                        
+                        // Check if we need to center on a specific property from URL
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const propertyId = urlParams.get('property');
+                        if (propertyId) {
+                            // Find the property in loaded data
+                            const property = userProperties.find(p => p.id === propertyId);
+                            if (property && propertyMarkers[propertyId]) {
+                                const marker = propertyMarkers[propertyId];
+                                const bounds = marker.getBounds();
+                                map.fitBounds(bounds, { maxZoom: 15, padding: [50, 50] });
+                                
+                                // Open the popup after a short delay to ensure the map has centered
+                                setTimeout(() => {
+                                    marker.openPopup();
+                                }, 500);
+                            }
+                        }
+                        
                         // Load tracked wells after properties
                         await loadTrackedWells();
                         // Load recent activity data
