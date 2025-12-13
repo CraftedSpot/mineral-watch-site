@@ -2080,12 +2080,77 @@
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
                 
+                // Set up button event listeners BEFORE loading data (in case loading fails)
+                // Well Modal
+                document.getElementById('addWellBtn')?.addEventListener('click', () => { 
+                    document.getElementById('addWellModal').style.display = 'flex'; 
+                });
+                
+                // Bulk Upload Properties Modal
+                const bulkUploadBtn = document.getElementById('bulkUploadBtn');
+                console.log('Setting up bulk upload button:', bulkUploadBtn);
+                if (bulkUploadBtn) {
+                    bulkUploadBtn.addEventListener('click', () => {
+                        console.log('Import button clicked');
+                        openBulkUploadModal();
+                    });
+                } else {
+                    console.error('Bulk upload button not found during setup!');
+                }
+                
+                // Bulk Upload Wells Modal
+                document.getElementById('bulkUploadWellsBtn')?.addEventListener('click', () => {
+                    openBulkUploadWellsModal();
+                });
+                
+                // Add Well Modal event listeners
+                document.getElementById('addWellModal')?.addEventListener('click', e => { 
+                    if (e.target.id === 'addWellModal') closeWellModal(); 
+                });
+                
+                document.getElementById('addWellForm')?.addEventListener('submit', async e => {
+                    e.preventDefault();
+                    const data = { 
+                        apiNumber: document.getElementById('apiNumber').value.trim(),
+                        notes: document.getElementById('wellNotes').value.trim()
+                    };
+                    
+                    try {
+                        document.querySelector('.btn-submit').disabled = true;
+                        const res = await fetch('/api/wells/track', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(data)
+                        });
+                        
+                        if (!res.ok) {
+                            const error = await res.json();
+                            throw new Error(error.error || 'Failed to add well');
+                        }
+                        
+                        const result = await res.json();
+                        closeWellModal();
+                        showToast('Well added successfully');
+                        loadWells();
+                        loadActivityStats();
+                    } catch (err) {
+                        showToast('Error: ' + err.message, 'error');
+                    } finally {
+                        document.querySelector('.btn-submit').disabled = false;
+                    }
+                });
+                
+                // Now load the data
                 await loadAllData();
 
                 // Initialize search/sort controls
                 initWellsControls();
                 initPropertiesControls();
-            } catch { window.location.href = '/portal/login'; }
+            } catch (error) { 
+                console.error('Error during initialization:', error);
+                // Don't redirect on error - let the user see what's wrong
+                // window.location.href = '/portal/login'; 
+            }
 
             // Tab switching
             document.querySelectorAll('.tab').forEach(tab => {
@@ -2118,67 +2183,7 @@
                     toggleWellSelection(e.target.dataset.id, e.target.checked);
                 }
             });
-            
-            // Add button event listeners inside DOMContentLoaded
-            // Well Modal
-            document.getElementById('addWellBtn').addEventListener('click', () => { 
-                document.getElementById('addWellModal').style.display = 'flex'; 
-            });
-            
-            // Bulk Upload Properties Modal
-            const bulkUploadBtn = document.getElementById('bulkUploadBtn');
-            console.log('Bulk upload button:', bulkUploadBtn);
-            if (bulkUploadBtn) {
-                bulkUploadBtn.addEventListener('click', () => {
-                    console.log('Import button clicked');
-                    openBulkUploadModal();
-                });
-            } else {
-                console.error('Bulk upload button not found!');
-            }
-            
-            // Bulk Upload Wells Modal
-            document.getElementById('bulkUploadWellsBtn').addEventListener('click', () => {
-                openBulkUploadWellsModal();
-            });
-            
-            // Add Well Modal event listeners
-            document.getElementById('addWellModal').addEventListener('click', e => { 
-                if (e.target.id === 'addWellModal') closeWellModal(); 
-            });
-            
-            document.getElementById('addWellForm').addEventListener('submit', async e => {
-                e.preventDefault();
-                const data = { 
-                    apiNumber: document.getElementById('apiNumber').value.trim(),
-                    notes: document.getElementById('wellNotes').value.trim()
-                };
-                
-                try {
-                    document.querySelector('.btn-submit').disabled = true;
-                    const res = await fetch('/api/wells/track', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(data)
-                    });
-                    
-                    if (!res.ok) {
-                        const error = await res.json();
-                        throw new Error(error.error || 'Failed to add well');
-                    }
-                    
-                    const result = await res.json();
-                    closeWellModal();
-                    showToast('Well added successfully');
-                    loadWells();
-                    loadActivityStats();
-                } catch (err) {
-                    showToast('Error: ' + err.message, 'error');
-                } finally {
-                    document.querySelector('.btn-submit').disabled = false;
-                }
-            });
-        });
+        }); // End of DOMContentLoaded
         
         async function loadAllData() {
         await Promise.all([loadProperties(), loadWells(), loadActivity(), loadActivityStats()]);
