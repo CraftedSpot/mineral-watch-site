@@ -1,5 +1,5 @@
 name = "portal-worker"
-main = "src/index.ts"
+main = "index-standalone.js"
 compatibility_date = "2024-01-01"
 
 # Static assets - use public directory
