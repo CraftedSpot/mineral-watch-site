@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
-    <!-- v2024.12.13.1 - Table spacing improvements -->
+    <!-- v2024.12.13.2 - Fixed table column spacing -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -86,27 +86,28 @@
         .tab-content { display: none; }
         .tab-content.active { display: block; }
         .data-table { width: 100%; border-collapse: collapse; }
-        #propertiesContent .data-table { table-layout: fixed; }
+        #propertiesContent .data-table { table-layout: auto; }
         
         /* Properties Table - Fixed widths for better alignment */
         .col-select { width: 40px; }
-        .col-prop-county { width: 100px; }
-        .col-prop-legal { width: 140px; }
-        .col-prop-group { width: 100px; display: none; } /* Hidden by default */
-        .col-prop-acres { width: 100px; text-align: right; }
+        .col-prop-county { width: 120px; }
+        .col-prop-legal { width: 160px; }
+        .col-prop-group { width: 120px; display: none; } /* Hidden by default */
+        .col-prop-acres { width: 100px; }
         .col-prop-notes { 
             width: auto;
-            min-width: 200px;
+            min-width: 300px;
         }
-        .col-actions { width: 90px; text-align: right; }
+        .col-actions { width: 80px; }
         
         /* When groups are visible, show the column */
         .has-groups .col-prop-group { display: table-cell; }
         
         /* Properties table specific alignments */
-        #propertiesContent .data-table th:nth-child(5),
-        #propertiesContent .data-table th:nth-child(4) { text-align: right; } /* Acres headers */
+        #propertiesContent .data-table th:nth-child(5) { text-align: right; } /* Total Acres header */
+        .has-groups #propertiesContent .data-table th:nth-child(5) { text-align: right; } /* Total Acres with groups */
         #propertiesContent .data-table th:last-child { text-align: right; } /* Actions header */
+        #propertiesContent .data-table td:last-child { text-align: right; } /* Actions cells */
         
         /* Notes cell styling with 2-line clamp */
         .notes-cell {
