@@ -3640,12 +3640,21 @@
 
         // Custom confirm dialog
         function showConfirm(message, options = {}) {
+            console.log('showConfirm called with message:', message);
             return new Promise((resolve) => {
                 const dialog = document.getElementById('confirmDialog');
                 const title = document.getElementById('confirmTitle');
                 const messageEl = document.getElementById('confirmMessage');
                 const cancelBtn = document.getElementById('confirmCancel');
                 const okBtn = document.getElementById('confirmOk');
+                
+                console.log('Dialog elements found:', {
+                    dialog: !!dialog,
+                    title: !!title,
+                    messageEl: !!messageEl,
+                    cancelBtn: !!cancelBtn,
+                    okBtn: !!okBtn
+                });
                 
                 title.textContent = options.title || 'Confirm Action';
                 messageEl.innerHTML = message;
