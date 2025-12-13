@@ -162,13 +162,8 @@ export async function handleDeleteActivity(activityId: string, request: Request,
   
   const activity = await getResponse.json();
   
-  console.log('Activity record fields:', activity.fields);
-  console.log('User email:', user.email);
-  console.log('Activity Email field:', activity.fields.Email);
-  
-  // Check ownership - Activity Log uses email field instead of linked User field
-  if (activity.fields.Email !== user.email) {
-    console.log('Email mismatch - access denied');
+  // Check ownership - Activity Log uses linked User field like properties/wells
+  if (activity.fields.User?.[0] !== user.id) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }
   
