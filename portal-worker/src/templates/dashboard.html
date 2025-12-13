@@ -69,6 +69,8 @@
         .activity-btn.track-btn { background: white; border-color: var(--red-dirt); color: var(--red-dirt); }
         .activity-btn.track-btn:hover { background: var(--red-dirt); color: white; }
         .activity-date { font-size: 12px; color: #718096; white-space: nowrap; }
+        .activity-checkbox { padding: 8px; margin-right: 8px; }
+        .activity-checkbox-input { cursor: pointer; width: 16px; height: 16px; }
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
@@ -1305,6 +1307,21 @@
                 </div>
 
                 <div id="activity-tab" class="tab-content">
+                    <!-- Activity Bulk Action Bar -->
+                    <div class="bulk-action-bar" id="activityBulkBar">
+                        <div class="bulk-info">
+                            <span id="activitySelectedCount">0</span> activities selected
+                        </div>
+                        <div class="bulk-actions">
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('activity')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path stroke="currentColor" stroke-width="2" d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
+                                </svg>
+                                Delete Selected
+                            </button>
+                        </div>
+                    </div>
+
                     <div id="activityContent">
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
@@ -1676,12 +1693,14 @@
         // Bulk Selection State
         let selectedProperties = new Set();
         let selectedWells = new Set();
+        let selectedActivity = new Set();
         
         // Bulk Selection Functions
         function updateBulkActionVisibility() {
             // Show/hide bulk action bars based on selection state
             const propBar = document.getElementById('propertiesBulkActionBar');
             const wellBar = document.getElementById('wellsBulkActionBar');
+            const activityBar = document.getElementById('activityBulkBar');
             
             if (propBar) {
                 propBar.style.display = selectedProperties.size > 0 ? 'flex' : 'none';
@@ -1693,6 +1712,12 @@
                 wellBar.style.display = selectedWells.size > 0 ? 'flex' : 'none';
                 const count = document.querySelector('#wellsBulkActionBar .selected-count');
                 if (count) count.textContent = selectedWells.size;
+            }
+            
+            if (activityBar) {
+                activityBar.classList.toggle('active', selectedActivity.size > 0);
+                const count = document.getElementById('activitySelectedCount');
+                if (count) count.textContent = selectedActivity.size;
             }
         }
         
@@ -1756,8 +1781,10 @@
         }
         
         async function bulkDeleteSelected(type) {
-            const selectedSet = type === 'properties' ? selectedProperties : selectedWells;
-            const itemName = type === 'properties' ? 'properties' : 'wells';
+            const selectedSet = type === 'properties' ? selectedProperties : 
+                               type === 'wells' ? selectedWells : selectedActivity;
+            const itemName = type === 'properties' ? 'properties' : 
+                           type === 'wells' ? 'wells' : 'activities';
             
             if (selectedSet.size === 0) return;
             
@@ -1785,7 +1812,8 @@
                 for (let i = 0; i < itemsToDelete.length; i += 5) {
                     const batch = itemsToDelete.slice(i, i + 5);
                     const deletePromises = batch.map(id => {
-                        const endpoint = type === 'properties' ? `/api/properties/${id}` : `/api/wells/${id}`;
+                        const endpoint = type === 'properties' ? `/api/properties/${id}` : 
+                                       type === 'wells' ? `/api/wells/${id}` : `/api/activity/${id}`;
                         return fetch(endpoint, { method: 'DELETE' })
                             .then(res => res.ok ? successCount++ : failCount++)
                             .catch(() => failCount++);
@@ -1845,6 +1873,9 @@
                 document.querySelectorAll('.well-checkbox').forEach(cb => cb.checked = false);
                 document.getElementById('selectAllWells').checked = false;
                 document.getElementById('selectAllWells').indeterminate = false;
+            } else if (type === 'activity') {
+                selectedActivity.clear();
+                document.querySelectorAll('.activity-checkbox-input').forEach(cb => cb.checked = false);
             }
             updateBulkActionVisibility();
         }
@@ -1974,7 +2005,7 @@
         });
         
         async function loadAllData() {
-        await Promise.all([loadProperties(), loadWells(), loadActivityStats()]);
+        await Promise.all([loadProperties(), loadWells(), loadActivity(), loadActivityStats()]);
 }
 
         async function loadProperties() {
@@ -2829,6 +2860,9 @@
                     
                     html += `
                         <div class="activity-item">
+                            <div class="activity-checkbox" onclick="event.stopPropagation()">
+                                <input type="checkbox" class="activity-checkbox-input" data-id="${r.id}">
+                            </div>
                             <div class="activity-icon ${iconClass}">${icon}</div>
                             <div class="activity-details">
                                 <div class="activity-header">
@@ -2847,6 +2881,20 @@
                 
                 html += '</div>';
                 document.getElementById('activityContent').innerHTML = html;
+                
+                // Add event listeners for activity checkboxes
+                document.querySelectorAll('.activity-checkbox-input').forEach(checkbox => {
+                    checkbox.addEventListener('change', function() {
+                        const activityId = this.getAttribute('data-id');
+                        if (this.checked) {
+                            selectedActivity.add(activityId);
+                        } else {
+                            selectedActivity.delete(activityId);
+                        }
+                        updateBulkActionVisibility();
+                    });
+                });
+                
             } catch (err) {
                 document.getElementById('activityContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading activity. Refresh page.</p></div>';
             }
