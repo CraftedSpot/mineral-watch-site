@@ -3663,6 +3663,16 @@
                 
                 console.log('About to show dialog...');
                 dialog.classList.add('show');
+                // Force dialog visibility with inline styles as backup
+                dialog.style.display = 'flex';
+                dialog.style.position = 'fixed';
+                dialog.style.top = '0';
+                dialog.style.left = '0';
+                dialog.style.width = '100%';
+                dialog.style.height = '100%';
+                dialog.style.zIndex = '10000';
+                dialog.style.backgroundColor = 'rgba(28, 43, 54, 0.7)';
+                
                 console.log('Dialog should now be visible, classes:', dialog.classList.toString());
                 console.log('Dialog computed style display:', window.getComputedStyle(dialog).display);
                 console.log('Dialog bounding box:', dialog.getBoundingClientRect());
