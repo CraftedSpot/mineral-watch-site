@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
+    <!-- v2024.12.13.1 - Table spacing improvements -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -87,18 +88,35 @@
         .data-table { width: 100%; border-collapse: collapse; }
         #propertiesContent .data-table { table-layout: fixed; }
         
-        /* Properties Table */
+        /* Properties Table - Fixed widths for better alignment */
         .col-select { width: 40px; }
-        .col-prop-county { width: 14%; }
-        .col-prop-legal { width: 18%; }
-        .col-prop-group { width: 12%; display: none; } /* Hidden by default, shown when groups exist */
-        .col-prop-acres { width: 14%; }
-        .col-prop-notes { width: calc(100% - 40px - 14% - 18% - 14% - 160px); }
-        .col-actions { width: 160px; } /* Increased for View on Map button */
+        .col-prop-county { width: 100px; }
+        .col-prop-legal { width: 140px; }
+        .col-prop-group { width: 100px; display: none; } /* Hidden by default */
+        .col-prop-acres { width: 100px; text-align: right; }
+        .col-prop-notes { 
+            width: auto;
+            min-width: 200px;
+        }
+        .col-actions { width: 90px; text-align: right; }
         
-        /* When groups are visible, adjust notes width */
+        /* When groups are visible, show the column */
         .has-groups .col-prop-group { display: table-cell; }
-        .has-groups .col-prop-notes { width: calc(100% - 40px - 14% - 18% - 12% - 14% - 160px); }
+        
+        /* Properties table specific alignments */
+        #propertiesContent .data-table th:nth-child(5),
+        #propertiesContent .data-table th:nth-child(4) { text-align: right; } /* Acres headers */
+        #propertiesContent .data-table th:last-child { text-align: right; } /* Actions header */
+        
+        /* Notes cell styling with 2-line clamp */
+        .notes-cell {
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+            line-height: 1.4;
+            word-break: break-word;
+        }
         
         /* Map link button */
         .btn-map-link { 
@@ -1087,9 +1105,15 @@
             animation: skeleton-shimmer 1.5s infinite;
             border-radius: 4px;
         }
+        /* Skeleton loading states - Updated 2024-12-13 */
+        .skeleton-table { padding: 20px; }
+        .skeleton-row { display: flex; gap: 10px; margin-bottom: 10px; }
         .skeleton-cell {
             height: 16px;
         }
+        .skeleton-cell.narrow { width: 80px; }
+        .skeleton-cell.medium { width: 150px; }
+        .skeleton-header { display: flex; gap: 10px; margin-bottom: 15px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
         .skeleton-header .skeleton-cell { height: 14px; opacity: 0.5; }
         .skeleton-activity { padding: 20px; display: flex; gap: 16px; border-bottom: 1px solid var(--border); }
         .skeleton-activity:last-child { border-bottom: none; }
