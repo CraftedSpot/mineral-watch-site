@@ -71,6 +71,7 @@ import {
   // Activity handlers
   handleListActivity,
   handleActivityStats,
+  handleDeleteActivity,
   // Property handlers
   handleListProperties,
   handleAddProperty,
@@ -338,6 +339,10 @@ var index_default = {
       }
       if (path === "/api/activity/stats" && request.method === "GET") {
         return handleActivityStats(request, env);
+      }
+      const deleteActivityMatch = path.match(/^\/api\/activity\/([a-zA-Z0-9]+)$/);
+      if (deleteActivityMatch && request.method === "DELETE") {
+        return handleDeleteActivity(deleteActivityMatch[1], request, env);
       }
       
       // Statewide activity endpoint (for heatmap)

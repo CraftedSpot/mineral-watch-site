@@ -7,7 +7,8 @@
 // Activity handlers
 export {
   handleListActivity,
-  handleActivityStats
+  handleActivityStats,
+  handleDeleteActivity
 } from './activity.js';
 
 // Property handlers

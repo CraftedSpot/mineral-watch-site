@@ -138,3 +138,42 @@ export async function handleActivityStats(request: Request, env: Env) {
     total: records.length
   });
 }
+
+/**
+ * Delete an activity log entry for the authenticated user
+ * @param activityId The activity record ID to delete
+ * @param request The incoming request
+ * @param env Worker environment
+ * @returns JSON response with success status
+ */
+export async function handleDeleteActivity(activityId: string, request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  // Verify ownership by checking if record exists and belongs to user
+  const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}/${activityId}`;
+  const getResponse = await fetch(getUrl, {
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+  
+  if (!getResponse.ok) {
+    return jsonResponse({ error: "Activity record not found" }, 404);
+  }
+  
+  const activity = await getResponse.json();
+  
+  // Check ownership - Activity Log uses email field instead of linked User field
+  if (activity.fields.Email !== user.email) {
+    return jsonResponse({ error: "Not authorized" }, 403);
+  }
+  
+  // Delete the record
+  const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}/${activityId}`;
+  await fetch(deleteUrl, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+  
+  console.log(`Activity deleted: ${activityId} by ${user.email}`);
+  return jsonResponse({ success: true });
+}
