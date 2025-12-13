@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
-    <!-- v2024.12.13.4 - Fixed column gaps and padding -->
+    <!-- v2024.12.13.5 - Fixed group column visibility collapse -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -92,7 +92,7 @@
         .col-select { width: 40px; }
         .col-prop-county { width: 120px; }
         .col-prop-legal { width: 160px; }
-        .col-prop-group { width: 80px; display: none; } /* Hidden by default - compact width */
+        .col-prop-group { width: 0; padding: 0 !important; overflow: hidden; visibility: collapse; } /* Hidden by default */
         .col-prop-acres { width: 90px; }
         .col-prop-notes { 
             width: auto;
@@ -101,7 +101,7 @@
         .col-actions { width: 80px; }
         
         /* When groups are visible, show the column */
-        .has-groups .col-prop-group { display: table-cell; }
+        .has-groups .col-prop-group { width: 80px; padding: 16px 16px !important; visibility: visible; }
         
         /* Properties table specific alignments */
         #propertiesContent .data-table th:nth-child(5) { text-align: right; } /* Total Acres header */
@@ -218,8 +218,8 @@
         .data-table td { padding: 16px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
         
         /* Reduce padding on specific columns to minimize gaps */
-        .col-prop-group { padding-right: 12px !important; }
-        td.col-prop-group { padding-right: 12px !important; }
+        .has-groups .col-prop-group { padding-right: 12px !important; }
+        .has-groups td.col-prop-group { padding-right: 12px !important; }
         .data-table td[style*="text-align: right"] { padding-left: 12px; }
         
         /* Accordion row - ensure it spans properly and has height */
