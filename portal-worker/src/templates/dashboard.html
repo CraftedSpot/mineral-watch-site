@@ -352,6 +352,22 @@
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
         .empty-state p { margin-bottom: 20px; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        /* Ensure bulk upload modal overlay displays correctly when opened */
+        #bulk-upload-modal { 
+            display: none; 
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 9999 !important;
+            background: rgba(0,0,0,0.7) !important;
+        }
+        #bulk-upload-modal[style*="flex"] { 
+            display: flex !important; 
+            align-items: center !important;
+            justify-content: center !important;
+        }
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
         
