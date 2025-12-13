@@ -1781,12 +1781,19 @@
         }
         
         async function bulkDeleteSelected(type) {
+            console.log('bulkDeleteSelected called with type:', type);
             const selectedSet = type === 'properties' ? selectedProperties : 
                                type === 'wells' ? selectedWells : selectedActivity;
             const itemName = type === 'properties' ? 'properties' : 
                            type === 'wells' ? 'wells' : 'activities';
             
-            if (selectedSet.size === 0) return;
+            console.log('Selected set size:', selectedSet.size);
+            console.log('Selected items:', Array.from(selectedSet));
+            
+            if (selectedSet.size === 0) {
+                console.log('No items selected, returning');
+                return;
+            }
             
             const confirmed = await showConfirm(
                 `Delete <span class="confirm-count">${selectedSet.size}</span> ${itemName}?<br><br>This action cannot be undone.`,
@@ -2886,11 +2893,13 @@
                 document.querySelectorAll('.activity-checkbox-input').forEach(checkbox => {
                     checkbox.addEventListener('change', function() {
                         const activityId = this.getAttribute('data-id');
+                        console.log('Activity checkbox changed:', activityId, 'checked:', this.checked);
                         if (this.checked) {
                             selectedActivity.add(activityId);
                         } else {
                             selectedActivity.delete(activityId);
                         }
+                        console.log('selectedActivity size:', selectedActivity.size);
                         updateBulkActionVisibility();
                     });
                 });
