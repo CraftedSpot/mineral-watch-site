@@ -1806,10 +1806,9 @@
             }
             
             console.log('About to show confirm dialog');
-            const confirmed = await showConfirm(
-                `Delete <span class="confirm-count">${selectedSet.size}</span> ${itemName}?<br><br>This action cannot be undone.`,
-                { title: `Delete ${itemName.charAt(0).toUpperCase() + itemName.slice(1)}` }
-            );
+            // Fallback to native confirm for now since custom dialog has sizing issues
+            const confirmed = confirm(`Delete ${selectedSet.size} ${itemName}?\n\nThis action cannot be undone.`);
+            console.log('Native confirm result:', confirmed);
             console.log('Confirm dialog result:', confirmed);
             if (!confirmed) {
                 console.log('User cancelled deletion');
