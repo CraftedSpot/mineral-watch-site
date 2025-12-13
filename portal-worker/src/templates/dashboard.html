@@ -69,7 +69,6 @@
         .activity-btn.track-btn { background: white; border-color: var(--red-dirt); color: var(--red-dirt); }
         .activity-btn.track-btn:hover { background: var(--red-dirt); color: white; }
         .activity-date { font-size: 12px; color: #718096; white-space: nowrap; }
-        .activity-delete { margin-left: auto; }
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
@@ -2157,7 +2156,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Total Acres</th><th>Notes</th><th></th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-acres"><col class="col-prop-notes"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Total Acres</th><th>Notes</th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
@@ -2175,9 +2174,6 @@
                     <td><strong>${str}</strong></td>
                     <td style="text-align: right;">${acresDisplay}</td>
                     <td>${notes}</td>
-                    <td style="white-space: nowrap; text-align: right;" onclick="event.stopPropagation()">
-                        <button class="btn-delete" onclick="deleteProperty('${p.id}')" title="Delete property">🗑️</button>
-                    </td>
                 </tr>`;
             });
             
@@ -2617,7 +2613,7 @@
             }
             
             // Clean table that opens modal on row click
-            let html = '<table class="data-table wells-table"><colgroup><col class="col-select"><col class="col-well-info"><col class="col-well-operator"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Information</th><th>Operator Contact</th><th style="width: 40px;"></th></tr></thead><tbody>';
+            let html = '<table class="data-table wells-table"><colgroup><col class="col-select"><col class="col-well-info"><col class="col-well-operator"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th><th>Well Information</th><th>Operator Contact</th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
@@ -2674,9 +2670,6 @@
                         </div>
                     </td>
                     <td class="operator-contact-cell">${operatorContactDisplay}</td>
-                    <td style="text-align: right;" onclick="event.stopPropagation()">
-                        <button class="btn-delete" onclick="deleteWell('${w.id}')" title="Delete well">🗑️</button>
-                    </td>
                 </tr>`;
             });
             
@@ -2848,9 +2841,6 @@
                                 ${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
                             <div class="activity-date">${dateStr}</div>
-                            <div class="activity-delete" onclick="event.stopPropagation()">
-                                <button class="btn-delete" onclick="deleteActivity('${escapeHtml(r.id)}')" title="Delete activity">🗑️</button>
-                            </div>
                         </div>
                     `;
                 });
@@ -2961,46 +2951,6 @@
             }
         });
         
-        async function deleteProperty(id) {
-            const confirmed = await showConfirm(
-                'Remove this property from monitoring?<br><br>This action cannot be undone.',
-                { title: 'Delete Property' }
-            );
-            if (!confirmed) return;
-            try {
-                await fetch('/api/properties/' + id, { method: 'DELETE' });
-                await loadProperties();
-            } catch { alert('Error deleting.'); }
-        }
-
-        async function deleteWell(id) {
-            const confirmed = await showConfirm(
-                'Remove this well from monitoring?<br><br>This action cannot be undone.',
-                { title: 'Delete Well' }
-            );
-            if (!confirmed) return;
-            try {
-                await fetch('/api/wells/' + id, { method: 'DELETE' });
-                await loadWells();
-            } catch { alert('Error deleting.'); }
-        }
-        
-        async function deleteActivity(id) {
-            console.log('deleteActivity called with id:', id);
-            const confirmed = await showConfirm(
-                'Delete this activity record?<br><br>This action cannot be undone.',
-                { title: 'Delete Activity' }
-            );
-            if (!confirmed) return;
-            try {
-                console.log('Attempting to delete activity:', id);
-                await fetch('/api/activity/' + id, { method: 'DELETE' });
-                await loadActivity();
-            } catch (error) { 
-                console.error('Delete error:', error);
-                alert('Error deleting.'); 
-            }
-        }
 
         async function trackWellFromActivity(apiNumber, wellName, occLink, buttonElement) {
             try {
