@@ -69,6 +69,7 @@
         .activity-btn.track-btn { background: white; border-color: var(--red-dirt); color: var(--red-dirt); }
         .activity-btn.track-btn:hover { background: var(--red-dirt); color: white; }
         .activity-date { font-size: 12px; color: #718096; white-space: nowrap; }
+        .activity-delete { margin-left: auto; }
         .activity-limit-notice { background: #FEF3C7; border-left: 4px solid #F59E0B; padding: 12px 16px; margin: 16px 20px; border-radius: 0 4px 4px 0; font-size: 13px; color: #92400E; }
         .activity-limit-notice a { color: #92400E; font-weight: 600; }
         .tabs { display: flex; gap: 4px; margin-bottom: 20px; }
@@ -2847,6 +2848,9 @@
                                 ${(occLink || mapLink) ? actionsHtml : ''}
                             </div>
                             <div class="activity-date">${dateStr}</div>
+                            <div class="activity-delete" onclick="event.stopPropagation()">
+                                <button class="btn-delete" onclick="deleteActivity('${r.id}')" title="Delete activity">🗑️</button>
+                            </div>
                         </div>
                     `;
                 });
@@ -2978,6 +2982,18 @@
             try {
                 await fetch('/api/wells/' + id, { method: 'DELETE' });
                 await loadWells();
+            } catch { alert('Error deleting.'); }
+        }
+        
+        async function deleteActivity(id) {
+            const confirmed = await showConfirm(
+                'Delete this activity record?<br><br>This action cannot be undone.',
+                { title: 'Delete Activity' }
+            );
+            if (!confirmed) return;
+            try {
+                await fetch('/api/activity/' + id, { method: 'DELETE' });
+                await loadActivity();
             } catch { alert('Error deleting.'); }
         }
 
