@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
-    <!-- v2024.12.13.7 - Fixed Total Acres and Map button wrapping -->
+    <!-- v2024.12.13.8 - Fixed Total Acres header wrap and Notes spacing -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -105,10 +105,13 @@
         .has-groups .col-prop-group { width: 80px; padding: 16px 16px !important; visibility: visible; }
         
         /* Properties table specific alignments */
-        #propertiesContent .data-table th:nth-child(5) { text-align: right; } /* Total Acres header */
-        .has-groups #propertiesContent .data-table th:nth-child(5) { text-align: right; } /* Total Acres with groups */
+        #propertiesContent .data-table th:nth-child(5) { text-align: right; white-space: nowrap; } /* Total Acres header */
+        .has-groups #propertiesContent .data-table th:nth-child(5) { text-align: right; white-space: nowrap; } /* Total Acres with groups */
         #propertiesContent .data-table th:last-child { text-align: right; } /* Actions header */
         #propertiesContent .data-table td:last-child { text-align: right; } /* Actions cells */
+        
+        /* Notes column spacing - using class to avoid nth-child issues */
+        .col-prop-notes-cell { padding-left: 30px !important; }
         
         /* Notes cell styling with 2-line clamp */
         .notes-cell {
@@ -2277,7 +2280,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;">Total Acres</th><th>Notes</th><th style="text-align: right;">Actions</th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;">Total Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Actions</th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
@@ -2296,7 +2299,7 @@
                     <td><strong>${str}</strong></td>
                     <td class="col-prop-group">${group}</td>
                     <td style="text-align: right;">${acresDisplay}</td>
-                    <td title="${f.Notes ? escapeHtml(f.Notes) : ''}">${notes}</td>
+                    <td title="${f.Notes ? escapeHtml(f.Notes) : ''}" class="col-prop-notes-cell">${notes}</td>
                     <td onclick="event.stopPropagation()">
                         <button class="btn-map-link" onclick="viewOnMap('${p.id}')" title="View on Map">📍 Map</button>
                     </td>
