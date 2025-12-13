@@ -1873,10 +1873,12 @@
                 return;
             }
             
+            console.log('Showing delete confirmation for', selectedSet.size, itemName);
             const confirmed = await showConfirm(
                 `Delete <span class="confirm-count">${selectedSet.size}</span> ${itemName}?<br><br>This action cannot be undone.`,
                 { title: `Delete ${itemName.charAt(0).toUpperCase() + itemName.slice(1)}` }
             );
+            console.log('Confirmation result:', confirmed);
             if (!confirmed) {
                 deleteInProgress = false;
                 return;
@@ -3727,6 +3729,14 @@
         function showConfirm(message, options = {}) {
             return new Promise((resolve) => {
                 const dialog = document.getElementById('confirmDialog');
+                console.log('Confirm dialog element:', dialog);
+                
+                if (!dialog) {
+                    console.error('Confirm dialog not found!');
+                    resolve(false);
+                    return;
+                }
+                
                 const title = document.getElementById('confirmTitle');
                 const messageEl = document.getElementById('confirmMessage');
                 const cancelBtn = document.getElementById('confirmCancel');
@@ -3738,6 +3748,7 @@
                 cancelBtn.textContent = options.cancelText || 'Cancel';
                 
                 dialog.classList.add('show');
+                console.log('Dialog should be visible now');
                 
                 const handleCancel = () => {
                     dialog.classList.remove('show');
