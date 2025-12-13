@@ -2110,9 +2110,16 @@
             });
             
             // Bulk Upload Properties Modal
-            document.getElementById('bulkUploadBtn').addEventListener('click', () => {
-                openBulkUploadModal();
-            });
+            const bulkUploadBtn = document.getElementById('bulkUploadBtn');
+            console.log('Bulk upload button:', bulkUploadBtn);
+            if (bulkUploadBtn) {
+                bulkUploadBtn.addEventListener('click', () => {
+                    console.log('Import button clicked');
+                    openBulkUploadModal();
+                });
+            } else {
+                console.error('Bulk upload button not found!');
+            }
             
             // Bulk Upload Wells Modal
             document.getElementById('bulkUploadWellsBtn').addEventListener('click', () => {
@@ -4603,8 +4610,15 @@ function escapeHtmlBulk(text) {
 
 // Open bulk upload modal
 function openBulkUploadModal() {
-    document.getElementById('bulk-upload-modal').style.display = 'flex';
-    resetBulkUpload();
+    console.log('openBulkUploadModal called');
+    const modal = document.getElementById('bulk-upload-modal');
+    console.log('Bulk upload modal element:', modal);
+    if (modal) {
+        modal.style.display = 'flex';
+        resetBulkUpload();
+    } else {
+        console.error('Bulk upload modal not found!');
+    }
 }
 
 // Open bulk upload wells modal
