@@ -1901,12 +1901,22 @@
                 // Batch deletes in groups of 5 (Airtable rate limit)
                 for (let i = 0; i < itemsToDelete.length; i += 5) {
                     const batch = itemsToDelete.slice(i, i + 5);
-                    const deletePromises = batch.map(id => {
+                    const deletePromises = batch.map(async id => {
                         const endpoint = type === 'properties' ? `/api/properties/${id}` : 
                                        type === 'wells' ? `/api/wells/${id}` : `/api/activity/${id}`;
-                        return fetch(endpoint, { method: 'DELETE' })
-                            .then(res => res.ok ? successCount++ : failCount++)
-                            .catch(() => failCount++);
+                        try {
+                            const res = await fetch(endpoint, { method: 'DELETE' });
+                            if (res.ok) {
+                                successCount++;
+                            } else {
+                                const error = await res.text();
+                                console.error(`Failed to delete ${type} ${id}:`, res.status, error);
+                                failCount++;
+                            }
+                        } catch (err) {
+                            console.error(`Error deleting ${type} ${id}:`, err);
+                            failCount++;
+                        }
                     });
                     
                     await Promise.all(deletePromises);
