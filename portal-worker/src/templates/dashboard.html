@@ -1703,7 +1703,7 @@
         
         // View property on My Map
         function viewOnMap(propertyId) {
-            const property = currentProperties.find(p => p.id === propertyId);
+            const property = loadedProperties.find(p => p.id === propertyId);
             if (property) {
                 const f = property.fields;
                 // Pass property ID and location info for centering
