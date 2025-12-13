@@ -26,6 +26,12 @@
         .container { max-width: 1100px; margin: 0 auto; padding: 0 20px; }
         .header-inner { display: flex; justify-content: space-between; align-items: center; }
         .logo { font-size: 20px; font-weight: 900; color: white; text-decoration: none; }
+        .nav-links { display: flex; gap: 25px; }
+        .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-weight: 500; font-size: 14px; }
+        .nav-links a:hover, .nav-links a.active { color: white; }
+        .user-menu { display: flex; align-items: center; gap: 40px; }
+        .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
+        .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
         main { padding: 20px 0; }
         
         .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
@@ -285,6 +291,16 @@
         <div class="container">
             <div class="header-inner">
                 <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/map" class="active">My Properties</a>
+                    <a href="/portal/oklahoma-map">Oklahoma Map</a>
+                    <a href="/portal/account">Account</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
             </div>
         </div>
     </header>
@@ -732,15 +748,54 @@
         }
         
         // =============================================
+        // AUTHENTICATION
+        // =============================================
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/me', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userName').textContent = user.name || user.email;
+                    return user;
+                } else {
+                    window.location.href = '/portal/login';
+                    return null;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/portal/login';
+                return null;
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+            window.location.href = '/portal/login';
+        }
+
+        // =============================================
         // INITIALIZATION
         // =============================================
-        document.addEventListener('DOMContentLoaded', () => {
+        document.addEventListener('DOMContentLoaded', async () => {
+            await checkAuth();
+            
             initMap();
             loadProperties();
             
             // Event listeners
             document.getElementById('showAdjacent').addEventListener('click', toggleAdjacent);
             document.getElementById('fitBounds').addEventListener('click', fitAllBounds);
+            document.getElementById('logoutBtn').addEventListener('click', logout);
         });
     </script>
 </body>
