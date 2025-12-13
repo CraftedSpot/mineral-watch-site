@@ -321,6 +321,7 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
   
   const propertiesCount = await countUserProperties(env, user.email);
   
@@ -369,8 +370,8 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
-        records: batch.map((prop: any) => ({
-          fields: {
+        records: batch.map((prop: any) => {
+          const fields: any = {
             User: [user.id],
             SEC: String(prop.SEC).padStart(2, '0'),
             TWN: prop.TWN,
@@ -383,8 +384,15 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
             Notes: prop.NOTES || "",
             "RI Acres": prop['RI Acres'] || 0,
             "WI Acres": prop['WI Acres'] || 0
+          };
+          
+          // Add organization if user has one
+          if (userOrganization) {
+            fields.Organization = [userOrganization];
           }
-        }))
+          
+          return { fields };
+        })
       })
     });
     
@@ -547,6 +555,7 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
   
   if (planLimits.wells === 0) {
     return jsonResponse({ 
@@ -655,23 +664,22 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
           const township = completion.surfaceTownship || occ.township || "";
           const range = completion.surfaceRange || occ.range || "";
           
-          return {
-            fields: {
-              User: [user.id],
-              "API Number": well.apiNumber,
-              "Well Name": wellName,
-              Status: "Active",
-              "OCC Map Link": mapLink,
-              Operator: operator,
-              County: county,
-              Section: section,
-              Township: township,
-              Range: range,
-              "Well Type": occ.wellType || "",
-              "Well Status": occ.wellStatus || "",
-              ...(operatorInfo.phone && { "Operator Phone": operatorInfo.phone }),
-              ...(operatorInfo.contactName && { "Contact Name": operatorInfo.contactName }),
-              Notes: well.notes || "",
+          const fields: any = {
+            User: [user.id],
+            "API Number": well.apiNumber,
+            "Well Name": wellName,
+            Status: "Active",
+            "OCC Map Link": mapLink,
+            Operator: operator,
+            County: county,
+            Section: section,
+            Township: township,
+            Range: range,
+            "Well Type": occ.wellType || "",
+            "Well Status": occ.wellStatus || "",
+            ...(operatorInfo.phone && { "Operator Phone": operatorInfo.phone }),
+            ...(operatorInfo.contactName && { "Contact Name": operatorInfo.contactName }),
+            Notes: well.notes || "",
               
               // Enhanced fields from completion data
               ...(completion.formationName && { "Formation Name": completion.formationName }),
@@ -690,8 +698,14 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
               ...(completion.bhTownship && { "BH Township": completion.bhTownship }),
               ...(completion.bhRange && { "BH Range": completion.bhRange }),
               ...(completion && { "Data Last Updated": new Date().toISOString() })
-            }
           };
+          
+          // Add organization if user has one
+          if (userOrganization) {
+            fields.Organization = [userOrganization];
+          }
+          
+          return { fields };
         })
       })
     });

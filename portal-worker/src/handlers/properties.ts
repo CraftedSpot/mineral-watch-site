@@ -62,6 +62,7 @@ export async function handleAddProperty(request: Request, env: Env) {
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
   
   // Count properties only (separate from wells limit)
   const propertiesCount = await countUserProperties(env, user.email);
@@ -99,7 +100,8 @@ export async function handleAddProperty(request: Request, env: Env) {
         RNG: range,
         MERIDIAN: meridian,
         "Monitor Adjacent": true,
-        Status: "Active"
+        Status: "Active",
+        ...(userOrganization && { Organization: [userOrganization] })
       }
     })
   });

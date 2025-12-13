@@ -310,6 +310,7 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
       console.log(`[Track Well] Found user: ${userRecord.fields.Email}`);
       
       const userEmail = userRecord.fields.Email;
+      const userOrganization = userRecord.fields.Organization?.[0]; // Get user's organization if they have one
       
       // Check for duplicate well API for this user
       console.log(`[Track Well] Checking for duplicate well: ${cleanApi} for ${userEmail}`);
@@ -446,7 +447,10 @@ export async function handleTrackThisWell(request: Request, env: Env, url: URL):
             ...(completionData?.drillType && { "Drill Type": completionData.drillType }),
             ...(completionData?.bhSection && { "BH Section": completionData.bhSection }),
             ...(completionData?.bhTownship && { "BH Township": completionData.bhTownship }),
-            ...(completionData?.bhRange && { "BH Range": completionData.bhRange })
+            ...(completionData?.bhRange && { "BH Range": completionData.bhRange }),
+            
+            // Add organization if user has one
+            ...(userOrganization && { Organization: [userOrganization] })
           }
         })
       });
