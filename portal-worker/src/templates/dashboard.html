@@ -89,11 +89,33 @@
         
         /* Properties Table */
         .col-select { width: 40px; }
-        .col-prop-county { width: 15%; }
-        .col-prop-legal { width: 20%; }
-        .col-prop-acres { width: 16%; }
-        .col-prop-notes { width: calc(100% - 40px - 15% - 20% - 16% - 140px); }
-        .col-actions { width: 140px; } /* Increased to prevent button cutoff */
+        .col-prop-county { width: 14%; }
+        .col-prop-legal { width: 18%; }
+        .col-prop-group { width: 12%; display: none; } /* Hidden by default, shown when groups exist */
+        .col-prop-acres { width: 14%; }
+        .col-prop-notes { width: calc(100% - 40px - 14% - 18% - 14% - 160px); }
+        .col-actions { width: 160px; } /* Increased for View on Map button */
+        
+        /* When groups are visible, adjust notes width */
+        .has-groups .col-prop-group { display: table-cell; }
+        .has-groups .col-prop-notes { width: calc(100% - 40px - 14% - 18% - 12% - 14% - 160px); }
+        
+        /* Map link button */
+        .btn-map-link { 
+            background: var(--paper); 
+            border: 1px solid var(--border); 
+            color: var(--slate-blue); 
+            padding: 4px 8px; 
+            border-radius: 4px; 
+            font-size: 12px; 
+            cursor: pointer; 
+            transition: all 0.2s;
+        }
+        .btn-map-link:hover { 
+            background: #E2E8F0; 
+            border-color: var(--slate-blue); 
+            color: var(--oil-navy);
+        }
         
         /* Wells table specific column widths - desktop */
         #wellsContent .data-table { table-layout: fixed; }
@@ -1679,6 +1701,12 @@
             }
         }
         
+        // View property on My Map
+        function viewOnMap(propertyId) {
+            // Open My Map with the property centered/highlighted
+            window.open(`/portal/oklahoma-map?property=${propertyId}`, '_blank');
+        }
+        
         const planConfigs = { 
             'Free': { properties: 1, wells: 1 }, 
             'Starter': { properties: 10, wells: 10 }, 
@@ -2203,7 +2231,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-acres"><col class="col-prop-notes"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th>Total Acres</th><th>Notes</th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th>Total Acres</th><th>Notes</th><th>Actions</th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
@@ -2212,20 +2240,34 @@
                 const wiAcres = parseFloat(f['WI Acres'] || 0);
                 const totalAcres = riAcres + wiAcres;
                 const acresDisplay = totalAcres > 0 ? totalAcres.toFixed(2) : '—';
-                const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 30)) + (f.Notes.length > 30 ? '...' : '') : '';
+                const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 80)) + (f.Notes.length > 80 ? '...' : '') : '';
                 const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
+                const group = f.Group ? `<span style="color: var(--oil-navy); font-size: 12px; background: #F1F5F9; padding: 2px 8px; border-radius: 12px;">${escapeHtml(f.Group)}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 
                 html += `<tr onclick="openPropertyDetails('${p.id}')" style="cursor: pointer;">
                     <td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>
                     <td>${escapeHtml(cleanCountyDisplay(f.COUNTY)) || '—'}</td>
                     <td><strong>${str}</strong></td>
+                    <td class="col-prop-group">${group}</td>
                     <td style="text-align: right;">${acresDisplay}</td>
-                    <td>${notes}</td>
+                    <td title="${f.Notes ? escapeHtml(f.Notes) : ''}">${notes}</td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn-map-link" onclick="viewOnMap('${p.id}')" title="View on Map">📍 Map</button>
+                    </td>
                 </tr>`;
             });
             
             html += '</tbody></table>';
             document.getElementById('propertiesContent').innerHTML = html;
+            
+            // Check if any properties have groups and show/hide Group column
+            const hasGroups = displayProperties.some(p => p.fields.Group);
+            const propertiesTable = document.querySelector('#propertiesContent .data-table');
+            if (hasGroups) {
+                propertiesTable.classList.add('has-groups');
+            } else {
+                propertiesTable.classList.remove('has-groups');
+            }
             
             // Update bulk selection state after table render
             updateSelectAllState('properties');
