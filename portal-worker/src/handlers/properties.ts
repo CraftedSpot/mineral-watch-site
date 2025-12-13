@@ -199,10 +199,17 @@ export async function handleDeleteProperty(propertyId: string, request: Request,
     return jsonResponse({ error: "Not authorized" }, 403);
   }
   const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-  await fetch(deleteUrl, {
+  const deleteResponse = await fetch(deleteUrl, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
+  
+  if (!deleteResponse.ok) {
+    const error = await deleteResponse.text();
+    console.error(`Failed to delete property ${propertyId}:`, error);
+    return jsonResponse({ error: "Failed to delete property" }, 500);
+  }
+  
   console.log(`Property deleted: ${propertyId} by ${user.email}`);
   return jsonResponse({ success: true });
 }
