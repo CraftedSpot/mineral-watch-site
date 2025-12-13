@@ -1827,22 +1827,34 @@
             
             // Show immediate feedback
             const totalItems = selectedSet.size;
+            console.log('About to show toast...');
             showToast(`Deleting ${totalItems} ${itemName}...`, 'info', 0); // 0 = persistent until manually dismissed
+            console.log('Toast shown, starting delete process...');
             
             try {
                 const itemsToDelete = Array.from(selectedSet);
                 let successCount = 0;
                 let failCount = 0;
                 
+                console.log('Items to delete:', itemsToDelete);
+                
                 // Batch deletes in groups of 5 (Airtable rate limit)
                 for (let i = 0; i < itemsToDelete.length; i += 5) {
                     const batch = itemsToDelete.slice(i, i + 5);
+                    console.log('Processing batch:', batch);
                     const deletePromises = batch.map(id => {
                         const endpoint = type === 'properties' ? `/api/properties/${id}` : 
                                        type === 'wells' ? `/api/wells/${id}` : `/api/activity/${id}`;
+                        console.log('Making DELETE request to:', endpoint);
                         return fetch(endpoint, { method: 'DELETE' })
-                            .then(res => res.ok ? successCount++ : failCount++)
-                            .catch(() => failCount++);
+                            .then(res => {
+                                console.log('DELETE response for', id, ':', res.status, res.ok);
+                                return res.ok ? successCount++ : failCount++;
+                            })
+                            .catch(err => {
+                                console.error('DELETE error for', id, ':', err);
+                                failCount++;
+                            });
                     });
                     
                     await Promise.all(deletePromises);
