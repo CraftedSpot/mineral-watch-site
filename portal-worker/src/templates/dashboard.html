@@ -1795,11 +1795,16 @@
                 return;
             }
             
+            console.log('About to show confirm dialog');
             const confirmed = await showConfirm(
                 `Delete <span class="confirm-count">${selectedSet.size}</span> ${itemName}?<br><br>This action cannot be undone.`,
                 { title: `Delete ${itemName.charAt(0).toUpperCase() + itemName.slice(1)}` }
             );
-            if (!confirmed) return;
+            console.log('Confirm dialog result:', confirmed);
+            if (!confirmed) {
+                console.log('User cancelled deletion');
+                return;
+            }
             
             // Get the delete button and add loading state
             const deleteBtn = event.target;
