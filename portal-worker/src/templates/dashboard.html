@@ -1783,12 +1783,7 @@
         let deleteInProgress = false;
         
         async function bulkDeleteSelected(type) {
-            console.log('bulkDeleteSelected called with type:', type);
-            
-            if (deleteInProgress) {
-                console.log('Delete already in progress, ignoring duplicate call');
-                return;
-            }
+            if (deleteInProgress) return;
             deleteInProgress = true;
             
             const selectedSet = type === 'properties' ? selectedProperties : 
@@ -1796,30 +1791,22 @@
             const itemName = type === 'properties' ? 'properties' : 
                            type === 'wells' ? 'wells' : 'activities';
             
-            console.log('Selected set size:', selectedSet.size);
-            console.log('Selected items:', Array.from(selectedSet));
-            
             if (selectedSet.size === 0) {
-                console.log('No items selected, returning');
                 deleteInProgress = false;
                 return;
             }
             
-            console.log('About to show confirm dialog');
-            // Fallback to native confirm for now since custom dialog has sizing issues
-            const confirmed = confirm(`Delete ${selectedSet.size} ${itemName}?\n\nThis action cannot be undone.`);
-            console.log('Native confirm result:', confirmed);
-            console.log('Confirm dialog result:', confirmed);
+            const confirmed = await showConfirm(
+                `Delete <span class="confirm-count">${selectedSet.size}</span> ${itemName}?<br><br>This action cannot be undone.`,
+                { title: `Delete ${itemName.charAt(0).toUpperCase() + itemName.slice(1)}` }
+            );
             if (!confirmed) {
-                console.log('User cancelled deletion');
                 deleteInProgress = false;
                 return;
             }
             
             // Get the delete button and add loading state
-            console.log('Looking for delete button...');
             const deleteBtn = document.querySelector(`[onclick*="bulkDeleteSelected('${type}')"]`);
-            console.log('Delete button found:', deleteBtn);
             if (deleteBtn) {
                 deleteBtn.classList.add('loading');
                 deleteBtn.disabled = true;
@@ -1827,34 +1814,22 @@
             
             // Show immediate feedback
             const totalItems = selectedSet.size;
-            console.log('About to show toast...');
             showToast(`Deleting ${totalItems} ${itemName}...`, 'info', 0); // 0 = persistent until manually dismissed
-            console.log('Toast shown, starting delete process...');
             
             try {
                 const itemsToDelete = Array.from(selectedSet);
                 let successCount = 0;
                 let failCount = 0;
                 
-                console.log('Items to delete:', itemsToDelete);
-                
                 // Batch deletes in groups of 5 (Airtable rate limit)
                 for (let i = 0; i < itemsToDelete.length; i += 5) {
                     const batch = itemsToDelete.slice(i, i + 5);
-                    console.log('Processing batch:', batch);
                     const deletePromises = batch.map(id => {
                         const endpoint = type === 'properties' ? `/api/properties/${id}` : 
                                        type === 'wells' ? `/api/wells/${id}` : `/api/activity/${id}`;
-                        console.log('Making DELETE request to:', endpoint);
                         return fetch(endpoint, { method: 'DELETE' })
-                            .then(res => {
-                                console.log('DELETE response for', id, ':', res.status, res.ok);
-                                return res.ok ? successCount++ : failCount++;
-                            })
-                            .catch(err => {
-                                console.error('DELETE error for', id, ':', err);
-                                failCount++;
-                            });
+                            .then(res => res.ok ? successCount++ : failCount++)
+                            .catch(() => failCount++);
                     });
                     
                     await Promise.all(deletePromises);
@@ -2927,13 +2902,11 @@
                 document.querySelectorAll('.activity-checkbox-input').forEach(checkbox => {
                     checkbox.addEventListener('change', function() {
                         const activityId = this.getAttribute('data-id');
-                        console.log('Activity checkbox changed:', activityId, 'checked:', this.checked);
                         if (this.checked) {
                             selectedActivity.add(activityId);
                         } else {
                             selectedActivity.delete(activityId);
                         }
-                        console.log('selectedActivity size:', selectedActivity.size);
                         updateBulkActionVisibility();
                     });
                 });
@@ -3651,7 +3624,6 @@
 
         // Custom confirm dialog
         function showConfirm(message, options = {}) {
-            console.log('showConfirm called with message:', message);
             return new Promise((resolve) => {
                 const dialog = document.getElementById('confirmDialog');
                 const title = document.getElementById('confirmTitle');
@@ -3659,34 +3631,12 @@
                 const cancelBtn = document.getElementById('confirmCancel');
                 const okBtn = document.getElementById('confirmOk');
                 
-                console.log('Dialog elements found:', {
-                    dialog: !!dialog,
-                    title: !!title,
-                    messageEl: !!messageEl,
-                    cancelBtn: !!cancelBtn,
-                    okBtn: !!okBtn
-                });
-                
                 title.textContent = options.title || 'Confirm Action';
                 messageEl.innerHTML = message;
                 okBtn.textContent = options.confirmText || 'Delete';
                 cancelBtn.textContent = options.cancelText || 'Cancel';
                 
-                console.log('About to show dialog...');
                 dialog.classList.add('show');
-                // Force dialog visibility with inline styles as backup
-                dialog.style.display = 'flex';
-                dialog.style.position = 'fixed';
-                dialog.style.top = '0';
-                dialog.style.left = '0';
-                dialog.style.width = '100%';
-                dialog.style.height = '100%';
-                dialog.style.zIndex = '10000';
-                dialog.style.backgroundColor = 'rgba(28, 43, 54, 0.7)';
-                
-                console.log('Dialog should now be visible, classes:', dialog.classList.toString());
-                console.log('Dialog computed style display:', window.getComputedStyle(dialog).display);
-                console.log('Dialog bounding box:', dialog.getBoundingClientRect());
                 
                 const handleCancel = () => {
                     dialog.classList.remove('show');
