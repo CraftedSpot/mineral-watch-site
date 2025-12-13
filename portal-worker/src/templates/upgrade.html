@@ -328,8 +328,8 @@
                 
                 document.getElementById('currentPlanName').textContent = currentUser.plan || 'Free';
                 
-                // If Enterprise, redirect - they can't change
-                if (currentUser.plan === 'Enterprise') {
+                // If Enterprise plan, redirect - they can't change
+                if (currentUser.plan && currentUser.plan.startsWith('Enterprise')) {
                     window.location.href = '/portal';
                     return;
                 }

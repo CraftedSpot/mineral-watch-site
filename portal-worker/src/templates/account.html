@@ -96,7 +96,9 @@
             'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
             'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support'] },
             'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
-            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', 'All features', 'Dedicated support'] }
+            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', 'All features', 'Dedicated support'] },
+            'Enterprise 500': { properties: 500, wells: 500, features: ['500 properties', '500 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Custom integrations'] },
+            'Enterprise 1000': { properties: 1000, wells: 1000, features: ['1000 properties', '1000 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Custom integrations', 'API access'] }
         };
         
         let currentUser = null;
@@ -119,8 +121,8 @@
                 document.getElementById('status').textContent = currentUser.status || 'Active';
                 document.getElementById('features').innerHTML = config.features.map(f => '<li>' + f + '</li>').join('');
                 
-                // Hide upgrade box for Enterprise
-                if (plan === 'Enterprise') document.getElementById('upgradeBox').style.display = 'none';
+                // Hide upgrade box for Enterprise plans
+                if (plan.startsWith('Enterprise')) document.getElementById('upgradeBox').style.display = 'none';
                 
                 // Hide manage button if no Stripe Customer ID (Free user without billing history)
                 if (!currentUser.stripeCustomerId) {
