@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
-    <!-- v2024.12.13.3 - Reduced group column width -->
+    <!-- v2024.12.13.4 - Fixed column gaps and padding -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -214,8 +214,13 @@
         }
         
         .col-location { width: 15%; }
-        .data-table th { background: var(--paper); text-align: left; padding: 14px 20px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
-        .data-table td { padding: 16px 20px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
+        .data-table th { background: var(--paper); text-align: left; padding: 14px 16px; font-size: 12px; font-weight: 600; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); }
+        .data-table td { padding: 16px 16px; border-bottom: 1px solid var(--border); font-size: 14px; vertical-align: top; }
+        
+        /* Reduce padding on specific columns to minimize gaps */
+        .col-prop-group { padding-right: 12px !important; }
+        td.col-prop-group { padding-right: 12px !important; }
+        .data-table td[style*="text-align: right"] { padding-left: 12px; }
         
         /* Accordion row - ensure it spans properly and has height */
         .accordion-row {
@@ -2267,7 +2272,7 @@
                 return;
             }
             
-            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th>Total Acres</th><th>Notes</th><th>Actions</th></tr></thead><tbody>';
+            let html = '<table class="data-table"><colgroup><col class="col-select"><col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr><th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th><th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;">Total Acres</th><th>Notes</th><th style="text-align: right;">Actions</th></tr></thead><tbody>';
             
             displayProperties.forEach(p => {
                 const f = p.fields;
