@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
-    <!-- v2024.12.13.9 - Increased Notes left padding to 50px -->
+    <!-- v2024.12.13.10 - Fixed Import buttons with onclick handlers and added wells modal CSS -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -351,7 +351,38 @@
         .btn-delete:hover { color: #DC2626; background: #FEE2E2; }
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
         .empty-state p { margin-bottom: 20px; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 10000; padding: 20px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        /* Ensure bulk upload modal overlay displays correctly when opened */
+        #bulk-upload-modal { 
+            display: none; 
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 9999 !important;
+            background: rgba(0,0,0,0.7) !important;
+        }
+        #bulk-upload-modal[style*="flex"] { 
+            display: flex !important; 
+            align-items: center !important;
+            justify-content: center !important;
+        }
+        #bulk-upload-wells-modal { 
+            display: none; 
+            position: fixed !important;
+            top: 0 !important;
+            left: 0 !important;
+            right: 0 !important;
+            bottom: 0 !important;
+            z-index: 9999 !important;
+            background: rgba(0,0,0,0.7) !important;
+        }
+        #bulk-upload-wells-modal[style*="flex"] { 
+            display: flex !important; 
+            align-items: center !important;
+            justify-content: center !important;
+        }
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
         
@@ -2064,77 +2095,12 @@
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
                 
-                // Set up button event listeners BEFORE loading data (in case loading fails)
-                // Well Modal
-                document.getElementById('addWellBtn')?.addEventListener('click', () => { 
-                    document.getElementById('addWellModal').style.display = 'flex'; 
-                });
-                
-                // Bulk Upload Properties Modal
-                const bulkUploadBtn = document.getElementById('bulkUploadBtn');
-                console.log('Setting up bulk upload button:', bulkUploadBtn);
-                if (bulkUploadBtn) {
-                    bulkUploadBtn.addEventListener('click', () => {
-                        console.log('Import button clicked');
-                        openBulkUploadModal();
-                    });
-                } else {
-                    console.error('Bulk upload button not found during setup!');
-                }
-                
-                // Bulk Upload Wells Modal
-                document.getElementById('bulkUploadWellsBtn')?.addEventListener('click', () => {
-                    openBulkUploadWellsModal();
-                });
-                
-                // Add Well Modal event listeners
-                document.getElementById('addWellModal')?.addEventListener('click', e => { 
-                    if (e.target.id === 'addWellModal') closeWellModal(); 
-                });
-                
-                document.getElementById('addWellForm')?.addEventListener('submit', async e => {
-                    e.preventDefault();
-                    const data = { 
-                        apiNumber: document.getElementById('apiNumber').value.trim(),
-                        notes: document.getElementById('wellNotes').value.trim()
-                    };
-                    
-                    try {
-                        document.querySelector('.btn-submit').disabled = true;
-                        const res = await fetch('/api/wells/track', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(data)
-                        });
-                        
-                        if (!res.ok) {
-                            const error = await res.json();
-                            throw new Error(error.error || 'Failed to add well');
-                        }
-                        
-                        const result = await res.json();
-                        closeWellModal();
-                        showToast('Well added successfully');
-                        loadWells();
-                        loadActivityStats();
-                    } catch (err) {
-                        showToast('Error: ' + err.message, 'error');
-                    } finally {
-                        document.querySelector('.btn-submit').disabled = false;
-                    }
-                });
-                
-                // Now load the data
                 await loadAllData();
 
                 // Initialize search/sort controls
                 initWellsControls();
                 initPropertiesControls();
-            } catch (error) { 
-                console.error('Error during initialization:', error);
-                // Don't redirect on error - let the user see what's wrong
-                // window.location.href = '/portal/login'; 
-            }
+            } catch { window.location.href = '/portal/login'; }
 
             // Tab switching
             document.querySelectorAll('.tab').forEach(tab => {
@@ -2167,7 +2133,67 @@
                     toggleWellSelection(e.target.dataset.id, e.target.checked);
                 }
             });
-        }); // End of DOMContentLoaded
+            
+            // Add button event listeners inside DOMContentLoaded
+            // Well Modal
+            document.getElementById('addWellBtn').addEventListener('click', () => { 
+                document.getElementById('addWellModal').style.display = 'flex'; 
+            });
+            
+            // Bulk Upload Properties Modal
+            const bulkUploadBtn = document.getElementById('bulkUploadBtn');
+            console.log('Bulk upload button:', bulkUploadBtn);
+            if (bulkUploadBtn) {
+                bulkUploadBtn.addEventListener('click', () => {
+                    console.log('Import button clicked');
+                    openBulkUploadModal();
+                });
+            } else {
+                console.error('Bulk upload button not found!');
+            }
+            
+            // Bulk Upload Wells Modal
+            document.getElementById('bulkUploadWellsBtn').addEventListener('click', () => {
+                openBulkUploadWellsModal();
+            });
+            
+            // Add Well Modal event listeners
+            document.getElementById('addWellModal').addEventListener('click', e => { 
+                if (e.target.id === 'addWellModal') closeWellModal(); 
+            });
+            
+            document.getElementById('addWellForm').addEventListener('submit', async e => {
+                e.preventDefault();
+                const data = { 
+                    apiNumber: document.getElementById('apiNumber').value.trim(),
+                    notes: document.getElementById('wellNotes').value.trim()
+                };
+                
+                try {
+                    document.querySelector('.btn-submit').disabled = true;
+                    const res = await fetch('/api/wells/track', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    
+                    if (!res.ok) {
+                        const error = await res.json();
+                        throw new Error(error.error || 'Failed to add well');
+                    }
+                    
+                    const result = await res.json();
+                    closeWellModal();
+                    showToast('Well added successfully');
+                    loadWells();
+                    loadActivityStats();
+                } catch (err) {
+                    showToast('Error: ' + err.message, 'error');
+                } finally {
+                    document.querySelector('.btn-submit').disabled = false;
+                }
+            });
+        });
         
         async function loadAllData() {
         await Promise.all([loadProperties(), loadWells(), loadActivity(), loadActivityStats()]);
@@ -4110,50 +4136,12 @@
 /* Bulk Upload Modal - Redesigned Styles */
 
 /* Modal specific overrides */
-#bulk-upload-modal {
-    display: none;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    z-index: 99999 !important;
-    background: rgba(0, 0, 0, 0.8) !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-#bulk-upload-modal[style*="flex"] {
-    display: flex !important;
-}
-
-/* Same overrides for Wells modal */
-#bulk-upload-wells-modal {
-    display: none;
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    bottom: 0 !important;
-    z-index: 99999 !important;
-    background: rgba(0, 0, 0, 0.8) !important;
-    align-items: center !important;
-    justify-content: center !important;
-}
-
-#bulk-upload-wells-modal[style*="flex"] {
-    display: flex !important;
-}
-
 #bulk-upload-modal .modal.bulk-modal,
 #bulk-upload-wells-modal .modal.bulk-modal {
     padding: 0;
     max-width: 900px;
     max-height: 90vh;
     overflow-y: auto;
-    background: white;
-    border-radius: 12px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 /* Header */
@@ -4658,16 +4646,6 @@ function openBulkUploadModal() {
     console.log('Bulk upload modal element:', modal);
     if (modal) {
         modal.style.display = 'flex';
-        // Force the modal to be visible with inline styles
-        modal.style.position = 'fixed';
-        modal.style.top = '0';
-        modal.style.left = '0';
-        modal.style.right = '0';
-        modal.style.bottom = '0';
-        modal.style.zIndex = '99999';
-        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
-        modal.style.alignItems = 'center';
-        modal.style.justifyContent = 'center';
         resetBulkUpload();
     } else {
         console.error('Bulk upload modal not found!');
