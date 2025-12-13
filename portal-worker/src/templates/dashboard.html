@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Dashboard - Mineral Watch</title>
-    <!-- v2024.12.13.6 - More space for Total Acres column -->
+    <!-- v2024.12.13.7 - Fixed Total Acres and Map button wrapping -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
         :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
@@ -93,13 +93,13 @@
         .col-prop-county { width: 120px; }
         .col-prop-legal { width: 160px; }
         .col-prop-group { width: 0; padding: 0 !important; overflow: hidden; visibility: collapse; } /* Hidden by default */
-        .col-prop-acres { width: 110px; }
+        .col-prop-acres { width: 130px; }
         .col-prop-notes { 
             width: auto;
             min-width: 300px;
             padding-left: 20px !important;
         }
-        .col-actions { width: 80px; }
+        .col-actions { width: 90px; }
         
         /* When groups are visible, show the column */
         .has-groups .col-prop-group { width: 80px; padding: 16px 16px !important; visibility: visible; }
@@ -125,11 +125,15 @@
             background: var(--paper); 
             border: 1px solid var(--border); 
             color: var(--slate-blue); 
-            padding: 4px 8px; 
+            padding: 4px 10px; 
             border-radius: 4px; 
             font-size: 12px; 
             cursor: pointer; 
             transition: all 0.2s;
+            white-space: nowrap;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
         }
         .btn-map-link:hover { 
             background: #E2E8F0; 
