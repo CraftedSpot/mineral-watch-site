@@ -3661,7 +3661,9 @@
                 okBtn.textContent = options.confirmText || 'Delete';
                 cancelBtn.textContent = options.cancelText || 'Cancel';
                 
+                console.log('About to show dialog...');
                 dialog.classList.add('show');
+                console.log('Dialog should now be visible, classes:', dialog.classList.toString());
                 
                 const handleCancel = () => {
                     dialog.classList.remove('show');
