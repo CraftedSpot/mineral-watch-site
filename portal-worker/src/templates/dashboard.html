@@ -1873,12 +1873,7 @@
                 return;
             }
             
-            console.log('Showing delete confirmation for', selectedSet.size, itemName);
-            const confirmed = await showConfirm(
-                `Delete <span class="confirm-count">${selectedSet.size}</span> ${itemName}?<br><br>This action cannot be undone.`,
-                { title: `Delete ${itemName.charAt(0).toUpperCase() + itemName.slice(1)}` }
-            );
-            console.log('Confirmation result:', confirmed);
+            const confirmed = confirm(`Delete ${selectedSet.size} ${itemName}?\n\nThis action cannot be undone.`);
             if (!confirmed) {
                 deleteInProgress = false;
                 return;
