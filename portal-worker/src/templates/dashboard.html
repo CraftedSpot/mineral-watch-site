@@ -4647,13 +4647,29 @@ function openBulkUploadModal() {
     if (modal) {
         // Force the modal to be visible with inline styles
         modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; z-index: 99999 !important; background-color: rgba(0, 0, 0, 0.8) !important; align-items: center !important; justify-content: center !important;';
+        
+        // Force body overflow hidden to prevent scrolling
+        document.body.style.overflow = 'hidden';
+        
         resetBulkUpload();
         
         // Also check if the modal content is visible
         const modalContent = modal.querySelector('.modal.bulk-modal');
+        console.log('Modal content element:', modalContent);
         if (modalContent) {
-            modalContent.style.cssText = 'display: block !important; position: relative !important; z-index: 100000 !important; background: white !important;';
+            modalContent.style.cssText = 'display: block !important; position: relative !important; z-index: 100000 !important; background: white !important; max-width: 900px !important; width: 90% !important; max-height: 90vh !important; overflow: auto !important;';
+            console.log('Modal content styles applied');
         }
+        
+        // Debug: Check computed styles
+        const computedStyle = window.getComputedStyle(modal);
+        console.log('Modal computed display:', computedStyle.display);
+        console.log('Modal computed z-index:', computedStyle.zIndex);
+        console.log('Modal computed position:', computedStyle.position);
+        
+        // Check if modal is in viewport
+        const rect = modal.getBoundingClientRect();
+        console.log('Modal position:', rect);
     } else {
         console.error('Bulk upload modal not found!');
     }
@@ -4684,6 +4700,7 @@ window.openBulkUploadWellsModal = openBulkUploadWellsModal;
 // Close bulk upload modal
 function closeBulkUploadModal() {
     document.getElementById('bulk-upload-modal').style.display = 'none';
+    document.body.style.overflow = ''; // Restore body scrolling
     resetBulkUpload();
 }
 
