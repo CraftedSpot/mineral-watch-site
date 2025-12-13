@@ -3664,6 +3664,8 @@
                 console.log('About to show dialog...');
                 dialog.classList.add('show');
                 console.log('Dialog should now be visible, classes:', dialog.classList.toString());
+                console.log('Dialog computed style display:', window.getComputedStyle(dialog).display);
+                console.log('Dialog bounding box:', dialog.getBoundingClientRect());
                 
                 const handleCancel = () => {
                     dialog.classList.remove('show');
