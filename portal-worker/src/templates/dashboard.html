@@ -2849,7 +2849,7 @@
                             </div>
                             <div class="activity-date">${dateStr}</div>
                             <div class="activity-delete" onclick="event.stopPropagation()">
-                                <button class="btn-delete" onclick="deleteActivity('${r.id}')" title="Delete activity">🗑️</button>
+                                <button class="btn-delete" onclick="deleteActivity('${escapeHtml(r.id)}')" title="Delete activity">🗑️</button>
                             </div>
                         </div>
                     `;
@@ -2986,15 +2986,20 @@
         }
         
         async function deleteActivity(id) {
+            console.log('deleteActivity called with id:', id);
             const confirmed = await showConfirm(
                 'Delete this activity record?<br><br>This action cannot be undone.',
                 { title: 'Delete Activity' }
             );
             if (!confirmed) return;
             try {
+                console.log('Attempting to delete activity:', id);
                 await fetch('/api/activity/' + id, { method: 'DELETE' });
                 await loadActivity();
-            } catch { alert('Error deleting.'); }
+            } catch (error) { 
+                console.error('Delete error:', error);
+                alert('Error deleting.'); 
+            }
         }
 
         async function trackWellFromActivity(apiNumber, wellName, occLink, buttonElement) {
