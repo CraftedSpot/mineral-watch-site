@@ -1780,8 +1780,17 @@
             }
         }
         
+        let deleteInProgress = false;
+        
         async function bulkDeleteSelected(type) {
             console.log('bulkDeleteSelected called with type:', type);
+            
+            if (deleteInProgress) {
+                console.log('Delete already in progress, ignoring duplicate call');
+                return;
+            }
+            deleteInProgress = true;
+            
             const selectedSet = type === 'properties' ? selectedProperties : 
                                type === 'wells' ? selectedWells : selectedActivity;
             const itemName = type === 'properties' ? 'properties' : 
@@ -1792,6 +1801,7 @@
             
             if (selectedSet.size === 0) {
                 console.log('No items selected, returning');
+                deleteInProgress = false;
                 return;
             }
             
@@ -1803,6 +1813,7 @@
             console.log('Confirm dialog result:', confirmed);
             if (!confirmed) {
                 console.log('User cancelled deletion');
+                deleteInProgress = false;
                 return;
             }
             
@@ -1877,6 +1888,7 @@
                     deleteBtn.classList.remove('loading');
                     deleteBtn.disabled = false;
                 }
+                deleteInProgress = false;
             }
         }
         
