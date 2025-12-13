@@ -4674,11 +4674,17 @@ function openBulkUploadModal() {
     }
 }
 
+// Make function available globally
+window.openBulkUploadModal = openBulkUploadModal;
+
 // Open bulk upload wells modal
 function openBulkUploadWellsModal() {
     document.getElementById('bulk-upload-wells-modal').style.display = 'flex';
     resetBulkUploadWells();
 }
+
+// Make function available globally
+window.openBulkUploadWellsModal = openBulkUploadWellsModal;
 
 // Close bulk upload modal
 function closeBulkUploadModal() {
