@@ -142,11 +142,12 @@ async function handleVerifyToken(request, env, url) {
   // Update login tracking
   await updateLoginTracking(env, payload.id);
   
-  // Instead of setting cookie here, redirect with token to portal for Safari compatibility
+  // Set cookie directly in response header for better Chrome compatibility
   const response = new Response(null, {
     status: 302,
     headers: {
-      "Location": `https://portal.mymineralwatch.com/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`
+      "Location": `https://portal.mymineralwatch.com/portal`,
+      "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
     }
   });
   
