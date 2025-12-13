@@ -493,10 +493,16 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
   }
   
   const deleteUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
-  await fetch(deleteUrl, {
+  const deleteResponse = await fetch(deleteUrl, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
+  
+  if (!deleteResponse.ok) {
+    const error = await deleteResponse.text();
+    console.error(`Failed to delete well ${wellId}:`, error);
+    return jsonResponse({ error: "Failed to delete well" }, 500);
+  }
   
   console.log(`Well deleted: ${wellId} by ${user.email}`);
   return jsonResponse({ success: true });
