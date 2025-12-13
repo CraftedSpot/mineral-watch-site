@@ -1223,7 +1223,7 @@
                         <button class="btn-add" id="addWellBtn">
                             <span>➕</span> Well
                         </button>
-                        <button class="btn-secondary-action" id="bulkUploadWellsBtn" title="Import Wells">
+                        <button class="btn-secondary-action" id="bulkUploadWellsBtn" title="Import Wells" onclick="openBulkUploadWellsModal()">
                             Import
                         </button>
                         <button class="btn-secondary-action" id="exportWellsBtn" style="display: none;" onclick="exportWellsCSV()" title="Export Wells">
@@ -4124,6 +4124,24 @@
 }
 
 #bulk-upload-modal[style*="flex"] {
+    display: flex !important;
+}
+
+/* Same overrides for Wells modal */
+#bulk-upload-wells-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99999 !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#bulk-upload-wells-modal[style*="flex"] {
     display: flex !important;
 }
 
