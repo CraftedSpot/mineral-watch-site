@@ -1211,7 +1211,7 @@
                         <button class="btn-add" id="addPropertyBtn">
                             <span>➕</span> Property
                         </button>
-                        <button class="btn-secondary-action" id="bulkUploadBtn" title="Import Properties">
+                        <button class="btn-secondary-action" id="bulkUploadBtn" title="Import Properties" onclick="openBulkUploadModal()">
                             Import
                         </button>
                         <button class="btn-secondary-action" id="exportPropertiesBtn" style="display: none;" onclick="exportPropertiesCSV()" title="Export Properties">
@@ -4110,12 +4110,32 @@
 /* Bulk Upload Modal - Redesigned Styles */
 
 /* Modal specific overrides */
+#bulk-upload-modal {
+    display: none;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    z-index: 99999 !important;
+    background: rgba(0, 0, 0, 0.8) !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+#bulk-upload-modal[style*="flex"] {
+    display: flex !important;
+}
+
 #bulk-upload-modal .modal.bulk-modal,
 #bulk-upload-wells-modal .modal.bulk-modal {
     padding: 0;
     max-width: 900px;
     max-height: 90vh;
     overflow-y: auto;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
 }
 
 /* Header */
