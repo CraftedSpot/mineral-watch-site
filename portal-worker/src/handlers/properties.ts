@@ -37,7 +37,36 @@ export async function handleListProperties(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
-  const formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+  // Get full user record to check for organization
+  const userRecord = await getUserById(env, user.id);
+  if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
+  
+  let formula: string;
+  const organizationId = userRecord.fields.Organization?.[0];
+  
+  if (organizationId) {
+    // User has organization - fetch org name and filter by it
+    const orgResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+    
+    if (orgResponse.ok) {
+      const org = await orgResponse.json() as any;
+      const orgName = org.fields.Name;
+      // Filter by organization name (linked record field shows display value)
+      formula = `{Organization} = '${orgName}'`;
+    } else {
+      // Fallback to email if org fetch fails
+      formula = `{User Email} = "${user.email}"`;
+    }
+  } else {
+    // Solo user - filter by email
+    formula = `{User Email} = "${user.email}"`;
+  }
+  
   const records = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, formula);
   
   return jsonResponse(records);
@@ -64,8 +93,9 @@ export async function handleAddProperty(request: Request, env: Env) {
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
   const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
   
-  // Count properties only (separate from wells limit)
-  const propertiesCount = await countUserProperties(env, user.email);
+  // Count properties for user or organization
+  const { countPropertiesForUserOrOrg } = await import('../services/airtable.js');
+  const propertiesCount = await countPropertiesForUserOrOrg(env, userRecord);
   
   if (propertiesCount >= planLimits.properties) {
     return jsonResponse({ 

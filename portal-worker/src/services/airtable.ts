@@ -133,6 +133,84 @@ export async function countUserWells(env: Env, userEmail: string): Promise<numbe
 }
 
 /**
+ * Count properties for a user or their organization
+ * @param env Worker environment
+ * @param userRecord Full user record with organization info
+ * @returns Number of properties
+ */
+export async function countPropertiesForUserOrOrg(env: Env, userRecord: AirtableUser): Promise<number> {
+  let formula: string;
+  const organizationId = userRecord.fields.Organization?.[0];
+  
+  if (organizationId) {
+    // Fetch organization name
+    const orgResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+    
+    if (orgResponse.ok) {
+      const org = await orgResponse.json() as any;
+      formula = `{Organization} = '${org.fields.Name}'`;
+    } else {
+      // Fallback to email
+      formula = `{User Email} = "${userRecord.fields.Email}"`;
+    }
+  } else {
+    formula = `{User Email} = "${userRecord.fields.Email}"`;
+  }
+  
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+  if (!response.ok) return 0;
+  const data = await response.json();
+  return data.records?.length || 0;
+}
+
+/**
+ * Count wells for a user or their organization
+ * @param env Worker environment
+ * @param userRecord Full user record with organization info
+ * @returns Number of wells
+ */
+export async function countWellsForUserOrOrg(env: Env, userRecord: AirtableUser): Promise<number> {
+  let formula: string;
+  const organizationId = userRecord.fields.Organization?.[0];
+  
+  if (organizationId) {
+    // Fetch organization name
+    const orgResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+    
+    if (orgResponse.ok) {
+      const org = await orgResponse.json() as any;
+      formula = `{Organization} = '${org.fields.Name}'`;
+    } else {
+      // Fallback to email
+      formula = `FIND('${userRecord.fields.Email}', ARRAYJOIN({User})) > 0`;
+    }
+  } else {
+    formula = `FIND('${userRecord.fields.Email}', ARRAYJOIN({User})) > 0`;
+  }
+  
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number`;
+  const response = await fetch(url, {
+    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+  });
+  if (!response.ok) return 0;
+  const data = await response.json();
+  return data.records?.length || 0;
+}
+
+/**
  * Check if a property is already tracked by a user (duplicate detection)
  * @param env Worker environment
  * @param userEmail User's email address
