@@ -35,9 +35,11 @@
         .btn { display: inline-block; padding: 12px 20px; border-radius: 4px; font-size: 14px; font-weight: 600; cursor: pointer; text-decoration: none; border: none; margin-top: 20px; }
         .btn-secondary { background: white; color: var(--oil-navy); border: 1px solid var(--border); }
         .btn-primary { background: var(--red-dirt); color: white; }
-        .features { margin: 20px 0; list-style: none; }
+        .features { margin: 20px 0; list-style: none; display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
         .features li { padding: 8px 0 8px 25px; position: relative; font-size: 14px; color: var(--slate-blue); }
         .features li::before { content: '✓'; position: absolute; left: 0; color: var(--success); font-weight: bold; }
+        @media (max-width: 1024px) { .features { grid-template-columns: repeat(2, 1fr); } }
+        @media (max-width: 640px) { .features { grid-template-columns: 1fr; } }
         .upgrade-box { background: var(--paper); border-radius: 6px; padding: 20px; margin-top: 20px; }
         .upgrade-box p { font-size: 14px; color: var(--slate-blue); margin-bottom: 15px; }
         /* Organization Styles */
@@ -127,11 +129,11 @@
         const planConfigs = {
             'Free': { properties: 1, wells: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
             'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
-            'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support'] },
-            'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload'] },
-            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', 'All features', 'Dedicated support'] },
-            'Enterprise 500': { properties: 500, wells: 500, features: ['500 properties', '500 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Custom integrations'] },
-            'Enterprise 1000': { properties: 1000, wells: 1000, features: ['1000 properties', '1000 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Custom integrations', 'API access'] }
+            'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Export data'] },
+            'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', '3 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload', 'Export data', 'Organization management'] },
+            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', '10 team members', 'All features', 'Dedicated support', 'Export data'] },
+            'Enterprise 500': { properties: 500, wells: 500, features: ['500 properties', '500 wells', '10 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Custom integrations'] },
+            'Enterprise 1000': { properties: 1000, wells: 1000, features: ['1000 properties', '1000 wells', '10 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Custom integrations', 'API access'] }
         };
         
         let currentUser = null;
