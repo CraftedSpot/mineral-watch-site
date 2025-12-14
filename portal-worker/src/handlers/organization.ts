@@ -74,8 +74,8 @@ export async function handleGetOrganization(request: Request, env: Env) {
     console.log('Organization data:', JSON.stringify(organization, null, 2));
 
     // Fetch all members of this organization
-    // Since Organization is a linked record field, we can use a simpler filter
-    const filterFormula = `{Organization} = '${organizationId}'`;
+    // Filter by organization name since Organization is a linked record field
+    const filterFormula = `{Organization} = '${organization.fields.Name}'`;
     console.log('Fetching members with filter:', filterFormula);
     
     const membersResponse = await fetch(
