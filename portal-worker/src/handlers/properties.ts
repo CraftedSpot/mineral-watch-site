@@ -89,6 +89,11 @@ export async function handleAddProperty(request: Request, env: Env) {
     }
   }
   const userRecord = await getUserById(env, user.id);
+  
+  // Check permissions - only Admin and Editor can add properties
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot add properties" }, 403);
+  }
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
   const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
@@ -156,6 +161,12 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
+  // Check permissions - only Admin and Editor can update properties
+  const userRecord = await getUserById(env, user.id);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot update properties" }, 403);
+  }
+  
   const body = await request.json();
   
   // Build fields object with allowed editable fields
@@ -219,6 +230,13 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
 export async function handleDeleteProperty(propertyId: string, request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  // Check permissions - only Admin and Editor can delete properties
+  const userRecord = await getUserById(env, user.id);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot delete properties" }, 403);
+  }
+  
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
   const getResponse = await fetch(getUrl, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }

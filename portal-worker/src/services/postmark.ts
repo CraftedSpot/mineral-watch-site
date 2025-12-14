@@ -356,8 +356,8 @@ export function getInviteEmailHtml(
           <p style="margin: 0; font-size: 14px; color: #334E68; line-height: 1.5;">
             ${role === 'Admin' 
               ? 'As an Admin, you can add/remove properties and wells, invite team members, and manage the organization.'
-              : role === 'Member'
-              ? 'As a Member, you can add/remove properties and wells, and view all organization data.'
+              : role === 'Editor'
+              ? 'As an Editor, you can add/remove properties and wells, and view all organization data.'
               : 'As a Viewer, you can view properties, wells, and activity reports.'}
           </p>
         </div>
@@ -413,8 +413,8 @@ What happens when you accept:
 Your role: ${role}
 ${role === 'Admin' 
   ? 'As an Admin, you can add/remove properties and wells, invite team members, and manage the organization.'
-  : role === 'Member'
-  ? 'As a Member, you can add/remove properties and wells, and view all organization data.'
+  : role === 'Editor'
+  ? 'As an Editor, you can add/remove properties and wells, and view all organization data.'
   : 'As a Viewer, you can view properties, wells, and activity reports.'}
 
 ----

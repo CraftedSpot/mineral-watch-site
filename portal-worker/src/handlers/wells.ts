@@ -274,6 +274,12 @@ export async function handleAddWell(request: Request, env: Env) {
     const user = await authenticateRequest(request, env);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
     
+    // Get user record and check permissions
+    const userRecord = await getUserById(env, user.id);
+    if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+      return jsonResponse({ error: "Viewers cannot add wells" }, 403);
+    }
+    
     const body = await request.json();
     
     // Validate API Number (required, 10 digits)
@@ -508,6 +514,12 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
+  // Check permissions - only Admin and Editor can delete wells
+  const userRecord = await getUserById(env, user.id);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot delete wells" }, 403);
+  }
+  
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`;
   const getResponse = await fetch(getUrl, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -548,6 +560,12 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
 export async function handleUpdateWellNotes(wellId: string, request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+  
+  // Check permissions - only Admin and Editor can update wells
+  const userRecord = await getUserById(env, user.id);
+  if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
+    return jsonResponse({ error: "Viewers cannot update wells" }, 403);
+  }
   
   const body = await request.json();
   let notes = body.notes || "";

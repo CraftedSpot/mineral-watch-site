@@ -260,16 +260,16 @@
             }
             
             // Ask for role
-            const role = prompt('Select role for the new member:\n\n1. Admin - Full organization management\n2. Member - Add/remove properties and wells\n3. Viewer - Read-only access\n\nEnter 1, 2, or 3:', '2');
+            const role = prompt('Select role for the new member:\n\n1. Admin - Full organization management\n2. Editor - Add/remove properties and wells\n3. Viewer - Read-only access\n\nEnter 1, 2, or 3:', '2');
             
             let selectedRole;
             switch(role) {
                 case '1': selectedRole = 'Admin'; break;
-                case '2': selectedRole = 'Member'; break;
+                case '2': selectedRole = 'Editor'; break;
                 case '3': selectedRole = 'Viewer'; break;
                 default:
-                    alert('Invalid selection. Defaulting to Member role.');
-                    selectedRole = 'Member';
+                    alert('Invalid selection. Defaulting to Editor role.');
+                    selectedRole = 'Editor';
             }
             
             // Send invite

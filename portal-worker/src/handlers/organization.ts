@@ -169,7 +169,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     }
     
     // Validate role
-    if (!['Admin', 'Member', 'Viewer'].includes(role)) {
+    if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
       return jsonResponse({ error: "Invalid role" }, 400);
     }
 
