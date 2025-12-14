@@ -74,9 +74,13 @@ export async function handleGetOrganization(request: Request, env: Env) {
     console.log('Organization data:', JSON.stringify(organization, null, 2));
 
     // Fetch all members of this organization
+    // Since Organization is a linked record field, we can use a simpler filter
+    const filterFormula = `{Organization} = '${organizationId}'`;
+    console.log('Fetching members with filter:', filterFormula);
+    
     const membersResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
-      `filterByFormula=${encodeURIComponent(`FIND('${organizationId}', ARRAYJOIN({Organization}, ',')) > 0`)}`,
+      `filterByFormula=${encodeURIComponent(filterFormula)}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
@@ -88,6 +92,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
     }
 
     const membersData = await membersResponse.json() as any;
+    console.log('Members response:', JSON.stringify(membersData, null, 2));
     
     // Format member data
     const members = membersData.records.map((record: any) => ({
