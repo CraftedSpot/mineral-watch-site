@@ -222,6 +222,17 @@ var index_default = {
         });
       }
       
+      // Handle email verification/magic links
+      if (path === "/portal/verify" && request.method === "GET") {
+        const token = url.searchParams.get("token");
+        if (!token) {
+          return Response.redirect(`${BASE_URL}/portal/login?error=Invalid%20verification%20link`, 302);
+        }
+        
+        // Redirect to set-session endpoint which handles the token verification
+        return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${token}`, 302);
+      }
+      
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
         console.log(`[Portal] Proxying auth request: ${path}`);
