@@ -37,14 +37,26 @@ export async function handleGetOrganization(request: Request, env: Env) {
     }
 
     // Get full user details to find organization
+    console.log('Fetching user record for:', user.email);
     const userRecord = await findUserByEmail(env, user.email);
-    if (!userRecord || !userRecord.fields.Organization) {
+    console.log('User record:', JSON.stringify(userRecord, null, 2));
+    
+    if (!userRecord) {
+      console.log('No user record found');
+      return jsonResponse({ organization: null });
+    }
+    
+    if (!userRecord.fields.Organization) {
+      console.log('User has no organization field');
       return jsonResponse({ organization: null });
     }
 
-    const organizationId = userRecord.fields.Organization[0];
+    const organizationId = Array.isArray(userRecord.fields.Organization) 
+      ? userRecord.fields.Organization[0] 
+      : userRecord.fields.Organization;
 
     // Fetch organization details
+    console.log('Fetching organization with ID:', organizationId);
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${ORGANIZATION_TABLE}/${organizationId}`,
       {
@@ -53,11 +65,14 @@ export async function handleGetOrganization(request: Request, env: Env) {
     );
 
     if (!orgResponse.ok) {
-      console.error('Failed to fetch organization:', await orgResponse.text());
-      return jsonResponse({ error: "Failed to fetch organization" }, 500);
+      const errorText = await orgResponse.text();
+      console.error('Failed to fetch organization:', errorText);
+      console.error('Status:', orgResponse.status);
+      return jsonResponse({ error: "Failed to fetch organization", details: errorText }, 500);
     }
 
     const organization = await orgResponse.json() as any;
+    console.log('Organization data:', JSON.stringify(organization, null, 2));
 
     // Fetch all members of this organization
     const membersResponse = await fetch(

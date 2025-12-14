@@ -23,6 +23,11 @@ export interface AirtableUser {
     Email: string;
     Name?: string;
     Plan?: string;
+    Organization?: string[];
+    Role?: string;
+    'Stripe Customer ID'?: string;
+    Status?: string;
+    'Created Time'?: string;
   };
 }
 
