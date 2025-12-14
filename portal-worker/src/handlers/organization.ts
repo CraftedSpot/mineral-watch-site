@@ -20,7 +20,6 @@ import {
 } from '../utils/auth.js';
 
 import {
-  getAirtableHeaders,
   findUserByEmail
 } from '../services/airtable.js';
 
@@ -49,7 +48,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${ORGANIZATION_TABLE}/${organizationId}`,
       {
-        headers: getAirtableHeaders(env)
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
 
@@ -65,7 +64,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
       `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}?` + 
       `filterByFormula=${encodeURIComponent(`FIND('${organizationId}', ARRAYJOIN({Organization}, ',')) > 0`)}`,
       {
-        headers: getAirtableHeaders(env)
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
 
@@ -174,7 +173,7 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
       {
         method: 'PATCH',
         headers: {
-          ...getAirtableHeaders(env),
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
@@ -224,7 +223,7 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
       {
         method: 'PATCH',
         headers: {
-          ...getAirtableHeaders(env),
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
