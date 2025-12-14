@@ -3820,6 +3820,9 @@
             });
         }
     </script>
+    </div>
+</div>
+<!-- End of propertyDetailsModal -->
 
 <!-- BULK UPLOAD MODAL - REDESIGNED -->
 <div class="modal-overlay" id="bulk-upload-modal">
@@ -5466,5 +5469,22 @@ function finishBulkUploadWells() {
     </div>
 </div>
 
-    </body>
+    <script>
+// Ensure bulk upload functions are globally accessible
+console.log('Dashboard loaded. Checking bulk upload functions...');
+console.log('openBulkUploadModal available:', typeof openBulkUploadModal);
+console.log('openBulkUploadWellsModal available:', typeof openBulkUploadWellsModal);
+
+// If functions exist but not on window, add them
+if (typeof openBulkUploadModal === 'function' && !window.openBulkUploadModal) {
+    window.openBulkUploadModal = openBulkUploadModal;
+    console.log('Added openBulkUploadModal to window');
+}
+if (typeof openBulkUploadWellsModal === 'function' && !window.openBulkUploadWellsModal) {
+    window.openBulkUploadWellsModal = openBulkUploadWellsModal;
+    console.log('Added openBulkUploadWellsModal to window');
+}
+</script>
+
+</body>
 </html>
