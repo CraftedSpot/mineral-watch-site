@@ -259,11 +259,24 @@
             }
         }
         
+        // Define modal functions globally for onclick handlers
+        window.openInviteModal = function() {
+            const inviteForm = document.getElementById('inviteMemberForm');
+            const inviteModal = document.getElementById('inviteMemberModal');
+            if (inviteForm) inviteForm.reset();
+            if (inviteModal) inviteModal.style.display = 'flex';
+        };
+        
+        window.closeInviteModal = function() {
+            const inviteModal = document.getElementById('inviteMemberModal');
+            if (inviteModal) inviteModal.style.display = 'none';
+        };
+        
         // Invite member functionality
         const inviteBtn = document.getElementById('inviteMemberBtn');
         if (inviteBtn) {
             inviteBtn.addEventListener('click', () => {
-                openInviteModal();
+                window.openInviteModal();
             });
         }
         
@@ -274,7 +287,7 @@
         if (inviteModal) {
             // Close modal when clicking outside
             inviteModal.addEventListener('click', e => {
-                if (e.target.id === 'inviteMemberModal') closeInviteModal();
+                if (e.target.id === 'inviteMemberModal') window.closeInviteModal();
             });
         }
         
@@ -288,19 +301,9 @@
                 const role = document.getElementById('inviteRole').value;
                 
                 // Close modal and send invite
-                closeInviteModal();
+                window.closeInviteModal();
                 inviteMember(email, role, name);
             });
-        }
-        
-        function openInviteModal() {
-            // Reset form
-            if (inviteForm) inviteForm.reset();
-            if (inviteModal) inviteModal.style.display = 'flex';
-        }
-        
-        function closeInviteModal() {
-            if (inviteModal) inviteModal.style.display = 'none';
         }
         
         async function inviteMember(email, role, name = null) {
