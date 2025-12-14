@@ -53,6 +53,17 @@
         .member-actions { display: flex; gap: 10px; align-items: center; }
         .btn-text { background: none; border: none; color: var(--red-dirt); font-size: 13px; cursor: pointer; padding: 4px 8px; }
         .btn-text:hover { text-decoration: underline; }
+        /* Modal Styles */
+        .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal { background: white; border-radius: 8px; padding: 25px; max-width: 450px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px; color: var(--oil-navy); }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--red-dirt); }
+        .form-hint { font-size: 12px; color: var(--slate-blue); margin-top: 4px; }
+        .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; }
+        .btn-cancel { padding: 10px 20px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
+        .btn-cancel:hover { background: var(--paper); }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
         @media (max-width: 768px) { .cards { grid-template-columns: 1fr; } .card.full { grid-column: span 1; } .user-name { display: none; } }
     </style>
@@ -250,33 +261,38 @@
         
         // Invite member functionality
         document.getElementById('inviteMemberBtn').addEventListener('click', () => {
-            const email = prompt('Enter the email address of the person you want to invite:');
-            if (!email) return;
-            
-            // Simple email validation
-            if (!email.includes('@') || email.length < 5) {
-                alert('Please enter a valid email address');
-                return;
-            }
-            
-            // Ask for role
-            const role = prompt('Select role for the new member:\n\n1. Admin - Full organization management\n2. Editor - Add/remove properties and wells\n3. Viewer - Read-only access\n\nEnter 1, 2, or 3:', '2');
-            
-            let selectedRole;
-            switch(role) {
-                case '1': selectedRole = 'Admin'; break;
-                case '2': selectedRole = 'Editor'; break;
-                case '3': selectedRole = 'Viewer'; break;
-                default:
-                    alert('Invalid selection. Defaulting to Editor role.');
-                    selectedRole = 'Editor';
-            }
-            
-            // Send invite
-            inviteMember(email, selectedRole);
+            openInviteModal();
         });
         
-        async function inviteMember(email, role) {
+        function openInviteModal() {
+            // Reset form
+            document.getElementById('inviteMemberForm').reset();
+            document.getElementById('inviteMemberModal').style.display = 'flex';
+        }
+        
+        function closeInviteModal() {
+            document.getElementById('inviteMemberModal').style.display = 'none';
+        }
+        
+        // Close modal when clicking outside
+        document.getElementById('inviteMemberModal').addEventListener('click', e => {
+            if (e.target.id === 'inviteMemberModal') closeInviteModal();
+        });
+        
+        // Handle invite form submission
+        document.getElementById('inviteMemberForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const email = document.getElementById('inviteEmail').value.trim();
+            const name = document.getElementById('inviteName').value.trim() || null;
+            const role = document.getElementById('inviteRole').value;
+            
+            // Close modal and send invite
+            closeInviteModal();
+            inviteMember(email, role, name);
+        });
+        
+        async function inviteMember(email, role, name = null) {
             try {
                 const inviteBtn = document.getElementById('inviteMemberBtn');
                 inviteBtn.disabled = true;
@@ -285,7 +301,7 @@
                 const res = await fetch('/api/organization/invite', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, role })
+                    body: JSON.stringify({ email, role, name })
                 });
                 
                 const data = await res.json();
@@ -322,5 +338,36 @@
             window.location.href = '/portal/login';
         });
     </script>
+    
+    <!-- Invite Member Modal -->
+    <div class="modal-overlay" id="inviteMemberModal" style="display: none;">
+        <div class="modal">
+            <h2 style="margin: 0 0 20px 0; font-size: 20px;">Invite Team Member</h2>
+            <form id="inviteMemberForm">
+                <div class="form-group">
+                    <label for="inviteEmail">Email Address *</label>
+                    <input type="email" id="inviteEmail" placeholder="colleague@company.com" required>
+                    <div class="form-hint">They'll receive an invitation email to join your organization</div>
+                </div>
+                <div class="form-group">
+                    <label for="inviteName">Name (Optional)</label>
+                    <input type="text" id="inviteName" placeholder="John Smith">
+                    <div class="form-hint">If not provided, we'll use their email username</div>
+                </div>
+                <div class="form-group">
+                    <label for="inviteRole">Role *</label>
+                    <select id="inviteRole" required>
+                        <option value="Editor" selected>Editor - Can add/edit properties and wells</option>
+                        <option value="Viewer">Viewer - Read-only access</option>
+                    </select>
+                    <div class="form-hint">Only organization owners can invite other Admins</div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeInviteModal()">Cancel</button>
+                    <button type="submit" class="btn-primary" style="margin-top: 0;">Send Invitation</button>
+                </div>
+            </form>
+        </div>
+    </div>
 </body>
 </html>

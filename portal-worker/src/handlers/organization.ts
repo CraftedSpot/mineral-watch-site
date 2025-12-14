@@ -161,7 +161,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     const organization = await orgResponse.json() as any;
     const organizationName = organization.fields.Name;
 
-    const { email, role = 'Member' } = await request.json() as any;
+    const { email, role = 'Editor', name } = await request.json() as any;
 
     // Validate email
     if (!email || !email.includes('@')) {
@@ -221,7 +221,7 @@ export async function handleInviteMember(request: Request, env: Env) {
       body: JSON.stringify({
         fields: {
           Email: normalizedEmail,
-          Name: normalizedEmail.split('@')[0],
+          Name: name || normalizedEmail.split('@')[0],
           Plan: userRecord.fields.Plan, // Same plan as inviter
           Status: "Invited",
           Organization: [organizationId],
