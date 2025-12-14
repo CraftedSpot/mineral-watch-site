@@ -62,8 +62,11 @@ import {
 import {
   sendMagicLinkEmail,
   sendWelcomeEmail,
+  sendInviteEmail,
   getFreeWelcomeEmailHtml,
-  getFreeWelcomeEmailText
+  getFreeWelcomeEmailText,
+  getInviteEmailHtml,
+  getInviteEmailText
 } from './services/postmark.js';
 
 // Import all handlers from central index

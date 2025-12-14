@@ -8,7 +8,9 @@ import {
   BASE_ID,
   ORGANIZATION_TABLE,
   USERS_TABLE,
-  CORS_HEADERS
+  CORS_HEADERS,
+  BASE_URL,
+  TOKEN_EXPIRY
 } from '../constants.js';
 
 import { 
@@ -16,7 +18,8 @@ import {
 } from '../utils/responses.js';
 
 import {
-  authenticateRequest
+  authenticateRequest,
+  generateToken
 } from '../utils/auth.js';
 
 import {
@@ -137,21 +140,147 @@ export async function handleInviteMember(request: Request, env: Env) {
       return jsonResponse({ error: "Only admins can invite members" }, 403);
     }
 
+    // Get organization ID
+    const organizationId = userRecord.fields.Organization?.[0];
+    if (!organizationId) {
+      return jsonResponse({ error: "No organization found" }, 400);
+    }
+
+    // Get organization details for the invite email
+    const orgResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+    
+    if (!orgResponse.ok) {
+      return jsonResponse({ error: "Failed to fetch organization" }, 500);
+    }
+    
+    const organization = await orgResponse.json() as any;
+    const organizationName = organization.fields.Name;
+
     const { email, role = 'Member' } = await request.json() as any;
 
     // Validate email
     if (!email || !email.includes('@')) {
       return jsonResponse({ error: "Valid email required" }, 400);
     }
-
-    // Check if user already exists
-    const existingUser = await findUserByEmail(env, email);
-    if (existingUser) {
-      return jsonResponse({ error: "User already has an account" }, 409);
+    
+    // Validate role
+    if (!['Admin', 'Member', 'Viewer'].includes(role)) {
+      return jsonResponse({ error: "Invalid role" }, 400);
     }
 
-    // TODO: Send invitation email
-    // For now, return success
+    // Normalize email
+    const normalizedEmail = email.toLowerCase().trim();
+
+    // Check if user already exists
+    const existingUser = await findUserByEmail(env, normalizedEmail);
+    if (existingUser) {
+      // If they exist but aren't in an org, we could add them
+      if (!existingUser.fields.Organization || existingUser.fields.Organization.length === 0) {
+        // Update existing user with organization
+        const updateResponse = await fetch(
+          `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${existingUser.id}`,
+          {
+            method: 'PATCH',
+            headers: {
+              Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: {
+                Organization: [organizationId],
+                Role: role
+              }
+            })
+          }
+        );
+        
+        if (updateResponse.ok) {
+          return jsonResponse({
+            success: true,
+            message: `Added ${normalizedEmail} to your organization`
+          });
+        }
+      }
+      return jsonResponse({ error: "User already has an account with another organization" }, 409);
+    }
+
+    // Create new invited user
+    console.log(`Creating invited user: ${normalizedEmail} for org: ${organizationName}`);
+    const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
+    const createResponse = await fetch(createUrl, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fields: {
+          Email: normalizedEmail,
+          Name: normalizedEmail.split('@')[0],
+          Plan: userRecord.fields.Plan, // Same plan as inviter
+          Status: "Invited",
+          Organization: [organizationId],
+          Role: role
+        }
+      })
+    });
+    
+    if (!createResponse.ok) {
+      const err = await createResponse.text();
+      console.error("Airtable create invited user error:", err);
+      return jsonResponse({ error: "Failed to create invitation" }, 500);
+    }
+    
+    const newUser = await createResponse.json();
+    console.log(`Invited user created: ${normalizedEmail}`);
+
+    // Generate magic link token
+    const token = generateToken();
+    const magicLink = `${BASE_URL}/portal/verify?token=${token}`;
+    
+    // Store token in KV for verification (same as regular auth flow)
+    const tokenData = {
+      email: normalizedEmail,
+      userId: newUser.id,
+      type: 'invite',
+      organizationId: organizationId,
+      organizationName: organizationName
+    };
+    
+    await env.AUTH_TOKENS.put(
+      `token:${token}`,
+      JSON.stringify(tokenData),
+      { expirationTtl: TOKEN_EXPIRY / 1000 } // 24 hours
+    );
+    
+    // Send invitation email directly
+    try {
+      const { sendInviteEmail } = await import('../services/postmark.js');
+      await sendInviteEmail(
+        env,
+        normalizedEmail,
+        userRecord.fields.Name || user.email.split('@')[0],
+        organizationName,
+        role,
+        magicLink
+      );
+    } catch (error) {
+      console.error('Failed to send invite email:', error);
+      // Delete the user we just created since email failed
+      await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${newUser.id}`, {
+        method: 'DELETE',
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      });
+      // Also delete the token
+      await env.AUTH_TOKENS.delete(`token:${token}`);
+      return jsonResponse({ error: 'Failed to send invitation email' }, 500);
+    }
+
     return jsonResponse({
       success: true,
       message: `Invitation sent to ${email}`

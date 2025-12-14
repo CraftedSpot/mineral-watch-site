@@ -252,6 +252,179 @@ export function getFreeWelcomeEmailHtml(name: string, magicLink: string): string
 }
 
 /**
+ * Send an organization invite email
+ * @param env Worker environment
+ * @param email User's email address
+ * @param inviterName Name of the person sending the invite
+ * @param organizationName Name of the organization
+ * @param role The role being assigned
+ * @param magicLink The verification/login link
+ * @returns Promise that resolves when email is sent
+ */
+export async function sendInviteEmail(
+  env: Env, 
+  email: string, 
+  inviterName: string, 
+  organizationName: string,
+  role: string,
+  magicLink: string
+): Promise<void> {
+  const response = await fetch("https://api.postmarkapp.com/email", {
+    method: "POST",
+    headers: {
+      "Accept": "application/json",
+      "Content-Type": "application/json",
+      "X-Postmark-Server-Token": env.POSTMARK_API_KEY
+    },
+    body: JSON.stringify({
+      From: "support@mymineralwatch.com",
+      To: email,
+      Subject: `${inviterName} invited you to join ${organizationName} on Mineral Watch`,
+      HtmlBody: getInviteEmailHtml(email, inviterName, organizationName, role, magicLink),
+      TextBody: getInviteEmailText(email, inviterName, organizationName, role, magicLink)
+    })
+  });
+
+  if (!response.ok) {
+    const emailError = await response.text();
+    throw new Error(`Postmark email error: ${emailError}`);
+  }
+}
+
+/**
+ * Generate HTML email template for organization invites
+ */
+export function getInviteEmailHtml(
+  email: string,
+  inviterName: string,
+  organizationName: string,
+  role: string,
+  magicLink: string
+): string {
+  const name = email.split('@')[0];
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+  <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+    <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
+      
+      <!-- Header -->
+      <div style="background: #1C2B36; padding: 30px; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Mineral Watch</h1>
+      </div>
+      
+      <!-- Content -->
+      <div style="padding: 40px 30px;">
+        <p style="font-size: 18px; color: #1C2B36; margin: 0 0 20px;">Hi ${name},</p>
+        
+        <p style="font-size: 16px; color: #334E68; line-height: 1.6; margin: 0 0 25px;">
+          <strong>${inviterName}</strong> has invited you to join <strong>${organizationName}</strong> on Mineral Watch as ${role === 'Admin' ? 'an' : 'a'} <strong>${role}</strong>.
+        </p>
+
+        <p style="font-size: 16px; color: #334E68; line-height: 1.6; margin: 0 0 25px;">
+          ${organizationName} uses Mineral Watch to monitor drilling activity on their mineral rights in Oklahoma.
+        </p>
+        
+        <!-- CTA Button -->
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${magicLink}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Accept Invitation →</a>
+        </div>
+        
+        <p style="text-align: center; font-size: 13px; color: #718096; margin: 0 0 30px;">
+          This link expires in 15 minutes.
+        </p>
+        
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+        
+        <!-- What happens next -->
+        <h3 style="color: #1C2B36; font-size: 16px; margin: 0 0 12px;">What happens when you accept:</h3>
+        <ul style="margin: 0 0 20px; padding: 0 0 0 20px; color: #334E68; line-height: 1.8; font-size: 14px;">
+          <li>Your account will be created automatically</li>
+          <li>You'll join ${organizationName}'s team</li>
+          <li>You'll have access to monitor properties and wells</li>
+          <li>You'll receive alerts when activity is detected</li>
+        </ul>
+
+        <!-- Role description -->
+        <div style="background: #F7FAFC; border-radius: 6px; padding: 20px; margin: 20px 0;">
+          <h4 style="margin: 0 0 10px; color: #1C2B36; font-size: 14px;">Your role: ${role}</h4>
+          <p style="margin: 0; font-size: 14px; color: #334E68; line-height: 1.5;">
+            ${role === 'Admin' 
+              ? 'As an Admin, you can add/remove properties and wells, invite team members, and manage the organization.'
+              : role === 'Member'
+              ? 'As a Member, you can add/remove properties and wells, and view all organization data.'
+              : 'As a Viewer, you can view properties, wells, and activity reports.'}
+          </p>
+        </div>
+        
+        <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+        
+        <p style="font-size: 14px; color: #718096; margin: 0;">
+          <strong>Questions?</strong> Just reply to this email or contact ${inviterName}.
+        </p>
+        
+        <p style="font-size: 16px; color: #334E68; margin: 30px 0 0;">
+          — Mineral Watch Team
+        </p>
+      </div>
+      
+    </div>
+  </div>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Generate text email template for organization invites
+ */
+export function getInviteEmailText(
+  email: string,
+  inviterName: string,
+  organizationName: string,
+  role: string,
+  magicLink: string
+): string {
+  const name = email.split('@')[0];
+  return `Hi ${name},
+
+${inviterName} has invited you to join ${organizationName} on Mineral Watch as ${role === 'Admin' ? 'an' : 'a'} ${role}.
+
+${organizationName} uses Mineral Watch to monitor drilling activity on their mineral rights in Oklahoma.
+
+Click here to accept the invitation:
+${magicLink}
+
+This link expires in 15 minutes.
+
+----
+
+What happens when you accept:
+- Your account will be created automatically
+- You'll join ${organizationName}'s team  
+- You'll have access to monitor properties and wells
+- You'll receive alerts when activity is detected
+
+Your role: ${role}
+${role === 'Admin' 
+  ? 'As an Admin, you can add/remove properties and wells, invite team members, and manage the organization.'
+  : role === 'Member'
+  ? 'As a Member, you can add/remove properties and wells, and view all organization data.'
+  : 'As a Viewer, you can view properties, wells, and activity reports.'}
+
+----
+
+Questions? Just reply to this email or contact ${inviterName}.
+
+— Mineral Watch Team`;
+}
+
+/**
  * Generate text email template for free welcome email
  * @param name User's display name
  * @param magicLink The verification/login link

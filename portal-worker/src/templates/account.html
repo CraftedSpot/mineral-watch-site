@@ -248,6 +248,65 @@
             }
         }
         
+        // Invite member functionality
+        document.getElementById('inviteMemberBtn').addEventListener('click', () => {
+            const email = prompt('Enter the email address of the person you want to invite:');
+            if (!email) return;
+            
+            // Simple email validation
+            if (!email.includes('@') || email.length < 5) {
+                alert('Please enter a valid email address');
+                return;
+            }
+            
+            // Ask for role
+            const role = prompt('Select role for the new member:\n\n1. Admin - Full organization management\n2. Member - Add/remove properties and wells\n3. Viewer - Read-only access\n\nEnter 1, 2, or 3:', '2');
+            
+            let selectedRole;
+            switch(role) {
+                case '1': selectedRole = 'Admin'; break;
+                case '2': selectedRole = 'Member'; break;
+                case '3': selectedRole = 'Viewer'; break;
+                default:
+                    alert('Invalid selection. Defaulting to Member role.');
+                    selectedRole = 'Member';
+            }
+            
+            // Send invite
+            inviteMember(email, selectedRole);
+        });
+        
+        async function inviteMember(email, role) {
+            try {
+                const inviteBtn = document.getElementById('inviteMemberBtn');
+                inviteBtn.disabled = true;
+                inviteBtn.textContent = 'Sending...';
+                
+                const res = await fetch('/api/organization/invite', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, role })
+                });
+                
+                const data = await res.json();
+                
+                if (res.ok) {
+                    alert(data.message || `Invitation sent to ${email}!`);
+                    // Reload organization data to show updated member list
+                    await loadOrganization();
+                } else {
+                    alert(data.error || 'Failed to send invitation');
+                }
+            } catch (error) {
+                console.error('Invite error:', error);
+                alert('Failed to send invitation. Please try again.');
+            } finally {
+                const inviteBtn = document.getElementById('inviteMemberBtn');
+                inviteBtn.disabled = false;
+                inviteBtn.textContent = 'Invite Member';
+            }
+        }
+        
         document.getElementById('manageBtn').addEventListener('click', async () => {
             try {
                 const res = await fetch('/api/billing/portal', { method: 'POST' });
