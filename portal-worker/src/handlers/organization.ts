@@ -46,19 +46,18 @@ export async function handleGetOrganization(request: Request, env: Env) {
       return jsonResponse({ organization: null });
     }
     
-    if (!userRecord.fields.Organization) {
-      console.log('User has no organization field');
+    if (!userRecord.fields.Organization || !userRecord.fields.Organization[0]) {
+      console.log('User has no organization assigned');
       return jsonResponse({ organization: null });
     }
 
-    const organizationId = Array.isArray(userRecord.fields.Organization) 
-      ? userRecord.fields.Organization[0] 
-      : userRecord.fields.Organization;
+    // Organization field is always an array in Airtable linked records
+    const organizationId = userRecord.fields.Organization[0];
 
     // Fetch organization details
     console.log('Fetching organization with ID:', organizationId);
     const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${ORGANIZATION_TABLE}/${organizationId}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
@@ -76,7 +75,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
 
     // Fetch all members of this organization
     const membersResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}?` + 
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
       `filterByFormula=${encodeURIComponent(`FIND('${organizationId}', ARRAYJOIN({Organization}, ',')) > 0`)}`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
