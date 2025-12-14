@@ -223,7 +223,7 @@ export async function handleInviteMember(request: Request, env: Env) {
           Email: normalizedEmail,
           Name: name || normalizedEmail.split('@')[0],
           Plan: userRecord.fields.Plan, // Same plan as inviter
-          Status: "Invited",
+          Status: "Active",  // Using Active instead of Invited
           Organization: [organizationId],
           Role: role
         }
