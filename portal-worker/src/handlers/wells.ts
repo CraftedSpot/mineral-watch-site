@@ -293,7 +293,6 @@ export async function handleAddWell(request: Request, env: Env) {
       return jsonResponse({ error: "Invalid API format. Must be 10 digits starting with 35 (e.g., 3515322352)" }, 400);
     }
   
-  const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
   
