@@ -260,37 +260,48 @@
         }
         
         // Invite member functionality
-        document.getElementById('inviteMemberBtn').addEventListener('click', () => {
-            openInviteModal();
-        });
+        const inviteBtn = document.getElementById('inviteMemberBtn');
+        if (inviteBtn) {
+            inviteBtn.addEventListener('click', () => {
+                openInviteModal();
+            });
+        }
+        
+        // Set up modal event listeners after DOM is ready
+        const inviteModal = document.getElementById('inviteMemberModal');
+        const inviteForm = document.getElementById('inviteMemberForm');
+        
+        if (inviteModal) {
+            // Close modal when clicking outside
+            inviteModal.addEventListener('click', e => {
+                if (e.target.id === 'inviteMemberModal') closeInviteModal();
+            });
+        }
+        
+        if (inviteForm) {
+            // Handle invite form submission
+            inviteForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const email = document.getElementById('inviteEmail').value.trim();
+                const name = document.getElementById('inviteName').value.trim() || null;
+                const role = document.getElementById('inviteRole').value;
+                
+                // Close modal and send invite
+                closeInviteModal();
+                inviteMember(email, role, name);
+            });
+        }
         
         function openInviteModal() {
             // Reset form
-            document.getElementById('inviteMemberForm').reset();
-            document.getElementById('inviteMemberModal').style.display = 'flex';
+            if (inviteForm) inviteForm.reset();
+            if (inviteModal) inviteModal.style.display = 'flex';
         }
         
         function closeInviteModal() {
-            document.getElementById('inviteMemberModal').style.display = 'none';
+            if (inviteModal) inviteModal.style.display = 'none';
         }
-        
-        // Close modal when clicking outside
-        document.getElementById('inviteMemberModal').addEventListener('click', e => {
-            if (e.target.id === 'inviteMemberModal') closeInviteModal();
-        });
-        
-        // Handle invite form submission
-        document.getElementById('inviteMemberForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            
-            const email = document.getElementById('inviteEmail').value.trim();
-            const name = document.getElementById('inviteName').value.trim() || null;
-            const role = document.getElementById('inviteRole').value;
-            
-            // Close modal and send invite
-            closeInviteModal();
-            inviteMember(email, role, name);
-        });
         
         async function inviteMember(email, role, name = null) {
             try {

@@ -269,6 +269,19 @@ export async function sendInviteEmail(
   role: string,
   magicLink: string
 ): Promise<void> {
+  console.log(`📮 Postmark: Preparing invite email for ${email}`);
+  console.log(`📮 Postmark API Key length: ${env.POSTMARK_API_KEY ? env.POSTMARK_API_KEY.length : 'undefined'}`);
+  
+  const emailPayload = {
+    From: "support@mymineralwatch.com",
+    To: email,
+    Subject: `${inviterName} invited you to join ${organizationName} on Mineral Watch`,
+    HtmlBody: getInviteEmailHtml(email, inviterName, organizationName, role, magicLink),
+    TextBody: getInviteEmailText(email, inviterName, organizationName, role, magicLink)
+  };
+  
+  console.log(`📮 Postmark: Sending with subject: ${emailPayload.Subject}`);
+  
   const response = await fetch("https://api.postmarkapp.com/email", {
     method: "POST",
     headers: {
@@ -276,19 +289,18 @@ export async function sendInviteEmail(
       "Content-Type": "application/json",
       "X-Postmark-Server-Token": env.POSTMARK_API_KEY
     },
-    body: JSON.stringify({
-      From: "support@mymineralwatch.com",
-      To: email,
-      Subject: `${inviterName} invited you to join ${organizationName} on Mineral Watch`,
-      HtmlBody: getInviteEmailHtml(email, inviterName, organizationName, role, magicLink),
-      TextBody: getInviteEmailText(email, inviterName, organizationName, role, magicLink)
-    })
+    body: JSON.stringify(emailPayload)
   });
 
+  console.log(`📮 Postmark response status: ${response.status} ${response.statusText}`);
+  
   if (!response.ok) {
     const emailError = await response.text();
+    console.error(`📮 Postmark error response: ${emailError}`);
     throw new Error(`Postmark email error: ${emailError}`);
   }
+  
+  console.log(`📮 Postmark: Invite email sent successfully to ${email}`);
 }
 
 /**

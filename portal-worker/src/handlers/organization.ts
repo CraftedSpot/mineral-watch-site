@@ -260,6 +260,16 @@ export async function handleInviteMember(request: Request, env: Env) {
     
     // Send invitation email directly
     try {
+      console.log(`📧 About to send invite email to: ${normalizedEmail}`);
+      console.log(`📧 Environment check - POSTMARK_API_KEY exists: ${!!env.POSTMARK_API_KEY}`);
+      console.log(`📧 Email details:`, {
+        to: normalizedEmail,
+        inviterName: userRecord.fields.Name || user.email.split('@')[0],
+        organizationName,
+        role,
+        magicLinkPreview: magicLink.substring(0, 50) + '...'
+      });
+      
       const { sendInviteEmail } = await import('../services/postmark.js');
       await sendInviteEmail(
         env,
@@ -269,8 +279,13 @@ export async function handleInviteMember(request: Request, env: Env) {
         role,
         magicLink
       );
+      
+      console.log(`✅ Invite email sent successfully to ${normalizedEmail}`);
     } catch (error) {
-      console.error('Failed to send invite email:', error);
+      console.error('❌ Failed to send invite email:', error);
+      console.error('❌ Error details:', error.message);
+      console.error('❌ Full error:', JSON.stringify(error, null, 2));
+      
       // Delete the user we just created since email failed
       await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${newUser.id}`, {
         method: 'DELETE',
