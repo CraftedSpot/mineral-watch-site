@@ -485,10 +485,3 @@
     letter-spacing: 0.5px;
     margin-top: 4px;
 }
-</style>
-
-<script>
-// Global state for bulk upload
-let parsedData = [];
-let validationResults = null;
-

@@ -812,29 +812,3 @@ function finishBulkUploadWells() {
     closeBulkUploadWellsModal();
     loadWells();
 }
-</script>
-
-<!-- Add Papa Parse library (CSV parsing) -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
-
-<!-- SheetJS library removed - now using server-side JSON processing -->
-
-<!-- Custom Confirm Dialog -->
-<div class="confirm-overlay" id="confirmDialog">
-    <div class="confirm-modal">
-        <div class="confirm-header">
-            <div class="confirm-icon">⚠️</div>
-            <h3 class="confirm-title" id="confirmTitle">Confirm Action</h3>
-        </div>
-        <div class="confirm-body">
-            <p class="confirm-message" id="confirmMessage"></p>
-        </div>
-        <div class="confirm-buttons">
-            <button class="confirm-btn confirm-btn-cancel" id="confirmCancel">Cancel</button>
-            <button class="confirm-btn confirm-btn-confirm" id="confirmOk">Delete</button>
-        </div>
-    </div>
-</div>
-
-    </body>
-</html>
