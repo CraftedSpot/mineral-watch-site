@@ -189,8 +189,9 @@
             orgSection.style.display = 'block';
             
             // Mock organization data
+            // TODO: Fetch real organization data from /api/organization
             const mockOrg = {
-                name: currentUser.organizationName || 'My Organization',
+                name: 'Price Oil & Gas', // TODO: Get from currentUser.organizationName
                 plan: currentUser.plan,
                 members: [
                     {
