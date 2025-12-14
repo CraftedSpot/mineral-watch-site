@@ -179,34 +179,122 @@ export async function handleInviteMember(request: Request, env: Env) {
     // Check if user already exists
     const existingUser = await findUserByEmail(env, normalizedEmail);
     if (existingUser) {
-      // If they exist but aren't in an org, we could add them
-      if (!existingUser.fields.Organization || existingUser.fields.Organization.length === 0) {
-        // Update existing user with organization
-        const updateResponse = await fetch(
-          `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${existingUser.id}`,
-          {
-            method: 'PATCH',
-            headers: {
-              Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-              'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-              fields: {
-                Organization: [organizationId],
-                Role: role
-              }
-            })
-          }
+      // Check if they're already in THIS organization
+      if (existingUser.fields.Organization && existingUser.fields.Organization.includes(organizationId)) {
+        // User is already in this organization - just resend the invite email
+        console.log(`User ${normalizedEmail} already in organization - resending invite email`);
+        
+        // Generate new magic link token
+        const token = generateToken();
+        const magicLink = `${BASE_URL}/portal/verify?token=${token}`;
+        
+        // Store token in KV
+        const tokenData = {
+          email: normalizedEmail,
+          userId: existingUser.id,
+          type: 'invite',
+          organizationId: organizationId,
+          organizationName: organizationName
+        };
+        
+        await env.AUTH_TOKENS.put(
+          `token:${token}`,
+          JSON.stringify(tokenData),
+          { expirationTtl: TOKEN_EXPIRY / 1000 }
         );
         
-        if (updateResponse.ok) {
+        // Send invitation email
+        try {
+          const { sendInviteEmail } = await import('../services/postmark.js');
+          await sendInviteEmail(
+            env,
+            normalizedEmail,
+            userRecord.fields.Name || user.email.split('@')[0],
+            organizationName,
+            existingUser.fields.Role || role,
+            magicLink
+          );
+          
           return jsonResponse({
             success: true,
-            message: `Added ${normalizedEmail} to your organization`
+            message: `Invitation resent to ${email}`
           });
+        } catch (error) {
+          console.error('Failed to resend invite email:', error);
+          await env.AUTH_TOKENS.delete(`token:${token}`);
+          return jsonResponse({ error: 'Failed to resend invitation email' }, 500);
         }
       }
-      return jsonResponse({ error: "User already has an account with another organization" }, 409);
+      
+      // For now, we don't support multiple organizations
+      // In the future, we could allow users to be in multiple orgs
+      if (existingUser.fields.Organization && existingUser.fields.Organization.length > 0) {
+        return jsonResponse({ 
+          error: "This user already belongs to an organization. Multiple organization support coming soon." 
+        }, 409);
+      }
+      
+      // User exists but has no organization - add them to this one
+      const updateResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${existingUser.id}`,
+        {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              Organization: [organizationId],
+              Role: role
+            }
+          })
+        }
+      );
+      
+      if (!updateResponse.ok) {
+        console.error('Failed to update user:', await updateResponse.text());
+        return jsonResponse({ error: "Failed to add user to organization" }, 500);
+      }
+      
+      // Generate magic link and send invite
+      const token = generateToken();
+      const magicLink = `${BASE_URL}/portal/verify?token=${token}`;
+      
+      const tokenData = {
+        email: normalizedEmail,
+        userId: existingUser.id,
+        type: 'invite',
+        organizationId: organizationId,
+        organizationName: organizationName
+      };
+      
+      await env.AUTH_TOKENS.put(
+        `token:${token}`,
+        JSON.stringify(tokenData),
+        { expirationTtl: TOKEN_EXPIRY / 1000 }
+      );
+      
+      try {
+        const { sendInviteEmail } = await import('../services/postmark.js');
+        await sendInviteEmail(
+          env,
+          normalizedEmail,
+          userRecord.fields.Name || user.email.split('@')[0],
+          organizationName,
+          role,
+          magicLink
+        );
+        
+        return jsonResponse({
+          success: true,
+          message: `Added ${normalizedEmail} to your organization and sent invitation`
+        });
+      } catch (error) {
+        console.error('Failed to send invite email:', error);
+        await env.AUTH_TOKENS.delete(`token:${token}`);
+        return jsonResponse({ error: 'Failed to send invitation email' }, 500);
+      }
     }
 
     // Create new invited user
