@@ -40,6 +40,17 @@
         .features li::before { content: '✓'; position: absolute; left: 0; color: var(--success); font-weight: bold; }
         .upgrade-box { background: var(--paper); border-radius: 6px; padding: 20px; margin-top: 20px; }
         .upgrade-box p { font-size: 14px; color: var(--slate-blue); margin-bottom: 15px; }
+        /* Organization Styles */
+        .member-row { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid var(--border); }
+        .member-row:last-child { border-bottom: none; }
+        .member-info { flex: 1; }
+        .member-name { font-size: 14px; font-weight: 600; display: block; }
+        .member-email { font-size: 13px; color: var(--slate-blue); display: block; margin-top: 2px; }
+        .member-role { background: var(--paper); color: var(--slate-blue); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; margin-left: 10px; }
+        .member-role.admin { background: var(--success-bg); color: var(--success); }
+        .member-actions { display: flex; gap: 10px; align-items: center; }
+        .btn-text { background: none; border: none; color: var(--red-dirt); font-size: 13px; cursor: pointer; padding: 4px 8px; }
+        .btn-text:hover { text-decoration: underline; }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
         @media (max-width: 768px) { .cards { grid-template-columns: 1fr; } .card.full { grid-column: span 1; } .user-name { display: none; } }
     </style>
@@ -84,6 +95,28 @@
                     <div class="upgrade-box" id="upgradeBox">
                         <p>Need to monitor more properties or wells? Upgrade your plan.</p>
                         <a href="/portal/upgrade" class="btn btn-primary">View Plans</a>
+                    </div>
+                </div>
+                <!-- Organization Section - Only shown for Professional/Enterprise -->
+                <div class="card full" id="organizationSection" style="display:none;">
+                    <h2>Organization</h2>
+                    <div class="org-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px;">
+                        <div class="org-info">
+                            <h3 id="orgName" style="margin: 0; font-size: 20px;">Loading...</h3>
+                            <p class="org-plan" style="margin: 5px 0 0 0; color: var(--slate-blue); font-size: 14px;">
+                                <span id="orgPlan">—</span> • <span id="memberCount">0</span> members
+                            </p>
+                        </div>
+                        <button class="btn btn-primary" id="inviteMemberBtn" style="display:none;">Invite Member</button>
+                    </div>
+                    
+                    <div class="members-section">
+                        <h4 style="font-size: 16px; margin-bottom: 15px; color: var(--slate-blue);">Members</h4>
+                        <div id="membersList" class="members-list">
+                            <div style="text-align: center; padding: 20px; color: var(--slate-blue);">
+                                Loading members...
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -140,8 +173,73 @@
                     document.getElementById('propItems').textContent = props.length;
                     document.getElementById('wellItems').textContent = wells.length;
                 }
+                
+                // Check if user has organization (Professional/Enterprise plans)
+                if (plan === 'Professional' || plan.startsWith('Enterprise')) {
+                    await loadOrganization();
+                }
             } catch { window.location.href = '/portal/login'; }
         });
+        
+        async function loadOrganization() {
+            const orgSection = document.getElementById('organizationSection');
+            
+            // For now, show mock data since backend isn't ready
+            // In real implementation, this would fetch from /api/organization
+            orgSection.style.display = 'block';
+            
+            // Mock organization data
+            const mockOrg = {
+                name: currentUser.organizationName || 'My Organization',
+                plan: currentUser.plan,
+                members: [
+                    {
+                        id: currentUser.airtableId,
+                        name: currentUser.name || currentUser.email.split('@')[0],
+                        email: currentUser.email,
+                        role: 'Admin'
+                    }
+                ]
+            };
+            
+            // Update organization info
+            document.getElementById('orgName').textContent = mockOrg.name;
+            document.getElementById('orgPlan').textContent = mockOrg.plan;
+            document.getElementById('memberCount').textContent = mockOrg.members.length;
+            
+            // Show invite button for admins
+            if (mockOrg.members.find(m => m.email === currentUser.email)?.role === 'Admin') {
+                document.getElementById('inviteMemberBtn').style.display = 'block';
+            }
+            
+            // Render members list
+            const membersList = document.getElementById('membersList');
+            membersList.innerHTML = mockOrg.members.map(member => `
+                <div class="member-row">
+                    <div class="member-info">
+                        <span class="member-name">${member.name}</span>
+                        <span class="member-email">${member.email}</span>
+                    </div>
+                    <div class="member-actions">
+                        <span class="member-role ${member.role.toLowerCase()}">${member.role}</span>
+                        ${member.email !== currentUser.email ? `
+                            <button class="btn-text" onclick="changeRole('${member.id}')">Change Role</button>
+                            <button class="btn-text" onclick="removeMember('${member.id}')">Remove</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        function changeRole(memberId) {
+            alert('Change role functionality coming soon!');
+        }
+        
+        function removeMember(memberId) {
+            if (confirm('Are you sure you want to remove this member?')) {
+                alert('Remove member functionality coming soon!');
+            }
+        }
         
         document.getElementById('manageBtn').addEventListener('click', async () => {
             try {
