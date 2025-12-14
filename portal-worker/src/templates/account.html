@@ -192,6 +192,29 @@
                     await loadOrganization();
                 }
             } catch { window.location.href = '/portal/login'; }
+            
+            // Set up manage button
+            const manageBtn = document.getElementById('manageBtn');
+            if (manageBtn) {
+                manageBtn.addEventListener('click', async () => {
+                    try {
+                        const res = await fetch('/api/billing/portal', { method: 'POST' });
+                        if (res.ok) {
+                            const { url } = await res.json();
+                            window.location.href = url;
+                        } else { alert('Unable to open billing portal.'); }
+                    } catch { alert('Error connecting to billing.'); }
+                });
+            }
+            
+            // Set up logout button
+            document.getElementById('logoutBtn').addEventListener('click', async () => {
+                await fetch('/api/auth/logout', { method: 'POST' });
+                window.location.href = '/portal/login';
+            });
+            
+            // Set up invite member functionality
+            setupInviteModal();
         });
         
         async function loadOrganization() {
@@ -259,51 +282,54 @@
             }
         }
         
-        // Define modal functions globally for onclick handlers
-        window.openInviteModal = function() {
+        // Setup invite modal functionality
+        function setupInviteModal() {
+            // Define modal functions globally for onclick handlers
+            window.openInviteModal = function() {
+                const inviteForm = document.getElementById('inviteMemberForm');
+                const inviteModal = document.getElementById('inviteMemberModal');
+                if (inviteForm) inviteForm.reset();
+                if (inviteModal) inviteModal.style.display = 'flex';
+            };
+            
+            window.closeInviteModal = function() {
+                const inviteModal = document.getElementById('inviteMemberModal');
+                if (inviteModal) inviteModal.style.display = 'none';
+            };
+            
+            // Invite member button
+            const inviteBtn = document.getElementById('inviteMemberBtn');
+            if (inviteBtn) {
+                inviteBtn.addEventListener('click', () => {
+                    window.openInviteModal();
+                });
+            }
+            
+            // Set up modal event listeners
+            const inviteModal = document.getElementById('inviteMemberModal');
             const inviteForm = document.getElementById('inviteMemberForm');
-            const inviteModal = document.getElementById('inviteMemberModal');
-            if (inviteForm) inviteForm.reset();
-            if (inviteModal) inviteModal.style.display = 'flex';
-        };
-        
-        window.closeInviteModal = function() {
-            const inviteModal = document.getElementById('inviteMemberModal');
-            if (inviteModal) inviteModal.style.display = 'none';
-        };
-        
-        // Invite member functionality
-        const inviteBtn = document.getElementById('inviteMemberBtn');
-        if (inviteBtn) {
-            inviteBtn.addEventListener('click', () => {
-                window.openInviteModal();
-            });
-        }
-        
-        // Set up modal event listeners after DOM is ready
-        const inviteModal = document.getElementById('inviteMemberModal');
-        const inviteForm = document.getElementById('inviteMemberForm');
-        
-        if (inviteModal) {
-            // Close modal when clicking outside
-            inviteModal.addEventListener('click', e => {
-                if (e.target.id === 'inviteMemberModal') window.closeInviteModal();
-            });
-        }
-        
-        if (inviteForm) {
-            // Handle invite form submission
-            inviteForm.addEventListener('submit', async (e) => {
-                e.preventDefault();
-                
-                const email = document.getElementById('inviteEmail').value.trim();
-                const name = document.getElementById('inviteName').value.trim() || null;
-                const role = document.getElementById('inviteRole').value;
-                
-                // Close modal and send invite
-                window.closeInviteModal();
-                inviteMember(email, role, name);
-            });
+            
+            if (inviteModal) {
+                // Close modal when clicking outside
+                inviteModal.addEventListener('click', e => {
+                    if (e.target.id === 'inviteMemberModal') window.closeInviteModal();
+                });
+            }
+            
+            if (inviteForm) {
+                // Handle invite form submission
+                inviteForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const email = document.getElementById('inviteEmail').value.trim();
+                    const name = document.getElementById('inviteName').value.trim() || null;
+                    const role = document.getElementById('inviteRole').value;
+                    
+                    // Close modal and send invite
+                    window.closeInviteModal();
+                    inviteMember(email, role, name);
+                });
+            }
         }
         
         async function inviteMember(email, role, name = null) {
@@ -337,20 +363,6 @@
             }
         }
         
-        document.getElementById('manageBtn').addEventListener('click', async () => {
-            try {
-                const res = await fetch('/api/billing/portal', { method: 'POST' });
-                if (res.ok) {
-                    const { url } = await res.json();
-                    window.location.href = url;
-                } else { alert('Unable to open billing portal.'); }
-            } catch { alert('Error connecting to billing.'); }
-        });
-        
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            await fetch('/api/auth/logout', { method: 'POST' });
-            window.location.href = '/portal/login';
-        });
     </script>
     
     <!-- Invite Member Modal -->
