@@ -184,38 +184,37 @@
         async function loadOrganization() {
             const orgSection = document.getElementById('organizationSection');
             
-            // For now, show mock data since backend isn't ready
-            // In real implementation, this would fetch from /api/organization
-            orgSection.style.display = 'block';
-            
-            // Mock organization data
-            // TODO: Fetch real organization data from /api/organization
-            const mockOrg = {
-                name: 'Price Oil & Gas', // TODO: Get from currentUser.organizationName
-                plan: currentUser.plan,
-                members: [
-                    {
-                        id: currentUser.airtableId,
-                        name: currentUser.name || currentUser.email.split('@')[0],
-                        email: currentUser.email,
-                        role: 'Admin'
-                    }
-                ]
-            };
-            
-            // Update organization info
-            document.getElementById('orgName').textContent = mockOrg.name;
-            document.getElementById('orgPlan').textContent = mockOrg.plan;
-            document.getElementById('memberCount').textContent = mockOrg.members.length;
-            
-            // Show invite button for admins
-            if (mockOrg.members.find(m => m.email === currentUser.email)?.role === 'Admin') {
-                document.getElementById('inviteMemberBtn').style.display = 'block';
-            }
-            
-            // Render members list
-            const membersList = document.getElementById('membersList');
-            membersList.innerHTML = mockOrg.members.map(member => `
+            try {
+                // Fetch real organization data
+                const res = await fetch('/api/organization');
+                if (!res.ok) {
+                    console.error('Failed to fetch organization');
+                    return;
+                }
+                
+                const data = await res.json();
+                if (!data.organization) {
+                    console.log('No organization found');
+                    return;
+                }
+                
+                const org = data.organization;
+                orgSection.style.display = 'block';
+                
+                // Update organization info
+                document.getElementById('orgName').textContent = org.name;
+                document.getElementById('orgPlan').textContent = org.plan;
+                document.getElementById('memberCount').textContent = org.members.length;
+                
+                // Show invite button for admins
+                const currentMember = org.members.find(m => m.email === currentUser.email);
+                if (currentMember && currentMember.role === 'Admin') {
+                    document.getElementById('inviteMemberBtn').style.display = 'block';
+                }
+                
+                // Render members list
+                const membersList = document.getElementById('membersList');
+                membersList.innerHTML = org.members.map(member => `
                 <div class="member-row">
                     <div class="member-info">
                         <span class="member-name">${member.name}</span>
@@ -230,6 +229,11 @@
                     </div>
                 </div>
             `).join('');
+            } catch (error) {
+                console.error('Error loading organization:', error);
+                const membersList = document.getElementById('membersList');
+                membersList.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--error);">Failed to load organization data</div>';
+            }
         }
         
         function changeRole(memberId) {

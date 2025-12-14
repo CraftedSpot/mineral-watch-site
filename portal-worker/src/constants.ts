@@ -12,6 +12,7 @@ export const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
 // Airtable Configuration
 export const BASE_ID = "app3j3X29Uvp5stza";
 export const USERS_TABLE = "👤 Users";
+export const ORGANIZATION_TABLE = "🏢 Organization";
 export const PROPERTIES_TABLE = "📍 Client Properties";
 export const WELLS_TABLE = "🛢️ Client Wells";
 export const ACTIVITY_TABLE = "📋 Activity Log";

@@ -345,6 +345,26 @@ var index_default = {
         return handleDeleteActivity(deleteActivityMatch[1], request, env);
       }
       
+      // Organization endpoints
+      if (path === "/api/organization" && request.method === "GET") {
+        const { handleGetOrganization } = await import('./handlers/organization.js');
+        return handleGetOrganization(request, env);
+      }
+      if (path === "/api/organization/invite" && request.method === "POST") {
+        const { handleInviteMember } = await import('./handlers/organization.js');
+        return handleInviteMember(request, env);
+      }
+      const memberRoleMatch = path.match(/^\/api\/organization\/members\/([a-zA-Z0-9]+)\/role$/);
+      if (memberRoleMatch && request.method === "PATCH") {
+        const { handleUpdateMemberRole } = await import('./handlers/organization.js');
+        return handleUpdateMemberRole(request, env, memberRoleMatch[1]);
+      }
+      const memberDeleteMatch = path.match(/^\/api\/organization\/members\/([a-zA-Z0-9]+)$/);
+      if (memberDeleteMatch && request.method === "DELETE") {
+        const { handleRemoveMember } = await import('./handlers/organization.js');
+        return handleRemoveMember(request, env, memberDeleteMatch[1]);
+      }
+      
       // Statewide activity endpoint (for heatmap)
       if (path === "/api/activity/statewide" && request.method === "GET") {
         return handleStatewideActivity(request, env);

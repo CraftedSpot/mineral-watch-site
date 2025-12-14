@@ -75,3 +75,11 @@ export { handleStatewideActivity } from './statewide.js';
 
 // Statewide activity backfill handler
 export { handleBackfillStatewideActivity } from './backfill-statewide-activity.js';
+
+// Organization handlers
+export {
+  handleGetOrganization,
+  handleInviteMember,
+  handleUpdateMemberRole,
+  handleRemoveMember
+} from './organization.js';
