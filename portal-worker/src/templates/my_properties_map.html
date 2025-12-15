@@ -284,6 +284,51 @@
         .popup-link:hover {
             text-decoration: underline;
         }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) {
+            /* Mobile header adjustments to match dashboard */
+            .header-inner {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .logo {
+                font-size: 18px;
+            }
+            .nav-links {
+                gap: 10px;
+            }
+            .nav-links a {
+                font-size: 12px;
+                padding: 5px;
+            }
+            .user-menu {
+                gap: 10px;
+                width: 100%;
+                justify-content: flex-end;
+            }
+            .user-name { 
+                display: none; 
+            }
+            .btn-logout {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+            
+            /* Map specific mobile adjustments */
+            #map {
+                height: 400px;
+            }
+            .page-header h1 {
+                font-size: 20px;
+            }
+            .container { 
+                padding: 0 15px; 
+            }
+            main { 
+                padding: 15px 0; 
+            }
+        }
     </style>
 </head>
 <body>

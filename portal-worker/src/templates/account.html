@@ -179,7 +179,38 @@
         .btn-cancel { padding: 10px 20px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
         .btn-cancel:hover { background: var(--paper); }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
-        @media (max-width: 768px) { .cards { grid-template-columns: 1fr; } .card.full { grid-column: span 1; } .user-name { display: none; } }
+        @media (max-width: 768px) { 
+            .cards { grid-template-columns: 1fr; } 
+            .card.full { grid-column: span 1; }
+            
+            /* Mobile header adjustments to match dashboard */
+            .header-inner {
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            .logo {
+                font-size: 18px;
+            }
+            .nav-links {
+                gap: 10px;
+            }
+            .nav-links a {
+                font-size: 12px;
+                padding: 5px;
+            }
+            .user-menu {
+                gap: 10px;
+                width: 100%;
+                justify-content: flex-end;
+            }
+            .user-name { 
+                display: none; 
+            }
+            .btn-logout {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+        }
     </style>
 </head>
 <body>
