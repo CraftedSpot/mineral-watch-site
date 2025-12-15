@@ -540,9 +540,12 @@
                     formMessage.className = 'form-message success show';
                     form.reset();
                 } else {
-                    throw new Error('Failed to send');
+                    const errorData = await response.json();
+                    console.error('Server error:', errorData);
+                    throw new Error(errorData.details || 'Failed to send');
                 }
             } catch (error) {
+                console.error('Form submission error:', error);
                 formMessage.textContent = "Something went wrong. Please email us directly at support@mymineralwatch.com";
                 formMessage.className = 'form-message error show';
             } finally {
