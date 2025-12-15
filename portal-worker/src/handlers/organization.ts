@@ -433,6 +433,8 @@ export async function handleInviteMember(request: Request, env: Env) {
  */
 export async function handleUpdateMemberRole(request: Request, env: Env, memberId: string) {
   try {
+    console.log(`🔧 Update role called for member: ${memberId}`);
+    
     // Authenticate user
     const user = await authenticateRequest(request, env);
     if (!user) {
@@ -442,39 +444,46 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
     // Get user details and check if they're an admin
     const userRecord = await findUserByEmail(env, user.email);
     if (!userRecord || userRecord.fields.Role !== 'Admin') {
+      console.error(`❌ User ${user.email} is not an admin (role: ${userRecord?.fields.Role})`);
       return jsonResponse({ error: "Only admins can change roles" }, 403);
     }
 
     const { role } = await request.json() as any;
+    console.log(`🔧 Requested role change to: ${role}`);
 
     if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
       return jsonResponse({ error: "Invalid role" }, 400);
     }
 
     // Update member role in Airtable
-    const updateResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}/${memberId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          fields: { Role: role }
-        })
-      }
-    );
+    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`;
+    console.log(`🔧 Updating at URL: ${updateUrl}`);
+    
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: { Role: role }
+      })
+    });
 
     if (!updateResponse.ok) {
-      console.error('Failed to update role:', await updateResponse.text());
+      const errorText = await updateResponse.text();
+      console.error('❌ Failed to update role:', errorText);
+      console.error(`❌ Status: ${updateResponse.status}`);
+      console.error(`❌ Update payload was:`, JSON.stringify({ fields: { Role: role } }));
       return jsonResponse({ error: "Failed to update role" }, 500);
     }
 
+    console.log(`✅ Successfully updated role to ${role} for member ${memberId}`);
     return jsonResponse({ success: true });
 
   } catch (error) {
-    console.error('Update role error:', error);
+    console.error('❌ Update role error:', error);
+    console.error('❌ Error stack:', error.stack);
     return jsonResponse({ error: "Internal server error" }, 500);
   }
 }
