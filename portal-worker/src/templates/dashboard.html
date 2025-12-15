@@ -3886,7 +3886,7 @@
                 if (value === null || value === undefined) return '';
                 value = value.toString();
                 // If contains comma, quote, or newline, wrap in quotes and escape quotes
-                if (value.includes(',') || value.includes('"') || value.includes('\\n')) {
+                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
                     return `"${value.replace(/"/g, '""')}"`;
                 }
                 return value;
@@ -3910,7 +3910,7 @@
                 ].join(',');
             });
             
-            const csv = [headers.join(','), ...rows].join('\\n');
+            const csv = [headers.join(','), ...rows].join('\n');
             downloadCSV(csv, 'mineral-watch-wells.csv');
         }
         
@@ -3925,7 +3925,7 @@
                 if (value === null || value === undefined) return '';
                 value = value.toString();
                 // If contains comma, quote, or newline, wrap in quotes and escape quotes
-                if (value.includes(',') || value.includes('"') || value.includes('\\n')) {
+                if (value.includes(',') || value.includes('"') || value.includes('\n')) {
                     return `"${value.replace(/"/g, '""')}"`;
                 }
                 return value;
@@ -3947,7 +3947,7 @@
                 ].join(',');
             });
             
-            const csv = [headers.join(','), ...rows].join('\\n');
+            const csv = [headers.join(','), ...rows].join('\n');
             downloadCSV(csv, 'mineral-watch-properties.csv');
         }
         
