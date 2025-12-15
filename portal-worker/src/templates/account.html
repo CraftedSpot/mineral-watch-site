@@ -385,6 +385,48 @@
             
             // Set up invite member functionality
             setupInviteModal();
+            
+            // Change Role Form Handler
+            document.getElementById('changeRoleForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const newRole = document.getElementById('newRole').value;
+                if (!newRole || !changeRoleMemberId) return;
+                
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                const originalText = submitBtn.textContent;
+                
+                try {
+                    submitBtn.disabled = true;
+                    submitBtn.textContent = 'Changing...';
+                    
+                    const response = await fetch(`/api/organization/members/${changeRoleMemberId}/role`, {
+                        method: 'PATCH',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        credentials: 'include',
+                        body: JSON.stringify({ role: newRole })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showToast('Role updated successfully!', 'success');
+                        closeChangeRoleModal();
+                        // Reload organization to show updated role
+                        loadOrganization();
+                    } else {
+                        showToast(data.error || 'Failed to update role', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error updating role:', error);
+                    showToast('Failed to update role. Please try again.', 'error');
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
+                }
+            });
         });
         
         async function loadOrganization() {
@@ -430,7 +472,7 @@
                         <span class="member-role ${member.role.toLowerCase()}">${member.role}</span>
                         ${member.email !== currentUser.email && currentMember && currentMember.role === 'Admin' ? `
                             <button class="btn-text" onclick="resendInvitation('${member.email}', this)">Resend Invitation</button>
-                            <button class="btn-text" onclick="changeRole('${member.id}')">Change Role</button>
+                            <button class="btn-text" onclick="changeRole('${member.id}', '${member.name || member.email}')">Change Role</button>
                             <button class="btn-text" onclick="removeMember('${member.id}')">Remove</button>
                         ` : ''}
                     </div>
@@ -443,9 +485,34 @@
             }
         }
         
-        function changeRole(memberId) {
-            showToast('Change role functionality coming soon!', 'info');
+        let changeRoleMemberId = null;
+        
+        function changeRole(memberId, memberName) {
+            changeRoleMemberId = memberId;
+            document.getElementById('changeRoleMemberName').textContent = memberName;
+            
+            // Get current role and set the select to show the other option
+            const member = organization.members.find(m => m.id === memberId);
+            const select = document.getElementById('newRole');
+            select.value = ''; // Reset selection
+            
+            // Show current role in hint
+            if (member) {
+                const hint = document.querySelector('#changeRoleModal .form-hint');
+                hint.textContent = `Current role: ${member.role}`;
+            }
+            
+            document.getElementById('changeRoleModal').style.display = 'flex';
         }
+        
+        function closeChangeRoleModal() {
+            document.getElementById('changeRoleModal').style.display = 'none';
+            changeRoleMemberId = null;
+        }
+        
+        // Make functions global
+        window.changeRole = changeRole;
+        window.closeChangeRoleModal = closeChangeRoleModal;
         
         function removeMember(memberId) {
             if (confirm('Are you sure you want to remove this member?')) {
@@ -592,6 +659,31 @@
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" onclick="closeInviteModal()">Cancel</button>
                     <button type="submit" class="btn-primary" style="margin-top: 0;">Send Invitation</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Change Role Modal -->
+    <div class="modal-overlay" id="changeRoleModal" style="display: none;">
+        <div class="modal">
+            <h3>Change Member Role</h3>
+            <p style="margin-bottom: 20px; color: var(--slate-blue);">
+                Select a new role for <span id="changeRoleMemberName"></span>
+            </p>
+            <form id="changeRoleForm">
+                <div class="form-group">
+                    <label>Role</label>
+                    <select id="newRole" required>
+                        <option value="">Select a role</option>
+                        <option value="Editor">Editor - Can manage properties and wells</option>
+                        <option value="Viewer">Viewer - Read-only access</option>
+                    </select>
+                    <div class="form-hint">Admins can invite members and manage the organization</div>
+                </div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeChangeRoleModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Change Role</button>
                 </div>
             </form>
         </div>

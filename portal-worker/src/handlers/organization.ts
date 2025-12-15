@@ -110,7 +110,7 @@ export async function handleGetOrganization(request: Request, env: Env) {
       id: record.id,
       name: record.fields.Name || record.fields.Email.split('@')[0],
       email: record.fields.Email,
-      role: record.fields.Role || 'Member',
+      role: record.fields.Role || 'Editor',
       joinedDate: record.fields['Created Time']
     }));
 
@@ -447,7 +447,7 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
 
     const { role } = await request.json() as any;
 
-    if (!['Admin', 'Member', 'Viewer'].includes(role)) {
+    if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
       return jsonResponse({ error: "Invalid role" }, 400);
     }
 
