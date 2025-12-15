@@ -447,6 +447,7 @@
                 }
                 
                 const org = data.organization;
+                currentOrganization = org; // Store organization data globally
                 orgSection.style.display = 'block';
                 
                 // Update organization info
@@ -486,13 +487,17 @@
         }
         
         let changeRoleMemberId = null;
+        let currentOrganization = null;
         
         function changeRole(memberId, memberName) {
             changeRoleMemberId = memberId;
             document.getElementById('changeRoleMemberName').textContent = memberName;
             
             // Get current role and set the select to show the other option
-            const member = organization.members.find(m => m.id === memberId);
+            const member = currentOrganization && currentOrganization.members 
+                ? currentOrganization.members.find(m => m.id === memberId) 
+                : null;
+                
             const select = document.getElementById('newRole');
             select.value = ''; // Reset selection
             
