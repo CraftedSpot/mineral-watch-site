@@ -1075,6 +1075,33 @@
             /* Hide delete button on mobile - too cramped */
             .btn-delete { display: none; }
             
+            /* Properties table mobile adjustments */
+            #propertiesContent .data-table th:nth-child(5) { 
+                white-space: normal !important; /* Allow "Total Acres" to wrap on mobile */
+                line-height: 1.2;
+            }
+            
+            /* Properties table column adjustments on mobile */
+            #propertiesContent .col-prop-county { width: 25%; }
+            #propertiesContent .col-prop-legal { width: 30%; }
+            #propertiesContent .col-prop-acres { width: 20%; }
+            #propertiesContent .col-prop-group { display: none; } /* Hide group on mobile */
+            #propertiesContent .col-prop-notes { display: none; } /* Hide notes on mobile */
+            #propertiesContent .col-actions { width: 25%; }
+            
+            /* Hide notes and group columns on mobile for properties */
+            #propertiesContent .col-prop-notes-cell,
+            #propertiesContent .col-prop-group {
+                display: none;
+            }
+            
+            /* Ensure map button is visible on mobile */
+            #propertiesContent .btn-map-link {
+                display: inline-flex !important;
+                padding: 6px 10px;
+                font-size: 12px;
+            }
+            
             /* Mobile header improvements */
             .page-header { 
                 flex-direction: column; 
