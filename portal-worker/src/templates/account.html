@@ -6,7 +6,7 @@
     <title>Account - Mineral Watch</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
-        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; }
+        :root { --oil-navy: #1C2B36; --slate-blue: #334E68; --red-dirt: #C05621; --red-dirt-dark: #9C4215; --paper: #F8F9FA; --border: #E2E8F0; --success: #03543F; --success-bg: #DEF7EC; --error: #DC2626; --error-bg: #FEE2E2; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
         h1, h2, .logo { font-family: 'Merriweather', serif; }
@@ -62,6 +62,120 @@
         .form-group input:focus, .form-group select:focus { outline: none; border-color: var(--red-dirt); }
         .form-hint { font-size: 12px; color: var(--slate-blue); margin-top: 4px; }
         .modal-buttons { display: flex; gap: 10px; justify-content: flex-end; margin-top: 25px; }
+        
+        /* Toast Notifications */
+        .toast-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 10000;
+            pointer-events: none;
+        }
+        
+        .toast {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 16px 20px;
+            margin-bottom: 12px;
+            min-width: 300px;
+            max-width: 400px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            animation: slideIn 0.3s ease-out;
+            pointer-events: auto;
+            border-left: 4px solid var(--slate-blue);
+        }
+        
+        .toast.success {
+            border-left-color: var(--success);
+        }
+        
+        .toast.error {
+            border-left-color: var(--error);
+        }
+        
+        .toast-icon {
+            flex-shrink: 0;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        
+        .toast.success .toast-icon {
+            background: var(--success-bg);
+            color: var(--success);
+        }
+        
+        .toast.error .toast-icon {
+            background: var(--error-bg);
+            color: var(--error);
+        }
+        
+        .toast-content {
+            flex: 1;
+        }
+        
+        .toast-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 2px;
+            color: var(--oil-navy);
+        }
+        
+        .toast-message {
+            font-size: 13px;
+            color: var(--slate-blue);
+        }
+        
+        .toast-close {
+            flex-shrink: 0;
+            background: none;
+            border: none;
+            color: var(--slate-blue);
+            cursor: pointer;
+            padding: 0;
+            font-size: 18px;
+            line-height: 1;
+            opacity: 0.7;
+            margin-left: 8px;
+        }
+        
+        .toast-close:hover {
+            opacity: 1;
+        }
+        
+        .toast.hiding {
+            animation: slideOut 0.3s ease-in forwards;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        @keyframes slideOut {
+            from {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            to {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+        }
         .btn-cancel { padding: 10px 20px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
         .btn-cancel:hover { background: var(--paper); }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
@@ -69,6 +183,8 @@
     </style>
 </head>
 <body>
+    <!-- Toast Notification Container -->
+    <div class="toast-container" id="toastContainer"></div>
     <header>
         <div class="container">
             <div class="header-inner">
@@ -137,6 +253,55 @@
     </main>
     <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
     <script>
+        // Toast Notification System
+        function showToast(message, type = 'info', title = null) {
+            const toastContainer = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            
+            const iconMap = {
+                success: '✓',
+                error: '✕',
+                info: 'i'
+            };
+            
+            const titleMap = {
+                success: 'Success',
+                error: 'Error',
+                info: 'Info'
+            };
+            
+            toast.innerHTML = `
+                <div class="toast-icon">${iconMap[type] || iconMap.info}</div>
+                <div class="toast-content">
+                    <div class="toast-title">${title || titleMap[type] || titleMap.info}</div>
+                    <div class="toast-message">${message}</div>
+                </div>
+                <button class="toast-close" onclick="closeToast(this)">×</button>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            // Auto-dismiss after 5 seconds
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    closeToast(toast.querySelector('.toast-close'));
+                }
+            }, 5000);
+        }
+        
+        function closeToast(button) {
+            const toast = button.closest('.toast');
+            toast.classList.add('hiding');
+            setTimeout(() => {
+                toast.remove();
+            }, 300);
+        }
+        
+        // Make functions available globally
+        window.showToast = showToast;
+        window.closeToast = closeToast;
+        
         const planConfigs = {
             'Free': { properties: 1, wells: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
             'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
@@ -202,8 +367,8 @@
                         if (res.ok) {
                             const { url } = await res.json();
                             window.location.href = url;
-                        } else { alert('Unable to open billing portal.'); }
-                    } catch { alert('Error connecting to billing.'); }
+                        } else { showToast('Unable to open billing portal.', 'error'); }
+                    } catch { showToast('Error connecting to billing.', 'error'); }
                 });
             }
             
@@ -279,12 +444,12 @@
         }
         
         function changeRole(memberId) {
-            alert('Change role functionality coming soon!');
+            showToast('Change role functionality coming soon!', 'info');
         }
         
         function removeMember(memberId) {
             if (confirm('Are you sure you want to remove this member?')) {
-                alert('Remove member functionality coming soon!');
+                showToast('Remove member functionality coming soon!', 'info');
             }
         }
         
@@ -305,13 +470,13 @@
                 const data = await res.json();
                 
                 if (res.ok) {
-                    alert(data.message || `Invitation resent to ${email}!`);
+                    showToast(data.message || `Invitation resent to ${email}!`, 'success', 'Invitation Sent');
                 } else {
-                    alert(data.error || 'Failed to resend invitation');
+                    showToast(data.error || 'Failed to resend invitation', 'error');
                 }
             } catch (error) {
                 console.error('Resend error:', error);
-                alert('Failed to resend invitation. Please try again.');
+                showToast('Failed to resend invitation. Please try again.', 'error');
             } finally {
                 btn.disabled = false;
                 btn.textContent = 'Resend Invitation';
@@ -383,15 +548,15 @@
                 const data = await res.json();
                 
                 if (res.ok) {
-                    alert(data.message || `Invitation sent to ${email}!`);
+                    showToast(data.message || `Invitation sent to ${email}!`, 'success', 'Invitation Sent');
                     // Reload organization data to show updated member list
                     await loadOrganization();
                 } else {
-                    alert(data.error || 'Failed to send invitation');
+                    showToast(data.error || 'Failed to send invitation', 'error');
                 }
             } catch (error) {
                 console.error('Invite error:', error);
-                alert('Failed to send invitation. Please try again.');
+                showToast('Failed to send invitation. Please try again.', 'error');
             } finally {
                 const inviteBtn = document.getElementById('inviteMemberBtn');
                 inviteBtn.disabled = false;
