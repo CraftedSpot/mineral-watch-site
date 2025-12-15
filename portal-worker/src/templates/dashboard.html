@@ -351,7 +351,13 @@
         .btn-delete:hover { color: #DC2626; background: #FEE2E2; }
         .empty-state { text-align: center; padding: 60px 20px; color: var(--slate-blue); }
         .empty-state p { margin-bottom: 20px; }
-        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 1000; padding: 20px; }
+        .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
+        
+        /* Ensure detail modals appear above sticky filter bars */
+        #wellDetailsModal,
+        #propertyDetailsModal {
+            z-index: 5000;
+        }
         /* Ensure bulk upload modal overlay displays correctly when opened */
         #bulk-upload-modal { 
             display: none; 
