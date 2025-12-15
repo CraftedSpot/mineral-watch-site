@@ -215,6 +215,45 @@
                 font-size: 12px;
                 padding: 6px 12px;
             }
+            
+            /* Organization section mobile styles */
+            .org-header {
+                flex-direction: column !important;
+                align-items: flex-start !important;
+                gap: 15px;
+            }
+            
+            .member-row {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+                padding: 15px 0;
+            }
+            
+            .member-actions {
+                flex-wrap: wrap;
+                width: 100%;
+                justify-content: flex-start;
+            }
+            
+            .member-role {
+                order: -1;
+                margin-bottom: 5px;
+            }
+            
+            .btn-text {
+                font-size: 12px;
+                padding: 2px 6px;
+            }
+            
+            #orgName {
+                font-size: 18px !important;
+            }
+            
+            .btn-primary {
+                font-size: 13px;
+                padding: 8px 16px;
+            }
         }
     </style>
 </head>
@@ -254,14 +293,6 @@
                     <div class="info-row"><span class="info-label">Status</span><span class="info-value" id="status">—</span></div>
                     <button class="btn btn-secondary" id="manageBtn">Manage Subscription</button>
                 </div>
-                <div class="card full">
-                    <h2>Your Plan Features</h2>
-                    <ul class="features" id="features"><li>Loading...</li></ul>
-                    <div class="upgrade-box" id="upgradeBox">
-                        <p>Need to monitor more properties or wells? Upgrade your plan.</p>
-                        <a href="/portal/upgrade" class="btn btn-primary">View Plans</a>
-                    </div>
-                </div>
                 <!-- Organization Section - Only shown for Professional/Enterprise -->
                 <div class="card full" id="organizationSection" style="display:none;">
                     <h2>Organization</h2>
@@ -282,6 +313,14 @@
                                 Loading members...
                             </div>
                         </div>
+                    </div>
+                </div>
+                <div class="card full">
+                    <h2>Your Plan Features</h2>
+                    <ul class="features" id="features"><li>Loading...</li></ul>
+                    <div class="upgrade-box" id="upgradeBox">
+                        <p>Need to monitor more properties or wells? Upgrade your plan.</p>
+                        <a href="/portal/upgrade" class="btn btn-primary">View Plans</a>
                     </div>
                 </div>
             </div>
