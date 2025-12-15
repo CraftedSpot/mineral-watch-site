@@ -203,8 +203,9 @@ var index_default = {
     <div>Completing login...</div>
   </div>
   <script>
-    // Verify the token with auth service
-    fetch('/api/auth/verify?token=${token}')
+    // For invite tokens, we need to verify through portal's invite verification
+    // This will check KV store and create a proper auth session
+    fetch('/api/auth/verify-invite?token=${token}')
       .then(response => response.json())
       .then(data => {
         if (data.success && data.sessionToken) {
@@ -328,6 +329,12 @@ var index_default = {
       if (path === "/api/auth/register" && request.method === "POST") {
         const { handleRegister } = await import('./handlers/auth.js');
         return handleRegister(request, env);
+      }
+      
+      // Handle invite token verification (different from regular magic links)
+      if (path === "/api/auth/verify-invite" && request.method === "GET") {
+        const { handleVerifyInvite } = await import('./handlers/organization.js');
+        return handleVerifyInvite(request, env, url);
       }
       
       // Properties endpoints

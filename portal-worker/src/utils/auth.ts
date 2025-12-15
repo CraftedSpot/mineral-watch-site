@@ -112,3 +112,47 @@ export async function verifyToken(env: Env, token: string): Promise<any> {
 // Note: Session verification is now handled by auth-worker
 // The generateToken and verifyToken functions below are still used
 // for the Track This Well feature, not for user authentication
+
+/**
+ * Generate a session token compatible with auth-worker
+ * This creates the same HMAC-based token format that auth-worker expects
+ */
+export async function generateSessionToken(env: Env, email: string, userId: string): Promise<string> {
+  const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days in milliseconds
+  
+  const payload = {
+    email: email,
+    id: userId,
+    exp: Date.now() + SESSION_EXPIRY
+  };
+  
+  // Use the same secret as auth-worker
+  const secret = env.AUTH_SECRET || 'default-secret-change-me';
+  
+  // Create the token in the same format as auth-worker
+  const data = JSON.stringify(payload);
+  const encoder = new TextEncoder();
+  
+  // Import the secret for HMAC
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  // Create signature
+  const signature = await crypto.subtle.sign(
+    'HMAC',
+    key,
+    encoder.encode(data)
+  );
+  
+  // Encode both parts as base64
+  const dataBase64 = btoa(data);
+  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  
+  // Return in the format expected by auth-worker
+  return `${dataBase64}.${sigBase64}`;
+}

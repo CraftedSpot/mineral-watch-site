@@ -18,8 +18,7 @@ import {
 } from '../utils/responses.js';
 
 import {
-  authenticateRequest,
-  generateToken
+  authenticateRequest
 } from '../utils/auth.js';
 
 import {
@@ -27,6 +26,15 @@ import {
 } from '../services/airtable.js';
 
 import type { Env } from '../types/env.js';
+
+/**
+ * Generate a random token for invitations
+ */
+function generateToken(): string {
+  const array = new Uint8Array(32);
+  crypto.getRandomValues(array);
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('');
+}
 
 /**
  * Get organization details including members
@@ -443,6 +451,53 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
   } catch (error) {
     console.error('Update role error:', error);
     return jsonResponse({ error: "Internal server error" }, 500);
+  }
+}
+
+/**
+ * Verify invite token and create session
+ */
+export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
+  try {
+    const token = url.searchParams.get('token');
+    if (!token) {
+      return jsonResponse({ error: 'Missing token' }, 400);
+    }
+    
+    // Retrieve token data from KV
+    const tokenKey = `token:${token}`;
+    const tokenDataStr = await env.AUTH_TOKENS.get(tokenKey);
+    
+    if (!tokenDataStr) {
+      console.error('Invite token not found:', token);
+      return jsonResponse({ error: 'Invalid or expired invitation link' }, 401);
+    }
+    
+    const tokenData = JSON.parse(tokenDataStr);
+    
+    // Check if it's an invite token
+    if (tokenData.type !== 'invite') {
+      return jsonResponse({ error: 'Invalid token type' }, 401);
+    }
+    
+    // Delete the token (one-time use)
+    await env.AUTH_TOKENS.delete(tokenKey);
+    
+    // Generate a session token for the user
+    const { generateSessionToken } = await import('../utils/auth.js');
+    const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
+    
+    console.log(`Invite verified for ${tokenData.email}, creating session`);
+    
+    return jsonResponse({
+      success: true,
+      sessionToken: sessionToken,
+      email: tokenData.email
+    });
+    
+  } catch (error) {
+    console.error('Invite verification error:', error);
+    return jsonResponse({ error: 'Verification failed' }, 500);
   }
 }
 
