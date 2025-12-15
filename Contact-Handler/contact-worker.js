@@ -6,7 +6,7 @@
  * - POSTMARK_API_KEY: Your Postmark server API token
  * - NOTIFY_EMAIL: Email address to receive contact form submissions (e.g., support@mymineralwatch.com)
  * - FROM_EMAIL: Verified sender email in Postmark (e.g., noreply@mymineralwatch.com)
- * - AIRTABLE_API_KEY: Your Airtable API key
+ * - MINERAL_AIRTABLE_API_KEY: Your Airtable API key
  * - AIRTABLE_BASE_ID: Your Airtable base ID (app3j3X29Uvp5stza)
  * - AIRTABLE_TABLE_ID: Contact form table ID (tblTJtePevMqzntKL)
  */
@@ -56,7 +56,7 @@ export default {
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify(airtableData)

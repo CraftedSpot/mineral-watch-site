@@ -11,7 +11,7 @@ compatibility_date = "2024-01-01"
 # Run: wrangler secret put POSTMARK_API_KEY
 # Run: wrangler secret put NOTIFY_EMAIL  
 # Run: wrangler secret put FROM_EMAIL
-# Run: wrangler secret put AIRTABLE_API_KEY
+# Run: wrangler secret put MINERAL_AIRTABLE_API_KEY
 # Run: wrangler secret put AIRTABLE_BASE_ID
 # Run: wrangler secret put AIRTABLE_TABLE_ID
 
