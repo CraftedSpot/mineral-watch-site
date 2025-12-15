@@ -6,6 +6,9 @@
  * - POSTMARK_API_KEY: Your Postmark server API token
  * - NOTIFY_EMAIL: Email address to receive contact form submissions (e.g., support@mymineralwatch.com)
  * - FROM_EMAIL: Verified sender email in Postmark (e.g., noreply@mymineralwatch.com)
+ * - AIRTABLE_API_KEY: Your Airtable API key
+ * - AIRTABLE_BASE_ID: Your Airtable base ID (app3j3X29Uvp5stza)
+ * - AIRTABLE_TABLE_ID: Contact form table ID (tblTJtePevMqzntKL)
  */
 
 export default {
@@ -34,6 +37,36 @@ export default {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
         return jsonResponse({ error: 'Invalid email address' }, 400);
+      }
+
+      // Save to Airtable
+      const airtableData = {
+        fields: {
+          Name: name,
+          Email: email,
+          Topic: topic,
+          Message: message,
+          'Submitted At': new Date().toISOString(),
+          Status: 'New'
+        }
+      };
+
+      const airtableResponse = await fetch(
+        `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_TABLE_ID}`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(airtableData)
+        }
+      );
+
+      if (!airtableResponse.ok) {
+        const airtableError = await airtableResponse.json();
+        console.error('Airtable error:', airtableError);
+        // Continue with email even if Airtable fails
       }
 
       // Send email via Postmark
