@@ -97,7 +97,7 @@ async function handleSendMagicLink(request, env, corsHeaders) {
     exp: Date.now() + TOKEN_EXPIRY
   });
   
-  const magicLink = `https://portal.mymineralwatch.com/api/auth/verify?token=${encodeURIComponent(token)}`;
+  const magicLink = `https://portal.mymineralwatch.com/portal/verify?token=${encodeURIComponent(token)}`;
   
   // Send email
   await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
