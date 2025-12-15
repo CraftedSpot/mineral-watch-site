@@ -9,6 +9,7 @@ import { checkWellStatusChange } from './src/services/statusChange.js';
 // Test configuration
 const TEST_API = '3500900001'; // Replace with a real API from your tracked wells
 const TEST_NEW_STATUS = 'SI'; // Simulate changing to Shut In
+const TEST_YOUR_EMAIL = 'your-email@example.com'; // Add your email for testing
 
 async function testStatusChange() {
   console.log('=== STATUS CHANGE TEST ===\n');
