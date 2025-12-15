@@ -2661,7 +2661,10 @@
                 </div>
             `;
             
-            pathGroup.bindPopup(popupContent);
+            pathGroup.bindPopup(popupContent, {
+                maxWidth: 300,
+                className: 'high-z-popup'
+            });
             
             return pathGroup;
         }
@@ -3486,7 +3489,10 @@
                 </div>
             `;
             
-            layer.bindPopup(popupContent);
+            layer.bindPopup(popupContent, { 
+                maxWidth: 300,
+                className: 'high-z-popup'
+            });
             
             // Add hover effects
             layer.on('mouseover', function() {
@@ -3844,7 +3850,9 @@
                 style: { color: '#2980b9', weight: 2, fillOpacity: 0.1, fillColor: '#3498db' },
                 onEachFeature: function(feature, layer) {
                     const countyName = feature.properties.COUNTY_NAME;
-                    layer.bindPopup(`<div class="popup-title">${countyName} County (Sample)</div>`);
+                    layer.bindPopup(`<div class="popup-title">${countyName} County (Sample)</div>`, {
+                        className: 'high-z-popup'
+                    });
                 }
             }).addTo(map);
             
@@ -3893,7 +3901,9 @@
                     dashArray: '5, 5'       // Keep dashed for townships
                 });
                 
-                polyline.bindPopup(`<div class="popup-title">PLSS Grid Line</div><div class="popup-detail">${line.label}</div>`);
+                polyline.bindPopup(`<div class="popup-title">PLSS Grid Line</div><div class="popup-detail">${line.label}</div>`, {
+                    className: 'high-z-popup'
+                });
                 townshipLayer.addLayer(polyline);
             });
         }
@@ -4360,7 +4370,7 @@
                                         <button class="popup-btn popup-btn-secondary" onclick="expandActivityCard('permit', ${JSON.stringify(fields).replace(/"/g, '&quot;')}); return false;">More →</button>
                                     </div>
                         `;
-                        marker.bindPopup(popupContent, { maxWidth: 350 });
+                        marker.bindPopup(popupContent, { maxWidth: 350, className: 'high-z-popup' });
                         
                         permitsLayer.addLayer(marker);
                         
@@ -4443,7 +4453,7 @@
                                         <button class="popup-btn popup-btn-secondary" onclick="expandActivityCard('completion', ${JSON.stringify(fields).replace(/"/g, '&quot;')}); return false;">More →</button>
                                     </div>
                         `;
-                        marker.bindPopup(popupContent, { maxWidth: 350 });
+                        marker.bindPopup(popupContent, { maxWidth: 350, className: 'high-z-popup' });
                         
                         completionsLayer.addLayer(marker);
                         
