@@ -356,7 +356,14 @@
         /* Ensure detail modals appear above sticky filter bars */
         #wellDetailsModal,
         #propertyDetailsModal {
-            z-index: 5000;
+            z-index: 5000 !important;
+        }
+        
+        /* Ensure the cards inside also have proper z-index */
+        #wellDetailsModal .well-card,
+        #propertyDetailsModal .property-card {
+            position: relative;
+            z-index: 5001 !important;
         }
         /* Ensure bulk upload modal overlay displays correctly when opened */
         #bulk-upload-modal { 
