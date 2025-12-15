@@ -248,6 +248,18 @@ var index_default = {
         return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${token}`, 302);
       }
       
+      // Handle invite token verification BEFORE auth proxy (different from regular magic links)
+      if (path === "/api/auth/verify-invite" && request.method === "GET") {
+        const { handleVerifyInvite } = await import('./handlers/organization.js');
+        return handleVerifyInvite(request, env, url);
+      }
+      
+      // Registration stays in portal-worker (creates users, sends welcome emails)
+      if (path === "/api/auth/register" && request.method === "POST") {
+        const { handleRegister } = await import('./handlers/auth.js');
+        return handleRegister(request, env);
+      }
+      
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
         console.log(`[Portal] Proxying auth request: ${path}`);
@@ -324,17 +336,6 @@ var index_default = {
             error: 'Authentication service temporarily unavailable. Please try again later.' 
           }, 503);
         }
-      }
-      // Registration stays in portal-worker (creates users, sends welcome emails)
-      if (path === "/api/auth/register" && request.method === "POST") {
-        const { handleRegister } = await import('./handlers/auth.js');
-        return handleRegister(request, env);
-      }
-      
-      // Handle invite token verification (different from regular magic links)
-      if (path === "/api/auth/verify-invite" && request.method === "GET") {
-        const { handleVerifyInvite } = await import('./handlers/organization.js');
-        return handleVerifyInvite(request, env, url);
       }
       
       // Properties endpoints
