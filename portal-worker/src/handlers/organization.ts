@@ -618,6 +618,8 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
  */
 export async function handleRemoveMember(request: Request, env: Env, memberId: string) {
   try {
+    console.log(`🗑️ Remove member called with ID: ${memberId}`);
+    
     // Authenticate user
     const user = await authenticateRequest(request, env);
     if (!user) {
@@ -630,38 +632,44 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
       return jsonResponse({ error: "Only admins can remove members" }, 403);
     }
 
+    console.log(`🗑️ Admin user ${user.email} (ID: ${userRecord.id}) removing member ${memberId}`);
+
     // Can't remove yourself
     if (memberId === userRecord.id) {
       return jsonResponse({ error: "Cannot remove yourself" }, 400);
     }
 
     // Clear organization from member record
-    const updateResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${USERS_TABLE}/${memberId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          fields: { 
-            Organization: [],
-            Role: null
-          }
-        })
-      }
-    );
+    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`;
+    console.log(`🗑️ Updating member at: ${updateUrl}`);
+    
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        fields: { 
+          Organization: [],
+          Role: null
+        }
+      })
+    });
 
     if (!updateResponse.ok) {
-      console.error('Failed to remove member:', await updateResponse.text());
+      const errorText = await updateResponse.text();
+      console.error('❌ Failed to remove member:', errorText);
+      console.error(`❌ Status: ${updateResponse.status}`);
       return jsonResponse({ error: "Failed to remove member" }, 500);
     }
 
+    console.log(`✅ Successfully removed member ${memberId} from organization`);
     return jsonResponse({ success: true });
 
   } catch (error) {
-    console.error('Remove member error:', error);
+    console.error('❌ Remove member error:', error);
+    console.error('❌ Error stack:', error.stack);
     return jsonResponse({ error: "Internal server error" }, 500);
   }
 }
