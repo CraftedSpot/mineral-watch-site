@@ -370,6 +370,15 @@
             font-size: 16px;
             font-weight: 500;
             color: var(--slate-blue);
+            text-align: center;
+            line-height: 1.4;
+        }
+        
+        .loading-subtext {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #64748B;
+            text-align: center;
         }
         
         /* OCC Warning Tooltip */
@@ -1626,6 +1635,7 @@
                 <div class="map-loading" id="mapLoading">
                     <div class="loading-spinner"></div>
                     <div class="loading-text">Loading map data...</div>
+                    <div class="loading-subtext"></div>
                 </div>
                 
                 <!-- New Map Controls Bar -->
@@ -2043,9 +2053,16 @@
             document.getElementById('mapStatus').textContent = message;
         }
         
-        function showLoading(message = 'Loading map data...') {
+        function showLoading(message = 'Loading map data...', subtext = '') {
             document.getElementById('mapLoading').style.display = 'flex';
             document.querySelector('.loading-text').textContent = message;
+            const subtextElement = document.querySelector('.loading-subtext');
+            if (subtext) {
+                subtextElement.textContent = subtext;
+                subtextElement.style.display = 'block';
+            } else {
+                subtextElement.style.display = 'none';
+            }
         }
         
         function hideLoading() {
@@ -3600,6 +3617,11 @@
             for (let i = 0; i < propertyBatch.length; i += batchSize) {
                 const batch = propertyBatch.slice(i, i + batchSize);
                 
+                // Update progress
+                const progress = Math.min(i + batchSize, propertyBatch.length);
+                document.querySelector('.loading-text').textContent = 
+                    `Loading property boundaries... (${progress}/${propertyBatch.length})`;
+                
                 // Group by PLSS ID (township/range) for efficient querying
                 const plssGroups = {};
                 batch.forEach(prop => {
@@ -3660,7 +3682,14 @@
         // Load and display user properties with batch optimization
         async function loadUserProperties() {
             try {
-                showLoading('Loading your properties...');
+                // Check if this is first load
+                const hasCache = localStorage.getItem('propertyGeometryCache');
+                if (!hasCache) {
+                    showLoading('Loading your properties for the first time...', 
+                        'This may take a moment. Future loads will be instant.');
+                } else {
+                    showLoading('Loading your properties...');
+                }
                 updateStatus('Loading properties...');
                 
                 // Fetch properties from API
@@ -3729,7 +3758,10 @@
                 // Batch fetch remaining geometries
                 if (propertiesNeedingGeometry.length > 0) {
                     document.querySelector('.loading-text').textContent = 
-                        `Batch loading ${propertiesNeedingGeometry.length} section geometries...`;
+                        `Loading ${propertiesNeedingGeometry.length} property boundaries...`;
+                    document.querySelector('.loading-subtext').textContent = 
+                        'First-time setup - caching for instant future loads';
+                    document.querySelector('.loading-subtext').style.display = 'block';
                     
                     const geometryResults = await batchFetchGeometries(propertiesNeedingGeometry);
                     
@@ -4831,7 +4863,7 @@
             // Check authentication first
             await checkAuth();
             
-            showLoading();
+            showLoading('Initializing map...', 'Setting up your personalized view');
             
             try {
                 // Load base map layers first
