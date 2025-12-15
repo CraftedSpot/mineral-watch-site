@@ -154,6 +154,20 @@ export async function handleInviteMember(request: Request, env: Env) {
       return jsonResponse({ error: "No organization found" }, 400);
     }
 
+    // Check member limits based on plan
+    const plan = userRecord.fields.Plan || 'Free';
+    const planLimits: Record<string, number> = {
+      'Free': 1,
+      'Starter': 1,
+      'Standard': 1,
+      'Professional': 3,
+      'Enterprise': 10,
+      'Enterprise 500': 10,
+      'Enterprise 1000': 10
+    };
+    
+    const maxMembers = planLimits[plan] || 1;
+
     // Get organization details for the invite email
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
@@ -168,6 +182,32 @@ export async function handleInviteMember(request: Request, env: Env) {
     
     const organization = await orgResponse.json() as any;
     const organizationName = organization.fields.Name;
+
+    // Count current members in this organization
+    const membersFilter = `{Organization} = '${organizationName}'`;
+    const membersCountResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
+      `filterByFormula=${encodeURIComponent(membersFilter)}&view=Grid%20view`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+    
+    if (!membersCountResponse.ok) {
+      console.error('Failed to count members:', await membersCountResponse.text());
+      return jsonResponse({ error: "Failed to check member count" }, 500);
+    }
+    
+    const membersData = await membersCountResponse.json() as any;
+    const currentMemberCount = membersData.records.length;
+    
+    console.log(`Organization ${organizationName} has ${currentMemberCount} members, max allowed: ${maxMembers}`);
+    
+    if (currentMemberCount >= maxMembers) {
+      return jsonResponse({ 
+        error: `Your ${plan} plan allows up to ${maxMembers} team member${maxMembers > 1 ? 's' : ''}. Please upgrade to add more members.` 
+      }, 403);
+    }
 
     const { email, role = 'Editor', name } = await request.json() as any;
 

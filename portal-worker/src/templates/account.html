@@ -303,13 +303,13 @@
         window.closeToast = closeToast;
         
         const planConfigs = {
-            'Free': { properties: 1, wells: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
-            'Starter': { properties: 10, wells: 10, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
-            'Standard': { properties: 50, wells: 50, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Export data'] },
-            'Professional': { properties: 250, wells: 250, features: ['250 properties', '250 wells', '3 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload', 'Export data', 'Organization management'] },
-            'Enterprise': { properties: Infinity, wells: Infinity, features: ['Unlimited properties', 'Unlimited wells', '10 team members', 'All features', 'Dedicated support', 'Export data'] },
-            'Enterprise 500': { properties: 500, wells: 500, features: ['500 properties', '500 wells', '10 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Custom integrations'] },
-            'Enterprise 1000': { properties: 1000, wells: 1000, features: ['1000 properties', '1000 wells', '10 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Custom integrations', 'API access'] }
+            'Free': { properties: 1, wells: 1, members: 1, features: ['1 property', '1 well', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
+            'Starter': { properties: 10, wells: 10, members: 1, features: ['10 properties', '10 wells', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
+            'Standard': { properties: 50, wells: 50, members: 1, features: ['50 properties', '50 wells', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Export data'] },
+            'Professional': { properties: 250, wells: 250, members: 3, features: ['250 properties', '250 wells', '3 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload', 'Export data', 'Organization management'] },
+            'Enterprise': { properties: Infinity, wells: Infinity, members: 10, features: ['Unlimited properties', 'Unlimited wells', '10 team members', 'All features', 'Dedicated support', 'Export data'] },
+            'Enterprise 500': { properties: 500, wells: 500, members: 10, features: ['500 properties', '500 wells', '10 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Custom integrations'] },
+            'Enterprise 1000': { properties: 1000, wells: 1000, members: 10, features: ['1000 properties', '1000 wells', '10 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Custom integrations', 'API access'] }
         };
         
         let currentUser = null;
@@ -519,9 +519,30 @@
         window.changeRole = changeRole;
         window.closeChangeRoleModal = closeChangeRoleModal;
         
-        function removeMember(memberId) {
-            if (confirm('Are you sure you want to remove this member?')) {
-                showToast('Remove member functionality coming soon!', 'info');
+        async function removeMember(memberId) {
+            const member = currentOrganization?.members.find(m => m.id === memberId);
+            const memberName = member?.name || member?.email || 'this member';
+            
+            if (confirm(`Are you sure you want to remove ${memberName} from your organization? They will lose access to all organization data.`)) {
+                try {
+                    const response = await fetch(`/api/organization/members/${memberId}`, {
+                        method: 'DELETE',
+                        credentials: 'include'
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showToast(`${memberName} has been removed from the organization.`, 'success', 'Member Removed');
+                        // Reload organization to update member list
+                        loadOrganization();
+                    } else {
+                        showToast(data.error || 'Failed to remove member', 'error');
+                    }
+                } catch (error) {
+                    console.error('Error removing member:', error);
+                    showToast('Failed to remove member. Please try again.', 'error');
+                }
             }
         }
         
@@ -606,6 +627,18 @@
         }
         
         async function inviteMember(email, role, name = null) {
+            // Check member limit before sending invite
+            if (currentOrganization) {
+                const currentMemberCount = currentOrganization.members.length;
+                const plan = currentOrganization.plan || currentUser.plan;
+                const maxMembers = planConfigs[plan]?.members || 1;
+                
+                if (currentMemberCount >= maxMembers) {
+                    showToast(`Your ${plan} plan allows up to ${maxMembers} team member${maxMembers > 1 ? 's' : ''}. Please upgrade to add more members.`, 'error', 'Member Limit Reached');
+                    return;
+                }
+            }
+            
             try {
                 const inviteBtn = document.getElementById('inviteMemberBtn');
                 inviteBtn.disabled = true;
