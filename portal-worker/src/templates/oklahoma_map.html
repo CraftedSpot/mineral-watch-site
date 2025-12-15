@@ -567,6 +567,7 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             z-index: 1000;
             transition: all 0.3s ease;
+            flex-wrap: nowrap;
         }
         
         /* Collapsed state styles */
@@ -599,27 +600,32 @@
             transition: transform 0.2s;
         }
         
-        /* Expand button for collapsed state */
-        .controls-expand-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: none;
-            border: none;
+        /* Collapse button for expanded state */
+        .controls-collapse-btn {
+            background: white;
+            border: 1px solid var(--border);
             color: var(--slate-blue);
             cursor: pointer;
-            padding: 4px;
-            font-size: 18px;
+            padding: 6px 10px;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: 4px;
             display: none;
-            transition: color 0.2s;
+            transition: all 0.2s;
+            margin-left: 8px;
+            flex-shrink: 0;
         }
         
-        .controls-expand-btn:hover {
+        .controls-collapse-btn:hover {
+            background: var(--paper);
             color: var(--oil-navy);
+            border-color: var(--slate-blue);
         }
         
-        .map-controls-bar:not(.collapsed) .controls-expand-btn {
-            display: block;
+        .map-controls-bar:not(.collapsed) .controls-collapse-btn {
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
         
         .primary-toggles {
@@ -1627,7 +1633,6 @@
                         <span class="controls-toggle-icon">☰</span>
                         <span>Layers</span>
                     </div>
-                    <button class="controls-expand-btn" onclick="toggleControls()" title="Collapse">×</button>
                     <div class="primary-toggles">
                         <label class="toggle-btn active">
                             <input type="checkbox" id="toggle-wells" checked>
@@ -1675,6 +1680,12 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Collapse button -->
+                <button class="controls-collapse-btn" onclick="toggleControls()">
+                    <span>×</span>
+                    <span>Collapse</span>
+                </button>
                 
                 <!-- Map Status (moved from old panel) -->
                 <div class="map-status" id="mapStatus">Ready</div>
