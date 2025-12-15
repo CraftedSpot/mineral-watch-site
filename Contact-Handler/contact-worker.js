@@ -39,22 +39,12 @@ export default {
         return jsonResponse({ error: 'Invalid email address' }, 400);
       }
 
-      // Map topic text to Airtable choice IDs
-      const topicMap = {
-        'General Question': 'General Question',
-        'Pricing & Plans': 'Pricing & Plans',
-        'Technical Support': 'Technical Support',
-        'Enterprise / Large Portfolio': 'Enterprise / Large Portfolio',
-        'Partnership Inquiry': 'Partnership Inquiry',
-        'Other': 'Other'
-      };
-
       // Save to Airtable
       const airtableData = {
         fields: {
           Name: name,
           Email: email,
-          Topic: topicMap[topic] || topic, // Use mapped value or original if not found
+          Topic: topic,
           Message: message,
           'Submitted At': new Date().toISOString(),
           Status: 'New'
