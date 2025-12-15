@@ -379,8 +379,6 @@
             });
             
             // Expose functions for onclick handlers
-            window.changeRole = changeRole;
-            window.removeMember = removeMember;
             window.resendInvitation = resendInvitation;
             
             // Set up invite member functionality
@@ -487,6 +485,7 @@
         }
         
         let changeRoleMemberId = null;
+        let removeMemberId = null;
         let currentOrganization = null;
         
         function changeRole(memberId, memberName) {
@@ -519,32 +518,60 @@
         window.changeRole = changeRole;
         window.closeChangeRoleModal = closeChangeRoleModal;
         
-        async function removeMember(memberId) {
+        function removeMember(memberId) {
             const member = currentOrganization?.members.find(m => m.id === memberId);
             const memberName = member?.name || member?.email || 'this member';
             
-            if (confirm(`Are you sure you want to remove ${memberName} from your organization? They will lose access to all organization data.`)) {
-                try {
-                    const response = await fetch(`/api/organization/members/${memberId}`, {
-                        method: 'DELETE',
-                        credentials: 'include'
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        showToast(`${memberName} has been removed from the organization.`, 'success', 'Member Removed');
-                        // Reload organization to update member list
-                        loadOrganization();
-                    } else {
-                        showToast(data.error || 'Failed to remove member', 'error');
-                    }
-                } catch (error) {
-                    console.error('Error removing member:', error);
-                    showToast('Failed to remove member. Please try again.', 'error');
+            removeMemberId = memberId;
+            document.getElementById('removeMemberName').textContent = memberName;
+            document.getElementById('removeMemberModal').style.display = 'flex';
+        }
+        
+        function closeRemoveMemberModal() {
+            document.getElementById('removeMemberModal').style.display = 'none';
+            removeMemberId = null;
+        }
+        
+        async function confirmRemoveMember() {
+            if (!removeMemberId) return;
+            
+            const member = currentOrganization?.members.find(m => m.id === removeMemberId);
+            const memberName = member?.name || member?.email || 'this member';
+            const removeBtn = document.querySelector('#removeMemberModal .btn-primary');
+            const originalText = removeBtn.textContent;
+            
+            try {
+                removeBtn.disabled = true;
+                removeBtn.textContent = 'Removing...';
+                
+                const response = await fetch(`/api/organization/members/${removeMemberId}`, {
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showToast(`${memberName} has been removed from the organization.`, 'success', 'Member Removed');
+                    closeRemoveMemberModal();
+                    // Reload organization to update member list
+                    loadOrganization();
+                } else {
+                    showToast(data.error || 'Failed to remove member', 'error');
                 }
+            } catch (error) {
+                console.error('Error removing member:', error);
+                showToast('Failed to remove member. Please try again.', 'error');
+            } finally {
+                removeBtn.disabled = false;
+                removeBtn.textContent = originalText;
             }
         }
+        
+        // Make functions global
+        window.removeMember = removeMember;
+        window.closeRemoveMemberModal = closeRemoveMemberModal;
+        window.confirmRemoveMember = confirmRemoveMember;
         
         async function resendInvitation(email, buttonElement) {
             // Get the button element from the onclick
@@ -724,6 +751,30 @@
                     <button type="submit" class="btn-primary">Change Role</button>
                 </div>
             </form>
+        </div>
+    </div>
+    
+    <!-- Remove Member Confirmation Modal -->
+    <div class="modal-overlay" id="removeMemberModal" style="display: none;">
+        <div class="modal">
+            <h3 style="color: var(--error); margin-bottom: 20px;">Remove Member</h3>
+            <div style="margin-bottom: 25px;">
+                <p style="font-size: 15px; color: var(--oil-navy); margin-bottom: 15px;">
+                    Are you sure you want to remove <strong id="removeMemberName"></strong> from your organization?
+                </p>
+                <div style="background: var(--error-bg); border-left: 3px solid var(--error); padding: 12px 15px; border-radius: 4px;">
+                    <p style="font-size: 14px; color: var(--error); margin: 0;">
+                        <strong>Warning:</strong> This member will immediately lose access to all organization data, including properties, wells, and activity reports.
+                    </p>
+                </div>
+                <p style="font-size: 13px; color: var(--slate-blue); margin-top: 15px;">
+                    This action cannot be undone. You will need to send a new invitation if you want to add them back.
+                </p>
+            </div>
+            <div class="modal-buttons">
+                <button type="button" class="btn-cancel" onclick="closeRemoveMemberModal()">Cancel</button>
+                <button type="button" class="btn-primary" style="background: var(--error);" onclick="confirmRemoveMember()">Remove Member</button>
+            </div>
         </div>
     </div>
 </body>
