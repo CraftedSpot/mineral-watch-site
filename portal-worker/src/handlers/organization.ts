@@ -460,6 +460,8 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
 export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
   try {
     const token = url.searchParams.get('token');
+    console.log(`🔐 Verify invite called with token: ${token?.substring(0, 10)}...`);
+    
     if (!token) {
       return jsonResponse({ error: 'Missing token' }, 400);
     }
@@ -469,25 +471,36 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
     const tokenDataStr = await env.AUTH_TOKENS.get(tokenKey);
     
     if (!tokenDataStr) {
-      console.error('Invite token not found:', token);
+      console.error(`❌ Invite token not found in KV: ${token.substring(0, 10)}...`);
+      // Let's check if we have AUTH_SECRET configured
+      console.log(`🔐 AUTH_SECRET configured: ${!!env.AUTH_SECRET}`);
       return jsonResponse({ error: 'Invalid or expired invitation link' }, 401);
     }
     
     const tokenData = JSON.parse(tokenDataStr);
+    console.log(`✅ Token data found:`, {
+      email: tokenData.email,
+      userId: tokenData.userId,
+      type: tokenData.type,
+      organizationName: tokenData.organizationName
+    });
     
     // Check if it's an invite token
     if (tokenData.type !== 'invite') {
+      console.error(`❌ Wrong token type: ${tokenData.type}`);
       return jsonResponse({ error: 'Invalid token type' }, 401);
     }
     
     // Delete the token (one-time use)
     await env.AUTH_TOKENS.delete(tokenKey);
+    console.log(`🗑️ Token deleted from KV`);
     
     // Generate a session token for the user
     const { generateSessionToken } = await import('../utils/auth.js');
     const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
     
-    console.log(`Invite verified for ${tokenData.email}, creating session`);
+    console.log(`✅ Session token generated for ${tokenData.email}`);
+    console.log(`🔐 Session token preview: ${sessionToken.substring(0, 20)}...`);
     
     return jsonResponse({
       success: true,
@@ -496,7 +509,8 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
     });
     
   } catch (error) {
-    console.error('Invite verification error:', error);
+    console.error('❌ Invite verification error:', error);
+    console.error('❌ Error stack:', error.stack);
     return jsonResponse({ error: 'Verification failed' }, 500);
   }
 }
