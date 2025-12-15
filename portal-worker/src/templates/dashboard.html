@@ -3892,7 +3892,7 @@
                 return value;
             }
             
-            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Well Type', 'Well Status', 'OCC Map Link', 'Notes'];
+            const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Well Type', 'Well Status', 'Notes', 'OCC Map Link'];
             const rows = loadedWells.map(w => {
                 const f = w.fields;
                 return [
@@ -3905,8 +3905,8 @@
                     escapeCSV(f['Range'] || ''),
                     escapeCSV(f['Well Type'] || ''),
                     escapeCSV(f['Well Status'] || ''),
-                    escapeCSV(f['OCC Map Link'] || ''),
-                    escapeCSV(f['Notes'] || '')
+                    escapeCSV(f['Notes'] || ''),
+                    escapeCSV(f['OCC Map Link'] || '')
                 ].join(',');
             });
             
