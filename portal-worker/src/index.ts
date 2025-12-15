@@ -203,13 +203,27 @@ var index_default = {
     <div>Completing login...</div>
   </div>
   <script>
-    // Set cookie via JavaScript for Safari compatibility
-    document.cookie = "${COOKIE_NAME}=${token}; path=/; secure; samesite=lax; max-age=2592000";
-    
-    // Small delay to ensure cookie is set
-    setTimeout(() => {
-      window.location.href = "/portal";
-    }, 100);
+    // Verify the token with auth service
+    fetch('/api/auth/verify?token=${token}')
+      .then(response => response.json())
+      .then(data => {
+        if (data.success && data.sessionToken) {
+          // Set the session token as cookie
+          document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
+          
+          // Redirect to dashboard after small delay
+          setTimeout(() => {
+            window.location.href = "/portal";
+          }, 100);
+        } else {
+          // Verification failed - redirect to login with error
+          window.location.href = "/portal/login?error=" + encodeURIComponent(data.error || "Invalid or expired link");
+        }
+      })
+      .catch(error => {
+        console.error('Verification error:', error);
+        window.location.href = "/portal/login?error=Verification%20failed";
+      });
   </script>
 </body>
 </html>`;

@@ -264,7 +264,7 @@
                     <div class="member-actions">
                         <span class="member-role ${member.role.toLowerCase()}">${member.role}</span>
                         ${member.email !== currentUser.email && currentMember && currentMember.role === 'Admin' ? `
-                            <button class="btn-text" onclick="resendInvitation('${member.email}')">Resend Invitation</button>
+                            <button class="btn-text" onclick="resendInvitation('${member.email}', this)">Resend Invitation</button>
                             <button class="btn-text" onclick="changeRole('${member.id}')">Change Role</button>
                             <button class="btn-text" onclick="removeMember('${member.id}')">Remove</button>
                         ` : ''}
@@ -288,9 +288,11 @@
             }
         }
         
-        async function resendInvitation(email) {
+        async function resendInvitation(email, buttonElement) {
+            // Get the button element from the onclick
+            const btn = buttonElement || event.target;
+            
             try {
-                const btn = event.target;
                 btn.disabled = true;
                 btn.textContent = 'Sending...';
                 
@@ -311,7 +313,6 @@
                 console.error('Resend error:', error);
                 alert('Failed to resend invitation. Please try again.');
             } finally {
-                const btn = event.target;
                 btn.disabled = false;
                 btn.textContent = 'Resend Invitation';
             }
