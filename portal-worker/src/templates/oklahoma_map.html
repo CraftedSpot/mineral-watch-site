@@ -372,6 +372,64 @@
             color: var(--slate-blue);
         }
         
+        /* OCC Warning Tooltip */
+        .occ-warning {
+            position: relative;
+            display: block;
+        }
+        
+        .occ-warning-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: #F59E0B;
+            color: white;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: help;
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+        }
+        
+        .occ-tooltip {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: #1F2937;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.4;
+            width: 280px;
+            margin-bottom: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .occ-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            right: 15px;
+            border: 6px solid transparent;
+            border-top-color: #1F2937;
+        }
+        
+        .occ-warning:hover .occ-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        
         /* Info Panel */
         .info-panel {
             position: absolute;
@@ -3099,9 +3157,15 @@
             
             if (apiNumber) {
                 actionsContent += `
-                    <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
-                        Well Records ↗
-                    </a>
+                    <div class="occ-warning" style="position: relative; display: block;">
+                        <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
+                            Well Records ↗
+                        </a>
+                        <span class="occ-warning-icon" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);">!</span>
+                        <div class="occ-tooltip">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
+                    </div>
                 `;
             }
             
@@ -3239,10 +3303,14 @@
             // Only show Well Records for completions
             if (apiNumber && apiNumber !== 'Unknown' && activityType === 'completion') {
                 actionsContent += `
-                    <div style="position: relative; flex: 1;">
+                    <div class="occ-warning" style="position: relative; flex: 1;">
                         <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; width: 100%; text-align: center;">
                             Well Records ↗ <span class="info-icon" title="Look for form 1002A (completion report) for production data and the Survey for the lateral path">ⓘ</span>
                         </a>
+                        <span class="occ-warning-icon" style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%);">!</span>
+                        <div class="occ-tooltip">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
                         <div class="well-records-tooltip">Look for form 1002A (completion report) for production data and the Survey for the lateral path</div>
                     </div>
                 `;
