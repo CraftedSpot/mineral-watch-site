@@ -353,12 +353,12 @@
         .empty-state p { margin-bottom: 20px; }
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); align-items: center; justify-content: center; z-index: 2000; padding: 20px; }
         
-        /* Ensure detail modals appear above sticky filter bars */
+        /* Ensure detail modals appear above sticky filter bars - diagnostic test */
         #wellDetailsModal,
         #propertyDetailsModal {
-            z-index: 5000 !important;
-            /* Force isolation to create proper stacking context */
-            isolation: isolate;
+            position: fixed !important;
+            z-index: 999999 !important;
+            isolation: isolate !important;
         }
         
         /* Remove position relative to prevent stacking context conflicts */
@@ -3546,8 +3546,9 @@
             // Store well ID for saving
             document.getElementById('wellDetailsId').value = wellId;
             
-            // Show modal
-            document.getElementById('wellDetailsModal').style.display = 'flex';
+            // Show modal with forced high z-index like bulk modals
+            const wellModal = document.getElementById('wellDetailsModal');
+            wellModal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999999 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
             
             // Handle viewer permissions
             const isViewer = currentUser?.role === 'Viewer';
@@ -3661,7 +3662,7 @@
         }
         
         function closeWellDetailsModal() {
-            document.getElementById('wellDetailsModal').style.display = 'none';
+            document.getElementById('wellDetailsModal').style = '';
         }
         
         document.getElementById('wellDetailsModal').addEventListener('click', e => {
@@ -3724,7 +3725,9 @@
             // Update total acres display in form
             updateTotalAcres();
             
-            document.getElementById('propertyDetailsModal').style.display = 'flex';
+            // Show modal with forced high z-index like bulk modals
+            const propModal = document.getElementById('propertyDetailsModal');
+            propModal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999999 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
             
             // Handle viewer permissions
             const isViewer = currentUser?.role === 'Viewer';
@@ -3844,7 +3847,7 @@
         }
         
         function closePropertyDetailsModal() {
-            document.getElementById('propertyDetailsModal').style.display = 'none';
+            document.getElementById('propertyDetailsModal').style = '';
         }
         
         document.getElementById('propertyDetailsModal').addEventListener('click', e => {
