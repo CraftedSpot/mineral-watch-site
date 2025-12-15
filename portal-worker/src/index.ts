@@ -203,22 +203,31 @@ var index_default = {
     <div>Completing login...</div>
   </div>
   <script>
-    // For invite tokens, we need to verify through portal's invite verification
-    // This will check KV store and create a proper auth session
-    fetch('/api/auth/verify-invite?token=${token}')
-      .then(response => response.json())
-      .then(data => {
-        if (data.success && data.sessionToken) {
-          // Set the session token as cookie
-          document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
-          
-          // Redirect to dashboard after small delay
-          setTimeout(() => {
-            window.location.href = "/portal";
-          }, 100);
-        } else {
-          // Verification failed - redirect to login with error
-          window.location.href = "/portal/login?error=" + encodeURIComponent(data.error || "Invalid or expired link");
+    // Try auth-worker verification first (for regular login/registration)
+    // If that fails, try portal's invite verification (for organization invites)
+    fetch('/api/auth/verify?token=${token}')
+      .then(response => {
+        if (response.redirected) {
+          // Auth-worker handled it with a redirect
+          window.location.href = response.url;
+        } else if (!response.ok) {
+          // Auth-worker couldn't verify, try invite verification
+          return fetch('/api/auth/verify-invite?token=${token}')
+            .then(inviteResponse => inviteResponse.json())
+            .then(data => {
+              if (data.success && data.sessionToken) {
+                // Set the session token as cookie
+                document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
+                
+                // Redirect to dashboard after small delay
+                setTimeout(() => {
+                  window.location.href = "/portal";
+                }, 100);
+              } else {
+                // Verification failed - redirect to login with error
+                window.location.href = "/portal/login?error=" + encodeURIComponent(data.error || "Invalid or expired link");
+              }
+            });
         }
       })
       .catch(error => {
