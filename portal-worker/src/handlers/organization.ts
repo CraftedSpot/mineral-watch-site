@@ -194,6 +194,7 @@ export async function handleInviteMember(request: Request, env: Env) {
         
         // Generate new magic link token
         const token = generateToken();
+        console.log(`🎲 Generated new token: ${token}`);
         const magicLink = `${BASE_URL}/portal/verify?token=${token}`;
         
         // Store token in KV
@@ -205,11 +206,19 @@ export async function handleInviteMember(request: Request, env: Env) {
           organizationName: organizationName
         };
         
+        const tokenKey = `token:${token}`;
+        console.log(`🔑 Storing resend invite token with key: ${tokenKey}`);
+        console.log(`🔑 Token: ${token}`);
+        
         await env.AUTH_TOKENS.put(
-          `token:${token}`,
+          tokenKey,
           JSON.stringify(tokenData),
           { expirationTtl: TOKEN_EXPIRY / 1000 }
         );
+        
+        // Verify it was stored
+        const verifyStored = await env.AUTH_TOKENS.get(tokenKey);
+        console.log(`✅ Token stored successfully: ${!!verifyStored}`);
         
         // Send invitation email
         try {
@@ -277,11 +286,18 @@ export async function handleInviteMember(request: Request, env: Env) {
         organizationName: organizationName
       };
       
+      const tokenKey = `token:${token}`;
+      console.log(`🔑 Storing existing user invite token with key: ${tokenKey}`);
+      
       await env.AUTH_TOKENS.put(
-        `token:${token}`,
+        tokenKey,
         JSON.stringify(tokenData),
         { expirationTtl: TOKEN_EXPIRY / 1000 }
       );
+      
+      // Verify it was stored
+      const verifyStored = await env.AUTH_TOKENS.get(tokenKey);
+      console.log(`✅ Token stored successfully: ${!!verifyStored}`);
       
       try {
         const { sendInviteEmail } = await import('../services/postmark.js');
@@ -348,11 +364,20 @@ export async function handleInviteMember(request: Request, env: Env) {
       organizationName: organizationName
     };
     
+    const tokenKey = `token:${token}`;
+    console.log(`🔑 Storing new user invite token with key: ${tokenKey}`);
+    console.log(`🔑 Token: ${token}`);
+    console.log(`🔑 Token data:`, JSON.stringify(tokenData, null, 2));
+    
     await env.AUTH_TOKENS.put(
-      `token:${token}`,
+      tokenKey,
       JSON.stringify(tokenData),
       { expirationTtl: TOKEN_EXPIRY / 1000 } // 24 hours
     );
+    
+    // Verify it was stored
+    const verifyStored = await env.AUTH_TOKENS.get(tokenKey);
+    console.log(`✅ Token stored successfully: ${!!verifyStored}`);
     
     // Send invitation email directly
     try {
