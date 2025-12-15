@@ -357,13 +357,16 @@
         #wellDetailsModal,
         #propertyDetailsModal {
             z-index: 5000 !important;
+            /* Force isolation to create proper stacking context */
+            isolation: isolate;
         }
         
-        /* Ensure the cards inside also have proper z-index */
+        /* Remove position relative to prevent stacking context conflicts */
         #wellDetailsModal .well-card,
         #propertyDetailsModal .property-card {
-            position: relative;
-            z-index: 5001 !important;
+            /* Remove position: relative to prevent stacking context issues */
+            position: static !important;
+            z-index: auto !important;
         }
         /* Ensure bulk upload modal overlay displays correctly when opened */
         #bulk-upload-modal { 
@@ -1601,7 +1604,7 @@
     
     <!-- Well Details Modal - New Card Design -->
     <div class="modal-overlay" id="wellDetailsModal">
-        <div class="well-card" style="max-width: 520px; width: 100%; position: relative;">
+        <div class="well-card" style="max-width: 520px; width: 100%;">
             <!-- Header -->
             <div class="card-header">
                 <button class="close-btn" onclick="closeWellDetailsModal()" aria-label="Close">×</button>
@@ -1714,7 +1717,7 @@
     
     <!-- Property Details Modal - Orange Card Design -->
     <div class="modal-overlay" id="propertyDetailsModal">
-        <div class="property-card" style="max-width: 520px; width: 100%; position: relative;">
+        <div class="property-card" style="max-width: 520px; width: 100%;">
             <!-- Header with Orange Gradient -->
             <div class="property-card-header">
                 <button class="close-btn" onclick="closePropertyDetailsModal()" aria-label="Close">×</button>
