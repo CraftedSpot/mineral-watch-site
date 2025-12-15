@@ -39,6 +39,8 @@ export default {
         return jsonResponse({ error: 'Invalid email address' }, 400);
       }
 
+      console.log('Processing contact form submission from:', email);
+      
       // Save to Airtable
       const airtableData = {
         fields: {
@@ -70,6 +72,8 @@ export default {
         // Continue with email even if Airtable fails
       }
 
+      console.log('Airtable submission completed, sending email...');
+      
       // Send email via Postmark
       const postmarkResponse = await fetch('https://api.postmarkapp.com/email', {
         method: 'POST',
@@ -91,8 +95,9 @@ export default {
 
       if (!postmarkResponse.ok) {
         const errorData = await postmarkResponse.json();
-        console.error('Postmark error:', errorData);
-        return jsonResponse({ error: 'Failed to send message' }, 500);
+        console.error('Postmark error:', JSON.stringify(errorData));
+        console.error('Postmark status:', postmarkResponse.status);
+        return jsonResponse({ error: 'Failed to send message', postmarkError: errorData }, 500);
       }
 
       return jsonResponse({ success: true, message: 'Message sent successfully' }, 200);
