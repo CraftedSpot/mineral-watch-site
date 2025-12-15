@@ -66,7 +66,7 @@
             background: white;
             border-radius: 12px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            overflow: hidden;
+            /* overflow: hidden; -- Removed to prevent stacking context issues */
             position: relative;
         }
         
@@ -566,6 +566,60 @@
             gap: 8px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.15);
             z-index: 1000;
+            transition: all 0.3s ease;
+        }
+        
+        /* Collapsed state styles */
+        .map-controls-bar.collapsed {
+            padding: 10px 14px;
+            cursor: pointer;
+        }
+        
+        .map-controls-bar.collapsed .primary-toggles,
+        .map-controls-bar.collapsed .overlays-dropdown {
+            display: none;
+        }
+        
+        /* Toggle handle for expand/collapse */
+        .controls-toggle {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--oil-navy);
+        }
+        
+        .map-controls-bar.collapsed .controls-toggle {
+            display: flex;
+        }
+        
+        .controls-toggle-icon {
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        
+        /* Expand button for collapsed state */
+        .controls-expand-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: none;
+            border: none;
+            color: var(--slate-blue);
+            cursor: pointer;
+            padding: 4px;
+            font-size: 18px;
+            display: none;
+            transition: color 0.2s;
+        }
+        
+        .controls-expand-btn:hover {
+            color: var(--oil-navy);
+        }
+        
+        .map-controls-bar:not(.collapsed) .controls-expand-btn {
+            display: block;
         }
         
         .primary-toggles {
@@ -1330,6 +1384,12 @@
                 padding: 6px;
             }
             
+            /* Mobile collapsed state adjustments */
+            .map-controls-bar.collapsed {
+                flex-direction: row;
+                padding: 8px 12px;
+            }
+            
             .primary-toggles {
                 padding-right: 0;
                 padding-bottom: 6px;
@@ -1386,28 +1446,33 @@
         
         /* Ensure ALL popups appear above filter controls */
         .leaflet-pane.leaflet-popup-pane {
-            z-index: 1500 !important;
+            z-index: 9999 !important;
         }
         
         .leaflet-popup {
-            z-index: 1500 !important;
+            z-index: 9999 !important;
         }
         
         .leaflet-container .leaflet-popup {
-            z-index: 1500 !important;
+            z-index: 9999 !important;
         }
         
         /* High z-index popup class */
         .high-z-popup {
-            z-index: 1500 !important;
+            z-index: 9999 !important;
         }
         
         .high-z-popup .leaflet-popup-content-wrapper {
-            z-index: 1500 !important;
+            z-index: 9999 !important;
         }
         
         .high-z-popup .leaflet-popup-tip-container {
-            z-index: 1500 !important;
+            z-index: 9999 !important;
+        }
+        
+        /* Force leaflet container to not create stacking context */
+        .leaflet-container {
+            z-index: auto !important;
         }
         
         /* Footer */
@@ -1557,7 +1622,12 @@
                 </div>
                 
                 <!-- New Map Controls Bar -->
-                <div class="map-controls-bar">
+                <div class="map-controls-bar collapsed" id="mapControlsBar">
+                    <div class="controls-toggle" onclick="toggleControls()">
+                        <span class="controls-toggle-icon">☰</span>
+                        <span>Layers</span>
+                    </div>
+                    <button class="controls-expand-btn" onclick="toggleControls()" title="Collapse">×</button>
                     <div class="primary-toggles">
                         <label class="toggle-btn active">
                             <input type="checkbox" id="toggle-wells" checked>
@@ -1694,6 +1764,12 @@
     </div>
 
     <script>
+        // Toggle collapse/expand for map controls
+        function toggleControls() {
+            const controlsBar = document.getElementById('mapControlsBar');
+            controlsBar.classList.toggle('collapsed');
+        }
+        
         // New Map Controls Logic
         
         // Primary toggle buttons
