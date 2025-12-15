@@ -3881,21 +3881,32 @@
                 return;
             }
             
+            // Helper function to escape CSV values
+            function escapeCSV(value) {
+                if (value === null || value === undefined) return '';
+                value = value.toString();
+                // If contains comma, quote, or newline, wrap in quotes and escape quotes
+                if (value.includes(',') || value.includes('"') || value.includes('\\n')) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+            }
+            
             const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Well Type', 'Well Status', 'OCC Map Link', 'Notes'];
             const rows = loadedWells.map(w => {
                 const f = w.fields;
                 return [
-                    f['API Number'] || '',
-                    (f['Well Name'] || '').replace(/,/g, ';'),
-                    (f['Operator'] || '').replace(/,/g, ';'),
-                    f['County'] || '',
-                    f['Section'] || '',
-                    f['Township'] || '',
-                    f['Range'] || '',
-                    f['Well Type'] || '',
-                    f['Well Status'] || '',
-                    f['OCC Map Link'] || '',
-                    (f['Notes'] || '').replace(/,/g, ';').replace(/\\n/g, ' ')
+                    escapeCSV(f['API Number'] || ''),
+                    escapeCSV(f['Well Name'] || ''),
+                    escapeCSV(f['Operator'] || ''),
+                    escapeCSV(f['County'] || ''),
+                    escapeCSV(f['Section'] || ''),
+                    escapeCSV(f['Township'] || ''),
+                    escapeCSV(f['Range'] || ''),
+                    escapeCSV(f['Well Type'] || ''),
+                    escapeCSV(f['Well Status'] || ''),
+                    escapeCSV(f['OCC Map Link'] || ''),
+                    escapeCSV(f['Notes'] || '')
                 ].join(',');
             });
             
@@ -3909,19 +3920,30 @@
                 return;
             }
             
+            // Helper function to escape CSV values
+            function escapeCSV(value) {
+                if (value === null || value === undefined) return '';
+                value = value.toString();
+                // If contains comma, quote, or newline, wrap in quotes and escape quotes
+                if (value.includes(',') || value.includes('"') || value.includes('\\n')) {
+                    return `"${value.replace(/"/g, '""')}"`;
+                }
+                return value;
+            }
+            
             const headers = ['County', 'Section', 'Township', 'Range', 'Meridian', 'Group', 'RI Acres', 'WI Acres', 'Notes'];
             const rows = loadedProperties.map(p => {
                 const f = p.fields;
                 return [
-                    f['COUNTY'] || '',
-                    f['SEC'] || '',
-                    f['TWN'] || '',
-                    f['RNG'] || '',
-                    f['MERIDIAN'] || 'IM',
-                    f['Group'] || '',
-                    f['RI Acres'] || '0',
-                    f['WI Acres'] || '0',
-                    (f['Notes'] || '').replace(/,/g, ';').replace(/\\n/g, ' ')
+                    escapeCSV(f['COUNTY'] || ''),
+                    escapeCSV(f['SEC'] || ''),
+                    escapeCSV(f['TWN'] || ''),
+                    escapeCSV(f['RNG'] || ''),
+                    escapeCSV(f['MERIDIAN'] || 'IM'),
+                    escapeCSV(f['Group'] || ''),
+                    escapeCSV(f['RI Acres'] || '0'),
+                    escapeCSV(f['WI Acres'] || '0'),
+                    escapeCSV(f['Notes'] || '')
                 ].join(',');
             });
             
