@@ -42,7 +42,7 @@
         }
         
         .container {
-            max-width: 1200px;
+            max-width: 1100px;
             margin: 0 auto;
             padding: 0 20px;
         }
@@ -347,6 +347,22 @@
 
             .contact-form-card {
                 padding: 25px;
+            }
+        }
+        
+        @media (max-width: 600px) {
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+            
+            .nav-links a {
+                font-size: 14px;
             }
         }
     </style>
