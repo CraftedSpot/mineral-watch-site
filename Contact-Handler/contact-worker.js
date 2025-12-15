@@ -39,12 +39,22 @@ export default {
         return jsonResponse({ error: 'Invalid email address' }, 400);
       }
 
+      // Map topic text to Airtable choice IDs
+      const topicMap = {
+        'General Question': 'General Question',
+        'Pricing & Plans': 'Pricing & Plans',
+        'Technical Support': 'Technical Support',
+        'Enterprise / Large Portfolio': 'Enterprise / Large Portfolio',
+        'Partnership Inquiry': 'Partnership Inquiry',
+        'Other': 'Other'
+      };
+
       // Save to Airtable
       const airtableData = {
         fields: {
           Name: name,
           Email: email,
-          Topic: topic,
+          Topic: topicMap[topic] || topic, // Use mapped value or original if not found
           Message: message,
           'Submitted At': new Date().toISOString(),
           Status: 'New'
@@ -65,7 +75,8 @@ export default {
 
       if (!airtableResponse.ok) {
         const airtableError = await airtableResponse.json();
-        console.error('Airtable error:', airtableError);
+        console.error('Airtable error:', JSON.stringify(airtableError));
+        console.error('Airtable request data:', JSON.stringify(airtableData));
         // Continue with email even if Airtable fails
       }
 
@@ -97,8 +108,9 @@ export default {
       return jsonResponse({ success: true, message: 'Message sent successfully' }, 200);
 
     } catch (error) {
-      console.error('Contact form error:', error);
-      return jsonResponse({ error: 'Internal server error' }, 500);
+      console.error('Contact form error:', error.message);
+      console.error('Stack:', error.stack);
+      return jsonResponse({ error: 'Internal server error', details: error.message }, 500);
     }
   }
 };
