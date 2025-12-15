@@ -1079,15 +1079,28 @@
             #propertiesContent .data-table th:nth-child(5) { 
                 white-space: normal !important; /* Allow "Total Acres" to wrap on mobile */
                 line-height: 1.2;
+                text-align: center !important; /* Center align on mobile */
+                padding-left: 0 !important;
+            }
+            
+            /* Adjust Actions header alignment on mobile */
+            #propertiesContent .data-table th:last-child {
+                text-align: center !important;
             }
             
             /* Properties table column adjustments on mobile */
-            #propertiesContent .col-prop-county { width: 25%; }
-            #propertiesContent .col-prop-legal { width: 30%; }
-            #propertiesContent .col-prop-acres { width: 20%; }
+            #propertiesContent .col-prop-county { width: 23%; }
+            #propertiesContent .col-prop-legal { width: 32%; }
+            #propertiesContent .col-prop-acres { width: 20%; padding-left: 5px !important; }
             #propertiesContent .col-prop-group { display: none; } /* Hide group on mobile */
             #propertiesContent .col-prop-notes { display: none; } /* Hide notes on mobile */
             #propertiesContent .col-actions { width: 25%; }
+            
+            /* Center the acres values on mobile */
+            #propertiesContent .data-table td:nth-child(5) {
+                text-align: center !important;
+                padding-left: 5px !important;
+            }
             
             /* Hide notes and group columns on mobile for properties */
             #propertiesContent .col-prop-notes-cell,
