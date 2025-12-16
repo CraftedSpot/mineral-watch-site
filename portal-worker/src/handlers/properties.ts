@@ -45,26 +45,11 @@ export async function handleListProperties(request: Request, env: Env) {
   const organizationId = userRecord.fields.Organization?.[0];
   
   if (organizationId) {
-    // User has organization - fetch org name and filter by it
-    const orgResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-    
-    if (orgResponse.ok) {
-      const org = await orgResponse.json() as any;
-      const orgName = org.fields.Name;
-      // Filter by organization name (linked record field shows display value)
-      formula = `{Organization} = '${orgName}'`;
-    } else {
-      // Fallback to email if org fetch fails
-      formula = `{User Email} = "${user.email}"`;
-    }
+    // User has organization - filter by organization record ID
+    formula = `SEARCH("${organizationId}", ARRAYJOIN({Organization})) > 0`;
   } else {
-    // Solo user - filter by email
-    formula = `{User Email} = "${user.email}"`;
+    // Solo user - filter by user record ID
+    formula = `SEARCH("${user.id}", ARRAYJOIN({User})) > 0`;
   }
   
   const records = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, formula);
