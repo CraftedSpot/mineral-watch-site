@@ -143,8 +143,10 @@ async function handleVerifyToken(request, env, url) {
   await updateLoginTracking(env, payload.id);
   
   // For CORS requests (from JavaScript), return success with session token
+  const acceptHeader = request.headers.get("Accept");
   const origin = request.headers.get("Origin");
-  if (origin) {
+  
+  if (acceptHeader && acceptHeader.includes("application/json")) {
     return new Response(JSON.stringify({ 
       success: true, 
       sessionToken,
@@ -153,7 +155,7 @@ async function handleVerifyToken(request, env, url) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Origin": origin || "*",
         "Access-Control-Allow-Credentials": "true",
         "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
       }

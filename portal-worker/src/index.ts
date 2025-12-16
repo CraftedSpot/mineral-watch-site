@@ -212,7 +212,12 @@ var index_default = {
     // Try auth-worker verification first (for regular login/registration)
     // If that fails, try portal's invite verification (for organization invites)
     console.log('Attempting auth verification...');
-    fetch('/api/auth/verify?token=${token}')
+    fetch('/api/auth/verify?token=${token}', {
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json'
+      }
+    })
       .then(async response => {
         console.log('Auth verify response:', response.status, response.redirected);
         
