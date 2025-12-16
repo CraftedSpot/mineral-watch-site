@@ -3960,8 +3960,26 @@
         }
         
         document.getElementById('logoutBtn').addEventListener('click', async () => {
-            await fetch('/api/auth/logout', { method: 'POST' });
-            window.location.href = '/portal/login';
+            try {
+                const response = await fetch('/api/auth/logout', { 
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok) {
+                    // Clear any client-side session data
+                    document.cookie = 'mw_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                    window.location.href = '/portal/login';
+                } else {
+                    console.error('Logout failed:', response.status);
+                    // Still redirect to login
+                    window.location.href = '/portal/login';
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Still redirect to login
+                window.location.href = '/portal/login';
+            }
         });
         
         // Toast notification system
