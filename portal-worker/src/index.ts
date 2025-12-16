@@ -212,18 +212,20 @@ var index_default = {
     // Try auth-worker verification first (for regular login/registration)
     // If that fails, try portal's invite verification (for organization invites)
     console.log('Attempting auth verification...');
-    fetch('/api/auth/verify?token=${token}', { redirect: 'manual' })
+    fetch('/api/auth/verify?token=${token}')
       .then(async response => {
-        console.log('Auth verify response:', response.status, response.redirected, response.headers.get('location'));
-        if (response.status === 302 || response.status === 301) {
-          // Auth-worker handled it with a redirect
-          const location = response.headers.get('location');
-          if (location) {
-            window.location.href = location;
+        console.log('Auth verify response:', response.status, response.redirected);
+        if (response.ok) {
+          // Try to parse JSON response
+          const data = await response.json();
+          console.log('Auth verify data:', data);
+          if (data.success) {
+            // Successful verification
+            window.location.href = data.redirect || '/portal';
             return;
           }
         }
-        if (!response.ok && response.status !== 302 && response.status !== 301) {
+        if (!response.ok) {
           // Log the error from auth-worker
           const text = await response.text();
           console.log('Auth-worker error:', text);

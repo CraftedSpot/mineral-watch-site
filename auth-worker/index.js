@@ -142,7 +142,25 @@ async function handleVerifyToken(request, env, url) {
   // Update login tracking
   await updateLoginTracking(env, payload.id);
   
-  // Set cookie directly in response header for better Chrome compatibility
+  // For CORS requests (from JavaScript), return success with session token
+  const origin = request.headers.get("Origin");
+  if (origin) {
+    return new Response(JSON.stringify({ 
+      success: true, 
+      sessionToken,
+      redirect: '/portal'
+    }), {
+      status: 200,
+      headers: {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": origin,
+        "Access-Control-Allow-Credentials": "true",
+        "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+      }
+    });
+  }
+  
+  // For direct browser requests, redirect
   const response = new Response(null, {
     status: 302,
     headers: {
