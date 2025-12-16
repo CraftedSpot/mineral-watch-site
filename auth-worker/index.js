@@ -156,11 +156,18 @@ async function handleVerifyToken(request, env, url) {
 }
 
 function handleLogout(corsHeaders) {
+  // Clear cookie with multiple variations to ensure it's removed
+  const clearCookieHeaders = [
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`,
+    `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=portal.mymineralwatch.com; Max-Age=0`
+  ];
+  
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
     headers: {
       "Content-Type": "application/json",
-      "Set-Cookie": `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`,
+      "Set-Cookie": clearCookieHeaders,
       ...corsHeaders
     }
   });

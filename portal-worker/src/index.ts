@@ -203,9 +203,14 @@ var index_default = {
     <div>Completing login...</div>
   </div>
   <script>
+    // Clear any existing session cookie first
+    document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
+    
     // Try auth-worker verification first (for regular login/registration)
     // If that fails, try portal's invite verification (for organization invites)
-    fetch('/api/auth/verify?token=${token}')
+    fetch('/api/auth/verify?token=${token}', {
+      credentials: 'same-origin'
+    })
       .then(response => {
         if (response.redirected) {
           // Auth-worker handled it with a redirect
