@@ -295,7 +295,7 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
   const user = await findUserByEmail(env, userEmail);
   if (!user) return [];
   
-  const formula = `SEARCH("${user.id}", ARRAYJOIN({User})) > 0`;
+  const formula = `FIND("${userEmail}", ARRAYJOIN({User})) > 0`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
   
   const response = await fetch(url, {
