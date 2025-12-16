@@ -215,20 +215,28 @@ var index_default = {
     fetch('/api/auth/verify?token=${token}')
       .then(async response => {
         console.log('Auth verify response:', response.status, response.redirected);
+        
+        // Read response text once
+        const responseText = await response.text();
+        console.log('Raw response:', responseText);
+        
         if (response.ok) {
-          // Try to parse JSON response
-          const data = await response.json();
-          console.log('Auth verify data:', data);
-          if (data.success) {
-            // Successful verification
-            window.location.href = data.redirect || '/portal';
-            return;
+          try {
+            // Try to parse JSON response
+            const data = JSON.parse(responseText);
+            console.log('Auth verify data:', data);
+            if (data.success) {
+              // Successful verification
+              window.location.href = data.redirect || '/portal';
+              return;
+            }
+          } catch (jsonError) {
+            console.error('Failed to parse JSON response:', jsonError);
           }
         }
+        
         if (!response.ok) {
-          // Log the error from auth-worker
-          const text = await response.text();
-          console.log('Auth-worker error:', text);
+          console.log('Auth-worker returned error status:', response.status);
           
           // Auth-worker couldn't verify, try invite verification
           return fetch('/api/auth/verify-invite?token=${token}')
@@ -251,7 +259,8 @@ var index_default = {
         }
       })
       .catch(error => {
-        console.error('Verification error:', error);
+        console.error('Verification error:', error.message || error);
+        console.error('Error stack:', error.stack);
         window.location.href = "/portal/login?error=Verification%20failed";
       });
   </script>
