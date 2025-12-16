@@ -142,11 +142,23 @@ async function handleVerifyToken(request, env, url) {
   // Update login tracking
   await updateLoginTracking(env, payload.id);
   
+  // Log headers for debugging
+  console.log(`[Auth] Request headers:`, {
+    accept: request.headers.get("Accept"),
+    origin: request.headers.get("Origin"),
+    referer: request.headers.get("Referer")
+  });
+  
   // For CORS requests (from JavaScript), return success with session token
+  // Check multiple indicators that this is a JavaScript request
   const acceptHeader = request.headers.get("Accept");
   const origin = request.headers.get("Origin");
+  const isApiRequest = url.pathname.includes("/api/");
   
-  if (acceptHeader && acceptHeader.includes("application/json")) {
+  if ((acceptHeader && acceptHeader.includes("application/json")) || 
+      (isApiRequest && !acceptHeader) || 
+      origin) {
+    console.log(`[Auth] Returning JSON response for JavaScript request`);
     return new Response(JSON.stringify({ 
       success: true, 
       sessionToken,
@@ -155,7 +167,7 @@ async function handleVerifyToken(request, env, url) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": origin || "*",
+        "Access-Control-Allow-Origin": "*",
         "Access-Control-Allow-Credentials": "true",
         "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
       }

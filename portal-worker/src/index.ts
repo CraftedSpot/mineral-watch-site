@@ -330,8 +330,11 @@ var index_default = {
             });
           }
           
-          // Handle redirects from auth-worker specially
-          if (authResponse.status === 302 || authResponse.status === 301) {
+          // Only handle redirects if it's not a JSON response
+          const contentType = authResponse.headers.get('Content-Type');
+          const isJsonResponse = contentType && contentType.includes('application/json');
+          
+          if (!isJsonResponse && (authResponse.status === 302 || authResponse.status === 301)) {
             const location = authResponse.headers.get('Location');
             if (location) {
               // If it's a relative redirect, make it absolute
