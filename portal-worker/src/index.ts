@@ -208,18 +208,22 @@ var index_default = {
     
     // Try auth-worker verification first (for regular login/registration)
     // If that fails, try portal's invite verification (for organization invites)
-    fetch('/api/auth/verify?token=${token}', {
-      credentials: 'same-origin'
-    })
-      .then(response => {
+    fetch('/api/auth/verify?token=${token}')
+      .then(async response => {
+        console.log('Auth verify response:', response.status, response.redirected);
         if (response.redirected) {
           // Auth-worker handled it with a redirect
           window.location.href = response.url;
         } else if (!response.ok) {
+          // Log the error from auth-worker
+          const text = await response.text();
+          console.log('Auth-worker error:', text);
+          
           // Auth-worker couldn't verify, try invite verification
           return fetch('/api/auth/verify-invite?token=${token}')
             .then(inviteResponse => inviteResponse.json())
             .then(data => {
+              console.log('Invite verify response:', data);
               if (data.success && data.sessionToken) {
                 // Set the session token as cookie
                 document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
