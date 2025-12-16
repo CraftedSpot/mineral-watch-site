@@ -203,18 +203,27 @@ var index_default = {
     <div>Completing login...</div>
   </div>
   <script>
+    console.log('Set-session page loaded, token:', '${token}'.substring(0, 20) + '...');
+    
     // Clear any existing session cookie first
     document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
+    console.log('Cleared existing session cookie');
     
     // Try auth-worker verification first (for regular login/registration)
     // If that fails, try portal's invite verification (for organization invites)
-    fetch('/api/auth/verify?token=${token}')
+    console.log('Attempting auth verification...');
+    fetch('/api/auth/verify?token=${token}', { redirect: 'manual' })
       .then(async response => {
-        console.log('Auth verify response:', response.status, response.redirected);
-        if (response.redirected) {
+        console.log('Auth verify response:', response.status, response.redirected, response.headers.get('location'));
+        if (response.status === 302 || response.status === 301) {
           // Auth-worker handled it with a redirect
-          window.location.href = response.url;
-        } else if (!response.ok) {
+          const location = response.headers.get('location');
+          if (location) {
+            window.location.href = location;
+            return;
+          }
+        }
+        if (!response.ok && response.status !== 302 && response.status !== 301) {
           // Log the error from auth-worker
           const text = await response.text();
           console.log('Auth-worker error:', text);
