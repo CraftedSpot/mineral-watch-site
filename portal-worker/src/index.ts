@@ -204,7 +204,7 @@ var index_default = {
 <body>
   <div class="loading" onclick="document.getElementById('debug-info').style.display='block'">
     <div class="spinner"></div>
-    <div id="status-message">Completing login...</div>
+    <div id="status-message">Completing login v2...</div>
     <div id="timeout-message" style="margin-top: 20px; color: #718096; font-size: 14px; display: none;">
       This is taking longer than usual. Please wait...
     </div>
