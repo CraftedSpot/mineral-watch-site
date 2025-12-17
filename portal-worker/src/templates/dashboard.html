@@ -1560,17 +1560,18 @@
                 <div class="form-row">
                     <div class="form-group">
                         <label for="township">Township</label>
-                        <input type="text" id="township" placeholder="e.g. 12N" required>
+                        <input type="text" id="township" placeholder="e.g. 12N" pattern="^[0-9]{1,2}[NS]$" title="Format: number + N or S (e.g., 12N)" style="text-transform: uppercase;" required>
                     </div>
                     <div class="form-group">
                         <label for="range">Range</label>
-                        <input type="text" id="range" placeholder="e.g. 4W" required>
+                        <input type="text" id="range" placeholder="e.g. 4W" pattern="^[0-9]{1,2}[WE]$" title="Format: number + W or E (e.g., 4W)" style="text-transform: uppercase;" required>
                     </div>
                 </div>
                 <div class="form-row">
                     <div class="form-group">
                         <label for="section">Section</label>
-                        <input type="text" id="section" placeholder="e.g. 15" required>
+                        <input type="text" id="section" placeholder="e.g. 15" pattern="^[0-9]{1,2}$" title="Enter only the section number (1-36)" required>
+                        <div class="form-hint" style="font-size: 11px; color: #64748B; margin-top: 4px;">Section number only (1-36). Ownership details go in notes.</div>
                     </div>
                     <div class="form-group">
                         <label for="meridian">Meridian</label>
@@ -1579,6 +1580,11 @@
                             <option value="CM">Cimarron Meridian (CM)</option>
                         </select>
                     </div>
+                </div>
+                <div class="form-group full" style="margin-top: 15px;">
+                    <label for="propertyNotes">Notes (Optional)</label>
+                    <textarea id="propertyNotes" placeholder="e.g., E/2 NE/4 & N/2 SE/4 - specific ownership details" style="width: 100%; min-height: 60px; resize: vertical;"></textarea>
+                    <div class="form-hint" style="font-size: 11px; color: #64748B; margin-top: 4px;">Add legal descriptions, ownership fractions, or other details here</div>
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" onclick="closePropertyModal()">Cancel</button>
@@ -3282,6 +3288,7 @@
         function closePropertyModal() { 
             document.getElementById('addPropertyModal').style.display = 'none'; 
             document.getElementById('addPropertyForm').reset(); 
+            document.getElementById('propertyNotes').value = ''; // Clear notes field
         }
         
         document.getElementById('addPropertyModal').addEventListener('click', e => { 
@@ -3290,12 +3297,36 @@
         
         document.getElementById('addPropertyForm').addEventListener('submit', async e => {
             e.preventDefault();
+            
+            // Get form values
+            const section = document.getElementById('section').value.trim();
+            const township = document.getElementById('township').value.trim().toUpperCase();
+            const range = document.getElementById('range').value.trim().toUpperCase();
+            const notes = document.getElementById('propertyNotes').value.trim();
+            
+            // Additional validation
+            if (!/^[0-9]{1,2}$/.test(section) || parseInt(section) < 1 || parseInt(section) > 36) {
+                showToast('Section must be a number between 1 and 36', 'error');
+                return;
+            }
+            
+            if (!/^[0-9]{1,2}[NS]$/.test(township)) {
+                showToast('Township format: number + N or S (e.g., 12N)', 'error');
+                return;
+            }
+            
+            if (!/^[0-9]{1,2}[WE]$/.test(range)) {
+                showToast('Range format: number + W or E (e.g., 4W)', 'error');
+                return;
+            }
+            
             const data = { 
                 COUNTY: document.getElementById('county').value, 
-                SEC: document.getElementById('section').value, 
-                TWN: document.getElementById('township').value, 
-                RNG: document.getElementById('range').value, 
-                MERIDIAN: document.getElementById('meridian').value 
+                SEC: section, 
+                TWN: township, 
+                RNG: range, 
+                MERIDIAN: document.getElementById('meridian').value,
+                Notes: notes 
             };
             try {
                 const res = await fetch('/api/properties', { 
