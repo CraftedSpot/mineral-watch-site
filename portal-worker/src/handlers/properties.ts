@@ -142,6 +142,8 @@ export async function handleAddProperty(request: Request, env: Env) {
         RNG: range,
         MERIDIAN: meridian,
         Notes: body.Notes || "",
+        "RI Acres": body['RI Acres'] || 0,
+        "WI Acres": body['WI Acres'] || 0,
         "Monitor Adjacent": true,
         Status: "Active",
         ...(userOrganization && { Organization: [userOrganization] })

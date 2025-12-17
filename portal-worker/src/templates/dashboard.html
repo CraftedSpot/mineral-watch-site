@@ -1545,52 +1545,95 @@
     </main>
     <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
     
-    <!-- Add Property Modal -->
+    <!-- Add Property Modal - Styled Like Property Details -->
     <div class="modal-overlay" id="addPropertyModal">
-        <div class="modal">
-            <h2>Add Property</h2>
-            <form id="addPropertyForm">
-                <div class="form-group full">
-                    <label for="county">County</label>
-                    <select id="county" required onchange="autoSetMeridian(this.value)">
-                        <option value="">Select County</option>
-                        <option>Alfalfa</option><option>Atoka</option><option>Beaver</option><option>Beckham</option><option>Blaine</option><option>Bryan</option><option>Caddo</option><option>Canadian</option><option>Carter</option><option>Cherokee</option><option>Choctaw</option><option>Cimarron</option><option>Cleveland</option><option>Coal</option><option>Comanche</option><option>Cotton</option><option>Craig</option><option>Creek</option><option>Custer</option><option>Delaware</option><option>Dewey</option><option>Ellis</option><option>Garfield</option><option>Garvin</option><option>Grady</option><option>Grant</option><option>Greer</option><option>Harmon</option><option>Harper</option><option>Haskell</option><option>Hughes</option><option>Jackson</option><option>Jefferson</option><option>Johnston</option><option>Kay</option><option>Kingfisher</option><option>Kiowa</option><option>Latimer</option><option>Le Flore</option><option>Lincoln</option><option>Logan</option><option>Love</option><option>Major</option><option>Marshall</option><option>Mayes</option><option>McClain</option><option>McCurtain</option><option>McIntosh</option><option>Murray</option><option>Muskogee</option><option>Noble</option><option>Nowata</option><option>Okfuskee</option><option>Oklahoma</option><option>Okmulgee</option><option>Osage</option><option>Ottawa</option><option>Pawnee</option><option>Payne</option><option>Pittsburg</option><option>Pontotoc</option><option>Pottawatomie</option><option>Pushmataha</option><option>Roger Mills</option><option>Rogers</option><option>Seminole</option><option>Sequoyah</option><option>Stephens</option><option>Texas</option><option>Tillman</option><option>Tulsa</option><option>Wagoner</option><option>Washington</option><option>Washita</option><option>Woods</option><option>Woodward</option>
-                    </select>
+        <div class="property-card" style="max-width: 520px; width: 100%;">
+            <!-- Header with Orange Gradient -->
+            <div class="property-card-header">
+                <button class="close-btn" onclick="closePropertyModal()" aria-label="Close">×</button>
+                <div class="card-header-top">
+                    <h2 class="property-name">Add Property</h2>
+                    <span class="acreage-badge" id="addPropertyAcreageBadge" style="display: none;">0 acres</span>
                 </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="township">Township</label>
-                        <input type="text" id="township" placeholder="e.g. 12N" pattern="^[0-9]{1,2}[NS]$" title="Format: number + N or S (e.g., 12N)" style="text-transform: uppercase;" required>
+                <div class="property-location" id="addPropertyLocation" style="opacity: 0;">Location</div>
+            </div>
+            
+            <!-- Content -->
+            <div class="card-content">
+                <form id="addPropertyForm">
+                    <div class="details-grid">
+                        <!-- County -->
+                        <div class="details-row">
+                            <span class="details-label">County</span>
+                            <select id="county" required onchange="autoSetMeridian(this.value); updateLocationDisplay();" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 200px;">
+                                <option value="">Select County</option>
+                                <option>Alfalfa</option><option>Atoka</option><option>Beaver</option><option>Beckham</option><option>Blaine</option><option>Bryan</option><option>Caddo</option><option>Canadian</option><option>Carter</option><option>Cherokee</option><option>Choctaw</option><option>Cimarron</option><option>Cleveland</option><option>Coal</option><option>Comanche</option><option>Cotton</option><option>Craig</option><option>Creek</option><option>Custer</option><option>Delaware</option><option>Dewey</option><option>Ellis</option><option>Garfield</option><option>Garvin</option><option>Grady</option><option>Grant</option><option>Greer</option><option>Harmon</option><option>Harper</option><option>Haskell</option><option>Hughes</option><option>Jackson</option><option>Jefferson</option><option>Johnston</option><option>Kay</option><option>Kingfisher</option><option>Kiowa</option><option>Latimer</option><option>Le Flore</option><option>Lincoln</option><option>Logan</option><option>Love</option><option>Major</option><option>Marshall</option><option>Mayes</option><option>McClain</option><option>McCurtain</option><option>McIntosh</option><option>Murray</option><option>Muskogee</option><option>Noble</option><option>Nowata</option><option>Okfuskee</option><option>Oklahoma</option><option>Okmulgee</option><option>Osage</option><option>Ottawa</option><option>Pawnee</option><option>Payne</option><option>Pittsburg</option><option>Pontotoc</option><option>Pottawatomie</option><option>Pushmataha</option><option>Roger Mills</option><option>Rogers</option><option>Seminole</option><option>Sequoyah</option><option>Stephens</option><option>Texas</option><option>Tillman</option><option>Tulsa</option><option>Wagoner</option><option>Washington</option><option>Washita</option><option>Woods</option><option>Woodward</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Legal Description -->
+                        <div class="details-row" style="align-items: center;">
+                            <span class="details-label">Legal</span>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <input type="text" id="section" placeholder="Sec" pattern="^[0-9]{1,2}$" title="Section number (1-36)" required 
+                                       style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; width: 50px; text-align: center;"
+                                       oninput="updateLocationDisplay()">
+                                <span>-</span>
+                                <input type="text" id="township" placeholder="Twn" pattern="^[0-9]{1,2}[NS]$" title="e.g., 12N" required
+                                       style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; width: 60px; text-align: center; text-transform: uppercase;"
+                                       oninput="updateLocationDisplay()">
+                                <span>-</span>
+                                <input type="text" id="range" placeholder="Rng" pattern="^[0-9]{1,2}[WE]$" title="e.g., 4W" required
+                                       style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; width: 60px; text-align: center; text-transform: uppercase;"
+                                       oninput="updateLocationDisplay()">
+                                <select id="meridian" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: white;">
+                                    <option value="IM">IM</option>
+                                    <option value="CM">CM</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="details-row" style="margin-top: -10px;">
+                            <span class="details-label"></span>
+                            <div class="form-hint" style="font-size: 11px; color: #64748B;">Section number only. Ownership details go in notes.</div>
+                        </div>
+                        
+                        <!-- RI Acres -->
+                        <div class="details-row">
+                            <span class="details-label">RI Acres</span>
+                            <input type="number" id="addPropertyRIAcres" step="0.01" min="0" 
+                                   style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" 
+                                   placeholder="0" oninput="updateAddPropertyTotalAcres()">
+                        </div>
+                        
+                        <!-- WI Acres -->
+                        <div class="details-row">
+                            <span class="details-label">WI Acres</span>
+                            <input type="number" id="addPropertyWIAcres" step="0.01" min="0" 
+                                   style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" 
+                                   placeholder="0" oninput="updateAddPropertyTotalAcres()">
+                        </div>
+                        
+                        <!-- Total Acres (calculated) -->
+                        <div class="details-row">
+                            <span class="details-label">Total Acres</span>
+                            <span class="details-value" id="addPropertyTotalAcres" style="font-weight: 600;">0</span>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div class="details-row" style="flex-direction: column; align-items: flex-start;">
+                            <span class="details-label" style="margin-bottom: 8px;">Notes</span>
+                            <textarea id="propertyNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" 
+                                      placeholder="Add legal descriptions, lease info, or other details..."></textarea>
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label for="range">Range</label>
-                        <input type="text" id="range" placeholder="e.g. 4W" pattern="^[0-9]{1,2}[WE]$" title="Format: number + W or E (e.g., 4W)" style="text-transform: uppercase;" required>
+                    
+                    <!-- Footer Actions -->
+                    <div class="card-footer" style="margin-top: 20px;">
+                        <button type="button" class="action-btn secondary" onclick="closePropertyModal()">Cancel</button>
+                        <button type="submit" class="action-btn primary" style="flex: 2;">Save & Close</button>
                     </div>
-                </div>
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="section">Section</label>
-                        <input type="text" id="section" placeholder="e.g. 15" pattern="^[0-9]{1,2}$" title="Enter only the section number (1-36)" required>
-                        <div class="form-hint" style="font-size: 11px; color: #64748B; margin-top: 4px;">Section number only (1-36). Ownership details go in notes.</div>
-                    </div>
-                    <div class="form-group">
-                        <label for="meridian">Meridian</label>
-                        <select id="meridian">
-                            <option value="IM">Indian Meridian (IM)</option>
-                            <option value="CM">Cimarron Meridian (CM)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group full" style="margin-top: 15px;">
-                    <label for="propertyNotes">Notes (Optional)</label>
-                    <textarea id="propertyNotes" placeholder="e.g., E/2 NE/4 & N/2 SE/4 - specific ownership details" style="width: 100%; min-height: 60px; resize: vertical;"></textarea>
-                    <div class="form-hint" style="font-size: 11px; color: #64748B; margin-top: 4px;">Add legal descriptions, ownership fractions, or other details here</div>
-                </div>
-                <div class="modal-buttons">
-                    <button type="button" class="btn-cancel" onclick="closePropertyModal()">Cancel</button>
-                    <button type="submit" class="btn-submit">Save and Close</button>
-                </div>
-            </form>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -3289,6 +3332,11 @@
             document.getElementById('addPropertyModal').style.display = 'none'; 
             document.getElementById('addPropertyForm').reset(); 
             document.getElementById('propertyNotes').value = ''; // Clear notes field
+            document.getElementById('addPropertyRIAcres').value = '';
+            document.getElementById('addPropertyWIAcres').value = '';
+            document.getElementById('addPropertyTotalAcres').textContent = '0';
+            document.getElementById('addPropertyAcreageBadge').style.display = 'none';
+            document.getElementById('addPropertyLocation').style.opacity = '0';
         }
         
         // Auto-set meridian based on county
@@ -3303,6 +3351,45 @@
             }
         }
         window.autoSetMeridian = autoSetMeridian; // Make available globally
+        
+        // Update location display in Add Property header
+        function updateLocationDisplay() {
+            const county = document.getElementById('county').value;
+            const section = document.getElementById('section').value;
+            const township = document.getElementById('township').value.toUpperCase();
+            const range = document.getElementById('range').value.toUpperCase();
+            const locationDiv = document.getElementById('addPropertyLocation');
+            
+            if (county && section && township && range) {
+                locationDiv.textContent = `${county} County • S${section} T${township} R${range}`;
+                locationDiv.style.opacity = '1';
+            } else if (county) {
+                locationDiv.textContent = `${county} County`;
+                locationDiv.style.opacity = '0.8';
+            } else {
+                locationDiv.style.opacity = '0';
+            }
+        }
+        window.updateLocationDisplay = updateLocationDisplay;
+        
+        // Update total acres for Add Property
+        function updateAddPropertyTotalAcres() {
+            const riAcres = parseFloat(document.getElementById('addPropertyRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('addPropertyWIAcres').value) || 0;
+            const total = riAcres + wiAcres;
+            
+            document.getElementById('addPropertyTotalAcres').textContent = total.toFixed(2);
+            
+            // Update the badge in header
+            const badge = document.getElementById('addPropertyAcreageBadge');
+            if (total > 0) {
+                badge.textContent = `${total.toFixed(2)} acres`;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        window.updateAddPropertyTotalAcres = updateAddPropertyTotalAcres;
         
         document.getElementById('addPropertyModal').addEventListener('click', e => { 
             if (e.target.id === 'addPropertyModal') closePropertyModal(); 
@@ -3339,7 +3426,9 @@
                 TWN: township, 
                 RNG: range, 
                 MERIDIAN: document.getElementById('meridian').value,
-                Notes: notes 
+                Notes: notes,
+                'RI Acres': parseFloat(document.getElementById('addPropertyRIAcres').value) || 0,
+                'WI Acres': parseFloat(document.getElementById('addPropertyWIAcres').value) || 0
             };
             try {
                 const res = await fetch('/api/properties', { 
