@@ -215,8 +215,11 @@ var index_default = {
     </div>
   </div>
   <script>
+    // Immediate test to see if script runs at all
+    document.getElementById('debug-content').innerHTML = 'Script started at ' + new Date().toISOString();
+    
     // Show debug info on mobile
-    const debugInfo = [];
+    const debugInfo = ['Script initialized'];
     function addDebug(msg) {
       debugInfo.push(new Date().toISOString().substr(11, 12) + ': ' + msg);
       document.getElementById('debug-content').innerHTML = debugInfo.join('<br>');
