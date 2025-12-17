@@ -166,8 +166,8 @@ export async function checkAllWellStatuses(env) {
     try {
       do {
         const url = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}`);
-        // Add filter for active wells
-        url.searchParams.set('filterByFormula', '{Status} = "Active"');
+        // TEMP: Remove filter to see all wells
+        // url.searchParams.set('filterByFormula', '{Status} = "Active"');
         url.searchParams.set('fields[]', 'API Number');
         url.searchParams.set('fields[]', 'Well Status');
         url.searchParams.set('fields[]', 'User');
@@ -202,10 +202,10 @@ export async function checkAllWellStatuses(env) {
       return results;
     }
     
-    console.log(`[RBDMS] Found ${allTrackedWells.length} total active wells in Airtable`);
+    console.log(`[RBDMS] Found ${allTrackedWells.length} total wells in Airtable`);
     
     if (allTrackedWells.length === 0) {
-      console.log('[RBDMS] No active tracked wells found in Airtable');
+      console.log('[RBDMS] No tracked wells found in Airtable');
       return results;
     }
     
