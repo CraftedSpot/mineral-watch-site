@@ -651,6 +651,15 @@ async function buildHtmlBody(data, env) {
                     </tr>
                   </table>
                   
+                  ${apiNumber ? `
+                  <!-- OCC Tip -->
+                  <div style="margin-top: 12px; padding: 10px; background: #FEF8F1; border-radius: 6px; border-left: 3px solid #F97316;">
+                    <p style="margin: 0; font-size: 11px; color: #92400E; line-height: 1.4;">
+                      <strong>OCC Well Records Tip:</strong> ${getOCCCookieNotice(true)}
+                    </p>
+                  </div>
+                  ` : ''}
+                  
                 </div>
               </div>
               
@@ -660,14 +669,9 @@ async function buildHtmlBody(data, env) {
           <!-- Footer -->
           <tr>
             <td style="background: #F8FAFC; padding: 20px 24px; border-top: 1px solid #E2E8F0;">
-              <p style="font-size: 11px; color: #64748B; margin: 0 0 8px; line-height: 1.5;">
+              <p style="font-size: 11px; color: #64748B; margin: 0 0 12px; line-height: 1.5;">
                 <strong>Note:</strong> This alert indicates activity near your mineral interests. It does not guarantee you hold rights in the spacing unit or will receive royalties.
               </p>
-              ${apiNumber ? `
-              <p style="font-size: 10px; color: #94A3B8; margin: 0 0 12px; line-height: 1.4;">
-                <em>OCC Website Tip: ${getOCCCookieNotice(true)}</em>
-              </p>
-              ` : ''}
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="font-size: 12px;">
