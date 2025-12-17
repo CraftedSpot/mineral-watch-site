@@ -226,12 +226,23 @@ export async function checkAllWellStatuses(env) {
         console.log(`[RBDMS] Well ${api}: Airtable='${well.fields['Well Status']}', RBDMS='${currentData.wellstatus}'`);
       }
       
-      // Check for status change
-      const statusResult = await checkWellStatusChange(api, currentData, env);
-      if (statusResult.hasChange) {
+      // Direct comparison - Airtable vs RBDMS
+      const airtableStatus = well.fields['Well Status'];
+      const rbdmsStatus = currentData.wellstatus;
+      
+      if (airtableStatus && rbdmsStatus && airtableStatus !== rbdmsStatus) {
         results.statusChanges++;
-        results.alertsSent += statusResult.alertsSent;
-        console.log(`[RBDMS] Status change for ${api}: ${statusResult.previousStatus} → ${statusResult.currentStatus}`);
+        console.log(`[RBDMS] Status mismatch for ${api}: Airtable='${airtableStatus}' but RBDMS='${rbdmsStatus}'`);
+        
+        // For now, just count the mismatch. In production, you would:
+        // 1. Send alert to user about the discrepancy
+        // 2. Update Airtable to match RBDMS (source of truth)
+        // 3. Create activity log entry
+        
+        // TODO: Implement full status change handling
+        // - Send email alert
+        // - Update Well Status in Airtable to match RBDMS
+        // - Create activity log
       }
     }
     
