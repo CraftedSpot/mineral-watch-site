@@ -21,21 +21,15 @@ async function downloadRBDMSData(env) {
   const startTime = Date.now();
   
   try {
-    // Check if file was modified since last download
-    const lastModified = await env.MINERAL_CACHE.get(CACHE_KEY);
+    // TEMP: Force fresh download for testing
+    console.log(`[RBDMS] Fetching from ${RBDMS_CSV_URL}`);
     
     const response = await fetch(RBDMS_CSV_URL, {
       headers: {
-        'User-Agent': 'MineralWatch/2.0',
-        ...(lastModified && { 'If-Modified-Since': lastModified })
+        'User-Agent': 'MineralWatch/2.0'
       }
     });
-    
-    // If not modified, return null to skip processing
-    if (response.status === 304) {
-      console.log('[RBDMS] File not modified since last check');
-      return null;
-    }
+    console.log(`[RBDMS] Response status: ${response.status}`);
     
     if (!response.ok) {
       throw new Error(`Failed to download RBDMS data: ${response.status}`);
