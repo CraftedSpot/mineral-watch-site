@@ -21,15 +21,24 @@ async function downloadRBDMSData(env) {
   const startTime = Date.now();
   
   try {
-    // TEMP: Force fresh download for testing
+    // Check if file was modified since last download
+    const lastModified = await env.MINERAL_CACHE.get(CACHE_KEY);
+    console.log(`[RBDMS] Last-Modified cache: ${lastModified || 'not set'}`);
+    
+    const headers = {
+      'User-Agent': 'MineralWatch/2.0',
+      ...(lastModified && { 'If-Modified-Since': lastModified })
+    };
     console.log(`[RBDMS] Fetching from ${RBDMS_CSV_URL}`);
     
-    const response = await fetch(RBDMS_CSV_URL, {
-      headers: {
-        'User-Agent': 'MineralWatch/2.0'
-      }
-    });
+    const response = await fetch(RBDMS_CSV_URL, { headers });
     console.log(`[RBDMS] Response status: ${response.status}`);
+    
+    // If not modified, return null to skip processing
+    if (response.status === 304) {
+      console.log('[RBDMS] File not modified since last check (304 status)');
+      return null;
+    }
     
     if (!response.ok) {
       throw new Error(`Failed to download RBDMS data: ${response.status}`);
@@ -143,31 +152,60 @@ export async function checkAllWellStatuses(env) {
     
     console.log(`[RBDMS] RBDMS data loaded with ${rbdmsData.size} wells`);
     
-    // Get all tracked wells (temporarily removed filter for testing)
-    let trackedWells;
+    // Get all tracked wells with pagination
+    let allTrackedWells = [];
+    let offset = null;
+    
     try {
-      trackedWells = await queryAirtable(
-        env,
-        env.AIRTABLE_WELLS_TABLE,
-        '' // No filter - get all wells
-      );
+      do {
+        const url = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}`);
+        // Add filter for active wells
+        url.searchParams.set('filterByFormula', '{Status} = "Active"');
+        url.searchParams.set('fields[]', 'API Number');
+        url.searchParams.set('fields[]', 'Well Status');
+        url.searchParams.set('fields[]', 'User');
+        url.searchParams.set('pageSize', '100');
+        
+        if (offset) {
+          url.searchParams.set('offset', offset);
+        }
+        
+        const response = await fetch(url.toString(), {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Airtable query failed: ${response.status} - ${error}`);
+        }
+        
+        const data = await response.json();
+        allTrackedWells = allTrackedWells.concat(data.records || []);
+        offset = data.offset || null;
+        
+        console.log(`[RBDMS] Fetched batch: ${data.records.length} wells, total so far: ${allTrackedWells.length}`);
+      } while (offset);
+      
     } catch (error) {
       console.error('[RBDMS] Failed to query tracked wells:', error.message);
       results.errors.push(`Airtable query failed: ${error.message}`);
       return results;
     }
     
-    console.log(`[RBDMS] Found ${trackedWells.length} wells in Airtable`);
+    console.log(`[RBDMS] Found ${allTrackedWells.length} total active wells in Airtable`);
     
-    if (trackedWells.length === 0) {
-      console.log('[RBDMS] No tracked wells found in Airtable');
+    if (allTrackedWells.length === 0) {
+      console.log('[RBDMS] No active tracked wells found in Airtable');
       return results;
     }
     
-    console.log(`[RBDMS] Checking ${trackedWells.length} tracked wells...`);
+    console.log(`[RBDMS] Checking ${allTrackedWells.length} tracked wells...`);
     
     // Check each tracked well
-    for (const well of trackedWells) {
+    for (const well of allTrackedWells) {
       const api = normalizeAPI(well.fields['API Number']);
       if (!api) continue;
       
