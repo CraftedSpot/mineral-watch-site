@@ -159,28 +159,38 @@ export async function checkAllWellStatuses(env) {
     
     console.log(`[RBDMS] RBDMS data loaded with ${rbdmsData.size} wells`);
     
-    // Get all tracked wells - simplified query
+    // Get all tracked wells with proper pagination
     let allTrackedWells = [];
+    let offset = null;
     
     try {
-      const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}`;
-      console.log(`[RBDMS] Querying Airtable: ${url}`);
-      
-      const response = await fetch(url, {
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
+      do {
+        let url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?pageSize=100`;
+        if (offset) {
+          url += `&offset=${offset}`;
         }
-      });
-      
-      if (!response.ok) {
-        const error = await response.text();
-        throw new Error(`Airtable query failed: ${response.status} - ${error}`);
-      }
-      
-      const data = await response.json();
-      allTrackedWells = data.records || [];
-      console.log(`[RBDMS] Found ${allTrackedWells.length} wells (first page only for testing)`);
+        
+        console.log(`[RBDMS] Fetching wells batch...`);
+        
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (!response.ok) {
+          const error = await response.text();
+          throw new Error(`Airtable query failed: ${response.status} - ${error}`);
+        }
+        
+        const data = await response.json();
+        const batchSize = data.records ? data.records.length : 0;
+        allTrackedWells = allTrackedWells.concat(data.records || []);
+        offset = data.offset || null;
+        
+        console.log(`[RBDMS] Fetched ${batchSize} wells in this batch, total: ${allTrackedWells.length}`);
+      } while (offset);
       
     } catch (error) {
       console.error('[RBDMS] Failed to query tracked wells:', error.message);
