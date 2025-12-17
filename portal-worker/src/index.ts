@@ -269,6 +269,7 @@ var index_default = {
     setTimeout(() => {
       // Try auth-worker verification first
       const verifyUrl = '/api/auth/verify?token=' + encodeURIComponent(fullToken);
+      addDebug('Calling: ' + verifyUrl.substring(0, 50) + '...');
       fetch(verifyUrl, {
         method: 'GET',
         headers: {
@@ -358,7 +359,19 @@ var index_default = {
       .catch(error => {
         console.error('Verification error:', error.message || error);
         console.error('Error stack:', error.stack);
-        window.location.href = "/portal/login?error=Verification%20failed";
+        
+        // Clear the timeout since we're handling an error
+        clearTimeout(timeoutId);
+        
+        // Show debug panel on network/fetch errors too
+        document.getElementById('debug-info').style.display = 'block';
+        addDebug('Network/Fetch error: ' + (error.message || error));
+        addDebug('This might be a connection issue or CORS problem');
+        
+        // Give time to see the error before redirecting
+        setTimeout(() => {
+          window.location.href = "/portal/login?error=Verification%20failed";
+        }, 3000);
       });
     }, verifyDelay); // End of setTimeout
   </script>
@@ -399,11 +412,13 @@ var index_default = {
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
         console.log(`[Portal] Proxying auth request: ${path}`);
+        console.log(`[Portal] AUTH_WORKER binding available: ${!!env.AUTH_WORKER}`);
         try {
           let authResponse: Response;
           
           if (env.AUTH_WORKER) {
             // Use service binding (faster, more reliable)
+            console.log(`[Portal] Using service binding to auth-worker`);
             const authRequest = new Request(`https://auth-worker${path}${url.search}`, {
               method: request.method,
               headers: request.headers,
