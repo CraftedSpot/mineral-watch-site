@@ -313,8 +313,7 @@ export async function checkAllWellStatuses(env) {
             sectionTownshipRange: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
             county: currentData.county || wellRecord.County || 'Unknown',
             notes: `RBDMS status mismatch detected. Airtable showed ${getStatusDescription(airtableStatus)}, but RBDMS (source of truth) shows ${getStatusDescription(rbdmsStatus)}. Updating Airtable to match RBDMS.`,
-            mapLink: mapLink || "",
-            coordinateSource: coordinateSource
+            mapLink: mapLink || ""
           });
           
           if (!activityResult.success) {
