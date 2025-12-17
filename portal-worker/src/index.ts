@@ -164,7 +164,18 @@ var index_default = {
         
         // Base64 encode the token to avoid any injection issues
         // This prevents special characters from breaking the JavaScript string
-        const tokenBase64 = btoa(token);
+        console.log(`[Portal] Original token: ${token.substring(0, 50)}...`);
+        console.log(`[Portal] Token length before encoding: ${token.length}`);
+        
+        let tokenBase64;
+        try {
+          tokenBase64 = btoa(token);
+          console.log(`[Portal] Token successfully base64 encoded, new length: ${tokenBase64.length}`);
+        } catch (e) {
+          console.error(`[Portal] Failed to base64 encode token: ${e.message}`);
+          // Fallback: escape the token for direct injection
+          tokenBase64 = token.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
+        }
         
         // Serve an intermediate HTML page that sets cookie via JavaScript
         const html = `<!DOCTYPE html>
@@ -234,16 +245,26 @@ var index_default = {
       }, 500);
     }
     
-    // Decode the base64 encoded token
+    // Get the token - it might be base64 encoded or escaped
     let fullToken;
+    const encodedToken = '${tokenBase64}';
+    
     try {
       addDebug('Attempting to decode token...');
-      fullToken = atob('${tokenBase64}');
-      addDebug('Token decoded, length: ' + fullToken.length);
+      // Check if it looks like base64 (has right length and chars)
+      if (encodedToken.length > 200 && /^[A-Za-z0-9+/]+=*$/.test(encodedToken)) {
+        fullToken = atob(encodedToken);
+        addDebug('Token decoded from base64, length: ' + fullToken.length);
+      } else {
+        // Might be escaped instead of base64
+        fullToken = encodedToken;
+        addDebug('Using token directly (not base64), length: ' + fullToken.length);
+      }
     } catch (e) {
       console.error('Failed to decode token:', e);
       addDebug('ERROR: Failed to decode token: ' + e.message);
       addDebug('Error type: ' + e.name);
+      addDebug('Token preview: ' + encodedToken.substring(0, 50) + '...');
       setTimeout(() => {
         window.location.href = "/portal/login?error=Invalid%20authentication%20token";
       }, 3000);
