@@ -121,6 +121,14 @@ export default {
     
     // Test RBDMS status check endpoint (temporary)
     if (url.pathname === '/test/rbdms-status') {
+      // Add force parameter to bypass cache
+      const forceRefresh = url.searchParams.get('force') === 'true';
+      
+      if (forceRefresh) {
+        // Clear the cache key first
+        await env.MINERAL_CACHE.delete('rbdms-last-modified');
+      }
+      
       try {
         const { checkAllWellStatuses } = await import('./services/rbdmsStatus.js');
         const startTime = Date.now();
@@ -129,7 +137,8 @@ export default {
         return new Response(JSON.stringify({
           success: true,
           duration_ms: Date.now() - startTime,
-          results
+          results,
+          forced: forceRefresh
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }
         });
