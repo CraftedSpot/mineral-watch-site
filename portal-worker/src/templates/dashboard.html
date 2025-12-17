@@ -1619,6 +1619,14 @@
                             <span class="details-value" id="addPropertyTotalAcres" style="font-weight: 600;">0</span>
                         </div>
                         
+                        <!-- Group -->
+                        <div class="details-row">
+                            <span class="details-label">Group</span>
+                            <input type="text" id="addPropertyGroup" 
+                                   style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 200px;" 
+                                   placeholder="e.g., Family Trust, Personal">
+                        </div>
+                        
                         <!-- Notes -->
                         <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                             <span class="details-label" style="margin-bottom: 8px;">Notes</span>
@@ -3427,6 +3435,7 @@
                 RNG: range, 
                 MERIDIAN: document.getElementById('meridian').value,
                 Notes: notes,
+                Group: document.getElementById('addPropertyGroup').value.trim(),
                 'RI Acres': parseFloat(document.getElementById('addPropertyRIAcres').value) || 0,
                 'WI Acres': parseFloat(document.getElementById('addPropertyWIAcres').value) || 0
             };
