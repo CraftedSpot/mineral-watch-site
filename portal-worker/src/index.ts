@@ -164,18 +164,7 @@ var index_default = {
         
         // Base64 encode the token to avoid any injection issues
         // This prevents special characters from breaking the JavaScript string
-        console.log(`[Portal] Original token: ${token.substring(0, 50)}...`);
-        console.log(`[Portal] Token length before encoding: ${token.length}`);
-        
-        let tokenBase64;
-        try {
-          tokenBase64 = btoa(token);
-          console.log(`[Portal] Token successfully base64 encoded, new length: ${tokenBase64.length}`);
-        } catch (e) {
-          console.error(`[Portal] Failed to base64 encode token: ${e.message}`);
-          // Fallback: escape the token for direct injection
-          tokenBase64 = token.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
-        }
+        const tokenBase64 = btoa(token);
         
         // Serve an intermediate HTML page that sets cookie via JavaScript
         const html = `<!DOCTYPE html>
@@ -234,8 +223,6 @@ var index_default = {
       console.log(msg);
     }
     
-    // Immediate debug to verify script is running
-    addDebug('Script started');
     
     // Only show debug panel if there's an error or URL has debug=true
     const showDebug = window.location.search.includes('debug=true');
@@ -245,29 +232,14 @@ var index_default = {
       }, 500);
     }
     
-    // Get the token - it might be base64 encoded or escaped
+    // Decode the base64 encoded token
     let fullToken;
-    const encodedToken = '${tokenBase64}';
-    
     try {
-      addDebug('Attempting to decode token...');
-      // Check if it looks like base64 (has right length and chars)
-      if (encodedToken.length > 200 && /^[A-Za-z0-9+/]+=*$/.test(encodedToken)) {
-        fullToken = atob(encodedToken);
-        addDebug('Token decoded from base64, length: ' + fullToken.length);
-      } else {
-        // Might be escaped instead of base64
-        fullToken = encodedToken;
-        addDebug('Using token directly (not base64), length: ' + fullToken.length);
-      }
+      fullToken = atob('${tokenBase64}');
     } catch (e) {
       console.error('Failed to decode token:', e);
       addDebug('ERROR: Failed to decode token: ' + e.message);
-      addDebug('Error type: ' + e.name);
-      addDebug('Token preview: ' + encodedToken.substring(0, 50) + '...');
-      setTimeout(() => {
-        window.location.href = "/portal/login?error=Invalid%20authentication%20token";
-      }, 3000);
+      window.location.href = "/portal/login?error=Invalid%20authentication%20token";
       return;
     }
     
@@ -279,7 +251,6 @@ var index_default = {
     
     // Clear any existing session cookie first
     document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
-    addDebug('Cleared existing session cookie');
     
     // Add a small delay for mobile browsers to ensure cookie is cleared
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -299,7 +270,6 @@ var index_default = {
     setTimeout(() => {
       // Try auth-worker verification first
       const verifyUrl = '/api/auth/verify?token=' + encodeURIComponent(fullToken);
-      addDebug('Calling: ' + verifyUrl.substring(0, 50) + '...');
       fetch(verifyUrl, {
         method: 'GET',
         headers: {
