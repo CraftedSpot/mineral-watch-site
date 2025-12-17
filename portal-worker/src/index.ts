@@ -162,11 +162,8 @@ var index_default = {
           return Response.redirect(`${BASE_URL}/portal/login?error=Missing%20session%20token`, 302);
         }
         
-        // Log token for debugging
-        console.log(`[Portal] Set-session token length: ${token.length}, dots: ${(token.match(/\./g) || []).length}`);
-        console.log(`[Portal] First 50 chars of token: ${token.substring(0, 50)}`);
-        
         // Base64 encode the token to avoid any injection issues
+        // This prevents special characters from breaking the JavaScript string
         const tokenBase64 = btoa(token);
         
         // Serve an intermediate HTML page that sets cookie via JavaScript
@@ -225,42 +222,30 @@ var index_default = {
       console.log(msg);
     }
     
-    // Show debug panel after 2 seconds on mobile
-    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+    // Only show debug panel if there's an error or URL has debug=true
+    const showDebug = window.location.search.includes('debug=true');
+    if (showDebug) {
       setTimeout(() => {
         document.getElementById('debug-info').style.display = 'block';
-      }, 2000);
+      }, 500);
     }
     
     // Decode the base64 encoded token
     let fullToken;
     try {
       fullToken = atob('${tokenBase64}');
-      addDebug('Token decoded successfully');
     } catch (e) {
+      console.error('Failed to decode token:', e);
       addDebug('ERROR: Failed to decode token: ' + e.message);
-      fullToken = '';
+      window.location.href = "/portal/login?error=Invalid%20authentication%20token";
+      return;
     }
-    addDebug('Page loaded, token starts: ' + fullToken.substring(0, 20) + '...');
-    addDebug('Token length: ' + fullToken.length);
-    const dotCount = (fullToken.match(/\./g) || []).length;
-    addDebug('Token dots: ' + dotCount);
     
-    // Check for token corruption
-    if (fullToken.length > 0) {
-      const uniqueChars = new Set(fullToken).size;
-      addDebug('Unique chars in token: ' + uniqueChars);
-      
-      // If dots equal length, the entire token is dots!
-      if (dotCount === fullToken.length) {
-        addDebug('ERROR: Token is all dots! Template injection failed.');
-        addDebug('Check server logs for actual token value.');
-      } else if (uniqueChars < 10) {
-        addDebug('TOKEN CORRUPTED! First 50 chars: ' + fullToken.substring(0, 50));
-      }
+    // Only log detailed debug info if debug mode is on
+    if (showDebug) {
+      addDebug('Token length: ' + fullToken.length);
+      addDebug('Is mobile: ' + /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
     }
-    addDebug('User agent: ' + navigator.userAgent.substring(0, 50) + '...');
-    addDebug('Is mobile: ' + /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
     
     // Clear any existing session cookie first
     document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
@@ -282,12 +267,8 @@ var index_default = {
     }, 15000);
     
     setTimeout(() => {
-      // Try auth-worker verification first (for regular login/registration)
-      // If that fails, try portal's invite verification (for organization invites)
-      addDebug('Starting auth verification...');
-      // Double-check the token is properly encoded
+      // Try auth-worker verification first
       const verifyUrl = '/api/auth/verify?token=' + encodeURIComponent(fullToken);
-      addDebug('Verify URL length: ' + verifyUrl.length);
       fetch(verifyUrl, {
         method: 'GET',
         headers: {
@@ -322,7 +303,8 @@ var index_default = {
         }
         
         if (!response.ok) {
-          console.log('Auth-worker returned error status:', response.status);
+          // Show debug panel on error
+          document.getElementById('debug-info').style.display = 'block';
           
           // Try to get error message from auth response
           try {
@@ -330,10 +312,9 @@ var index_default = {
             addDebug('Auth error: ' + errorData.error);
             // If we have a specific error from auth-worker, use it
             if (errorData.error) {
-              addDebug('Redirecting with error: ' + errorData.error);
               setTimeout(() => {
                 window.location.href = "/portal/login?error=" + encodeURIComponent(errorData.error);
-              }, 2000); // Give time to read debug info
+              }, 3000); // Give time to read debug info
               return;
             }
           } catch (e) {
