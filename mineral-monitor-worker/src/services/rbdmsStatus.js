@@ -159,44 +159,28 @@ export async function checkAllWellStatuses(env) {
     
     console.log(`[RBDMS] RBDMS data loaded with ${rbdmsData.size} wells`);
     
-    // Get all tracked wells with pagination
+    // Get all tracked wells - simplified query
     let allTrackedWells = [];
-    let offset = null;
     
     try {
-      do {
-        const url = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}`);
-        // Check ALL wells in the Client Wells table
-        url.searchParams.set('fields[]', 'API Number');
-        url.searchParams.set('fields[]', 'Well Status');
-        url.searchParams.set('fields[]', 'User');
-        url.searchParams.set('pageSize', '100');
-        
-        if (offset) {
-          url.searchParams.set('offset', offset);
+      const url = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}`;
+      console.log(`[RBDMS] Querying Airtable: ${url}`);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
         }
-        
-        console.log(`[RBDMS] Querying Airtable: ${url.toString()}`);
-        
-        const response = await fetch(url.toString(), {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (!response.ok) {
-          const error = await response.text();
-          throw new Error(`Airtable query failed: ${response.status} - ${error}`);
-        }
-        
-        const data = await response.json();
-        console.log(`[RBDMS] Airtable response: ${JSON.stringify(data).substring(0, 200)}...`);
-        allTrackedWells = allTrackedWells.concat(data.records || []);
-        offset = data.offset || null;
-        
-        console.log(`[RBDMS] Fetched batch: ${data.records ? data.records.length : 0} wells, total so far: ${allTrackedWells.length}`);
-      } while (offset);
+      });
+      
+      if (!response.ok) {
+        const error = await response.text();
+        throw new Error(`Airtable query failed: ${response.status} - ${error}`);
+      }
+      
+      const data = await response.json();
+      allTrackedWells = data.records || [];
+      console.log(`[RBDMS] Found ${allTrackedWells.length} wells (first page only for testing)`);
       
     } catch (error) {
       console.error('[RBDMS] Failed to query tracked wells:', error.message);
