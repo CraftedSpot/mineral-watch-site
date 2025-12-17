@@ -4,9 +4,12 @@
  * in user-tracked wells only
  */
 
-import { queryAirtable } from './airtable.js';
-import { checkWellStatusChange } from './statusChange.js';
+import { queryAirtable, createActivityLog } from './airtable.js';
+import { sendAlertEmail } from './email.js';
+import { getStatusDescription } from './statusChange.js';
 import { normalizeAPI } from '../utils/normalize.js';
+import { getCoordinatesWithFallback } from '../utils/coordinates.js';
+import { getMapLinkFromWellData } from '../utils/mapLink.js';
 
 const RBDMS_CSV_URL = 'https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv';
 const CACHE_KEY = 'rbdms-last-modified';
@@ -234,15 +237,153 @@ export async function checkAllWellStatuses(env) {
         results.statusChanges++;
         console.log(`[RBDMS] Status mismatch for ${api}: Airtable='${airtableStatus}' but RBDMS='${rbdmsStatus}'`);
         
-        // For now, just count the mismatch. In production, you would:
-        // 1. Send alert to user about the discrepancy
-        // 2. Update Airtable to match RBDMS (source of truth)
-        // 3. Create activity log entry
+        // Get user information
+        const userIds = well.fields.User;
+        if (!userIds || userIds.length === 0) {
+          console.log(`[RBDMS] No users linked to well ${api}, skipping alert`);
+          continue;
+        }
         
-        // TODO: Implement full status change handling
-        // - Send email alert
-        // - Update Well Status in Airtable to match RBDMS
-        // - Create activity log
+        // Process status change alert
+        try {
+          // Get user details
+          const userQuery = await queryAirtable(
+            env,
+            env.AIRTABLE_USERS_TABLE,
+            `RECORD_ID()="${userIds[0]}"`,
+            ['Email', 'Name']
+          );
+          
+          if (!userQuery || userQuery.length === 0) {
+            console.error(`[RBDMS] Could not find user ${userIds[0]}`);
+            continue;
+          }
+          
+          const user = userQuery[0];
+          const userName = user.fields.Name || user.fields.Email;
+          
+          // Try to get coordinates and map link
+          let mapLink = null;
+          let coordinateSource = null;
+          
+          // Build a well record-like object for coordinate fallback
+          const wellRecord = {
+            API_Number: api,
+            Section: currentData.section || well.fields.Section,
+            Township: currentData.township || well.fields.Township,
+            Range: currentData.range || well.fields.Range,
+            PM: currentData.pm || well.fields.PM || 'IM',
+            County: currentData.county || well.fields.County
+          };
+          
+          try {
+            const coordResult = await getCoordinatesWithFallback(api, wellRecord, env);
+            if (coordResult.coordinates) {
+              coordinateSource = coordResult.source;
+              const mapWellData = coordResult.wellData || {
+                sh_lat: coordResult.coordinates.latitude,
+                sh_lon: coordResult.coordinates.longitude,
+                well_name: well.fields['Well Name'] || `API ${api}`,
+                api: api
+              };
+              
+              if (!mapWellData.sh_lat || !mapWellData.sh_lon) {
+                mapWellData.sh_lat = coordResult.coordinates.latitude;
+                mapWellData.sh_lon = coordResult.coordinates.longitude;
+              }
+              
+              mapLink = getMapLinkFromWellData(mapWellData);
+              console.log(`[RBDMS] Using ${coordinateSource} coordinates for status mismatch alert ${api}`);
+            }
+          } catch (coordError) {
+            console.error(`[RBDMS] Failed to get coordinates: ${coordError.message}`);
+          }
+          
+          // Create activity log
+          const activityResult = await createActivityLog(env, {
+            userEmail: user.fields.Email,
+            apiNumber: api,
+            activityType: 'Status Mismatch',
+            alertLevel: 'STATUS CHANGE',
+            changeType: `${airtableStatus} → ${rbdmsStatus}`,
+            previousValue: airtableStatus,
+            newValue: rbdmsStatus,
+            wellName: well.fields['Well Name'] || `API ${api}`,
+            operator: well.fields.Operator || currentData.operator || 'Unknown',
+            notes: `RBDMS status mismatch detected. Airtable showed ${getStatusDescription(airtableStatus)}, but RBDMS (source of truth) shows ${getStatusDescription(rbdmsStatus)}. Updating Airtable to match RBDMS.`,
+            mapLink: mapLink || "",
+            coordinateSource: coordinateSource
+          });
+          
+          if (!activityResult.success) {
+            console.error(`[RBDMS] Failed to create activity log: ${activityResult.error}`);
+            results.errors.push(`Activity log failed: ${activityResult.error}`);
+          }
+          
+          // Send alert email
+          if (!env.DRY_RUN || env.DRY_RUN === 'false') {
+            try {
+              await sendAlertEmail(env, {
+                to: user.fields.Email,
+                subject: `Well Status Update - ${well.fields['Well Name'] || api}`,
+                userName: userName,
+                wellName: well.fields['Well Name'] || `API ${api}`,
+                apiNumber: api,
+                activityType: 'Status Change',
+                alertLevel: 'STATUS CHANGE',
+                operator: well.fields.Operator || currentData.operator || 'Unknown',
+                county: currentData.county || wellRecord.County || 'Unknown',
+                location: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
+                section: wellRecord.Section || '',
+                township: wellRecord.Township || '',
+                range: wellRecord.Range || '',
+                statusChange: {
+                  previous: getStatusDescription(airtableStatus),
+                  current: getStatusDescription(rbdmsStatus)
+                },
+                mapLink: mapLink,
+                occLink: `https://imaging.occ.ok.gov/OG/Well/${api.substring(2)}.pdf`,
+                userId: userIds[0]
+              });
+              
+              results.alertsSent++;
+              console.log(`[RBDMS] Alert sent to ${user.fields.Email} for well ${api}`);
+            } catch (emailErr) {
+              console.error(`[RBDMS] Failed to send email: ${emailErr.message}`);
+              results.errors.push(`Email failed: ${emailErr.message}`);
+            }
+          }
+          
+          // Update well record with RBDMS status (source of truth)
+          const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+          const updateResponse = await fetch(updateUrl, {
+            method: 'PATCH',
+            headers: {
+              'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              fields: {
+                'Well Status': rbdmsStatus,
+                'Last Status Check': new Date().toISOString(),
+                'Status Last Changed': new Date().toISOString(),
+                'Last RBDMS Sync': new Date().toISOString()
+              }
+            })
+          });
+          
+          if (!updateResponse.ok) {
+            const errorText = await updateResponse.text();
+            console.error(`[RBDMS] Failed to update well status in Airtable: ${errorText}`);
+            results.errors.push('Failed to update well record');
+          } else {
+            console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
+          }
+          
+        } catch (err) {
+          console.error(`[RBDMS] Error processing status mismatch for ${api}:`, err);
+          results.errors.push(`Processing error for ${api}: ${err.message}`);
+        }
       }
     }
     

@@ -200,7 +200,7 @@ export async function checkWellStatusChange(api10, currentData, env) {
 /**
  * Get human-readable status description
  */
-function getStatusDescription(status) {
+export function getStatusDescription(status) {
   const statusDescriptions = {
     'AC': 'Active',
     'SI': 'Shut In',
