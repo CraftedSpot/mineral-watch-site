@@ -344,7 +344,7 @@ export async function checkAllWellStatuses(env) {
                   current: getStatusDescription(rbdmsStatus)
                 },
                 mapLink: mapLink,
-                occLink: `https://imaging.occ.ok.gov/OG/Well/${api.substring(2)}.pdf`,
+                occLink: getOCCWellRecordsLink(api),
                 userId: userIds[0]
               });
               
