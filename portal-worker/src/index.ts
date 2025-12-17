@@ -204,15 +204,34 @@ var index_default = {
     <div id="timeout-message" style="margin-top: 20px; color: #718096; font-size: 14px; display: none;">
       This is taking longer than usual. Please wait...
     </div>
+    <div id="debug-info" style="margin-top: 30px; padding: 10px; background: #f0f0f0; border-radius: 4px; font-size: 12px; color: #666; max-width: 400px; word-break: break-all; display: none;">
+      <strong>Debug Info:</strong>
+      <div id="debug-content"></div>
+    </div>
   </div>
   <script>
-    console.log('Set-session page loaded, token:', '${token}'.substring(0, 20) + '...');
-    console.log('User agent:', navigator.userAgent);
-    console.log('Is mobile:', /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
+    // Show debug info on mobile
+    const debugInfo = [];
+    function addDebug(msg) {
+      debugInfo.push(new Date().toISOString().substr(11, 12) + ': ' + msg);
+      document.getElementById('debug-content').innerHTML = debugInfo.join('<br>');
+      console.log(msg);
+    }
+    
+    // Show debug panel after 2 seconds on mobile
+    if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
+      setTimeout(() => {
+        document.getElementById('debug-info').style.display = 'block';
+      }, 2000);
+    }
+    
+    addDebug('Page loaded, token: ' + '${token}'.substring(0, 20) + '...');
+    addDebug('User agent: ' + navigator.userAgent.substring(0, 50) + '...');
+    addDebug('Is mobile: ' + /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
     
     // Clear any existing session cookie first
     document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
-    console.log('Cleared existing session cookie');
+    addDebug('Cleared existing session cookie');
     
     // Add a small delay for mobile browsers to ensure cookie is cleared
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -232,7 +251,7 @@ var index_default = {
     setTimeout(() => {
       // Try auth-worker verification first (for regular login/registration)
       // If that fails, try portal's invite verification (for organization invites)
-      console.log('Attempting auth verification...');
+      addDebug('Starting auth verification...');
       fetch('/api/auth/verify?token=${token}', {
         method: 'GET',
         headers: {
