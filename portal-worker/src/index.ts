@@ -212,9 +212,6 @@ var index_default = {
     </div>
   </div>
   <script>
-    // Test if JavaScript runs at all
-    alert('JavaScript is running!');
-    
     // Immediate test to see if script runs at all
     document.getElementById('debug-content').innerHTML = 'Script started at ' + new Date().toISOString();
     
@@ -234,9 +231,10 @@ var index_default = {
     
     if (!fullToken) {
       addDebug('ERROR: No token found in URL');
-      window.location.href = "/portal/login?error=Missing%20authentication%20token";
-      return;
-    }
+      setTimeout(() => {
+        window.location.href = "/portal/login?error=Missing%20authentication%20token";
+      }, 2000);
+    } else {
     
     addDebug('Token length: ' + fullToken.length);
     
@@ -288,7 +286,6 @@ var index_default = {
               addDebug('Login successful, redirecting...');
               // Successful verification
               window.location.href = data.redirect || '/portal';
-              return;
             }
           } catch (jsonError) {
             addDebug('JSON parse error: ' + jsonError.message);
@@ -308,7 +305,6 @@ var index_default = {
               setTimeout(() => {
                 window.location.href = "/portal/login?error=" + encodeURIComponent(errorData.error);
               }, 3000); // Give time to read debug info
-              return;
             }
           } catch (e) {
             addDebug('Could not parse error response');
@@ -366,6 +362,7 @@ var index_default = {
         }, 3000);
       });
     }, verifyDelay); // End of setTimeout
+    } // End of else block (if fullToken exists)
   </script>
 </body>
 </html>`;
