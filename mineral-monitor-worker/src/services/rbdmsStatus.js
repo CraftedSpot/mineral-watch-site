@@ -177,6 +177,8 @@ export async function checkAllWellStatuses(env) {
           url.searchParams.set('offset', offset);
         }
         
+        console.log(`[RBDMS] Querying Airtable: ${url.toString()}`);
+        
         const response = await fetch(url.toString(), {
           headers: {
             'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
@@ -190,10 +192,11 @@ export async function checkAllWellStatuses(env) {
         }
         
         const data = await response.json();
+        console.log(`[RBDMS] Airtable response: ${JSON.stringify(data).substring(0, 200)}...`);
         allTrackedWells = allTrackedWells.concat(data.records || []);
         offset = data.offset || null;
         
-        console.log(`[RBDMS] Fetched batch: ${data.records.length} wells, total so far: ${allTrackedWells.length}`);
+        console.log(`[RBDMS] Fetched batch: ${data.records ? data.records.length : 0} wells, total so far: ${allTrackedWells.length}`);
       } while (offset);
       
     } catch (error) {
