@@ -30,7 +30,7 @@ export function getOCCWellRecordsLink(apiNumber) {
  */
 export function getOCCCookieNotice(truncated = false) {
   if (truncated) {
-    return 'If you see an error, try opening in incognito/private window.';
+    return 'If you see an error regarding cookies, either press the sign out link or try opening in incognito/private window.';
   }
   
   return 'If you see a cookie error on OCC\'s site, try signing out of OCC first or open this link in an incognito/private window.';
