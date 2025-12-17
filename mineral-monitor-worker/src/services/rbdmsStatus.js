@@ -145,11 +145,11 @@ export async function checkAllWellStatuses(env) {
       return results;
     }
     
-    // Get all active tracked wells
+    // Get all tracked wells (temporarily removed filter for testing)
     const trackedWells = await queryAirtable(
       env,
       env.AIRTABLE_WELLS_TABLE,
-      '{Status} = "Active"',
+      '', // No filter - get all wells
       ['API Number', 'Well Status', 'User']
     );
     
