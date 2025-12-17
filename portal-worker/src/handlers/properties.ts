@@ -141,6 +141,7 @@ export async function handleAddProperty(request: Request, env: Env) {
         TWN: township,
         RNG: range,
         MERIDIAN: meridian,
+        Notes: body.Notes || "",
         "Monitor Adjacent": true,
         Status: "Active",
         ...(userOrganization && { Organization: [userOrganization] })
