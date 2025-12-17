@@ -200,7 +200,10 @@ var index_default = {
 <body>
   <div class="loading">
     <div class="spinner"></div>
-    <div>Completing login...</div>
+    <div id="status-message">Completing login...</div>
+    <div id="timeout-message" style="margin-top: 20px; color: #718096; font-size: 14px; display: none;">
+      This is taking longer than usual. Please wait...
+    </div>
   </div>
   <script>
     console.log('Set-session page loaded, token:', '${token}'.substring(0, 20) + '...');
@@ -214,6 +217,17 @@ var index_default = {
     // Add a small delay for mobile browsers to ensure cookie is cleared
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
     const verifyDelay = isMobile ? 500 : 0;
+    
+    // Show "taking longer" message after 3 seconds
+    setTimeout(() => {
+      document.getElementById('timeout-message').style.display = 'block';
+    }, 3000);
+    
+    // Add timeout handler - if takes more than 15 seconds, show error
+    const timeoutId = setTimeout(() => {
+      console.error('Authentication timeout - took more than 15 seconds');
+      window.location.href = "/portal/login?error=" + encodeURIComponent("Authentication timeout. Please try again.");
+    }, 15000);
     
     setTimeout(() => {
       // Try auth-worker verification first (for regular login/registration)
@@ -240,6 +254,8 @@ var index_default = {
             const data = JSON.parse(responseText);
             console.log('Auth verify data:', data);
             if (data.success) {
+              // Clear timeout since we succeeded
+              clearTimeout(timeoutId);
               // Successful verification
               window.location.href = data.redirect || '/portal';
               return;
@@ -273,6 +289,8 @@ var index_default = {
               .then(data => {
                 console.log('Invite verify response:', data);
                 if (data.success && data.sessionToken) {
+                  // Clear timeout since we succeeded
+                  clearTimeout(timeoutId);
                   // Set the session token as cookie
                   document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
                   console.log('Set session cookie for invite verification');
