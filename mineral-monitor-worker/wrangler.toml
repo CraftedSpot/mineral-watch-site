@@ -40,6 +40,11 @@ id = "3ca36f1a976e4dd89d65bceb4d4e3f75"
 binding = "COMPLETIONS_CACHE"
 id = "d39109ffa98d4f4d999ee37098d0c13e"
 
+# R2 Bucket for RBDMS snapshots (optional)
+[[r2_buckets]]
+binding = "RBDMS_BUCKET"
+bucket_name = "mineral-watch-rbdms"
+
 # Secrets (add via wrangler secret put)
 # - MINERAL_AIRTABLE_API_KEY
 # - POSTMARK_API_KEY

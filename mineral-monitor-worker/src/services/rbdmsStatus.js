@@ -1,0 +1,223 @@
+/**
+ * RBDMS Bulk Status Monitoring Service
+ * Downloads complete RBDMS well dataset and checks for status changes
+ * in user-tracked wells only
+ */
+
+import { queryAirtable, batchGetWells } from './airtable.js';
+import { checkWellStatusChange } from './statusChange.js';
+import { normalizeAPI } from '../utils/normalize.js';
+
+const RBDMS_CSV_URL = 'https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv';
+const CACHE_KEY = 'rbdms-last-modified';
+
+/**
+ * Download and parse RBDMS CSV file
+ * @param {Object} env - Worker environment
+ * @returns {Map} - Map of API number to well data
+ */
+async function downloadRBDMSData(env) {
+  console.log('[RBDMS] Downloading complete well dataset...');
+  const startTime = Date.now();
+  
+  try {
+    // Check if file was modified since last download
+    const lastModified = await env.MINERAL_CACHE.get(CACHE_KEY);
+    
+    const response = await fetch(RBDMS_CSV_URL, {
+      headers: {
+        'User-Agent': 'MineralWatch/2.0',
+        ...(lastModified && { 'If-Modified-Since': lastModified })
+      }
+    });
+    
+    // If not modified, return null to skip processing
+    if (response.status === 304) {
+      console.log('[RBDMS] File not modified since last check');
+      return null;
+    }
+    
+    if (!response.ok) {
+      throw new Error(`Failed to download RBDMS data: ${response.status}`);
+    }
+    
+    // Store last-modified header
+    const newLastModified = response.headers.get('Last-Modified');
+    if (newLastModified) {
+      await env.MINERAL_CACHE.put(CACHE_KEY, newLastModified, {
+        expirationTtl: 7 * 24 * 60 * 60 // 7 days
+      });
+    }
+    
+    // Parse CSV
+    const text = await response.text();
+    const downloadTime = Date.now() - startTime;
+    console.log(`[RBDMS] Downloaded ${(text.length / 1024 / 1024).toFixed(1)}MB in ${downloadTime}ms`);
+    
+    // Parse CSV into Map for fast lookups
+    const wellMap = new Map();
+    const lines = text.split('\n');
+    const headers = lines[0].split(',').map(h => h.trim());
+    
+    // Find important column indices
+    const apiIndex = headers.findIndex(h => h.toLowerCase().includes('api'));
+    const statusIndex = headers.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
+    const operatorIndex = headers.findIndex(h => h.toLowerCase().includes('operator'));
+    
+    console.log(`[RBDMS] Parsing ${lines.length - 1} wells...`);
+    
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      
+      const values = parseCSVLine(lines[i]);
+      if (values.length < headers.length) continue;
+      
+      const api = normalizeAPI(values[apiIndex]);
+      if (!api) continue;
+      
+      wellMap.set(api, {
+        wellstatus: values[statusIndex]?.trim() || '',
+        operator: values[operatorIndex]?.trim() || '',
+        // Add other fields as needed
+      });
+    }
+    
+    console.log(`[RBDMS] Parsed ${wellMap.size} wells in ${Date.now() - startTime}ms total`);
+    return wellMap;
+    
+  } catch (error) {
+    console.error('[RBDMS] Download failed:', error);
+    throw error;
+  }
+}
+
+/**
+ * Parse CSV line handling quoted values
+ */
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    const next = line[i + 1];
+    
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        current += '"';
+        i++; // Skip next quote
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  result.push(current);
+  return result;
+}
+
+/**
+ * Check all user-tracked wells for status changes
+ * @param {Object} env - Worker environment
+ * @returns {Object} - Results of status check
+ */
+export async function checkAllWellStatuses(env) {
+  const results = {
+    wellsChecked: 0,
+    statusChanges: 0,
+    alertsSent: 0,
+    errors: []
+  };
+  
+  try {
+    // Download RBDMS data
+    const rbdmsData = await downloadRBDMSData(env);
+    
+    // If no new data, skip processing
+    if (!rbdmsData) {
+      console.log('[RBDMS] Skipping - no new data');
+      return results;
+    }
+    
+    // Get all active tracked wells
+    const trackedWells = await queryAirtable(
+      env,
+      env.AIRTABLE_WELLS_TABLE,
+      '{Status} = "Active"',
+      ['API Number', 'Well Status', 'User']
+    );
+    
+    if (!trackedWells.success || trackedWells.records.length === 0) {
+      console.log('[RBDMS] No tracked wells found');
+      return results;
+    }
+    
+    console.log(`[RBDMS] Checking ${trackedWells.records.length} tracked wells...`);
+    
+    // Check each tracked well
+    for (const well of trackedWells.records) {
+      const api = normalizeAPI(well.fields['API Number']);
+      if (!api) continue;
+      
+      results.wellsChecked++;
+      
+      // Look up current data in RBDMS
+      const currentData = rbdmsData.get(api);
+      if (!currentData) {
+        console.log(`[RBDMS] Well ${api} not found in RBDMS data`);
+        continue;
+      }
+      
+      // Check for status change
+      const statusResult = await checkWellStatusChange(api, currentData, env);
+      if (statusResult.hasChange) {
+        results.statusChanges++;
+        results.alertsSent += statusResult.alertsSent;
+        console.log(`[RBDMS] Status change for ${api}: ${statusResult.previousStatus} → ${statusResult.currentStatus}`);
+      }
+    }
+    
+    console.log(`[RBDMS] Complete: ${results.wellsChecked} wells checked, ${results.statusChanges} changes found`);
+    
+  } catch (error) {
+    console.error('[RBDMS] Status check failed:', error);
+    results.errors.push(error.message);
+  }
+  
+  return results;
+}
+
+/**
+ * Optional: Store snapshot in R2 for historical analysis
+ */
+export async function storeRBDMSSnapshot(env, csvText) {
+  if (!env.RBDMS_BUCKET) {
+    console.log('[RBDMS] No R2 bucket configured for snapshots');
+    return;
+  }
+  
+  const date = new Date().toISOString().split('T')[0];
+  const key = `snapshots/rbdms-wells-${date}.csv`;
+  
+  try {
+    await env.RBDMS_BUCKET.put(key, csvText, {
+      httpMetadata: {
+        contentType: 'text/csv',
+        contentEncoding: 'gzip'
+      },
+      customMetadata: {
+        source: 'occ',
+        recordCount: csvText.split('\n').length - 1
+      }
+    });
+    console.log(`[RBDMS] Snapshot stored: ${key}`);
+  } catch (error) {
+    console.error('[RBDMS] Failed to store snapshot:', error);
+  }
+}

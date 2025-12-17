@@ -23,6 +23,7 @@ import { sendAlertEmail } from '../services/email.js';
 import { normalizeAPI, normalizeOperator, normalizeSection } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { getAdjacentSections } from '../utils/plss.js';
+import { checkAllWellStatuses } from '../services/rbdmsStatus.js';
 
 /**
  * OPTIMIZATION: Load set of already-processed transfer API numbers from KV
@@ -316,14 +317,22 @@ export async function runWeeklyMonitor(env) {
     // Save updated processed transfers
     await saveProcessedTransfers(env, processedTransfers);
     
-    // TODO: Add RBDMS status change detection if needed
+    // Check all tracked wells for status changes
+    console.log('[Weekly] Starting RBDMS status check...');
+    const statusResults = await checkAllWellStatuses(env);
+    
+    // Merge status check results
+    results.wellsChecked = statusResults.wellsChecked;
+    results.statusChanges = statusResults.statusChanges;
+    results.alertsSent += statusResults.alertsSent;
+    results.errors.push(...statusResults.errors);
     
   } catch (err) {
     console.error('[Weekly] Fatal error:', err);
     throw err;
   }
   
-  console.log(`[Weekly] Completed. Transfers: ${results.transfersProcessed}, Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}`);
+  console.log(`[Weekly] Completed. Transfers: ${results.transfersProcessed}, Status Changes: ${results.statusChanges || 0}, Total Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}`);
   return results;
 }
 
