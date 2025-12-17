@@ -162,11 +162,8 @@ var index_default = {
           return Response.redirect(`${BASE_URL}/portal/login?error=Missing%20session%20token`, 302);
         }
         
-        // Base64 encode the token to avoid any injection issues
-        // This prevents special characters from breaking the JavaScript string
-        const tokenBase64 = btoa(token);
-        
         // Serve an intermediate HTML page that sets cookie via JavaScript
+        // We'll pass the token via URL parameter to avoid template injection issues
         const html = `<!DOCTYPE html>
 <html>
 <head>
@@ -215,6 +212,9 @@ var index_default = {
     </div>
   </div>
   <script>
+    // Test if JavaScript runs at all
+    alert('JavaScript is running!');
+    
     // Immediate test to see if script runs at all
     document.getElementById('debug-content').innerHTML = 'Script started at ' + new Date().toISOString();
     
@@ -226,34 +226,23 @@ var index_default = {
       console.log(msg);
     }
     
+    // Get token from URL parameters instead of template injection
+    const urlParams = new URLSearchParams(window.location.search);
+    const fullToken = urlParams.get('token');
     
-    // Only show debug panel if there's an error or URL has debug=true
-    const showDebug = window.location.search.includes('debug=true');
-    if (showDebug) {
-      setTimeout(() => {
-        document.getElementById('debug-info').style.display = 'block';
-      }, 500);
-    }
+    addDebug('Token from URL: ' + (fullToken ? fullToken.substring(0, 20) + '...' : 'missing'));
     
-    // Decode the base64 encoded token
-    let fullToken;
-    try {
-      fullToken = atob("${tokenBase64}");
-    } catch (e) {
-      console.error('Failed to decode token:', e);
-      addDebug('ERROR: Failed to decode token: ' + e.message);
-      window.location.href = "/portal/login?error=Invalid%20authentication%20token";
+    if (!fullToken) {
+      addDebug('ERROR: No token found in URL');
+      window.location.href = "/portal/login?error=Missing%20authentication%20token";
       return;
     }
     
-    // Only log detailed debug info if debug mode is on
-    if (showDebug) {
-      addDebug('Token length: ' + fullToken.length);
-      addDebug('Is mobile: ' + /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
-    }
+    addDebug('Token length: ' + fullToken.length);
     
     // Clear any existing session cookie first
-    document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
+    document.cookie = "mw_session=; path=/; secure; samesite=lax; max-age=0";
+    addDebug('Cleared existing session cookie');
     
     // Add a small delay for mobile browsers to ensure cookie is cleared
     const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
