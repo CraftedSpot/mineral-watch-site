@@ -33,7 +33,7 @@ export default {
       // Verify token and create session
       if (path === "/api/auth/verify" && (request.method === "GET" || request.method === "HEAD")) {
         console.log(`[Auth] Handling verify request for path: ${path}`);
-        return await handleVerifyToken(request, env, url);
+        return await handleVerifyToken(request, env, url, corsHeaders);
       }
       
       // Logout endpoint
@@ -110,12 +110,27 @@ async function handleSendMagicLink(request, env, corsHeaders) {
   });
 }
 
-async function handleVerifyToken(request, env, url) {
+async function handleVerifyToken(request, env, url, corsHeaders) {
   const token = url.searchParams.get("token");
   console.log(`[Auth] Verify token request, token present: ${!!token}`);
   
+  // Always return JSON for API requests
+  const acceptHeader = request.headers.get("Accept");
+  const isApiRequest = url.pathname.includes("/api/");
+  const origin = request.headers.get("Origin");
+  const wantsJson = (acceptHeader && acceptHeader.includes("application/json")) || isApiRequest || origin;
+  
   if (!token) {
     console.log(`[Auth] No token provided in verify request`);
+    if (wantsJson) {
+      return new Response(JSON.stringify({ 
+        error: "Missing token",
+        success: false 
+      }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
     return redirectWithError("Missing token");
   }
   
@@ -125,10 +140,28 @@ async function handleVerifyToken(request, env, url) {
     console.log(`[Auth] Token verified successfully for: ${payload.email}`);
   } catch (err) {
     console.error("Token verification failed:", err.message);
+    if (wantsJson) {
+      return new Response(JSON.stringify({ 
+        error: "Invalid or expired link. Please request a new one.",
+        success: false 
+      }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
     return redirectWithError("Invalid or expired link. Please request a new one.");
   }
   
   if (Date.now() > payload.exp) {
+    if (wantsJson) {
+      return new Response(JSON.stringify({ 
+        error: "This link has expired. Please request a new one.",
+        success: false 
+      }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders }
+      });
+    }
     return redirectWithError("This link has expired. Please request a new one.");
   }
   
@@ -144,20 +177,14 @@ async function handleVerifyToken(request, env, url) {
   
   // Log headers for debugging
   console.log(`[Auth] Request headers:`, {
-    accept: request.headers.get("Accept"),
-    origin: request.headers.get("Origin"),
-    referer: request.headers.get("Referer")
+    accept: acceptHeader,
+    origin: origin,
+    referer: request.headers.get("Referer"),
+    wantsJson: wantsJson
   });
   
-  // For CORS requests (from JavaScript), return success with session token
-  // Check multiple indicators that this is a JavaScript request
-  const acceptHeader = request.headers.get("Accept");
-  const origin = request.headers.get("Origin");
-  const isApiRequest = url.pathname.includes("/api/");
-  
-  if ((acceptHeader && acceptHeader.includes("application/json")) || 
-      (isApiRequest && !acceptHeader) || 
-      origin) {
+  // For CORS/API requests (from JavaScript), always return JSON
+  if (wantsJson) {
     console.log(`[Auth] Returning JSON response for JavaScript request`);
     return new Response(JSON.stringify({ 
       success: true, 
@@ -167,8 +194,7 @@ async function handleVerifyToken(request, env, url) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Credentials": "true",
+        ...corsHeaders,
         "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
       }
     });
