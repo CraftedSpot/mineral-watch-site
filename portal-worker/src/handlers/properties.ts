@@ -141,6 +141,7 @@ export async function handleAddProperty(request: Request, env: Env) {
         TWN: township,
         RNG: range,
         MERIDIAN: meridian,
+        Group: body.Group || "",
         Notes: body.Notes || "",
         "RI Acres": body['RI Acres'] || 0,
         "WI Acres": body['WI Acres'] || 0,
