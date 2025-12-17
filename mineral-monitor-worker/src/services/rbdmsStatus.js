@@ -166,8 +166,7 @@ export async function checkAllWellStatuses(env) {
     try {
       do {
         const url = new URL(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}`);
-        // TEMP: Remove filter to see all wells
-        // url.searchParams.set('filterByFormula', '{Status} = "Active"');
+        // Check ALL wells in the Client Wells table
         url.searchParams.set('fields[]', 'API Number');
         url.searchParams.set('fields[]', 'Well Status');
         url.searchParams.set('fields[]', 'User');
