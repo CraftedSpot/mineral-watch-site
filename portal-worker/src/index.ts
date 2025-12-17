@@ -162,6 +162,13 @@ var index_default = {
           return Response.redirect(`${BASE_URL}/portal/login?error=Missing%20session%20token`, 302);
         }
         
+        // Log token for debugging
+        console.log(`[Portal] Set-session token length: ${token.length}, dots: ${(token.match(/\./g) || []).length}`);
+        console.log(`[Portal] First 50 chars of token: ${token.substring(0, 50)}`);
+        
+        // Base64 encode the token to avoid any injection issues
+        const tokenBase64 = btoa(token);
+        
         // Serve an intermediate HTML page that sets cookie via JavaScript
         const html = `<!DOCTYPE html>
 <html>
@@ -225,10 +232,33 @@ var index_default = {
       }, 2000);
     }
     
-    const fullToken = '${token}';
-    addDebug('Page loaded, token: ' + fullToken.substring(0, 20) + '...');
+    // Decode the base64 encoded token
+    let fullToken;
+    try {
+      fullToken = atob('${tokenBase64}');
+      addDebug('Token decoded successfully');
+    } catch (e) {
+      addDebug('ERROR: Failed to decode token: ' + e.message);
+      fullToken = '';
+    }
+    addDebug('Page loaded, token starts: ' + fullToken.substring(0, 20) + '...');
     addDebug('Token length: ' + fullToken.length);
-    addDebug('Token dots: ' + (fullToken.match(/\./g) || []).length);
+    const dotCount = (fullToken.match(/\./g) || []).length;
+    addDebug('Token dots: ' + dotCount);
+    
+    // Check for token corruption
+    if (fullToken.length > 0) {
+      const uniqueChars = new Set(fullToken).size;
+      addDebug('Unique chars in token: ' + uniqueChars);
+      
+      // If dots equal length, the entire token is dots!
+      if (dotCount === fullToken.length) {
+        addDebug('ERROR: Token is all dots! Template injection failed.');
+        addDebug('Check server logs for actual token value.');
+      } else if (uniqueChars < 10) {
+        addDebug('TOKEN CORRUPTED! First 50 chars: ' + fullToken.substring(0, 50));
+      }
+    }
     addDebug('User agent: ' + navigator.userAgent.substring(0, 50) + '...');
     addDebug('Is mobile: ' + /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
     
