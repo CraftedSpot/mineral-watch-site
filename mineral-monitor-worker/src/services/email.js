@@ -299,9 +299,8 @@ function getStatusChangeTip(statusChange) {
 • Save all records for tax purposes`;
   }
   
-  // TO: Active/Producing
-  if ((previous === 'Shut In' || previous === 'Temporarily Abandoned' || previous === 'Never Drilled') && 
-      (current === 'Active' || current === 'Producing')) {
+  // TO: Active/Producing  
+  if (current === 'Active' || current === 'Producing') {
     return `This well is now active and producing. You may want to:
 • Review your lease terms or division orders
 • Watch for new production or payment activity in upcoming months
@@ -318,13 +317,13 @@ function getStatusChangeTip(statusChange) {
 • Note that regular royalty payments will pause`;
   }
   
-  // FROM: Plugged to Active (unusual but important)
+  // FROM: Plugged to Active (re-entry scenario)
   if (previous === 'Plugged & Abandoned' && (current === 'Active' || current === 'Producing')) {
-    return `⚠️ Unusual status change detected. You may want to:
-• Verify this is the correct well (not a nearby well with similar name)
-• Contact the operator to confirm the status
+    return `This previously plugged well is now active again. You may want to:
 • Check if this is a re-entry or workover operation
-• Review any new agreements or division orders`;
+• Review any new agreements or division orders
+• Contact the operator about the reactivation
+• Expect royalty checks to resume within 60-90 days`;
   }
   
   // Default for other transitions
