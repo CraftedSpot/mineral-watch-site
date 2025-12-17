@@ -60,12 +60,12 @@ async function downloadRBDMSData(env) {
     // Parse CSV into Map for fast lookups
     const wellMap = new Map();
     const lines = text.split('\n');
-    const headers = lines[0].split(',').map(h => h.trim());
+    const csvHeaders = lines[0].split(',').map(h => h.trim());
     
     // Find important column indices
-    const apiIndex = headers.findIndex(h => h.toLowerCase().includes('api'));
-    const statusIndex = headers.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
-    const operatorIndex = headers.findIndex(h => h.toLowerCase().includes('operator'));
+    const apiIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('api'));
+    const statusIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
+    const operatorIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('operator'));
     
     console.log(`[RBDMS] Parsing ${lines.length - 1} wells...`);
     
@@ -73,7 +73,7 @@ async function downloadRBDMSData(env) {
       if (!lines[i].trim()) continue;
       
       const values = parseCSVLine(lines[i]);
-      if (values.length < headers.length) continue;
+      if (values.length < csvHeaders.length) continue;
       
       const api = normalizeAPI(values[apiIndex]);
       if (!api) continue;
