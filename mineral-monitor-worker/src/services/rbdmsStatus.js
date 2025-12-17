@@ -35,7 +35,7 @@ async function downloadRBDMSData(env) {
     console.log(`[RBDMS] Response status: ${response.status}`);
     
     // If not modified, return null to skip processing
-    if (response.status === 304) {
+    if (response.status === 304 && lastModified) {
       console.log('[RBDMS] File not modified since last check (304 status)');
       return null;
     }
@@ -141,7 +141,14 @@ export async function checkAllWellStatuses(env) {
   try {
     // Download RBDMS data
     console.log('[RBDMS] Starting RBDMS data download...');
-    const rbdmsData = await downloadRBDMSData(env);
+    let rbdmsData;
+    try {
+      rbdmsData = await downloadRBDMSData(env);
+    } catch (downloadError) {
+      console.error('[RBDMS] Download failed:', downloadError.message);
+      results.errors.push(`RBDMS download failed: ${downloadError.message}`);
+      return results;
+    }
     
     // If no new data, skip processing
     if (!rbdmsData) {
