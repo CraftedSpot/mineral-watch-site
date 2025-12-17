@@ -144,27 +144,27 @@ export async function checkAllWellStatuses(env) {
     console.log(`[RBDMS] RBDMS data loaded with ${rbdmsData.size} wells`);
     
     // Get all tracked wells (temporarily removed filter for testing)
-    const trackedWells = await queryAirtable(
-      env,
-      env.AIRTABLE_WELLS_TABLE,
-      '', // No filter - get all wells
-      ['API Number', 'Well Status', 'User']
-    );
-    
-    if (!trackedWells.success) {
-      console.error('[RBDMS] Failed to query tracked wells:', trackedWells.error);
-      results.errors.push(`Airtable query failed: ${trackedWells.error}`);
+    let trackedWells;
+    try {
+      trackedWells = await queryAirtable(
+        env,
+        env.AIRTABLE_WELLS_TABLE,
+        '' // No filter - get all wells
+      );
+    } catch (error) {
+      console.error('[RBDMS] Failed to query tracked wells:', error.message);
+      results.errors.push(`Airtable query failed: ${error.message}`);
       return results;
     }
     
-    console.log(`[RBDMS] Found ${trackedWells.records.length} wells in Airtable`);
+    console.log(`[RBDMS] Found ${trackedWells.length} wells in Airtable`);
     
-    if (trackedWells.records.length === 0) {
+    if (trackedWells.length === 0) {
       console.log('[RBDMS] No tracked wells found in Airtable');
       return results;
     }
     
-    console.log(`[RBDMS] Checking ${trackedWells.records.length} tracked wells...`);
+    console.log(`[RBDMS] Checking ${trackedWells.length} tracked wells...`);
     
     // Check each tracked well
     for (const well of trackedWells.records) {
