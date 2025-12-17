@@ -91,13 +91,19 @@ async function handleSendMagicLink(request, env, corsHeaders) {
   }
   
   // Generate magic link token
+  const tokenExpiry = Date.now() + TOKEN_EXPIRY;
   const token = await generateToken(env, {
     email: normalizedEmail,
     id: user.id,
-    exp: Date.now() + TOKEN_EXPIRY
+    exp: tokenExpiry,
+    iat: Date.now() // Add issued-at time for debugging
   });
   
+  console.log(`[Auth] Generated token length: ${token.length}, dots: ${(token.match(/\./g) || []).length}`);
+  console.log(`[Auth] Token expires at: ${new Date(tokenExpiry).toISOString()}`);
+  
   const magicLink = `https://portal.mymineralwatch.com/portal/verify?token=${encodeURIComponent(token)}`;
+  console.log(`[Auth] Magic link length: ${magicLink.length}`);
   
   // Send email
   await sendMagicLinkEmail(env, normalizedEmail, user.fields.Name || "there", magicLink);
@@ -117,6 +123,9 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   if (token) {
     console.log(`[Auth] Token from URL: length=${token.length}, starts with: ${token.substring(0, 30)}...`);
     console.log(`[Auth] Full URL: ${url.href}`);
+    console.log(`[Auth] Token dot count: ${(token.match(/\./g) || []).length}`);
+    console.log(`[Auth] Request User-Agent: ${request.headers.get('User-Agent')}`);
+    console.log(`[Auth] Request Origin: ${request.headers.get('Origin')}`);
   }
   
   // Always return JSON for API requests

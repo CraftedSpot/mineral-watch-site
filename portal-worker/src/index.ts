@@ -225,7 +225,10 @@ var index_default = {
       }, 2000);
     }
     
-    addDebug('Page loaded, token: ' + '${token}'.substring(0, 20) + '...');
+    const fullToken = '${token}';
+    addDebug('Page loaded, token: ' + fullToken.substring(0, 20) + '...');
+    addDebug('Token length: ' + fullToken.length);
+    addDebug('Token dots: ' + (fullToken.match(/\./g) || []).length);
     addDebug('User agent: ' + navigator.userAgent.substring(0, 50) + '...');
     addDebug('Is mobile: ' + /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
     
@@ -252,7 +255,10 @@ var index_default = {
       // Try auth-worker verification first (for regular login/registration)
       // If that fails, try portal's invite verification (for organization invites)
       addDebug('Starting auth verification...');
-      fetch('/api/auth/verify?token=${token}', {
+      // Double-check the token is properly encoded
+      const verifyUrl = '/api/auth/verify?token=' + encodeURIComponent(fullToken);
+      addDebug('Verify URL length: ' + verifyUrl.length);
+      fetch(verifyUrl, {
         method: 'GET',
         headers: {
           'Accept': 'application/json',
