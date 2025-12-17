@@ -4,6 +4,7 @@
  */
 
 import { normalizeSection } from '../utils/normalize.js';
+import { getOCCWellRecordsLink, getOCCCookieNotice } from '../utils/occLink.js';
 
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
 
