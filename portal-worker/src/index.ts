@@ -201,11 +201,11 @@ var index_default = {
 <body>
   <div class="loading" onclick="document.getElementById('debug-info').style.display='block'">
     <div class="spinner"></div>
-    <div id="status-message">Completing login v2...</div>
+    <div id="status-message">Completing login...</div>
     <div id="timeout-message" style="margin-top: 20px; color: #718096; font-size: 14px; display: none;">
       This is taking longer than usual. Please wait...
     </div>
-    <div id="debug-info" style="margin-top: 30px; padding: 10px; background: #f0f0f0; border-radius: 4px; font-size: 12px; color: #666; max-width: 400px; word-break: break-all; display: block;">
+    <div id="debug-info" style="margin-top: 30px; padding: 10px; background: #f0f0f0; border-radius: 4px; font-size: 12px; color: #666; max-width: 400px; word-break: break-all; display: none;">
       <strong>Debug Info:</strong>
       <div id="debug-content"></div>
       <div style="margin-top: 10px; color: #999;">Tap anywhere to hide</div>

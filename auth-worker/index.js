@@ -124,8 +124,17 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
     console.log(`[Auth] Token from URL: length=${token.length}, starts with: ${token.substring(0, 30)}...`);
     console.log(`[Auth] Full URL: ${url.href}`);
     console.log(`[Auth] Token dot count: ${(token.match(/\./g) || []).length}`);
+    console.log(`[Auth] Token contains + chars: ${token.includes('+')}`);
+    console.log(`[Auth] Token contains spaces: ${token.includes(' ')}`);
+    console.log(`[Auth] Raw token (first 50 chars): ${token.substring(0, 50)}`);
     console.log(`[Auth] Request User-Agent: ${request.headers.get('User-Agent')}`);
     console.log(`[Auth] Request Origin: ${request.headers.get('Origin')}`);
+    
+    // Log if token looks corrupted
+    if (token.includes(' ')) {
+      console.error(`[Auth] WARNING: Token contains spaces - likely + was decoded as space!`);
+      console.error(`[Auth] This often happens with mobile email clients`);
+    }
   }
   
   // Always return JSON for API requests
@@ -150,7 +159,14 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   
   let payload;
   try {
-    payload = await verifyToken(env, token);
+    // If token contains spaces, try converting them to + first
+    let tokenToVerify = token;
+    if (token.includes(' ') && !token.includes('+')) {
+      console.log(`[Auth] Attempting to fix token by converting spaces to +`);
+      tokenToVerify = token.replace(/ /g, '+');
+    }
+    
+    payload = await verifyToken(env, tokenToVerify);
     console.log(`[Auth] Token verified successfully for: ${payload.email}`);
   } catch (err) {
     console.error("Token verification failed:", err.message);
