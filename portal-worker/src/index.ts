@@ -261,26 +261,27 @@ var index_default = {
         credentials: 'same-origin'
       })
       .then(async response => {
-        console.log('Auth verify response:', response.status, response.redirected);
+        addDebug('Auth response: ' + response.status + ', redirected: ' + response.redirected);
         
         // Read response text once
         const responseText = await response.text();
-        console.log('Raw response:', responseText);
+        addDebug('Response length: ' + responseText.length + ' chars');
         
         if (response.ok) {
           try {
             // Try to parse JSON response
             const data = JSON.parse(responseText);
-            console.log('Auth verify data:', data);
+            addDebug('Auth success: ' + data.success);
             if (data.success) {
               // Clear timeout since we succeeded
               clearTimeout(timeoutId);
+              addDebug('Login successful, redirecting...');
               // Successful verification
               window.location.href = data.redirect || '/portal';
               return;
             }
           } catch (jsonError) {
-            console.error('Failed to parse JSON response:', jsonError);
+            addDebug('JSON parse error: ' + jsonError.message);
           }
         }
         
@@ -290,14 +291,17 @@ var index_default = {
           // Try to get error message from auth response
           try {
             const errorData = JSON.parse(responseText);
-            console.log('Auth error data:', errorData);
+            addDebug('Auth error: ' + errorData.error);
             // If we have a specific error from auth-worker, use it
             if (errorData.error) {
-              window.location.href = "/portal/login?error=" + encodeURIComponent(errorData.error);
+              addDebug('Redirecting with error: ' + errorData.error);
+              setTimeout(() => {
+                window.location.href = "/portal/login?error=" + encodeURIComponent(errorData.error);
+              }, 2000); // Give time to read debug info
               return;
             }
           } catch (e) {
-            console.log('Could not parse auth error response');
+            addDebug('Could not parse error response');
           }
           
           // Only try invite verification if auth-worker returned 401/404 (not 400 bad request)
