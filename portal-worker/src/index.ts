@@ -223,6 +223,9 @@ var index_default = {
       console.log(msg);
     }
     
+    // Immediate debug to verify script is running
+    addDebug('Script started');
+    
     // Only show debug panel if there's an error or URL has debug=true
     const showDebug = window.location.search.includes('debug=true');
     if (showDebug) {
@@ -234,11 +237,16 @@ var index_default = {
     // Decode the base64 encoded token
     let fullToken;
     try {
+      addDebug('Attempting to decode token...');
       fullToken = atob('${tokenBase64}');
+      addDebug('Token decoded, length: ' + fullToken.length);
     } catch (e) {
       console.error('Failed to decode token:', e);
       addDebug('ERROR: Failed to decode token: ' + e.message);
-      window.location.href = "/portal/login?error=Invalid%20authentication%20token";
+      addDebug('Error type: ' + e.name);
+      setTimeout(() => {
+        window.location.href = "/portal/login?error=Invalid%20authentication%20token";
+      }, 3000);
       return;
     }
     
