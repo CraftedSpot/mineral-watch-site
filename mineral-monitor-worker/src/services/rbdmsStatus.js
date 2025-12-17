@@ -10,6 +10,7 @@ import { getStatusDescription } from './statusChange.js';
 import { normalizeAPI } from '../utils/normalize.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
+import { getOCCWellRecordsLink } from '../utils/occLink.js';
 
 const RBDMS_CSV_URL = 'https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv';
 const CACHE_KEY = 'rbdms-last-modified';
