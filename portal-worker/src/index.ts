@@ -238,7 +238,7 @@ var index_default = {
     // Decode the base64 encoded token
     let fullToken;
     try {
-      fullToken = atob('${tokenBase64}');
+      fullToken = atob("${tokenBase64}");
     } catch (e) {
       console.error('Failed to decode token:', e);
       addDebug('ERROR: Failed to decode token: ' + e.message);
