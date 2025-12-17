@@ -285,28 +285,53 @@ function getStatusChangeMeaning(statusChange) {
 }
 
 /**
- * Get status change specific tip
+ * Get status change specific tip with actionable guidance
  */
 function getStatusChangeTip(statusChange) {
   const { previous, current } = statusChange;
   
-  if (previous === 'Active' && current === 'Plugged & Abandoned') {
-    return '⚠️ Final royalty payments should arrive within 90 days. Save records for tax purposes.';
-  }
-  if (previous === 'Never Drilled' && current === 'Active') {
-    return '✅ First royalty checks typically arrive 3-6 months after production begins.';
-  }
-  if (previous === 'Active' && current === 'Shut In') {
-    return '⏸️ Royalty payments will pause until the well is reactivated.';
-  }
-  if (previous === 'Shut In' && current === 'Active') {
-    return '▶️ Royalty payments should resume within 60-90 days.';
-  }
-  if (current === 'Producing') {
-    return '✅ Monitor your mail for division orders and royalty checks.';
+  // TO: Plugged & Abandoned
+  if (current === 'Plugged & Abandoned') {
+    return `The operator has formally plugged and abandoned this well. You may want to:
+• Stop expecting future production from this well
+• Check for final royalty payments within 90 days
+• Look for nearby active wells or new permits on your tract
+• Save all records for tax purposes`;
   }
   
-  return 'Monitor your royalty statements for any changes.';
+  // TO: Active/Producing
+  if ((previous === 'Shut In' || previous === 'Temporarily Abandoned' || previous === 'Never Drilled') && 
+      (current === 'Active' || current === 'Producing')) {
+    return `This well is now active and producing. You may want to:
+• Review your lease terms or division orders
+• Watch for new production or payment activity in upcoming months
+• Keep an eye on nearby filings that could indicate additional development
+• Expect royalty checks to begin/resume within 60-90 days`;
+  }
+  
+  // TO: Shut In
+  if (current === 'Shut In') {
+    return `This well has been temporarily shut in. You may want to:
+• Contact the operator for shut-in timeline expectations
+• Review your lease for shut-in royalty provisions
+• Monitor for reactivation notices
+• Note that regular royalty payments will pause`;
+  }
+  
+  // FROM: Plugged to Active (unusual but important)
+  if (previous === 'Plugged & Abandoned' && (current === 'Active' || current === 'Producing')) {
+    return `⚠️ Unusual status change detected. You may want to:
+• Verify this is the correct well (not a nearby well with similar name)
+• Contact the operator to confirm the status
+• Check if this is a re-entry or workover operation
+• Review any new agreements or division orders`;
+  }
+  
+  // Default for other transitions
+  return `Status has changed to ${current}. You may want to:
+• Review your lease terms or division orders
+• Contact the operator for more information
+• Monitor for changes in production or payments`;
 }
 
 /**
