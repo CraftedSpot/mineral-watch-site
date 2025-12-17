@@ -621,7 +621,7 @@ async function buildHtmlBody(data, env) {
                   <!-- Tip Box -->
                   ${explanation.tip ? `
                   <div style="background: ${tipStyle.bg}; border-radius: 6px; padding: 12px; border-left: 3px solid ${tipStyle.border}; margin-bottom: 16px;">
-                    <p style="margin: 0; font-size: 13px; color: ${tipStyle.text}; line-height: 1.5;">
+                    <p style="margin: 0; font-size: 13px; color: ${tipStyle.text}; line-height: 1.5; white-space: pre-line;">
                       ${explanation.tip}
                     </p>
                   </div>
@@ -630,7 +630,11 @@ async function buildHtmlBody(data, env) {
                   <!-- Action Buttons -->
                   <table width="100%" cellpadding="0" cellspacing="0" style="padding-top: 8px;">
                     <tr>
-                      ${occLink ? `
+                      ${apiNumber ? `
+                      <td align="center" style="padding: 2px;">
+                        <a href="${getOCCWellRecordsLink(apiNumber)}" style="display: block; width: 100%; background: #C05621; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View OCC Records →</a>
+                      </td>
+                      ` : occLink ? `
                       <td align="center" style="padding: 2px;">
                         <a href="${occLink}" style="display: block; width: 100%; background: #C05621; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View OCC Filing →</a>
                       </td>
@@ -657,9 +661,14 @@ async function buildHtmlBody(data, env) {
           <!-- Footer -->
           <tr>
             <td style="background: #F8FAFC; padding: 20px 24px; border-top: 1px solid #E2E8F0;">
-              <p style="font-size: 11px; color: #64748B; margin: 0 0 12px; line-height: 1.5;">
+              <p style="font-size: 11px; color: #64748B; margin: 0 0 8px; line-height: 1.5;">
                 <strong>Note:</strong> This alert indicates activity near your mineral interests. It does not guarantee you hold rights in the spacing unit or will receive royalties.
               </p>
+              ${apiNumber ? `
+              <p style="font-size: 10px; color: #94A3B8; margin: 0 0 12px; line-height: 1.4;">
+                <em>OCC Website Tip: ${getOCCCookieNotice(true)}</em>
+              </p>
+              ` : ''}
               <table width="100%" cellpadding="0" cellspacing="0">
                 <tr>
                   <td style="font-size: 12px;">
