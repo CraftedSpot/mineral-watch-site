@@ -204,20 +204,29 @@ var index_default = {
   </div>
   <script>
     console.log('Set-session page loaded, token:', '${token}'.substring(0, 20) + '...');
+    console.log('User agent:', navigator.userAgent);
+    console.log('Is mobile:', /iPhone|iPad|iPod|Android/i.test(navigator.userAgent));
     
     // Clear any existing session cookie first
     document.cookie = "${COOKIE_NAME}=; path=/; secure; samesite=lax; max-age=0";
     console.log('Cleared existing session cookie');
     
-    // Try auth-worker verification first (for regular login/registration)
-    // If that fails, try portal's invite verification (for organization invites)
-    console.log('Attempting auth verification...');
-    fetch('/api/auth/verify?token=${token}', {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json'
-      }
-    })
+    // Add a small delay for mobile browsers to ensure cookie is cleared
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const verifyDelay = isMobile ? 500 : 0;
+    
+    setTimeout(() => {
+      // Try auth-worker verification first (for regular login/registration)
+      // If that fails, try portal's invite verification (for organization invites)
+      console.log('Attempting auth verification...');
+      fetch('/api/auth/verify?token=${token}', {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json'
+        },
+        credentials: 'same-origin'
+      })
       .then(async response => {
         console.log('Auth verify response:', response.status, response.redirected);
         
@@ -243,24 +252,49 @@ var index_default = {
         if (!response.ok) {
           console.log('Auth-worker returned error status:', response.status);
           
-          // Auth-worker couldn't verify, try invite verification
-          return fetch('/api/auth/verify-invite?token=${token}')
-            .then(inviteResponse => inviteResponse.json())
-            .then(data => {
-              console.log('Invite verify response:', data);
-              if (data.success && data.sessionToken) {
-                // Set the session token as cookie
-                document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
-                
-                // Redirect to dashboard after small delay
-                setTimeout(() => {
-                  window.location.href = "/portal";
-                }, 100);
-              } else {
-                // Verification failed - redirect to login with error
-                window.location.href = "/portal/login?error=" + encodeURIComponent(data.error || "Invalid or expired link");
-              }
-            });
+          // Try to get error message from auth response
+          try {
+            const errorData = JSON.parse(responseText);
+            console.log('Auth error data:', errorData);
+            // If we have a specific error from auth-worker, use it
+            if (errorData.error) {
+              window.location.href = "/portal/login?error=" + encodeURIComponent(errorData.error);
+              return;
+            }
+          } catch (e) {
+            console.log('Could not parse auth error response');
+          }
+          
+          // Only try invite verification if auth-worker returned 401/404 (not 400 bad request)
+          if (response.status === 401 || response.status === 404) {
+            console.log('Trying invite verification as fallback...');
+            return fetch('/api/auth/verify-invite?token=${token}')
+              .then(inviteResponse => inviteResponse.json())
+              .then(data => {
+                console.log('Invite verify response:', data);
+                if (data.success && data.sessionToken) {
+                  // Set the session token as cookie
+                  document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
+                  console.log('Set session cookie for invite verification');
+                  
+                  // Redirect to dashboard after small delay (longer for mobile)
+                  const redirectDelay = isMobile ? 500 : 100;
+                  setTimeout(() => {
+                    window.location.href = "/portal";
+                  }, redirectDelay);
+                } else {
+                  // Verification failed - redirect to login with error
+                  window.location.href = "/portal/login?error=" + encodeURIComponent(data.error || "Invalid or expired link");
+                }
+              })
+              .catch(err => {
+                console.error('Invite verification also failed:', err);
+                window.location.href = "/portal/login?error=Invalid%20or%20expired%20link";
+              });
+          } else {
+            // For other errors, show generic message
+            window.location.href = "/portal/login?error=Verification%20failed";
+          }
         }
       })
       .catch(error => {
@@ -268,6 +302,7 @@ var index_default = {
         console.error('Error stack:', error.stack);
         window.location.href = "/portal/login?error=Verification%20failed";
       });
+    }, verifyDelay); // End of setTimeout
   </script>
 </body>
 </html>`;
