@@ -111,7 +111,14 @@ export async function handleAddProperty(request: Request, env: Env) {
   const section = String(body.SEC).padStart(2, "0");
   const township = body.TWN.toUpperCase().replace(/\s/g, "");
   const range = body.RNG.toUpperCase().replace(/\s/g, "");
-  const meridian = body.MERIDIAN || "IM";
+  
+  // Smart meridian detection based on county
+  const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
+  let meridian = body.MERIDIAN;
+  if (!meridian) {
+    // Auto-set meridian based on county
+    meridian = panhandleCounties.includes(body.COUNTY) ? "CM" : "IM";
+  }
   const isDuplicate = await checkDuplicateProperty(env, user.email, body.COUNTY, section, township, range);
   if (isDuplicate) {
     return jsonResponse({ error: "You are already monitoring this property." }, 409);

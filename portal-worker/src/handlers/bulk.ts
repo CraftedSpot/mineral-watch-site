@@ -102,18 +102,25 @@ function normalizeRange(value: any): string | null {
   return str.toUpperCase();
 }
 
-function normalizeMeridian(value: any): string {
-  if (!value) return "IM"; // Default to Indian Meridian
-  
-  const str = String(value).trim().toUpperCase();
-  
-  // Indian Meridian
-  if (str.match(/^(IM|I|INDIAN)/i)) {
-    return "IM";
+function normalizeMeridian(value: any, county?: string): string {
+  // If value is provided and valid, use it
+  if (value) {
+    const str = String(value).trim().toUpperCase();
+    
+    // Indian Meridian
+    if (str.match(/^(IM|I|INDIAN)/i)) {
+      return "IM";
+    }
+    
+    // Cimarron Meridian
+    if (str.match(/^(CM|C|CIMARRON)/i)) {
+      return "CM";
+    }
   }
   
-  // Cimarron Meridian
-  if (str.match(/^(CM|C|CIMARRON)/i)) {
+  // Smart default based on county
+  const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
+  if (county && panhandleCounties.includes(county)) {
     return "CM";
   }
   
@@ -167,12 +174,15 @@ function normalizePropertyData(prop: any) {
   const group = prop.Group || prop.GROUP || prop.Entity || prop.ENTITY || 
                prop.group || prop.entity || "";
 
+  // Normalize county first so we can use it for meridian detection
+  const county = normalizeCounty(prop.COUNTY || prop.County || prop.Co || prop.C);
+  
   return {
     SEC: normalizeSectionNumber(prop.SEC || prop.Section || prop.Sec || prop.S),
     TWN: normalizeTownship(prop.TWN || prop.Township || prop.Town || prop.T),
     RNG: normalizeRange(prop.RNG || prop.Range || prop.R),
-    MERIDIAN: normalizeMeridian(prop.MERIDIAN || prop.Meridian || prop.MER || prop.Mer || prop.M),
-    COUNTY: normalizeCounty(prop.COUNTY || prop.County || prop.Co || prop.C),
+    MERIDIAN: normalizeMeridian(prop.MERIDIAN || prop.Meridian || prop.MER || prop.Mer || prop.M, county),
+    COUNTY: county,
     GROUP: group,
     NOTES: notes,
     'RI Acres': riAcres,
