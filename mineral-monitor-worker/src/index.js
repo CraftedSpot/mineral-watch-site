@@ -119,6 +119,71 @@ export default {
       });
     }
     
+    // Test specific well
+    if (url.pathname === '/test/check-well') {
+      const targetAPI = url.searchParams.get('api') || '3508700028';
+      
+      try {
+        // Get the well from Airtable
+        const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?filterByFormula={API Number}="${targetAPI}"`, {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        const well = data.records ? data.records[0] : null;
+        
+        // Download RBDMS data
+        const { checkAllWellStatuses } = await import('./services/rbdmsStatus.js');
+        const rbdmsResponse = await fetch('https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv');
+        const text = await rbdmsResponse.text();
+        
+        // Find the well in RBDMS
+        const lines = text.split('\n');
+        const headers = lines[0].split(',');
+        const apiIndex = headers.findIndex(h => h.toLowerCase().includes('api'));
+        const statusIndex = headers.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
+        
+        let rbdmsStatus = null;
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(',');
+          if (values[apiIndex] && values[apiIndex].replace(/[^0-9]/g, '') === targetAPI) {
+            rbdmsStatus = values[statusIndex];
+            break;
+          }
+        }
+        
+        return new Response(JSON.stringify({
+          targetAPI,
+          airtable: {
+            found: !!well,
+            wellStatus: well?.fields['Well Status'],
+            allFields: well?.fields
+          },
+          rbdms: {
+            found: rbdmsStatus !== null,
+            wellStatus: rbdmsStatus
+          },
+          comparison: {
+            match: well?.fields['Well Status'] === rbdmsStatus,
+            shouldTriggerAlert: well && rbdmsStatus && well.fields['Well Status'] !== rbdmsStatus
+          }
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
     // Debug endpoint to check wells table
     if (url.pathname === '/test/wells-count') {
       try {
