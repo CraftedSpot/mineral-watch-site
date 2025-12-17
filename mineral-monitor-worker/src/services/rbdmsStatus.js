@@ -221,6 +221,11 @@ export async function checkAllWellStatuses(env) {
         continue;
       }
       
+      // Debug: Log first few wells to see the comparison
+      if (results.wellsChecked <= 5 || well.fields['Well Status'] !== currentData.wellstatus) {
+        console.log(`[RBDMS] Well ${api}: Airtable='${well.fields['Well Status']}', RBDMS='${currentData.wellstatus}'`);
+      }
+      
       // Check for status change
       const statusResult = await checkWellStatusChange(api, currentData, env);
       if (statusResult.hasChange) {
