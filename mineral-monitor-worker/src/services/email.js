@@ -631,21 +631,21 @@ async function buildHtmlBody(data, env) {
                     <tr>
                       ${apiNumber ? `
                       <td align="center" style="padding: 2px;">
-                        <a href="${getOCCWellRecordsLink(apiNumber)}" style="display: block; width: 100%; background: #C05621; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View OCC Records →</a>
+                        <a href="${getOCCWellRecordsLink(apiNumber)}" style="display: inline-block; background: #C05621; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">View OCC Records →</a>
                       </td>
                       ` : occLink ? `
                       <td align="center" style="padding: 2px;">
-                        <a href="${occLink}" style="display: block; width: 100%; background: #C05621; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">View OCC Filing →</a>
+                        <a href="${occLink}" style="display: inline-block; background: #C05621; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">View OCC Filing →</a>
                       </td>
                       ` : ''}
                       ${mapLink ? `
                       <td align="center" style="padding: 2px;">
-                        <a href="${mapLink}" style="display: block; width: 100%; background: #1C2B36; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">OCC Map →</a>
+                        <a href="${mapLink}" style="display: inline-block; background: #1C2B36; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">OCC Map →</a>
                       </td>
                       ` : ''}
                       ${trackingLink ? `
                       <td align="center" style="padding: 2px;">
-                        <a href="${trackingLink}" style="display: block; width: 100%; background: #047857; color: #ffffff; padding: 12px 8px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; box-sizing: border-box;">Track This Well →</a>
+                        <a href="${trackingLink}" style="display: inline-block; background: #047857; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">Track This Well →</a>
                       </td>
                       ` : ''}
                     </tr>
