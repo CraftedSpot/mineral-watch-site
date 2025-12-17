@@ -4,7 +4,7 @@
  * in user-tracked wells only
  */
 
-import { queryAirtable, batchGetWells } from './airtable.js';
+import { queryAirtable } from './airtable.js';
 import { checkWellStatusChange } from './statusChange.js';
 import { normalizeAPI } from '../utils/normalize.js';
 
