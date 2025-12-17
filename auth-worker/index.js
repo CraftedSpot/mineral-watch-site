@@ -114,6 +114,11 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   const token = url.searchParams.get("token");
   console.log(`[Auth] Verify token request, token present: ${!!token}`);
   
+  if (token) {
+    console.log(`[Auth] Token from URL: length=${token.length}, starts with: ${token.substring(0, 30)}...`);
+    console.log(`[Auth] Full URL: ${url.href}`);
+  }
+  
   // Always return JSON for API requests
   const acceptHeader = request.headers.get("Accept");
   const isApiRequest = url.pathname.includes("/api/");
@@ -327,14 +332,22 @@ async function generateToken(env, payload) {
 
 async function verifyToken(env, token) {
   console.log(`[Auth] Verifying token: ${token.substring(0, 20)}...`);
+  console.log(`[Auth] Token length: ${token.length}`);
+  
   const [dataBase64, sigBase64] = token.split(".");
   if (!dataBase64 || !sigBase64) {
-    console.error(`[Auth] Invalid token format - missing parts`);
+    console.error(`[Auth] Invalid token format - missing parts. Token has ${token.split(".").length} parts`);
     throw new Error("Invalid token format");
   }
   
   const encoder = new TextEncoder();
-  const data = atob(dataBase64);
+  let data;
+  try {
+    data = atob(dataBase64);
+  } catch (e) {
+    console.error(`[Auth] Failed to decode token data: ${e.message}`);
+    throw new Error("Invalid token encoding");
+  }
   
   const key = await crypto.subtle.importKey(
     "raw",
@@ -344,7 +357,14 @@ async function verifyToken(env, token) {
     ["verify"]
   );
   
-  const signature = Uint8Array.from(atob(sigBase64), (c) => c.charCodeAt(0));
+  let signature;
+  try {
+    signature = Uint8Array.from(atob(sigBase64), (c) => c.charCodeAt(0));
+  } catch (e) {
+    console.error(`[Auth] Failed to decode signature: ${e.message}`);
+    throw new Error("Invalid signature encoding");
+  }
+  
   const valid = await crypto.subtle.verify("HMAC", key, signature, encoder.encode(data));
   
   if (!valid) {
@@ -353,7 +373,10 @@ async function verifyToken(env, token) {
   }
   
   const payload = JSON.parse(data);
-  console.log(`[Auth] Token payload: email=${payload.email}, exp=${new Date(payload.exp).toISOString()}`);
+  const now = Date.now();
+  const expiresIn = payload.exp - now;
+  console.log(`[Auth] Token payload: email=${payload.email}, exp=${new Date(payload.exp).toISOString()}, expires in ${Math.floor(expiresIn/1000)}s`);
+  
   return payload;
 }
 
