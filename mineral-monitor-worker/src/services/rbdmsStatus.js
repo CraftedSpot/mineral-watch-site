@@ -137,13 +137,17 @@ export async function checkAllWellStatuses(env) {
   
   try {
     // Download RBDMS data
+    console.log('[RBDMS] Starting RBDMS data download...');
     const rbdmsData = await downloadRBDMSData(env);
     
     // If no new data, skip processing
     if (!rbdmsData) {
-      console.log('[RBDMS] Skipping - no new data');
+      console.log('[RBDMS] Skipping - no new data (file not modified since last check)');
+      results.errors.push('RBDMS file not modified since last download');
       return results;
     }
+    
+    console.log(`[RBDMS] RBDMS data loaded with ${rbdmsData.size} wells`);
     
     // Get all tracked wells (temporarily removed filter for testing)
     const trackedWells = await queryAirtable(
@@ -153,8 +157,16 @@ export async function checkAllWellStatuses(env) {
       ['API Number', 'Well Status', 'User']
     );
     
-    if (!trackedWells.success || trackedWells.records.length === 0) {
-      console.log('[RBDMS] No tracked wells found');
+    if (!trackedWells.success) {
+      console.error('[RBDMS] Failed to query tracked wells:', trackedWells.error);
+      results.errors.push(`Airtable query failed: ${trackedWells.error}`);
+      return results;
+    }
+    
+    console.log(`[RBDMS] Found ${trackedWells.records.length} wells in Airtable`);
+    
+    if (trackedWells.records.length === 0) {
+      console.log('[RBDMS] No tracked wells found in Airtable');
       return results;
     }
     
