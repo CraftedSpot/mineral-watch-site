@@ -119,6 +119,39 @@ export default {
       });
     }
     
+    // Debug endpoint to check wells table
+    if (url.pathname === '/test/wells-count') {
+      try {
+        const response = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?pageSize=1`, {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const data = await response.json();
+        return new Response(JSON.stringify({
+          success: response.ok,
+          status: response.status,
+          recordCount: data.records ? data.records.length : 0,
+          hasMore: !!data.offset,
+          tableId: env.AIRTABLE_WELLS_TABLE,
+          baseId: env.AIRTABLE_BASE_ID,
+          sample: data.records ? data.records[0] : null
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
     // Test RBDMS status check endpoint (temporary)
     if (url.pathname === '/test/rbdms-status') {
       // Add force parameter to bypass cache
