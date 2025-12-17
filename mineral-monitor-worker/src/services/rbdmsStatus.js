@@ -167,7 +167,7 @@ export async function checkAllWellStatuses(env) {
     console.log(`[RBDMS] Checking ${trackedWells.length} tracked wells...`);
     
     // Check each tracked well
-    for (const well of trackedWells.records) {
+    for (const well of trackedWells) {
       const api = normalizeAPI(well.fields['API Number']);
       if (!api) continue;
       
