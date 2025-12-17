@@ -301,7 +301,7 @@ export async function checkAllWellStatuses(env) {
           
           // Create activity log
           const activityResult = await createActivityLog(env, {
-            userEmail: user.fields.Email,
+            userId: userIds[0],  // Use the user record ID, not email
             apiNumber: api,
             activityType: 'Status Change',
             alertLevel: 'TRACKED WELL',
@@ -310,6 +310,8 @@ export async function checkAllWellStatuses(env) {
             newValue: rbdmsStatus,
             wellName: well.fields['Well Name'] || `API ${api}`,
             operator: well.fields.Operator || currentData.operator || 'Unknown',
+            sectionTownshipRange: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
+            county: currentData.county || wellRecord.County || 'Unknown',
             notes: `RBDMS status mismatch detected. Airtable showed ${getStatusDescription(airtableStatus)}, but RBDMS (source of truth) shows ${getStatusDescription(rbdmsStatus)}. Updating Airtable to match RBDMS.`,
             mapLink: mapLink || "",
             coordinateSource: coordinateSource
