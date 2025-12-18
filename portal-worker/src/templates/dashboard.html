@@ -491,6 +491,116 @@
         .delete-icon-wrapper { width: 48px; height: 48px; border-radius: 50%; background: #FEE2E2; color: #DC2626; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
         .delete-warning-text { text-align: center; color: var(--slate-blue); font-size: 15px; margin-bottom: 24px; line-height: 1.5; }
         
+        /* Custom Confirm Dialog */
+        .confirm-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 999999;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .confirm-overlay.show {
+            display: flex;
+        }
+        
+        .confirm-modal {
+            background: white;
+            border-radius: 12px;
+            padding: 24px;
+            max-width: 400px;
+            width: 100%;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            animation: confirmSlideIn 0.2s ease-out;
+        }
+        
+        @keyframes confirmSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .confirm-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+        
+        .confirm-icon {
+            width: 40px;
+            height: 40px;
+            background: #FEE2E2;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+        
+        .confirm-title {
+            font-size: 18px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            margin: 0;
+        }
+        
+        .confirm-body {
+            margin-bottom: 24px;
+        }
+        
+        .confirm-message {
+            color: var(--slate-blue);
+            font-size: 15px;
+            line-height: 1.5;
+            margin: 0;
+        }
+        
+        .confirm-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+        
+        .confirm-btn {
+            padding: 10px 20px;
+            font-size: 14px;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .confirm-btn-cancel {
+            background: #F3F4F6;
+            color: var(--slate-blue);
+        }
+        
+        .confirm-btn-cancel:hover {
+            background: #E5E7EB;
+        }
+        
+        .confirm-btn-confirm {
+            background: #DC2626;
+            color: white;
+        }
+        
+        .confirm-btn-confirm:hover {
+            background: #B91C1C;
+        }
+        
         /* Bulk Selection Styles */
         .bulk-checkbox-column { width: 50px; text-align: center; }
         .bulk-checkbox { cursor: pointer; width: 16px; height: 16px; }
@@ -2088,7 +2198,16 @@
                 return;
             }
             
-            const confirmed = confirm(`Delete ${selectedSet.size} ${itemName}?\n\nThis action cannot be undone.`);
+            // Use custom confirm dialog instead of system confirm
+            const confirmed = await showConfirm(
+                `Delete ${selectedSet.size} ${itemName}?<br><br>This action cannot be undone.`,
+                {
+                    title: `Delete ${selectedSet.size} ${itemName}?`,
+                    confirmText: 'Delete',
+                    cancelText: 'Cancel'
+                }
+            );
+            
             if (!confirmed) {
                 deleteInProgress = false;
                 return;
@@ -4019,7 +4138,7 @@
         // CSV Export Functions (Professional tier)
         function exportWellsCSV() {
             if (!loadedWells.length) {
-                alert('No wells to export.');
+                showToast('No wells to export', 'info');
                 return;
             }
             
@@ -4058,7 +4177,7 @@
         
         function exportPropertiesCSV() {
             if (!loadedProperties.length) {
-                alert('No properties to export.');
+                showToast('No properties to export', 'info');
                 return;
             }
             
