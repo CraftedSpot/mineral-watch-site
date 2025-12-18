@@ -28,6 +28,7 @@ export const PLAN_LIMITS = {
   "Standard": { properties: 50, wells: 50, activityRecords: 50 },
   "Professional": { properties: 250, wells: 250, activityRecords: 100 },
   "Enterprise 500": { properties: 500, wells: 500, activityRecords: 200 },
+  "Enterprise 1K": { properties: 1000, wells: 1000, activityRecords: 500 },
   "Enterprise": { properties: Infinity, wells: Infinity, activityRecords: Infinity }
 } as const;
 
@@ -59,7 +60,9 @@ export const PRICE_IDS = {
   standard_monthly: 'price_1SZZbu9OfJmRCDOquBBFk0dY',   // $29/mo
   standard_annual: 'price_1SZZbu9OfJmRCDOqYZm2Hbi6',    // $278/yr
   professional_monthly: 'price_1SZZbu9OfJmRCDOqOp2YjT1N', // $99/mo
-  professional_annual: 'price_1SZZbt9OfJmRCDOquMh7kSyI'   // $950/yr
+  professional_annual: 'price_1SZZbt9OfJmRCDOquMh7kSyI',  // $950/yr
+  enterprise_1k_monthly: 'price_PLACEHOLDER_ENT1K_MONTHLY', // $199/mo - TODO: Create in Stripe
+  enterprise_1k_annual: 'price_PLACEHOLDER_ENT1K_ANNUAL'    // $1910/yr - TODO: Create in Stripe
 } as const;
 
 // Map price ID to plan name
@@ -69,5 +72,7 @@ export const PRICE_TO_PLAN = {
   [PRICE_IDS.standard_monthly]: 'Standard',
   [PRICE_IDS.standard_annual]: 'Standard',
   [PRICE_IDS.professional_monthly]: 'Professional',
-  [PRICE_IDS.professional_annual]: 'Professional'
+  [PRICE_IDS.professional_annual]: 'Professional',
+  [PRICE_IDS.enterprise_1k_monthly]: 'Enterprise 1K',
+  [PRICE_IDS.enterprise_1k_annual]: 'Enterprise 1K'
 } as const;
