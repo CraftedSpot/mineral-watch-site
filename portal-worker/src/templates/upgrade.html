@@ -317,7 +317,12 @@
             // Check for success/error params
             const params = new URLSearchParams(window.location.search);
             if (params.get('error')) {
-                alert('Something went wrong. Please try again.');
+                // Show helpful error message with support contact
+                showErrorMessage(
+                    'We encountered an issue processing your upgrade. ' +
+                    'Please try again or contact us at <a href="mailto:support@mymineralwatch.com" style="color: var(--red-dirt); text-decoration: underline;">support@mymineralwatch.com</a> ' +
+                    'and we\'ll help you right away.'
+                );
             }
             
             // Load user data
