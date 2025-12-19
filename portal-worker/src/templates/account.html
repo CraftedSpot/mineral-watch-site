@@ -291,10 +291,17 @@
                     <div class="info-row"><span class="info-label">Properties</span><span class="info-value"><span id="propItems">0</span> / <span id="propLimit">1</span></span></div>
                     <div class="info-row"><span class="info-label">Wells</span><span class="info-value"><span id="wellItems">0</span> / <span id="wellLimit">0</span></span></div>
                     <div class="info-row"><span class="info-label">Status</span><span class="info-value" id="status">—</span></div>
-                    <button class="btn btn-secondary" id="manageBtn">Manage Subscription</button>
-                    <p class="billing-hint" id="billingHint" style="display:none; margin: 10px 0 0 0; font-size: 13px; color: var(--slate-blue);">
-                        Update payment method, download invoices, or cancel anytime
-                    </p>
+                    <div class="billing-actions" id="billingActions" style="margin-top: 20px;">
+                        <button class="btn btn-secondary" id="manageBtn" style="width: 100%;">Manage Subscription</button>
+                        <p class="billing-hint" id="billingHint" style="display:none; margin: 10px 0 0 0; font-size: 13px; color: var(--slate-blue); text-align: center;">
+                            Update payment method, download invoices, or cancel anytime
+                        </p>
+                        <div style="margin-top: 10px; text-align: center;" id="changePlanSection">
+                            <a href="/portal/upgrade" style="color: var(--red-dirt); text-decoration: none; font-size: 14px;">
+                                Change plan →
+                            </a>
+                        </div>
+                    </div>
                 </div>
                 <!-- Organization Section - Only shown for Professional/Enterprise -->
                 <div class="card full" id="organizationSection" style="display:none;">
@@ -321,10 +328,6 @@
                 <div class="card full">
                     <h2>Your Plan Features</h2>
                     <ul class="features" id="features"><li>Loading...</li></ul>
-                    <div class="upgrade-box" id="upgradeBox">
-                        <p>Need to monitor more properties or wells? Upgrade your plan.</p>
-                        <a href="/portal/upgrade" class="btn btn-primary">View Plans</a>
-                    </div>
                 </div>
             </div>
         </div>
@@ -410,26 +413,30 @@
                 document.getElementById('status').textContent = currentUser.status || 'Active';
                 document.getElementById('features').innerHTML = config.features.map(f => '<li>' + f + '</li>').join('');
                 
-                // Hide upgrade box for Enterprise plans
-                if (plan.startsWith('Enterprise')) document.getElementById('upgradeBox').style.display = 'none';
-                
                 // Update manage button based on plan
                 const manageBtn = document.getElementById('manageBtn');
                 const billingHint = document.getElementById('billingHint');
+                const changePlanSection = document.getElementById('changePlanSection');
+                const billingActions = document.getElementById('billingActions');
                 
                 // Only hide for Free users without any billing history
                 if (plan === 'Free' && !currentUser.stripeCustomerId) {
-                    manageBtn.style.display = 'none';
-                    billingHint.style.display = 'none';
+                    billingActions.style.display = 'none';
                 } else if (plan !== 'Free') {
-                    // Show more explicit text for paid users
-                    manageBtn.style.display = 'block';
-                    manageBtn.innerHTML = 'Manage or Cancel Subscription';
+                    // Show everything for paid users
+                    billingActions.style.display = 'block';
+                    manageBtn.innerHTML = 'Manage Billing & Cancel';
                     billingHint.style.display = 'block';
+                    // Hide change plan for Enterprise users
+                    if (plan.startsWith('Enterprise')) {
+                        changePlanSection.style.display = 'none';
+                    }
                 } else {
-                    // Free users with billing history can still manage
-                    manageBtn.style.display = 'block';
+                    // Free users with billing history
+                    billingActions.style.display = 'block';
+                    manageBtn.innerHTML = 'Manage Billing';
                     billingHint.style.display = 'none';
+                    changePlanSection.innerHTML = '<a href="/portal/upgrade" style="color: var(--red-dirt); text-decoration: none; font-size: 14px;">Upgrade plan →</a>';
                 }
                 
                 // Get counts
