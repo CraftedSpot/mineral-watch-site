@@ -304,7 +304,10 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     email: user.fields.Email,
     name: user.fields.Name,
     plan: user.fields.Plan,
-    status: user.fields.Status
+    status: user.fields.Status,
+    role: user.fields.Role || null,
+    organizationId: user.fields.Organization ? user.fields.Organization[0] : null,
+    stripeCustomerId: user.fields["Stripe Customer ID"] || null
   }), {
     status: 200,
     headers: { "Content-Type": "application/json", ...corsHeaders }

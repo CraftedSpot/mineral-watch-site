@@ -806,6 +806,7 @@
             const modal = document.getElementById('changeEmailModal');
             const currentEmailInput = document.getElementById('currentEmail');
             const newEmailInput = document.getElementById('newEmail');
+            const orgWarning = document.getElementById('orgAdminWarning');
             
             // Set current email
             if (currentUser) {
@@ -814,6 +815,13 @@
             
             // Clear new email field
             newEmailInput.value = '';
+            
+            // Show warning for organization admins
+            if (currentUser && currentUser.role === 'Admin' && currentUser.organizationId) {
+                orgWarning.style.display = 'block';
+            } else {
+                orgWarning.style.display = 'none';
+            }
             
             modal.style.display = 'flex';
         };
@@ -970,6 +978,11 @@
                     <label for="newEmail">New Email</label>
                     <input type="email" id="newEmail" required placeholder="Enter your new email address">
                     <div class="form-hint">We'll send a verification link to confirm this email</div>
+                </div>
+                <div id="orgAdminWarning" style="display: none; background: #FEF3C7; border: 1px solid #F59E0B; padding: 12px; border-radius: 4px; margin-top: 10px;">
+                    <p style="margin: 0; color: #92400E; font-size: 14px;">
+                        <strong>Note:</strong> You are an organization administrator. Changing your email will update your login credentials but won't affect organization ownership. Make sure other admins are aware of this change.
+                    </p>
                 </div>
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" onclick="closeChangeEmailModal()">Cancel</button>
