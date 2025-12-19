@@ -12,6 +12,7 @@
  * - STRIPE_SECRET_KEY: Stripe secret key (for API calls)
  * - AIRTABLE_API_KEY: Airtable personal access token
  * - POSTMARK_API_KEY: Postmark server token
+ * - AUTH_SECRET: Secret for generating magic link tokens
  */
 
 const BASE_ID = 'app3j3X29Uvp5stza';
@@ -260,9 +261,24 @@ async function handleSubscriptionDeleted(subscription, env) {
 // ============================================
 
 /**
- * Send welcome email for paid signups
+ * Send welcome email for paid signups with magic link
  */
 async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
+  // Generate magic link token
+  let magicLinkUrl = `${BASE_URL}/portal`; // Default fallback
+  
+  try {
+    if (env.AUTH_SECRET) {
+      const token = await generateMagicLinkToken(email, env.AUTH_SECRET);
+      magicLinkUrl = `${BASE_URL}/api/auth/verify?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+      console.log(`Generated magic link for ${email}`);
+    } else {
+      console.warn('AUTH_SECRET not set, sending without magic link');
+    }
+  } catch (err) {
+    console.error('Failed to generate magic link:', err);
+    // Continue with regular dashboard link
+  }
   const subject = `Welcome to Mineral Watch ${plan} - You're All Set`;
   
   const htmlBody = `
@@ -291,7 +307,7 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
         
         <!-- CTA Button -->
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${BASE_URL}/portal" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Go to Dashboard →</a>
+          <a href="${magicLinkUrl}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Go to Dashboard →</a>
         </div>
         
         <!-- Plan Details Box -->
@@ -354,7 +370,7 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
 
 Thanks for subscribing to Mineral Watch ${plan}! Your account is active and ready to go.
 
-Go to Dashboard: ${BASE_URL}/portal
+Go to Dashboard: ${magicLinkUrl}
 
 Your ${plan} Plan Includes:
 - ${limits.properties} properties with adjacent section monitoring
@@ -381,9 +397,20 @@ Questions? Just reply to this email.
 }
 
 /**
- * Send plan changed email (upgrade or downgrade)
+ * Send plan changed email (upgrade or downgrade) with magic link
  */
 async function sendPlanChangedEmail(env, email, name, oldPlan, newPlan, isUpgrade) {
+  // Generate magic link token
+  let magicLinkUrl = `${BASE_URL}/portal`; // Default fallback
+  
+  try {
+    if (env.AUTH_SECRET) {
+      const token = await generateMagicLinkToken(email, env.AUTH_SECRET);
+      magicLinkUrl = `${BASE_URL}/api/auth/verify?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+    }
+  } catch (err) {
+    console.error('Failed to generate magic link:', err);
+  }
   const subject = isUpgrade 
     ? `You've upgraded to ${newPlan}` 
     : `Your plan has been changed to ${newPlan}`;
@@ -433,7 +460,7 @@ async function sendPlanChangedEmail(env, email, name, oldPlan, newPlan, isUpgrad
         
         <!-- CTA Button -->
         <div style="text-align: center; margin: 30px 0;">
-          <a href="${BASE_URL}/portal" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Go to Dashboard →</a>
+          <a href="${magicLinkUrl}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Go to Dashboard →</a>
         </div>
         
         <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
@@ -470,7 +497,7 @@ Your new limits:
 
 ${isUpgrade ? upgradeMessage : downgradeMessage}
 
-Go to Dashboard: ${BASE_URL}/portal
+Go to Dashboard: ${magicLinkUrl}
 
 Questions? Just reply to this email.
 
@@ -480,9 +507,20 @@ Questions? Just reply to this email.
 }
 
 /**
- * Send cancellation email
+ * Send cancellation email with magic link
  */
 async function sendCancellationEmail(env, email, name, oldPlan) {
+  // Generate magic link token
+  let magicLinkUrl = `${BASE_URL}/portal`; // Default fallback
+  
+  try {
+    if (env.AUTH_SECRET) {
+      const token = await generateMagicLinkToken(email, env.AUTH_SECRET);
+      magicLinkUrl = `${BASE_URL}/api/auth/verify?token=${encodeURIComponent(token)}&email=${encodeURIComponent(email)}`;
+    }
+  } catch (err) {
+    console.error('Failed to generate magic link:', err);
+  }
   const subject = `Your Mineral Watch subscription has been cancelled`;
   
   const htmlBody = `
@@ -574,7 +612,7 @@ If you were over the Free plan limits, you'll need to remove extra properties be
 Changed your mind?
 You can resubscribe anytime from your dashboard. Your properties and wells will still be there.
 
-Go to Dashboard: ${BASE_URL}/portal
+Go to Dashboard: ${magicLinkUrl}
 
 We'd love to know why you left. Just reply to this email—feedback helps us improve.
 
@@ -748,6 +786,35 @@ async function updateUser(env, recordId, fields) {
   }
   
   return await response.json();
+}
+
+/**
+ * Generate a magic link token for auto-login
+ */
+async function generateMagicLinkToken(email, secret) {
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
+  
+  // Create signature to prevent tampering
+  const encoder = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign']
+  );
+  
+  const message = `${token}:${email}:${expires}`;
+  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  const signature = Array.from(new Uint8Array(signatureBuffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  
+  return `${token}:${expires}:${signature}`;
 }
 
 /**
