@@ -17,7 +17,8 @@ import {
 } from '../utils/responses.js';
 
 import {
-  authenticateRequest
+  authenticateRequest,
+  generateToken
 } from '../utils/auth.js';
 
 import {
@@ -226,7 +227,7 @@ export async function handleUpgrade(request: Request, env: Env) {
  * @param request The incoming request
  * @param env Worker environment
  * @param url URL object with session_id parameter
- * @returns Redirect response to portal
+ * @returns Redirect response to portal with magic link
  */
 export async function handleUpgradeSuccess(request: Request, env: Env, url: URL) {
   const sessionId = url.searchParams.get('session_id');
@@ -235,7 +236,40 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
     return Response.redirect(`${BASE_URL}/portal/upgrade?error=missing_session`, 302);
   }
   
-  // Webhook will handle the actual user creation/update
-  // Just redirect to dashboard with success message
-  return Response.redirect(`${BASE_URL}/portal?upgraded=true`, 302);
+  try {
+    // Retrieve the checkout session from Stripe
+    const sessionResponse = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${sessionId}`,
+      {
+        headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` }
+      }
+    );
+    
+    if (!sessionResponse.ok) {
+      console.error('Failed to retrieve checkout session');
+      return Response.redirect(`${BASE_URL}/portal/upgrade?error=session_not_found`, 302);
+    }
+    
+    const session = await sessionResponse.json();
+    const customerEmail = session.customer_email || session.customer_details?.email;
+    
+    if (!customerEmail) {
+      console.error('No customer email in checkout session');
+      return Response.redirect(`${BASE_URL}/portal/upgrade?error=no_email`, 302);
+    }
+    
+    // Generate magic link token directly
+    const token = await generateToken(customerEmail, env.AUTH_SECRET);
+    
+    // Redirect with magic link for auto-login
+    return Response.redirect(
+      `${BASE_URL}/api/auth/verify?token=${encodeURIComponent(token)}&email=${encodeURIComponent(customerEmail)}&redirect=portal?upgraded=true`, 
+      302
+    );
+    
+  } catch (err) {
+    console.error('Error in upgrade success handler:', err);
+    // Fallback to regular redirect
+    return Response.redirect(`${BASE_URL}/portal?upgraded=true`, 302);
+  }
 }
