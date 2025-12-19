@@ -292,6 +292,9 @@
                     <div class="info-row"><span class="info-label">Wells</span><span class="info-value"><span id="wellItems">0</span> / <span id="wellLimit">0</span></span></div>
                     <div class="info-row"><span class="info-label">Status</span><span class="info-value" id="status">—</span></div>
                     <button class="btn btn-secondary" id="manageBtn">Manage Subscription</button>
+                    <p class="billing-hint" id="billingHint" style="display:none; margin: 10px 0 0 0; font-size: 13px; color: var(--slate-blue);">
+                        Update payment method, download invoices, or cancel anytime
+                    </p>
                 </div>
                 <!-- Organization Section - Only shown for Professional/Enterprise -->
                 <div class="card full" id="organizationSection" style="display:none;">
@@ -410,9 +413,15 @@
                 // Hide upgrade box for Enterprise plans
                 if (plan.startsWith('Enterprise')) document.getElementById('upgradeBox').style.display = 'none';
                 
-                // Hide manage button if no Stripe Customer ID (Free user without billing history)
+                // Update manage button based on plan
+                const manageBtn = document.getElementById('manageBtn');
+                const billingHint = document.getElementById('billingHint');
                 if (!currentUser.stripeCustomerId) {
-                    document.getElementById('manageBtn').style.display = 'none';
+                    manageBtn.style.display = 'none';
+                } else if (plan !== 'Free') {
+                    // Show more explicit text for paid users
+                    manageBtn.innerHTML = 'Manage or Cancel Subscription';
+                    billingHint.style.display = 'block';
                 }
                 
                 // Get counts
