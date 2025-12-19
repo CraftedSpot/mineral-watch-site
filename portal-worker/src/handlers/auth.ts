@@ -198,7 +198,28 @@ export async function handleChangeEmail(request: Request, env: Env) {
     // Check if new email is already in use
     const existingUser = await findUserByEmail(env, normalizedNewEmail);
     if (existingUser) {
-      return jsonResponse({ error: "This email is already associated with another account" }, 409);
+      console.log(`Email change blocked: ${normalizedNewEmail} already exists (user: ${existingUser.id})`);
+      
+      // Provide more helpful error message
+      const existingPlan = existingUser.fields.Plan || 'Free';
+      if (existingPlan !== 'Free' || existingUser.fields["Stripe Customer ID"]) {
+        return jsonResponse({ 
+          error: "This email is already associated with an active account. Please use a different email address." 
+        }, 409);
+      } else {
+        return jsonResponse({ 
+          error: "This email is already associated with another account. If this is your email, please contact support@mymineralwatch.com for assistance." 
+        }, 409);
+      }
+    }
+    
+    // Check if user is an organization owner/admin
+    const userRecord = await findUserByEmail(env, currentEmail);
+    if (userRecord?.fields.Role === 'Admin' && userRecord?.fields.Organization?.length > 0) {
+      console.log(`Warning: Email change requested by organization admin: ${currentEmail}`);
+      
+      // You could add additional security here, like requiring confirmation from another admin
+      // For now, we'll just log it and allow the change
     }
     
     // Generate verification token
