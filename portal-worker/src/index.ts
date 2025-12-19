@@ -386,6 +386,12 @@ var index_default = {
         return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${token}`, 302);
       }
       
+      // Handle email change verification
+      if (path === "/portal/verify-email-change" && request.method === "GET") {
+        const { handleVerifyEmailChange } = await import('./handlers/auth.js');
+        return handleVerifyEmailChange(request, env, url);
+      }
+      
       // Handle invite token verification BEFORE auth proxy (different from regular magic links)
       if (path === "/api/auth/verify-invite" && request.method === "GET") {
         const { handleVerifyInvite } = await import('./handlers/organization.js');
@@ -396,6 +402,12 @@ var index_default = {
       if (path === "/api/auth/register" && request.method === "POST") {
         const { handleRegister } = await import('./handlers/auth.js');
         return handleRegister(request, env);
+      }
+      
+      // Handle email change requests
+      if (path === "/api/auth/change-email" && request.method === "POST") {
+        const { handleChangeEmail } = await import('./handlers/auth.js');
+        return handleChangeEmail(request, env);
       }
       
       // Proxy auth endpoints to auth-worker
