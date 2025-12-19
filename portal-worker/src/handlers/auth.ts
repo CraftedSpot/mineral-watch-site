@@ -266,3 +266,165 @@ export async function handleChangeEmail(request: Request, env: Env) {
     return jsonResponse({ error: "Failed to process email change request" }, 500);
   }
 }
+
+/**
+ * Handle email change verification
+ * @param request The incoming request
+ * @param env Worker environment
+ * @param url URL object with verification token
+ * @returns HTML response or redirect
+ */
+export async function handleVerifyEmailChange(request: Request, env: Env, url: URL) {
+  const token = url.searchParams.get("token");
+  
+  if (!token) {
+    return Response.redirect(`${BASE_URL}/portal/account?error=Invalid%20verification%20link`, 302);
+  }
+  
+  try {
+    // Verify the token
+    const payload = await verifyToken(token, env.AUTH_SECRET);
+    
+    // Check if token is expired
+    if (Date.now() > payload.exp) {
+      return Response.redirect(`${BASE_URL}/portal/account?error=Verification%20link%20expired`, 302);
+    }
+    
+    // Check if this is an email change token
+    if (payload.type !== 'email_change') {
+      return Response.redirect(`${BASE_URL}/portal/account?error=Invalid%20verification%20link`, 302);
+    }
+    
+    console.log(`Processing email change: ${payload.currentEmail} -> ${payload.newEmail}`);
+    
+    // Update the user's email in Airtable
+    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${payload.userId}`;
+    const updateResponse = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        fields: {
+          Email: payload.newEmail
+        }
+      })
+    });
+    
+    if (!updateResponse.ok) {
+      const err = await updateResponse.text();
+      console.error("Failed to update email in Airtable:", err);
+      return Response.redirect(`${BASE_URL}/portal/account?error=Failed%20to%20update%20email`, 302);
+    }
+    
+    console.log(`Email successfully changed for user ${payload.userId}: ${payload.currentEmail} -> ${payload.newEmail}`);
+    
+    // Send confirmation email to the OLD email address
+    await fetch("https://api.postmarkapp.com/email", {
+      method: "POST",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "X-Postmark-Server-Token": env.POSTMARK_API_KEY
+      },
+      body: JSON.stringify({
+        From: "support@mymineralwatch.com",
+        To: payload.currentEmail,
+        Subject: "Your Email Address Has Been Changed - Mineral Watch",
+        HtmlBody: `
+          <div style="font-family: sans-serif; max-width: 500px; margin: 0 auto;">
+            <h2 style="color: #1C2B36;">Email Address Changed</h2>
+            <p style="color: #334E68; font-size: 16px;">Hi,</p>
+            <p style="color: #334E68; font-size: 16px;">This is to confirm that your Mineral Watch email address has been successfully changed to <strong>${payload.newEmail}</strong>.</p>
+            <p style="color: #334E68; font-size: 16px;">You will now need to use your new email address to log in to Mineral Watch.</p>
+            <p style="color: #E53E3E; font-size: 16px;"><strong>If you did not make this change, please contact us immediately at support@mymineralwatch.com</strong></p>
+            <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
+            <p style="color: #A0AEC0; font-size: 12px;">Mineral Watch - Automated OCC monitoring for Oklahoma mineral owners</p>
+          </div>
+        `,
+        MessageStream: "outbound"
+      })
+    });
+    
+    // Return a success page that redirects to login
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Email Changed - Mineral Watch</title>
+        <style>
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: #f5f5f5;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+          }
+          .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            max-width: 400px;
+            text-align: center;
+          }
+          h1 {
+            color: #1C2B36;
+            margin-bottom: 20px;
+            font-size: 24px;
+          }
+          p {
+            color: #334E68;
+            margin-bottom: 20px;
+            font-size: 16px;
+            line-height: 1.5;
+          }
+          .success-icon {
+            width: 60px;
+            height: 60px;
+            background: #48BB78;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            color: white;
+            font-size: 30px;
+          }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="success-icon">✓</div>
+          <h1>Email Changed Successfully!</h1>
+          <p>Your email address has been updated to <strong>${payload.newEmail}</strong></p>
+          <p>Please use your new email address to log in.</p>
+          <p style="color: #718096; font-size: 14px;">Redirecting to login page in 5 seconds...</p>
+        </div>
+        <script>
+          setTimeout(() => {
+            window.location.href = '${BASE_URL}/portal/login?success=Email%20changed%20successfully';
+          }, 5000);
+        </script>
+      </body>
+      </html>
+    `;
+    
+    return new Response(html, {
+      status: 200,
+      headers: {
+        "Content-Type": "text/html"
+      }
+    });
+    
+  } catch (err) {
+    console.error("Email change verification error:", (err as Error).message);
+    return Response.redirect(`${BASE_URL}/portal/account?error=Invalid%20or%20expired%20link`, 302);
+  }
+}
