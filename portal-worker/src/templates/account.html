@@ -416,12 +416,20 @@
                 // Update manage button based on plan
                 const manageBtn = document.getElementById('manageBtn');
                 const billingHint = document.getElementById('billingHint');
-                if (!currentUser.stripeCustomerId) {
+                
+                // Only hide for Free users without any billing history
+                if (plan === 'Free' && !currentUser.stripeCustomerId) {
                     manageBtn.style.display = 'none';
+                    billingHint.style.display = 'none';
                 } else if (plan !== 'Free') {
                     // Show more explicit text for paid users
+                    manageBtn.style.display = 'block';
                     manageBtn.innerHTML = 'Manage or Cancel Subscription';
                     billingHint.style.display = 'block';
+                } else {
+                    // Free users with billing history can still manage
+                    manageBtn.style.display = 'block';
+                    billingHint.style.display = 'none';
                 }
                 
                 // Get counts
