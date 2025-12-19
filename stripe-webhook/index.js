@@ -789,17 +789,21 @@ async function updateUser(env, recordId, fields) {
 }
 
 /**
- * Generate a magic link token for auto-login
+ * Generate a magic link token for auto-login (compatible with auth-worker)
  */
 async function generateMagicLinkToken(email, secret) {
-  const token = Array.from(crypto.getRandomValues(new Uint8Array(32)))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-  
-  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours
-  
-  // Create signature to prevent tampering
   const encoder = new TextEncoder();
+  
+  // Create payload matching auth-worker format
+  const payload = {
+    email: email,
+    exp: Date.now() + 24 * 60 * 60 * 1000, // 24 hours in milliseconds
+    iat: Date.now()
+  };
+  
+  const data = JSON.stringify(payload);
+  
+  // Create HMAC signature
   const key = await crypto.subtle.importKey(
     'raw',
     encoder.encode(secret),
@@ -808,13 +812,13 @@ async function generateMagicLinkToken(email, secret) {
     ['sign']
   );
   
-  const message = `${token}:${email}:${expires}`;
-  const signatureBuffer = await crypto.subtle.sign('HMAC', key, encoder.encode(message));
-  const signature = Array.from(new Uint8Array(signatureBuffer))
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
   
-  return `${token}:${expires}:${signature}`;
+  // Convert to base64 (matching auth-worker format)
+  const dataBase64 = btoa(data);
+  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  
+  return `${dataBase64}.${sigBase64}`;
 }
 
 /**
