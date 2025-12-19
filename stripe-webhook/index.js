@@ -31,6 +31,10 @@ const PRICE_TO_PLAN = {
   // Professional - $99/mo, $950/yr
   "price_1SZZbu9OfJmRCDOqOp2YjT1N": "Professional", // monthly $99
   "price_1SZZbt9OfJmRCDOquMh7kSyI": "Professional", // annual $950
+  
+  // Enterprise 1K - $199/mo, $1910/yr
+  "price_PLACEHOLDER_ENT1K_MONTHLY": "Enterprise 1K", // monthly $199 - TODO: Replace with actual Stripe ID
+  "price_PLACEHOLDER_ENT1K_ANNUAL": "Enterprise 1K",  // annual $1910 - TODO: Replace with actual Stripe ID
 };
 
 // Plan limits for email content

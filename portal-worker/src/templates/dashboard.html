@@ -4377,6 +4377,7 @@
                             <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
                             <div><strong>Acres:</strong> <code>RI Acres</code> <code>RI</code> <code>WI Acres</code> <code>WI</code> <code>Total Acres</code> <code>Acres</code></div>
                             <div><strong>Group:</strong> <code>Group</code> <code>Entity</code></div>
+                            <div><strong>County:</strong> <code>County</code> <code>Co</code> <code>C</code></div>
                             <div><strong>Optional:</strong> County, Meridian, Group, RI Acres, WI Acres, Total Acres</div>
                             <div style="font-size: 12px; color: var(--slate-blue); margin-top: 8px;">💡 If only "Total Acres" is provided, it defaults to RI interest</div>
                         </div>
@@ -4390,10 +4391,10 @@
                             <div class="bulk-format"><code>S3</code> <span class="arrow">→</span> <code>03</code></div>
                             <div class="bulk-format"><code>12 N</code> <span class="arrow">→</span> <code>12N</code></div>
                             <div class="bulk-format"><code>T12N</code> <span class="arrow">→</span> <code>12N</code></div>
-                            <div class="bulk-format"><code>8W</code> <span class="arrow">→</span> <code>8W</code></div>
+                            <div class="bulk-format"><code>8w</code> <span class="arrow">→</span> <code>8W</code></div>
                             <div class="bulk-format"><code>R08W</code> <span class="arrow">→</span> <code>8W</code></div>
                         </div>
-                        <p class="bulk-note">Missing meridian defaults to IM (Indian Meridian)</p>
+                        <p class="bulk-note">Missing meridian: Panhandle counties (Cimarron, Texas, Beaver) default to CM, all others to IM</p>
                     </div>
                 </div>
             </div>
