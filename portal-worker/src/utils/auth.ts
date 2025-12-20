@@ -149,9 +149,16 @@ export async function generateSessionToken(env: Env, email: string, userId: stri
     encoder.encode(data)
   );
   
-  // Encode both parts as base64
-  const dataBase64 = btoa(data);
-  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
+  // Use URL-safe base64 encoding to prevent mobile email client issues
+  const dataBase64 = btoa(data)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+  
+  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
   
   // Return in the format expected by auth-worker
   return `${dataBase64}.${sigBase64}`;

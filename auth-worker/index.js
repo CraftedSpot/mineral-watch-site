@@ -352,8 +352,17 @@ async function generateToken(env, payload) {
   );
   
   const signature = await crypto.subtle.sign("HMAC", key, encoder.encode(data));
-  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)));
-  const dataBase64 = btoa(data);
+  
+  // Use URL-safe base64 encoding to prevent mobile email client issues
+  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
+  
+  const dataBase64 = btoa(data)
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=/g, '');
   
   return `${dataBase64}.${sigBase64}`;
 }
@@ -371,7 +380,13 @@ async function verifyToken(env, token) {
   const encoder = new TextEncoder();
   let data;
   try {
-    data = atob(dataBase64);
+    // Convert URL-safe base64 back to standard base64 before decoding
+    const standardDataBase64 = dataBase64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(dataBase64.length + (4 - dataBase64.length % 4) % 4, '=');
+    
+    data = atob(standardDataBase64);
   } catch (e) {
     console.error(`[Auth] Failed to decode token data: ${e.message}`);
     throw new Error("Invalid token encoding");
@@ -387,7 +402,13 @@ async function verifyToken(env, token) {
   
   let signature;
   try {
-    signature = Uint8Array.from(atob(sigBase64), (c) => c.charCodeAt(0));
+    // Convert URL-safe base64 back to standard base64 before decoding
+    const standardSigBase64 = sigBase64
+      .replace(/-/g, '+')
+      .replace(/_/g, '/')
+      .padEnd(sigBase64.length + (4 - sigBase64.length % 4) % 4, '=');
+    
+    signature = Uint8Array.from(atob(standardSigBase64), (c) => c.charCodeAt(0));
   } catch (e) {
     console.error(`[Auth] Failed to decode signature: ${e.message}`);
     throw new Error("Invalid signature encoding");
