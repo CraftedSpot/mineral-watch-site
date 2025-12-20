@@ -238,7 +238,7 @@
                 
                 <div class="step">
                     <div class="step-number">1</div>
-                    <p><strong>Check your email</strong> — We just sent you a login link to access your dashboard.</p>
+                    <p><strong>Check your email</strong> — We're sending your onboarding email and login link to: <strong id="customer-email" style="color: var(--red-dirt);">the email you used for payment</strong></p>
                 </div>
                 
                 <div class="step">
@@ -265,5 +265,31 @@
             <p>&copy; 2025 Mineral Watch. Built by owners, for owners.</p>
         </div>
     </footer>
+    
+    <script>
+        // Check if email was passed in URL (some Stripe integrations do this)
+        const urlParams = new URLSearchParams(window.location.search);
+        const email = urlParams.get('email');
+        const sessionId = urlParams.get('session_id');
+        
+        if (email) {
+            // Display the email if provided
+            document.getElementById('customer-email').textContent = email;
+        } else if (sessionId) {
+            // If we have a session ID, we could potentially fetch the email
+            // For now, just indicate they should check the payment email
+            document.getElementById('customer-email').innerHTML = 'the email associated with your payment method';
+        }
+        
+        // Add a note about Apple Pay / Google Pay email differences
+        const helpText = document.querySelector('.help-text');
+        if (helpText && !email) {
+            const applePayNote = document.createElement('p');
+            applePayNote.className = 'help-text';
+            applePayNote.style.marginTop = '10px';
+            applePayNote.innerHTML = '<strong>Note:</strong> If you used Apple Pay or Google Pay, check the email associated with that payment method, which may be different from your intended login email.';
+            helpText.parentNode.insertBefore(applePayNote, helpText.nextSibling);
+        }
+    </script>
 </body>
 </html>
