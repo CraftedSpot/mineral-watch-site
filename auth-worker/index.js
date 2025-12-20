@@ -482,8 +482,11 @@ async function sendMagicLinkEmail(env, email, name, magicLink) {
 
 async function updateLoginTracking(env, userId) {
   try {
+    const baseId = "app3j3X29Uvp5stza";
+    const tableId = "tblmb8sZtfn2EW900"; // 👤 Users table ID
+    
     // First get current login count
-    const userResponse = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Users/${userId}`, {
+    const userResponse = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}/${userId}`, {
       headers: {
         "Authorization": `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
         "Content-Type": "application/json"
@@ -499,7 +502,7 @@ async function updateLoginTracking(env, userId) {
     const currentLoginCount = userData.fields["Total Logins"] || 0;
     
     // Update last login and increment total logins
-    const updateResponse = await fetch(`https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/Users/${userId}`, {
+    const updateResponse = await fetch(`https://api.airtable.com/v0/${baseId}/${tableId}/${userId}`, {
       method: "PATCH",
       headers: {
         "Authorization": `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
