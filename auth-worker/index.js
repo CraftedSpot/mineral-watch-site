@@ -216,7 +216,7 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   // For CORS/API requests (from JavaScript), always return JSON
   if (wantsJson) {
     console.log(`[Auth] Returning JSON response for JavaScript request`);
-    return new Response(JSON.stringify({ 
+    const response = new Response(JSON.stringify({ 
       success: true, 
       sessionToken,
       redirect: '/portal'
@@ -224,20 +224,34 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
       status: 200,
       headers: {
         "Content-Type": "application/json",
-        ...corsHeaders,
-        "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+        ...corsHeaders
       }
     });
+    
+    // Clear any existing cookies first (in case switching accounts)
+    response.headers.append("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+    response.headers.append("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
+    
+    // Then set the new cookie
+    response.headers.append("Set-Cookie", `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
+    
+    return response;
   }
   
   // For direct browser requests, redirect
   const response = new Response(null, {
     status: 302,
     headers: {
-      "Location": `https://portal.mymineralwatch.com/portal`,
-      "Set-Cookie": `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`
+      "Location": `https://portal.mymineralwatch.com/portal`
     }
   });
+  
+  // Clear any existing cookies first (in case switching accounts)
+  response.headers.append("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+  response.headers.append("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
+  
+  // Then set the new cookie
+  response.headers.append("Set-Cookie", `${COOKIE_NAME}=${sessionToken}; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=2592000`);
   
   console.log(`User logged in: ${payload.email}`);
   return response;
