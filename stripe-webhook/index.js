@@ -206,12 +206,30 @@ async function handleSubscriptionUpdated(subscription, env) {
     airtableStatus = 'Trial';
   }
   
+  // Get existing plan history
+  const existingHistory = user.fields['Plan History'] || '';
+  let updatedHistory = existingHistory;
+  
+  // Add to history if plan changed
+  if (planChanged) {
+    const changeType = getPlanRank(newPlan) > getPlanRank(oldPlan) ? 'Upgraded to' : 'Downgraded to';
+    const historyEntry = `${new Date().toLocaleDateString()}: ${changeType} ${newPlan} (from ${oldPlan})`;
+    updatedHistory = existingHistory ? `${existingHistory}\n${historyEntry}` : historyEntry;
+  }
+  
   // Update user record
-  await updateUser(env, user.id, {
+  const updateFields = {
     'Plan': newPlan,
     'Status': airtableStatus,
     'Stripe Subscription ID': subscriptionId
-  });
+  };
+  
+  // Only update history if plan changed
+  if (planChanged) {
+    updateFields['Plan History'] = updatedHistory;
+  }
+  
+  await updateUser(env, user.id, updateFields);
   
   console.log(`Updated user ${userEmail}: Plan=${newPlan}, Status=${airtableStatus}`);
   
