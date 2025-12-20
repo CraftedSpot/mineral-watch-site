@@ -143,22 +143,32 @@ async function handleCheckoutComplete(session, env) {
   
   if (existingUser) {
     // Update existing user (e.g., Free user upgrading)
+    const oldPlan = existingUser.fields.Plan || 'Free';
+    const existingHistory = existingUser.fields['Plan History'] || '';
+    const historyEntry = `${new Date().toLocaleDateString()}: Subscribed to ${plan} plan` + 
+      (oldPlan !== 'Free' ? ` (from ${oldPlan})` : '');
+    const updatedHistory = existingHistory ? `${existingHistory}\n${historyEntry}` : historyEntry;
+    
     await updateUser(env, existingUser.id, {
       'Plan': plan,
       'Status': 'Active',
       'Stripe Customer ID': stripeCustomerId,
-      'Stripe Subscription ID': subscriptionId
+      'Stripe Subscription ID': subscriptionId,
+      'Plan History': updatedHistory
     });
     console.log(`Updated existing user: ${customerEmail} -> ${plan}`);
   } else {
     // Create new user
+    const historyEntry = `${new Date().toLocaleDateString()}: Subscribed to ${plan} plan`;
+    
     await createUser(env, {
       'Email': customerEmail,
       'Name': customerName,
       'Plan': plan,
       'Status': 'Active',
       'Stripe Customer ID': stripeCustomerId,
-      'Stripe Subscription ID': subscriptionId
+      'Stripe Subscription ID': subscriptionId,
+      'Plan History': historyEntry
     });
     console.log(`Created new user: ${customerEmail} with ${plan} plan`);
   }
