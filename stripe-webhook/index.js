@@ -230,6 +230,7 @@ async function handleSubscriptionDeleted(subscription, env) {
   const subscriptionId = subscription.id;
   
   console.log(`Subscription deleted: ${subscriptionId}`);
+  console.log(`Cancellation feedback:`, subscription.cancellation_details);
   
   // Find user by Stripe Customer ID
   const user = await findUserByStripeCustomerId(env, stripeCustomerId);
@@ -243,11 +244,38 @@ async function handleSubscriptionDeleted(subscription, env) {
   const userName = user.fields.Name || userEmail?.split('@')[0] || 'there';
   const oldPlan = user.fields.Plan || 'Free';
   
+  // Capture cancellation details
+  const cancellationDate = new Date().toISOString();
+  const cancellationReason = subscription.cancellation_details?.reason || null;
+  const cancellationFeedback = subscription.cancellation_details?.comment || null;
+  
+  // Map Stripe reasons to our Airtable options
+  const reasonMap = {
+    'too_expensive': 'Too expensive',
+    'missing_features': 'Technical issues',
+    'switched_service': 'Switching to competitor',
+    'unused': 'Not using it enough',
+    'customer_service': 'Technical issues',
+    'too_complex': 'Technical issues',
+    'low_quality': 'Technical issues',
+    'other': 'Other'
+  };
+  
+  // Get existing plan history
+  const existingHistory = user.fields['Plan History'] || '';
+  const historyEntry = `${new Date().toLocaleDateString()}: Cancelled ${oldPlan} plan` + 
+    (cancellationReason ? ` (Reason: ${reasonMap[cancellationReason] || cancellationReason})` : '');
+  const updatedHistory = existingHistory ? `${existingHistory}\n${historyEntry}` : historyEntry;
+  
   // Revert to Free plan but keep Stripe Customer ID (for potential resubscription)
   await updateUser(env, user.id, {
     'Plan': 'Free',
     'Status': 'Active',
-    'Stripe Subscription ID': ''  // Clear subscription ID
+    'Stripe Subscription ID': '',  // Clear subscription ID
+    'Cancellation Date': cancellationDate,
+    'Cancellation Reason': reasonMap[cancellationReason] || null,
+    'Cancellation Feedback': cancellationFeedback || null,
+    'Plan History': updatedHistory
   });
   
   console.log(`User ${userEmail} reverted to Free plan after cancellation`);
