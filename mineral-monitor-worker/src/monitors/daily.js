@@ -159,7 +159,14 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
   // Bottom hole handling
   if (recordType === 'permit') {
     // Check for horizontal/directional wells in permits
-    const isHorizontal = record.Drill_Type === 'HH' || record.Drill_Type === 'DH';
+    // Check drill type fields
+    const isHorizontalByType = record.Drill_Type === 'HH' || record.Drill_Type === 'DH';
+    
+    // Check well name patterns (common horizontal well naming conventions)
+    const wellName = record.Well_Name || '';
+    const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+    
+    const isHorizontal = isHorizontalByType || isHorizontalByName;
     
     if (isHorizontal && record.PBH_Section && record.PBH_Township && record.PBH_Range) {
       const bhKey = `${normalizeSection(record.PBH_Section)}|${record.PBH_Township}|${record.PBH_Range}|${record.PM || 'IM'}`;
@@ -757,9 +764,20 @@ async function processCompletion(completion, env, results, dryRun = false, prope
   const alertsToSend = [];
   
   // Check if this is a horizontal well
-  const isHorizontal = completion.Drill_Type === 'HORIZONTAL HOLE' || 
-                      completion.Drill_Type === 'HH' ||
-                      completion.Location_Type_Sub === 'HH';
+  // Check drill type fields
+  const isHorizontalByType = completion.Drill_Type === 'HORIZONTAL HOLE' || 
+                            completion.Drill_Type === 'HH' ||
+                            completion.Location_Type_Sub === 'HH';
+  
+  // Check well name patterns (common horizontal well naming conventions)
+  const wellName = completion.Well_Name || '';
+  const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+  
+  const isHorizontal = isHorizontalByType || isHorizontalByName;
+  
+  if (isHorizontalByName && !isHorizontalByType) {
+    console.log(`[Daily] Detected horizontal well by name pattern: ${wellName} (${api10})`);
+  }
   
   // 1. Check property matches (surface location)
   const propertyMatches = propertyMap && userCache
