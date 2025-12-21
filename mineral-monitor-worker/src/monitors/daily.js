@@ -152,23 +152,26 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
   
   // Determine if this is a horizontal well
   let isHorizontal = false;
+  let isConfirmedVertical = false;
+  
   if (recordType === 'permit') {
-    // Check drill type fields (primary detection method)
-    const isHorizontalByType = record.Drill_Type === 'HH' || 
-                              record.Drill_Type === 'DH' ||
-                              record.Location_Type_Sub === 'HH';
+    // Check if explicitly marked as straight hole (vertical)
+    isConfirmedVertical = record.Drill_Type === 'SH' || record.Drill_Type === 'STRAIGHT HOLE';
     
-    // Check well name patterns (fallback method when drill type fields are null)
-    const wellName = record.Well_Name || '';
-    const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+    // If not confirmed vertical, assume it could be horizontal
+    isHorizontal = !isConfirmedVertical;
     
-    isHorizontal = isHorizontalByType || isHorizontalByName;
+    if (isConfirmedVertical) {
+      console.log(`[Permit] ${record.API_Number} confirmed vertical (Drill_Type: ${record.Drill_Type})`);
+    } else {
+      console.log(`[Permit] ${record.API_Number} assumed horizontal (Drill_Type: ${record.Drill_Type || 'NULL'})`);
+    }
   }
   
   // Add adjacent sections for surface
-  // For horizontal permits without BH data, use extended 5x5 grid (24 adjacents)
-  // For everything else, use standard 3x3 grid (8 adjacents)
-  if (recordType === 'permit' && isHorizontal && (!record.PBH_Section || !record.PBH_Township || !record.PBH_Range)) {
+  // For permits: SH = 3x3, everything else = 5x5 (unless they have BH data)
+  // For completions: use standard 3x3 grid
+  if (recordType === 'permit' && !isConfirmedVertical && (!record.PBH_Section || !record.PBH_Township || !record.PBH_Range)) {
     // Horizontal permit without BH data - use extended radius
     const extendedAdjacents = getExtendedAdjacentSections(parseInt(normalizedSection, 10), record.Township, record.Range);
     for (const adj of extendedAdjacents) {
@@ -184,7 +187,8 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
   
   // Bottom hole handling
   if (recordType === 'permit') {
-    if (isHorizontal && record.PBH_Section && record.PBH_Township && record.PBH_Range) {
+    // For any permit with BH data (regardless of drill type), calculate the path
+    if (record.PBH_Section && record.PBH_Township && record.PBH_Range) {
       // Horizontal permit WITH proposed BH data - calculate the actual path
       const surfaceLocation = {
         section: normalizedSection,
@@ -533,20 +537,12 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     });
   }
   
-  // 2. For horizontal wells, also check bottom hole location
-  // Check drill type fields (primary detection method)
-  const isHorizontalByType = permit.Drill_Type === 'HH' || 
-                            permit.Drill_Type === 'DH' ||
-                            permit.Location_Type_Sub === 'HH';
+  // 2. For permits with BH data, check the entire path
+  // For permits: assume horizontal unless explicitly marked as SH (Straight Hole)
+  const isConfirmedVertical = permit.Drill_Type === 'SH' || permit.Drill_Type === 'STRAIGHT HOLE';
   
-  // Check well name patterns (fallback method when drill type fields are null)
-  const wellName = permit.Well_Name || '';
-  const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
-  
-  const isHorizontal = isHorizontalByType || isHorizontalByName;
-  
-  if (isHorizontal) {
-    if (permit.PBH_Section && permit.PBH_Township && permit.PBH_Range) {
+  // If permit has BH data, calculate the path regardless of drill type
+  if (permit.PBH_Section && permit.PBH_Township && permit.PBH_Range) {
       // Horizontal permit WITH proposed BH data - check the entire path
       const surfaceLocation = {
         section: permit.Section,

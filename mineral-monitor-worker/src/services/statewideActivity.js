@@ -225,16 +225,9 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
       return fallback;
     })(),
     isHorizontal: (() => {
-      // Check drill type fields (primary detection method)
-      const isHorizontalByType = permit.Drill_Type === 'HH' || 
-                                permit.Drill_Type === 'DH' ||
-                                permit.Location_Type_Sub === 'HH';
-      
-      // Check well name patterns (fallback method when drill type fields are null)
-      const wellName = permit.Well_Name || '';
-      const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
-      
-      return isHorizontalByType || isHorizontalByName;
+      // For permits: assume horizontal unless explicitly marked as SH (Straight Hole)
+      const isConfirmedVertical = permit.Drill_Type === 'SH' || permit.Drill_Type === 'STRAIGHT HOLE';
+      return !isConfirmedVertical;
     })()
   };
   
