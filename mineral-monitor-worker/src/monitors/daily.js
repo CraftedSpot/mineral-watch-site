@@ -499,7 +499,16 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   }
   
   // 2. For horizontal wells, also check bottom hole location
-  if (permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH') {
+  // Check drill type fields
+  const isHorizontalByType = permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH';
+  
+  // Check well name patterns (common horizontal well naming conventions)
+  const wellName = permit.Well_Name || '';
+  const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+  
+  const isHorizontal = isHorizontalByType || isHorizontalByName;
+  
+  if (isHorizontal) {
     if (permit.PBH_Section && permit.PBH_Township && permit.PBH_Range) {
       const bhMatches = propertyMap && userCache
         ? await findMatchesInMap({
