@@ -390,7 +390,7 @@ async function updateStatewideActivity(env, recordId, activityData) {
   }
   
   // Update other fields
-  if (activityData.isHorizontal \!== undefined) updateFields["Is Horizontal"] = activityData.isHorizontal;
+  if (activityData.isHorizontal !== undefined) updateFields["Is Horizontal"] = activityData.isHorizontal;
   if (activityData.mapLink) updateFields["OCC Map Link"] = activityData.mapLink;
   
   try {
