@@ -183,13 +183,32 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
   // Bottom hole handling
   if (recordType === 'permit') {
     if (isHorizontal && record.PBH_Section && record.PBH_Township && record.PBH_Range) {
-      const bhKey = `${normalizeSection(record.PBH_Section)}|${record.PBH_Township}|${record.PBH_Range}|${record.PM || 'IM'}`;
-      sectionsSet.add(bhKey);
+      // Horizontal permit WITH proposed BH data - calculate the actual path
+      const surfaceLocation = {
+        section: normalizedSection,
+        township: record.Township,
+        range: record.Range
+      };
       
-      // Add adjacent sections for BH
-      const bhAdjacents = getAdjacentSections(parseInt(normalizeSection(record.PBH_Section), 10), record.PBH_Township, record.PBH_Range);
-      for (const adj of bhAdjacents) {
-        sectionsSet.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${record.PM || 'IM'}`);
+      const proposedBHLocation = {
+        section: normalizeSection(record.PBH_Section),
+        township: record.PBH_Township,
+        range: record.PBH_Range
+      };
+      
+      // Calculate all sections along the proposed horizontal path
+      const horizontalPath = calculateHorizontalPath(surfaceLocation, proposedBHLocation);
+      
+      // Add all sections in the path
+      for (const pathSection of horizontalPath) {
+        const pathKey = `${normalizeSection(pathSection.section)}|${pathSection.township}|${pathSection.range}|${record.PM || 'IM'}`;
+        sectionsSet.add(pathKey);
+        
+        // Also add adjacent sections for each section in the path
+        const pathAdjacents = getAdjacentSections(parseInt(pathSection.section, 10), pathSection.township, pathSection.range);
+        for (const adj of pathAdjacents) {
+          sectionsSet.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${record.PM || 'IM'}`);
+        }
       }
     }
   } else if (recordType === 'completion') {
@@ -524,30 +543,60 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   
   if (isHorizontal) {
     if (permit.PBH_Section && permit.PBH_Township && permit.PBH_Range) {
-      const bhMatches = propertyMap && userCache
-        ? await findMatchesInMap({
-            section: permit.PBH_Section,
-            township: permit.PBH_Township,
-            range: permit.PBH_Range,
-            meridian: permit.PM
-          }, propertyMap, userCache, env)
-        : await findMatchingProperties({
-            section: permit.PBH_Section,
-            township: permit.PBH_Township,
-            range: permit.PBH_Range,
-            meridian: permit.PM,
-            county: permit.County
-          }, env);
+      // Horizontal permit WITH proposed BH data - check the entire path
+      const surfaceLocation = {
+        section: permit.Section,
+        township: permit.Township,
+        range: permit.Range
+      };
       
-      for (const match of bhMatches) {
-        // Avoid duplicate alerts to same user
-        if (!alertsToSend.some(a => a.user.email === match.user.email)) {
-          alertsToSend.push({
-            user: match.user,
-            alertLevel: match.alertLevel,
-            matchedLocation: match.matchedSection,
-            reason: 'bottom_hole_location'
-          });
+      const proposedBHLocation = {
+        section: permit.PBH_Section,
+        township: permit.PBH_Township,
+        range: permit.PBH_Range
+      };
+      
+      // Calculate all sections along the proposed horizontal path
+      const horizontalPath = calculateHorizontalPath(surfaceLocation, proposedBHLocation);
+      
+      // Check for property matches along the entire path
+      for (const pathSection of horizontalPath) {
+        const pathMatches = propertyMap && userCache
+          ? await findMatchesInMap({
+              section: pathSection.section,
+              township: pathSection.township,
+              range: pathSection.range,
+              meridian: permit.PM
+            }, propertyMap, userCache, env)
+          : await findMatchingProperties({
+              section: pathSection.section,
+              township: pathSection.township,
+              range: pathSection.range,
+              meridian: permit.PM,
+              county: permit.County
+            }, env);
+        
+        for (const match of pathMatches) {
+          // Avoid duplicate alerts to same user
+          if (!alertsToSend.some(a => a.user.email === match.user.email)) {
+            const isInPath = pathSection.section === permit.Section && 
+                           pathSection.township === permit.Township && 
+                           pathSection.range === permit.Range;
+            const isBH = pathSection.section === permit.PBH_Section && 
+                        pathSection.township === permit.PBH_Township && 
+                        pathSection.range === permit.PBH_Range;
+            
+            let reason = 'horizontal_path';
+            if (isInPath) reason = 'surface_location';
+            else if (isBH) reason = 'bottom_hole_location';
+            
+            alertsToSend.push({
+              user: match.user,
+              alertLevel: match.alertLevel,
+              matchedLocation: match.matchedSection,
+              reason: reason
+            });
+          }
         }
       }
     }
