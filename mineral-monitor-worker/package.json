@@ -12,6 +12,7 @@
     "tail": "wrangler tail"
   },
   "dependencies": {
+    "dotenv": "^17.2.3",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {

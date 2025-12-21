@@ -39,7 +39,13 @@ export async function createStatewideActivity(env, activityData) {
   if (activityData.section) fields['Surface Section'] = normalizeSection(activityData.section);
   if (activityData.township) fields['Surface Township'] = activityData.township;
   if (activityData.range) fields['Surface Range'] = activityData.range;
-  // Note: PM field might not exist in the table
+  if (activityData.pm) fields['Surface PM'] = activityData.pm;
+  
+  // Bottom hole location data for horizontal wells
+  if (activityData.bhSection) fields['BH Section'] = normalizeSection(activityData.bhSection);
+  if (activityData.bhTownship) fields['BH Township'] = activityData.bhTownship;
+  if (activityData.bhRange) fields['BH Range'] = activityData.bhRange;
+  if (activityData.bhPM) fields['BH PM'] = activityData.bhPM;
   
   // Coordinates - REQUIRED for heatmap
   if (activityData.latitude !== undefined && activityData.latitude !== null) {
@@ -275,11 +281,18 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
     activityData.longitude = wellCoords.sh_lon;
   }
   
-  // Extract BH coordinates if available for horizontal wells
-  if (completion.Drill_Type === 'HORIZONTAL HOLE') {
-    if (completion.BH_Lat_Y && completion.BH_Long_X) {
-      const bhLatitude = parseFloat(completion.BH_Lat_Y);
-      const bhLongitude = parseFloat(completion.BH_Long_X);
+  // Extract BH coordinates and location if available for horizontal wells
+  if (completion.Drill_Type === 'HORIZONTAL HOLE' || completion.Drill_Type === 'HH') {
+    // Add bottom hole section/township/range data
+    if (completion.BH_Section) activityData.bhSection = completion.BH_Section;
+    if (completion.BH_Township) activityData.bhTownship = completion.BH_Township;
+    if (completion.BH_Range) activityData.bhRange = completion.BH_Range;
+    if (completion.BH_PM) activityData.bhPM = completion.BH_PM;
+    
+    // Extract bottom hole coordinates - note the field names are different from permits
+    if (completion.Bottom_Hole_Lat_Y && completion.Bottom_Hole_Long_X) {
+      const bhLatitude = parseFloat(completion.Bottom_Hole_Lat_Y);
+      const bhLongitude = parseFloat(completion.Bottom_Hole_Long_X);
       
       // Validate BH coordinates are reasonable for Oklahoma
       if (!isNaN(bhLatitude) && !isNaN(bhLongitude) && 
@@ -290,6 +303,10 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
         console.log(`[Statewide] Using OCC completion BH coordinates for ${completion.API_Number}: ${bhLatitude}, ${bhLongitude}`);
       }
     }
+    
+    // Add direction and length if available
+    if (completion.Direction) activityData.direction = parseFloat(completion.Direction);
+    if (completion.Length) activityData.length = parseFloat(completion.Length);
   }
   
   // Add map link if available
