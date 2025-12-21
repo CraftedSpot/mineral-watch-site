@@ -22,7 +22,7 @@ import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 // Operator lookups handled by contact-handler and weekly worker
-import { getAdjacentSections } from '../utils/plss.js';
+import { getAdjacentSections, getExtendedAdjacentSections } from '../utils/plss.js';
 import { 
   upsertWellLocation, 
   createWellLocationFromPermit, 
@@ -150,15 +150,9 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
   const surfaceKey = `${normalizedSection}|${record.Township}|${record.Range}|${record.PM || 'IM'}`;
   sectionsSet.add(surfaceKey);
   
-  // Add adjacent sections for surface
-  const adjacents = getAdjacentSections(parseInt(normalizedSection, 10), record.Township, record.Range);
-  for (const adj of adjacents) {
-    sectionsSet.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${record.PM || 'IM'}`);
-  }
-  
-  // Bottom hole handling
+  // Determine if this is a horizontal well
+  let isHorizontal = false;
   if (recordType === 'permit') {
-    // Check for horizontal/directional wells in permits
     // Check drill type fields
     const isHorizontalByType = record.Drill_Type === 'HH' || record.Drill_Type === 'DH';
     
@@ -166,8 +160,28 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
     const wellName = record.Well_Name || '';
     const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
     
-    const isHorizontal = isHorizontalByType || isHorizontalByName;
-    
+    isHorizontal = isHorizontalByType || isHorizontalByName;
+  }
+  
+  // Add adjacent sections for surface
+  // For horizontal permits without BH data, use extended 5x5 grid (24 adjacents)
+  // For everything else, use standard 3x3 grid (8 adjacents)
+  if (recordType === 'permit' && isHorizontal && (!record.PBH_Section || !record.PBH_Township || !record.PBH_Range)) {
+    // Horizontal permit without BH data - use extended radius
+    const extendedAdjacents = getExtendedAdjacentSections(parseInt(normalizedSection, 10), record.Township, record.Range);
+    for (const adj of extendedAdjacents) {
+      sectionsSet.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${record.PM || 'IM'}`);
+    }
+  } else {
+    // Standard 3x3 adjacents for vertical wells and completions with precise data
+    const adjacents = getAdjacentSections(parseInt(normalizedSection, 10), record.Township, record.Range);
+    for (const adj of adjacents) {
+      sectionsSet.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${record.PM || 'IM'}`);
+    }
+  }
+  
+  // Bottom hole handling
+  if (recordType === 'permit') {
     if (isHorizontal && record.PBH_Section && record.PBH_Township && record.PBH_Range) {
       const bhKey = `${normalizeSection(record.PBH_Section)}|${record.PBH_Township}|${record.PBH_Range}|${record.PM || 'IM'}`;
       sectionsSet.add(bhKey);
