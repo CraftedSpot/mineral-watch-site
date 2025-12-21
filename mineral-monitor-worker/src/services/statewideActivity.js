@@ -230,7 +230,7 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
       
       // Check well name patterns (common horizontal well naming conventions)
       const wellName = permit.Well_Name || '';
-      const isHorizontalByName = /\d+[HM]H?[XMW]?$|[XMHW]+H[XMHW]*$|H\d+$|-H$|_H$/i.test(wellName);
+      const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
       
       return isHorizontalByType || isHorizontalByName;
     })()
@@ -309,7 +309,7 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
       
       // Check well name patterns (common horizontal well naming conventions)
       const wellName = completion.Well_Name || '';
-      const isHorizontalByName = /\d+[HM]H?[XMW]?$|[XMHW]+H[XMHW]*$|H\d+$|-H$|_H$/i.test(wellName);
+      const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
       
       return isHorizontalByType || isHorizontalByName;
     })()
