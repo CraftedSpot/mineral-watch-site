@@ -158,7 +158,7 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
     
     // Check well name patterns (common horizontal well naming conventions)
     const wellName = record.Well_Name || '';
-    const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+    const isHorizontalByName = /\d+[HM]H?[XMW]?$|[XMHW]+H[XMHW]*$|H\d+$|-H$|_H$/i.test(wellName);
     
     isHorizontal = isHorizontalByType || isHorizontalByName;
   }
