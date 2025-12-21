@@ -600,7 +600,6 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         }
       }
     }
-  }
   
   // 3. Check tracked well matches
   const wellMatches = await findMatchingWells(api10, env);
