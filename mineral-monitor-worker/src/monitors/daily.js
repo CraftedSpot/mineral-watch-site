@@ -158,7 +158,7 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
     
     // Check well name patterns (common horizontal well naming conventions)
     const wellName = record.Well_Name || '';
-    const isHorizontalByName = /\d+[HM]H?[XMW]?$|[XMHW]+H[XMHW]*$|H\d+$|-H$|_H$/i.test(wellName);
+    const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
     
     isHorizontal = isHorizontalByType || isHorizontalByName;
   }
@@ -537,7 +537,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   
   // Check well name patterns (common horizontal well naming conventions)
   const wellName = permit.Well_Name || '';
-  const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+  const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
   
   const isHorizontal = isHorizontalByType || isHorizontalByName;
   
