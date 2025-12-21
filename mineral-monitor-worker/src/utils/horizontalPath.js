@@ -56,6 +56,7 @@ function sectionToGrid(section, township, range) {
   let y = 0;
   
   // Township position (6 miles per township)
+  // Townships are contiguous - no gaps between them
   if (twp.direction === 'N') {
     y = (twp.value - 1) * 6;
   } else { // 'S'
@@ -71,7 +72,10 @@ function sectionToGrid(section, township, range) {
   
   // Add section offset within township
   x += col;
-  y += row;
+  // For north townships, rows increase as you go north (up)
+  // Row 0 is at the bottom of the township, row 5 is at the top
+  // But our grid has y increasing northward, so we need to reverse
+  y += (5 - row);
   
   return { x, y };
 }
@@ -91,7 +95,8 @@ function gridToSection(x, y) {
   const range = `${rngValue}${rngDirection}`;
   
   // Determine section within township
-  const sectionRow = Math.abs(y) % 6;
+  // Since we reversed rows in sectionToGrid, we need to reverse back
+  const sectionRow = 5 - (Math.abs(y) % 6);
   const sectionCol = Math.abs(x) % 6;
   
   let section;
