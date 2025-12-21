@@ -28,6 +28,7 @@ import {
   createWellLocationFromPermit, 
   createWellLocationFromCompletion 
 } from '../services/wellLocations.js';
+import { calculateHorizontalPath } from '../utils/horizontalPath.js';
 import {
   createStatewideActivity,
   createStatewideActivityFromPermit,
@@ -785,8 +786,9 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     });
   }
   
-  // 2. For horizontal wells, also check bottom hole location
+  // 2. For horizontal wells, also check bottom hole location AND the path between
   if (isHorizontal && completion.BH_Section && completion.BH_Township && completion.BH_Range) {
+    // First check bottom hole location
     const bhMatches = propertyMap && userCache
       ? await findMatchesInMap({
           section: completion.BH_Section,
@@ -815,6 +817,72 @@ async function processCompletion(completion, env, results, dryRun = false, prope
           reason: 'bottom_hole_location'
         });
       }
+    }
+    
+    // NEW: Check all sections along the horizontal path
+    try {
+      const surfaceLocation = {
+        section: completion.Section,
+        township: completion.Township,
+        range: completion.Range
+      };
+      const bottomHoleLocation = {
+        section: completion.BH_Section,
+        township: completion.BH_Township,
+        range: completion.BH_Range
+      };
+      
+      const pathSections = calculateHorizontalPath(surfaceLocation, bottomHoleLocation);
+      console.log(`[Daily] Horizontal well ${api10} passes through ${pathSections.length} sections`);
+      
+      // Check each section along the path for property matches
+      for (const pathSection of pathSections) {
+        // Skip if we already checked this section (surface or BH)
+        if ((pathSection.section === completion.Section && 
+             pathSection.township === completion.Township && 
+             pathSection.range === completion.Range) ||
+            (pathSection.section === completion.BH_Section && 
+             pathSection.township === completion.BH_Township && 
+             pathSection.range === completion.BH_Range)) {
+          continue;
+        }
+        
+        const pathMatches = propertyMap && userCache
+          ? await findMatchesInMap({
+              section: pathSection.section,
+              township: pathSection.township,
+              range: pathSection.range,
+              meridian: completion.PM
+            }, propertyMap, userCache, env)
+          : await findMatchingProperties({
+              section: pathSection.section,
+              township: pathSection.township,
+              range: pathSection.range,
+              meridian: completion.PM,
+              county: completion.County
+            }, env);
+        
+        for (const match of pathMatches) {
+          // Special alert level for horizontal path
+          const pathAlertLevel = match.alertLevel === 'YOUR PROPERTY' 
+            ? 'HORIZONTAL PATH THROUGH PROPERTY' 
+            : 'HORIZONTAL PATH ADJACENT';
+          
+          if (!alertsToSend.some(a => 
+            a.user.email === match.user.email && 
+            a.matchedLocation === match.matchedSection
+          )) {
+            alertsToSend.push({
+              user: match.user,
+              alertLevel: pathAlertLevel,
+              matchedLocation: match.matchedSection,
+              reason: 'horizontal_path'
+            });
+          }
+        }
+      }
+    } catch (err) {
+      console.error(`[Daily] Error calculating horizontal path for ${api10}:`, err.message);
     }
   }
   
