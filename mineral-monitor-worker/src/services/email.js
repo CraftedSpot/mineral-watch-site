@@ -220,6 +220,23 @@ function getActivityStyle(activityType) {
  * Get contextual explanation based on activity type
  */
 function getExplanation(activityType, alertLevel, isMultiSection = false, isDirectional = false, statusChange = null) {
+  // Handle special horizontal path alert levels
+  if (alertLevel === 'HORIZONTAL PATH THROUGH PROPERTY') {
+    return {
+      meaning: 'A horizontal well passes through your property section. While the surface location is elsewhere, the wellbore travels underground through your minerals.',
+      tip: 'You should be included in the drilling unit and receive royalties if you own minerals in this section.',
+      tipType: 'warning'
+    };
+  }
+  
+  if (alertLevel === 'HORIZONTAL PATH ADJACENT') {
+    return {
+      meaning: 'A horizontal well passes near your property. The wellbore travels underground through a section adjacent to yours.',
+      tip: 'Your minerals may be included in the drilling unit depending on spacing rules and drainage patterns.',
+      tipType: 'info'
+    };
+  }
+  
   const explanations = {
     'New Permit': {
       meaning: alertLevel === 'YOUR PROPERTY' 
