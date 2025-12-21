@@ -405,7 +405,7 @@ async function updateStatewideActivity(env, recordId, activityData) {
       body: JSON.stringify({ fields: updateFields })
     });
     
-    if (\!updateResponse.ok) {
+    if (!updateResponse.ok) {
       const errorText = await updateResponse.text();
       console.error(`[Statewide] Update failed for ${recordId}:`, errorText);
       return { success: false, error: errorText };
