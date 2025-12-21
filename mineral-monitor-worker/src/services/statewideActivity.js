@@ -20,6 +20,44 @@ export async function createStatewideActivity(env, activityData) {
     return { success: false, error: 'No API number provided' };
   }
   
+  // First, check if a record already exists for this API
+  try {
+    const existingUrl = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_STATEWIDE_ACTIVITY_TABLE}?filterByFormula={API Number}='${apiNumber}'&maxRecords=1`;
+    
+    const existingResponse = await fetch(existingUrl, {
+      headers: {
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (existingResponse.ok) {
+      const existingData = await existingResponse.json();
+      if (existingData.records && existingData.records.length > 0) {
+        // Record exists - update it if we have new data
+        const existingRecord = existingData.records[0];
+        const recordId = existingRecord.id;
+        const existingFields = existingRecord.fields;
+        
+        // Only update if we have MORE data than existing record
+        const hasNewBHData = (activityData.bhLatitude && !existingFields['BH Latitude']) ||
+                            (activityData.bhSection && !existingFields['BH Section']);
+        const hasNewCoords = (activityData.latitude && !existingFields['Latitude']);
+        
+        if (hasNewBHData || hasNewCoords || activityData.activityType === 'Completion') {
+          console.log(`[Statewide] Updating existing record for ${apiNumber} with new data`);
+          return await updateStatewideActivity(env, recordId, activityData);
+        } else {
+          console.log(`[Statewide] Record already exists for ${apiNumber}, skipping`);
+          return { success: true, action: 'skipped', id: recordId };
+        }
+      }
+    }
+  } catch (err) {
+    console.warn(`[Statewide] Error checking existing record for ${apiNumber}:`, err.message);
+    // Continue with creation if check fails
+  }
+  
   // Build fields object
   const fields = {
     'API Number': apiNumber,
