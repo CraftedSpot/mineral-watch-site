@@ -153,10 +153,12 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
   // Determine if this is a horizontal well
   let isHorizontal = false;
   if (recordType === 'permit') {
-    // Check drill type fields
-    const isHorizontalByType = record.Drill_Type === 'HH' || record.Drill_Type === 'DH';
+    // Check drill type fields (primary detection method)
+    const isHorizontalByType = record.Drill_Type === 'HH' || 
+                              record.Drill_Type === 'DH' ||
+                              record.Location_Type_Sub === 'HH';
     
-    // Check well name patterns (common horizontal well naming conventions)
+    // Check well name patterns (fallback method when drill type fields are null)
     const wellName = record.Well_Name || '';
     const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
     
@@ -532,10 +534,12 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   }
   
   // 2. For horizontal wells, also check bottom hole location
-  // Check drill type fields
-  const isHorizontalByType = permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH';
+  // Check drill type fields (primary detection method)
+  const isHorizontalByType = permit.Drill_Type === 'HH' || 
+                            permit.Drill_Type === 'DH' ||
+                            permit.Location_Type_Sub === 'HH';
   
-  // Check well name patterns (common horizontal well naming conventions)
+  // Check well name patterns (fallback method when drill type fields are null)
   const wellName = permit.Well_Name || '';
   const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
   
