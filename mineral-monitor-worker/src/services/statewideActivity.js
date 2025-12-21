@@ -301,7 +301,18 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
     pm: completion.PM || 'IM',
     formation: completion.Formation_Name,
     completionDate: (completion.Well_Completion && completion.Well_Completion.trim()) || new Date().toISOString(),
-    isHorizontal: completion.Drill_Type === 'HORIZONTAL HOLE'
+    isHorizontal: (() => {
+      // Check drill type
+      const isHorizontalByType = completion.Drill_Type === 'HORIZONTAL HOLE' || 
+                                 completion.Drill_Type === 'HH' ||
+                                 completion.Location_Type_Sub === 'HH';
+      
+      // Check well name patterns (common horizontal well naming conventions)
+      const wellName = completion.Well_Name || '';
+      const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+      
+      return isHorizontalByType || isHorizontalByName;
+    })()
   };
   
   // First priority: Extract coordinates directly from OCC completion data
