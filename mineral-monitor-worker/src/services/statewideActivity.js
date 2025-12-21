@@ -261,7 +261,7 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
   }
   
   // Extract BH coordinates if available for horizontal wells
-  if (permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH') {
+  if (activityData.isHorizontal) {
     if (permit.BH_Lat_Y && permit.BH_Long_X) {
       const bhLatitude = parseFloat(permit.BH_Lat_Y);
       const bhLongitude = parseFloat(permit.BH_Long_X);
