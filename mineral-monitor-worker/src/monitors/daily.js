@@ -843,7 +843,7 @@ async function processCompletion(completion, env, results, dryRun = false, prope
   
   // Check well name patterns (common horizontal well naming conventions)
   const wellName = completion.Well_Name || '';
-  const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+  const isHorizontalByName = /\d+H$|\d+MH$|\d+HX$|\d+HXX$|\d+HM$|\d+HW$|\d+WH$|\d+XHM$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
   
   const isHorizontal = isHorizontalByType || isHorizontalByName;
   
