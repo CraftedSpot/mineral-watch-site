@@ -579,24 +579,25 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     }
   }
   
-  // Step 1: ALWAYS write to Statewide Activity if ANY coordinates available (including fallback)
+  // Step 1: ALWAYS write to Statewide Activity, even without coordinates
   try {
+    // Create wellData-like object with coordinates if available
+    const activityWellData = wellData || {};
     if (coordinates) {
-      // Create wellData-like object with coordinates for statewide activity
-      const activityWellData = wellData || {};
       activityWellData.sh_lat = coordinates.latitude;
       activityWellData.sh_lon = coordinates.longitude;
-      
-      const activityData = createStatewideActivityFromPermit(permit, activityWellData, mapLink);
-      const activityResult = await createStatewideActivity(env, activityData);
-      if (activityResult.success) {
-        console.log(`[Daily] Statewide activity created for permit ${api10} using ${coordinateSource} coordinates (heatmap tracking)`);
-      } else {
-        console.error(`[Daily] Failed to store statewide activity for permit ${api10}: ${activityResult.error}`);
-      }
+      console.log(`[Daily] Creating statewide activity for permit ${api10} with ${coordinateSource} coordinates`);
     } else {
-      console.log(`[Daily] Skipping statewide activity for permit ${api10} - no coordinates available from any source`);
+      console.log(`[Daily] Creating statewide activity for permit ${api10} WITHOUT coordinates - will use Section-Township-Range location`);
       results.coordinateFailures = (results.coordinateFailures || 0) + 1;
+    }
+    
+    const activityData = createStatewideActivityFromPermit(permit, activityWellData, mapLink);
+    const activityResult = await createStatewideActivity(env, activityData);
+    if (activityResult.success) {
+      console.log(`[Daily] Statewide activity created for permit ${api10}${coordinates ? ` with ${coordinateSource} coordinates` : ' using TRS location only'}`);
+    } else {
+      console.error(`[Daily] Failed to store statewide activity for permit ${api10}: ${activityResult.error}`);
     }
   } catch (err) {
     console.error(`[Daily] Error storing statewide activity for permit ${api10}:`, err.message);
@@ -873,24 +874,25 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     }
   }
   
-  // Step 1: ALWAYS write to Statewide Activity if ANY coordinates available (including fallback)
+  // Step 1: ALWAYS write to Statewide Activity, even without coordinates
   try {
+    // Create wellData-like object with coordinates if available
+    const activityWellData = wellData || {};
     if (coordinates) {
-      // Create wellData-like object with coordinates for statewide activity
-      const activityWellData = wellData || {};
       activityWellData.sh_lat = coordinates.latitude;
       activityWellData.sh_lon = coordinates.longitude;
-      
-      const activityData = createStatewideActivityFromCompletion(completion, activityWellData, mapLink);
-      const activityResult = await createStatewideActivity(env, activityData);
-      if (activityResult.success) {
-        console.log(`[Daily] Statewide activity created for completion ${api10} using ${coordinateSource} coordinates (heatmap tracking)`);
-      } else {
-        console.error(`[Daily] Failed to store statewide activity for completion ${api10}: ${activityResult.error}`);
-      }
+      console.log(`[Daily] Creating statewide activity for completion ${api10} with ${coordinateSource} coordinates`);
     } else {
-      console.log(`[Daily] Skipping statewide activity for completion ${api10} - no coordinates available from any source`);
+      console.log(`[Daily] Creating statewide activity for completion ${api10} WITHOUT coordinates - will use Section-Township-Range location`);
       results.coordinateFailures = (results.coordinateFailures || 0) + 1;
+    }
+    
+    const activityData = createStatewideActivityFromCompletion(completion, activityWellData, mapLink);
+    const activityResult = await createStatewideActivity(env, activityData);
+    if (activityResult.success) {
+      console.log(`[Daily] Statewide activity created for completion ${api10}${coordinates ? ` with ${coordinateSource} coordinates` : ' using TRS location only'}`);
+    } else {
+      console.error(`[Daily] Failed to store statewide activity for completion ${api10}: ${activityResult.error}`);
     }
   } catch (err) {
     console.error(`[Daily] Error storing statewide activity for completion ${api10}:`, err.message);

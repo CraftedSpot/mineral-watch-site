@@ -297,6 +297,12 @@ export async function getCoordinatesWithFallback(api10, record, env) {
     return result;
   }
 
+  // Log details about why OCC GIS failed
+  if (wellData) {
+    console.log(`[Coordinates] OCC GIS response for ${api10}: sh_lat=${wellData.sh_lat}, sh_lon=${wellData.sh_lon}, missingCoordinates=${wellData.missingCoordinates}`);
+  } else {
+    console.log(`[Coordinates] OCC GIS returned no data for ${api10}`);
+  }
   console.log(`[Coordinates] OCC GIS failed for ${api10}, trying TRS calculation`);
 
   // Step 2: Try TRS calculation
