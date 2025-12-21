@@ -224,7 +224,16 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
       console.log(`[Debug] Using fallback permit date: "${fallback}"`);
       return fallback;
     })(),
-    isHorizontal: permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH'
+    isHorizontal: (() => {
+      // Check drill type
+      const isHorizontalByType = permit.Drill_Type === 'HH' || permit.Drill_Type === 'DH';
+      
+      // Check well name patterns (common horizontal well naming conventions)
+      const wellName = permit.Well_Name || '';
+      const isHorizontalByName = /\d+H$|MXH$|HXH$|BXH$|SXH$|UXH$|LXH$|H\d+$|-H$|_H$/i.test(wellName);
+      
+      return isHorizontalByType || isHorizontalByName;
+    })()
   };
   
   // First priority: Extract coordinates directly from OCC permit data
