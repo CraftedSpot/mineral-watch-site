@@ -340,7 +340,7 @@ export function createStatewideActivityFromCompletion(completion, wellCoords = n
   }
   
   // Extract BH coordinates and location if available for horizontal wells
-  if (completion.Drill_Type === 'HORIZONTAL HOLE' || completion.Drill_Type === 'HH') {
+  if (activityData.isHorizontal) {
     // Add bottom hole section/township/range data
     if (completion.BH_Section) activityData.bhSection = completion.BH_Section;
     if (completion.BH_Township) activityData.bhTownship = completion.BH_Township;
