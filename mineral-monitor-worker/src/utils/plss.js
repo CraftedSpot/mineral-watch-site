@@ -238,6 +238,83 @@ function adjustRange(range, delta) {
 }
 
 /**
+ * Get the extended 5x5 grid of sections (24 adjacent sections, 2 sections out in each direction)
+ * Used for horizontal permits without BH data
+ * 
+ * @param {number} section - Section number (1-36)
+ * @param {string} township - Township string (e.g., "28N")
+ * @param {string} range - Range string (e.g., "19W")
+ * @returns {Array} - Array of { section, township, range } objects
+ */
+export function getExtendedAdjacentSections(section, township, range) {
+  const extended = [];
+  
+  // Get row and column position in the township grid
+  const { row, col } = getSectionPosition(section);
+  
+  // For a 5x5 grid, we go 2 sections out in each direction
+  // This includes the 8 immediate adjacent plus 16 more in the outer ring
+  for (let dr = -2; dr <= 2; dr++) {
+    for (let dc = -2; dc <= 2; dc++) {
+      // Skip the center section (0,0)
+      if (dr === 0 && dc === 0) continue;
+      
+      const newRow = row + dr;
+      const newCol = col + dc;
+      
+      let adjSection, adjTownship = township, adjRange = range;
+      
+      // Handle township/range boundary crossings
+      let townshipDelta = 0;
+      let rangeDelta = 0;
+      
+      // Check row boundaries
+      if (newRow < 0) {
+        townshipDelta = Math.ceil(Math.abs(newRow) / 6);
+        adjTownship = adjustTownship(township, townshipDelta);
+      } else if (newRow > 5) {
+        townshipDelta = -Math.ceil((newRow - 5) / 6);
+        adjTownship = adjustTownship(township, townshipDelta);
+      }
+      
+      // Check column boundaries
+      if (newCol < 0) {
+        rangeDelta = Math.ceil(Math.abs(newCol) / 6);
+        adjRange = adjustRange(range, rangeDelta);
+      } else if (newCol > 5) {
+        rangeDelta = -Math.ceil((newCol - 5) / 6);
+        adjRange = adjustRange(range, rangeDelta);
+      }
+      
+      // Calculate the section position within the adjusted township/range
+      let finalRow = ((newRow % 6) + 6) % 6;
+      let finalCol = ((newCol % 6) + 6) % 6;
+      
+      // Handle negative modulo correctly
+      if (newRow < 0 && newRow % 6 !== 0) {
+        finalRow = 6 + (newRow % 6);
+      }
+      if (newCol < 0 && newCol % 6 !== 0) {
+        finalCol = 6 + (newCol % 6);
+      }
+      
+      adjSection = getSectionFromPosition(finalRow, finalCol);
+      
+      if (adjSection !== undefined) {
+        extended.push({
+          section: adjSection,
+          township: adjTownship,
+          range: adjRange,
+          distance: Math.max(Math.abs(dr), Math.abs(dc)) // Manhattan distance
+        });
+      }
+    }
+  }
+  
+  return extended;
+}
+
+/**
  * Check if two S-T-R locations are adjacent
  * @param {Object} loc1 - { section, township, range }
  * @param {Object} loc2 - { section, township, range }
