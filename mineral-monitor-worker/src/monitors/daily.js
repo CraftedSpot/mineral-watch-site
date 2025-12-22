@@ -1222,24 +1222,25 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       coordinateSource: coordinateSource
     };
     
-    const activityRecord = await createActivityLog(env, activityData);
+    // Don't create activity log here - it will be created during batch email sending
     
-    // Send email and update Email Sent status
-    try {
-      await sendAlertEmail(env, {
-        to: alert.user.email,
-        userName: alert.user.name,
+    // Collect alert for batch sending
+    if (userAlertMap) {
+      const alertData = {
+        user: alert.user,
         alertLevel: alert.alertLevel,
         activityType: 'Well Completed',
         wellName: activityData.wellName,
         operator: activityData.operator,
+        operatorPhone: operatorPhone,
         location: activityData.sectionTownshipRange,
         county: completion.County,
         occLink: null, // Completions don't have IMAGE_URL field
         mapLink: mapLink || null,
         apiNumber: api10,
         wellType: wellData?.welltype || null,
-        userId: alert.user.id,
+        formation: activityData.formation,
+        coordinateSource: coordinateSource,
         // Horizontal well data
         isMultiSection: isMultiSection,
         bhLocation: bhLocationStr,
@@ -1254,13 +1255,57 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         spudDate: completion.Spud,
         completionDate: completion.Well_Completion,
         firstProdDate: completion.First_Prod
-      });
+      };
       
-      // Email sent successfully - update activity log
-      await updateActivityLog(env, activityRecord.id, { 'Email Sent': true });
-      console.log(`[Daily] Email sent and activity updated for ${alert.user.email} on ${api10}`);
-    } catch (emailError) {
-      console.error(`[Daily] Failed to send email to ${alert.user.email}: ${emailError.message}`);
+      // Add alert to user's alert list
+      const userId = alert.user.id;
+      if (!userAlertMap.has(userId)) {
+        userAlertMap.set(userId, []);
+      }
+      userAlertMap.get(userId).push(alertData);
+      
+      console.log(`[Completion] Queued alert for ${alert.user.email} for ${wellName}`);
+    } else {
+      // Fallback to immediate sending (for other monitors)
+      const activityRecord = await createActivityLog(env, activityData);
+      
+      try {
+        await sendAlertEmail(env, {
+          to: alert.user.email,
+          userName: alert.user.name,
+          alertLevel: alert.alertLevel,
+          activityType: 'Well Completed',
+          wellName: activityData.wellName,
+          operator: activityData.operator,
+          location: activityData.sectionTownshipRange,
+          county: completion.County,
+          occLink: null, // Completions don't have IMAGE_URL field
+          mapLink: mapLink || null,
+          apiNumber: api10,
+          wellType: wellData?.welltype || null,
+          userId: alert.user.id,
+          // Horizontal well data
+          isMultiSection: isMultiSection,
+          bhLocation: bhLocationStr,
+          lateralLength: completion.Length || completion.Lateral_Length || null,
+          // Production data
+          formationName: completion.Formation_Name,
+          formationDepth: completion.Formation_Depth,
+          ipGas: completion.Gas_MCF_Per_Day,
+          ipOil: completion.Oil_BBL_Per_Day,
+          ipWater: completion.Water_BBL_Per_Day,
+          pumpingFlowing: completion.Pumping_Flowing || null,
+          spudDate: completion.Spud,
+          completionDate: completion.Well_Completion,
+          firstProdDate: completion.First_Prod
+        });
+        
+        await updateActivityLog(env, activityRecord.id, { 'Email Sent': true });
+        console.log(`[Daily] Email sent and activity updated for ${alert.user.email} on ${api10}`);
+      } catch (emailError) {
+        console.error(`[Daily] Failed to send email to ${alert.user.email}: ${emailError.message}`);
+        // Activity log remains with Email Sent = false
+      }
     }
     
     results.alertsSent++;
