@@ -359,6 +359,9 @@ export async function runDailyMonitor(env) {
     errors: []
   };
   
+  // Map to collect alerts by user for batching
+  const userAlertMap = new Map();
+  
   try {
     // OPTIMIZATION 1: Load already-processed APIs
     const processedAPIs = await loadProcessedAPIs(env);
@@ -440,7 +443,7 @@ export async function runDailyMonitor(env) {
     // Process permits with the optimizations
     for (const permit of newPermits) {
       try {
-        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts);
+        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap);
         results.permitsProcessed++;
         
         // Mark as processed
@@ -455,7 +458,7 @@ export async function runDailyMonitor(env) {
     // Process completions with the optimizations
     for (const completion of newCompletions) {
       try {
-        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts);
+        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap);
         results.completionsProcessed++;
         
         // Mark as processed with date to allow multiple zone completions
@@ -470,6 +473,19 @@ export async function runDailyMonitor(env) {
     
     // Save updated processed APIs
     await saveProcessedAPIs(env, processedAPIs);
+    
+    // Send batched emails
+    if (userAlertMap.size > 0) {
+      console.log(`[Daily] Sending batched emails to ${userAlertMap.size} users`);
+      const emailResults = await sendBatchedEmails(env, userAlertMap, dryRun);
+      results.alertsSent = emailResults.alertsSent;
+      console.log(`[Daily] Sent ${emailResults.emailsSent} emails containing ${emailResults.alertsSent} alerts`);
+      
+      if (emailResults.errors.length > 0) {
+        console.error('[Daily] Email errors:', emailResults.errors);
+        results.errors.push(...emailResults.errors);
+      }
+    }
     
   } catch (err) {
     console.error('[Daily] Fatal error:', err);
