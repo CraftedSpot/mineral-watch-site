@@ -7,6 +7,19 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     
+    // Health check endpoint
+    if (request.method === 'GET' && url.pathname === '/') {
+      return new Response(JSON.stringify({
+        service: 'mineral-watch-webhooks',
+        status: 'healthy',
+        endpoints: {
+          postmark: '/postmark'
+        }
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+    
     // Only handle POST to /postmark endpoint
     if (request.method !== 'POST' || url.pathname !== '/postmark') {
       return new Response('Not Found', { status: 404 });
