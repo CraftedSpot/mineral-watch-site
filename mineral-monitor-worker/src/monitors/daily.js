@@ -873,7 +873,7 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
 /**
  * Process a single completion record
  */
-async function processCompletion(completion, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null) {
+async function processCompletion(completion, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null) {
   const api10 = normalizeAPI(completion.API_Number);
   
   // Try to get enhanced completion data from cache (if available)
