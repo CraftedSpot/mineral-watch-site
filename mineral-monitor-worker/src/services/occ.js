@@ -105,6 +105,21 @@ export async function fetchOCCFile(fileType, env) {
 }
 
 /**
+ * Convert Excel numeric date to JavaScript Date
+ * @param {number|string} excelDate - Excel date number or string date
+ * @returns {Date} - JavaScript Date object
+ */
+function parseExcelDate(excelDate) {
+  if (typeof excelDate === 'number') {
+    // Excel dates are days since 1900-01-01 (with leap year bug)
+    // JavaScript dates are milliseconds since 1970-01-01
+    return new Date((excelDate - 25569) * 86400 * 1000);
+  }
+  // If it's already a string, parse it normally
+  return new Date(excelDate);
+}
+
+/**
  * Filter records to ensure we only process recent filings
  * @param {Array} records - Parsed records
  * @param {string} fileType - Type of file
@@ -125,7 +140,7 @@ function filterRecentRecords(records, fileType) {
     let dateField;
     switch (fileType) {
       case 'itd':
-        dateField = record.Approval_Date || record.Submit_Date;
+        dateField = record.Approval_Date || record.Submit_Date || record.Create_Date;
         break;
       case 'completions':
         dateField = record.Create_Date || record.Created_Date || record.DATE_CREATED;
@@ -143,17 +158,24 @@ function filterRecentRecords(records, fileType) {
     }
     
     try {
-      const recordDate = new Date(dateField);
+      const recordDate = parseExcelDate(dateField);
+      
+      // Validate the parsed date
+      if (isNaN(recordDate.getTime())) {
+        console.log(`[OCC] Invalid date for '${dateField}' (type: ${typeof dateField}) - including record`);
+        return true; // Include if date is invalid
+      }
+      
       const isRecent = recordDate >= tenDaysAgo;
       if (!isRecent) {
         filteredCount++;
         if (filteredCount <= 3) { // Log first 3 filtered records
-          console.log(`[OCC] Filtering out old record: ${dateField} (API ${record.API_Number || record['API Number'] || 'unknown'})`);
+          console.log(`[OCC] Filtering out old record: ${recordDate.toISOString()} from ${dateField} (API ${record.API_Number || record['API Number'] || 'unknown'})`);
         }
       }
       return isRecent;
     } catch (err) {
-      console.log(`[OCC] Date parsing failed for '${dateField}' - including record`);
+      console.log(`[OCC] Date parsing failed for '${dateField}' - ${err.message} - including record`);
       return true; // Include if date parsing fails
     }
   });
