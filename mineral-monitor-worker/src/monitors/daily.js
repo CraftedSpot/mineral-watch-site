@@ -788,25 +788,26 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
       coordinateSource: coordinateSource
     };
     
-    const activityRecord = await createActivityLog(env, activityData);
+    // Don't create activity log here - it will be created during batch email sending
     
-    // Send email and update Email Sent status
-    try {
-      await sendAlertEmail(env, {
-        to: alert.user.email,
-        userName: alert.user.name,
+    // Collect alert for batch sending
+    if (userAlertMap) {
+      const alertData = {
+        user: alert.user,
         alertLevel: alert.alertLevel,
         activityType: activityType,
         wellName: activityData.wellName,
         operator: permit.Entity_Name,
+        operatorPhone: operatorPhone,
         location: activityData.sectionTownshipRange,
         county: permit.County,
-        occLink: permit.IMAGE_URL,
+        occLink: permit.IMAGE_URL || null,
         mapLink: mapLink || null,
         drillType: permit.Drill_Type,
         apiNumber: api10,
         wellType: wellData?.welltype || null,
-        userId: alert.user.id,
+        formation: activityData.formation,
+        coordinateSource: coordinateSource,
         // Additional permit data
         approvalDate: permit.Approval_Date,
         expireDate: permit.Expire_Date,
@@ -816,14 +817,53 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         bhRange: permit.PBH_Range,
         // Horizontal well data
         isMultiSection: false
-      });
+      };
       
-      // Email sent successfully - update activity log
-      await updateActivityLog(env, activityRecord.id, { 'Email Sent': true });
-      console.log(`[Daily] Email sent and activity updated for ${alert.user.email} on ${api10}`);
-    } catch (emailError) {
-      console.error(`[Daily] Failed to send email to ${alert.user.email}: ${emailError.message}`);
-      // Activity log remains with Email Sent = false
+      // Add alert to user's alert list
+      const userId = alert.user.id;
+      if (!userAlertMap.has(userId)) {
+        userAlertMap.set(userId, []);
+      }
+      userAlertMap.get(userId).push(alertData);
+      
+      console.log(`[Permit] Queued alert for ${alert.user.email} for ${wellName}`);
+    } else {
+      // Fallback to immediate sending (for other monitors)
+      const activityRecord = await createActivityLog(env, activityData);
+      
+      try {
+        await sendAlertEmail(env, {
+          to: alert.user.email,
+          userName: alert.user.name,
+          alertLevel: alert.alertLevel,
+          activityType: activityType,
+          wellName: activityData.wellName,
+          operator: permit.Entity_Name,
+          location: activityData.sectionTownshipRange,
+          county: permit.County,
+          occLink: permit.IMAGE_URL,
+          mapLink: mapLink || null,
+          drillType: permit.Drill_Type,
+          apiNumber: api10,
+          wellType: wellData?.welltype || null,
+          userId: alert.user.id,
+          // Additional permit data
+          approvalDate: permit.Approval_Date,
+          expireDate: permit.Expire_Date,
+          // Bottom hole location for directional wells
+          bhSection: permit.PBH_Section,
+          bhTownship: permit.PBH_Township,
+          bhRange: permit.PBH_Range,
+          // Horizontal well data
+          isMultiSection: false
+        });
+        
+        await updateActivityLog(env, activityRecord.id, { 'Email Sent': true });
+        console.log(`[Daily] Email sent and activity updated for ${alert.user.email} on ${api10}`);
+      } catch (emailError) {
+        console.error(`[Daily] Failed to send email to ${alert.user.email}: ${emailError.message}`);
+        // Activity log remains with Email Sent = false
+      }
     }
     
     results.alertsSent++;
