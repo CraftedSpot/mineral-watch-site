@@ -18,6 +18,7 @@ import {
   batchGetUsers 
 } from '../services/airtable.js';
 import { sendAlertEmail } from '../services/email.js';
+import { sendBatchedEmails } from '../services/emailBatch.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
