@@ -23,36 +23,11 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false) {
   // Process each user's alerts
   for (const [userId, userAlerts] of userAlertMap.entries()) {
     try {
-      // Group alerts by category
-      const permitAlerts = userAlerts.filter(a => a.activityType === 'Intent to Drill - New Permit');
-      const completionAlerts = userAlerts.filter(a => a.activityType === 'Well Completed');
-      const transferAlerts = userAlerts.filter(a => a.activityType === 'Operator Transfer');
-
-      // Send batched email for permits
-      if (permitAlerts.length > 0) {
-        const sent = await sendBatchedCategoryEmail(env, userId, permitAlerts, 'permits', dryRun);
-        if (sent) {
-          results.emailsSent++;
-          results.alertsSent += permitAlerts.length;
-        }
-      }
-
-      // Send batched email for completions
-      if (completionAlerts.length > 0) {
-        const sent = await sendBatchedCategoryEmail(env, userId, completionAlerts, 'completions', dryRun);
-        if (sent) {
-          results.emailsSent++;
-          results.alertsSent += completionAlerts.length;
-        }
-      }
-
-      // Send batched email for transfers
-      if (transferAlerts.length > 0) {
-        const sent = await sendBatchedCategoryEmail(env, userId, transferAlerts, 'transfers', dryRun);
-        if (sent) {
-          results.emailsSent++;
-          results.alertsSent += transferAlerts.length;
-        }
+      // Send one email per user with all their alerts
+      const sent = await sendBatchedUserEmail(env, userId, userAlerts, dryRun);
+      if (sent) {
+        results.emailsSent++;
+        results.alertsSent += userAlerts.length;
       }
     } catch (error) {
       console.error(`[EmailBatch] Error processing user ${userId}:`, error);
@@ -64,9 +39,9 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false) {
 }
 
 /**
- * Send a batched email for a specific category
+ * Send a batched email for a specific user with all their alerts
  */
-async function sendBatchedCategoryEmail(env, userId, alerts, category, dryRun) {
+async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
   if (alerts.length === 0) return false;
   
   // Get user info from first alert
@@ -75,9 +50,9 @@ async function sendBatchedCategoryEmail(env, userId, alerts, category, dryRun) {
   const userName = firstAlert.user.name;
 
   if (dryRun) {
-    console.log(`[EmailBatch] DRY RUN: Would send ${category} email to ${userEmail} with ${alerts.length} alerts`);
+    console.log(`[EmailBatch] DRY RUN: Would send email to ${userEmail} with ${alerts.length} alerts`);
     alerts.forEach(a => {
-      console.log(`  - ${a.wellName} (${a.apiNumber}) - ${a.alertLevel}`);
+      console.log(`  - ${a.wellName} (${a.apiNumber}) - ${a.alertLevel} [${a.activityType}]`);
     });
     return true;
   }
@@ -105,14 +80,6 @@ async function sendBatchedCategoryEmail(env, userId, alerts, category, dryRun) {
     activityRecords.push(record);
   }
 
-  // Determine email type based on category and count
-  let emailType = 'single';
-  if (alerts.length > 1) {
-    emailType = category === 'permits' ? 'multiple-permits' : 
-                 category === 'completions' ? 'multiple-completions' : 
-                 'multiple-transfers';
-  }
-
   try {
     // Send the batched email
     if (alerts.length === 1) {
@@ -123,7 +90,6 @@ async function sendBatchedCategoryEmail(env, userId, alerts, category, dryRun) {
       await sendBatchedAlertEmail(env, {
         to: userEmail,
         userName: userName,
-        category: category,
         alerts: alerts,
         userId: userId
       });
@@ -134,10 +100,10 @@ async function sendBatchedCategoryEmail(env, userId, alerts, category, dryRun) {
       await updateActivityLog(env, record.id, { 'Email Sent': true });
     }
 
-    console.log(`[EmailBatch] Sent ${category} email to ${userEmail} with ${alerts.length} alerts`);
+    console.log(`[EmailBatch] Sent email to ${userEmail} with ${alerts.length} alerts`);
     return true;
   } catch (emailError) {
-    console.error(`[EmailBatch] Failed to send ${category} email to ${userEmail}:`, emailError.message);
+    console.error(`[EmailBatch] Failed to send email to ${userEmail}:`, emailError.message);
     // Activity logs remain with Email Sent = false
     return false;
   }
@@ -147,24 +113,29 @@ async function sendBatchedCategoryEmail(env, userId, alerts, category, dryRun) {
  * Send a batched alert email with multiple wells
  */
 async function sendBatchedAlertEmail(env, data) {
-  const { to, userName, category, alerts, userId } = data;
+  const { to, userName, alerts, userId } = data;
   
   // Group alerts by alert level
   const yourPropertyAlerts = alerts.filter(a => a.alertLevel === 'YOUR PROPERTY');
   const adjacentAlerts = alerts.filter(a => a.alertLevel === 'ADJACENT TO YOUR PROPERTY');
   const trackedAlerts = alerts.filter(a => a.alertLevel === 'TRACKED WELL');
 
-  // Build email subject
-  let subject = '';
-  const totalCount = alerts.length;
+  // Count by activity type
+  const permitCount = alerts.filter(a => a.activityType === 'Intent to Drill - New Permit').length;
+  const completionCount = alerts.filter(a => a.activityType === 'Well Completed').length;
   
-  if (category === 'permits') {
-    subject = `${totalCount} New Drilling Permit${totalCount > 1 ? 's' : ''} Filed`;
-  } else if (category === 'completions') {
-    subject = `${totalCount} Well Completion${totalCount > 1 ? 's' : ''} Reported`;
-  } else {
-    subject = `${totalCount} Operator Transfer${totalCount > 1 ? 's' : ''}`;
+  // Build email subject
+  let subject = 'MyMineralWatch Alert: ';
+  const parts = [];
+  
+  if (permitCount > 0) {
+    parts.push(`${permitCount} New Permit${permitCount > 1 ? 's' : ''}`);
   }
+  if (completionCount > 0) {
+    parts.push(`${completionCount} Completion${completionCount > 1 ? 's' : ''}`);
+  }
+  
+  subject += parts.join(' & ');
 
   // Add priority indicator
   if (yourPropertyAlerts.length > 0) {
@@ -178,8 +149,7 @@ async function sendBatchedAlertEmail(env, data) {
       
       <p style="color: #475569; margin-bottom: 24px;">
         Hello ${userName || 'there'},<br><br>
-        We've detected ${totalCount} ${category === 'permits' ? 'new drilling permit' : category === 'completions' ? 'well completion' : 'operator transfer'}${totalCount > 1 ? 's' : ''} 
-        that may affect your mineral interests:
+        We've detected the following activity that may affect your mineral interests:
       </p>
   `;
 
@@ -222,10 +192,11 @@ async function sendBatchedAlertEmail(env, data) {
       To: to,
       Subject: subject,
       HtmlBody: htmlContent,
-      Tag: `batch-${category}`,
+      Tag: 'batch-daily',
       Metadata: {
-        category: category,
-        alertCount: totalCount.toString(),
+        permitCount: permitCount.toString(),
+        completionCount: completionCount.toString(),
+        alertCount: alerts.length.toString(),
         userId: userId
       }
     })
@@ -260,10 +231,10 @@ function buildAlertSection(title, alerts, color) {
           ${alert.wellName}
         </h4>
         <p style="margin: 0 0 4px 0; color: #64748b; font-size: 14px;">
-          ${alert.operator} • ${alert.location}
+          <strong>${alert.activityType}</strong> • ${alert.operator}
         </p>
-        <p style="margin: 0 0 8px 0; color: #64748b; font-size: 14px;">
-          API: ${alert.apiNumber}
+        <p style="margin: 0 0 4px 0; color: #64748b; font-size: 14px;">
+          ${alert.location} • API: ${alert.apiNumber}
         </p>
     `;
 
