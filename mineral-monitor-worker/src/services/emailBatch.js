@@ -7,6 +7,12 @@ import { sendAlertEmail } from './email.js';
 import { createActivityLog, updateActivityLog } from './airtable.js';
 
 /**
+ * Simple delay function for rate limiting
+ * @param {number} ms - Milliseconds to delay
+ */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Process and send batched emails for all collected alerts
  * @param {Object} env - Worker environment
  * @param {Map} userAlertMap - Map of userId -> array of alerts
@@ -57,9 +63,10 @@ async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
     return true;
   }
 
-  // Create activity logs for all alerts
+  // Create activity logs for all alerts with rate limiting
   const activityRecords = [];
-  for (const alert of alerts) {
+  for (let i = 0; i < alerts.length; i++) {
+    const alert = alerts[i];
     const activityData = {
       wellName: alert.wellName,
       apiNumber: alert.apiNumber,
@@ -78,6 +85,11 @@ async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
 
     const record = await createActivityLog(env, activityData);
     activityRecords.push(record);
+    
+    // Add 200ms delay between Airtable writes (except after the last one)
+    if (i < alerts.length - 1) {
+      await delay(200);
+    }
   }
 
   try {
@@ -95,9 +107,15 @@ async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
       });
     }
 
-    // Update all activity logs to mark emails as sent
-    for (const record of activityRecords) {
+    // Update all activity logs to mark emails as sent with rate limiting
+    for (let i = 0; i < activityRecords.length; i++) {
+      const record = activityRecords[i];
       await updateActivityLog(env, record.id, { 'Email Sent': true });
+      
+      // Add 200ms delay between Airtable updates (except after the last one)
+      if (i < activityRecords.length - 1) {
+        await delay(200);
+      }
     }
 
     console.log(`[EmailBatch] Sent email to ${userEmail} with ${alerts.length} alerts`);

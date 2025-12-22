@@ -22,8 +22,14 @@ import { sendBatchedEmails } from '../services/emailBatch.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
-// Operator lookups handled by contact-handler and weekly worker
 import { getAdjacentSections, getExtendedAdjacentSections } from '../utils/plss.js';
+// Operator lookups handled by contact-handler and weekly worker
+
+/**
+ * Simple delay function for rate limiting Airtable operations
+ * @param {number} ms - Milliseconds to delay
+ */
+const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 import { 
   upsertWellLocation, 
   createWellLocationFromPermit, 
@@ -441,7 +447,8 @@ export async function runDailyMonitor(env) {
     console.log(`[Daily] Batch loaded ${userCache.size} users for property matching`);
     
     // Process permits with the optimizations
-    for (const permit of newPermits) {
+    for (let i = 0; i < newPermits.length; i++) {
+      const permit = newPermits[i];
       try {
         await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap);
         results.permitsProcessed++;
@@ -449,6 +456,12 @@ export async function runDailyMonitor(env) {
         // Mark as processed
         const api = normalizeAPI(permit.API_Number);
         processedAPIs.add(`${api}|permit`);
+        
+        // Add 200ms delay between processing permits to avoid Airtable rate limits
+        // (statewide activity and well location creates)
+        if (i < newPermits.length - 1) {
+          await delay(200);
+        }
       } catch (err) {
         console.error(`[Daily] Error processing permit ${permit.API_Number}:`, err);
         results.errors.push({ api: permit.API_Number, error: err.message });
@@ -456,7 +469,8 @@ export async function runDailyMonitor(env) {
     }
     
     // Process completions with the optimizations
-    for (const completion of newCompletions) {
+    for (let i = 0; i < newCompletions.length; i++) {
+      const completion = newCompletions[i];
       try {
         await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap);
         results.completionsProcessed++;
@@ -465,6 +479,12 @@ export async function runDailyMonitor(env) {
         const api = normalizeAPI(completion.API_Number);
         const completionDate = completion.Well_Completion || 'unknown';
         processedAPIs.add(`${api}|completion|${completionDate}`);
+        
+        // Add 200ms delay between processing completions to avoid Airtable rate limits
+        // (statewide activity and well location creates)
+        if (i < newCompletions.length - 1) {
+          await delay(200);
+        }
       } catch (err) {
         console.error(`[Daily] Error processing completion ${completion.API_Number}:`, err);
         results.errors.push({ api: completion.API_Number, error: err.message });
