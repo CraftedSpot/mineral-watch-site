@@ -1,0 +1,15 @@
+{
+  "name": "mineral-watch-webhooks",
+  "version": "1.0.0",
+  "description": "Webhook handler for Postmark bounces and spam complaints",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy"
+  },
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "wrangler": "^3.0.0"
+  }
+}

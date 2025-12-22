@@ -1,0 +1,15 @@
+name = "mineral-watch-webhooks"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+# Route configuration
+routes = [
+  { pattern = "mineral-watch-webhooks.photog12.workers.dev/*", zone_name = "photog12.workers.dev" }
+]
+
+# Environment variables
+[vars]
+NOTIFICATION_EMAIL = "james@mymineralwatch.com"
+
+# Secrets to add:
+# wrangler secret put POSTMARK_SERVER_TOKEN
