@@ -515,6 +515,10 @@ var index_default = {
       if (path === "/api/wells" && request.method === "POST") {
         return handleAddWell(request, env);
       }
+      // Track well endpoint (alias for adding wells)
+      if (path === "/api/wells/track" && request.method === "POST") {
+        return handleAddWell(request, env);
+      }
       const deleteWellMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)$/);
       if (deleteWellMatch && request.method === "DELETE") {
         return handleDeleteWell(deleteWellMatch[1], request, env);
