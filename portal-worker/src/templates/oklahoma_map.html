@@ -3764,6 +3764,113 @@
             };
             return statusMap[status] || status || 'Unknown';
         }
+        
+        // Expand nearby well card - show detailed modal for wells from D1 database
+        function expandNearbyWellCard(wellData) {
+            if (!wellData) {
+                console.warn('No well data provided');
+                return;
+            }
+            
+            const wellName = toTitleCase(wellData.well_name || `API ${wellData.api_number}`);
+            const apiNumber = wellData.api_number || 'Unknown';
+            const operator = toTitleCase(wellData.operator || 'Unknown');
+            const wellStatus = (wellData.well_status || 'Unknown').toUpperCase();
+            const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+            const wellType = wellData.well_type || '';
+            const county = toTitleCase(wellData.county || '');
+            const section = wellData.section || '';
+            const township = wellData.township || '';
+            const range = wellData.range || '';
+            const meridian = wellData.meridian || '';
+            const completionDate = wellData.completion_date || '';
+            const spudDate = wellData.spud_date || '';
+            
+            // Format location string
+            const locationStr = section && township && range 
+                ? `S${section} T${township} R${range} ${meridian}` 
+                : 'Location not available';
+            
+            // Status badge color
+            const statusBgColor = statusColor + '20'; // 20% opacity version
+            
+            // Set modal title with completion date badge
+            const titleHtml = `
+                <span>${wellName}</span>
+                ${completionDate ? `<span class="well-date-badge">${completionDate}</span>` : ''}
+            `;
+            document.getElementById('wellModalTitle').innerHTML = titleHtml;
+            document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
+            
+            // Build modal body content
+            let bodyContent = `
+                <div class="well-detail-grid">
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Status</div>
+                        <div class="well-detail-value">
+                            <span class="well-status-badge" style="background: ${statusBgColor}; color: ${statusColor};">${getStatusLabel(wellStatus)}</span>
+                        </div>
+                    </div>
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Operator</div>
+                        <div class="well-detail-value">${operator}</div>
+                    </div>
+                    ${wellType ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Well Type</div>
+                        <div class="well-detail-value">${wellType}</div>
+                    </div>
+                    ` : ''}
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">County</div>
+                        <div class="well-detail-value">${county}</div>
+                    </div>
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Location</div>
+                        <div class="well-detail-value">${locationStr}</div>
+                    </div>
+                    ${spudDate ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Spud Date</div>
+                        <div class="well-detail-value">${spudDate}</div>
+                    </div>
+                    ` : ''}
+                    ${completionDate ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Completion Date</div>
+                        <div class="well-detail-value">${completionDate}</div>
+                    </div>
+                    ` : ''}
+                </div>
+                
+                <div class="info-callout" style="margin-top: 16px;">
+                    <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
+                    </svg>
+                    <div>
+                        This well is from Oklahoma's public records database. Track it to monitor for new activity and receive alerts.
+                    </div>
+                </div>
+            `;
+            
+            document.getElementById('wellModalBody').innerHTML = bodyContent;
+            
+            // Build actions with track well button
+            const actionsContent = `
+                <button class="popup-btn popup-btn-primary" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">
+                    Track This Well
+                </button>
+                <button class="popup-btn popup-btn-secondary" onclick="closeWellModal()">Close</button>
+            `;
+            
+            document.getElementById('wellModalActions').innerHTML = actionsContent;
+            
+            // Show modal
+            document.getElementById('wellModal').classList.add('active');
+            
+            // Close popup if open
+            map.closePopup();
+        }
 
         // Show toast notification
         function showToast(message, type = 'info') {
