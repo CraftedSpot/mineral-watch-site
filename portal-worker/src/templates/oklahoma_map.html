@@ -5322,6 +5322,7 @@
                 }
                 
                 console.log(`Loading ${statusText} wells for ${propertySections.length} sections (5x5 around properties)`);
+                console.log('Property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
                 
                 // Make single POST request with all TRS values
                 const requestBody = {
@@ -5329,6 +5330,8 @@
                     status: statusFilter === 'ALL' ? 'all' : 'active',
                     limit: 5000 // Higher limit for POST
                 };
+                
+                console.log('Sending POST request with body:', requestBody);
                 
                 const response = await fetch('/api/nearby-wells', {
                     method: 'POST',
