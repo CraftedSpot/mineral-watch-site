@@ -5249,6 +5249,159 @@
             }
         });
         
+        // Wells filter state
+        let wellsFilterState = {
+            status: '',
+            type: '',
+            operator: '',
+            county: ''
+        };
+        
+        // All wells data (before filtering)
+        let allNearbyWells = [];
+        
+        // Toggle wells filter panel
+        function toggleWellsFilter() {
+            const panel = document.getElementById('wellsFilterPanel');
+            const button = document.getElementById('filterToggleBtn');
+            
+            if (panel.style.display === 'none') {
+                panel.style.display = 'block';
+                button.classList.add('active');
+            } else {
+                panel.style.display = 'none';
+                button.classList.remove('active');
+            }
+        }
+        
+        // Apply wells filter
+        function applyWellsFilter() {
+            // Get filter values
+            wellsFilterState.status = document.getElementById('filterWellStatus').value;
+            wellsFilterState.type = document.getElementById('filterWellType').value;
+            wellsFilterState.operator = document.getElementById('filterOperator').value.toLowerCase();
+            wellsFilterState.county = document.getElementById('filterCounty').value.toLowerCase();
+            
+            // Filter wells
+            const filteredWells = allNearbyWells.filter(well => {
+                // Status filter
+                if (wellsFilterState.status && well.well_status !== wellsFilterState.status) {
+                    return false;
+                }
+                
+                // Type filter
+                if (wellsFilterState.type && well.well_type !== wellsFilterState.type) {
+                    return false;
+                }
+                
+                // Operator filter (partial match)
+                if (wellsFilterState.operator && !well.operator?.toLowerCase().includes(wellsFilterState.operator)) {
+                    return false;
+                }
+                
+                // County filter (partial match)
+                if (wellsFilterState.county && !well.county?.toLowerCase().includes(wellsFilterState.county)) {
+                    return false;
+                }
+                
+                return true;
+            });
+            
+            // Update map
+            displayFilteredWells(filteredWells);
+            
+            // Update status
+            const filterCount = Object.values(wellsFilterState).filter(v => v).length;
+            if (filterCount > 0) {
+                updateStatus(`Showing ${filteredWells.length} of ${allNearbyWells.length} wells (${filterCount} filters active)`);
+                document.getElementById('filterToggleBtn').innerHTML = '<span>🔍 Filter Wells (' + filterCount + ')</span>';
+            } else {
+                updateStatus(`Showing all ${allNearbyWells.length} wells`);
+                document.getElementById('filterToggleBtn').innerHTML = '<span>🔍 Filter Wells</span>';
+            }
+            
+            // Close panel
+            toggleWellsFilter();
+        }
+        
+        // Clear wells filter
+        function clearWellsFilter() {
+            // Reset form
+            document.getElementById('filterWellStatus').value = '';
+            document.getElementById('filterWellType').value = '';
+            document.getElementById('filterOperator').value = '';
+            document.getElementById('filterCounty').value = '';
+            
+            // Reset state
+            wellsFilterState = {
+                status: '',
+                type: '',
+                operator: '',
+                county: ''
+            };
+            
+            // Show all wells
+            displayFilteredWells(allNearbyWells);
+            updateStatus(`Showing all ${allNearbyWells.length} wells`);
+            document.getElementById('filterToggleBtn').innerHTML = '<span>🔍 Filter Wells</span>';
+            
+            // Close panel
+            toggleWellsFilter();
+        }
+        
+        // Display filtered wells on map
+        function displayFilteredWells(wells) {
+            // Clear existing wells
+            nearbyWellsLayer.clearLayers();
+            
+            // Add filtered wells to map
+            wells.forEach(well => {
+                if (well.latitude && well.longitude) {
+                    // Create circle marker for each well
+                    const marker = L.circleMarker([well.latitude, well.longitude], {
+                        radius: 8,
+                        fillColor: '#8B5CF6', // Purple for D1 wells
+                        color: '#6B21A8',     // Darker purple border
+                        weight: 2,
+                        opacity: 1,
+                        fillOpacity: 0.6
+                    });
+                    
+                    // Add popup with well details
+                    const popupContent = `
+                        <div class="popup-header">
+                            <span class="popup-tag" style="background: #EDE9FE; color: #6B21A8;">D1 Well</span>
+                        </div>
+                        <div class="popup-well-name">${well.well_name || 'Unnamed Well'}</div>
+                        <div class="popup-details">
+                            <strong>API:</strong> ${well.api_number}<br>
+                            <strong>Operator:</strong> ${well.operator || 'Unknown'}<br>
+                            <strong>Location:</strong> S${well.section} T${well.township} R${well.range} ${well.meridian}<br>
+                            <strong>County:</strong> ${well.county || 'Unknown'}<br>
+                            <strong>Status:</strong> ${well.well_status || 'Unknown'}<br>
+                            <strong>Type:</strong> ${well.well_type || 'Unknown'}<br>
+                            ${well.spud_date ? `<strong>Spud Date:</strong> ${well.spud_date}<br>` : ''}
+                            ${well.completion_date ? `<strong>Completed:</strong> ${well.completion_date}<br>` : ''}
+                        </div>
+                    `;
+                    
+                    marker.bindPopup(popupContent, { 
+                        maxWidth: 300,
+                        className: 'high-z-popup'
+                    });
+                    
+                    nearbyWellsLayer.addLayer(marker);
+                }
+            });
+            
+            // Ensure layer is on map
+            if (!map.hasLayer(nearbyWellsLayer) && nearbyWellsLayer.getLayers().length > 0) {
+                map.addLayer(nearbyWellsLayer);
+            }
+            
+            ensureLayerOrder();
+        }
+        
         // Event listeners
         document.getElementById('toggle-land-grid').addEventListener('change', toggleLandGrid);
         document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
