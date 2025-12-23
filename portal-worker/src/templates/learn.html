@@ -451,10 +451,8 @@
             try {
                 const response = await fetch('/api/auth/me');
                 if (response.ok) {
-                    const data = await response.json();
-                    if (data.user) {
-                        document.getElementById('userName').textContent = data.user.name || data.user.email;
-                    }
+                    const currentUser = await response.json();
+                    document.getElementById('userName').textContent = currentUser.name || currentUser.email;
                 } else if (response.status === 401) {
                     // Not authenticated - redirect to login
                     window.location.href = '/portal/login';
