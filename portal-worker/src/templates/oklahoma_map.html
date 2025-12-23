@@ -5398,6 +5398,7 @@
                 
                 // Display wells (respecting any active filters)
                 const filteredWells = filterWellsData(uniqueWells);
+                console.log(`After filtering: ${filteredWells.length} wells to display`);
                 displayFilteredWells(filteredWells);
                 
                 // Update status
