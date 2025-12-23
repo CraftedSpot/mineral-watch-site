@@ -1833,6 +1833,11 @@
                 <!-- Map Status (moved from old panel) -->
                 <div class="map-status" id="mapStatus">Ready</div>
                 
+                <!-- Filter Toggle Button -->
+                <button class="filter-toggle-btn" id="filterToggleBtn" onclick="toggleWellsFilter()">
+                    <span>🔍 Filter Wells</span>
+                </button>
+                
                 <!-- Wells Filter Panel -->
                 <div class="wells-filter-panel" id="wellsFilterPanel" style="display: none;">
                     <div class="filter-header">
@@ -5044,13 +5049,17 @@
         // Toggle nearby wells from D1 database
         function toggleNearbyWells() {
             const checkbox = document.getElementById('toggle-nearby-wells');
+            const filterBtn = document.getElementById('filterToggleBtn');
             
             if (checkbox.checked) {
                 loadNearbyWells();
+                filterBtn.style.display = 'block'; // Show filter button
             } else {
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
                     map.removeLayer(nearbyWellsLayer);
                 }
+                filterBtn.style.display = 'none'; // Hide filter button
+                document.getElementById('wellsFilterPanel').style.display = 'none'; // Hide filter panel
             }
         }
         
