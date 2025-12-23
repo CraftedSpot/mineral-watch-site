@@ -5108,55 +5108,19 @@
                 const result = await response.json();
                 const wells = result.data.wells;
                 
-                // Clear existing nearby wells
-                nearbyWellsLayer.clearLayers();
+                // Store wells for filtering
+                allNearbyWells = wells;
                 
-                // Add wells to map
-                wells.forEach(well => {
-                    if (well.latitude && well.longitude) {
-                        // Create circle marker for each well
-                        const marker = L.circleMarker([well.latitude, well.longitude], {
-                            radius: 8,
-                            fillColor: '#8B5CF6', // Purple for D1 wells
-                            color: '#6B21A8',     // Darker purple border
-                            weight: 2,
-                            opacity: 1,
-                            fillOpacity: 0.6
-                        });
-                        
-                        // Add popup with well details
-                        const popupContent = `
-                            <div class="popup-header">
-                                <span class="popup-tag" style="background: #EDE9FE; color: #6B21A8;">D1 Well</span>
-                            </div>
-                            <div class="popup-well-name">${well.well_name || 'Unnamed Well'}</div>
-                            <div class="popup-details">
-                                <strong>API:</strong> ${well.api_number}<br>
-                                <strong>Operator:</strong> ${well.operator || 'Unknown'}<br>
-                                <strong>Location:</strong> S${well.section} T${well.township} R${well.range} ${well.meridian}<br>
-                                <strong>County:</strong> ${well.county || 'Unknown'}<br>
-                                <strong>Status:</strong> ${well.well_status || 'Unknown'}<br>
-                                ${well.spud_date ? `<strong>Spud Date:</strong> ${well.spud_date}<br>` : ''}
-                                ${well.completion_date ? `<strong>Completed:</strong> ${well.completion_date}<br>` : ''}
-                            </div>
-                        `;
-                        
-                        marker.bindPopup(popupContent, { 
-                            maxWidth: 300,
-                            className: 'high-z-popup'
-                        });
-                        
-                        nearbyWellsLayer.addLayer(marker);
-                    }
-                });
+                // Display wells (respecting any active filters)
+                const filteredWells = filterWellsData(wells);
+                displayFilteredWells(filteredWells);
                 
-                // Add layer to map if it has wells
-                if (nearbyWellsLayer.getLayers().length > 0) {
-                    map.addLayer(nearbyWellsLayer);
-                    ensureLayerOrder();
-                    updateStatus(`Loaded ${wells.length} wells from D1 database`);
+                // Update status
+                if (filteredWells.length < wells.length) {
+                    const filterCount = Object.values(wellsFilterState).filter(v => v).length;
+                    updateStatus(`Loaded ${wells.length} wells, showing ${filteredWells.length} (${filterCount} filters active)`);
                 } else {
-                    updateStatus('No wells found in current view');
+                    updateStatus(`Loaded ${wells.length} wells from D1 database`);
                 }
                 
                 // Clear status after delay
