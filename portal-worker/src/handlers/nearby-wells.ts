@@ -21,7 +21,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
   try {
     // Authenticate request
     const authResult = await authenticateRequest(request, env);
-    if (!authResult.authenticated) {
+    if (!authResult) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
@@ -188,7 +188,7 @@ export async function handleSurroundingWells(request: Request, env: Env): Promis
   try {
     // Authenticate request
     const authResult = await authenticateRequest(request, env);
-    if (!authResult.authenticated) {
+    if (!authResult) {
       return jsonResponse({ error: 'Unauthorized' }, 401);
     }
 
