@@ -5242,6 +5242,16 @@
             return `mw_nearby_wells_${status}_${propertyHash}_${CACHE_VERSION}`;
         }
         
+        // Helper function to clear all nearby wells caches
+        function clearNearbyWellsCache() {
+            const keys = Object.keys(localStorage).filter(k => k.includes('mw_nearby_wells'));
+            keys.forEach(k => localStorage.removeItem(k));
+            console.log(`Cleared ${keys.length} nearby wells cache entries`);
+        }
+        
+        // Make it available globally for debugging
+        window.clearNearbyWellsCache = clearNearbyWellsCache;
+        
         // Helper function to show loading overlay on map
         function showMapLoadingOverlay(message = 'Loading nearby wells...') {
             // Create overlay if it doesn't exist
