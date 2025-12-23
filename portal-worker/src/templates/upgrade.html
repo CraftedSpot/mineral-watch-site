@@ -76,6 +76,18 @@
             .pricing-grid { grid-template-columns: 1fr; max-width: 400px; margin: 0 auto; }
         }
         
+        @media (max-width: 768px) {
+            /* Mobile navigation - match Learn page style */
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                gap: 20px;
+            }
+        }
+        
         .plan-card {
             background: white;
             border: 2px solid var(--border);

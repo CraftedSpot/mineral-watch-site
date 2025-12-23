@@ -1066,7 +1066,16 @@
         @media (max-width: 768px) { 
             .form-row { grid-template-columns: 1fr; } 
             .form-group.full { grid-column: span 1; } 
-            .user-name { display: none; }
+            
+            /* Mobile navigation - match Learn page style */
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                gap: 20px;
+            }
             
             /* Reset table layout for mobile */
             #propertiesContent .data-table, 
