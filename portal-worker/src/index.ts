@@ -536,7 +536,7 @@ var index_default = {
       }
       
       // Nearby wells endpoints (D1 database queries)
-      if (path === "/api/nearby-wells" && request.method === "GET") {
+      if (path === "/api/nearby-wells" && (request.method === "GET" || request.method === "POST")) {
         return handleNearbyWells(request, env);
       }
       if (path === "/api/wells/surrounding" && request.method === "GET") {

@@ -10,12 +10,15 @@ import type { Env } from '../types/env.js';
 
 /**
  * Query wells by TRS values
- * Endpoint: GET /api/nearby-wells?trs=15-9N-5W-IM&trs=16-9N-5W-IM
+ * Endpoints: 
+ * - GET /api/nearby-wells?trs=15-9N-5W-IM&trs=16-9N-5W-IM
+ * - POST /api/nearby-wells with JSON body { trs: string[], status: 'active' | 'all', limit?: number }
  * 
- * Query params:
+ * Query params (GET) or JSON body (POST):
  * - trs: One or more TRS values in format "section-township-range-meridian"
- * - limit: Maximum number of results (default 100, max 1000)
- * - offset: Pagination offset (default 0)
+ * - status: 'active' | 'all' (defaults to 'active')
+ * - limit: Maximum number of results (default 1000, max 5000 for POST)
+ * - offset: Pagination offset (default 0) - GET only
  */
 export async function handleNearbyWells(request: Request, env: Env): Promise<Response> {
   try {
@@ -34,17 +37,46 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       }, 503);
     }
 
-    // Parse query parameters
-    const url = new URL(request.url);
-    const trsParams = url.searchParams.getAll('trs');
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
-    const offset = parseInt(url.searchParams.get('offset') || '0');
-    const status = url.searchParams.get('status') || 'AC'; // Default to Active wells only
+    let trsParams: string[] = [];
+    let limit: number;
+    let offset = 0;
+    let status: string;
+
+    // Handle both GET and POST requests
+    if (request.method === 'POST') {
+      // Parse JSON body
+      let body;
+      try {
+        body = await request.json();
+      } catch (e) {
+        return jsonResponse({ 
+          error: 'Invalid JSON',
+          message: 'Request body must be valid JSON'
+        }, 400);
+      }
+
+      trsParams = body.trs || [];
+      // Allow higher limit for POST requests
+      limit = Math.min(parseInt(body.limit?.toString() || '1000'), 5000);
+      status = body.status === 'all' ? 'ALL' : 'AC';
+      
+      console.log(`[NearbyWells] POST request for ${trsParams.length} TRS values, status: ${status}`);
+    } else {
+      // Parse query parameters for GET
+      const url = new URL(request.url);
+      trsParams = url.searchParams.getAll('trs');
+      limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
+      offset = parseInt(url.searchParams.get('offset') || '0');
+      const statusParam = url.searchParams.get('status');
+      status = statusParam === 'ALL' || statusParam === 'all' ? 'ALL' : 'AC';
+    }
 
     if (trsParams.length === 0) {
       return jsonResponse({ 
         error: 'Missing required parameter',
-        message: 'Please provide at least one TRS value using ?trs=section-township-range-meridian'
+        message: request.method === 'POST' 
+          ? 'Please provide TRS values in the request body as { trs: ["section-township-range-meridian", ...] }'
+          : 'Please provide at least one TRS value using ?trs=section-township-range-meridian'
       }, 400);
     }
 

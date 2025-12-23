@@ -5116,64 +5116,149 @@
             }
         }
         
+        // Helper function to generate cache key
+        function getWellsCacheKey(status) {
+            // Include a hash of property IDs to invalidate when properties change
+            const propertyIds = userProperties.map(p => p.id).sort().join(',');
+            const propertyHash = btoa(propertyIds).substring(0, 8); // Short hash
+            return `mw_nearby_wells_${status}_${propertyHash}`;
+        }
+        
+        // Helper function to show loading overlay on map
+        function showMapLoadingOverlay(message = 'Loading nearby wells...') {
+            // Create overlay if it doesn't exist
+            let overlay = document.getElementById('map-loading-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'map-loading-overlay';
+                overlay.style.cssText = `
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background-color: rgba(0, 0, 0, 0.5);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    z-index: 9999;
+                `;
+                overlay.innerHTML = `
+                    <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
+                        <div class="spinner" style="margin: 0 auto 10px;"></div>
+                        <div id="map-loading-message">${message}</div>
+                    </div>
+                `;
+                document.getElementById('map').appendChild(overlay);
+            }
+            overlay.style.display = 'flex';
+            document.getElementById('map-loading-message').textContent = message;
+        }
+        
+        function hideMapLoadingOverlay() {
+            const overlay = document.getElementById('map-loading-overlay');
+            if (overlay) {
+                overlay.style.display = 'none';
+            }
+        }
+        
         // Load wells from D1 database based on user properties (5x5 sections)
         async function loadNearbyWells() {
             try {
+                // Get status filter
+                const statusFilter = document.getElementById('well-status-filter').value;
+                const statusText = statusFilter === 'AC' ? 'active' : statusFilter === 'PA' ? 'plugged' : 'all';
+                const cacheKey = getWellsCacheKey(statusFilter);
+                
+                // Check cache first
+                const cachedData = localStorage.getItem(cacheKey);
+                if (cachedData) {
+                    try {
+                        const cached = JSON.parse(cachedData);
+                        const cacheAge = Date.now() - cached.timestamp;
+                        const MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
+                        
+                        if (cacheAge < MAX_CACHE_AGE) {
+                            console.log(`Using cached ${statusText} wells data (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
+                            allNearbyWells = cached.wells;
+                            const filteredWells = filterWellsData(cached.wells);
+                            displayFilteredWells(filteredWells);
+                            updateStatus(`Displayed ${cached.wells.length} ${statusText} wells (from cache)`);
+                            return;
+                        }
+                    } catch (e) {
+                        console.error('Failed to parse cached data:', e);
+                        localStorage.removeItem(cacheKey);
+                    }
+                }
+                
+                // Show loading overlay
+                showMapLoadingOverlay(`Loading ${statusText} wells...`);
                 updateStatus('Loading nearby wells...');
                 
                 // Get TRS sections for all user properties and their 5x5 neighbors
                 const propertySections = await getPropertyNearbySections();
                 
                 if (propertySections.length === 0) {
+                    hideMapLoadingOverlay();
                     updateStatus('No properties found');
                     return;
                 }
                 
-                const statusFilter = document.getElementById('well-status-filter').value;
-                const statusText = statusFilter === 'AC' ? 'active' : statusFilter === 'PA' ? 'plugged' : 'all';
                 console.log(`Loading ${statusText} wells for ${propertySections.length} sections (5x5 around properties)`);
                 
-                // Batch requests if too many sections (URL length limit)
-                const BATCH_SIZE = 20; // Limit sections per request to avoid SQLite parameter limit (100 max)
-                const allWells = [];
-                const totalBatches = Math.ceil(propertySections.length / BATCH_SIZE);
+                // Make single POST request with all TRS values
+                const requestBody = {
+                    trs: propertySections,
+                    status: statusFilter === 'ALL' ? 'all' : 'active',
+                    limit: 5000 // Higher limit for POST
+                };
                 
-                for (let i = 0; i < propertySections.length; i += BATCH_SIZE) {
-                    const batch = propertySections.slice(i, i + BATCH_SIZE);
-                    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-                    
-                    updateStatus(`Loading wells... (batch ${batchNum}/${totalBatches})`);
-                    
-                    // Build query params for this batch
-                    const params = new URLSearchParams();
-                    batch.forEach(trs => params.append('trs', trs));
-                    params.set('limit', '1000');
-                    
-                    // Add status filter
-                    const statusFilter = document.getElementById('well-status-filter').value;
-                    params.set('status', statusFilter);
-                    
-                    // Fetch wells from API
-                    const response = await fetch(`/api/nearby-wells?${params}`, {
-                        credentials: 'include',
-                        headers: {
-                            'Accept': 'application/json'
-                        }
-                    });
-                    
-                    if (!response.ok) {
-                        console.error(`Batch ${batchNum} failed:`, response.status, response.statusText);
-                        continue; // Skip failed batches instead of failing entirely
-                    }
-                    
-                    const result = await response.json();
-                    allWells.push(...(result.data?.wells || []));
+                const response = await fetch('/api/nearby-wells', {
+                    method: 'POST',
+                    credentials: 'include',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+                
+                hideMapLoadingOverlay();
+                
+                if (!response.ok) {
+                    console.error('Failed to load wells:', response.status, response.statusText);
+                    updateStatus('Failed to load wells');
+                    return;
                 }
+                
+                const result = await response.json();
+                const allWells = result.data?.wells || [];
                 
                 // Remove duplicates (wells might appear in multiple sections)
                 const uniqueWells = Array.from(
                     new Map(allWells.map(w => [w.api_number, w])).values()
                 );
+                
+                // Cache the results
+                try {
+                    localStorage.setItem(cacheKey, JSON.stringify({
+                        wells: uniqueWells,
+                        timestamp: Date.now()
+                    }));
+                    console.log(`Cached ${uniqueWells.length} ${statusText} wells`);
+                } catch (e) {
+                    console.error('Failed to cache wells:', e);
+                    // Clear old cache if storage is full
+                    try {
+                        const keys = Object.keys(localStorage);
+                        keys.filter(k => k.startsWith('mw_nearby_wells_')).forEach(k => {
+                            localStorage.removeItem(k);
+                        });
+                    } catch (clearError) {
+                        console.error('Failed to clear old cache:', clearError);
+                    }
+                }
                 
                 // Store wells for filtering
                 allNearbyWells = uniqueWells;
@@ -5195,6 +5280,7 @@
                 
             } catch (error) {
                 console.error('Error loading nearby wells:', error);
+                hideMapLoadingOverlay();
                 updateStatus('Failed to load wells');
                 setTimeout(() => updateStatus('Map ready'), 3000);
             }
