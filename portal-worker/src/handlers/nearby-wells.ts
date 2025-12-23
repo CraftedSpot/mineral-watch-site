@@ -121,46 +121,30 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
     console.log(`[NearbyWells] Searching for wells in ${trsValues.length} TRS locations`);
 
-    // Use a more efficient approach that avoids parameter limits
-    // We'll use IN clauses and string concatenation since we've already validated the TRS values
-    const BATCH_SIZE = 1000; // Can handle much larger batches now
-    const allWells: any[] = [];
+    // D1 SQLite has a limit of 100 bind variables (?1 through ?100)
+    // Each TRS uses 4 parameters, so we can handle 25 TRS values per query
+    const BATCH_SIZE = 25;
     
-    // Process in batches to avoid query size limits
+    // Split TRS values into chunks
+    const chunks: typeof trsValues[] = [];
     for (let i = 0; i < trsValues.length; i += BATCH_SIZE) {
-      const batch = trsValues.slice(i, i + BATCH_SIZE);
-      const batchNum = Math.floor(i / BATCH_SIZE) + 1;
-      const totalBatches = Math.ceil(trsValues.length / BATCH_SIZE);
+      chunks.push(trsValues.slice(i, i + BATCH_SIZE));
+    }
+    
+    console.log(`[NearbyWells] Split ${trsValues.length} TRS values into ${chunks.length} chunks of up to ${BATCH_SIZE} each`);
+    
+    // Execute queries in parallel for all chunks
+    const queryPromises = chunks.map(async (chunk, chunkIndex) => {
+      // Build SQL query with parameterized values for this chunk
+      const conditions = chunk.map((_, index) => {
+        const base = index * 4;
+        return `(section = ?${base + 1} AND township = ?${base + 2} AND range = ?${base + 3} AND meridian = ?${base + 4})`;
+      });
+
+      // Add status filter
+      const statusFilter = status === 'ALL' ? '' : `AND well_status = ?${chunk.length * 4 + 1}`;
+      const statusParam = status === 'ALL' ? [] : [status];
       
-      console.log(`[NearbyWells] Processing batch ${batchNum}/${totalBatches} (${batch.length} TRS values)`);
-
-      // Group by township, range, meridian to optimize the query
-      const groupedTrs = new Map<string, { section: number; township: string; range: string; meridian: string }[]>();
-      for (const trs of batch) {
-        const key = `${trs.township}-${trs.range}-${trs.meridian}`;
-        if (!groupedTrs.has(key)) {
-          groupedTrs.set(key, []);
-        }
-        groupedTrs.get(key)!.push(trs);
-      }
-
-      // Build conditions for each township-range-meridian group
-      const groupConditions: string[] = [];
-      for (const [key, trsGroup] of groupedTrs) {
-        const [township, range, meridian] = key.split('-');
-        const sections = trsGroup.map(t => t.section).join(',');
-        
-        // Safe to use string concatenation here since we've validated all values
-        groupConditions.push(
-          `(township = '${township}' AND range = '${range}' AND meridian = '${meridian}' AND section IN (${sections}))`
-        );
-      }
-
-      // Add status filter with parameter
-      const statusFilter = status === 'ALL' ? '' : 'AND well_status = ?1';
-      const params = status === 'ALL' ? [] : [status];
-      
-      // Build the final query
       const query = `
         SELECT 
           api_number,
@@ -179,20 +163,38 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
           spud_date,
           completion_date
         FROM wells
-        WHERE (${groupConditions.join(' OR ')}) ${statusFilter}
+        WHERE (${conditions.join(' OR ')}) ${statusFilter}
         ORDER BY township, range, section, well_name
       `;
 
-      // Execute query for this batch
-      const startTime = Date.now();
-      const result = await env.WELLS_DB.prepare(query)
-        .bind(...params)
-        .all();
-      const queryTime = Date.now() - startTime;
+      // Flatten parameters for the query
+      const params: any[] = [];
+      for (const trs of chunk) {
+        params.push(trs.section, trs.township, trs.range, trs.meridian);
+      }
+      // Add status parameter if not showing ALL
+      if (status !== 'ALL') {
+        params.push(status);
+      }
 
-      console.log(`[NearbyWells] Batch ${batchNum} found ${result.results.length} wells in ${queryTime}ms`);
-      allWells.push(...result.results);
-    }
+      // Execute query for this chunk
+      const startTime = Date.now();
+      try {
+        const result = await env.WELLS_DB.prepare(query)
+          .bind(...params)
+          .all();
+        const queryTime = Date.now() - startTime;
+        console.log(`[NearbyWells] Chunk ${chunkIndex + 1}/${chunks.length} found ${result.results.length} wells in ${queryTime}ms`);
+        return result.results;
+      } catch (error) {
+        console.error(`[NearbyWells] Chunk ${chunkIndex + 1} failed:`, error);
+        return [];
+      }
+    });
+    
+    // Wait for all queries to complete
+    const results = await Promise.all(queryPromises);
+    const allWells = results.flat();
 
     // Remove duplicates (wells might appear in multiple batches)
     const uniqueWells = Array.from(
