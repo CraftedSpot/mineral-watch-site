@@ -2011,7 +2011,7 @@
         
         // Update overlays button state
         function updateOverlaysButton() {
-            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling', 'nearby-wells'];
+            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling'];
             const activeCount = overlays.filter(id => 
                 document.getElementById(`toggle-${id}`).checked
             ).length;
