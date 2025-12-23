@@ -5079,7 +5079,7 @@
                 console.log(`Loading wells for ${propertySections.length} sections (5x5 around properties)`);
                 
                 // Batch requests if too many sections (URL length limit)
-                const BATCH_SIZE = 50; // Limit sections per request to avoid URL length issues
+                const BATCH_SIZE = 20; // Limit sections per request to avoid SQLite parameter limit (100 max)
                 const allWells = [];
                 const totalBatches = Math.ceil(propertySections.length / BATCH_SIZE);
                 
