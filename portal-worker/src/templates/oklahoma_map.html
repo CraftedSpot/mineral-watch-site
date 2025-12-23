@@ -1939,6 +1939,7 @@
         let completionsLayer = L.featureGroup();
         let sectionLayer = L.featureGroup();
         let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
+        let nearbyWellsLayer = L.featureGroup(); // For D1 database wells
         let activityHeatmapLayer = null; // Will be created as heat layer
         let permitHeatmapLayer = null; // Separate heat layer for permits
         let completionHeatmapLayer = null; // Separate heat layer for completions
@@ -4844,6 +4845,7 @@
         document.getElementById('toggle-permits').addEventListener('change', togglePermits);
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
         document.getElementById('toggle-heatmap').addEventListener('change', toggleActivityHeatmap);
+        document.getElementById('toggle-nearby-wells').addEventListener('change', toggleNearbyWells);
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async function() {
