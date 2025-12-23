@@ -1807,7 +1807,7 @@
         
         // Update overlays button state
         function updateOverlaysButton() {
-            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling'];
+            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling', 'nearby-wells'];
             const activeCount = overlays.filter(id => 
                 document.getElementById(`toggle-${id}`).checked
             ).length;
@@ -1841,7 +1841,7 @@
         
         // Handle "All Overlays" checkbox
         document.getElementById('toggle-all-overlays').addEventListener('change', function() {
-            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling'];
+            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling', 'nearby-wells'];
             const checked = this.checked;
             
             overlays.forEach(id => {
@@ -4100,6 +4100,11 @@
             // Bring wells layer to appropriate position
             if (wellsLayer && map.hasLayer(wellsLayer)) {
                 wellsLayer.bringToFront();
+            }
+            
+            // Bring nearby wells layer above heatmap but below tracked wells
+            if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
+                nearbyWellsLayer.bringToFront();
             }
             
             // Bring properties to front if visible
