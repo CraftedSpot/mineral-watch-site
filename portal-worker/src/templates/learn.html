@@ -335,8 +335,8 @@
                     <a href="/portal/learn" class="active">Learn</a>
                 </nav>
                 <div class="user-menu">
-                    <span class="user-name">{{USER_NAME}}</span>
-                    <button class="btn-logout" onclick="logout()">Log Out</button>
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
                 </div>
             </div>
         </div>
@@ -446,9 +446,32 @@
 
     <script src="https://player.vimeo.com/api/player.js"></script>
     <script>
-        function logout() {
-            window.location.href = '/logout';
+        // Load user data on page load
+        async function loadUserData() {
+            try {
+                const response = await fetch('/api/auth/me');
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.user) {
+                        document.getElementById('userName').textContent = data.user.name || data.user.email;
+                    }
+                } else if (response.status === 401) {
+                    // Not authenticated - redirect to login
+                    window.location.href = '/portal/login';
+                }
+            } catch (error) {
+                console.error('Failed to load user data:', error);
+            }
         }
+
+        // Set up logout button
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            await fetch('/api/auth/logout', { method: 'POST' });
+            window.location.href = '/portal/login';
+        });
+
+        // Load user data when page loads
+        loadUserData();
     </script>
 </body>
 </html>
