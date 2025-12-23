@@ -37,7 +37,8 @@ import {
   upgradeHtml,
   myPropertiesMapHtml,
   oklahomaMapHtml,
-  adminBackfillHtml
+  adminBackfillHtml,
+  learnHtml
 } from './templates/index.js';
 
 import {
@@ -153,6 +154,9 @@ var index_default = {
       }
       if (path === "/portal/oklahoma-map" || path === "/portal/oklahoma-map/") {
         return servePage(oklahomaMapHtml, request, env);
+      }
+      if (path === "/portal/learn" || path === "/portal/learn/") {
+        return servePage(learnHtml, request, env);
       }
       
       // Safari-compatible session setting endpoint - MUST come before auth proxy
