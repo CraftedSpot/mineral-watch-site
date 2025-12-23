@@ -5224,6 +5224,33 @@
         // All wells data (before filtering)
         let allNearbyWells = [];
         
+        // Filter wells data based on current filter state
+        function filterWellsData(wells) {
+            return wells.filter(well => {
+                // Status filter
+                if (wellsFilterState.status && well.well_status !== wellsFilterState.status) {
+                    return false;
+                }
+                
+                // Type filter
+                if (wellsFilterState.type && well.well_type !== wellsFilterState.type) {
+                    return false;
+                }
+                
+                // Operator filter (partial match)
+                if (wellsFilterState.operator && !well.operator?.toLowerCase().includes(wellsFilterState.operator)) {
+                    return false;
+                }
+                
+                // County filter (partial match)
+                if (wellsFilterState.county && !well.county?.toLowerCase().includes(wellsFilterState.county)) {
+                    return false;
+                }
+                
+                return true;
+            });
+        }
+        
         // Toggle wells filter panel
         function toggleWellsFilter() {
             const panel = document.getElementById('wellsFilterPanel');
