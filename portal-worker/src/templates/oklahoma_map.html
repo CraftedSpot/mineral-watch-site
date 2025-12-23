@@ -5114,7 +5114,9 @@
                     return;
                 }
                 
-                console.log(`Loading wells for ${propertySections.length} sections (5x5 around properties)`);
+                const statusFilter = document.getElementById('well-status-filter').value;
+                const statusText = statusFilter === 'AC' ? 'active' : statusFilter === 'PA' ? 'plugged' : 'all';
+                console.log(`Loading ${statusText} wells for ${propertySections.length} sections (5x5 around properties)`);
                 
                 // Batch requests if too many sections (URL length limit)
                 const BATCH_SIZE = 20; // Limit sections per request to avoid SQLite parameter limit (100 max)
@@ -5131,6 +5133,10 @@
                     const params = new URLSearchParams();
                     batch.forEach(trs => params.append('trs', trs));
                     params.set('limit', '1000');
+                    
+                    // Add status filter
+                    const statusFilter = document.getElementById('well-status-filter').value;
+                    params.set('status', statusFilter);
                     
                     // Fetch wells from API
                     const response = await fetch(`/api/nearby-wells?${params}`, {
@@ -5469,6 +5475,15 @@
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
         document.getElementById('toggle-heatmap').addEventListener('change', toggleActivityHeatmap);
         document.getElementById('toggle-nearby-wells').addEventListener('change', toggleNearbyWells);
+        
+        // Add event listener for well status filter
+        document.getElementById('well-status-filter').addEventListener('change', function() {
+            // Reload wells if the Nearby Wells toggle is checked
+            const checkbox = document.getElementById('toggle-nearby-wells');
+            if (checkbox.checked) {
+                loadNearbyWells();
+            }
+        });
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async function() {
