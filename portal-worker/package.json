@@ -32,5 +32,8 @@
     "postmark"
   ],
   "author": "Your Name",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "csv-parse": "^6.1.0"
+  }
 }
