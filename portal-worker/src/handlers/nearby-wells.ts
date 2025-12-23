@@ -120,6 +120,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     }
 
     console.log(`[NearbyWells] Searching for wells in ${trsValues.length} TRS locations`);
+    const startTime = Date.now();
 
     // D1 SQLite has a limit of 100 bind variables (?1 through ?100)
     // Each TRS uses 4 parameters, so we can handle 25 TRS values per query
@@ -218,6 +219,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
     // For POST requests with many TRS values, the total count is the unique wells count
     const totalCount = uniqueWells.length;
+    const totalTime = Date.now() - startTime;
 
     // Format response
     const response = {
@@ -233,7 +235,8 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         query: {
           trs: trsValues.map(t => `${t.section}-${t.township}-${t.range}-${t.meridian}`),
           trsCount: trsValues.length,
-          batchesProcessed: Math.ceil(trsValues.length / BATCH_SIZE)
+          chunksProcessed: chunks.length,
+          executionTime: totalTime
         }
       }
     };
