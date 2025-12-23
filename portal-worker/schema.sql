@@ -1,5 +1,5 @@
 -- Oklahoma Wells Database Schema
--- This table stores well information with optimized indexing for TRS (Township-Range-Section) queries
+-- This table stores well information with optimized indexing for TRSM (Township-Range-Section-Meridian) queries
 
 CREATE TABLE IF NOT EXISTS wells (
     -- Primary key
