@@ -121,12 +121,12 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
     console.log(`[NearbyWells] Searching for wells in ${trsValues.length} TRS locations`);
 
-    // SQLite has a limit on the number of parameters (typically 999)
-    // Each TRS uses 4 parameters, so we can safely handle ~200 TRS values per query
-    const BATCH_SIZE = 200;
+    // Use a more efficient approach that avoids parameter limits
+    // We'll use IN clauses and string concatenation since we've already validated the TRS values
+    const BATCH_SIZE = 1000; // Can handle much larger batches now
     const allWells: any[] = [];
     
-    // Process in batches to avoid SQLITE_TOOBIG error
+    // Process in batches to avoid query size limits
     for (let i = 0; i < trsValues.length; i += BATCH_SIZE) {
       const batch = trsValues.slice(i, i + BATCH_SIZE);
       const batchNum = Math.floor(i / BATCH_SIZE) + 1;
@@ -134,17 +134,33 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       
       console.log(`[NearbyWells] Processing batch ${batchNum}/${totalBatches} (${batch.length} TRS values)`);
 
-      // Build SQL query with parameterized values for this batch
-      const conditions = batch.map((_, index) => {
-        const base = index * 4;
-        return `(section = ?${base + 1} AND township = ?${base + 2} AND range = ?${base + 3} AND meridian = ?${base + 4})`;
-      });
+      // Group by township, range, meridian to optimize the query
+      const groupedTrs = new Map<string, { section: number; township: string; range: string; meridian: string }[]>();
+      for (const trs of batch) {
+        const key = `${trs.township}-${trs.range}-${trs.meridian}`;
+        if (!groupedTrs.has(key)) {
+          groupedTrs.set(key, []);
+        }
+        groupedTrs.get(key)!.push(trs);
+      }
 
-      // Add status filter
-      const statusFilter = status === 'ALL' ? '' : `AND well_status = ?${batch.length * 4 + 1}`;
-      const statusParam = status === 'ALL' ? [] : [status];
+      // Build conditions for each township-range-meridian group
+      const groupConditions: string[] = [];
+      for (const [key, trsGroup] of groupedTrs) {
+        const [township, range, meridian] = key.split('-');
+        const sections = trsGroup.map(t => t.section).join(',');
+        
+        // Safe to use string concatenation here since we've validated all values
+        groupConditions.push(
+          `(township = '${township}' AND range = '${range}' AND meridian = '${meridian}' AND section IN (${sections}))`
+        );
+      }
+
+      // Add status filter with parameter
+      const statusFilter = status === 'ALL' ? '' : 'AND well_status = ?1';
+      const params = status === 'ALL' ? [] : [status];
       
-      // For batched queries, we'll apply the limit to the final combined results
+      // Build the final query
       const query = `
         SELECT 
           api_number,
@@ -163,19 +179,9 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
           spud_date,
           completion_date
         FROM wells
-        WHERE (${conditions.join(' OR ')}) ${statusFilter}
+        WHERE (${groupConditions.join(' OR ')}) ${statusFilter}
         ORDER BY township, range, section, well_name
       `;
-
-      // Flatten parameters for the query
-      const params = [];
-      for (const trs of batch) {
-        params.push(trs.section, trs.township, trs.range, trs.meridian);
-      }
-      // Add status parameter if not showing ALL
-      if (status !== 'ALL') {
-        params.push(status);
-      }
 
       // Execute query for this batch
       const startTime = Date.now();
