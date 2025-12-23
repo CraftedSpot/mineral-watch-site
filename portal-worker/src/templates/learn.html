@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learn - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --oil-navy: #1C2B36;
+            --slate-blue: #334E68;
+            --red-dirt: #C05621;
+            --red-dirt-dark: #9C4215;
+            --paper: #F8F9FA;
+            --border: #E2E8F0;
+            --success: #03543F;
+            --success-bg: #DEF7EC;
+            --error: #DC2626;
+            --error-bg: #FEE2E2;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            color: var(--oil-navy);
+            background: #F7FAFC;
+            min-height: 100vh;
+        }
+
+        h1, h2, h3, .logo {
+            font-family: 'Merriweather', serif;
+        }
+
+        /* Header - exact match */
+        header {
+            background: var(--oil-navy);
+            padding: 15px 0;
+            color: white;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 25px;
+        }
+
+        .header-inner {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 900;
+            color: white;
+            text-decoration: none;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 25px;
+        }
+
+        .nav-links a {
+            color: rgba(255,255,255,0.8);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .nav-links a:hover,
+        .nav-links a.active {
+            color: white;
+        }
+
+        .user-menu {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .user-name {
+            font-size: 14px;
+            color: rgba(255,255,255,0.8);
+        }
+
+        .btn-logout {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+
+        .btn-logout:hover {
+            background: rgba(255,255,255,0.15);
+        }
+
+        /* Main content */
+        main {
+            padding: 40px 0;
+        }
+
+        .page-header {
+            margin-bottom: 30px;
+        }
+
+        .page-header h1 {
+            font-size: 28px;
+            margin-bottom: 8px;
+        }
+
+        .page-header p {
+            color: var(--slate-blue);
+            font-size: 15px;
+        }
+
+        /* Video grid */
+        .video-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+        }
+
+        @media (max-width: 900px) {
+            .video-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Video card */
+        .card {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .video-wrapper {
+            position: relative;
+            padding-bottom: 56.25%; /* 16:9 aspect ratio */
+            height: 0;
+            overflow: hidden;
+            background: var(--oil-navy);
+        }
+
+        .video-wrapper iframe {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            border: none;
+        }
+
+        .video-info {
+            padding: 20px 25px;
+        }
+
+        .video-category {
+            display: inline-block;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--red-dirt);
+            background: #FFF7ED;
+            padding: 4px 10px;
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .video-title {
+            font-size: 17px;
+            font-weight: 700;
+            color: var(--oil-navy);
+            margin-bottom: 8px;
+        }
+
+        .video-description {
+            font-size: 14px;
+            color: var(--slate-blue);
+            line-height: 1.5;
+        }
+
+        .video-duration {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 15px;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        .video-duration svg {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* Coming soon section */
+        .coming-soon {
+            margin-top: 30px;
+            padding: 25px;
+            background: white;
+            border-radius: 8px;
+            border: 2px dashed var(--border);
+            text-align: center;
+        }
+
+        .coming-soon h3 {
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--slate-blue);
+            margin-bottom: 6px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .coming-soon p {
+            font-size: 14px;
+            color: #94a3b8;
+        }
+
+        /* Quick links section */
+        .quick-links {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border);
+        }
+
+        .quick-links h2 {
+            font-size: 18px;
+            margin-bottom: 20px;
+        }
+
+        .links-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+            gap: 15px;
+        }
+
+        .link-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            padding: 16px 20px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            text-decoration: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .link-card:hover {
+            border-color: #cbd5e1;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .link-icon {
+            flex-shrink: 0;
+            width: 40px;
+            height: 40px;
+            background: var(--paper);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--slate-blue);
+        }
+
+        .link-icon svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .link-content h4 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            margin-bottom: 3px;
+            font-family: 'Inter', sans-serif;
+        }
+
+        .link-content p {
+            font-size: 13px;
+            color: var(--slate-blue);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 30px 25px;
+            color: var(--slate-blue);
+            font-size: 13px;
+        }
+
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .nav-links {
+                gap: 20px;
+            }
+
+            main {
+                padding: 25px 0;
+            }
+
+            .page-header h1 {
+                font-size: 24px;
+            }
+
+            .video-info {
+                padding: 15px 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/portal" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/map">My Map</a>
+                    <a href="/portal/account">Account</a>
+                    <a href="/portal/learn" class="active">Learn</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name">{{USER_NAME}}</span>
+                    <button class="btn-logout" onclick="logout()">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="container">
+            <div class="page-header">
+                <h1>Learn</h1>
+                <p>Quick tutorials to help you get the most out of Mineral Watch</p>
+            </div>
+
+            <div class="video-grid">
+                <!-- Video 1: Adding a Single Property -->
+                <div class="card">
+                    <div class="video-wrapper">
+                        <iframe 
+                            src="https://player.vimeo.com/video/1148811568?badge=0&autopause=0&player_id=0&app_id=58479" 
+                            allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen
+                            title="Adding a Property">
+                        </iframe>
+                    </div>
+                    <div class="video-info">
+                        <span class="video-category">Getting Started</span>
+                        <h3 class="video-title">Adding a Property</h3>
+                        <p class="video-description">Learn how to add an individual property to your monitoring list using the Section-Township-Range format.</p>
+                        <div class="video-duration">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span>2 min</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Video 2: Bulk Upload -->
+                <div class="card">
+                    <div class="video-wrapper">
+                        <iframe 
+                            src="https://player.vimeo.com/video/1148809866?badge=0&autopause=0&player_id=0&app_id=58479" 
+                            allow="autoplay; fullscreen; picture-in-picture; clipboard-write; encrypted-media" 
+                            referrerpolicy="strict-origin-when-cross-origin"
+                            allowfullscreen
+                            title="Bulk Uploading Properties">
+                        </iframe>
+                    </div>
+                    <div class="video-info">
+                        <span class="video-category">Getting Started</span>
+                        <h3 class="video-title">Bulk Uploading Properties</h3>
+                        <p class="video-description">Save time by importing multiple properties at once using our CSV upload feature.</p>
+                        <div class="video-duration">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                            </svg>
+                            <span>3 min</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Placeholder for future content -->
+            <div class="coming-soon">
+                <h3>More tutorials coming soon</h3>
+                <p>We're working on additional guides covering alerts, tracking wells, and understanding OCC filings.</p>
+            </div>
+
+            <!-- Helpful links section -->
+            <div class="quick-links">
+                <h2>Helpful Resources</h2>
+                <div class="links-grid">
+                    <a href="https://imaging.occ.ok.gov/OG/Well%20Records/Default.aspx" target="_blank" rel="noopener" class="link-card">
+                        <div class="link-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+                                <polyline points="14 2 14 8 20 8"></polyline>
+                            </svg>
+                        </div>
+                        <div class="link-content">
+                            <h4>OCC Well Records</h4>
+                            <p>Search historical well documents</p>
+                        </div>
+                    </a>
+                    <a href="mailto:support@mymineralwatch.com" class="link-card">
+                        <div class="link-icon">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path>
+                                <polyline points="22,6 12,13 2,6"></polyline>
+                            </svg>
+                        </div>
+                        <div class="link-content">
+                            <h4>Contact Support</h4>
+                            <p>Questions? We're here to help</p>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer>
+        &copy; 2025 Mineral Watch
+    </footer>
+
+    <script src="https://player.vimeo.com/api/player.js"></script>
+    <script>
+        function logout() {
+            window.location.href = '/logout';
+        }
+    </script>
+</body>
+</html>
