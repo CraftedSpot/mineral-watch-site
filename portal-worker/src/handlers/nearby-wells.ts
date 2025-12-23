@@ -208,33 +208,14 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     
     console.log(`[NearbyWells] Total unique wells found: ${uniqueWells.length}, returning ${paginatedWells.length} after pagination`);
 
-    // Get total count for pagination
-    const countQuery = `
-      SELECT COUNT(*) as total
-      FROM wells
-      WHERE (${conditions.join(' OR ')}) ${statusFilter}
-    `;
-
-    const countParams = [];
-    for (const trs of trsValues) {
-      countParams.push(trs.section, trs.township, trs.range, trs.meridian);
-    }
-    // Add status parameter if not showing ALL
-    if (status !== 'ALL') {
-      countParams.push(status);
-    }
-
-    const countResult = await env.WELLS_DB.prepare(countQuery)
-      .bind(...countParams)
-      .first();
-    
-    const totalCount = countResult?.total || 0;
+    // For POST requests with many TRS values, the total count is the unique wells count
+    const totalCount = uniqueWells.length;
 
     // Format response
     const response = {
       success: true,
       data: {
-        wells: result.results,
+        wells: paginatedWells,
         pagination: {
           offset,
           limit,
@@ -243,7 +224,8 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         },
         query: {
           trs: trsValues.map(t => `${t.section}-${t.township}-${t.range}-${t.meridian}`),
-          executionTime: queryTime
+          trsCount: trsValues.length,
+          batchesProcessed: Math.ceil(trsValues.length / BATCH_SIZE)
         }
       }
     };
