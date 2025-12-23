@@ -5087,16 +5087,16 @@
         // Toggle nearby wells from D1 database
         function toggleNearbyWells() {
             const checkbox = document.getElementById('toggle-nearby-wells');
-            const filterBtn = document.getElementById('filterToggleBtn');
+            const filterDiv = document.getElementById('nearby-wells-filter');
             
             if (checkbox.checked) {
+                filterDiv.style.display = 'block'; // Show filter dropdown
                 loadNearbyWells();
-                filterBtn.style.display = 'block'; // Show filter button
             } else {
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
                     map.removeLayer(nearbyWellsLayer);
                 }
-                filterBtn.style.display = 'none'; // Hide filter button
+                filterDiv.style.display = 'none'; // Hide filter dropdown
                 document.getElementById('wellsFilterPanel').style.display = 'none'; // Hide filter panel
             }
         }
