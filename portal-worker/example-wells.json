@@ -1,0 +1,19 @@
+[
+  {
+    "api_number": "3501122334",
+    "well_name": "SMITH 1-15",
+    "well_number": "1-15",
+    "section": 15,
+    "township": "9N",
+    "range": "5W",
+    "meridian": "IM",
+    "county": "Cleveland",
+    "latitude": 35.123,
+    "longitude": -97.456,
+    "operator": "XTO Energy",
+    "well_type": "Oil",
+    "well_status": "Active",
+    "spud_date": "2023-01-15",
+    "completion_date": "2023-03-20"
+  }
+]
