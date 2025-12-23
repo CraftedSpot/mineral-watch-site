@@ -4837,6 +4837,205 @@
             }
         }
         
+        // Toggle nearby wells from D1 database
+        function toggleNearbyWells() {
+            const checkbox = document.getElementById('toggle-nearby-wells');
+            
+            if (checkbox.checked) {
+                loadNearbyWells();
+            } else {
+                if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
+                    map.removeLayer(nearbyWellsLayer);
+                }
+            }
+        }
+        
+        // Load wells from D1 database based on current map view
+        async function loadNearbyWells() {
+            try {
+                updateStatus('Loading nearby wells...');
+                
+                // Get current map bounds
+                const bounds = map.getBounds();
+                const zoom = map.getZoom();
+                
+                // Only load wells if zoomed in enough (zoom level 10+)
+                if (zoom < 10) {
+                    updateStatus('Zoom in to see nearby wells (zoom 10+)');
+                    setTimeout(() => updateStatus('Map ready'), 2000);
+                    return;
+                }
+                
+                // Get visible sections based on current view
+                const visibleTRS = await getVisibleTRSSections(bounds);
+                
+                if (visibleTRS.length === 0) {
+                    updateStatus('No sections in view');
+                    return;
+                }
+                
+                console.log(`Loading wells for ${visibleTRS.length} visible sections`);
+                
+                // Build query params for API
+                const params = new URLSearchParams();
+                visibleTRS.forEach(trs => params.append('trs', trs));
+                params.set('limit', '500'); // Limit to prevent overwhelming the UI
+                
+                // Fetch wells from API
+                const response = await fetch(`/api/nearby-wells?${params}`, {
+                    headers: {
+                        'Accept': 'application/json'
+                    }
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to fetch wells');
+                }
+                
+                const result = await response.json();
+                const wells = result.data.wells;
+                
+                // Clear existing nearby wells
+                nearbyWellsLayer.clearLayers();
+                
+                // Add wells to map
+                wells.forEach(well => {
+                    if (well.latitude && well.longitude) {
+                        // Create circle marker for each well
+                        const marker = L.circleMarker([well.latitude, well.longitude], {
+                            radius: 8,
+                            fillColor: '#8B5CF6', // Purple for D1 wells
+                            color: '#6B21A8',     // Darker purple border
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 0.6
+                        });
+                        
+                        // Add popup with well details
+                        const popupContent = `
+                            <div class="popup-header">
+                                <span class="popup-tag" style="background: #EDE9FE; color: #6B21A8;">D1 Well</span>
+                            </div>
+                            <div class="popup-well-name">${well.well_name || 'Unnamed Well'}</div>
+                            <div class="popup-details">
+                                <strong>API:</strong> ${well.api_number}<br>
+                                <strong>Operator:</strong> ${well.operator || 'Unknown'}<br>
+                                <strong>Location:</strong> S${well.section} T${well.township} R${well.range} ${well.meridian}<br>
+                                <strong>County:</strong> ${well.county || 'Unknown'}<br>
+                                <strong>Status:</strong> ${well.well_status || 'Unknown'}<br>
+                                ${well.spud_date ? `<strong>Spud Date:</strong> ${well.spud_date}<br>` : ''}
+                                ${well.completion_date ? `<strong>Completed:</strong> ${well.completion_date}<br>` : ''}
+                            </div>
+                        `;
+                        
+                        marker.bindPopup(popupContent, { 
+                            maxWidth: 300,
+                            className: 'high-z-popup'
+                        });
+                        
+                        nearbyWellsLayer.addLayer(marker);
+                    }
+                });
+                
+                // Add layer to map if it has wells
+                if (nearbyWellsLayer.getLayers().length > 0) {
+                    map.addLayer(nearbyWellsLayer);
+                    ensureLayerOrder();
+                    updateStatus(`Loaded ${wells.length} wells from D1 database`);
+                } else {
+                    updateStatus('No wells found in current view');
+                }
+                
+                // Clear status after delay
+                setTimeout(() => updateStatus('Map ready'), 3000);
+                
+            } catch (error) {
+                console.error('Error loading nearby wells:', error);
+                updateStatus('Failed to load wells');
+                setTimeout(() => updateStatus('Map ready'), 3000);
+            }
+        }
+        
+        // Get visible TRS sections based on map bounds
+        async function getVisibleTRSSections(bounds) {
+            const visibleTRS = [];
+            
+            // Query OCC API for sections in current view
+            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
+            const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
+                `geometry=${bbox}&` +
+                `geometryType=esriGeometryEnvelope&` +
+                `inSR=4326&` +
+                `outSR=4326&` +
+                `spatialRel=esriSpatialRelIntersects&` +
+                `outFields=frstdivno,plssid&` +
+                `f=json&` +
+                `resultRecordCount=50`; // Limit to prevent too many TRS values
+            
+            try {
+                const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    
+                    data.features?.forEach(feature => {
+                        const section = feature.attributes.frstdivno;
+                        const plssId = feature.attributes.plssid;
+                        
+                        if (section && plssId) {
+                            // Parse PLSS ID to get township/range/meridian
+                            const parsed = parsePlssId(plssId);
+                            if (parsed) {
+                                // Assume IM (Indian Meridian) for now - could be enhanced
+                                const trs = `${section}-${parsed.township}-${parsed.range}-IM`;
+                                if (!visibleTRS.includes(trs)) {
+                                    visibleTRS.push(trs);
+                                }
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error getting visible sections:', error);
+            }
+            
+            return visibleTRS;
+        }
+        
+        // Parse PLSS ID to extract township/range
+        function parsePlssId(plssId) {
+            if (!plssId) return null;
+            
+            // Format: "OK170230N0080W0"
+            const match = plssId.match(/OK\d{2}(\d{3})([NS])(\d{3})([EW])/);
+            if (match) {
+                const twpNum = parseInt(match[1], 10);
+                const twpDir = match[2];
+                const rngNum = parseInt(match[3], 10);
+                const rngDir = match[4];
+                
+                return {
+                    township: `${twpNum}${twpDir}`,
+                    range: `${rngNum}${rngDir}`
+                };
+            }
+            
+            return null;
+        }
+        
+        // Update nearby wells when map moves (if enabled)
+        let nearbyWellsUpdateTimeout;
+        map.on('moveend zoomend', function() {
+            if (document.getElementById('toggle-nearby-wells').checked) {
+                // Debounce updates to avoid too many API calls
+                clearTimeout(nearbyWellsUpdateTimeout);
+                nearbyWellsUpdateTimeout = setTimeout(() => {
+                    loadNearbyWells();
+                }, 500);
+            }
+        });
+        
         // Event listeners
         document.getElementById('toggle-land-grid').addEventListener('change', toggleLandGrid);
         document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
