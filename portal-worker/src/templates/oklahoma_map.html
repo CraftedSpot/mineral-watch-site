@@ -3740,6 +3740,21 @@
             if (!str) return '';
             return str.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
         }
+        
+        // Get user-friendly status label
+        function getStatusLabel(status) {
+            const statusMap = {
+                'AC': 'Active',
+                'PA': 'Plugged & Abandoned',
+                'OR': 'Operator Released',
+                'STFD': 'Shut-in Temporarily',
+                'NE': 'New',
+                'EX': 'Expired',
+                'TM': 'Temporarily Abandoned',
+                'TA': 'Temporarily Abandoned'
+            };
+            return statusMap[status] || status || 'Unknown';
+        }
 
         // Show toast notification
         function showToast(message, type = 'info') {
