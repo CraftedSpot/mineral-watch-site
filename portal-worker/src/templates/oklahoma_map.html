@@ -5324,9 +5324,19 @@
                 console.log(`Loading ${statusText} wells for ${propertySections.length} sections (5x5 around properties)`);
                 console.log('Property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
                 
+                // If we have too many sections, limit to prevent overwhelming the system
+                // 800 TRS values = 3200 SQL parameters, well within SQLite limits
+                const MAX_TRS_VALUES = 800;
+                let sectionsToQuery = propertySections;
+                if (propertySections.length > MAX_TRS_VALUES) {
+                    console.warn(`Too many sections (${propertySections.length}), limiting to ${MAX_TRS_VALUES}`);
+                    sectionsToQuery = propertySections.slice(0, MAX_TRS_VALUES);
+                    updateStatus(`Loading wells for first ${MAX_TRS_VALUES} sections...`);
+                }
+                
                 // Make single POST request with all TRS values
                 const requestBody = {
-                    trs: propertySections,
+                    trs: sectionsToQuery,
                     status: statusFilter === 'ALL' ? 'all' : 'active',
                     limit: 5000 // Higher limit for POST
                 };
