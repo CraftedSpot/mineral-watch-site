@@ -1682,6 +1682,49 @@
                 
                 <!-- Map Status (moved from old panel) -->
                 <div class="map-status" id="mapStatus">Ready</div>
+                
+                <!-- Wells Filter Panel -->
+                <div class="wells-filter-panel" id="wellsFilterPanel" style="display: none;">
+                    <div class="filter-header">
+                        <h4>Filter D1 Wells</h4>
+                        <button class="filter-close" onclick="toggleWellsFilter()">&times;</button>
+                    </div>
+                    <div class="filter-body">
+                        <div class="filter-section">
+                            <label>Well Status</label>
+                            <select id="filterWellStatus" class="filter-select">
+                                <option value="">All Statuses</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="PA">Plugged & Abandoned</option>
+                                <option value="SI">Shut In</option>
+                                <option value="TA">Temporarily Abandoned</option>
+                                <option value="DRY">Dry Hole</option>
+                            </select>
+                        </div>
+                        <div class="filter-section">
+                            <label>Well Type</label>
+                            <select id="filterWellType" class="filter-select">
+                                <option value="">All Types</option>
+                                <option value="OIL">Oil</option>
+                                <option value="GAS">Gas</option>
+                                <option value="INJ">Injection</option>
+                                <option value="SWD">Salt Water Disposal</option>
+                            </select>
+                        </div>
+                        <div class="filter-section">
+                            <label>Operator</label>
+                            <input type="text" id="filterOperator" class="filter-input" placeholder="Enter operator name...">
+                        </div>
+                        <div class="filter-section">
+                            <label>County</label>
+                            <input type="text" id="filterCounty" class="filter-input" placeholder="Enter county name...">
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="filter-btn filter-btn-primary" onclick="applyWellsFilter()">Apply Filter</button>
+                        <button class="filter-btn filter-btn-secondary" onclick="clearWellsFilter()">Clear</button>
+                    </div>
+                </div>
             </div>
             
             <!-- Legend Strip -->
