@@ -5078,38 +5078,57 @@
                 
                 console.log(`Loading wells for ${propertySections.length} sections (5x5 around properties)`);
                 
-                // Build query params for API
-                const params = new URLSearchParams();
-                propertySections.forEach(trs => params.append('trs', trs));
-                params.set('limit', '1000'); // Higher limit for property-based search
+                // Batch requests if too many sections (URL length limit)
+                const BATCH_SIZE = 50; // Limit sections per request to avoid URL length issues
+                const allWells = [];
+                const totalBatches = Math.ceil(propertySections.length / BATCH_SIZE);
                 
-                // Fetch wells from API
-                const response = await fetch(`/api/nearby-wells?${params}`, {
-                    headers: {
-                        'Accept': 'application/json'
+                for (let i = 0; i < propertySections.length; i += BATCH_SIZE) {
+                    const batch = propertySections.slice(i, i + BATCH_SIZE);
+                    const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+                    
+                    updateStatus(`Loading wells... (batch ${batchNum}/${totalBatches})`);
+                    
+                    // Build query params for this batch
+                    const params = new URLSearchParams();
+                    batch.forEach(trs => params.append('trs', trs));
+                    params.set('limit', '1000');
+                    
+                    // Fetch wells from API
+                    const response = await fetch(`/api/nearby-wells?${params}`, {
+                        credentials: 'include',
+                        headers: {
+                            'Accept': 'application/json'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        console.error(`Batch ${batchNum} failed:`, response.status, response.statusText);
+                        continue; // Skip failed batches instead of failing entirely
                     }
-                });
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch wells');
+                    
+                    const result = await response.json();
+                    allWells.push(...(result.data?.wells || []));
                 }
                 
-                const result = await response.json();
-                const wells = result.data.wells;
+                // Remove duplicates (wells might appear in multiple sections)
+                const uniqueWells = Array.from(
+                    new Map(allWells.map(w => [w.api_number, w])).values()
+                );
                 
                 // Store wells for filtering
-                allNearbyWells = wells;
+                allNearbyWells = uniqueWells;
                 
                 // Display wells (respecting any active filters)
-                const filteredWells = filterWellsData(wells);
+                const filteredWells = filterWellsData(uniqueWells);
                 displayFilteredWells(filteredWells);
                 
                 // Update status
-                if (filteredWells.length < wells.length) {
+                if (filteredWells.length < uniqueWells.length) {
                     const filterCount = Object.values(wellsFilterState).filter(v => v).length;
-                    updateStatus(`Loaded ${wells.length} wells, showing ${filteredWells.length} (${filterCount} filters active)`);
+                    updateStatus(`Loaded ${uniqueWells.length} wells, showing ${filteredWells.length} (${filterCount} filters active)`);
                 } else {
-                    updateStatus(`Loaded ${wells.length} wells from D1 database`);
+                    updateStatus(`Loaded ${uniqueWells.length} wells from D1 database`);
                 }
                 
                 // Clear status after delay

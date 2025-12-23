@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nearby Wells Marker Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        
+        .marker-comparison {
+            display: flex;
+            gap: 50px;
+            align-items: flex-end;
+            margin: 20px 0;
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .marker-group {
+            text-align: center;
+        }
+        
+        .marker-label {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+        
+        .size-info {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        /* Styles matching oklahoma_map.html */
+        .well-marker {
+            cursor: pointer;
+        }
+        
+        .nearby-well-marker {
+            cursor: pointer;
+        }
+        
+        h2 {
+            color: #333;
+        }
+        
+        .legend {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-top: 30px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Nearby Wells Marker Visual Test</h1>
+    
+    <h2>Marker Size Comparison</h2>
+    <div class="marker-comparison">
+        <div class="marker-group">
+            <!-- Tracked Well Marker (80% size) -->
+            <div class="well-marker">
+                <svg width="20" height="28" viewBox="-1 -1 26 35">
+                    <defs>
+                        <linearGradient id="tracked-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                            <stop offset="0%" style="stop-color:#7C3AED;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#5B21B6;stop-opacity:1" />
+                        </linearGradient>
+                    </defs>
+                    <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                          fill="url(#tracked-gradient)" stroke="#5B21B6" stroke-width="2"/>
+                    <circle cx="12" cy="12" r="4.5" fill="#FFFFFF" opacity="0.9"/>
+                </svg>
+            </div>
+            <div class="marker-label">Tracked Wells</div>
+            <div class="size-info">80% size (20px)</div>
+        </div>
+        
+        <div class="marker-group">
+            <!-- Nearby Well Marker (60% size) -->
+            <div class="nearby-well-marker">
+                <svg width="15" height="21" viewBox="-1 -1 26 35">
+                    <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                          fill="#9CA3AF" stroke="#6B7280" stroke-width="2"/>
+                    <circle cx="12" cy="12" r="4.5" fill="#6B7280"/>
+                </svg>
+            </div>
+            <div class="marker-label">Nearby Wells</div>
+            <div class="size-info">60% size (15px)</div>
+        </div>
+    </div>
+    
+    <h2>Color and Style Details</h2>
+    <div class="legend">
+        <h3>Visual Hierarchy</h3>
+        <div class="legend-item">
+            <svg width="20" height="28" viewBox="-1 -1 26 35">
+                <defs>
+                    <linearGradient id="tracked-gradient2" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#7C3AED;stop-opacity:1" />
+                        <stop offset="100%" style="stop-color:#5B21B6;stop-opacity:1" />
+                    </linearGradient>
+                </defs>
+                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                      fill="url(#tracked-gradient2)" stroke="#5B21B6" stroke-width="2"/>
+                <circle cx="12" cy="12" r="4.5" fill="#FFFFFF" opacity="0.9"/>
+            </svg>
+            <div>
+                <strong>Tracked Wells (Your Wells)</strong><br>
+                Purple gradient (#7C3AED to #5B21B6) with white center<br>
+                80% of base size - More prominent for monitoring mode
+            </div>
+        </div>
+        
+        <div class="legend-item">
+            <svg width="15" height="21" viewBox="-1 -1 26 35">
+                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                      fill="#9CA3AF" stroke="#6B7280" stroke-width="2"/>
+                <circle cx="12" cy="12" r="4.5" fill="#6B7280"/>
+            </svg>
+            <div>
+                <strong>Nearby Wells (Discovery Mode)</strong><br>
+                Gray (#9CA3AF) with darker gray center (#6B7280)<br>
+                60% of base size - Less prominent for cleaner map view
+            </div>
+        </div>
+    </div>
+    
+    <h2>Usage Workflow</h2>
+    <div class="legend">
+        <h3>Discovery Mode vs. Monitoring Mode</h3>
+        <ol>
+            <li><strong>Toggle ON "Nearby Wells"</strong> → Gray teardrops appear in a 5x5 section grid around your properties</li>
+            <li><strong>Browse and explore</strong> → Click on gray markers to see well details</li>
+            <li><strong>Track interesting wells</strong> → Click "Track This Well" in popup to add to your tracked wells</li>
+            <li><strong>Toggle OFF</strong> → Return to clean monitoring view showing only your purple tracked wells</li>
+        </ol>
+        
+        <p style="margin-top: 20px; padding: 15px; background: #EEF2FF; border-left: 4px solid #7C3AED; border-radius: 4px;">
+            <strong>Key Benefit:</strong> The size difference (60% vs 80%) ensures tracked wells remain visually dominant 
+            while nearby wells provide context without cluttering the map.
+        </p>
+    </div>
+</body>
+</html>
