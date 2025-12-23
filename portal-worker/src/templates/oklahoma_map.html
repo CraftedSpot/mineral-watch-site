@@ -5363,12 +5363,15 @@
                 }
                 
                 const result = await response.json();
+                console.log('API response:', result);
                 const allWells = result.data?.wells || [];
+                console.log(`Received ${allWells.length} wells from API`);
                 
                 // Remove duplicates (wells might appear in multiple sections)
                 const uniqueWells = Array.from(
                     new Map(allWells.map(w => [w.api_number, w])).values()
                 );
+                console.log(`After removing duplicates: ${uniqueWells.length} unique wells`);
                 
                 // Cache the results
                 try {
