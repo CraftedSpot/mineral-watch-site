@@ -5346,7 +5346,8 @@
                 hideMapLoadingOverlay();
                 
                 if (!response.ok) {
-                    console.error('Failed to load wells:', response.status, response.statusText);
+                    const errorText = await response.text();
+                    console.error('Failed to load wells:', response.status, response.statusText, errorText);
                     updateStatus('Failed to load wells');
                     return;
                 }
