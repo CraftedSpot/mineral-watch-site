@@ -2045,7 +2045,7 @@
         
         // Handle "All Overlays" checkbox
         document.getElementById('toggle-all-overlays').addEventListener('change', function() {
-            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling', 'nearby-wells'];
+            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling'];
             const checked = this.checked;
             
             overlays.forEach(id => {
@@ -5063,36 +5063,25 @@
             }
         }
         
-        // Load wells from D1 database based on current map view
+        // Load wells from D1 database based on user properties (5x5 sections)
         async function loadNearbyWells() {
             try {
                 updateStatus('Loading nearby wells...');
                 
-                // Get current map bounds
-                const bounds = map.getBounds();
-                const zoom = map.getZoom();
+                // Get TRS sections for all user properties and their 5x5 neighbors
+                const propertySections = await getPropertyNearbySections();
                 
-                // Only load wells if zoomed in enough (zoom level 10+)
-                if (zoom < 10) {
-                    updateStatus('Zoom in to see nearby wells (zoom 10+)');
-                    setTimeout(() => updateStatus('Map ready'), 2000);
+                if (propertySections.length === 0) {
+                    updateStatus('No properties found');
                     return;
                 }
                 
-                // Get visible sections based on current view
-                const visibleTRS = await getVisibleTRSSections(bounds);
-                
-                if (visibleTRS.length === 0) {
-                    updateStatus('No sections in view');
-                    return;
-                }
-                
-                console.log(`Loading wells for ${visibleTRS.length} visible sections`);
+                console.log(`Loading wells for ${propertySections.length} sections (5x5 around properties)`);
                 
                 // Build query params for API
                 const params = new URLSearchParams();
-                visibleTRS.forEach(trs => params.append('trs', trs));
-                params.set('limit', '500'); // Limit to prevent overwhelming the UI
+                propertySections.forEach(trs => params.append('trs', trs));
+                params.set('limit', '1000'); // Higher limit for property-based search
                 
                 // Fetch wells from API
                 const response = await fetch(`/api/nearby-wells?${params}`, {
@@ -5133,51 +5122,66 @@
             }
         }
         
-        // Get visible TRS sections based on map bounds
-        async function getVisibleTRSSections(bounds) {
-            const visibleTRS = [];
+        // Get 5x5 sections around user properties
+        async function getPropertyNearbySections() {
+            const sectionsSet = new Set();
             
-            // Query OCC API for sections in current view
-            const bbox = `${bounds.getWest()},${bounds.getSouth()},${bounds.getEast()},${bounds.getNorth()}`;
-            const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
-                `geometry=${bbox}&` +
-                `geometryType=esriGeometryEnvelope&` +
-                `inSR=4326&` +
-                `outSR=4326&` +
-                `spatialRel=esriSpatialRelIntersects&` +
-                `outFields=frstdivno,plssid&` +
-                `f=json&` +
-                `resultRecordCount=50`; // Limit to prevent too many TRS values
-            
-            try {
-                const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
-                const response = await fetch(proxyUrl);
+            // For each property, get its section and 5x5 neighbors
+            for (const property of userProperties) {
+                const fields = property.fields || property;
                 
-                if (response.ok) {
-                    const data = await response.json();
-                    
-                    data.features?.forEach(feature => {
-                        const section = feature.attributes.frstdivno;
-                        const plssId = feature.attributes.plssid;
-                        
-                        if (section && plssId) {
-                            // Parse PLSS ID to get township/range/meridian
-                            const parsed = parsePlssId(plssId);
-                            if (parsed) {
-                                // Assume IM (Indian Meridian) for now - could be enhanced
-                                const trs = `${section}-${parsed.township}-${parsed.range}-IM`;
-                                if (!visibleTRS.includes(trs)) {
-                                    visibleTRS.push(trs);
-                                }
-                            }
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Error getting visible sections:', error);
+                // Get property TRS
+                const section = parseInt(fields.SEC || fields.Section);
+                const township = (fields.TWN || fields.Township || '').replace(/\s+/g, '').toUpperCase();
+                const range = (fields.RNG || fields.Range || '').replace(/\s+/g, '').toUpperCase();
+                
+                if (!section || !township || !range) continue;
+                
+                // Get 5x5 sections around this property
+                const nearbySections = get5x5Sections(section, township, range);
+                nearbySections.forEach(trs => sectionsSet.add(trs));
             }
             
-            return visibleTRS;
+            return Array.from(sectionsSet);
+        }
+        
+        // Get 5x5 grid of sections centered on given section
+        function get5x5Sections(centerSection, township, range) {
+            const sections = [];
+            
+            // Standard 6x6 section layout
+            const sectionGrid = [
+                [6,  5,  4,  3,  2,  1],
+                [7,  8,  9,  10, 11, 12],
+                [18, 17, 16, 15, 14, 13],
+                [19, 20, 21, 22, 23, 24],
+                [30, 29, 28, 27, 26, 25],
+                [31, 32, 33, 34, 35, 36]
+            ];
+            
+            // Find center section position
+            let centerRow = -1, centerCol = -1;
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 6; col++) {
+                    if (sectionGrid[row][col] === centerSection) {
+                        centerRow = row;
+                        centerCol = col;
+                        break;
+                    }
+                }
+            }
+            
+            if (centerRow === -1) return [`${centerSection}-${township}-${range}-IM`];
+            
+            // Get 5x5 grid (2 sections in each direction)
+            for (let row = Math.max(0, centerRow - 2); row <= Math.min(5, centerRow + 2); row++) {
+                for (let col = Math.max(0, centerCol - 2); col <= Math.min(5, centerCol + 2); col++) {
+                    const section = sectionGrid[row][col];
+                    sections.push(`${section}-${township}-${range}-IM`);
+                }
+            }
+            
+            return sections;
         }
         
         // Parse PLSS ID to extract township/range
