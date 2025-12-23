@@ -28,6 +28,12 @@ export {
   fetchWellDetailsFromOCC
 } from './wells.js';
 
+// Nearby wells handlers (D1 database queries)
+export {
+  handleNearbyWells,
+  handleSurroundingWells
+} from './nearby-wells.js';
+
 // Auth handlers - most moved to auth-worker, keeping only registration
 export {
   handleRegister

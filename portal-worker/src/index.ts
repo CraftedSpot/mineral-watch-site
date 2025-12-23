@@ -87,6 +87,9 @@ import {
   handleDeleteWell,
   handleUpdateWellNotes,
   fetchWellDetailsFromOCC,
+  // Nearby wells handlers
+  handleNearbyWells,
+  handleSurroundingWells,
   // Billing handlers
   handleBillingPortal,
   handleUpgrade,
@@ -530,6 +533,14 @@ var index_default = {
       const wellNotesMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/notes$/);
       if (wellNotesMatch && request.method === "PATCH") {
         return handleUpdateWellNotes(wellNotesMatch[1], request, env);
+      }
+      
+      // Nearby wells endpoints (D1 database queries)
+      if (path === "/api/nearby-wells" && request.method === "GET") {
+        return handleNearbyWells(request, env);
+      }
+      if (path === "/api/wells/surrounding" && request.method === "GET") {
+        return handleSurroundingWells(request, env);
       }
       
       // Activity endpoint

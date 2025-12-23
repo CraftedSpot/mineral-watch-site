@@ -17,6 +17,9 @@ export interface Env {
   // Service Bindings
   AUTH_WORKER: Fetcher;
 
+  // D1 Database
+  WELLS_DB?: D1Database;
+
   // Environment Variables (secrets)
   MINERAL_AIRTABLE_API_KEY: string;
   POSTMARK_API_KEY: string;
