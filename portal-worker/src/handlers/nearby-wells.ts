@@ -133,6 +133,8 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     }
     
     console.log(`[NearbyWells] Split ${trsValues.length} TRS values into ${chunks.length} chunks of up to ${BATCH_SIZE} each`);
+    console.log(`[NearbyWells] First TRS value:`, trsValues[0]);
+    console.log(`[NearbyWells] Status filter: ${status}`);
     
     // Execute queries in parallel for all chunks
     const queryPromises = chunks.map(async (chunk, chunkIndex) => {
@@ -181,6 +183,12 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       // Execute query for this chunk
       const startTime = Date.now();
       try {
+        // Log the first chunk's query for debugging
+        if (chunkIndex === 0) {
+          console.log(`[NearbyWells] First chunk query preview:`, query.substring(0, 500));
+          console.log(`[NearbyWells] First chunk params:`, params.slice(0, 8));
+        }
+        
         const result = await env.WELLS_DB.prepare(query)
           .bind(...params)
           .all();

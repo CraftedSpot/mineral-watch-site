@@ -5334,7 +5334,8 @@
                 }
                 
                 console.log(`Loading ${statusText} wells for ${propertySections.length} sections (5x5 around properties)`);
-                console.log('Property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
+                console.log('First 5 property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
+                console.log('Sample TRS format:', propertySections[0]); // Show exact format
                 
                 // If we have too many sections, limit to prevent overwhelming the system
                 // Start with a smaller limit for testing
