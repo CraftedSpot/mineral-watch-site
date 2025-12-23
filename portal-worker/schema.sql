@@ -10,10 +10,11 @@ CREATE TABLE IF NOT EXISTS wells (
     well_name TEXT,
     well_number TEXT,
     
-    -- Location data (TRS)
-    township TEXT NOT NULL,
-    range TEXT NOT NULL,
-    section TEXT NOT NULL,
+    -- Location data (TRSM)
+    section INTEGER NOT NULL,
+    township TEXT NOT NULL,      -- e.g. "09N"
+    range TEXT NOT NULL,         -- e.g. "05W"
+    meridian TEXT NOT NULL,      -- "IM" (Indian Meridian) or "CM" (Cimarron Meridian)
     
     -- Additional location info
     county TEXT,
@@ -36,9 +37,9 @@ CREATE TABLE IF NOT EXISTS wells (
     last_sync TEXT
 );
 
--- Create composite index for TRS queries
--- This will significantly speed up queries filtering by Township, Range, and Section
-CREATE INDEX IF NOT EXISTS idx_wells_trs ON wells(township, range, section);
+-- Create composite index for TRSM queries
+-- This will significantly speed up queries filtering by Section, Township, Range, and Meridian
+CREATE INDEX IF NOT EXISTS idx_wells_trsm ON wells(section, township, range, meridian);
 
 -- Create index for API number lookups
 CREATE INDEX IF NOT EXISTS idx_wells_api ON wells(api_number);
