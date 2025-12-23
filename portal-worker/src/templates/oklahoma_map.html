@@ -5306,13 +5306,17 @@
                         const cacheAge = Date.now() - cached.timestamp;
                         const MAX_CACHE_AGE = 24 * 60 * 60 * 1000; // 24 hours
                         
-                        if (cacheAge < MAX_CACHE_AGE) {
+                        // Don't use cache if it's empty or too old
+                        if (cacheAge < MAX_CACHE_AGE && cached.wells && cached.wells.length > 0) {
                             console.log(`Using cached ${statusText} wells data (${Math.round(cacheAge / 1000 / 60)} minutes old)`);
                             allNearbyWells = cached.wells;
                             const filteredWells = filterWellsData(cached.wells);
                             displayFilteredWells(filteredWells);
                             updateStatus(`Displayed ${cached.wells.length} ${statusText} wells (from cache)`);
                             return;
+                        } else if (cached.wells && cached.wells.length === 0) {
+                            console.log('Cache contains 0 wells, invalidating and fetching fresh data');
+                            localStorage.removeItem(cacheKey);
                         }
                     } catch (e) {
                         console.error('Failed to parse cached data:', e);
