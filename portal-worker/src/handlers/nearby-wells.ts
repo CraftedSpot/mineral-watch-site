@@ -39,6 +39,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     const trsParams = url.searchParams.getAll('trs');
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
     const offset = parseInt(url.searchParams.get('offset') || '0');
+    const status = url.searchParams.get('status') || 'AC'; // Default to Active wells only
 
     if (trsParams.length === 0) {
       return jsonResponse({ 
@@ -94,6 +95,10 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       return `(section = ?${base + 1} AND township = ?${base + 2} AND range = ?${base + 3} AND meridian = ?${base + 4})`;
     });
 
+    // Add status filter
+    const statusFilter = status === 'ALL' ? '' : `AND well_status = ?${trsValues.length * 4 + 1}`;
+    const statusParam = status === 'ALL' ? [] : [status];
+    
     const query = `
       SELECT 
         api_number,
@@ -112,15 +117,19 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         spud_date,
         completion_date
       FROM wells
-      WHERE ${conditions.join(' OR ')}
+      WHERE (${conditions.join(' OR ')}) ${statusFilter}
       ORDER BY township, range, section, well_name
-      LIMIT ?${trsValues.length * 4 + 1} OFFSET ?${trsValues.length * 4 + 2}
+      LIMIT ?${trsValues.length * 4 + statusParam.length + 1} OFFSET ?${trsValues.length * 4 + statusParam.length + 2}
     `;
 
     // Flatten parameters for the query
     const params = [];
     for (const trs of trsValues) {
       params.push(trs.section, trs.township, trs.range, trs.meridian);
+    }
+    // Add status parameter if not showing ALL
+    if (status !== 'ALL') {
+      params.push(status);
     }
     params.push(limit, offset);
 
@@ -137,12 +146,16 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     const countQuery = `
       SELECT COUNT(*) as total
       FROM wells
-      WHERE ${conditions.join(' OR ')}
+      WHERE (${conditions.join(' OR ')}) ${statusFilter}
     `;
 
     const countParams = [];
     for (const trs of trsValues) {
       countParams.push(trs.section, trs.township, trs.range, trs.meridian);
+    }
+    // Add status parameter if not showing ALL
+    if (status !== 'ALL') {
+      countParams.push(status);
     }
 
     const countResult = await env.WELLS_DB.prepare(countQuery)
