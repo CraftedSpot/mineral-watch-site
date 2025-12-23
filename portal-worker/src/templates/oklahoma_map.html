@@ -5205,17 +5205,7 @@
             return null;
         }
         
-        // Update nearby wells when map moves (if enabled)
-        let nearbyWellsUpdateTimeout;
-        map.on('moveend zoomend', function() {
-            if (document.getElementById('toggle-nearby-wells').checked) {
-                // Debounce updates to avoid too many API calls
-                clearTimeout(nearbyWellsUpdateTimeout);
-                nearbyWellsUpdateTimeout = setTimeout(() => {
-                    loadNearbyWells();
-                }, 500);
-            }
-        });
+        // No automatic refresh on map move - wells are loaded based on properties only
         
         // Wells filter state
         let wellsFilterState = {
