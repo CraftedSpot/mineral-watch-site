@@ -5349,39 +5349,55 @@
             // Clear existing wells
             nearbyWellsLayer.clearLayers();
             
+            // Get current size of tracked well markers for scaling
+            const trackedWellSize = 25; // Base size for tracked wells
+            const nearbyWellSize = trackedWellSize * 0.6; // 60% of tracked well size
+            
             // Add filtered wells to map
             wells.forEach(well => {
                 if (well.latitude && well.longitude) {
-                    // Create circle marker for each well
-                    const marker = L.circleMarker([well.latitude, well.longitude], {
-                        radius: 8,
-                        fillColor: '#8B5CF6', // Purple for D1 wells
-                        color: '#6B21A8',     // Darker purple border
-                        weight: 2,
-                        opacity: 1,
-                        fillOpacity: 0.6
+                    // Create gray teardrop marker (similar to tracked wells but gray)
+                    const marker = L.marker([well.latitude, well.longitude], {
+                        icon: L.divIcon({
+                            className: 'nearby-well-marker',
+                            html: `
+                                <svg width="${nearbyWellSize}" height="${nearbyWellSize * 1.4}" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg">
+                                    <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                                          fill="#9CA3AF" stroke="#6B7280" stroke-width="2"/>
+                                    <circle cx="12" cy="12" r="4.5" fill="#6B7280"/>
+                                </svg>
+                            `,
+                            iconSize: [nearbyWellSize, nearbyWellSize * 1.4],
+                            iconAnchor: [nearbyWellSize/2, nearbyWellSize * 1.4],
+                            popupAnchor: [0, -nearbyWellSize * 1.4]
+                        })
                     });
                     
-                    // Add popup with well details
+                    // Add popup with well details and Track This Well button
                     const popupContent = `
                         <div class="popup-header">
-                            <span class="popup-tag" style="background: #EDE9FE; color: #6B21A8;">D1 Well</span>
+                            <span class="popup-tag" style="background: #E5E7EB; color: #374151;">Nearby Well</span>
                         </div>
-                        <div class="popup-well-name">${well.well_name || 'Unnamed Well'}</div>
+                        <div class="popup-well-name">${toTitleCase(well.well_name || 'Unnamed Well')}</div>
                         <div class="popup-details">
                             <strong>API:</strong> ${well.api_number}<br>
-                            <strong>Operator:</strong> ${well.operator || 'Unknown'}<br>
+                            <strong>Operator:</strong> ${toTitleCase(well.operator || 'Unknown')}<br>
                             <strong>Location:</strong> S${well.section} T${well.township} R${well.range} ${well.meridian}<br>
-                            <strong>County:</strong> ${well.county || 'Unknown'}<br>
+                            <strong>County:</strong> ${toTitleCase(well.county || 'Unknown')}<br>
                             <strong>Status:</strong> ${well.well_status || 'Unknown'}<br>
-                            <strong>Type:</strong> ${well.well_type || 'Unknown'}<br>
+                            ${well.well_type ? `<strong>Type:</strong> ${well.well_type}<br>` : ''}
                             ${well.spud_date ? `<strong>Spud Date:</strong> ${well.spud_date}<br>` : ''}
                             ${well.completion_date ? `<strong>Completed:</strong> ${well.completion_date}<br>` : ''}
+                        </div>
+                        <div class="popup-actions">
+                            <button class="popup-btn popup-btn-primary" onclick="trackWell('${well.api_number}', '${(well.well_name || 'Unnamed Well').replace(/'/g, "\\'")}'); return false;">
+                                Track This Well
+                            </button>
                         </div>
                     `;
                     
                     marker.bindPopup(popupContent, { 
-                        maxWidth: 300,
+                        maxWidth: 350,
                         className: 'high-z-popup'
                     });
                     
