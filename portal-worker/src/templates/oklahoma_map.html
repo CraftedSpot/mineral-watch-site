@@ -5437,7 +5437,7 @@
                             <strong>Operator:</strong> ${toTitleCase(well.operator || 'Unknown')}<br>
                             <strong>Location:</strong> S${well.section} T${well.township} R${well.range} ${well.meridian}<br>
                             <strong>County:</strong> ${toTitleCase(well.county || 'Unknown')}<br>
-                            <strong>Status:</strong> ${well.well_status || 'Unknown'}<br>
+                            <strong>Status:</strong> ${getStatusLabel(well.well_status)}<br>
                             ${well.well_type ? `<strong>Type:</strong> ${well.well_type}<br>` : ''}
                             ${well.spud_date ? `<strong>Spud Date:</strong> ${well.spud_date}<br>` : ''}
                             ${well.completion_date ? `<strong>Completed:</strong> ${well.completion_date}<br>` : ''}
