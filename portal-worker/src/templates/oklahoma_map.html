@@ -5237,7 +5237,9 @@
             // Include a hash of property IDs to invalidate when properties change
             const propertyIds = userProperties.map(p => p.id).sort().join(',');
             const propertyHash = btoa(propertyIds).substring(0, 8); // Short hash
-            return `mw_nearby_wells_${status}_${propertyHash}`;
+            // Add version number to invalidate old caches
+            const CACHE_VERSION = 'v2'; // Increment this to invalidate all caches
+            return `mw_nearby_wells_${status}_${propertyHash}_${CACHE_VERSION}`;
         }
         
         // Helper function to show loading overlay on map
