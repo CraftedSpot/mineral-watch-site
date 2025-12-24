@@ -28,6 +28,8 @@ sql-imports/
 
 # OCC data files
 completions-wells-formations-base.xlsx
+completions-wells-formations-daily.xlsx
+completions-wells-legacy.xlsx
 *.xlsx
 
 # Large data files
