@@ -44,48 +44,48 @@ async function createCompletionsUpdateSQL() {
                 };
                 
                 // Build UPDATE statement
-                const updates = [];
+                const updateList = [];
                 const params = [];
                 let paramIndex = 2; // Starting at ?2 since ?1 is for api_number in WHERE clause
                 
                 if (completionData.bh_longitude !== null) {
-                    updates.push(`bh_longitude = ?${paramIndex++}`);
+                    updateList.push(`bh_longitude = ?${paramIndex++}`);
                     params.push(completionData.bh_longitude);
                 }
                 if (completionData.bh_latitude !== null) {
-                    updates.push(`bh_latitude = ?${paramIndex++}`);
+                    updateList.push(`bh_latitude = ?${paramIndex++}`);
                     params.push(completionData.bh_latitude);
                 }
                 if (completionData.formation_name) {
-                    updates.push(`formation_name = ?${paramIndex++}`);
+                    updateList.push(`formation_name = ?${paramIndex++}`);
                     params.push(completionData.formation_name);
                 }
                 if (completionData.formation_depth !== null) {
-                    updates.push(`formation_depth = ?${paramIndex++}`);
+                    updateList.push(`formation_depth = ?${paramIndex++}`);
                     params.push(completionData.formation_depth);
                 }
                 if (completionData.true_vertical_depth !== null) {
-                    updates.push(`true_vertical_depth = ?${paramIndex++}`);
+                    updateList.push(`true_vertical_depth = ?${paramIndex++}`);
                     params.push(completionData.true_vertical_depth);
                 }
                 if (completionData.measured_total_depth !== null) {
-                    updates.push(`measured_total_depth = ?${paramIndex++}`);
+                    updateList.push(`measured_total_depth = ?${paramIndex++}`);
                     params.push(completionData.measured_total_depth);
                 }
                 if (completionData.lateral_length !== null) {
-                    updates.push(`lateral_length = ?${paramIndex++}`);
+                    updateList.push(`lateral_length = ?${paramIndex++}`);
                     params.push(completionData.lateral_length);
                 }
                 if (completionData.ip_oil_bbl !== null) {
-                    updates.push(`ip_oil_bbl = ?${paramIndex++}`);
+                    updateList.push(`ip_oil_bbl = ?${paramIndex++}`);
                     params.push(completionData.ip_oil_bbl);
                 }
                 if (completionData.ip_gas_mcf !== null) {
-                    updates.push(`ip_gas_mcf = ?${paramIndex++}`);
+                    updateList.push(`ip_gas_mcf = ?${paramIndex++}`);
                     params.push(completionData.ip_gas_mcf);
                 }
                 if (completionData.ip_water_bbl !== null) {
-                    updates.push(`ip_water_bbl = ?${paramIndex++}`);
+                    updateList.push(`ip_water_bbl = ?${paramIndex++}`);
                     params.push(completionData.ip_water_bbl);
                 }
                 
