@@ -5297,6 +5297,9 @@
         
         // Load wells from D1 database based on user properties (3x3 sections)
         async function loadNearbyWells() {
+            console.log('loadNearbyWells started');
+            console.log('userProperties:', userProperties);
+            
             try {
                 // Get status filter
                 const statusFilter = document.getElementById('well-status-filter').value;
