@@ -149,13 +149,13 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       const normalizedTownship = normalizeTownshipRange(township.toUpperCase());
       const normalizedRange = normalizeTownshipRange(range.toUpperCase());
       
+      // Validate meridian
+      const validMeridian = meridian.toUpperCase();
+      
       // Log normalization for debugging
       if (trsValues.length < 3 || (township !== normalizedTownship || range !== normalizedRange)) {
         console.log(`[NearbyWells] TRS #${trsValues.length + 1}: "${trsParam}" → section=${sectionNum}, township=${normalizedTownship}, range=${normalizedRange}, meridian=${validMeridian}`);
       }
-
-      // Validate meridian
-      const validMeridian = meridian.toUpperCase();
       if (validMeridian !== 'IM' && validMeridian !== 'CM') {
         return jsonResponse({ 
           error: 'Invalid meridian',
