@@ -3832,12 +3832,16 @@
                 return;
             }
             
-            const wellName = toTitleCase(wellData.well_name || `API ${wellData.api_number}`);
+            // Build well title from well_name + well_number
+            const wellBaseName = wellData.well_name || `API ${wellData.api_number}`;
+            const wellNumber = wellData.well_number || '';
+            const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
+            
             const apiNumber = wellData.api_number || 'Unknown';
             const operator = toTitleCase(wellData.operator || 'Unknown');
             const wellStatus = (wellData.well_status || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
-            const wellType = wellData.well_type || '';
+            const wellType = wellData.well_type || 'Oil Well';
             const county = toTitleCase(wellData.county || '');
             const section = wellData.section || '';
             const township = wellData.township || '';
@@ -3848,18 +3852,24 @@
             
             // Completion data for display
             const formationName = wellData.formation_name || '';
-            const formationDepth = wellData.formation_depth || null;
+            const tvd = wellData.true_vertical_depth || null;
             const totalDepth = wellData.measured_total_depth || null;
+            const displayDepth = tvd || totalDepth; // Prefer TVD if available
             const ipOil = wellData.ip_oil_bbl || null;
             const ipGas = wellData.ip_gas_mcf || null;
             
-            // Format location string
+            // Format location string to match Tracked Wells (T10N R07W 06 format)
             const locationStr = section && township && range 
-                ? `S${section} T${township} R${range} ${meridian}` 
+                ? `T${township} R${range} ${section.toString().padStart(2, '0')}` 
                 : 'Location not available';
             
             // Status badge color
             const statusBgColor = statusColor + '20'; // 20% opacity version
+            
+            // Build OCC Map link from coordinates
+            const occMapLink = wellData.latitude && wellData.longitude
+                ? `https://gis.occ.ok.gov/map/?marker=${wellData.longitude},${wellData.latitude}`
+                : '';
             
             // Set modal title with completion date badge
             const titleHtml = `
@@ -3869,7 +3879,7 @@
             document.getElementById('wellModalTitle').innerHTML = titleHtml;
             document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
             
-            // Build modal body content
+            // Build modal body content with new layout matching Tracked Wells
             let bodyContent = `
                 <div class="well-detail-grid">
                     <div class="well-detail-section">
@@ -3879,65 +3889,61 @@
                         </div>
                     </div>
                     <div class="well-detail-section">
+                        <div class="well-detail-label">Well Type</div>
+                        <div class="well-detail-value">${wellType || 'N/A'}</div>
+                    </div>
+                </div>
+                
+                <div class="well-detail-full">
+                    <div class="well-detail-section">
                         <div class="well-detail-label">Operator</div>
                         <div class="well-detail-value">${operator}</div>
                     </div>
-                    ${wellType ? `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Well Type</div>
-                        <div class="well-detail-value">${wellType}</div>
-                    </div>
-                    ` : ''}
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">County</div>
-                        <div class="well-detail-value">${county}</div>
-                    </div>
+                </div>
+                
+                <div class="well-detail-grid">
                     <div class="well-detail-section">
                         <div class="well-detail-label">Location</div>
                         <div class="well-detail-value">${locationStr}</div>
                     </div>
-                    ${spudDate ? `
                     <div class="well-detail-section">
-                        <div class="well-detail-label">Spud Date</div>
-                        <div class="well-detail-value">${spudDate}</div>
+                        <div class="well-detail-label">County</div>
+                        <div class="well-detail-value">${county ? `${county} County` : 'Unknown'}</div>
                     </div>
-                    ` : ''}
-                    ${completionDate ? `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Completion Date</div>
-                        <div class="well-detail-value">${completionDate}</div>
+                </div>
+            `;
+            
+            // Add formation/depth row if either exists
+            if (formationName || displayDepth) {
+                bodyContent += `
+                    <div class="well-detail-grid" style="border-bottom: none;">
+                        <div class="well-detail-section">
+                            <div class="well-detail-label">Formation</div>
+                            <div class="well-detail-value">${formationName ? toTitleCase(formationName) : 'N/A'}</div>
+                        </div>
+                        <div class="well-detail-section">
+                            <div class="well-detail-label">Depth</div>
+                            <div class="well-detail-value">${displayDepth ? `${displayDepth.toLocaleString()} ft` : 'N/A'}</div>
+                        </div>
                     </div>
-                    ` : ''}
-                    ${formationName ? `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Formation</div>
-                        <div class="well-detail-value">${toTitleCase(formationName)}</div>
-                    </div>
-                    ` : ''}
-                    ${formationDepth ? `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Formation Depth</div>
-                        <div class="well-detail-value">${formationDepth.toLocaleString()} ft</div>
-                    </div>
-                    ` : ''}
-                    ${totalDepth ? `
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Total Depth</div>
-                        <div class="well-detail-value">${totalDepth.toLocaleString()} ft</div>
-                    </div>
-                    ` : ''}
-                    ${ipOil || ipGas ? `
-                    <div class="well-detail-section">
+                `;
+            }
+            
+            // Optionally add initial production if available
+            if (ipOil || ipGas) {
+                bodyContent += `
+                    <div class="well-detail-section" style="margin-top: 12px;">
                         <div class="well-detail-label">Initial Production</div>
                         <div class="well-detail-value">
                             ${ipOil ? `Oil: ${ipOil} BBL/day` : ''}
-                            ${ipOil && ipGas ? '<br>' : ''}
+                            ${ipOil && ipGas ? ' • ' : ''}
                             ${ipGas ? `Gas: ${ipGas.toLocaleString()} MCF/day` : ''}
                         </div>
                     </div>
-                    ` : ''}
-                </div>
-                
+                `;
+            }
+            
+            bodyContent += `
                 <div class="info-callout" style="margin-top: 16px;">
                     <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor">
                         <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
@@ -3950,12 +3956,37 @@
             
             document.getElementById('wellModalBody').innerHTML = bodyContent;
             
-            // Build actions with track well button
-            const actionsContent = `
-                <button class="popup-btn popup-btn-primary" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">
+            // Build actions with OCC Map and Well Records buttons matching Tracked Wells
+            let actionsContent = '';
+            
+            if (occMapLink) {
+                actionsContent += `
+                    <a href="${occMapLink}" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
+                        OCC Map ↗
+                    </a>
+                `;
+            }
+            
+            if (apiNumber && apiNumber !== 'Unknown') {
+                actionsContent += `
+                    <div class="occ-warning" style="position: relative; display: block;">
+                        <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
+                            <span class="occ-warning-icon" style="position: relative; display: inline-flex; margin-right: 6px;">!</span>Well Records ↗
+                        </a>
+                        <div class="occ-tooltip" style="left: 50%; transform: translateX(-50%);">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
+                    </div>
+                `;
+            }
+            
+            actionsContent += `
+                <button class="well-modal-btn well-modal-btn-primary" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">
                     Track This Well
                 </button>
-                <button class="popup-btn popup-btn-secondary" onclick="closeWellModal()">Close</button>
+                <button class="well-modal-btn well-modal-btn-secondary" onclick="closeWellModal()">
+                    Close
+                </button>
             `;
             
             document.getElementById('wellModalActions').innerHTML = actionsContent;
