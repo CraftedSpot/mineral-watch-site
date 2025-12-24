@@ -75,7 +75,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
       trsParams = body.trs || [];
       // Allow higher limit for POST requests
-      limit = Math.min(parseInt(body.limit?.toString() || '1000'), 5000);
+      limit = Math.min(parseInt(body.limit?.toString() || '10000'), 50000);
       // Map frontend status values to database values
       const statusUpper = body.status?.toUpperCase();
       if (statusUpper === 'ALL') {

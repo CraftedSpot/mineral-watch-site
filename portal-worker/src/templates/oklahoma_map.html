@@ -5242,7 +5242,7 @@
             const propertyIds = userProperties.map(p => p.id).sort().join(',');
             const propertyHash = btoa(propertyIds).substring(0, 8); // Short hash
             // Add version number to invalidate old caches
-            const CACHE_VERSION = 'v4'; // Simplified to Active vs All
+            const CACHE_VERSION = 'v5'; // Fixed cache key issue
             return `mw_nearby_wells_${status}_${propertyHash}_${CACHE_VERSION}`;
         }
         
@@ -5363,7 +5363,7 @@
                 const requestBody = {
                     trs: sectionsToQuery,
                     status: statusFilter.toLowerCase(), // Send 'ac', 'pa', or 'all'
-                    limit: 5000 // Higher limit for POST
+                    limit: 20000 // Higher limit to get all wells
                 };
                 
                 console.log('Sending POST request with body:', requestBody);
