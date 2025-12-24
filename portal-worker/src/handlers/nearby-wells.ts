@@ -123,6 +123,11 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       // Normalize township and range to match D1 format (pad with leading zeros)
       const normalizedTownship = normalizeTownshipRange(township.toUpperCase());
       const normalizedRange = normalizeTownshipRange(range.toUpperCase());
+      
+      // Log normalization for debugging
+      if (township !== normalizedTownship || range !== normalizedRange) {
+        console.log(`[NearbyWells] Normalized: ${township}-${range} → ${normalizedTownship}-${normalizedRange}`);
+      }
 
       // Validate meridian
       const validMeridian = meridian.toUpperCase();
