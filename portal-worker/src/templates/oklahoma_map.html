@@ -5238,7 +5238,7 @@
             const propertyIds = userProperties.map(p => p.id).sort().join(',');
             const propertyHash = btoa(propertyIds).substring(0, 8); // Short hash
             // Add version number to invalidate old caches
-            const CACHE_VERSION = 'v2'; // Increment this to invalidate all caches
+            const CACHE_VERSION = 'v3'; // Increment this to invalidate all caches after TRS normalization fix
             return `mw_nearby_wells_${status}_${propertyHash}_${CACHE_VERSION}`;
         }
         
@@ -5290,7 +5290,7 @@
             }
         }
         
-        // Load wells from D1 database based on user properties (5x5 sections)
+        // Load wells from D1 database based on user properties (3x3 sections)
         async function loadNearbyWells() {
             try {
                 // Get status filter
@@ -5328,7 +5328,7 @@
                 showMapLoadingOverlay(`Loading ${statusText} wells...`);
                 updateStatus('Loading nearby wells...');
                 
-                // Get TRS sections for all user properties and their 5x5 neighbors
+                // Get TRS sections for all user properties and their 3x3 neighbors
                 const propertySections = await getPropertyNearbySections();
                 
                 if (propertySections.length === 0) {
@@ -5337,7 +5337,7 @@
                     return;
                 }
                 
-                console.log(`Loading ${statusText} wells for ${propertySections.length} sections (5x5 around properties)`);
+                console.log(`Loading ${statusText} wells for ${propertySections.length} sections (3x3 around properties)`);
                 console.log('First 5 property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
                 console.log('Sample TRS format:', propertySections[0]); // Show exact format
                 
@@ -5430,31 +5430,42 @@
             }
         }
         
-        // Get 5x5 sections around user properties
+        // Get 3x3 sections around user properties
         async function getPropertyNearbySections() {
             const sectionsSet = new Set();
             
-            // For each property, get its section and 5x5 neighbors
+            // For each property, get its section and 3x3 neighbors
             for (const property of userProperties) {
                 const fields = property.fields || property;
                 
                 // Get property TRS
                 const section = parseInt(fields.SEC || fields.Section);
-                const township = (fields.TWN || fields.Township || '').replace(/\s+/g, '').toUpperCase();
-                const range = (fields.RNG || fields.Range || '').replace(/\s+/g, '').toUpperCase();
+                let township = (fields.TWN || fields.Township || '').replace(/\s+/g, '').toUpperCase();
+                let range = (fields.RNG || fields.Range || '').replace(/\s+/g, '').toUpperCase();
                 
-                if (!section || !township || !range) continue;
+                // Remove S/T/R prefixes if present
+                township = township.replace(/^T/, '');
+                range = range.replace(/^R/, '');
                 
-                // Get 5x5 sections around this property
-                const nearbySections = get5x5Sections(section, township, range);
+                // Log raw values for debugging
+                console.log(`Property ${property.id}: Raw TWN="${fields.TWN || fields.Township}", RNG="${fields.RNG || fields.Range}"`);
+                console.log(`Property ${property.id}: Parsed section=${section}, township=${township}, range=${range}`);
+                
+                if (!section || !township || !range) {
+                    console.warn(`Property ${property.id} skipped - missing TRS data`);
+                    continue;
+                }
+                
+                // Get 3x3 sections around this property
+                const nearbySections = get3x3Sections(section, township, range);
                 nearbySections.forEach(trs => sectionsSet.add(trs));
             }
             
             return Array.from(sectionsSet);
         }
         
-        // Get 5x5 grid of sections centered on given section
-        function get5x5Sections(centerSection, township, range) {
+        // Get 3x3 grid of sections centered on given section
+        function get3x3Sections(centerSection, township, range) {
             const sections = [];
             
             // Standard 6x6 section layout
@@ -5481,9 +5492,9 @@
             
             if (centerRow === -1) return [`${centerSection}-${township}-${range}-IM`];
             
-            // Get 5x5 grid (2 sections in each direction)
-            for (let row = Math.max(0, centerRow - 2); row <= Math.min(5, centerRow + 2); row++) {
-                for (let col = Math.max(0, centerCol - 2); col <= Math.min(5, centerCol + 2); col++) {
+            // Get 3x3 grid (1 section in each direction)
+            for (let row = Math.max(0, centerRow - 1); row <= Math.min(5, centerRow + 1); row++) {
+                for (let col = Math.max(0, centerCol - 1); col <= Math.min(5, centerCol + 1); col++) {
                     const section = sectionGrid[row][col];
                     sections.push(`${section}-${township}-${range}-IM`);
                 }
