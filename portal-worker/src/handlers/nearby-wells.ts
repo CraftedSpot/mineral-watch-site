@@ -303,7 +303,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         query: {
           trs: trsValues.map(t => `${t.section}-${t.township}-${t.range}-${t.meridian}`),
           trsCount: trsValues.length,
-          chunksProcessed: chunks.length,
+          batchesProcessed: Math.ceil(trsValues.length / PARALLEL_BATCH),
           executionTime: totalTime
         }
       }
