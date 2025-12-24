@@ -2250,34 +2250,7 @@
         let completionsLayer = L.featureGroup();
         let sectionLayer = L.featureGroup();
         let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
-        let nearbyWellsLayer = L.markerClusterGroup({
-            // Only cluster at zoom levels below 12
-            disableClusteringAtZoom: 12,
-            maxClusterRadius: 80,
-            spiderfyOnMaxZoom: true,
-            showCoverageOnHover: false,
-            zoomToBoundsOnClick: true,
-            // Custom cluster icon
-            iconCreateFunction: function(cluster) {
-                const count = cluster.getChildCount();
-                let size = 'small';
-                let className = 'marker-cluster-small';
-                
-                if (count > 100) {
-                    size = 'large';
-                    className = 'marker-cluster-large';
-                } else if (count > 25) {
-                    size = 'medium';  
-                    className = 'marker-cluster-medium';
-                }
-                
-                return new L.DivIcon({
-                    html: '<div><span>' + count + '</span></div>',
-                    className: 'marker-cluster ' + className,
-                    iconSize: new L.Point(40, 40)
-                });
-            }
-        }); // For D1 database wells with clustering
+        let nearbyWellsLayer = null; // Initialize later after map is ready
         let activityHeatmapLayer = null; // Will be created as heat layer
         let permitHeatmapLayer = null; // Separate heat layer for permits
         let completionHeatmapLayer = null; // Separate heat layer for completions
