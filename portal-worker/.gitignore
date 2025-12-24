@@ -39,3 +39,8 @@ completions-wells-legacy.xlsx
 # Completions batch files
 completions-batch-*.sql
 execute-completions-import.sh
+
+# Depth fix batch files
+depth-fix.sql
+depth-batch-*.sql
+execute-depth-fix.sh

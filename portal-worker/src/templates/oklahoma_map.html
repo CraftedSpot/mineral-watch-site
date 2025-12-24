@@ -3914,18 +3914,27 @@
                         <div class="well-detail-value">${county ? `${county} County` : 'Unknown'}</div>
                     </div>
                 </div>
-                
-                <div class="well-detail-grid" style="border-bottom: none;">
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Formation</div>
-                        <div class="well-detail-value">${formationName ? toTitleCase(formationName) : 'N/A'}</div>
-                    </div>
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Depth</div>
-                        <div class="well-detail-value">${displayDepth ? `${displayDepth.toLocaleString()} ft` : 'N/A'}</div>
-                    </div>
-                </div>
             `;
+            
+            // Only show formation/depth row if either has data
+            if ((formationName && formationName.trim()) || (displayDepth && displayDepth > 0)) {
+                bodyContent += `
+                    <div class="well-detail-grid" style="border-bottom: none;">
+                        ${formationName && formationName.trim() ? `
+                        <div class="well-detail-section">
+                            <div class="well-detail-label">Formation</div>
+                            <div class="well-detail-value">${toTitleCase(formationName)}</div>
+                        </div>
+                        ` : ''}
+                        ${displayDepth && displayDepth > 0 ? `
+                        <div class="well-detail-section">
+                            <div class="well-detail-label">Depth</div>
+                            <div class="well-detail-value">${displayDepth.toLocaleString()} ft</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
             
             // Optionally add initial production if available
             if (ipOil || ipGas) {
@@ -3956,8 +3965,8 @@
             
             if (apiNumber && apiNumber !== 'Unknown') {
                 actionsContent += `
-                    <div class="occ-warning" style="position: relative; display: block;">
-                        <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
+                    <div class="occ-warning" style="position: relative; flex: 1;">
+                        <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; width: 100%; text-align: center;">
                             <span class="occ-warning-icon" style="position: relative; display: inline-flex; margin-right: 6px;">!</span>Well Records ↗
                         </a>
                         <div class="occ-tooltip" style="left: 50%; transform: translateX(-50%);">
