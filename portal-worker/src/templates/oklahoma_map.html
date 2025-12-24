@@ -5300,6 +5300,13 @@
             console.log('loadNearbyWells started');
             console.log('userProperties:', userProperties);
             
+            // Ensure we have user properties
+            if (!userProperties || userProperties.length === 0) {
+                console.error('No user properties loaded yet');
+                updateStatus('No properties found - please refresh the page');
+                return;
+            }
+            
             try {
                 // Get status filter
                 const statusFilter = document.getElementById('well-status-filter').value;
