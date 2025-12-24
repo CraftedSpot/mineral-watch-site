@@ -89,10 +89,10 @@ async function createCompletionsUpdateSQL() {
                     params.push(completionData.ip_water_bbl);
                 }
                 
-                if (updates.length > 0) {
-                    const sql = `UPDATE wells SET ${updates.join(', ')} WHERE api_number = ?1;`;
+                if (updateList.length > 0) {
+                    const sql = `UPDATE wells SET ${updateList.join(', ')} WHERE api_number = ?1;`;
                     // Store with parameters for batch execution
-                    this.updates.push({
+                    updates.push({
                         sql,
                         params: [api, ...params]
                     });
