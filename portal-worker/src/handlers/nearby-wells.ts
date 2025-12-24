@@ -174,6 +174,13 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
     console.log(`[NearbyWells] Searching for wells in ${trsValues.length} TRS locations`);
     console.log(`[NearbyWells] Will filter for well_status = '${status}' (${status === 'ALL' ? 'showing all statuses' : 'filtering by status'})`);
+    
+    // Log first 5 parsed TRS values to verify parsing
+    console.log(`[NearbyWells] First 5 parsed TRS values:`);
+    trsValues.slice(0, 5).forEach((trs, idx) => {
+      console.log(`  [${idx + 1}] section=${trs.section}, township=${trs.township}, range=${trs.range}, meridian=${trs.meridian}`);
+    });
+    
     const startTime = Date.now();
 
     // D1 SQLite has a limit of 100 bind variables (?1 through ?100)
