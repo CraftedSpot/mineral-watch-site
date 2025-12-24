@@ -185,7 +185,7 @@ if (jsonData.length > 0) {
                 sql = sql.replace('?', replacement);
             });
             
-            this.updates.push(sql);
+            updates.push(sql);
         }
         
         // Log progress every 10000 rows
