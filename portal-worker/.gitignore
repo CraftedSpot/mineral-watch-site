@@ -1,0 +1,35 @@
+# Node modules
+node_modules/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Build outputs
+dist/
+.wrangler/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary CSV/SQL imports
+rbdms-wells.csv
+sql-imports/
+
+# OCC data files
+completions-wells-formations-base.xlsx
+*.xlsx
+
+# Large data files
+*.csv
+*.sql
