@@ -77,12 +77,13 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       // Allow higher limit for POST requests
       limit = Math.min(parseInt(body.limit?.toString() || '1000'), 5000);
       // Map frontend status values to database values
-      if (body.status === 'all') {
+      const statusUpper = body.status?.toUpperCase();
+      if (statusUpper === 'ALL') {
         status = 'ALL';
-      } else if (body.status === 'plugged') {
+      } else if (statusUpper === 'PA') {
         status = 'PA';
       } else {
-        status = 'AC'; // default to active
+        status = 'AC'; // default to active (includes 'AC' or undefined)
       }
       
       console.log(`[NearbyWells] POST request for ${trsParams.length} TRS values, status: ${status}`);
@@ -93,7 +94,14 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       limit = Math.min(parseInt(url.searchParams.get('limit') || '100'), 1000);
       offset = parseInt(url.searchParams.get('offset') || '0');
       const statusParam = url.searchParams.get('status');
-      status = statusParam === 'ALL' || statusParam === 'all' ? 'ALL' : 'AC';
+      // Map frontend status values to database values
+      if (statusParam === 'ALL' || statusParam === 'all') {
+        status = 'ALL';
+      } else if (statusParam === 'PA' || statusParam === 'plugged') {
+        status = 'PA';
+      } else {
+        status = 'AC'; // default to active
+      }
     }
 
     if (trsParams.length === 0) {

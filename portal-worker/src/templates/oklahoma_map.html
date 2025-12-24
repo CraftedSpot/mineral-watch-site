@@ -5362,7 +5362,7 @@
                 // Make single POST request with all TRS values
                 const requestBody = {
                     trs: sectionsToQuery,
-                    status: statusFilter === 'ALL' ? 'all' : 'active',
+                    status: statusFilter.toLowerCase(), // Send 'ac', 'pa', or 'all'
                     limit: 5000 // Higher limit for POST
                 };
                 
