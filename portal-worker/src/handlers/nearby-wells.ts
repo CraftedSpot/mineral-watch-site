@@ -102,6 +102,10 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         }, 400);
       }
 
+      // Normalize township and range to match D1 format (pad with leading zeros)
+      const normalizedTownship = normalizeTownshipRange(township.toUpperCase());
+      const normalizedRange = normalizeTownshipRange(range.toUpperCase());
+
       // Validate meridian
       const validMeridian = meridian.toUpperCase();
       if (validMeridian !== 'IM' && validMeridian !== 'CM') {
@@ -113,8 +117,8 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
       trsValues.push({
         section: sectionNum,
-        township: township.toUpperCase(),
-        range: range.toUpperCase(),
+        township: normalizedTownship,
+        range: normalizedRange,
         meridian: validMeridian
       });
     }
