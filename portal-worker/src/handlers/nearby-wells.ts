@@ -120,20 +120,21 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     console.log(`[NearbyWells] First 5 TRS params:`, trsParams.slice(0, 5));
     
     for (const trsParam of trsParams) {
-      const parts = trsParam.split('-');
-      if (parts.length !== 4) {
+      // Parse "18-18N-17W-IM" format with regex
+      const match = trsParam.match(/^(\d+)-(\d+[NS])-(\d+[EW])-([IC]M)$/i);
+      if (!match) {
         return jsonResponse({ 
           error: 'Invalid TRS format',
           message: `Invalid TRS value: "${trsParam}". Expected format: "section-township-range-meridian" (e.g., "15-9N-5W-IM")`
         }, 400);
       }
 
-      const [section, township, range, meridian] = parts;
+      const [_, section, township, range, meridian] = match;
       
       // Debug first TRS parsing
       if (trsValues.length === 0) {
         console.log(`[NearbyWells] Parsing first TRS: "${trsParam}"`);
-        console.log(`[NearbyWells] Split into: section="${section}", township="${township}", range="${range}", meridian="${meridian}"`);
+        console.log(`[NearbyWells] Regex parsed: section="${section}", township="${township}", range="${range}", meridian="${meridian}"`);
       }
       
       // Validate section (1-36)
