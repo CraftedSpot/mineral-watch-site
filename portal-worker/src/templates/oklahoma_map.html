@@ -5309,7 +5309,8 @@
             try {
                 // Get status filter
                 const statusFilter = document.getElementById('well-status-filter').value;
-                const statusText = statusFilter === 'AC' ? 'active' : statusFilter === 'PA' ? 'plugged' : 'all';
+                console.log('Status filter value:', statusFilter);
+                const statusText = statusFilter === 'AC' ? 'active' : 'all';
                 const cacheKey = getWellsCacheKey(statusFilter);
                 
                 // Check cache first
