@@ -12,6 +12,11 @@ for (const sheetName of workbook.SheetNames) {
     console.log(`\n=== Sheet: ${sheetName} ===`);
     const worksheet = workbook.Sheets[sheetName];
     
+    if (!worksheet || !worksheet['!ref']) {
+        console.log('Sheet appears to be empty or corrupted');
+        continue;
+    }
+    
     // Get range info
     const range = XLSX.utils.decode_range(worksheet['!ref']);
     console.log(`Rows: ${range.e.r + 1}, Columns: ${range.e.c + 1}`);
