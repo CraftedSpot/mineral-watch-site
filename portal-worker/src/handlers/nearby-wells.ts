@@ -115,6 +115,10 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
 
     // Parse and validate TRS values
     const trsValues = [];
+    
+    // Log first few TRS values for debugging
+    console.log(`[NearbyWells] First 5 TRS params:`, trsParams.slice(0, 5));
+    
     for (const trsParam of trsParams) {
       const parts = trsParam.split('-');
       if (parts.length !== 4) {
@@ -125,6 +129,12 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       }
 
       const [section, township, range, meridian] = parts;
+      
+      // Debug first TRS parsing
+      if (trsValues.length === 0) {
+        console.log(`[NearbyWells] Parsing first TRS: "${trsParam}"`);
+        console.log(`[NearbyWells] Split into: section="${section}", township="${township}", range="${range}", meridian="${meridian}"`);
+      }
       
       // Validate section (1-36)
       const sectionNum = parseInt(section);
@@ -140,8 +150,8 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       const normalizedRange = normalizeTownshipRange(range.toUpperCase());
       
       // Log normalization for debugging
-      if (township !== normalizedTownship || range !== normalizedRange) {
-        console.log(`[NearbyWells] Normalized: ${township}-${range} → ${normalizedTownship}-${normalizedRange}`);
+      if (trsValues.length < 3 || (township !== normalizedTownship || range !== normalizedRange)) {
+        console.log(`[NearbyWells] TRS #${trsValues.length + 1}: "${trsParam}" → section=${sectionNum}, township=${normalizedTownship}, range=${normalizedRange}, meridian=${validMeridian}`);
       }
 
       // Validate meridian
