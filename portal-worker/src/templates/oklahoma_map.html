@@ -5830,7 +5830,7 @@
                     const operator = toTitleCase(well.operator || 'Unknown');
                     const wellStatus = getStatusLabel(well.well_status);
                     const statusColor = WELL_STATUS_COLORS[well.well_status] || WELL_STATUS_COLORS.default;
-                    const formation = well.well_type || '';
+                    const formation = well.formation_name ? toTitleCase(well.formation_name) : '';
                     
                     // Store well data for the expand function
                     marker.wellData = well;
