@@ -5341,17 +5341,8 @@
                 console.log('First 5 property sections:', propertySections.slice(0, 5)); // Log first 5 for debugging
                 console.log('Sample TRS format:', propertySections[0]); // Show exact format
                 
-                // If we have too many sections, limit to prevent overwhelming the system
-                // Start with a smaller limit for testing
-                const MAX_TRS_VALUES = 200; // Reduced for testing
-                let sectionsToQuery = propertySections;
-                if (propertySections.length > MAX_TRS_VALUES) {
-                    console.warn(`Too many sections (${propertySections.length}), limiting to ${MAX_TRS_VALUES}`);
-                    // Also log some of the sections we're querying
-                    console.log('Sample sections being queried:', sectionsToQuery.slice(0, 5));
-                    sectionsToQuery = propertySections.slice(0, MAX_TRS_VALUES);
-                    updateStatus(`Loading wells for first ${MAX_TRS_VALUES} sections...`);
-                }
+                // No limit needed - backend handles chunking
+                const sectionsToQuery = propertySections;
                 
                 // Make single POST request with all TRS values
                 const requestBody = {
