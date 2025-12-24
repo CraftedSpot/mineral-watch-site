@@ -4,7 +4,7 @@ const fs = require('fs');
 console.log('Reading completions Excel file...');
 
 // Try with different options
-const workbook = XLSX.readFile('completions-legacy.xlsx', {
+const workbook = XLSX.readFile('completions-daily.xlsx', {
     type: 'buffer',
     cellDates: true,
     cellNF: false,
