@@ -201,17 +201,17 @@ if (jsonData.length > 0) {
     console.log(`- Rows skipped: ${stats.skipped}`);
     
     // Write SQL file
-    if (this.updates.length > 0) {
+    if (updates.length > 0) {
         const sqlFile = 'completions-full-update.sql';
-        fs.writeFileSync(sqlFile, this.updates.join('\n'));
-        console.log(`\nWrote ${this.updates.length} UPDATE statements to ${sqlFile}`);
+        fs.writeFileSync(sqlFile, updates.join('\n'));
+        console.log(`\nWrote ${updates.length} UPDATE statements to ${sqlFile}`);
         
         // Create batch files for execution
         const BATCH_SIZE = 500; // D1 can handle larger batches
         let batchNum = 1;
         
-        for (let i = 0; i < this.updates.length; i += BATCH_SIZE) {
-            const batch = this.updates.slice(i, i + BATCH_SIZE);
+        for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+            const batch = updates.slice(i, i + BATCH_SIZE);
             const batchFile = `completions-full-batch-${String(batchNum).padStart(3, '0')}.sql`;
             fs.writeFileSync(batchFile, batch.join('\n'));
             batchNum++;
@@ -244,7 +244,6 @@ echo "Full completions import complete!"
         fs.chmodSync('execute-full-completions.sh', '755');
         console.log('\nCreated execution script: ./execute-full-completions.sh');
     }
-    
-}.bind({ updates: [] });
+}
 
 console.log('\nDone! Run ./execute-full-completions.sh to update the D1 database.');
