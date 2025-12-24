@@ -3846,6 +3846,13 @@
             const completionDate = wellData.completion_date || '';
             const spudDate = wellData.spud_date || '';
             
+            // Completion data for display
+            const formationName = wellData.formation_name || '';
+            const formationDepth = wellData.formation_depth || null;
+            const totalDepth = wellData.measured_total_depth || null;
+            const ipOil = wellData.ip_oil_bbl || null;
+            const ipGas = wellData.ip_gas_mcf || null;
+            
             // Format location string
             const locationStr = section && township && range 
                 ? `S${section} T${township} R${range} ${meridian}` 
@@ -3899,6 +3906,34 @@
                     <div class="well-detail-section">
                         <div class="well-detail-label">Completion Date</div>
                         <div class="well-detail-value">${completionDate}</div>
+                    </div>
+                    ` : ''}
+                    ${formationName ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Formation</div>
+                        <div class="well-detail-value">${toTitleCase(formationName)}</div>
+                    </div>
+                    ` : ''}
+                    ${formationDepth ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Formation Depth</div>
+                        <div class="well-detail-value">${formationDepth.toLocaleString()} ft</div>
+                    </div>
+                    ` : ''}
+                    ${totalDepth ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Total Depth</div>
+                        <div class="well-detail-value">${totalDepth.toLocaleString()} ft</div>
+                    </div>
+                    ` : ''}
+                    ${ipOil || ipGas ? `
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Initial Production</div>
+                        <div class="well-detail-value">
+                            ${ipOil ? `Oil: ${ipOil} BBL/day` : ''}
+                            ${ipOil && ipGas ? '<br>' : ''}
+                            ${ipGas ? `Gas: ${ipGas.toLocaleString()} MCF/day` : ''}
+                        </div>
                     </div>
                     ` : ''}
                 </div>

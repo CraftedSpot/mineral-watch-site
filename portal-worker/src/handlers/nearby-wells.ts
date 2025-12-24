@@ -216,7 +216,18 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
             well_type,
             well_status,
             spud_date,
-            completion_date
+            completion_date,
+            -- New completion data fields
+            bh_latitude,
+            bh_longitude,
+            formation_name,
+            formation_depth,
+            true_vertical_depth,
+            measured_total_depth,
+            lateral_length,
+            ip_oil_bbl,
+            ip_gas_mcf,
+            ip_water_bbl
           FROM wells
           WHERE section = ? AND township = ? AND range = ? AND meridian = ?${statusFilter}
           ORDER BY well_name
