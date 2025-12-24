@@ -189,6 +189,10 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     console.log(`[NearbyWells] First TRS value:`, trsValues[0]);
     console.log(`[NearbyWells] Status filter: ${status}`);
     
+    // Log sample of parsed TRS values to verify diversity
+    const sampleTRS = trsValues.slice(0, 10).map(t => `${t.township}-${t.range}`);
+    console.log(`[NearbyWells] First 10 township-ranges:`, sampleTRS);
+    
     // Execute queries in parallel for all chunks
     const queryPromises = chunks.map(async (chunk, chunkIndex) => {
       // Build SQL query with parameterized values for this chunk
