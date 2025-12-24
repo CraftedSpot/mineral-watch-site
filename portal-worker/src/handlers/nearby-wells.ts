@@ -76,7 +76,14 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
       trsParams = body.trs || [];
       // Allow higher limit for POST requests
       limit = Math.min(parseInt(body.limit?.toString() || '1000'), 5000);
-      status = body.status === 'all' ? 'ALL' : 'AC';
+      // Map frontend status values to database values
+      if (body.status === 'all') {
+        status = 'ALL';
+      } else if (body.status === 'plugged') {
+        status = 'PA';
+      } else {
+        status = 'AC'; // default to active
+      }
       
       console.log(`[NearbyWells] POST request for ${trsParams.length} TRS values, status: ${status}`);
     } else {
