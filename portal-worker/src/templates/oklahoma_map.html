@@ -3911,23 +3911,18 @@
                         <div class="well-detail-value">${county ? `${county} County` : 'Unknown'}</div>
                     </div>
                 </div>
-            `;
-            
-            // Add formation/depth row if either exists
-            if (formationName || displayDepth) {
-                bodyContent += `
-                    <div class="well-detail-grid" style="border-bottom: none;">
-                        <div class="well-detail-section">
-                            <div class="well-detail-label">Formation</div>
-                            <div class="well-detail-value">${formationName ? toTitleCase(formationName) : 'N/A'}</div>
-                        </div>
-                        <div class="well-detail-section">
-                            <div class="well-detail-label">Depth</div>
-                            <div class="well-detail-value">${displayDepth ? `${displayDepth.toLocaleString()} ft` : 'N/A'}</div>
-                        </div>
+                
+                <div class="well-detail-grid" style="border-bottom: none;">
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Formation</div>
+                        <div class="well-detail-value">${formationName ? toTitleCase(formationName) : 'N/A'}</div>
                     </div>
-                `;
-            }
+                    <div class="well-detail-section">
+                        <div class="well-detail-label">Depth</div>
+                        <div class="well-detail-value">${displayDepth ? `${displayDepth.toLocaleString()} ft` : 'N/A'}</div>
+                    </div>
+                </div>
+            `;
             
             // Optionally add initial production if available
             if (ipOil || ipGas) {
@@ -3942,17 +3937,6 @@
                     </div>
                 `;
             }
-            
-            bodyContent += `
-                <div class="info-callout" style="margin-top: 16px;">
-                    <svg class="info-icon" viewBox="0 0 20 20" fill="currentColor">
-                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" />
-                    </svg>
-                    <div>
-                        This well is from Oklahoma's public records database. Track it to monitor for new activity and receive alerts.
-                    </div>
-                </div>
-            `;
             
             document.getElementById('wellModalBody').innerHTML = bodyContent;
             
