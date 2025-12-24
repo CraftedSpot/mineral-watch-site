@@ -5242,7 +5242,7 @@
             const propertyIds = userProperties.map(p => p.id).sort().join(',');
             const propertyHash = btoa(propertyIds).substring(0, 8); // Short hash
             // Add version number to invalidate old caches
-            const CACHE_VERSION = 'v6'; // Force refresh to debug status filtering
+            const CACHE_VERSION = 'v7'; // Debug TRS parsing
             return `mw_nearby_wells_${status}_${propertyHash}_${CACHE_VERSION}`;
         }
         
