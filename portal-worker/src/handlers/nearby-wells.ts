@@ -86,7 +86,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         status = 'AC'; // default to active (includes 'AC' or undefined)
       }
       
-      console.log(`[NearbyWells] POST request for ${trsParams.length} TRS values, status: ${status}`);
+      console.log(`[NearbyWells] POST request for ${trsParams.length} TRS values, status: ${status}, body.status: ${body.status}`);
     } else {
       // Parse query parameters for GET
       const url = new URL(request.url);
@@ -236,6 +236,12 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
           .all();
         const queryTime = Date.now() - startTime;
         console.log(`[NearbyWells] Chunk ${chunkIndex + 1}/${chunks.length} found ${result.results.length} wells in ${queryTime}ms`);
+        
+        // Check if we hit D1's row limit
+        if (result.results.length === 1000) {
+          console.warn(`[NearbyWells] Chunk ${chunkIndex + 1} might have hit D1's row limit!`);
+        }
+        
         return result.results;
       } catch (error) {
         console.error(`[NearbyWells] Chunk ${chunkIndex + 1} failed:`, error);
@@ -245,6 +251,17 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     
     // Wait for all queries to complete
     const results = await Promise.all(queryPromises);
+    
+    // Log chunk results for debugging
+    let totalFromChunks = 0;
+    results.forEach((chunkResult, idx) => {
+      totalFromChunks += chunkResult.length;
+      if (chunkResult.length > 0) {
+        console.log(`[NearbyWells] Chunk ${idx + 1} returned ${chunkResult.length} wells`);
+      }
+    });
+    console.log(`[NearbyWells] Total wells from all chunks: ${totalFromChunks}`);
+    
     const allWells = results.flat();
 
     // Remove duplicates (wells might appear in multiple batches)
