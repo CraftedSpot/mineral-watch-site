@@ -106,7 +106,7 @@ async function createCompletionsUpdateSQL() {
                 
                 // Write update statements to file
                 const outputFile = 'completions-update.sql';
-                const sqlContent = this.updates.map(u => {
+                const sqlContent = updates.map(u => {
                     // Format SQL with actual values for manual execution
                     let sql = u.sql;
                     u.params.forEach((param, idx) => {
@@ -121,12 +121,12 @@ async function createCompletionsUpdateSQL() {
                 
                 fs.writeFileSync(outputFile, sqlContent);
                 console.log(`\nSQL update statements written to: ${outputFile}`);
-                console.log(`Total update statements: ${this.updates.length}`);
+                console.log(`Total update statements: ${updates.length}`);
                 
                 resolve(stats);
             })
             .on('error', reject);
-    }.bind({ updates }));
+    });
 }
 
 // Create smaller batch files for D1 execution
