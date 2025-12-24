@@ -630,6 +630,12 @@ var index_default = {
         return handleBackfillStatewideActivity(request, env);
       }
       
+      // Test endpoint for TRS parsing debug
+      if (path === "/api/test-wells" && request.method === "GET") {
+        const { handleTestWells } = await import('./handlers/test-wells.js');
+        return handleTestWells(request, env);
+      }
+      
       // TEMPORARY: Debug Stripe key endpoint
       if (path === "/debug/stripe" && request.method === "GET") {
         const keyPrefix = env.STRIPE_SECRET_KEY?.substring(0, 12) || 'not set';
