@@ -162,6 +162,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     }
 
     console.log(`[NearbyWells] Searching for wells in ${trsValues.length} TRS locations`);
+    console.log(`[NearbyWells] Will filter for well_status = '${status}' (${status === 'ALL' ? 'showing all statuses' : 'filtering by status'})`);
     const startTime = Date.now();
 
     // D1 SQLite has a limit of 100 bind variables (?1 through ?100)
@@ -228,7 +229,8 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         // Log the first chunk's query for debugging
         if (chunkIndex === 0) {
           console.log(`[NearbyWells] First chunk query preview:`, query.substring(0, 500));
-          console.log(`[NearbyWells] First chunk params:`, params.slice(0, 8));
+          console.log(`[NearbyWells] First chunk params:`, params);
+          console.log(`[NearbyWells] Status being filtered: "${status}"`);
         }
         
         const result = await env.WELLS_DB.prepare(query)
