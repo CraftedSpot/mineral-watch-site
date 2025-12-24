@@ -5217,11 +5217,16 @@
         
         // Toggle nearby wells from D1 database
         function toggleNearbyWells() {
+            console.log('toggleNearbyWells called');
             const checkbox = document.getElementById('toggle-nearby-wells');
             const filterDiv = document.getElementById('nearby-wells-filter');
             
+            console.log('Checkbox checked:', checkbox.checked);
+            console.log('User properties count:', userProperties.length);
+            
             if (checkbox.checked) {
                 filterDiv.style.display = 'block'; // Show filter dropdown
+                console.log('Calling loadNearbyWells...');
                 loadNearbyWells();
             } else {
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
