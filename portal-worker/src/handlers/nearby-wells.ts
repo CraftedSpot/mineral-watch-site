@@ -9,6 +9,24 @@ import { authenticateRequest } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
 
 /**
+ * Normalize township/range values to match D1 database format
+ * Examples: '9N' → '09N', '5W' → '05W', '15N' stays '15N'
+ */
+function normalizeTownshipRange(value: string): string {
+  // Extract numeric part and direction
+  const match = value.match(/^(\d+)([NSEW])$/);
+  if (!match) return value;
+  
+  const [, num, direction] = match;
+  const numericPart = parseInt(num);
+  
+  // Pad single digits with leading zero
+  const paddedNum = numericPart < 10 ? `0${numericPart}` : numericPart.toString();
+  
+  return `${paddedNum}${direction}`;
+}
+
+/**
  * Query wells by TRS values
  * Endpoints: 
  * - GET /api/nearby-wells?trs=15-9N-5W-IM&trs=16-9N-5W-IM
