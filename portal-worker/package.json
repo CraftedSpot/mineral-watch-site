@@ -12,9 +12,11 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20241106.0",
+    "csv-writer": "^1.6.0",
     "typescript": "^5.9.3",
     "vitest": "^1.6.0",
-    "wrangler": "^4.51.0"
+    "wrangler": "^4.51.0",
+    "xlsx": "^0.18.5"
   },
   "engines": {
     "node": ">=18"
