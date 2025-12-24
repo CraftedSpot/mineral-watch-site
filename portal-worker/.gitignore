@@ -35,3 +35,7 @@ completions-wells-legacy.xlsx
 # Large data files
 *.csv
 *.sql
+
+# Completions batch files
+completions-batch-*.sql
+execute-completions-import.sh
