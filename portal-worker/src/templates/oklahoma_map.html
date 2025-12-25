@@ -3401,7 +3401,7 @@
                 
                 // Initialize cluster group for tracked wells
                 wellsLayer = L.markerClusterGroup({
-                    disableClusteringAtZoom: 10,  // Expand earlier than nearby wells
+                    disableClusteringAtZoom: 8,   // Expand at zoom 8 for tracked wells
                     maxClusterRadius: 50,          // Smaller radius for tighter clusters
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
@@ -5949,8 +5949,8 @@
             // Initialize cluster group if not already done
             if (!nearbyWellsLayer) {
                 nearbyWellsLayer = L.markerClusterGroup({
-                    // Only cluster at zoom levels below 12
-                    disableClusteringAtZoom: 12,
+                    // Only cluster at zoom levels below 10
+                    disableClusteringAtZoom: 10,
                     maxClusterRadius: 80,
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
