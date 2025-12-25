@@ -3,7 +3,7 @@
 Download and parse OCC operator list to D1 database
 """
 import os
-import requests
+import urllib.request
 from openpyxl import load_workbook
 from datetime import datetime
 
