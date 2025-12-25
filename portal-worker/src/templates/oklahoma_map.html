@@ -3949,6 +3949,8 @@
             
             const apiNumber = wellData.api_number || 'Unknown';
             const operator = toTitleCase(wellData.operator || 'Unknown');
+            const operatorPhone = wellData.operator_phone || '';
+            const contactName = toTitleCase(wellData.contact_name || '');
             const wellStatus = (wellData.well_status || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
             const wellType = wellData.well_type || 'Oil Well';
@@ -4007,7 +4009,16 @@
                 <div class="well-detail-full">
                     <div class="well-detail-section">
                         <div class="well-detail-label">Operator</div>
-                        <div class="well-detail-value">${operator}</div>
+                        <div class="well-detail-value">
+                            ${operator}
+                            ${operatorPhone || contactName ? `
+                                <div class="well-contact-info">
+                                    ${operatorPhone ? `<a href="tel:${operatorPhone.replace(/\D/g, '')}">${operatorPhone}</a>` : ''}
+                                    ${operatorPhone && contactName ? ' • ' : ''}
+                                    ${contactName || ''}
+                                </div>
+                            ` : ''}
+                        </div>
                     </div>
                 </div>
                 
