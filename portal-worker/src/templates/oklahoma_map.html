@@ -3946,6 +3946,7 @@
             console.log('expandNearbyWellCard received data:', wellData);
             console.log('Operator info:', {
                 operator: wellData.operator,
+                phone: wellData.phone,
                 operator_phone: wellData.operator_phone,
                 contact_name: wellData.contact_name
             });
@@ -3957,7 +3958,7 @@
             
             const apiNumber = wellData.api_number || 'Unknown';
             const operator = toTitleCase(wellData.operator || 'Unknown');
-            const operatorPhone = wellData.operator_phone || '';
+            const operatorPhone = wellData.phone || wellData.operator_phone || '';
             const contactName = toTitleCase(wellData.contact_name || '');
             const wellStatus = (wellData.well_status || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
@@ -5655,7 +5656,7 @@
                 console.log(`Received ${allWells.length} wells from API`);
                 
                 // Debug: Check if operator data exists in response
-                const wellsWithOperatorInfo = allWells.filter(w => w.operator_phone || w.contact_name);
+                const wellsWithOperatorInfo = allWells.filter(w => w.phone || w.operator_phone || w.contact_name);
                 console.log(`Wells with operator info: ${wellsWithOperatorInfo.length}/${allWells.length}`);
                 if (wellsWithOperatorInfo.length > 0) {
                     console.log('Sample well with operator info:', wellsWithOperatorInfo[0]);
@@ -6033,13 +6034,14 @@
                     const wellNumber = well.well_number || '';
                     const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
                     const operator = toTitleCase(well.operator || 'Unknown');
-                    const operatorPhone = well.operator_phone || '';
+                    const operatorPhone = well.phone || well.operator_phone || '';
                     const contactName = toTitleCase(well.contact_name || '');
                     
                     // Debug: Log first few wells to check operator data
                     if (Object.keys(window.nearbyWellsData).length < 3 && (operatorPhone || contactName)) {
                         console.log(`Nearby well ${well.api_number} operator data:`, {
                             operator: well.operator,
+                            phone: well.phone,
                             operator_phone: well.operator_phone,
                             contact_name: well.contact_name
                         });
