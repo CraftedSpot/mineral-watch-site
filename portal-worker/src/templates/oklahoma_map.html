@@ -5655,6 +5655,12 @@
                 const allWells = result.data?.wells || [];
                 console.log(`Received ${allWells.length} wells from API`);
                 
+                // Debug: Log first few wells to see exact field names
+                if (allWells.length > 0) {
+                    console.log('First well structure:', allWells[0]);
+                    console.log('First well keys:', Object.keys(allWells[0]));
+                }
+                
                 // Debug: Check if operator data exists in response
                 const wellsWithOperatorInfo = allWells.filter(w => w.phone || w.operator_phone || w.contact_name);
                 console.log(`Wells with operator info: ${wellsWithOperatorInfo.length}/${allWells.length}`);
