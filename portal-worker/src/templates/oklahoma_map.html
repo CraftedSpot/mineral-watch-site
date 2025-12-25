@@ -4860,9 +4860,9 @@
             try {
                 updateStatus('Loading recent activity...');
                 
-                // Fetch recent activity from the API (last 30 days)
+                // Fetch recent activity from the API (last 90 days)
                 // Use statewide endpoint to get ALL activity from both tables
-                const response = await fetch('/api/activity/statewide?days=30');
+                const response = await fetch('/api/activity/statewide?days=90');
                 if (!response.ok) {
                     throw new Error('Failed to load activity data');
                 }
