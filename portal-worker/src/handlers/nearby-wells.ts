@@ -299,6 +299,12 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     const paginatedWells = sortedWells.slice(offset, offset + limit);
     
     console.log(`[NearbyWells] Total unique wells found: ${uniqueWells.length}, returning ${paginatedWells.length} after pagination`);
+    
+    // Log operator info stats
+    const wellsWithOperatorInfo = paginatedWells.filter(w => w.operator_phone || w.contact_name).length;
+    if (wellsWithOperatorInfo > 0) {
+      console.log(`[NearbyWells] ${wellsWithOperatorInfo}/${paginatedWells.length} wells have operator contact info from D1`);
+    }
 
     // For POST requests with many TRS values, the total count is the unique wells count
     const totalCount = uniqueWells.length;
