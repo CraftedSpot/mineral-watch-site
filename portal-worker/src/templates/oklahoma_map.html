@@ -5828,6 +5828,26 @@
             // Clear existing wells
             nearbyWellsLayer.clearLayers();
             
+            // Build set of tracked well API numbers for fast lookup
+            const trackedAPIs = new Set();
+            if (trackedWells && trackedWells.length > 0) {
+                trackedWells.forEach(well => {
+                    const apiNumber = well.fields && well.fields['API Number'];
+                    if (apiNumber) {
+                        trackedAPIs.add(apiNumber);
+                    }
+                });
+                console.log(`Filtering out ${trackedAPIs.size} tracked wells from nearby wells display`);
+            }
+            
+            // Filter out tracked wells
+            const untracked = wells.filter(well => {
+                return !trackedAPIs.has(well.api_number);
+            });
+            
+            console.log(`Displaying ${untracked.length} untracked wells (filtered ${wells.length - untracked.length} tracked wells)`);
+            wells = untracked;
+            
             // Get current size of tracked well markers for scaling
             const trackedWellSize = 25; // Base size for tracked wells
             const nearbyWellSize = trackedWellSize * 0.6; // 60% of tracked well size
