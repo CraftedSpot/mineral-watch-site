@@ -5853,7 +5853,9 @@
                     });
                     
                     // Create small popup similar to tracked wells
-                    const wellName = toTitleCase(well.well_name || 'Unnamed Well');
+                    const wellBaseName = well.well_name || 'Unnamed Well';
+                    const wellNumber = well.well_number || '';
+                    const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
                     const operator = toTitleCase(well.operator || 'Unknown');
                     const wellStatus = getStatusLabel(well.well_status);
                     const statusColor = WELL_STATUS_COLORS[well.well_status] || WELL_STATUS_COLORS.default;
