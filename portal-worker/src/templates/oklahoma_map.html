@@ -3869,9 +3869,9 @@
             // Status badge color
             const statusBgColor = statusColor + '20'; // 20% opacity version
             
-            // Build OCC Map link from coordinates
+            // Build OCC Map link from coordinates (matching Tracked Wells format)
             const occMapLink = wellData.latitude && wellData.longitude
-                ? `https://gis.occ.ok.gov/map/?marker=${wellData.longitude},${wellData.latitude}`
+                ? `https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b&marker=${wellData.longitude},${wellData.latitude},,,,&markertemplate=%7B%22title%22%3A%22${encodeURIComponent(wellName.toUpperCase())}%22%2C%22longitude%22%3A${wellData.longitude}%2C%22latitude%22%3A${wellData.latitude}%2C%22isIncludeShareUrl%22%3Atrue%7D&level=19`
                 : '';
             
             // Set modal title with completion date badge
