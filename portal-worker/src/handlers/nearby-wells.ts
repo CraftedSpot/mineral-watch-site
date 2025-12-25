@@ -6,7 +6,6 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { findOperatorByName } from '../services/operators.js';
 import type { Env } from '../types/env.js';
 
 /**
