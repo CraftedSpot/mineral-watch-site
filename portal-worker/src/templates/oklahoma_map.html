@@ -6000,6 +6000,8 @@
                     const wellNumber = well.well_number || '';
                     const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
                     const operator = toTitleCase(well.operator || 'Unknown');
+                    const operatorPhone = well.operator_phone || '';
+                    const contactName = toTitleCase(well.contact_name || '');
                     const wellStatus = getStatusLabel(well.well_status);
                     const statusColor = WELL_STATUS_COLORS[well.well_status] || WELL_STATUS_COLORS.default;
                     const formation = well.formation_name ? toTitleCase(well.formation_name) : '';
