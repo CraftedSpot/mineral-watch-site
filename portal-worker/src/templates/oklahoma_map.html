@@ -1896,6 +1896,11 @@
                         <span class="count-value" id="completionCount">0</span>
                         <span class="count-label" title="Wells completed within 90 days near your properties">Recent Completions</span>
                     </div>
+                    <div class="count-separator" id="nearbyWellsSeparator" style="display: none;">•</div>
+                    <div class="count-item" id="nearbyWellsCount" style="display: none;">
+                        <span class="count-value" id="nearbyWellCount">0</span>
+                        <span class="count-label" title="D1 database wells near your properties">Nearby Wells</span>
+                    </div>
                 </div>
             </div>
             
@@ -5450,12 +5455,16 @@
             console.log('toggleNearbyWells called');
             const checkbox = document.getElementById('toggle-nearby-wells');
             const filterDiv = document.getElementById('nearby-wells-filter');
+            const countDiv = document.getElementById('nearbyWellsCount');
+            const separatorDiv = document.getElementById('nearbyWellsSeparator');
             
             console.log('Checkbox checked:', checkbox.checked);
             console.log('User properties count:', userProperties.length);
             
             if (checkbox.checked) {
                 filterDiv.style.display = 'block'; // Show filter dropdown
+                countDiv.style.display = 'block'; // Show count
+                separatorDiv.style.display = 'block'; // Show separator
                 console.log('Calling loadNearbyWells...');
                 loadNearbyWells();
             } else {
@@ -5463,7 +5472,10 @@
                     map.removeLayer(nearbyWellsLayer);
                 }
                 filterDiv.style.display = 'none'; // Hide filter dropdown
+                countDiv.style.display = 'none'; // Hide count
+                separatorDiv.style.display = 'none'; // Hide separator
                 document.getElementById('wellsFilterPanel').style.display = 'none'; // Hide filter panel
+                document.getElementById('nearbyWellCount').textContent = '0'; // Reset count
             }
         }
         
@@ -5955,6 +5967,9 @@
             
             console.log(`Displaying ${untracked.length} untracked wells (filtered ${wells.length - untracked.length} tracked wells)`);
             wells = untracked;
+            
+            // Update nearby wells count
+            document.getElementById('nearbyWellCount').textContent = wells.length;
             
             // Get current size of tracked well markers for scaling
             const trackedWellSize = 25; // Base size for tracked wells
