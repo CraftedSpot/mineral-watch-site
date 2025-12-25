@@ -232,7 +232,7 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
             o.phone,
             o.contact_name
           FROM wells w
-          LEFT JOIN operators o ON UPPER(TRIM(w.operator)) = o.operator_name_normalized
+          LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
           WHERE section = ? AND township = ? AND range = ? AND meridian = ?${statusFilter}
           ORDER BY well_name
         `;
