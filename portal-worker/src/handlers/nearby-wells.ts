@@ -321,9 +321,19 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     console.log(`[NearbyWells] Total unique wells found: ${uniqueWells.length}, returning ${paginatedWells.length} after pagination`);
     
     // Log operator info stats
-    const wellsWithOperatorInfo = paginatedWells.filter(w => w.operator_phone || w.contact_name).length;
-    if (wellsWithOperatorInfo > 0) {
-      console.log(`[NearbyWells] ${wellsWithOperatorInfo}/${paginatedWells.length} wells have operator contact info from D1`);
+    const wellsWithPhone = paginatedWells.filter(w => w.phone).length;
+    const wellsWithContact = paginatedWells.filter(w => w.contact_name).length;
+    console.log(`[NearbyWells] Final response stats: ${wellsWithPhone}/${paginatedWells.length} wells have phone, ${wellsWithContact} have contact_name`);
+    
+    // Log sample well with operator info
+    const sampleWellWithInfo = paginatedWells.find(w => w.phone || w.contact_name);
+    if (sampleWellWithInfo) {
+      console.log(`[NearbyWells] Sample well with operator info:`, {
+        api: sampleWellWithInfo.api_number,
+        operator: sampleWellWithInfo.operator,
+        phone: sampleWellWithInfo.phone,
+        contact_name: sampleWellWithInfo.contact_name
+      });
     }
 
     // For POST requests with many TRS values, the total count is the unique wells count
