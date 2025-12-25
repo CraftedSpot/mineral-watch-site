@@ -19,13 +19,11 @@ print(f"\nDownloading operator list from OCC...")
 print(f"URL: {operator_list_url}")
 
 try:
-    response = requests.get(operator_list_url, timeout=60)
-    response.raise_for_status()
+    # Download with urllib
+    urllib.request.urlretrieve(operator_list_url, local_file)
     
-    with open(local_file, 'wb') as f:
-        f.write(response.content)
-    
-    file_size_mb = len(response.content) / 1024 / 1024
+    # Get file size
+    file_size_mb = os.path.getsize(local_file) / 1024 / 1024
     print(f"✓ Downloaded {file_size_mb:.1f} MB")
 except Exception as e:
     print(f"✗ Error downloading file: {e}")
