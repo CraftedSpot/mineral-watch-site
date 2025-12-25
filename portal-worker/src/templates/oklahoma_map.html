@@ -3110,7 +3110,63 @@
             }
         }
         
-        // Create clustered marker for multiple wells at same location (with lateral paths)
+        // Create individual tracked well marker
+        function createTrackedWellMarker(well, coords) {
+            const fields = well.fields || {};
+            const wellStatus = fields['Well Status'] || 'Unknown';
+            const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+            const operatorColor = getOperatorColor(fields['Operator'] || '');
+            
+            // Create pin marker for tracked wells
+            const markerSize = 24;
+            const markerHeight = 30;
+            
+            const icon = L.divIcon({
+                className: 'tracked-well-pin',
+                html: `
+                    <svg width="${markerSize + 8}" height="${markerHeight + 4}" viewBox="-2 -1 32 40" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                              fill="${statusColor}" stroke="${operatorColor}" stroke-width="2"/>
+                        <circle cx="12" cy="12" r="4.5" fill="${operatorColor}"/>
+                    </svg>
+                `,
+                iconSize: [markerSize + 8, markerHeight + 4],
+                iconAnchor: [(markerSize + 8)/2, markerHeight + 4],
+                popupAnchor: [0, -markerHeight - 2]
+            });
+            
+            const marker = L.marker([coords.lat, coords.lon], { icon: icon });
+            
+            // Create popup content
+            const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
+            const operator = toTitleCase(fields['Operator'] || 'Unknown');
+            const wellStatusLabel = getStatusLabel(wellStatus);
+            const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
+            
+            const popupContent = `
+                <div class="popup-header">
+                    <span class="popup-tag tracked-well">Tracked Well</span>
+                </div>
+                <div class="popup-well-name">${wellName}</div>
+                <div class="popup-details">
+                    ${operator}<br>
+                    ${fields['Section'] ? `S${fields['Section']} T${fields['Township']} R${fields['Range']} • ` : ''}${fields['County'] || 'Unknown'}<br>
+                    Status: ${wellStatusLabel}${formation ? ` • ${formation}` : ''}
+                </div>
+                <div class="popup-actions">
+                    <button class="popup-btn popup-btn-secondary" onclick="expandWellCard('${well.id}'); return false;">More →</button>
+                </div>
+            `;
+            
+            marker.bindPopup(popupContent, { 
+                maxWidth: 300,
+                className: 'high-z-popup'
+            });
+            
+            return marker;
+        }
+        
+        // Create clustered marker for multiple wells at same location (with lateral paths) - LEGACY, keeping for reference
         function createClusteredWellMarker(wellsAtLocation) {
             const firstWell = wellsAtLocation[0];
             const coords = parseOccMapLink(firstWell.fields['OCC Map Link']);
