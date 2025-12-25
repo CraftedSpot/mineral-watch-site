@@ -3774,17 +3774,21 @@
         // Track a well (add to user's tracked wells)
         async function trackWell(apiNumber, wellName) {
             try {
+                console.log('trackWell called with:', { apiNumber, wellName });
                 updateStatus('Adding well to tracking...');
+                
+                const requestBody = {
+                    'API Number': apiNumber,
+                    'Well Name': wellName
+                };
+                console.log('Sending request body:', requestBody);
                 
                 const response = await fetch('/api/wells', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
                     },
-                    body: JSON.stringify({
-                        'API Number': apiNumber,
-                        'Well Name': wellName
-                    })
+                    body: JSON.stringify(requestBody)
                 });
                 
                 if (response.ok) {
@@ -3976,10 +3980,16 @@
                 `;
             }
             
+            // Only show Track button if we have a valid API number
+            if (apiNumber && apiNumber !== 'Unknown') {
+                actionsContent += `
+                    <button class="well-modal-btn well-modal-btn-primary" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">
+                        Track This Well
+                    </button>
+                `;
+            }
+            
             actionsContent += `
-                <button class="well-modal-btn well-modal-btn-primary" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">
-                    Track This Well
-                </button>
                 <button class="well-modal-btn well-modal-btn-secondary" onclick="closeWellModal()">
                     Close
                 </button>
