@@ -3299,8 +3299,40 @@
                     wellsById[well.id] = well;
                 });
                 
-                // Group wells by coordinates (rounded to avoid tiny differences)
-                const wellsByLocation = {};
+                // Clear existing wells layer and create new cluster group
+                if (wellsLayer) {
+                    map.removeLayer(wellsLayer);
+                }
+                
+                // Initialize cluster group for tracked wells
+                wellsLayer = L.markerClusterGroup({
+                    disableClusteringAtZoom: 10,  // Expand earlier than nearby wells
+                    maxClusterRadius: 50,          // Smaller radius for tighter clusters
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true,
+                    // Custom cluster icon with tracked well colors
+                    iconCreateFunction: function(cluster) {
+                        const count = cluster.getChildCount();
+                        let size = 'small';
+                        let className = 'tracked-well-cluster-small';
+                        
+                        if (count > 50) {
+                            size = 'large';
+                            className = 'tracked-well-cluster-large';
+                        } else if (count > 10) {
+                            size = 'medium';  
+                            className = 'tracked-well-cluster-medium';
+                        }
+                        
+                        return new L.DivIcon({
+                            html: '<div><span>' + count + '</span></div>',
+                            className: 'tracked-well-cluster ' + className,
+                            iconSize: new L.Point(40, 40)
+                        });
+                    }
+                });
+                
                 let addedWells = 0;
                 
                 for (const well of wells) {
@@ -3313,42 +3345,18 @@
                         continue;
                     }
                     
-                    // Round coordinates to group nearby wells (within ~10 feet)
-                    // Using 5 decimal places for more precision
-                    const roundedLat = Math.round(coords.lat * 100000) / 100000;
-                    const roundedLon = Math.round(coords.lon * 100000) / 100000;
-                    const locationKey = `${roundedLat},${roundedLon}`;
-                    
-                    if (!wellsByLocation[locationKey]) {
-                        wellsByLocation[locationKey] = [];
+                    // Create individual marker for each well (clustering will group them automatically)
+                    const marker = createTrackedWellMarker(well, coords);
+                    if (marker) {
+                        wellsLayer.addLayer(marker);
+                        wellMarkers[well.id] = marker;
+                        addedWells++;
                     }
-                    wellsByLocation[locationKey].push(well);
-                    addedWells++;
                     
                     processedWells++;
                     // Update status every 10 wells or on the last well
                     if (processedWells % 10 === 0 || processedWells === totalWells) {
                         updateStatus(`Loading ${processedWells} of ${totalWells} wells...`);
-                    }
-                }
-                
-                // Create markers for each location
-                let markerCount = 0;
-                const totalLocations = Object.keys(wellsByLocation).length;
-                
-                for (const [locationKey, wellsAtLocation] of Object.entries(wellsByLocation)) {
-                    const marker = createClusteredWellMarker(wellsAtLocation);
-                    wellsLayer.addLayer(marker);
-                    
-                    // Store markers for each well at this location for search
-                    wellsAtLocation.forEach(well => {
-                        wellMarkers[well.id] = marker;
-                    });
-                    
-                    markerCount++;
-                    // Update status for marker creation
-                    if (markerCount % 5 === 0 || markerCount === totalLocations) {
-                        updateStatus(`Creating ${markerCount} of ${totalLocations} well markers...`);
                     }
                 }
                 
