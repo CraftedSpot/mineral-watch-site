@@ -203,33 +203,37 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
         const statusFilter = status === 'ALL' ? '' : ' AND well_status = ?';
         const query = `
           SELECT 
-            api_number,
-            well_name,
-            well_number,
-            section,
-            township,
-            range,
-            meridian,
-            county,
-            latitude,
-            longitude,
-            operator,
-            well_type,
-            well_status,
-            spud_date,
-            completion_date,
+            w.api_number,
+            w.well_name,
+            w.well_number,
+            w.section,
+            w.township,
+            w.range,
+            w.meridian,
+            w.county,
+            w.latitude,
+            w.longitude,
+            w.operator,
+            w.well_type,
+            w.well_status,
+            w.spud_date,
+            w.completion_date,
             -- New completion data fields
-            bh_latitude,
-            bh_longitude,
-            formation_name,
-            formation_depth,
-            true_vertical_depth,
-            measured_total_depth,
-            lateral_length,
-            ip_oil_bbl,
-            ip_gas_mcf,
-            ip_water_bbl
-          FROM wells
+            w.bh_latitude,
+            w.bh_longitude,
+            w.formation_name,
+            w.formation_depth,
+            w.true_vertical_depth,
+            w.measured_total_depth,
+            w.lateral_length,
+            w.ip_oil_bbl,
+            w.ip_gas_mcf,
+            w.ip_water_bbl,
+            -- Operator info from operators table
+            o.phone as operator_phone,
+            o.contact_name as contact_name
+          FROM wells w
+          LEFT JOIN operators o ON UPPER(TRIM(w.operator)) = o.operator_name_normalized
           WHERE section = ? AND township = ? AND range = ? AND meridian = ?${statusFilter}
           ORDER BY well_name
         `;
