@@ -258,6 +258,17 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
           // Log if this TRS has wells
           if (result.results.length > 0) {
             console.log(`[NearbyWells] TRS ${trsIndex + 1} (${trs.section}-${trs.township}-${trs.range}-${trs.meridian}): found ${result.results.length} wells in ${queryTime}ms`);
+            
+            // Debug: Check operator data in first well of first TRS
+            if (trsIndex === 0 && result.results[0]) {
+              const firstWell = result.results[0];
+              console.log(`[NearbyWells] First well operator data:`, {
+                api: firstWell.api_number,
+                operator: firstWell.operator,
+                operator_phone: firstWell.operator_phone,
+                contact_name: firstWell.contact_name
+              });
+            }
           }
           
           return result.results;
