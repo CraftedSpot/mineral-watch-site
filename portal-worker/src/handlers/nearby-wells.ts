@@ -271,15 +271,14 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
                 phone: firstWell.phone,
                 contact: firstWell.contact
               });
+              
+              // Also check if any wells in this batch have operator data
+              const wellsWithPhone = result.results.filter(w => w.phone).length;
+              const wellsWithContact = result.results.filter(w => w.contact_name).length;
+              console.log(`[NearbyWells] First TRS batch: ${wellsWithPhone}/${result.results.length} wells have phone, ${wellsWithContact} have contact_name`);
             }
           }
           
-          // DEBUG: Add test data to first well
-          if (trsIndex === 0 && result.results.length > 0 && !result.results[0].operator_phone) {
-            console.log(`[NearbyWells] WARNING: First well missing operator_phone, adding test data`);
-            result.results[0]._debug_operator_phone = 'TEST-PHONE-123';
-            result.results[0]._debug_contact_name = 'TEST-CONTACT';
-          }
           
           return result.results;
         } catch (error) {
