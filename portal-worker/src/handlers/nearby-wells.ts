@@ -262,13 +262,23 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
             // Debug: Check operator data in first well of first TRS
             if (trsIndex === 0 && result.results[0]) {
               const firstWell = result.results[0];
+              console.log(`[NearbyWells] First well raw data keys:`, Object.keys(firstWell));
               console.log(`[NearbyWells] First well operator data:`, {
                 api: firstWell.api_number,
                 operator: firstWell.operator,
                 operator_phone: firstWell.operator_phone,
-                contact_name: firstWell.contact_name
+                contact_name: firstWell.contact_name,
+                phone: firstWell.phone,
+                contact: firstWell.contact
               });
             }
+          }
+          
+          // DEBUG: Add test data to first well
+          if (trsIndex === 0 && result.results.length > 0 && !result.results[0].operator_phone) {
+            console.log(`[NearbyWells] WARNING: First well missing operator_phone, adding test data`);
+            result.results[0]._debug_operator_phone = 'TEST-PHONE-123';
+            result.results[0]._debug_contact_name = 'TEST-CONTACT';
           }
           
           return result.results;
