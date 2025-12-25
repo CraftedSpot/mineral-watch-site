@@ -5986,8 +5986,15 @@
             const trackedWellSize = 25; // Base size for tracked wells
             const nearbyWellSize = trackedWellSize * 0.6; // 60% of tracked well size
             
+            // Store wells data globally for popup access
+            window.nearbyWellsData = {};
+            
             // Add filtered wells to map
             wells.forEach(well => {
+                // Store well data by API number
+                if (well.api_number) {
+                    window.nearbyWellsData[well.api_number] = well;
+                }
                 if (well.latitude && well.longitude) {
                     // Create gray teardrop marker (similar to tracked wells but gray)
                     const marker = L.marker([well.latitude, well.longitude], {
@@ -6013,6 +6020,15 @@
                     const operator = toTitleCase(well.operator || 'Unknown');
                     const operatorPhone = well.operator_phone || '';
                     const contactName = toTitleCase(well.contact_name || '');
+                    
+                    // Debug: Log first few wells to check operator data
+                    if (Object.keys(window.nearbyWellsData).length < 3 && (operatorPhone || contactName)) {
+                        console.log(`Nearby well ${well.api_number} operator data:`, {
+                            operator: well.operator,
+                            operator_phone: well.operator_phone,
+                            contact_name: well.contact_name
+                        });
+                    }
                     const wellStatus = getStatusLabel(well.well_status);
                     const statusColor = WELL_STATUS_COLORS[well.well_status] || WELL_STATUS_COLORS.default;
                     const formation = well.formation_name ? toTitleCase(well.formation_name) : '';
@@ -6031,7 +6047,7 @@
                             Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
                         </div>
                         <div class="popup-actions">
-                            <button class="popup-btn popup-btn-secondary" onclick="expandNearbyWellCard(${JSON.stringify(well).replace(/"/g, '&quot;')}); return false;">More →</button>
+                            <button class="popup-btn popup-btn-secondary" data-api="${well.api_number}" onclick="expandNearbyWellCard(nearbyWellsData['${well.api_number}']); return false;">More →</button>
                         </div>
                     `;
                     
