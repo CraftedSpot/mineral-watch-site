@@ -3778,8 +3778,8 @@
                 updateStatus('Adding well to tracking...');
                 
                 const requestBody = {
-                    'API Number': apiNumber,
-                    'Well Name': wellName
+                    apiNumber: apiNumber,  // No space, camelCase
+                    wellName: wellName     // No space, camelCase
                 };
                 console.log('Sending request body:', requestBody);
                 
