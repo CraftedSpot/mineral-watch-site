@@ -6,6 +6,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
+import { findOperatorByName } from '../services/operators.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -293,6 +294,42 @@ export async function handleNearbyWells(request: Request, env: Env): Promise<Res
     });
     
     const paginatedWells = sortedWells.slice(offset, offset + limit);
+    
+    // Look up operator phone and contact info for paginated wells
+    console.log(`[NearbyWells] Looking up operator info for ${paginatedWells.length} wells`);
+    const operatorLookupStart = Date.now();
+    
+    // Create a map to cache operator lookups
+    const operatorCache = new Map<string, { phone: string | null, contactName: string | null }>();
+    
+    // Look up operator info for each well
+    for (const well of paginatedWells) {
+      if (well.operator) {
+        const operatorKey = well.operator.toLowerCase().trim();
+        
+        // Check if we already looked up this operator
+        if (!operatorCache.has(operatorKey)) {
+          try {
+            const operatorInfo = await findOperatorByName(well.operator, env);
+            operatorCache.set(operatorKey, {
+              phone: operatorInfo?.phone || null,
+              contactName: operatorInfo?.contactName || null
+            });
+          } catch (error) {
+            console.warn(`[NearbyWells] Failed to lookup operator info for ${well.operator}:`, error);
+            operatorCache.set(operatorKey, { phone: null, contactName: null });
+          }
+        }
+        
+        // Add operator info to well
+        const cachedInfo = operatorCache.get(operatorKey);
+        well.operator_phone = cachedInfo?.phone || null;
+        well.contact_name = cachedInfo?.contactName || null;
+      }
+    }
+    
+    const operatorLookupTime = Date.now() - operatorLookupStart;
+    console.log(`[NearbyWells] Operator lookup completed in ${operatorLookupTime}ms for ${operatorCache.size} unique operators`);
     
     console.log(`[NearbyWells] Total unique wells found: ${uniqueWells.length}, returning ${paginatedWells.length} after pagination`);
 
