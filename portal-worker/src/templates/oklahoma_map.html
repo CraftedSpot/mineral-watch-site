@@ -2281,7 +2281,7 @@
         let townshipLayer;
         let countyLabelsLayer = L.layerGroup();
         let propertiesLayer = L.featureGroup();
-        let wellsLayer = L.featureGroup();
+        let wellsLayer = null; // Will be initialized as MarkerClusterGroup in loadTrackedWells
         // Lateral paths are now integrated into well rendering
         let permitsLayer = L.featureGroup();
         let completionsLayer = L.featureGroup();
