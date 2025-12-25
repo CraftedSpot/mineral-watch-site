@@ -3942,6 +3942,14 @@
                 return;
             }
             
+            // Debug: Log the wellData to see what we're receiving
+            console.log('expandNearbyWellCard received data:', wellData);
+            console.log('Operator info:', {
+                operator: wellData.operator,
+                operator_phone: wellData.operator_phone,
+                contact_name: wellData.contact_name
+            });
+            
             // Build well title from well_name + well_number
             const wellBaseName = wellData.well_name || `API ${wellData.api_number}`;
             const wellNumber = wellData.well_number || '';
@@ -5645,6 +5653,13 @@
                 console.log('API response:', result);
                 const allWells = result.data?.wells || [];
                 console.log(`Received ${allWells.length} wells from API`);
+                
+                // Debug: Check if operator data exists in response
+                const wellsWithOperatorInfo = allWells.filter(w => w.operator_phone || w.contact_name);
+                console.log(`Wells with operator info: ${wellsWithOperatorInfo.length}/${allWells.length}`);
+                if (wellsWithOperatorInfo.length > 0) {
+                    console.log('Sample well with operator info:', wellsWithOperatorInfo[0]);
+                }
                 
                 // Remove duplicates (wells might appear in multiple sections)
                 const uniqueWells = Array.from(
