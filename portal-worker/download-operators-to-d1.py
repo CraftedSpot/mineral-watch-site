@@ -79,24 +79,24 @@ header_row = next(ws.iter_rows(values_only=True))
 
 for idx, header in enumerate(header_row):
     if header:
-        header_clean = str(header).strip().upper()
-        if 'OPERATOR NO' in header_clean or 'OPERATOR #' in header_clean:
+        header_str = str(header).strip()
+        if header_str == 'Operator_No':
             columns['operator_no'] = idx
-        elif header_clean == 'OPERATOR':
+        elif header_str == 'Company_Name':
             columns['operator_name'] = idx
-        elif 'STATUS' in header_clean:
+        elif header_str == 'Operator_Status':
             columns['status'] = idx
-        elif 'PHONE' in header_clean:
+        elif header_str == 'Operator_Phone':
             columns['phone'] = idx
-        elif 'ADDRESS' in header_clean and 'STREET' in header_clean:
+        elif header_str == 'Office_Street':
             columns['address'] = idx
-        elif 'CITY' in header_clean:
+        elif header_str == 'Office_City':
             columns['city'] = idx
-        elif 'STATE' in header_clean:
+        elif header_str == 'Office_State':
             columns['state'] = idx
-        elif 'ZIP' in header_clean:
+        elif header_str == 'Office_Zip':
             columns['zip'] = idx
-        elif 'CONTACT' in header_clean:
+        elif header_str == 'Contact_Name':
             columns['contact'] = idx
 
 print(f"\nFound columns:")
