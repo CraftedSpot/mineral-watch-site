@@ -3700,6 +3700,131 @@
             map.closePopup();
         }
         
+        // Fetch D1 enrichment data for a well
+        async function fetchWellEnrichment(apiNumber, existingFormation, existingDepth) {
+            try {
+                const response = await fetch(`/api/well-enrichment/${apiNumber}`);
+                if (!response.ok) {
+                    console.error('Failed to fetch enrichment data:', response.status);
+                    return;
+                }
+                
+                const result = await response.json();
+                const data = result.data || {};
+                
+                // Check if we have any enrichment data
+                const hasD1Formation = data.formation_name && data.formation_name.trim();
+                const hasD1Depth = data.measured_total_depth || data.true_vertical_depth;
+                const hasProduction = data.ip_oil_bbl || data.ip_gas_mcf || data.ip_water_bbl;
+                const hasDates = data.completion_date || data.spud_date;
+                
+                if (!hasD1Formation && !hasD1Depth && !hasProduction && !hasDates) {
+                    console.log('No D1 enrichment data for well:', apiNumber);
+                    return;
+                }
+                
+                // Build enrichment HTML
+                let enrichmentHtml = '';
+                
+                // Add production & depth section header
+                enrichmentHtml += `
+                    <div class="well-detail-section" style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e5e7eb;">
+                        <div class="well-detail-label">Production & Depth Data</div>
+                        <div style="font-size: 11px; color: #6b7280; margin-top: 2px;">From D1 Database</div>
+                    </div>
+                `;
+                
+                // Formation and depth grid (only if D1 has different/additional data)
+                if ((hasD1Formation && !existingFormation) || (hasD1Depth && !existingDepth)) {
+                    enrichmentHtml += `<div class="well-detail-grid" style="margin-top: 12px;">`;
+                    
+                    if (hasD1Formation && !existingFormation) {
+                        enrichmentHtml += `
+                            <div class="well-detail-section">
+                                <div class="well-detail-label">Formation</div>
+                                <div class="well-detail-value">${toTitleCase(data.formation_name)}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (hasD1Depth && !existingDepth) {
+                        const depth = data.true_vertical_depth || data.measured_total_depth;
+                        const depthType = data.true_vertical_depth ? 'TVD' : 'MD';
+                        enrichmentHtml += `
+                            <div class="well-detail-section">
+                                <div class="well-detail-label">Depth (${depthType})</div>
+                                <div class="well-detail-value">${depth.toLocaleString()} ft</div>
+                            </div>
+                        `;
+                    }
+                    
+                    enrichmentHtml += `</div>`;
+                }
+                
+                // Initial Production
+                if (hasProduction) {
+                    enrichmentHtml += `
+                        <div class="well-detail-section" style="margin-top: 12px;">
+                            <div class="well-detail-label">Initial Production</div>
+                            <div class="well-detail-value">`;
+                    
+                    const ipParts = [];
+                    if (data.ip_oil_bbl) ipParts.push(`Oil: ${data.ip_oil_bbl} BBL/day`);
+                    if (data.ip_gas_mcf) ipParts.push(`Gas: ${data.ip_gas_mcf.toLocaleString()} MCF/day`);
+                    if (data.ip_water_bbl) ipParts.push(`Water: ${data.ip_water_bbl} BBL/day`);
+                    
+                    enrichmentHtml += ipParts.join(' • ');
+                    enrichmentHtml += `</div></div>`;
+                }
+                
+                // Dates (if different from what we already have)
+                if (data.completion_date || data.spud_date) {
+                    enrichmentHtml += `<div class="well-detail-grid" style="margin-top: 12px;">`;
+                    
+                    if (data.spud_date) {
+                        const spudDate = new Date(data.spud_date).toLocaleDateString();
+                        enrichmentHtml += `
+                            <div class="well-detail-section">
+                                <div class="well-detail-label">Spud Date</div>
+                                <div class="well-detail-value">${spudDate}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    if (data.completion_date) {
+                        const completionDate = new Date(data.completion_date).toLocaleDateString();
+                        enrichmentHtml += `
+                            <div class="well-detail-section">
+                                <div class="well-detail-label">Completion Date</div>
+                                <div class="well-detail-value">${completionDate}</div>
+                            </div>
+                        `;
+                    }
+                    
+                    enrichmentHtml += `</div>`;
+                }
+                
+                // Lateral info
+                if (data.lateral_length && data.lateral_length > 0) {
+                    enrichmentHtml += `
+                        <div class="well-detail-section" style="margin-top: 12px;">
+                            <div class="well-detail-label">Lateral Length</div>
+                            <div class="well-detail-value">${data.lateral_length.toLocaleString()} ft</div>
+                        </div>
+                    `;
+                }
+                
+                // Insert the enrichment data
+                const enrichmentDiv = document.getElementById('wellEnrichmentData');
+                if (enrichmentDiv) {
+                    enrichmentDiv.innerHTML = enrichmentHtml;
+                }
+                
+            } catch (error) {
+                console.error('Error fetching well enrichment:', error);
+            }
+        }
+        
         // Close well modal
         function closeWellModal() {
             document.getElementById('wellModal').classList.remove('active');
