@@ -535,30 +535,68 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     return { matches: [], total: 0, truncated: false };
   }
 
-  // Build the cascading search query with scoring
-  const params: any[] = [];
-  const whereConditions: string[] = [];
+  // Try multiple search strategies in order
+  let results: any = { results: [] };
+  let searchStrategy = '';
   
-  // Primary search criteria - prioritize name + location
+  // Strategy 1: Try well name + location (most specific)
   if (fullWellName && normalizedTownship && normalizedRange) {
-    // Best case: well name AND location (without section)
-    whereConditions.push(`(
-      UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
-      AND township = ? AND range = ? AND meridian = ?
-    )`);
-    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, meridian);
-  } else if (fullWellName) {
-    // Fallback: just well name
-    whereConditions.push(`UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)`);
-    params.push(`%${fullWellName}%`);
-  } else if (normalizedTownship && normalizedRange) {
-    // Fallback: just location
-    whereConditions.push(`(township = ? AND range = ? AND meridian = ?)`);
-    params.push(normalizedTownship, normalizedRange, meridian);
+    console.log('[CascadingSearch] Trying Strategy 1: Name + Location');
+    const query1 = `
+      SELECT w.*, 
+        CASE WHEN section = ?1 THEN 100 ELSE 80 END as match_score
+      FROM wells w
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        AND township = ?3 AND range = ?4 AND meridian = ?5
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    const params1 = [sectionNum, `%${fullWellName}%`, normalizedTownship, normalizedRange, meridian].filter(p => p !== null);
+    
+    results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
+    searchStrategy = 'name+location';
+    
+    console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
   }
   
-  // Create WHERE clause - use OR if we have multiple conditions for broader search
-  const whereClause = whereConditions.join(' OR ');
+  // Strategy 2: If no results, try just well name (broader search)
+  if (results.results.length === 0 && fullWellName) {
+    console.log('[CascadingSearch] Trying Strategy 2: Name only');
+    const query2 = `
+      SELECT w.*, 50 as match_score
+      FROM wells w
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
+      ORDER BY well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    
+    results = await env.WELLS_DB.prepare(query2).bind(`%${fullWellName}%`).all();
+    searchStrategy = 'name-only';
+    
+    console.log(`[CascadingSearch] Strategy 2 found ${results.results.length} results`);
+  }
+  
+  // Strategy 3: If still no results, try just location
+  if (results.results.length === 0 && normalizedTownship && normalizedRange) {
+    console.log('[CascadingSearch] Trying Strategy 3: Location only');
+    const query3 = `
+      SELECT w.*, 30 as match_score
+      FROM wells w
+      WHERE township = ? AND range = ? AND meridian = ?
+        ${sectionNum !== null ? 'AND section = ?' : ''}
+      ORDER BY well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    const params3 = [normalizedTownship, normalizedRange, meridian];
+    if (sectionNum !== null) params3.push(sectionNum);
+    
+    results = await env.WELLS_DB.prepare(query3).bind(...params3).all();
+    searchStrategy = 'location-only';
+    
+    console.log(`[CascadingSearch] Strategy 3 found ${results.results.length} results`);
+  }
+  
+  console.log(`[CascadingSearch] Final strategy: ${searchStrategy}, Results: ${results.results.length}`);
   
   // Debug log the search parameters
   console.log('[CascadingSearch] Query parameters:', {
