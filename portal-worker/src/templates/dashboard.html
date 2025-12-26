@@ -6070,6 +6070,20 @@ async function processWellsFile(file) {
             throw new Error('No data found in file');
         }
         
+        // Check if file is very large
+        if (wellsParsedData.length > 2000) {
+            throw new Error('File too large. Please limit to 2000 wells per import.');
+        }
+        
+        // Show info about batch processing for large files
+        if (wellsParsedData.length > 200) {
+            const batchCount = Math.ceil(wellsParsedData.length / 50);
+            document.getElementById('wells-file-info').innerHTML += 
+                `<span style="color: #f59e0b; font-size: 12px; margin-left: 10px;">
+                    Large file: Will process in ${batchCount} batches of 50
+                </span>`;
+        }
+        
         await validateAndPreviewWells();
         
     } catch (error) {
