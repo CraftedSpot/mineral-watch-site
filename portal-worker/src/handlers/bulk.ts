@@ -580,59 +580,101 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   
   const wellsCount = existingWells.length;
   
-  // Validate each well
-  const results = wells.map((well: any, index: number) => {
+  // Process each well - either validate API or search by fields
+  const results = await Promise.all(wells.map(async (well: any, index: number) => {
     const errors: string[] = [];
     const warnings: string[] = [];
+    let searchResults: any = null;
+    let matchStatus: 'exact' | 'ambiguous' | 'not_found' | 'has_api' = 'has_api';
     
-    // Clean API number
-    const rawApi = well.apiNumber || well.API || well.api || '';
+    // Check if we have a direct API number
+    const rawApi = well.API || well.api || well['API Number'] || well.apiNumber || '';
     const cleanApi = String(rawApi).replace(/\D/g, '');
     
-    // Validate API format
-    if (!cleanApi) {
-      errors.push("Missing API number");
-    } else if (cleanApi.length !== 10) {
-      errors.push("API must be 10 digits");
-    } else if (!cleanApi.startsWith('35')) {
-      errors.push("Oklahoma APIs start with 35");
+    if (cleanApi && cleanApi.length === 10 && cleanApi.startsWith('35')) {
+      // Valid API provided - use it directly
+      const isDuplicate = existingSet.has(cleanApi);
+      if (isDuplicate) {
+        warnings.push("Already tracking this well");
+      }
+      
+      // Check for duplicate in this batch
+      const batchDuplicates = wells.slice(0, index).filter((w: any) => {
+        const api = String(w.API || w.api || w['API Number'] || w.apiNumber || '').replace(/\D/g, '');
+        return api === cleanApi;
+      });
+      if (batchDuplicates.length > 0) {
+        warnings.push("Duplicate in this file");
+      }
+      
+      return {
+        row: index + 1,
+        original: well,
+        normalized: {
+          apiNumber: cleanApi,
+          wellName: well['Well Name'] || well.well_name || well.WellName || well.wellName || well.Name || well.name || '',
+          notes: well.Notes || well.notes || ''
+        },
+        matchStatus,
+        searchResults: null,
+        errors,
+        warnings,
+        isDuplicate,
+        isValid: errors.length === 0,
+        needsSelection: false
+      };
+    } else {
+      // No valid API - search by other fields
+      const hasSearchableFields = 
+        well['Well Name'] || well.well_name || well.WellName || well.wellName || well.Name || well.name ||
+        well.Operator || well.operator ||
+        (well.Section || well.section) && (well.Township || well.township) && (well.Range || well.range) ||
+        well.County || well.county;
+      
+      if (!hasSearchableFields) {
+        errors.push("No searchable data found (need API, Well Name, Operator, or Location)");
+        matchStatus = 'not_found';
+      } else {
+        // Search D1 database
+        searchResults = await searchWellsByCSVData(well, env);
+        
+        if (searchResults.total === 0) {
+          matchStatus = 'not_found';
+          errors.push("No wells found matching the provided criteria");
+        } else if (searchResults.total === 1) {
+          matchStatus = 'exact';
+          // Check if already tracking
+          const matchedApi = searchResults.matches[0].api_number;
+          if (existingSet.has(matchedApi)) {
+            warnings.push("Already tracking this well");
+          }
+        } else if (searchResults.total <= 5) {
+          matchStatus = 'ambiguous';
+          warnings.push(`${searchResults.total} matches found - please select the correct well`);
+        } else {
+          matchStatus = 'ambiguous';
+          warnings.push(`Too many matches (${searchResults.total}) - add more details to narrow results`);
+        }
+      }
+      
+      return {
+        row: index + 1,
+        original: well,
+        normalized: matchStatus === 'exact' ? {
+          apiNumber: searchResults.matches[0].api_number,
+          wellName: searchResults.matches[0].well_name,
+          notes: well.Notes || well.notes || ''
+        } : null,
+        matchStatus,
+        searchResults,
+        errors,
+        warnings,
+        isDuplicate: matchStatus === 'exact' && existingSet.has(searchResults.matches[0].api_number),
+        isValid: errors.length === 0 && (matchStatus === 'exact' || matchStatus === 'ambiguous'),
+        needsSelection: matchStatus === 'ambiguous'
+      };
     }
-    
-    // Check for duplicate in existing wells
-    const isDuplicate = existingSet.has(cleanApi);
-    if (isDuplicate) {
-      // Not an error, just flagged
-    }
-    
-    // Check for duplicate in this batch
-    const batchDuplicates = wells.slice(0, index).filter((w: any) => {
-      const api = String(w.apiNumber || w.API || w.api || '').replace(/\D/g, '');
-      return api === cleanApi;
-    });
-    if (batchDuplicates.length > 0) {
-      warnings.push("Duplicate in this file");
-    }
-    
-    // Truncate notes to prevent abuse
-    let notes = well.notes || well.Notes || well.NOTE || well.Note || well.Comments || well.comments || '';
-    if (notes.length > 1000) {
-      notes = notes.substring(0, 1000);
-    }
-    
-    return {
-      row: index + 1,
-      original: well,
-      normalized: {
-        apiNumber: cleanApi,
-        wellName: well.wellName || well.WELL_NAME || well.Well_Name || well.name || '',
-        notes: notes
-      },
-      errors,
-      warnings,
-      isDuplicate,
-      isValid: errors.length === 0
-    };
-  });
+  }));
   
   // Count valid non-duplicates
   const validCount = results.filter(r => r.isValid && !r.isDuplicate).length;
