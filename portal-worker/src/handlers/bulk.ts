@@ -750,11 +750,41 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
   const existingWells = await fetchUserWells(env, user.email);
   const existingSet = new Set(existingWells.map(w => w.apiNumber));
   
-  // Filter out duplicates and invalid
-  const toCreate = wells.filter((well: any) => {
-    return !existingSet.has(well.apiNumber) && 
-           well.apiNumber.length === 10 &&
-           well.apiNumber.startsWith('35');
+  // Process wells based on their match status and selections
+  const toCreate: any[] = [];
+  
+  wells.forEach((well: any, index: number) => {
+    // Skip invalid or duplicate wells
+    if (!well.isValid || well.isDuplicate) return;
+    
+    let apiNumber = '';
+    let wellName = '';
+    
+    if (well.matchStatus === 'has_api' && well.normalized) {
+      // Direct API provided
+      apiNumber = well.normalized.apiNumber;
+      wellName = well.normalized.wellName;
+    } else if (well.matchStatus === 'exact' && well.normalized) {
+      // Exact match found
+      apiNumber = well.normalized.apiNumber;
+      wellName = well.normalized.wellName;
+    } else if (well.matchStatus === 'ambiguous' && selections && selections[index]) {
+      // User selected from multiple matches
+      const selectedApi = selections[index];
+      const selectedMatch = well.searchResults?.matches?.find((m: any) => m.api_number === selectedApi);
+      if (selectedMatch) {
+        apiNumber = selectedMatch.api_number;
+        wellName = selectedMatch.well_name;
+      }
+    }
+    
+    if (apiNumber && !existingSet.has(apiNumber)) {
+      toCreate.push({
+        apiNumber,
+        wellName,
+        notes: well.original.Notes || well.original.notes || ''
+      });
+    }
   });
   
   const results = {
