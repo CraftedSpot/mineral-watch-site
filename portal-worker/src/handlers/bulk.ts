@@ -448,9 +448,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
 
   // Extract search criteria from various possible column names
   const wellName = rowData['Well Name'] || rowData['well_name'] || rowData.WellName || 
-                   rowData.wellName || rowData.WELL_NAME || rowData.Name || rowData.name || '';
+                   rowData.wellName || rowData.WELL_NAME || rowData.Well_Name || rowData.Name || rowData.name || '';
   const wellNumber = rowData['Well Number'] || rowData['well_number'] || rowData.WellNumber || 
-                     rowData.wellNumber || rowData.WELL_NUM || rowData['Well Num'] || rowData.well_num || '';
+                     rowData.wellNumber || rowData.WELL_NUM || rowData['Well Num'] || rowData.Well_Num || rowData.well_num || '';
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
   const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
   const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
@@ -506,31 +506,26 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const hasLocation = section && township && range;
   const hasNameOrOperator = fullWellName || operator;
   
-  // Use AND logic when we have multiple criteria to narrow down results
-  // Only use OR when we have just one search criterion
+  // For CSV import, we want to be more restrictive to avoid too many matches
+  // If we have well name AND location, require BOTH
+  // If we have well name AND operator, require BOTH
   let whereClause: string;
-  if (conditions.length === 1) {
-    whereClause = conditions[0];
-  } else if (hasLocation && hasNameOrOperator) {
-    // If we have both location AND name/operator, require BOTH to match
-    const locationConditions = [];
-    const nameOperatorConditions = [];
-    
-    conditions.forEach((condition, index) => {
-      if (condition.includes('section') || condition.includes('township') || condition.includes('range')) {
-        locationConditions.push(condition);
-      } else {
-        nameOperatorConditions.push(condition);
-      }
-    });
-    
-    if (locationConditions.length > 0 && nameOperatorConditions.length > 0) {
-      whereClause = `(${locationConditions.join(' AND ')}) AND (${nameOperatorConditions.join(' OR ')})`;
-    } else {
-      whereClause = conditions.join(' AND ');
-    }
+  
+  // Count what types of criteria we have
+  const hasWellNameSearch = fullWellName ? 1 : 0;
+  const hasOperatorSearch = operator ? 1 : 0;
+  const hasLocationSearch = (section && township && range) ? 1 : 0;
+  const hasCountySearch = county ? 1 : 0;
+  
+  const totalCriteria = hasWellNameSearch + hasOperatorSearch + hasLocationSearch + hasCountySearch;
+  
+  // If we have multiple types of criteria, use AND between them
+  if (totalCriteria > 1) {
+    whereClause = conditions.join(' AND ');
+  } else if (totalCriteria === 1) {
+    // Single criterion - use as is
+    whereClause = conditions.join(' OR ');
   } else {
-    // Default to AND for multiple conditions
     whereClause = conditions.join(' AND ');
   }
   
@@ -565,7 +560,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   
   const total = countResult?.total || 0;
   
-  // Get results (limit to 5 for CSV matching)
+  // Get results (limit to 10 for CSV matching)
   const query = `
     SELECT 
       w.api_number,
@@ -586,7 +581,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     FROM wells w
     WHERE ${whereClause}
     ORDER BY w.well_status = 'AC' DESC, w.api_number DESC
-    LIMIT 5
+    LIMIT 10
   `;
 
   const results = await env.WELLS_DB.prepare(query)
@@ -596,7 +591,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   return {
     matches: results.results || [],
     total,
-    truncated: total > 5
+    truncated: total > 10
   };
 }
 
@@ -723,12 +718,13 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             if (existingSet.has(matchedApi)) {
               warnings.push("Already tracking this well");
             }
-          } else if (searchResults.total <= 5) {
+          } else if (searchResults.total <= 10) {
             matchStatus = 'ambiguous';
             warnings.push(`${searchResults.total} matches found - please select the correct well`);
           } else {
             matchStatus = 'ambiguous';
-            warnings.push(`Too many matches (${searchResults.total}) - add more details to narrow results`);
+            const displayCount = searchResults.total > 1000 ? `${Math.floor(searchResults.total / 1000)}k+` : searchResults.total.toString();
+            warnings.push(`Too many matches (${displayCount}) - showing first 10. Add more specific details to narrow results`);
           }
         } catch (searchError) {
           console.error(`[BulkValidateWells] D1 search error for well ${index + 1}:`, searchError);
