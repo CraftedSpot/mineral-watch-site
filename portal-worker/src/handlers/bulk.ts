@@ -549,11 +549,23 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
-  const body = await request.json();
+  let body: any;
+  try {
+    body = await request.json();
+  } catch (error) {
+    console.error('[BulkValidateWells] Failed to parse request body:', error);
+    return jsonResponse({ error: "Invalid request body" }, 400);
+  }
+  
   const { wells } = body; // Array of well data from CSV
   
   if (!wells || !Array.isArray(wells) || wells.length === 0) {
     return jsonResponse({ error: "No wells data provided" }, 400);
+  }
+  
+  console.log(`[BulkValidateWells] Processing ${wells.length} wells for user ${user.email}`);
+  if (wells.length > 0) {
+    console.log('[BulkValidateWells] First well sample:', JSON.stringify(wells[0], null, 2).substring(0, 500));
   }
 
   // Limit to 2000 rows for safety
@@ -636,24 +648,30 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         matchStatus = 'not_found';
       } else {
         // Search D1 database
-        searchResults = await searchWellsByCSVData(well, env);
-        
-        if (searchResults.total === 0) {
-          matchStatus = 'not_found';
-          errors.push("No wells found matching the provided criteria");
-        } else if (searchResults.total === 1) {
-          matchStatus = 'exact';
-          // Check if already tracking
-          const matchedApi = searchResults.matches[0].api_number;
-          if (existingSet.has(matchedApi)) {
-            warnings.push("Already tracking this well");
+        try {
+          searchResults = await searchWellsByCSVData(well, env);
+          
+          if (searchResults.total === 0) {
+            matchStatus = 'not_found';
+            errors.push("No wells found matching the provided criteria");
+          } else if (searchResults.total === 1) {
+            matchStatus = 'exact';
+            // Check if already tracking
+            const matchedApi = searchResults.matches[0].api_number;
+            if (existingSet.has(matchedApi)) {
+              warnings.push("Already tracking this well");
+            }
+          } else if (searchResults.total <= 5) {
+            matchStatus = 'ambiguous';
+            warnings.push(`${searchResults.total} matches found - please select the correct well`);
+          } else {
+            matchStatus = 'ambiguous';
+            warnings.push(`Too many matches (${searchResults.total}) - add more details to narrow results`);
           }
-        } else if (searchResults.total <= 5) {
-          matchStatus = 'ambiguous';
-          warnings.push(`${searchResults.total} matches found - please select the correct well`);
-        } else {
-          matchStatus = 'ambiguous';
-          warnings.push(`Too many matches (${searchResults.total}) - add more details to narrow results`);
+        } catch (searchError) {
+          console.error(`[BulkValidateWells] D1 search error for well ${index + 1}:`, searchError);
+          matchStatus = 'not_found';
+          errors.push("Search failed - please try again");
         }
       }
       
