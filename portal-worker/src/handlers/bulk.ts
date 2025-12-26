@@ -556,10 +556,10 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     return jsonResponse({ error: "No wells data provided" }, 400);
   }
 
-  // Limit to 200 rows for performance
-  if (wells.length > 200) {
+  // Limit to 2000 rows for safety
+  if (wells.length > 2000) {
     return jsonResponse({ 
-      error: "Too many rows. Please limit to 200 wells per import." 
+      error: "Too many rows. Please limit to 2000 wells per import." 
     }, 400);
   }
   

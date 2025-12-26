@@ -6114,21 +6114,100 @@ async function parseWellsExcel(file) {
     });
 }
 
-// Validate and preview wells
+// Store batch processing state
+let cancelBatchProcessing = false;
+let batchProgressInterval = null;
+
+// Validate and preview wells with batch processing for large files
 async function validateAndPreviewWells() {
     try {
-        const response = await fetch('/api/bulk-validate-wells', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ wells: wellsParsedData })
-        });
+        const totalRows = wellsParsedData.length;
+        const BATCH_SIZE = 50;
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Validation failed');
+        // Show progress UI for large files
+        if (totalRows > 200) {
+            showBatchProgress(totalRows);
         }
         
-        wellsValidationResults = await response.json();
+        // For files <= 200 rows, process normally
+        if (totalRows <= 200) {
+            const response = await fetch('/api/bulk-validate-wells', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wells: wellsParsedData })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Validation failed');
+            }
+            
+            wellsValidationResults = await response.json();
+        } else {
+            // Process in batches for large files
+            wellsValidationResults = {
+                results: [],
+                summary: {
+                    total: 0,
+                    exactMatches: 0,
+                    needsReview: 0,
+                    notFound: 0,
+                    hasApi: 0,
+                    duplicates: 0,
+                    willImport: 0,
+                    canImport: false
+                },
+                planCheck: null
+            };
+            
+            for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+                if (cancelBatchProcessing) {
+                    throw new Error('Validation cancelled by user');
+                }
+                
+                const batch = wellsParsedData.slice(i, Math.min(i + BATCH_SIZE, totalRows));
+                const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+                const totalBatches = Math.ceil(totalRows / BATCH_SIZE);
+                
+                updateBatchProgress(i, totalRows, `Processing batch ${batchNum}/${totalBatches}...`);
+                
+                const response = await fetch('/api/bulk-validate-wells', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wells: batch })
+                });
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.error || `Batch ${batchNum} failed`);
+                }
+                
+                const batchResult = await response.json();
+                
+                // Merge batch results
+                wellsValidationResults.results = wellsValidationResults.results.concat(batchResult.results);
+                wellsValidationResults.summary.total += batchResult.summary.total;
+                wellsValidationResults.summary.exactMatches += batchResult.summary.exactMatches;
+                wellsValidationResults.summary.needsReview += batchResult.summary.needsReview;
+                wellsValidationResults.summary.notFound += batchResult.summary.notFound;
+                wellsValidationResults.summary.hasApi += batchResult.summary.hasApi;
+                wellsValidationResults.summary.duplicates += batchResult.summary.duplicates;
+                wellsValidationResults.summary.willImport += batchResult.summary.willImport;
+                
+                // Use last batch's plan check (most accurate)
+                wellsValidationResults.planCheck = batchResult.planCheck;
+                
+                // Brief pause between batches
+                if (i + BATCH_SIZE < totalRows) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+            
+            wellsValidationResults.summary.canImport = wellsValidationResults.summary.willImport > 0 && 
+                                                       !wellsValidationResults.planCheck.wouldExceedLimit;
+        }
+        
+        hideBatchProgress();
         
         document.getElementById('wells-upload-step').style.display = 'none';
         document.getElementById('wells-preview-step').style.display = 'block';
@@ -6140,9 +6219,52 @@ async function validateAndPreviewWells() {
         
     } catch (error) {
         console.error('Wells validation error:', error);
+        hideBatchProgress();
         document.getElementById('wells-error-message').textContent = error.message;
         document.getElementById('wells-parse-error').style.display = 'block';
     }
+}
+
+// Show batch processing progress
+function showBatchProgress(totalRows) {
+    cancelBatchProcessing = false;
+    
+    const html = `
+        <div class="bulk-section" id="batch-progress-section">
+            <h3 style="margin-bottom: 16px;">Processing ${totalRows} wells in batches...</h3>
+            <div class="progress-bar-track" style="margin-bottom: 12px;">
+                <div class="progress-bar-fill" id="batch-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="progress-count" id="batch-progress-text">Starting...</div>
+            <button class="btn-secondary" style="margin-top: 16px;" onclick="cancelBatchValidation()">Cancel</button>
+        </div>
+    `;
+    
+    // Insert progress UI at the top of upload step
+    const uploadStep = document.getElementById('wells-upload-step');
+    const firstSection = uploadStep.querySelector('.bulk-section');
+    firstSection.insertAdjacentHTML('beforebegin', html);
+}
+
+// Update batch progress
+function updateBatchProgress(current, total, message) {
+    const percent = Math.round((current / total) * 100);
+    document.getElementById('batch-progress-bar').style.width = `${percent}%`;
+    document.getElementById('batch-progress-text').textContent = `${message} (${current}/${total} wells - ${percent}%)`;
+}
+
+// Hide batch progress
+function hideBatchProgress() {
+    const progressSection = document.getElementById('batch-progress-section');
+    if (progressSection) {
+        progressSection.remove();
+    }
+}
+
+// Cancel batch validation
+function cancelBatchValidation() {
+    cancelBatchProcessing = true;
+    hideBatchProgress();
 }
 
 // Render wells summary badges with enhanced status
