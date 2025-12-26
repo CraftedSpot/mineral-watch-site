@@ -6087,10 +6087,10 @@ async function processWellsFile(file) {
         
         // Show info about batch processing for large files
         if (wellsParsedData.length > 200) {
-            const batchCount = Math.ceil(wellsParsedData.length / 50);
+            const batchCount = Math.ceil(wellsParsedData.length / 25);
             document.getElementById('wells-file-info').innerHTML += 
                 `<span style="color: #f59e0b; font-size: 12px; margin-left: 10px;">
-                    Large file: Will process in ${batchCount} batches of 50
+                    Large file: Will process in ${batchCount} batches of 25
                 </span>`;
         }
         
@@ -6146,7 +6146,7 @@ let batchProgressInterval = null;
 async function validateAndPreviewWells() {
     try {
         const totalRows = wellsParsedData.length;
-        const BATCH_SIZE = 50;
+        const BATCH_SIZE = 25; // Reduced from 50 to avoid timeouts
         
         // Show progress UI for large files
         if (totalRows > 200) {
@@ -6162,8 +6162,15 @@ async function validateAndPreviewWells() {
             });
             
             if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || 'Validation failed');
+                let errorMessage = 'Validation failed';
+                try {
+                    const error = await response.json();
+                    errorMessage = error.error || errorMessage;
+                } catch (e) {
+                    // Response wasn't JSON (probably HTML error page)
+                    errorMessage = `Server error (${response.status}). The file may be too large or complex. Try a smaller batch.`;
+                }
+                throw new Error(errorMessage);
             }
             
             wellsValidationResults = await response.json();
@@ -6202,8 +6209,14 @@ async function validateAndPreviewWells() {
                 });
                 
                 if (!response.ok) {
-                    const error = await response.json();
-                    throw new Error(error.error || `Batch ${batchNum} failed`);
+                    let errorMessage = `Batch ${batchNum} failed`;
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = `Batch ${batchNum} failed (${response.status}). Try reducing file size.`;
+                    }
+                    throw new Error(errorMessage);
                 }
                 
                 const batchResult = await response.json();
