@@ -539,29 +539,25 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const params: any[] = [];
   const whereConditions: string[] = [];
   
-  // Build WHERE clause based on available criteria
-  if (fullWellName) {
+  // Primary search criteria - prioritize name + location
+  if (fullWellName && normalizedTownship && normalizedRange) {
+    // Best case: well name AND location (without section)
+    whereConditions.push(`(
+      UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
+      AND township = ? AND range = ? AND meridian = ?
+    )`);
+    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, meridian);
+  } else if (fullWellName) {
+    // Fallback: just well name
     whereConditions.push(`UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)`);
     params.push(`%${fullWellName}%`);
+  } else if (normalizedTownship && normalizedRange) {
+    // Fallback: just location
+    whereConditions.push(`(township = ? AND range = ? AND meridian = ?)`);
+    params.push(normalizedTownship, normalizedRange, meridian);
   }
   
-  // Add operator to WHERE clause for better filtering
-  if (operator) {
-    whereConditions.push(`UPPER(operator) LIKE UPPER(?)`);
-    params.push(`%${operator}%`);
-  }
-  
-  if (normalizedTownship && normalizedRange) {
-    if (sectionNum !== null) {
-      whereConditions.push(`(township = ? AND range = ? AND section = ? AND meridian = ?)`);
-      params.push(normalizedTownship, normalizedRange, sectionNum, meridian);
-    } else {
-      whereConditions.push(`(township = ? AND range = ? AND meridian = ?)`);
-      params.push(normalizedTownship, normalizedRange, meridian);
-    }
-  }
-  
-  // Create WHERE clause with OR between main conditions
+  // Create WHERE clause - use OR if we have multiple conditions for broader search
   const whereClause = whereConditions.join(' OR ');
   
   // Debug log the search parameters
@@ -576,63 +572,22 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     params: params.map((p, i) => `param${i + 1}: ${p}`)
   });
   
-  // Build the scoring CASE statement
-  const scoreParts: string[] = [];
-  let scoreParamIndex = params.length + 1; // Start after WHERE params
+  // Build the scoring CASE statement - simplified with section as bonus
+  // Section matching is a bonus, not a requirement
+  let scoringCase = '';
+  const scoreParamIndex = params.length + 1;
   
-  // Score 100: Exact match (name + location with section)
-  if (fullWellName && normalizedTownship && normalizedRange && sectionNum !== null) {
-    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex}) 
-         AND township = ?${scoreParamIndex + 1} AND range = ?${scoreParamIndex + 2} 
-         AND section = ?${scoreParamIndex + 3} AND meridian = ?${scoreParamIndex + 4} THEN 100`);
-    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, sectionNum, meridian);
-    scoreParamIndex += 5;
+  if (sectionNum !== null) {
+    // If we have a section, score higher when it matches
+    scoringCase = `CASE 
+      WHEN section = ?${scoreParamIndex} THEN 100
+      ELSE 80
+    END`;
+    params.push(sectionNum);
+  } else {
+    // No section provided, all results get same score
+    scoringCase = '80';
   }
-  
-  // Score 90: Name + T-R + operator match
-  if (fullWellName && normalizedTownship && normalizedRange && operator) {
-    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex})
-         AND township = ?${scoreParamIndex + 1} AND range = ?${scoreParamIndex + 2} AND meridian = ?${scoreParamIndex + 3}
-         AND UPPER(operator) LIKE UPPER(?${scoreParamIndex + 4}) THEN 90`);
-    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, meridian, `%${operator}%`);
-    scoreParamIndex += 5;
-  }
-  
-  // Score 80: Name + T-R match (section differs)
-  if (fullWellName && normalizedTownship && normalizedRange) {
-    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex})
-         AND township = ?${scoreParamIndex + 1} AND range = ?${scoreParamIndex + 2} AND meridian = ?${scoreParamIndex + 3} THEN 80`);
-    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, meridian);
-    scoreParamIndex += 4;
-  }
-  
-  // Score 70: Name + operator match
-  if (fullWellName && operator) {
-    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex})
-         AND UPPER(operator) LIKE UPPER(?${scoreParamIndex + 1}) THEN 70`);
-    params.push(`%${fullWellName}%`, `%${operator}%`);
-    scoreParamIndex += 2;
-  }
-  
-  // Score 50: Name match only
-  if (fullWellName) {
-    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex}) THEN 50`);
-    params.push(`%${fullWellName}%`);
-    scoreParamIndex += 1;
-  }
-  
-  // Score 40: Location match only
-  if (normalizedTownship && normalizedRange && sectionNum !== null) {
-    scoreParts.push(`WHEN township = ?${scoreParamIndex} AND range = ?${scoreParamIndex + 1} 
-         AND section = ?${scoreParamIndex + 2} AND meridian = ?${scoreParamIndex + 3} THEN 40`);
-    params.push(normalizedTownship, normalizedRange, sectionNum, meridian);
-    scoreParamIndex += 4;
-  }
-  
-  // Default score 0
-  scoreParts.push('ELSE 0');
-  
-  const scoringCase = `CASE ${scoreParts.join('\n')} END`;
   
   // Build the main query with scoring
   const query = `
