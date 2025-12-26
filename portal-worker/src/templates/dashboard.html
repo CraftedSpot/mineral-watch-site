@@ -4968,6 +4968,16 @@
                 <div id="wells-validation-summary" class="bulk-badges"></div>
                 <div id="wells-plan-check"></div>
                 
+                <!-- Quick Actions for large files -->
+                <div id="wells-quick-actions" style="display: none; margin-top: 16px; margin-bottom: 16px;">
+                    <button class="btn-secondary" onclick="selectAllExactMatches()">
+                        Select All Exact Matches
+                    </button>
+                    <span style="margin-left: 12px; color: #64748b; font-size: 14px;">
+                        For ambiguous matches, select the correct well from the dropdown
+                    </span>
+                </div>
+                
                 <div class="bulk-table-container">
                     <table class="bulk-table">
                         <thead>
@@ -6399,6 +6409,12 @@ function renderWellsPreviewTable() {
     });
     
     tbody.innerHTML = html;
+    
+    // Show quick actions for files with ambiguous matches
+    const hasAmbiguous = wellsValidationResults.results.some(r => r.matchStatus === 'ambiguous');
+    if (hasAmbiguous) {
+        document.getElementById('wells-quick-actions').style.display = 'block';
+    }
 }
 
 // Track well selections for ambiguous matches
@@ -6419,6 +6435,21 @@ function updateWellSelection(index, apiNumber) {
     
     // Update import button state
     updateImportButtonState();
+}
+
+// Select all exact matches for quick import
+function selectAllExactMatches() {
+    wellsValidationResults.results.forEach((result, index) => {
+        if (result.matchStatus === 'ambiguous' && result.searchResults && result.searchResults.matches.length > 0) {
+            // Auto-select the first match
+            const firstMatch = result.searchResults.matches[0];
+            const selectEl = document.getElementById(`well-select-${index}`);
+            if (selectEl && selectEl.value === '') {
+                selectEl.value = firstMatch.api_number;
+                updateWellSelection(index, firstMatch.api_number);
+            }
+        }
+    });
 }
 
 // Update import button based on selections
