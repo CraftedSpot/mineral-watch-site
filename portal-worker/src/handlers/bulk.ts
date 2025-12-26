@@ -559,11 +559,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   
   // If we have multiple types of criteria, use AND between them
   if (totalCriteria > 1) {
+    // Multiple criteria types - require all to match
     whereClause = conditions.join(' AND ');
-  } else if (totalCriteria === 1) {
-    // Single criterion - use as is
-    whereClause = conditions.join(' OR ');
   } else {
+    // Single criterion type - just use that condition
+    // Note: Each condition already has its own OR logic internally if needed
     whereClause = conditions.join(' AND ');
   }
   
@@ -571,6 +571,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   console.log('[SearchWells] Query conditions:', conditions);
   console.log('[SearchWells] Query params:', params);
   console.log('[SearchWells] Where clause:', whereClause);
+  console.log('[SearchWells] Total criteria types:', totalCriteria);
   
   // Debug: Try to find any well with the name
   if (wellName && !operator && !section) {
