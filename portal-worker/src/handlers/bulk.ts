@@ -599,9 +599,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   console.log(`[CascadingSearch] Final strategy: ${searchStrategy}, Results: ${results.results.length}`);
   
   
-  // Log first few results for debugging
+  // Log first result for debugging
   if (results.results.length > 0) {
-    console.log('[CascadingSearch] First result:', {
+    console.log('[CascadingSearch] Sample result:', {
       api_number: results.results[0].api_number,
       well_name: results.results[0].well_name,
       well_number: results.results[0].well_number,
@@ -612,22 +612,12 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       meridian: results.results[0].meridian,
       score: results.results[0].match_score
     });
-  } else {
-    console.log('[CascadingSearch] No results found');
-  }
-  
-  // For logging purposes, show what matched
-  if (scoredResults.length > 0 && scoredResults.length <= 5) {
-    console.log('[CascadingSearch] Top matches:');
-    scoredResults.slice(0, 5).forEach((well: any) => {
-      console.log(`  - ${well.well_name} ${well.well_number || ''} (S${well.section}-T${well.township}-R${well.range}) - Score: ${well.match_score}`);
-    });
   }
   
   return {
-    matches: scoredResults,
-    total: scoredResults.length,
-    truncated: scoredResults.length > 10
+    matches: results.results,
+    total: results.results.length,
+    truncated: results.results.length >= 15
   };
 }
 
