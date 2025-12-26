@@ -6385,8 +6385,17 @@ function renderWellsPreviewTable() {
         
         if (fullWellName) csvData.push(`Well: ${fullWellName}`);
         if (orig.Operator || orig.operator || orig.OPERATOR) csvData.push(`Op: ${orig.Operator || orig.operator || orig.OPERATOR}`);
-        if (orig.County || orig.county || orig.COUNTY) csvData.push(`County: ${orig.County || orig.county || orig.COUNTY}`);
-        if ((orig.Section || orig.SECTION) && (orig.Township || orig.TOWNSHIP) && (orig.Range || orig.RANGE)) csvData.push(`Loc: S${orig.Section || orig.SECTION}-T${orig.Township || orig.TOWNSHIP}-R${orig.Range || orig.RANGE}`);
+        
+        const county = orig.County || orig.county || orig.COUNTY || '';
+        if (county) csvData.push(`County: ${county}`);
+        
+        // Add location with meridian
+        if ((orig.Section || orig.SECTION) && (orig.Township || orig.TOWNSHIP) && (orig.Range || orig.RANGE)) {
+            // Determine meridian based on county
+            const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+            const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
+            csvData.push(`Loc: S${orig.Section || orig.SECTION}-T${orig.Township || orig.TOWNSHIP}-R${orig.Range || orig.RANGE}-${meridian}`);
+        }
         const csvDisplay = csvData.join(', ') || 'No search data';
         
         // Build matched well display
