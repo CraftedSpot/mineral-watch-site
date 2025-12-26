@@ -479,7 +479,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     const normalizedRange = range.match(/^\d+$/) ? `${range}W` : range.toUpperCase();
     
     // Try both numeric and string section formats
-    conditions.push(`((section = ? OR section = ?) AND township = ? AND range_ = ?)`);
+    conditions.push(`((section = ? OR section = ?) AND township = ? AND range = ?)`);
     params.push(parseInt(section), section.toString(), normalizedTownship, normalizedRange);
   }
 
@@ -523,7 +523,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       COALESCE(o.operator_name, w.operator) as operator_display,
       w.section,
       w.township,
-      w.range_ as range,
+      w.range as range,
       w.meridian,
       w.county,
       w.well_status,
