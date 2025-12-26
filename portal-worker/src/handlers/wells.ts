@@ -606,3 +606,262 @@ export async function handleUpdateWellNotes(wellId: string, request: Request, en
   
   return jsonResponse({ success: true });
 }
+
+/**
+ * Normalize township/range input to handle both '12N' and '12' formats
+ * @param value Township or range value (e.g., '12N', '12', '5W')
+ * @param isRange Whether this is a range (W/E) or township (N/S) value
+ * @returns Normalized value (e.g., '12N', '05W')
+ */
+function normalizeTownshipRange(value: string, isRange: boolean = false): string {
+  if (!value) return '';
+  
+  // Remove whitespace and convert to uppercase
+  const cleaned = value.trim().toUpperCase();
+  
+  // If already has direction, just normalize padding
+  const match = cleaned.match(/^(\d+)([NSEW])$/);
+  if (match) {
+    const [, num, direction] = match;
+    const numericPart = parseInt(num);
+    const paddedNum = numericPart < 10 ? `0${numericPart}` : numericPart.toString();
+    return `${paddedNum}${direction}`;
+  }
+  
+  // If just a number, add appropriate direction
+  const numMatch = cleaned.match(/^(\d+)$/);
+  if (numMatch) {
+    const numericPart = parseInt(numMatch[1]);
+    const paddedNum = numericPart < 10 ? `0${numericPart}` : numericPart.toString();
+    // Default to North for township, West for range (most common in Oklahoma)
+    const direction = isRange ? 'W' : 'N';
+    return `${paddedNum}${direction}`;
+  }
+  
+  // Return as-is if we can't parse it
+  return cleaned;
+}
+
+/**
+ * Search wells in D1 database with flexible matching
+ * @param request The incoming request with search parameters
+ * @param env Worker environment
+ * @returns JSON response with search results
+ */
+export async function handleSearchWells(request: Request, env: Env) {
+  try {
+    const user = await authenticateRequest(request, env);
+    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+    
+    // Check if WELLS_DB is configured
+    if (!env.WELLS_DB) {
+      console.error('[SearchWells] WELLS_DB not configured');
+      return jsonResponse({ 
+        error: 'Wells database not configured',
+        message: 'The wells search feature is not available at this time'
+      }, 503);
+    }
+    
+    const url = new URL(request.url);
+    
+    // Get search parameters
+    const generalQuery = url.searchParams.get('q')?.trim() || '';
+    const wellName = url.searchParams.get('well_name')?.trim() || '';
+    const operator = url.searchParams.get('operator')?.trim() || '';
+    const section = url.searchParams.get('section')?.trim() || '';
+    const township = url.searchParams.get('township')?.trim() || '';
+    const range = url.searchParams.get('range')?.trim() || '';
+    const county = url.searchParams.get('county')?.trim() || '';
+    
+    // Build WHERE conditions
+    const conditions: string[] = [];
+    const params: (string | number)[] = [];
+    let paramIndex = 1;
+    
+    // General search across multiple fields (if 'q' parameter provided)
+    if (generalQuery) {
+      const searchTerm = `%${generalQuery}%`;
+      conditions.push(`(
+        well_name LIKE ?${paramIndex} OR 
+        api_number LIKE ?${paramIndex + 1} OR 
+        operator LIKE ?${paramIndex + 2} OR 
+        county LIKE ?${paramIndex + 3}
+      )`);
+      params.push(searchTerm, searchTerm, searchTerm, searchTerm);
+      paramIndex += 4;
+    }
+    
+    // Specific field searches
+    if (wellName) {
+      conditions.push(`well_name LIKE ?${paramIndex}`);
+      params.push(`%${wellName}%`);
+      paramIndex++;
+    }
+    
+    if (operator) {
+      conditions.push(`operator LIKE ?${paramIndex}`);
+      params.push(`%${operator}%`);
+      paramIndex++;
+    }
+    
+    if (section) {
+      const sectionNum = parseInt(section);
+      if (!isNaN(sectionNum) && sectionNum >= 1 && sectionNum <= 36) {
+        conditions.push(`section = ?${paramIndex}`);
+        params.push(sectionNum);
+        paramIndex++;
+      } else {
+        return jsonResponse({
+          error: 'Invalid section',
+          message: 'Section must be a number between 1 and 36'
+        }, 400);
+      }
+    }
+    
+    if (township) {
+      const normalizedTownship = normalizeTownshipRange(township, false);
+      conditions.push(`township = ?${paramIndex}`);
+      params.push(normalizedTownship);
+      paramIndex++;
+    }
+    
+    if (range) {
+      const normalizedRange = normalizeTownshipRange(range, true);
+      conditions.push(`range = ?${paramIndex}`);
+      params.push(normalizedRange);
+      paramIndex++;
+    }
+    
+    if (county) {
+      conditions.push(`county LIKE ?${paramIndex}`);
+      params.push(`%${county}%`);
+      paramIndex++;
+    }
+    
+    // If no search criteria provided, return empty results
+    if (conditions.length === 0) {
+      return jsonResponse({
+        success: true,
+        data: {
+          wells: [],
+          total: 0,
+          truncated: false,
+          message: 'Please provide search criteria'
+        }
+      });
+    }
+    
+    // Combine conditions with AND
+    const whereClause = conditions.join(' AND ');
+    
+    // Build the query with limit of 25 + 1 to check for truncation
+    const query = `
+      SELECT 
+        w.api_number,
+        w.well_name,
+        w.well_number,
+        w.section,
+        w.township,
+        w.range,
+        w.meridian,
+        w.county,
+        w.latitude,
+        w.longitude,
+        w.operator,
+        w.well_type,
+        w.well_status,
+        w.spud_date,
+        w.completion_date,
+        w.formation_name,
+        w.ip_oil_bbl,
+        w.ip_gas_mcf,
+        -- Operator info from operators table
+        o.phone as operator_phone,
+        o.contact_name as operator_contact
+      FROM wells w
+      LEFT JOIN operators o ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
+      WHERE ${whereClause}
+      ORDER BY 
+        CASE 
+          WHEN w.well_status = 'AC' THEN 1 
+          WHEN w.well_status = 'TA' THEN 2
+          ELSE 3 
+        END,
+        w.well_name,
+        w.api_number
+      LIMIT 26
+    `;
+    
+    console.log(`[SearchWells] Executing search with ${conditions.length} conditions`);
+    console.log(`[SearchWells] Query parameters:`, params);
+    
+    const startTime = Date.now();
+    const result = await env.WELLS_DB.prepare(query)
+      .bind(...params)
+      .all();
+    
+    const queryTime = Date.now() - startTime;
+    
+    // Check if results were truncated
+    const wells = result.results.slice(0, 25); // Take only first 25
+    const truncated = result.results.length > 25;
+    
+    console.log(`[SearchWells] Found ${result.results.length} wells in ${queryTime}ms, truncated: ${truncated}`);
+    
+    // Format the response
+    const formattedWells = wells.map((well: any) => ({
+      api_number: well.api_number,
+      well_name: well.well_name,
+      well_number: well.well_number,
+      location: {
+        section: well.section,
+        township: well.township,
+        range: well.range,
+        meridian: well.meridian,
+        county: well.county,
+        latitude: well.latitude,
+        longitude: well.longitude
+      },
+      operator: well.operator,
+      operator_phone: well.operator_phone,
+      operator_contact: well.operator_contact,
+      well_type: well.well_type,
+      well_status: well.well_status,
+      dates: {
+        spud_date: well.spud_date,
+        completion_date: well.completion_date
+      },
+      production: {
+        formation_name: well.formation_name,
+        ip_oil_bbl: well.ip_oil_bbl,
+        ip_gas_mcf: well.ip_gas_mcf
+      }
+    }));
+    
+    return jsonResponse({
+      success: true,
+      data: {
+        wells: formattedWells,
+        total: wells.length,
+        truncated,
+        query_time_ms: queryTime,
+        search_criteria: {
+          general_query: generalQuery || null,
+          well_name: wellName || null,
+          operator: operator || null,
+          section: section ? parseInt(section) : null,
+          township: township ? normalizeTownshipRange(township, false) : null,
+          range: range ? normalizeTownshipRange(range, true) : null,
+          county: county || null
+        }
+      }
+    });
+    
+  } catch (error) {
+    console.error('[SearchWells] Error:', error);
+    return jsonResponse({ 
+      error: 'Failed to search wells',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
+  }
+}

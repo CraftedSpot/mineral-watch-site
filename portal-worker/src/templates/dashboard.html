@@ -402,6 +402,56 @@
         .modal { background: white; border-radius: 8px; padding: 30px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; }
         .modal h2 { margin-bottom: 20px; }
         
+        /* Tab Navigation */
+        .tab-nav { display: flex; margin-bottom: 24px; border-bottom: 1px solid #e2e8f0; }
+        .tab-btn { background: none; border: none; padding: 12px 16px; cursor: pointer; color: #64748b; font-weight: 500; border-bottom: 2px solid transparent; transition: all 0.2s; }
+        .tab-btn:hover { color: var(--oil-navy); }
+        .tab-btn.active { color: var(--oil-navy); border-bottom-color: var(--oil-navy); font-weight: 600; }
+        
+        /* Tab Content */
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        
+        /* Search Form */
+        .search-form { }
+        .form-row { display: flex; gap: 12px; margin-bottom: 16px; }
+        .form-row .form-group { flex: 1; }
+        .form-group.full { width: 100%; }
+        
+        /* Search Buttons */
+        .search-buttons { display: flex; gap: 12px; margin-top: 20px; }
+        .btn-search { background: var(--oil-navy); color: white; padding: 10px 20px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-search:hover { background: var(--oil-navy-dark, #1a365d); }
+        .btn-clear { background: #e2e8f0; color: #475569; padding: 10px 20px; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-clear:hover { background: #cbd5e1; }
+        
+        /* Search Results */
+        .search-results { margin-top: 24px; border-top: 1px solid #e2e8f0; padding-top: 20px; }
+        .results-header { display: flex; justify-content: between; align-items: center; margin-bottom: 16px; }
+        .results-header h3 { margin: 0; color: var(--oil-navy); font-size: 16px; }
+        .results-info { color: #64748b; font-size: 13px; }
+        .results-list { max-height: 300px; overflow-y: auto; }
+        
+        /* Result Item */
+        .result-item { border: 1px solid #e2e8f0; border-radius: 6px; padding: 16px; margin-bottom: 12px; transition: all 0.2s; }
+        .result-item:hover { border-color: var(--oil-navy); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .result-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px; }
+        .result-well-name { font-weight: 600; color: var(--oil-navy); font-size: 14px; margin: 0; }
+        .result-status { padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .result-status.active { background: #dcfce7; color: #166534; }
+        .result-status.plugged { background: #fef3c7; color: #92400e; }
+        .result-status.other { background: #e2e8f0; color: #475569; }
+        .result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; color: #64748b; font-size: 13px; margin-bottom: 12px; }
+        .result-detail { }
+        .result-detail strong { color: #374151; }
+        .btn-select { background: var(--red-dirt); color: white; padding: 8px 16px; border: none; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .btn-select:hover { background: var(--red-dirt-dark); }
+        
+        /* Search Loading */
+        .search-loading { text-align: center; padding: 40px; color: #64748b; }
+        .search-loading .spinner { width: 24px; height: 24px; border: 2px solid #e2e8f0; border-top: 2px solid var(--oil-navy); border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
         /* Well Card Modal Styles */
         .well-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
         
@@ -1767,23 +1817,95 @@
 
     <!-- Add Well Modal -->
     <div class="modal-overlay" id="addWellModal">
-        <div class="modal">
-            <h2>Add Well API</h2>
-            <form id="addWellForm">
-                <div class="form-group full">
-                    <label for="apiNumber">API Number *</label>
-                    <input type="text" id="apiNumber" placeholder="3515322352" required>
-                    <div class="form-hint">10-digit Oklahoma well API (starts with 35)</div>
+        <div class="modal" style="max-width: 600px; width: 100%;">
+            <h2>Add Well</h2>
+            
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="api-tab">Search by API</button>
+                <button class="tab-btn" data-tab="location-tab">Search by Name/Location</button>
+            </div>
+            
+            <!-- API Search Tab -->
+            <div class="tab-content active" id="api-tab">
+                <form id="addWellForm">
+                    <div class="form-group full">
+                        <label for="apiNumber">API Number *</label>
+                        <input type="text" id="apiNumber" placeholder="3515322352" required>
+                        <div class="form-hint">10-digit Oklahoma well API (starts with 35)</div>
+                    </div>
+                    <div class="form-group full">
+                        <label for="wellNotes">Notes (Optional)</label>
+                        <textarea id="wellNotes" placeholder="Any notes about this well"></textarea>
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="button" class="btn-cancel" onclick="closeWellModal()">Cancel</button>
+                        <button type="submit" class="btn-submit">Add Well</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Name/Location Search Tab -->
+            <div class="tab-content" id="location-tab">
+                <div class="search-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="searchWellName">Well Name</label>
+                            <input type="text" id="searchWellName" placeholder="e.g., Collins">
+                        </div>
+                        <div class="form-group">
+                            <label for="searchOperator">Operator</label>
+                            <input type="text" id="searchOperator" placeholder="e.g., Devon">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="searchSection">Section</label>
+                            <input type="number" id="searchSection" placeholder="1-36" min="1" max="36">
+                        </div>
+                        <div class="form-group">
+                            <label for="searchTownship">Township</label>
+                            <input type="text" id="searchTownship" placeholder="e.g., 12N or 12">
+                        </div>
+                        <div class="form-group">
+                            <label for="searchRange">Range</label>
+                            <input type="text" id="searchRange" placeholder="e.g., 5W or 5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full">
+                            <label for="searchCounty">County</label>
+                            <input type="text" id="searchCounty" placeholder="e.g., Grady">
+                        </div>
+                    </div>
+                    
+                    <div class="search-buttons">
+                        <button type="button" class="btn-search" onclick="searchWells()">Search Wells</button>
+                        <button type="button" class="btn-clear" onclick="clearWellSearch()">Clear</button>
+                    </div>
                 </div>
-                <div class="form-group full">
-                    <label for="wellNotes">Notes (Optional)</label>
-                    <textarea id="wellNotes" placeholder="Any notes about this well"></textarea>
+                
+                <!-- Search Results -->
+                <div id="searchResults" class="search-results" style="display: none;">
+                    <div class="results-header">
+                        <h3>Search Results</h3>
+                        <div class="results-info" id="resultsInfo"></div>
+                    </div>
+                    <div class="results-list" id="resultsList">
+                        <!-- Results will be populated here -->
+                    </div>
                 </div>
+                
+                <!-- Loading State -->
+                <div id="searchLoading" class="search-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <div>Searching wells...</div>
+                </div>
+                
                 <div class="modal-buttons">
                     <button type="button" class="btn-cancel" onclick="closeWellModal()">Cancel</button>
-                    <button type="submit" class="btn-submit">Add Well</button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
     
@@ -3595,8 +3717,244 @@
         
         function closeWellModal() { 
             document.getElementById('addWellModal').style.display = 'none'; 
-            document.getElementById('addWellForm').reset(); 
+            document.getElementById('addWellForm').reset();
+            // Reset search tab
+            clearWellSearch();
+            // Switch back to API tab
+            switchTab('api-tab');
         }
+        
+        // Tab switching functionality
+        function switchTab(targetTabId) {
+            // Remove active class from all tab buttons and content
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            // Add active class to clicked tab button and corresponding content
+            document.querySelector(`[data-tab="${targetTabId}"]`).classList.add('active');
+            document.getElementById(targetTabId).classList.add('active');
+        }
+        
+        // Initialize tab listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Tab button event listeners
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetTab = btn.getAttribute('data-tab');
+                    switchTab(targetTab);
+                });
+            });
+        });
+        
+        // Search functionality
+        let searchDebounceTimer;
+        const SEARCH_DEBOUNCE_MS = 300;
+        
+        function debounceSearch(searchFunction, delay = SEARCH_DEBOUNCE_MS) {
+            clearTimeout(searchDebounceTimer);
+            searchDebounceTimer = setTimeout(searchFunction, delay);
+        }
+        
+        async function searchWells() {
+            const searchParams = {
+                well_name: document.getElementById('searchWellName').value.trim(),
+                operator: document.getElementById('searchOperator').value.trim(),
+                section: document.getElementById('searchSection').value.trim(),
+                township: document.getElementById('searchTownship').value.trim(),
+                range: document.getElementById('searchRange').value.trim(),
+                county: document.getElementById('searchCounty').value.trim()
+            };
+            
+            // Check if at least one search field is filled
+            const hasSearchCriteria = Object.values(searchParams).some(value => value !== '');
+            if (!hasSearchCriteria) {
+                showToast('Please enter at least one search criteria', 'error');
+                return;
+            }
+            
+            // Show loading state
+            document.getElementById('searchLoading').style.display = 'block';
+            document.getElementById('searchResults').style.display = 'none';
+            
+            try {
+                // Build query parameters
+                const queryParams = new URLSearchParams();
+                Object.entries(searchParams).forEach(([key, value]) => {
+                    if (value) queryParams.append(key, value);
+                });
+                
+                const response = await fetch(`/api/wells/search?${queryParams.toString()}`);
+                
+                if (!response.ok) {
+                    const error = await response.json();
+                    throw new Error(error.message || 'Search failed');
+                }
+                
+                const data = await response.json();
+                displaySearchResults(data.data);
+                
+            } catch (error) {
+                console.error('Search error:', error);
+                showToast(`Search error: ${error.message}`, 'error');
+                document.getElementById('searchResults').style.display = 'none';
+            } finally {
+                document.getElementById('searchLoading').style.display = 'none';
+            }
+        }
+        
+        function displaySearchResults(data) {
+            const { wells, total, truncated, search_criteria } = data;
+            
+            // Update results info
+            const resultsInfo = document.getElementById('resultsInfo');
+            let infoText = `Found ${total} well${total !== 1 ? 's' : ''}`;
+            if (truncated) {
+                infoText += ` (showing first 25)`;
+            }
+            resultsInfo.textContent = infoText;
+            
+            // Clear previous results
+            const resultsList = document.getElementById('resultsList');
+            resultsList.innerHTML = '';
+            
+            if (wells.length === 0) {
+                resultsList.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #64748b;">
+                        <div style="font-size: 48px; margin-bottom: 16px;">🔍</div>
+                        <h3 style="margin: 0 0 8px 0;">No wells found</h3>
+                        <p style="margin: 0;">Try adjusting your search criteria</p>
+                    </div>
+                `;
+            } else {
+                wells.forEach(well => {
+                    const resultItem = createResultItem(well);
+                    resultsList.appendChild(resultItem);
+                });
+            }
+            
+            // Show results
+            document.getElementById('searchResults').style.display = 'block';
+        }
+        
+        function createResultItem(well) {
+            const div = document.createElement('div');
+            div.className = 'result-item';
+            
+            // Determine status class
+            let statusClass = 'other';
+            let statusText = well.well_status || 'Unknown';
+            if (well.well_status === 'AC') {
+                statusClass = 'active';
+                statusText = 'Active';
+            } else if (well.well_status === 'PA') {
+                statusClass = 'plugged';
+                statusText = 'Plugged';
+            }
+            
+            const location = well.location;
+            const production = well.production;
+            
+            div.innerHTML = `
+                <div class="result-header">
+                    <h4 class="result-well-name">${escapeHtml(well.well_name || 'Unnamed Well')}</h4>
+                    <span class="result-status ${statusClass}">${statusText}</span>
+                </div>
+                <div class="result-details">
+                    <div class="result-detail">
+                        <strong>API:</strong> ${escapeHtml(well.api_number)}
+                    </div>
+                    <div class="result-detail">
+                        <strong>Operator:</strong> ${escapeHtml(well.operator || 'Unknown')}
+                    </div>
+                    <div class="result-detail">
+                        <strong>Location:</strong> S${location.section}-${location.township}-${location.range}-${location.meridian}
+                    </div>
+                    <div class="result-detail">
+                        <strong>County:</strong> ${escapeHtml(location.county || 'Unknown')}
+                    </div>
+                    ${production.formation_name ? `
+                        <div class="result-detail">
+                            <strong>Formation:</strong> ${escapeHtml(production.formation_name)}
+                        </div>
+                    ` : ''}
+                    ${production.ip_oil_bbl || production.ip_gas_mcf ? `
+                        <div class="result-detail">
+                            <strong>IP:</strong> ${production.ip_oil_bbl || 0} bbl/d, ${production.ip_gas_mcf || 0} mcf/d
+                        </div>
+                    ` : ''}
+                </div>
+                <button class="btn-select" onclick="selectWellFromSearch('${escapeHtml(well.api_number)}', '${escapeHtml(well.well_name || '')}')">
+                    Select This Well
+                </button>
+            `;
+            
+            return div;
+        }
+        
+        function selectWellFromSearch(apiNumber, wellName) {
+            // Switch to API tab and populate the form
+            switchTab('api-tab');
+            
+            // Fill in the API number
+            document.getElementById('apiNumber').value = apiNumber;
+            
+            // Focus on the notes field for user convenience
+            const notesField = document.getElementById('wellNotes');
+            notesField.focus();
+            
+            // Clear search results
+            clearWellSearch();
+            
+            showToast(`Selected well: ${wellName} (${apiNumber})`);
+        }
+        
+        function clearWellSearch() {
+            // Clear all search form fields
+            document.getElementById('searchWellName').value = '';
+            document.getElementById('searchOperator').value = '';
+            document.getElementById('searchSection').value = '';
+            document.getElementById('searchTownship').value = '';
+            document.getElementById('searchRange').value = '';
+            document.getElementById('searchCounty').value = '';
+            
+            // Hide search results and loading
+            document.getElementById('searchResults').style.display = 'none';
+            document.getElementById('searchLoading').style.display = 'none';
+        }
+        
+        // HTML escape function to prevent XSS
+        function escapeHtml(text) {
+            if (!text) return '';
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        // Auto-search on input with debouncing
+        document.addEventListener('DOMContentLoaded', function() {
+            const searchInputs = [
+                'searchWellName', 'searchOperator', 'searchSection', 
+                'searchTownship', 'searchRange', 'searchCounty'
+            ];
+            
+            searchInputs.forEach(inputId => {
+                const input = document.getElementById(inputId);
+                if (input) {
+                    input.addEventListener('input', () => {
+                        // Only auto-search if we have at least 2 characters or it's a section/location search
+                        const value = input.value.trim();
+                        const isLocationField = ['searchSection', 'searchTownship', 'searchRange'].includes(inputId);
+                        
+                        if (value.length >= 2 || (isLocationField && value.length >= 1)) {
+                            debounceSearch(searchWells);
+                        } else if (value.length === 0) {
+                            // Clear results if input is cleared
+                            document.getElementById('searchResults').style.display = 'none';
+                        }
+                    });
+                }
+            });
+        });
         
         // Event listeners for wells have been moved to DOMContentLoaded
         

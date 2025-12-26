@@ -86,6 +86,7 @@ import {
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
+  handleSearchWells,
   fetchWellDetailsFromOCC,
   // Nearby wells handlers
   handleNearbyWells,
@@ -523,6 +524,10 @@ var index_default = {
       }
       if (path === "/api/wells" && request.method === "POST") {
         return handleAddWell(request, env);
+      }
+      // Wells search endpoint
+      if (path === "/api/wells/search" && request.method === "GET") {
+        return handleSearchWells(request, env);
       }
       // Track well endpoint (alias for adding wells)
       if (path === "/api/wells/track" && request.method === "POST") {

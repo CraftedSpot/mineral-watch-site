@@ -25,6 +25,7 @@ export {
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
+  handleSearchWells,
   fetchWellDetailsFromOCC
 } from './wells.js';
 
