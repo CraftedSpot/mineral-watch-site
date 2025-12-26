@@ -447,24 +447,38 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   }
 
   // Extract search criteria from various possible column names
-  const wellName = rowData['Well Name'] || rowData['well_name'] || rowData.WellName || 
-                   rowData.wellName || rowData.WELL_NAME || rowData.Well_Name || rowData.Name || rowData.name || '';
-  const wellNumber = rowData['Well Number'] || rowData['well_number'] || rowData.WellNumber || 
-                     rowData.wellNumber || rowData.WELL_NUMBER || rowData['WELL_NUM'] || rowData.WELL_NUM || 
-                     rowData['Well_Num'] || rowData.Well_Num || rowData.well_num || '';
+  // Priority 1: Use WELL_NAME + WELL_NUM (separate fields to combine)
+  const wellName = rowData.WELL_NAME || rowData['Well_Name'] || rowData['Well Name'] || 
+                   rowData.well_name || rowData.WellName || rowData.wellName || '';
+  const wellNumber = rowData.WELL_NUM || rowData['Well_Num'] || rowData['WELL_NUMBER'] || 
+                     rowData['Well Number'] || rowData['well_number'] || rowData.WellNumber || 
+                     rowData.wellNumber || rowData.well_num || '';
+  
+  // Combine well name and number if both exist
+  const cleanWellName = wellName.trim();
+  const cleanWellNumber = wellNumber.trim();
+  
+  // Priority logic for well name:
+  // 1. If we have separate name and number, combine them
+  // 2. Otherwise use 'WELL Name & Number' if available
+  // 3. Do NOT use 'WELL NAME COMBINED' as it includes operator
+  let fullWellName = '';
+  if (cleanWellName && cleanWellNumber) {
+    fullWellName = `${cleanWellName} ${cleanWellNumber}`;
+  } else {
+    fullWellName = rowData['WELL Name & Number'] || rowData['Well Name & Number'] || cleanWellName || '';
+  }
+  
+  // Extract other fields
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
   const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
   const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
   const range = rowData.Range || rowData.range || rowData.RANGE || rowData.RNG || rowData.rng || '';
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
   
-  // Combine well name and number if both exist
-  const cleanWellNumber = wellNumber.trim();
-  const fullWellName = cleanWellNumber ? `${wellName} ${cleanWellNumber}`.trim() : wellName;
-  
   // Log extracted fields for debugging
   console.log('[SearchWells] Extracted fields:', {
-    wellName, 
+    wellName: cleanWellName, 
     wellNumber: cleanWellNumber, 
     fullWellName, 
     operator, 
@@ -495,7 +509,18 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   }
   
   // Convert section to number
-  const sectionNum = section ? parseInt(section) : null;
+  const sectionNum = section ? parseInt(section, 10) : null;
+  
+  // Add detailed parsed logging
+  console.log('[CascadingSearch] Parsed values:', {
+    fullWellName,
+    sectionString: section,
+    sectionNum,
+    normalizedTownship,
+    normalizedRange,
+    meridian,
+    operator
+  });
   
   console.log('[CascadingSearch] Input:', { 
     fullWellName, 

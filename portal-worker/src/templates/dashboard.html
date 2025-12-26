@@ -6376,12 +6376,24 @@ function renderWellsPreviewTable() {
         const csvData = [];
         const orig = result.original;
         
-        // Extract well name and number
-        const wellName = orig['Well Name'] || orig.well_name || orig.WELL_NAME || orig.WellName || orig.Well_Name || '';
-        const wellNumber = orig['Well Number'] || orig['well_number'] || orig.WellNumber || orig.wellNumber || 
-                          orig.WELL_NUMBER || orig['WELL_NUM'] || orig.WELL_NUM || orig['Well_Num'] || 
-                          orig.Well_Num || orig.well_num || '';
-        const fullWellName = wellNumber ? `${wellName} ${wellNumber}`.trim() : wellName;
+        // Extract well name and number with same priority as search function
+        // Priority 1: Use WELL_NAME + WELL_NUM (separate fields to combine)
+        const wellName = orig.WELL_NAME || orig['Well_Name'] || orig['Well Name'] || 
+                        orig.well_name || orig.WellName || orig.wellName || '';
+        const wellNumber = orig.WELL_NUM || orig['Well_Num'] || orig['WELL_NUMBER'] || 
+                          orig['Well Number'] || orig['well_number'] || orig.WellNumber || 
+                          orig.wellNumber || orig.well_num || '';
+        
+        // Priority logic for well name:
+        // 1. If we have separate name and number, combine them
+        // 2. Otherwise use 'WELL Name & Number' if available  
+        // 3. Do NOT use 'WELL NAME COMBINED' as it includes operator
+        let fullWellName = '';
+        if (wellName && wellNumber) {
+            fullWellName = `${wellName.trim()} ${wellNumber.trim()}`.trim();
+        } else {
+            fullWellName = orig['WELL Name & Number'] || orig['Well Name & Number'] || wellName || '';
+        }
         
         if (fullWellName) csvData.push(`Well: ${fullWellName}`);
         if (orig.Operator || orig.operator || orig.OPERATOR) csvData.push(`Op: ${orig.Operator || orig.operator || orig.OPERATOR}`);
