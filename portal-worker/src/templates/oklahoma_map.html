@@ -4870,6 +4870,10 @@
                 map.addLayer(activityHeatmapLayer);
             }
             
+            // Laterals layer should be below wells but above heatmap
+            if (lateralsLayer && map.hasLayer(lateralsLayer)) {
+                lateralsLayer.bringToFront();
+            }
             
             // Bring wells layer to appropriate position
             if (wellsLayer && map.hasLayer(wellsLayer)) {
@@ -5637,6 +5641,11 @@
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
                     map.removeLayer(nearbyWellsLayer);
                 }
+                // Also clear laterals layer when nearby wells are turned off
+                lateralsLayer.clearLayers();
+                if (map.hasLayer(lateralsLayer)) {
+                    map.removeLayer(lateralsLayer);
+                }
                 filterDiv.style.display = 'none'; // Hide filter dropdown
                 countDiv.style.display = 'none'; // Hide count
                 separatorDiv.style.display = 'none'; // Hide separator
@@ -6297,6 +6306,7 @@
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
         document.getElementById('toggle-heatmap').addEventListener('change', toggleActivityHeatmap);
         document.getElementById('toggle-nearby-wells').addEventListener('change', toggleNearbyWells);
+        document.getElementById('toggle-laterals').addEventListener('change', toggleLaterals);
         
         // Add event listener for well status filter
         document.getElementById('well-status-filter').addEventListener('change', function() {
