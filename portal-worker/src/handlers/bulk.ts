@@ -449,11 +449,16 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Extract search criteria from various possible column names
   const wellName = rowData['Well Name'] || rowData['well_name'] || rowData.WellName || 
                    rowData.wellName || rowData.WELL_NAME || rowData.Name || rowData.name || '';
+  const wellNumber = rowData['Well Number'] || rowData['well_number'] || rowData.WellNumber || 
+                     rowData.wellNumber || rowData.WELL_NUM || rowData['Well Num'] || rowData.well_num || '';
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
   const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
   const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
   const range = rowData.Range || rowData.range || rowData.RANGE || rowData.RNG || rowData.rng || '';
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
+  
+  // Combine well name and number if both exist
+  const fullWellName = wellNumber ? `${wellName} ${wellNumber}`.trim() : wellName;
   
   // Debug logging
   console.log('[SearchWells] Extracted fields:', { wellName, operator, section, township, range, county });
