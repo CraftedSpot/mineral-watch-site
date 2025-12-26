@@ -464,6 +464,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   console.log('[SearchWells] Extracted fields:', { wellName, wellNumber, fullWellName, operator, section, township, range, county });
   console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
   console.log('[SearchWells] Well name construction:', `"${wellName}" + "${wellNumber}" = "${fullWellName}"`);
+  console.log('[SearchWells] Sample raw data:', JSON.stringify(rowData).substring(0, 200));
 
   // Build search conditions
   const conditions: string[] = [];
@@ -476,8 +477,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   }
   
   if (operator) {
-    conditions.push(`(UPPER(o.operator_name) LIKE UPPER(?) OR UPPER(o.operator_alias) LIKE UPPER(?))`);
-    params.push(`%${operator}%`, `%${operator}%`);
+    conditions.push(`(UPPER(w.operator) LIKE UPPER(?))`);
+    params.push(`%${operator}%`);
   }
 
   if (section && township && range) {
@@ -513,11 +514,23 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   console.log('[SearchWells] Query params:', params);
   console.log('[SearchWells] Where clause:', whereClause);
   
+  // Debug: Try to find any well with the name
+  if (wellName && !operator && !section) {
+    try {
+      const debugQuery = `SELECT api_number, well_name FROM wells WHERE UPPER(well_name) LIKE UPPER(?) LIMIT 3`;
+      const debugResults = await env.WELLS_DB.prepare(debugQuery)
+        .bind(`%${wellName}%`)
+        .all();
+      console.log(`[SearchWells] Debug query for "${wellName}" found:`, debugResults.results);
+    } catch (e) {
+      console.error('[SearchWells] Debug query failed:', e);
+    }
+  }
+  
   // First get count
   const countQuery = `
     SELECT COUNT(*) as total
     FROM wells w
-    LEFT JOIN operators o ON UPPER(REPLACE(TRIM(o.operator_name), '.', '')) = UPPER(REPLACE(TRIM(w.operator), '.', ''))
     WHERE ${whereClause}
   `;
   
@@ -534,7 +547,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       w.well_name,
       w.well_number,
       w.operator,
-      COALESCE(o.operator_name, w.operator) as operator_display,
+      w.operator as operator_display,
       w.section,
       w.township,
       w.range as range,
@@ -546,7 +559,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       w.measured_total_depth,
       w.true_vertical_depth
     FROM wells w
-    LEFT JOIN operators o ON UPPER(REPLACE(TRIM(o.operator_name), '.', '')) = UPPER(REPLACE(TRIM(w.operator), '.', ''))
     WHERE ${whereClause}
     ORDER BY w.well_status = 'AC' DESC, w.api_number DESC
     LIMIT 5
