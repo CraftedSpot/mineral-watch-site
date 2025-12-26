@@ -448,11 +448,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
 
   // Extract search criteria from various possible column names
   const wellName = rowData['Well Name'] || rowData['well_name'] || rowData.WellName || 
-                   rowData.wellName || rowData.Name || rowData.name || '';
+                   rowData.wellName || rowData.WELL_NAME || rowData.Name || rowData.name || '';
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
-  const section = rowData.Section || rowData.section || rowData.SEC || rowData.sec || '';
-  const township = rowData.Township || rowData.township || rowData.TWN || rowData.twn || '';
-  const range = rowData.Range || rowData.range || rowData.RNG || rowData.rng || '';
+  const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
+  const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
+  const range = rowData.Range || rowData.range || rowData.RANGE || rowData.RNG || rowData.rng || '';
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
 
   // Build search conditions
@@ -612,7 +612,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         original: well,
         normalized: {
           apiNumber: cleanApi,
-          wellName: well['Well Name'] || well.well_name || well.WellName || well.wellName || well.Name || well.name || '',
+          wellName: well['Well Name'] || well.well_name || well.WELL_NAME || well.WellName || well.wellName || well.Name || well.name || '',
           notes: well.Notes || well.notes || ''
         },
         matchStatus,
@@ -626,10 +626,10 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     } else {
       // No valid API - search by other fields
       const hasSearchableFields = 
-        well['Well Name'] || well.well_name || well.WellName || well.wellName || well.Name || well.name ||
-        well.Operator || well.operator ||
-        (well.Section || well.section) && (well.Township || well.township) && (well.Range || well.range) ||
-        well.County || well.county;
+        well['Well Name'] || well.well_name || well.WELL_NAME || well.WellName || well.wellName || well.Name || well.name ||
+        well.Operator || well.operator || well.OPERATOR ||
+        (well.Section || well.section || well.SECTION) && (well.Township || well.township || well.TOWNSHIP) && (well.Range || well.range || well.RANGE) ||
+        well.County || well.county || well.COUNTY;
       
       if (!hasSearchableFields) {
         errors.push("No searchable data found (need API, Well Name, Operator, or Location)");

@@ -6359,10 +6359,10 @@ function renderWellsPreviewTable() {
         // Build CSV data display
         const csvData = [];
         const orig = result.original;
-        if (orig['Well Name'] || orig.well_name || orig.WellName) csvData.push(`Well: ${orig['Well Name'] || orig.well_name || orig.WellName}`);
-        if (orig.Operator || orig.operator) csvData.push(`Op: ${orig.Operator || orig.operator}`);
-        if (orig.County || orig.county) csvData.push(`County: ${orig.County || orig.county}`);
-        if (orig.Section && orig.Township && orig.Range) csvData.push(`Loc: S${orig.Section}-T${orig.Township}-R${orig.Range}`);
+        if (orig['Well Name'] || orig.well_name || orig.WELL_NAME || orig.WellName) csvData.push(`Well: ${orig['Well Name'] || orig.well_name || orig.WELL_NAME || orig.WellName}`);
+        if (orig.Operator || orig.operator || orig.OPERATOR) csvData.push(`Op: ${orig.Operator || orig.operator || orig.OPERATOR}`);
+        if (orig.County || orig.county || orig.COUNTY) csvData.push(`County: ${orig.County || orig.county || orig.COUNTY}`);
+        if ((orig.Section || orig.SECTION) && (orig.Township || orig.TOWNSHIP) && (orig.Range || orig.RANGE)) csvData.push(`Loc: S${orig.Section || orig.SECTION}-T${orig.Township || orig.TOWNSHIP}-R${orig.Range || orig.RANGE}`);
         const csvDisplay = csvData.join(', ') || 'No search data';
         
         // Build matched well display
