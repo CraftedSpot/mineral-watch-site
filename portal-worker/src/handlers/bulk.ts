@@ -432,10 +432,10 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
 }
 
 /**
- * Search wells in D1 database using CSV row data
+ * Search wells in D1 database using cascading logic with scoring
  * @param rowData CSV row data with well information
  * @param env Worker environment
- * @returns Search results with match count and details
+ * @returns Search results with match scores and details
  */
 async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   matches: any[];
@@ -458,179 +458,133 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
   
   // Combine well name and number if both exist
-  // Make sure wellNumber is not just whitespace
   const cleanWellNumber = wellNumber.trim();
   const fullWellName = cleanWellNumber ? `${wellName} ${cleanWellNumber}`.trim() : wellName;
   
-  // Debug logging
-  // Determine meridian for debugging
+  // Normalize location data
   const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
   const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
   
-  console.log('[SearchWells] Extracted fields:', { wellName, wellNumber: cleanWellNumber, fullWellName, operator, section, township, range, meridian, county });
-  console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
-  console.log('[SearchWells] Well name construction:', `"${wellName}" + "${cleanWellNumber}" = "${fullWellName}"`);
-  console.log('[SearchWells] Sample raw data:', JSON.stringify(rowData).substring(0, 200));
-  
-  // Extra debug for specific problem wells
-  if (wellName && (wellName.includes('RIBEYE') || wellName.includes('STATE') || wellName.includes('GLORIETTA') || wellName.includes('DENTON'))) {
-    console.log('[SearchWells] SPECIAL DEBUG - Problem well detected:');
-    console.log('  - WELL_NAME field:', rowData.WELL_NAME || 'not found');
-    console.log('  - Well_Name field:', rowData.Well_Name || 'not found');
-    console.log('  - WELL_NUM field:', rowData.WELL_NUM || 'not found');
-    console.log('  - Well_Num field:', rowData.Well_Num || 'not found');
-    console.log('  - Raw wellNumber extracted:', wellNumber);
-    console.log('  - Clean wellNumber:', cleanWellNumber);
-    console.log('  - Combined result:', fullWellName);
-    console.log('  - Well Comments:', rowData['Well Comments'] || rowData['Well comments'] || rowData.Well_Comments || 'not found');
-    console.log('  - Location:', `${section}-${township}-${range}-${meridian}`);
+  // Normalize township/range with proper padding
+  let normalizedTownship = township.toUpperCase();
+  let normalizedRange = range.toUpperCase();
+  if (normalizedTownship && normalizedTownship.match(/^\d+$/)) {
+    normalizedTownship = `${normalizedTownship}N`;
   }
-
-  // Build search conditions
-  const conditions: string[] = [];
-  const params: (string | number)[] = [];
-
-  if (fullWellName) {
-    // Search for well name - D1 has separate well_name and well_number columns
-    // Try multiple strategies:
-    // 1. Concatenated columns match full name
-    // 2. Just well_name matches (for cases where well_number might be different)
-    // 3. Well name and number as separate conditions
-    if (cleanWellNumber) {
-      // We have both name and number - search more precisely
-      // Also handle cases where section number is part of well name (e.g., "RIBEYE 33")
-      const wellNameWithoutSection = wellName.replace(/\s+\d{1,2}$/, '').trim(); // Remove trailing section number
-      conditions.push(`(
-        UPPER(well_name || ' ' || well_number) LIKE UPPER(?) OR
-        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?) OR
-        (UPPER(well_name) LIKE UPPER(?) AND UPPER(well_number) LIKE UPPER(?)) OR
-        (UPPER(well_name) LIKE UPPER(?) AND UPPER(well_number) LIKE UPPER(?))
-      )`);
-      params.push(
-        `%${fullWellName}%`, 
-        `%${fullWellName}%`, 
-        `%${wellName}%`, 
-        `%${cleanWellNumber}%`,
-        `%${wellNameWithoutSection}%`,  // Try without section number
-        `%${cleanWellNumber}%`
-      );
-    } else {
-      // Just well name, no number
-      conditions.push(`UPPER(well_name) LIKE UPPER(?)`);
-      params.push(`%${wellName}%`);
-    }
+  if (normalizedRange && normalizedRange.match(/^\d+$/)) {
+    normalizedRange = `${normalizedRange}W`;
   }
-  
-  if (operator) {
-    conditions.push(`(UPPER(w.operator) LIKE UPPER(?))`);
-    params.push(`%${operator}%`);
-  }
-
-  if (section && township && range) {
-    // Normalize township/range with proper padding for D1 format
-    // D1 stores as '05N', '09W' with leading zeros
-    let normalizedTownship = township.toUpperCase();
-    let normalizedRange = range.toUpperCase();
-    
-    // Add direction if missing (default N for township, W for range)
-    if (normalizedTownship.match(/^\d+$/)) {
-      normalizedTownship = `${normalizedTownship}N`;
-    }
-    if (normalizedRange.match(/^\d+$/)) {
-      normalizedRange = `${normalizedRange}W`;
-    }
-    
-    // Pad single digits with leading zero: '5N' → '05N', '24N' → '24N'
+  if (normalizedTownship) {
     normalizedTownship = normalizedTownship.replace(/^(\d)([NS])$/i, '0$1$2');
+  }
+  if (normalizedRange) {
     normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
-    
-    // Determine meridian based on county
-    const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
-    const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
-    
-    // Try multiple section formats: numeric, string, and padded
-    const sectionNum = parseInt(section);
-    const sectionPadded = section.toString().padStart(2, '0');
-    conditions.push(`((section = ? OR section = ? OR section = ?) AND township = ? AND range = ? AND meridian = ?)`);
-    params.push(sectionNum, section.toString(), sectionPadded, normalizedTownship, normalizedRange, meridian);
   }
-
-  if (county) {
-    conditions.push(`UPPER(county) LIKE UPPER(?)`);
-    params.push(`%${county}%`);
-  }
-
-  if (conditions.length === 0) {
+  
+  // Convert section to number
+  const sectionNum = section ? parseInt(section) : null;
+  
+  console.log('[CascadingSearch] Input:', { 
+    fullWellName, 
+    operator, 
+    location: `S${section}-T${normalizedTownship}-R${normalizedRange}-${meridian}`,
+    county 
+  });
+  
+  // Check minimum search criteria
+  if (!fullWellName && (!normalizedTownship || !normalizedRange)) {
+    console.log('[CascadingSearch] Insufficient criteria - need well name or T-R');
     return { matches: [], total: 0, truncated: false };
   }
 
-  // Use OR logic if only name/operator provided, AND logic if location provided
-  const hasLocation = section && township && range;
-  const hasNameOrOperator = fullWellName || operator;
+  // Build the cascading search query with scoring
+  const params: any[] = [];
+  const whereConditions: string[] = [];
   
-  // For CSV import, we want to be more restrictive to avoid too many matches
-  // If we have well name AND location, require BOTH
-  // If we have well name AND operator, require BOTH
-  let whereClause: string;
-  
-  // Count what types of criteria we have
-  const hasWellNameSearch = fullWellName ? 1 : 0;
-  const hasOperatorSearch = operator ? 1 : 0;
-  const hasLocationSearch = (section && township && range) ? 1 : 0;
-  const hasCountySearch = county ? 1 : 0;
-  
-  const totalCriteria = hasWellNameSearch + hasOperatorSearch + hasLocationSearch + hasCountySearch;
-  
-  // If we have multiple types of criteria, use AND between them
-  if (totalCriteria > 1) {
-    // Multiple criteria types - require all to match
-    whereClause = conditions.join(' AND ');
-  } else {
-    // Single criterion type - just use that condition
-    // Note: Each condition already has its own OR logic internally if needed
-    whereClause = conditions.join(' AND ');
+  // Build WHERE clause based on available criteria
+  if (fullWellName) {
+    whereConditions.push(`UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)`);
+    params.push(`%${fullWellName}%`);
   }
   
-  console.log('[SearchWells] Has location:', hasLocation, 'Has name/operator:', hasNameOrOperator);
-  console.log('[SearchWells] Query conditions:', conditions);
-  console.log('[SearchWells] Query params:', params);
-  console.log('[SearchWells] Where clause:', whereClause);
-  console.log('[SearchWells] Total criteria types:', totalCriteria);
-  
-  // Debug: Try to find any well with the name
-  if (wellName && !operator && !section) {
-    try {
-      const debugQuery = `SELECT api_number, well_name, well_number, well_name || ' ' || COALESCE(well_number, '') as combined_name FROM wells WHERE UPPER(well_name) LIKE UPPER(?) OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?) LIMIT 3`;
-      const debugResults = await env.WELLS_DB.prepare(debugQuery)
-        .bind(`%${wellName}%`, `%${fullWellName}%`)
-        .all();
-      console.log(`[SearchWells] Debug query for "${wellName}" (full: "${fullWellName}") found:`, debugResults.results);
-    } catch (e) {
-      console.error('[SearchWells] Debug query failed:', e);
+  if (normalizedTownship && normalizedRange) {
+    if (sectionNum !== null) {
+      whereConditions.push(`(township = ? AND range = ? AND section = ? AND meridian = ?)`);
+      params.push(normalizedTownship, normalizedRange, sectionNum, meridian);
+    } else {
+      whereConditions.push(`(township = ? AND range = ? AND meridian = ?)`);
+      params.push(normalizedTownship, normalizedRange, meridian);
     }
   }
   
-  // First get count
-  const countQuery = `
-    SELECT COUNT(*) as total
-    FROM wells w
-    WHERE ${whereClause}
-  `;
+  // Create WHERE clause with OR between main conditions
+  const whereClause = whereConditions.join(' OR ');
   
-  const countResult = await env.WELLS_DB.prepare(countQuery)
-    .bind(...params)
-    .first<{ total: number }>();
+  // Build the scoring CASE statement
+  const scoreParts: string[] = [];
+  let scoreParamIndex = params.length + 1; // Start after WHERE params
   
-  let total = countResult?.total || 0;
+  // Score 100: Exact match (name + location with section)
+  if (fullWellName && normalizedTownship && normalizedRange && sectionNum !== null) {
+    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex}) 
+         AND township = ?${scoreParamIndex + 1} AND range = ?${scoreParamIndex + 2} 
+         AND section = ?${scoreParamIndex + 3} AND meridian = ?${scoreParamIndex + 4} THEN 100`);
+    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, sectionNum, meridian);
+    scoreParamIndex += 5;
+  }
   
-  // Get results (limit to 10 for CSV matching)
+  // Score 90: Name + T-R + operator match
+  if (fullWellName && normalizedTownship && normalizedRange && operator) {
+    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex})
+         AND township = ?${scoreParamIndex + 1} AND range = ?${scoreParamIndex + 2} AND meridian = ?${scoreParamIndex + 3}
+         AND UPPER(operator) LIKE UPPER(?${scoreParamIndex + 4}) THEN 90`);
+    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, meridian, `%${operator}%`);
+    scoreParamIndex += 5;
+  }
+  
+  // Score 80: Name + T-R match (section differs)
+  if (fullWellName && normalizedTownship && normalizedRange) {
+    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex})
+         AND township = ?${scoreParamIndex + 1} AND range = ?${scoreParamIndex + 2} AND meridian = ?${scoreParamIndex + 3} THEN 80`);
+    params.push(`%${fullWellName}%`, normalizedTownship, normalizedRange, meridian);
+    scoreParamIndex += 4;
+  }
+  
+  // Score 70: Name + operator match
+  if (fullWellName && operator) {
+    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex})
+         AND UPPER(operator) LIKE UPPER(?${scoreParamIndex + 1}) THEN 70`);
+    params.push(`%${fullWellName}%`, `%${operator}%`);
+    scoreParamIndex += 2;
+  }
+  
+  // Score 50: Name match only
+  if (fullWellName) {
+    scoreParts.push(`WHEN UPPER(well_name || ' ' || COALESCE(well_number,'')) LIKE UPPER(?${scoreParamIndex}) THEN 50`);
+    params.push(`%${fullWellName}%`);
+    scoreParamIndex += 1;
+  }
+  
+  // Score 40: Location match only
+  if (normalizedTownship && normalizedRange && sectionNum !== null) {
+    scoreParts.push(`WHEN township = ?${scoreParamIndex} AND range = ?${scoreParamIndex + 1} 
+         AND section = ?${scoreParamIndex + 2} AND meridian = ?${scoreParamIndex + 3} THEN 40`);
+    params.push(normalizedTownship, normalizedRange, sectionNum, meridian);
+    scoreParamIndex += 4;
+  }
+  
+  // Default score 0
+  scoreParts.push('ELSE 0');
+  
+  const scoringCase = `CASE ${scoreParts.join('\n')} END`;
+  
+  // Build the main query with scoring
   const query = `
     SELECT 
       w.api_number,
       w.well_name,
       w.well_number,
       w.operator,
-      w.operator as operator_display,
       w.section,
       w.township,
       w.range as range,
@@ -640,94 +594,46 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       w.well_type,
       w.formation_name,
       w.measured_total_depth,
-      w.true_vertical_depth
+      w.true_vertical_depth,
+      ${scoringCase} as match_score
     FROM wells w
     WHERE ${whereClause}
-    ORDER BY w.well_status = 'AC' DESC, w.api_number DESC
-    LIMIT 10
+    ORDER BY match_score DESC, w.well_status = 'AC' DESC, w.api_number DESC
+    LIMIT 15
   `;
-
-  let results = await env.WELLS_DB.prepare(query)
+  
+  console.log('[CascadingSearch] Running scored query');
+  console.log('[CascadingSearch] WHERE clause:', whereClause);
+  console.log('[CascadingSearch] Params:', params);
+  
+  // Execute the query
+  const results = await env.WELLS_DB.prepare(query)
     .bind(...params)
     .all();
-
-  // If no results and we had multiple criteria, try a fallback search with just location
-  if (results.results.length === 0 && totalCriteria > 1 && hasLocationSearch) {
-    console.log('[SearchWells] No results with full criteria, trying location-only fallback');
-    
-    // Build location-only query
-    const fallbackConditions: string[] = [];
-    const fallbackParams: (string | number)[] = [];
-    
-    if (section && township && range) {
-      const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
-      const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
-      const sectionNum = parseInt(section);
-      const sectionPadded = section.toString().padStart(2, '0');
-      
-      // Get normalized township/range from above
-      let normalizedTownship = township.toUpperCase();
-      let normalizedRange = range.toUpperCase();
-      if (normalizedTownship.match(/^\d+$/)) normalizedTownship = `${normalizedTownship}N`;
-      if (normalizedRange.match(/^\d+$/)) normalizedRange = `${normalizedRange}W`;
-      normalizedTownship = normalizedTownship.replace(/^(\d)([NS])$/i, '0$1$2');
-      normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
-      
-      fallbackConditions.push(`((section = ? OR section = ? OR section = ?) AND township = ? AND range = ? AND meridian = ?)`);
-      fallbackParams.push(sectionNum, section.toString(), sectionPadded, normalizedTownship, normalizedRange, meridian);
-    }
-    
-    if (county) {
-      fallbackConditions.push(`UPPER(county) LIKE UPPER(?)`);
-      fallbackParams.push(`%${county}%`);
-    }
-    
-    if (fallbackConditions.length > 0) {
-      const fallbackWhereClause = fallbackConditions.join(' AND ');
-      const fallbackQuery = `
-        SELECT 
-          w.api_number,
-          w.well_name,
-          w.well_number,
-          w.operator,
-          w.operator as operator_display,
-          w.section,
-          w.township,
-          w.range as range,
-          w.meridian,
-          w.county,
-          w.well_status,
-          w.well_type,
-          w.formation_name,
-          w.measured_total_depth,
-          w.true_vertical_depth
-        FROM wells w
-        WHERE ${fallbackWhereClause}
-        ORDER BY w.well_status = 'AC' DESC, w.api_number DESC
-        LIMIT 10
-      `;
-      
-      const fallbackResults = await env.WELLS_DB.prepare(fallbackQuery)
-        .bind(...fallbackParams)
-        .all();
-      
-      if (fallbackResults.results.length > 0) {
-        console.log(`[SearchWells] Fallback search found ${fallbackResults.results.length} wells by location`);
-        results = fallbackResults;
-        // Recount with location-only query
-        const fallbackCountQuery = `SELECT COUNT(*) as total FROM wells w WHERE ${fallbackWhereClause}`;
-        const fallbackCountResult = await env.WELLS_DB.prepare(fallbackCountQuery)
-          .bind(...fallbackParams)
-          .first<{ total: number }>();
-        total = fallbackCountResult?.total || 0;
-      }
-    }
+  
+  // Log scoring results
+  const scoreBreakdown = results.results.reduce((acc: any, well: any) => {
+    const score = well.match_score;
+    acc[score] = (acc[score] || 0) + 1;
+    return acc;
+  }, {});
+  console.log('[CascadingSearch] Score breakdown:', scoreBreakdown);
+  
+  // Filter to only include results with score > 0
+  const scoredResults = results.results.filter((well: any) => well.match_score > 0);
+  
+  // For logging purposes, show what matched
+  if (scoredResults.length > 0 && scoredResults.length <= 5) {
+    console.log('[CascadingSearch] Top matches:');
+    scoredResults.slice(0, 5).forEach((well: any) => {
+      console.log(`  - ${well.well_name} ${well.well_number || ''} (S${well.section}-T${well.township}-R${well.range}) - Score: ${well.match_score}`);
+    });
   }
-
+  
   return {
-    matches: results.results || [],
-    total,
-    truncated: total > 10
+    matches: scoredResults,
+    total: scoredResults.length,
+    truncated: scoredResults.length > 10
   };
 }
 
@@ -836,6 +742,9 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         (well.Section || well.section || well.SECTION) && (well.Township || well.township || well.TOWNSHIP) && (well.Range || well.range || well.RANGE) ||
         well.County || well.county || well.COUNTY;
       
+      // Extract section for mismatch warnings
+      const section = well.Section || well.section || well.SECTION || well.SEC || well.sec || '';
+      
       if (!hasSearchableFields) {
         errors.push("No searchable data found (need API, Well Name, Operator, or Location)");
         matchStatus = 'not_found';
@@ -848,15 +757,33 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             matchStatus = 'not_found';
             errors.push("No wells found matching the provided criteria");
           } else if (searchResults.total === 1) {
-            matchStatus = 'exact';
+            // Check for section mismatch
+            const match = searchResults.matches[0];
+            if (searchResults.hasSectionMismatches && match.sectionMismatch) {
+              matchStatus = 'ambiguous';
+              warnings.push(`Section mismatch - Well found in section ${match.section} (your CSV shows section ${section})`);
+              warnings.push('This may be correct for horizontal wells - please verify');
+            } else {
+              matchStatus = 'exact';
+            }
             // Check if already tracking
-            const matchedApi = searchResults.matches[0].api_number;
+            const matchedApi = match.api_number;
             if (existingSet.has(matchedApi)) {
               warnings.push("Already tracking this well");
             }
           } else if (searchResults.total <= 10) {
             matchStatus = 'ambiguous';
             warnings.push(`${searchResults.total} matches found - please select the correct well`);
+            
+            // Check for section mismatches
+            if (searchResults.hasSectionMismatches) {
+              const mismatchedSections = searchResults.matches
+                .filter((m: any) => m.sectionMismatch)
+                .map((m: any) => m.section)
+                .filter((v: number, i: number, a: number[]) => a.indexOf(v) === i); // unique sections
+              warnings.push(`Section mismatches found - Wells are in sections: ${mismatchedSections.join(', ')} (your CSV shows section ${section})`);
+            }
+            
             // If we only found location matches, add a note
             if (searchResults.matches.length > 0 && !searchResults.matches.some((m: any) => 
               m.well_name.toUpperCase().includes(wellName.toUpperCase()) || 
