@@ -546,24 +546,67 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   let results: any = { results: [] };
   let searchStrategy = '';
   
-  // Strategy 1: Try well name + location (most specific)
+  // Strategy 1: Try well name + location with operator scoring
   if (cleanedWellName && normalizedTownship && normalizedRange) {
-    console.log('[CascadingSearch] Trying Strategy 1: Name + Location');
+    console.log('[CascadingSearch] Trying Strategy 1: Name + Location + Operator scoring');
+    
+    // Build scoring that heavily weights operator matches
+    let scoringCase = '';
+    const params1: any[] = [];
+    let paramIndex = 1;
+    
+    if (operator && sectionNum !== null) {
+      // Best case: name + location + operator + section all match
+      scoringCase = `CASE 
+        WHEN UPPER(operator) LIKE UPPER(?${paramIndex}) AND section = ?${paramIndex + 1} THEN 100
+        WHEN UPPER(operator) LIKE UPPER(?${paramIndex + 2}) THEN 90
+        WHEN section = ?${paramIndex + 3} THEN 80
+        ELSE 70
+      END`;
+      params1.push(`%${operator}%`, sectionNum, `%${operator}%`, sectionNum);
+      paramIndex += 4;
+    } else if (operator) {
+      // Have operator but no section
+      scoringCase = `CASE 
+        WHEN UPPER(operator) LIKE UPPER(?${paramIndex}) THEN 100
+        ELSE 70
+      END`;
+      params1.push(`%${operator}%`);
+      paramIndex++;
+    } else if (sectionNum !== null) {
+      // Have section but no operator
+      scoringCase = `CASE 
+        WHEN section = ?${paramIndex} THEN 90
+        ELSE 70
+      END`;
+      params1.push(sectionNum);
+      paramIndex++;
+    } else {
+      // No operator or section - all get same score
+      scoringCase = '70';
+    }
+    
     const query1 = `
       SELECT w.*, 
-        CASE WHEN section = ?1 THEN 100 ELSE 80 END as match_score
+        ${scoringCase} as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
-        AND township = ?3 AND range = ?4 AND meridian = ?5
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${paramIndex})
+        AND township = ?${paramIndex + 1} AND range = ?${paramIndex + 2} AND meridian = ?${paramIndex + 3}
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
-    const params1 = [sectionNum, `%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian].filter(p => p !== null);
+    
+    params1.push(`%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian);
     
     results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
-    searchStrategy = 'name+location';
+    searchStrategy = 'name+location+operator';
     
     console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
+    
+    // If we have operator and only one result has score 100, it's an exact match
+    if (operator && results.results.filter((r: any) => r.match_score >= 90).length === 1) {
+      console.log('[CascadingSearch] Single operator match found - will auto-select');
+    }
   }
   
   // Strategy 2: If no results, try just well name (broader search)
@@ -748,23 +791,35 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             matchStatus = 'not_found';
             errors.push("No wells found matching the provided criteria");
           } else if (searchResults.total === 1) {
-            // Check for section mismatch
+            // Single match - always exact
+            matchStatus = 'exact';
             const match = searchResults.matches[0];
-            if (searchResults.hasSectionMismatches && match.sectionMismatch) {
-              matchStatus = 'ambiguous';
-              warnings.push(`Section mismatch - Well found in section ${match.section} (your CSV shows section ${section})`);
-              warnings.push('This may be correct for horizontal wells - please verify');
-            } else {
-              matchStatus = 'exact';
-            }
+            
             // Check if already tracking
             const matchedApi = match.api_number;
             if (existingSet.has(matchedApi)) {
               warnings.push("Already tracking this well");
             }
-          } else if (searchResults.total <= 10) {
-            matchStatus = 'ambiguous';
-            warnings.push(`${searchResults.total} matches found - please select the correct well`);
+          } else {
+            // Multiple matches - check if operator makes it unambiguous
+            const highScoreMatches = searchResults.matches.filter((m: any) => m.match_score >= 90);
+            
+            if (highScoreMatches.length === 1 && well.Operator) {
+              // Only one well matches with operator - treat as exact match
+              matchStatus = 'exact';
+              searchResults.matches = [highScoreMatches[0]]; // Keep only the best match
+              searchResults.total = 1;
+              
+              const match = highScoreMatches[0];
+              if (existingSet.has(match.api_number)) {
+                warnings.push("Already tracking this well");
+              }
+              
+              console.log(`[BulkValidate] Auto-selected well with operator match: ${match.well_name} - ${match.operator}`);
+            } else if (searchResults.total <= 10) {
+              // Multiple matches without clear winner - needs review
+              matchStatus = 'ambiguous';
+              warnings.push(`${searchResults.total} matches found - please select the correct well`);
             
             // Check for section mismatches
             if (searchResults.hasSectionMismatches) {
