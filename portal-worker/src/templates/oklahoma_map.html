@@ -3579,7 +3579,13 @@
             const contactName = toTitleCase(fields['Contact Name'] || fields['Operator Contact'] || '');
             const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
-            const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
+            
+            // Get formation name but filter out invalid values
+            let formationRaw = fields['Formation Name'] || fields['Formation'] || '';
+            // List of invalid formation names that are actually well types or directions
+            const invalidFormations = ['horizontal hole', 'horizontal', 'vertical hole', 'vertical', 'directional'];
+            const formation = invalidFormations.includes(formationRaw.toLowerCase()) ? '' : toTitleCase(formationRaw);
+            
             const wellType = fields['Well Type'] || 'Oil Well';
             const county = toTitleCase(fields['County'] || '');
             const section = fields['Section'] || '';
@@ -3759,10 +3765,14 @@
                 `;
                 
                 // Formation and depth grid (only if D1 has different/additional data)
-                if ((hasD1Formation && !existingFormation) || (hasD1Depth && !existingDepth)) {
+                // Also check if existing formation is invalid (like "Horizontal Hole")
+                const invalidFormations = ['horizontal hole', 'horizontal', 'vertical hole', 'vertical', 'directional'];
+                const hasInvalidExistingFormation = existingFormation && invalidFormations.includes(existingFormation.toLowerCase());
+                
+                if ((hasD1Formation && (!existingFormation || hasInvalidExistingFormation)) || (hasD1Depth && !existingDepth)) {
                     enrichmentHtml += `<div class="well-detail-grid" style="margin-top: 12px;">`;
                     
-                    if (hasD1Formation && !existingFormation) {
+                    if (hasD1Formation && (!existingFormation || hasInvalidExistingFormation)) {
                         enrichmentHtml += `
                             <div class="well-detail-section">
                                 <div class="well-detail-label">Formation</div>
