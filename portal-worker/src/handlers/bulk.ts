@@ -465,6 +465,16 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
   console.log('[SearchWells] Well name construction:', `"${wellName}" + "${wellNumber}" = "${fullWellName}"`);
   console.log('[SearchWells] Sample raw data:', JSON.stringify(rowData).substring(0, 200));
+  
+  // Extra debug for specific problem wells
+  if (wellName && (wellName.includes('RIBEYE') || wellName.includes('STATE') || wellName.includes('GLORIETTA'))) {
+    console.log('[SearchWells] SPECIAL DEBUG - Problem well detected:');
+    console.log('  - WELL_NAME field:', rowData.WELL_NAME || 'not found');
+    console.log('  - Well_Name field:', rowData.Well_Name || 'not found');
+    console.log('  - WELL_NUM field:', rowData.WELL_NUM || 'not found');
+    console.log('  - Well_Num field:', rowData.Well_Num || 'not found');
+    console.log('  - Combined result:', fullWellName);
+  }
 
   // Build search conditions
   const conditions: string[] = [];
