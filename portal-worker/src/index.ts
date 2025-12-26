@@ -90,6 +90,8 @@ import {
   // Nearby wells handlers
   handleNearbyWells,
   handleSurroundingWells,
+  // Well enrichment handler
+  handleWellEnrichment,
   // Billing handlers
   handleBillingPortal,
   handleUpgrade,
@@ -541,6 +543,12 @@ var index_default = {
       }
       if (path === "/api/wells/surrounding" && request.method === "GET") {
         return handleSurroundingWells(request, env);
+      }
+      
+      // Well enrichment endpoint
+      if (path.startsWith("/api/well-enrichment/") && request.method === "GET") {
+        const apiNumber = path.split('/').pop() || '';
+        return handleWellEnrichment(request, env, apiNumber);
       }
       
       // Activity endpoint
