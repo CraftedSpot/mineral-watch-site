@@ -845,9 +845,10 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
                 }
               }
             } else {
-            matchStatus = 'ambiguous';
-            const displayCount = searchResults.total > 1000 ? `${Math.floor(searchResults.total / 1000)}k+` : searchResults.total.toString();
-            warnings.push(`Too many matches (${displayCount}) - showing first 10. Add more specific details to narrow results`);
+              matchStatus = 'ambiguous';
+              const displayCount = searchResults.total > 1000 ? `${Math.floor(searchResults.total / 1000)}k+` : searchResults.total.toString();
+              warnings.push(`Too many matches (${displayCount}) - showing first 10. Add more specific details to narrow results`);
+            }
           }
         } catch (searchError) {
           console.error(`[BulkValidateWells] D1 search error for well ${index + 1}:`, searchError);
