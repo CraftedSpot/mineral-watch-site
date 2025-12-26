@@ -432,7 +432,115 @@ export async function handleBulkUploadProperties(request: Request, env: Env) {
 }
 
 /**
- * Validate wells from bulk upload
+ * Search wells in D1 database using CSV row data
+ * @param rowData CSV row data with well information
+ * @param env Worker environment
+ * @returns Search results with match count and details
+ */
+async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
+  matches: any[];
+  total: number;
+  truncated: boolean;
+}> {
+  if (!env.WELLS_DB) {
+    return { matches: [], total: 0, truncated: false };
+  }
+
+  // Extract search criteria from various possible column names
+  const wellName = rowData['Well Name'] || rowData['well_name'] || rowData.WellName || 
+                   rowData.wellName || rowData.Name || rowData.name || '';
+  const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
+  const section = rowData.Section || rowData.section || rowData.SEC || rowData.sec || '';
+  const township = rowData.Township || rowData.township || rowData.TWN || rowData.twn || '';
+  const range = rowData.Range || rowData.range || rowData.RNG || rowData.rng || '';
+  const county = rowData.County || rowData.county || rowData.COUNTY || '';
+
+  // Build search conditions
+  const conditions: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (wellName) {
+    conditions.push(`UPPER(well_name) LIKE UPPER(?)`);
+    params.push(`%${wellName}%`);
+  }
+  
+  if (operator) {
+    conditions.push(`(UPPER(o.operator_name) LIKE UPPER(?) OR UPPER(o.operator_alias) LIKE UPPER(?))`);
+    params.push(`%${operator}%`, `%${operator}%`);
+  }
+
+  if (section && township && range) {
+    // Normalize township/range
+    const normalizedTownship = township.match(/^\d+$/) ? `${township}N` : township.toUpperCase();
+    const normalizedRange = range.match(/^\d+$/) ? `${range}W` : range.toUpperCase();
+    
+    conditions.push(`(section = ? AND township = ? AND range_ = ?)`);
+    params.push(parseInt(section), normalizedTownship, normalizedRange);
+  }
+
+  if (county) {
+    conditions.push(`UPPER(county) LIKE UPPER(?)`);
+    params.push(`%${county}%`);
+  }
+
+  if (conditions.length === 0) {
+    return { matches: [], total: 0, truncated: false };
+  }
+
+  const whereClause = conditions.join(' AND ');
+  
+  // First get count
+  const countQuery = `
+    SELECT COUNT(*) as total
+    FROM wells w
+    LEFT JOIN operators o ON UPPER(REPLACE(TRIM(o.operator_name), '.', '')) = UPPER(REPLACE(TRIM(w.operator), '.', ''))
+    WHERE ${whereClause}
+  `;
+  
+  const countResult = await env.WELLS_DB.prepare(countQuery)
+    .bind(...params)
+    .first<{ total: number }>();
+  
+  const total = countResult?.total || 0;
+  
+  // Get results (limit to 5 for CSV matching)
+  const query = `
+    SELECT 
+      w.api_number,
+      w.well_name,
+      w.well_number,
+      w.operator,
+      COALESCE(o.operator_name, w.operator) as operator_display,
+      w.section,
+      w.township,
+      w.range_ as range,
+      w.meridian,
+      w.county,
+      w.well_status,
+      w.well_type,
+      w.formation_name,
+      w.measured_total_depth,
+      w.true_vertical_depth
+    FROM wells w
+    LEFT JOIN operators o ON UPPER(REPLACE(TRIM(o.operator_name), '.', '')) = UPPER(REPLACE(TRIM(w.operator), '.', ''))
+    WHERE ${whereClause}
+    ORDER BY w.well_status = 'AC' DESC, w.api_number DESC
+    LIMIT 5
+  `;
+
+  const results = await env.WELLS_DB.prepare(query)
+    .bind(...params)
+    .all();
+
+  return {
+    matches: results.results || [],
+    total,
+    truncated: total > 5
+  };
+}
+
+/**
+ * Validate wells from bulk upload with CSV search support
  * @param request The incoming request with wells array
  * @param env Worker environment
  * @returns JSON response with validation results
@@ -442,10 +550,17 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   const body = await request.json();
-  const { wells } = body; // Array of { apiNumber, wellName? }
+  const { wells } = body; // Array of well data from CSV
   
   if (!wells || !Array.isArray(wells) || wells.length === 0) {
     return jsonResponse({ error: "No wells data provided" }, 400);
+  }
+
+  // Limit to 200 rows for performance
+  if (wells.length > 200) {
+    return jsonResponse({ 
+      error: "Too many rows. Please limit to 200 wells per import." 
+    }, 400);
   }
   
   // Check plan allows wells
