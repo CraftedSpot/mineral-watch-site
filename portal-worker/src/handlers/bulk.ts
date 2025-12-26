@@ -477,8 +477,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     const normalizedTownship = township.match(/^\d+$/) ? `${township}N` : township.toUpperCase();
     const normalizedRange = range.match(/^\d+$/) ? `${range}W` : range.toUpperCase();
     
-    conditions.push(`(section = ? AND township = ? AND range_ = ?)`);
-    params.push(parseInt(section), normalizedTownship, normalizedRange);
+    // Try both numeric and string section formats
+    conditions.push(`((section = ? OR section = ?) AND township = ? AND range_ = ?)`);
+    params.push(parseInt(section), section.toString(), normalizedTownship, normalizedRange);
   }
 
   if (county) {
@@ -490,7 +491,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     return { matches: [], total: 0, truncated: false };
   }
 
-  const whereClause = conditions.join(' AND ');
+  // Use OR logic if only name/operator provided, AND logic if location provided
+  const hasLocation = section && township && range;
+  const whereClause = hasLocation ? conditions.join(' AND ') : conditions.join(' OR ');
   
   // First get count
   const countQuery = `
@@ -597,6 +600,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   
   // Process each well - either validate API or search by fields
   const results = await Promise.all(wells.map(async (well: any, index: number) => {
+    try {
     const errors: string[] = [];
     const warnings: string[] = [];
     let searchResults: any = null;
@@ -693,6 +697,21 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         isDuplicate: matchStatus === 'exact' && existingSet.has(searchResults.matches[0].api_number),
         isValid: errors.length === 0 && (matchStatus === 'exact' || matchStatus === 'ambiguous'),
         needsSelection: matchStatus === 'ambiguous'
+      };
+    }
+    } catch (error) {
+      console.error(`[BulkValidateWells] Error processing well ${index + 1}:`, error);
+      return {
+        row: index + 1,
+        original: well,
+        normalized: null,
+        matchStatus: 'not_found' as const,
+        searchResults: null,
+        errors: [`Processing error: ${error instanceof Error ? error.message : 'Unknown error'}`],
+        warnings: [],
+        isDuplicate: false,
+        isValid: false,
+        needsSelection: false
       };
     }
   }));
