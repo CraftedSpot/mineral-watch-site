@@ -804,7 +804,21 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             // Multiple matches - check if operator makes it unambiguous
             const highScoreMatches = searchResults.matches.filter((m: any) => m.match_score >= 90);
             
-            if (highScoreMatches.length === 1 && well.Operator) {
+            // Debug operator matching
+            const csvOperator = well.Operator || well.operator || well.OPERATOR || '';
+            console.log(`[BulkValidate] Row ${index + 1} - Multiple matches:`, {
+              total: searchResults.total,
+              csvOperator,
+              hasOperator: !!csvOperator,
+              highScoreCount: highScoreMatches.length,
+              scores: searchResults.matches.map((m: any) => ({ 
+                name: m.well_name, 
+                operator: m.operator, 
+                score: m.match_score 
+              }))
+            });
+            
+            if (highScoreMatches.length === 1 && csvOperator) {
               // Only one well matches with operator - treat as exact match
               matchStatus = 'exact';
               searchResults.matches = [highScoreMatches[0]]; // Keep only the best match
