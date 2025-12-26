@@ -3651,7 +3651,15 @@
                 `;
             }
             
+            // Add placeholder for D1 enrichment data
+            bodyContent += `<div id="wellEnrichmentData"></div>`;
+            
             document.getElementById('wellModalBody').innerHTML = bodyContent;
+            
+            // Fetch D1 enrichment data if we have a valid API number
+            if (apiNumber && apiNumber !== 'Unknown') {
+                fetchWellEnrichment(apiNumber, formation, totalDepth);
+            }
             
             // Build modal actions
             let actionsContent = '';
