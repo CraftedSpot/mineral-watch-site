@@ -469,6 +469,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     fullWellName = rowData['WELL Name & Number'] || rowData['Well Name & Number'] || cleanWellName || '';
   }
   
+  // Clean well name: remove quotes that prevent matching
+  // CSV has: FEIKES "A" UNIT, ADAMS "Q", RICHARDSON "B" 
+  // D1 has: FEIKES A UNIT, ADAMS Q, RICHARDSON B
+  const cleanedWellName = fullWellName.replace(/["""'']/g, '').trim();
+  
   // Extract other fields
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
   const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
@@ -481,6 +486,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     wellName: cleanWellName, 
     wellNumber: cleanWellNumber, 
     fullWellName, 
+    cleanedWellName,  // After removing quotes
     operator, 
     section, 
     township, 
@@ -513,7 +519,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   
   // Add detailed parsed logging
   console.log('[CascadingSearch] Parsed values:', {
-    fullWellName,
+    originalWellName: fullWellName,
+    cleanedWellName,  // After quotes removed
     sectionString: section,
     sectionNum,
     normalizedTownship,
@@ -523,14 +530,14 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   });
   
   console.log('[CascadingSearch] Input:', { 
-    fullWellName, 
+    wellName: cleanedWellName, 
     operator, 
     location: `S${section}-T${normalizedTownship}-R${normalizedRange}-${meridian}`,
     county 
   });
   
   // Check minimum search criteria
-  if (!fullWellName && (!normalizedTownship || !normalizedRange)) {
+  if (!cleanedWellName && (!normalizedTownship || !normalizedRange)) {
     console.log('[CascadingSearch] Insufficient criteria - need well name or T-R');
     return { matches: [], total: 0, truncated: false };
   }
@@ -540,7 +547,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   let searchStrategy = '';
   
   // Strategy 1: Try well name + location (most specific)
-  if (fullWellName && normalizedTownship && normalizedRange) {
+  if (cleanedWellName && normalizedTownship && normalizedRange) {
     console.log('[CascadingSearch] Trying Strategy 1: Name + Location');
     const query1 = `
       SELECT w.*, 
@@ -551,7 +558,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
-    const params1 = [sectionNum, `%${fullWellName}%`, normalizedTownship, normalizedRange, meridian].filter(p => p !== null);
+    const params1 = [sectionNum, `%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian].filter(p => p !== null);
     
     results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
     searchStrategy = 'name+location';
@@ -560,7 +567,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   }
   
   // Strategy 2: If no results, try just well name (broader search)
-  if (results.results.length === 0 && fullWellName) {
+  if (results.results.length === 0 && cleanedWellName) {
     console.log('[CascadingSearch] Trying Strategy 2: Name only');
     const query2 = `
       SELECT w.*, 50 as match_score
@@ -570,7 +577,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       LIMIT 15
     `;
     
-    results = await env.WELLS_DB.prepare(query2).bind(`%${fullWellName}%`).all();
+    results = await env.WELLS_DB.prepare(query2).bind(`%${cleanedWellName}%`).all();
     searchStrategy = 'name-only';
     
     console.log(`[CascadingSearch] Strategy 2 found ${results.results.length} results`);
