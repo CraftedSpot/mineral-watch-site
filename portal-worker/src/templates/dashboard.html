@@ -4890,17 +4890,23 @@
         <!-- Step 1: File Upload -->
         <div id="wells-upload-step" style="display:block;">
             <div class="bulk-section">
-                <p class="bulk-intro">Upload a CSV or Excel file with API numbers. We'll validate each one and add them to your monitored wells.</p>
-                <p class="bulk-text" style="margin-top: 8px;">💡 <strong>Tip:</strong> Include a Notes column to add your own context or reminders for each well.</p>
+                <p class="bulk-intro">Upload a CSV or Excel file to add wells. You can use API numbers or search by well name, operator, and location.</p>
+                <p class="bulk-text" style="margin-top: 8px;">💡 <strong>New:</strong> No API numbers? We'll search our database of 453k Oklahoma wells using your CSV data!</p>
             </div>
             
             <div class="bulk-section bulk-section-gray">
-                <div class="bulk-label">Required Column</div>
-                <div class="bulk-text">
-                    <strong>API Number</strong> — Oklahoma 10-digit format (e.g., 3501520001)
+                <div class="bulk-label">Column Options</div>
+                <div class="bulk-text" style="margin-bottom: 12px;">
+                    <strong>Option 1: Direct API</strong> — Provide 10-digit API numbers
                 </div>
-                <div class="bulk-columns" style="margin-top: 12px;">
-                    <div>Accepted headers: <code>API</code> <code>API Number</code> <code>apiNumber</code> <code>api</code></div>
+                <div class="bulk-columns">
+                    <div>Headers: <code>API</code> <code>API Number</code> <code>apiNumber</code></div>
+                </div>
+                <div class="bulk-text" style="margin-top: 16px; margin-bottom: 12px;">
+                    <strong>Option 2: Search by Details</strong> — We'll find matching wells
+                </div>
+                <div class="bulk-columns">
+                    <div><code>Well Name</code> <code>Operator</code> <code>Section</code> <code>Township</code> <code>Range</code> <code>County</code></div>
                 </div>
             </div>
             
@@ -4966,10 +4972,12 @@
                     <table class="bulk-table">
                         <thead>
                             <tr>
-                                <th>#</th>
-                                <th>API Number</th>
-                                <th>Notes</th>
-                                <th>Status</th>
+                                <th style="width: 40px;">#</th>
+                                <th style="width: 60px;">Status</th>
+                                <th>CSV Data</th>
+                                <th>Matched Well</th>
+                                <th style="width: 120px;">API Number</th>
+                                <th style="width: 100px;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="wells-preview-table-body"></tbody>
@@ -5297,6 +5305,27 @@
 .badge-invalid { background: #FEE2E2; color: #DC2626; }
 .badge-warning { background: #FEF3C7; color: #92400E; }
 .badge-duplicate { background: #E0E7FF; color: #3730A3; }
+
+/* Bulk well select dropdown */
+.bulk-well-select {
+    width: 100%;
+    padding: 6px 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    font-size: 13px;
+    background: white;
+    cursor: pointer;
+}
+
+.bulk-well-select:hover {
+    border-color: #cbd5e1;
+}
+
+.bulk-well-select:focus {
+    outline: none;
+    border-color: var(--oil-orange);
+    box-shadow: 0 0 0 3px rgba(192, 86, 33, 0.1);
+}
 
 /* Plan Check */
 .plan-check-box {
@@ -6107,6 +6136,7 @@ async function validateAndPreviewWells() {
         renderWellsSummary();
         renderWellsPlanCheck();
         renderWellsPreviewTable();
+        updateImportButtonState();
         
     } catch (error) {
         console.error('Wells validation error:', error);
@@ -6115,15 +6145,19 @@ async function validateAndPreviewWells() {
     }
 }
 
-// Render wells summary badges
+// Render wells summary badges with enhanced status
 function renderWellsSummary() {
     const summary = wellsValidationResults.summary;
-    const html = `
-        <div class="validation-badge badge-valid">✓ ${summary.valid} Valid</div>
-        ${summary.invalid > 0 ? `<div class="validation-badge badge-invalid">❌ ${summary.invalid} Invalid</div>` : ''}
-        ${summary.duplicates > 0 ? `<div class="validation-badge badge-duplicate">↺ ${summary.duplicates} Duplicates</div>` : ''}
-    `;
-    document.getElementById('wells-validation-summary').innerHTML = html;
+    let badges = [];
+    
+    // Show different badges based on match types
+    if (summary.hasApi > 0) badges.push(`<div class="validation-badge badge-valid">✓ ${summary.hasApi} Direct API</div>`);
+    if (summary.exactMatches > 0) badges.push(`<div class="validation-badge badge-valid">🎯 ${summary.exactMatches} Exact Match</div>`);
+    if (summary.needsReview > 0) badges.push(`<div class="validation-badge badge-warning">⚠️ ${summary.needsReview} Need Review</div>`);
+    if (summary.notFound > 0) badges.push(`<div class="validation-badge badge-invalid">❌ ${summary.notFound} Not Found</div>`);
+    if (summary.duplicates > 0) badges.push(`<div class="validation-badge badge-duplicate">↺ ${summary.duplicates} Already Tracked</div>`);
+    
+    document.getElementById('wells-validation-summary').innerHTML = badges.join(' ');
 }
 
 // Render wells plan check
@@ -6147,40 +6181,131 @@ function renderWellsPlanCheck() {
     document.getElementById('wells-import-btn').disabled = wouldExceed;
 }
 
-// Render wells preview table
+// Render enhanced wells preview table with search results
 function renderWellsPreviewTable() {
     const tbody = document.getElementById('wells-preview-table-body');
     let html = '';
+    wellsSelections = {}; // Reset selections
     
     wellsValidationResults.results.forEach((result, index) => {
-        const rowClass = result.isDuplicate ? 'preview-row-duplicate' :
-                        (result.errors.length > 0 ? 'preview-row-error' :
-                        (result.warnings.length > 0 ? 'preview-row-warning' : 'preview-row-valid'));
+        // Determine row styling based on match status
+        let rowClass = 'preview-row-valid';
+        let statusIcon = '✓';
+        let statusText = 'Ready';
         
-        const statusClass = result.isDuplicate ? 'status-cell-duplicate' :
-                           (result.errors.length > 0 ? 'status-cell-error' :
-                           (result.warnings.length > 0 ? 'status-cell-warning' : 'status-cell-valid'));
+        if (result.matchStatus === 'not_found' || result.errors.length > 0) {
+            rowClass = 'preview-row-error';
+            statusIcon = '❌';
+            statusText = result.errors[0] || 'Not found';
+        } else if (result.matchStatus === 'ambiguous') {
+            rowClass = 'preview-row-warning';
+            statusIcon = '⚠️';
+            statusText = 'Select';
+        } else if (result.isDuplicate) {
+            rowClass = 'preview-row-duplicate';
+            statusIcon = '↺';
+            statusText = 'Tracked';
+        } else if (result.matchStatus === 'exact') {
+            statusIcon = '🎯';
+            statusText = 'Matched';
+        }
         
-        const statusText = result.isDuplicate ? '↺ Duplicate' :
-                          (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
-                          (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
+        // Build CSV data display
+        const csvData = [];
+        const orig = result.original;
+        if (orig['Well Name'] || orig.well_name || orig.WellName) csvData.push(`Well: ${orig['Well Name'] || orig.well_name || orig.WellName}`);
+        if (orig.Operator || orig.operator) csvData.push(`Op: ${orig.Operator || orig.operator}`);
+        if (orig.County || orig.county) csvData.push(`County: ${orig.County || orig.county}`);
+        if (orig.Section && orig.Township && orig.Range) csvData.push(`Loc: S${orig.Section}-T${orig.Township}-R${orig.Range}`);
+        const csvDisplay = csvData.join(', ') || 'No search data';
         
-        // Truncate notes for preview and escape
-        const notesRaw = result.normalized.notes ? 
-            (result.normalized.notes.length > 25 ? result.normalized.notes.substring(0, 25) + '...' : result.normalized.notes) : '-';
-        const notesPreview = escapeHtmlBulk(notesRaw);
+        // Build matched well display
+        let matchedWellHtml = '-';
+        let apiNumberHtml = '-';
+        let actionHtml = '';
+        
+        if (result.matchStatus === 'has_api' && result.normalized) {
+            matchedWellHtml = escapeHtmlBulk(result.normalized.wellName || 'API provided');
+            apiNumberHtml = escapeHtmlBulk(result.normalized.apiNumber);
+            actionHtml = result.isDuplicate ? '<span style="color: #6b7280;">Already tracked</span>' : '<span style="color: #22c55e;">✓ Will add</span>';
+        } else if (result.matchStatus === 'exact' && result.searchResults) {
+            const match = result.searchResults.matches[0];
+            matchedWellHtml = escapeHtmlBulk(match.well_name || '-');
+            apiNumberHtml = escapeHtmlBulk(match.api_number);
+            actionHtml = result.isDuplicate ? '<span style="color: #6b7280;">Already tracked</span>' : '<span style="color: #22c55e;">✓ Will add</span>';
+        } else if (result.matchStatus === 'ambiguous' && result.searchResults) {
+            // Create dropdown for ambiguous matches
+            const selectId = `well-select-${index}`;
+            matchedWellHtml = `
+                <select id="${selectId}" class="bulk-well-select" onchange="updateWellSelection(${index}, this.value)" style="max-width: 300px;">
+                    <option value="">— Select well (${result.searchResults.total} matches) —</option>
+                    ${result.searchResults.matches.map(m => 
+                        `<option value="${m.api_number}">${escapeHtmlBulk(m.well_name)} - ${m.county}</option>`
+                    ).join('')}
+                </select>
+            `;
+            apiNumberHtml = '<span id="api-' + index + '">-</span>';
+            actionHtml = '<span id="action-' + index + '" style="color: #f59e0b;">Select well</span>';
+        } else if (result.matchStatus === 'not_found') {
+            actionHtml = '<span style="color: #ef4444;">Skip</span>';
+        }
         
         html += `
             <tr class="${rowClass}">
-                <td>${index + 1}</td>
-                <td>${escapeHtmlBulk(result.normalized.apiNumber) || '-'}</td>
-                <td style="font-size: 12px; color: var(--slate-blue);">${notesPreview}</td>
-                <td class="status-cell ${statusClass}">${statusText}</td>
+                <td>${result.row}</td>
+                <td class="status-cell"><span style="font-size: 16px;">${statusIcon}</span></td>
+                <td style="font-size: 12px; color: #64748b;">${escapeHtmlBulk(csvDisplay)}</td>
+                <td>${matchedWellHtml}</td>
+                <td style="font-family: monospace; font-size: 12px;">${apiNumberHtml}</td>
+                <td>${actionHtml}</td>
             </tr>
         `;
     });
     
     tbody.innerHTML = html;
+}
+
+// Track well selections for ambiguous matches
+let wellsSelections = {};
+
+// Update well selection
+function updateWellSelection(index, apiNumber) {
+    if (apiNumber) {
+        wellsSelections[index] = apiNumber;
+        // Update the API and action display
+        document.getElementById(`api-${index}`).textContent = apiNumber;
+        document.getElementById(`action-${index}`).innerHTML = '<span style="color: #22c55e;">✓ Will add</span>';
+    } else {
+        delete wellsSelections[index];
+        document.getElementById(`api-${index}`).textContent = '-';
+        document.getElementById(`action-${index}`).innerHTML = '<span style="color: #f59e0b;">Select well</span>';
+    }
+    
+    // Update import button state
+    updateImportButtonState();
+}
+
+// Update import button based on selections
+function updateImportButtonState() {
+    const summary = wellsValidationResults.summary;
+    const needsReview = wellsValidationResults.results.filter(r => r.needsSelection);
+    const selectedCount = Object.keys(wellsSelections).length;
+    const allSelected = selectedCount >= needsReview.length;
+    
+    const canImport = summary.canImport || (allSelected && needsReview.length > 0);
+    const btn = document.getElementById('wells-import-btn');
+    
+    if (canImport) {
+        btn.disabled = false;
+        const totalToImport = summary.exactMatches + summary.hasApi + selectedCount;
+        btn.textContent = `Import ${totalToImport} Wells`;
+    } else if (needsReview.length > selectedCount) {
+        btn.disabled = true;
+        btn.textContent = `Select ${needsReview.length - selectedCount} more wells`;
+    } else {
+        btn.disabled = true;
+        btn.textContent = 'Import Wells';
+    }
 }
 
 // Start wells import
@@ -6192,72 +6317,36 @@ async function startWellsImport() {
     const progressBar = document.getElementById('wells-progress-bar');
     progressBar.classList.remove('indeterminate');
     
-    const toImport = wellsValidationResults.results
-        .filter(r => r.isValid && !r.isDuplicate)
-        .map(r => r.normalized);
+    // Count total wells to import
+    const summary = wellsValidationResults.summary;
+    const totalToImport = summary.exactMatches + summary.hasApi + Object.keys(wellsSelections).length;
     
-    const CHUNK_SIZE = 50; // Upload 50 at a time to avoid timeouts
-    const totalChunks = Math.ceil(toImport.length / CHUNK_SIZE);
-    let totalSuccessful = 0;
-    let totalFailed = 0;
-    let totalSkipped = 0;
-    let totalErrors = [];
-    
-    document.getElementById('wells-import-progress').textContent = `Importing ${toImport.length} wells...`;
+    document.getElementById('wells-import-progress').textContent = `Processing ${totalToImport} wells...`;
     
     try {
-        // Process chunks sequentially
-        for (let i = 0; i < toImport.length; i += CHUNK_SIZE) {
-            const chunk = toImport.slice(i, i + CHUNK_SIZE);
-            const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
-            
-            // Update progress
-            const progress = Math.round((i / toImport.length) * 100);
-            progressBar.style.width = `${progress}%`;
-            document.getElementById('wells-import-progress').textContent = 
-                `Importing batch ${chunkNumber}/${totalChunks} (${i + chunk.length}/${toImport.length} wells)...`;
-            
-            const response = await fetch('/api/bulk-upload-wells', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ wells: chunk })
-            });
-            
-            if (!response.ok) {
-                const error = await response.json();
-                throw new Error(error.error || `Batch ${chunkNumber} failed`);
-            }
-            
-            const chunkResults = await response.json();
-            totalSuccessful += chunkResults.results.successful;
-            totalFailed += chunkResults.results.failed;
-            totalSkipped += chunkResults.results.skipped;
-            if (chunkResults.results.errors) {
-                totalErrors = totalErrors.concat(chunkResults.results.errors);
-            }
-            
-            // Small delay between chunks to avoid rate limiting
-            if (i + CHUNK_SIZE < toImport.length) {
-                await new Promise(resolve => setTimeout(resolve, 200));
-            }
+        // Send all validation results with selections
+        const response = await fetch('/api/bulk-upload-wells', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                wells: wellsValidationResults.results,
+                selections: wellsSelections 
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
         }
         
-        // Update final progress
+        const results = await response.json();
+        
+        // Update progress
         progressBar.style.width = '100%';
         document.getElementById('wells-import-progress').textContent = 'Processing complete!';
         
         // Brief delay to show completion
         await new Promise(resolve => setTimeout(resolve, 500));
-        
-        // Show results
-        const results = {
-            results: {
-                successful: totalSuccessful,
-                failed: totalFailed,
-                skipped: totalSkipped,
-                errors: totalErrors
-            }
-        };
         
         showWellsResults(results);
         
