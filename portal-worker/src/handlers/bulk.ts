@@ -458,7 +458,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
   
   // Combine well name and number if both exist
-  const fullWellName = wellNumber ? `${wellName} ${wellNumber}`.trim() : wellName;
+  // Make sure wellNumber is not just whitespace
+  const cleanWellNumber = wellNumber.trim();
+  const fullWellName = cleanWellNumber ? `${wellName} ${cleanWellNumber}`.trim() : wellName;
   
   // Debug logging
   console.log('[SearchWells] Extracted fields:', { wellName, wellNumber, fullWellName, operator, section, township, range, county });
