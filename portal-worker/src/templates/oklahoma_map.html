@@ -2293,6 +2293,7 @@
         let sectionLayer = L.featureGroup();
         let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
         let nearbyWellsLayer = null; // Initialize later after map is ready
+        let lateralsLayer = L.featureGroup(); // Layer for horizontal well laterals
         let activityHeatmapLayer = null; // Will be created as heat layer
         let permitHeatmapLayer = null; // Separate heat layer for permits
         let completionHeatmapLayer = null; // Separate heat layer for completions
@@ -6213,12 +6214,46 @@
                     });
                     
                     nearbyWellsLayer.addLayer(marker);
+                    
+                    // Check if this well has bottom hole coordinates for lateral drawing
+                    if (well.bh_latitude && well.bh_longitude && 
+                        (well.bh_latitude !== well.latitude || well.bh_longitude !== well.longitude)) {
+                        
+                        // Draw lateral line
+                        const lateralPath = drawLateralPath(
+                            { lat: well.latitude, lng: well.longitude },
+                            { lat: well.bh_latitude, lng: well.bh_longitude },
+                            { 
+                                fields: {
+                                    'Well Name': well.well_name,
+                                    'API Number': well.api_number,
+                                    'Operator': well.operator,
+                                    'Well Status': well.well_status,
+                                    'Formation': well.formation_name,
+                                    'wellName': well.well_name,
+                                    'operator': well.operator,
+                                    'formation': well.formation_name
+                                }
+                            },
+                            'nearby'
+                        );
+                        
+                        if (lateralPath) {
+                            lateralsLayer.addLayer(lateralPath);
+                        }
+                    }
                 }
             });
             
-            // Ensure layer is on map
+            // Ensure layers are on map
             if (!map.hasLayer(nearbyWellsLayer) && nearbyWellsLayer.getLayers().length > 0) {
                 map.addLayer(nearbyWellsLayer);
+            }
+            
+            // Add laterals layer if it has content
+            if (!map.hasLayer(lateralsLayer) && lateralsLayer.getLayers().length > 0) {
+                map.addLayer(lateralsLayer);
+                console.log(`Added ${lateralsLayer.getLayers().length} lateral lines to map`);
             }
             
             ensureLayerOrder();
