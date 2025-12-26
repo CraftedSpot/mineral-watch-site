@@ -464,8 +464,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const params: (string | number)[] = [];
 
   if (wellName) {
-    conditions.push(`UPPER(well_name) LIKE UPPER(?)`);
-    params.push(`%${wellName}%`);
+    // Search for well name with flexible matching
+    conditions.push(`(UPPER(well_name) LIKE UPPER(?) OR UPPER(REPLACE(well_name, ' ', '')) LIKE UPPER(REPLACE(?, ' ', '')))`);
+    params.push(`%${wellName}%`, `%${wellName}%`);
   }
   
   if (operator) {
