@@ -471,9 +471,24 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const params: (string | number)[] = [];
 
   if (fullWellName) {
-    // Search for well name with flexible matching - try both full name and partial
-    conditions.push(`(UPPER(well_name) LIKE UPPER(?) OR UPPER(REPLACE(well_name, ' ', '')) LIKE UPPER(REPLACE(?, ' ', '')) OR UPPER(well_name) LIKE UPPER(?))`);
-    params.push(`%${fullWellName}%`, `%${fullWellName}%`, `%${wellName}%`);
+    // Search for well name - D1 has separate well_name and well_number columns
+    // Try multiple strategies:
+    // 1. Concatenated columns match full name
+    // 2. Just well_name matches (for cases where well_number might be different)
+    // 3. Well name and number as separate conditions
+    if (wellNumber) {
+      // We have both name and number - search more precisely
+      conditions.push(`(
+        UPPER(well_name || ' ' || well_number) LIKE UPPER(?) OR
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?) OR
+        (UPPER(well_name) LIKE UPPER(?) AND UPPER(well_number) LIKE UPPER(?))
+      )`);
+      params.push(`%${fullWellName}%`, `%${fullWellName}%`, `%${wellName}%`, `%${wellNumber}%`);
+    } else {
+      // Just well name, no number
+      conditions.push(`UPPER(well_name) LIKE UPPER(?)`);
+      params.push(`%${wellName}%`);
+    }
   }
   
   if (operator) {
@@ -482,9 +497,22 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   }
 
   if (section && township && range) {
-    // Normalize township/range
-    const normalizedTownship = township.match(/^\d+$/) ? `${township}N` : township.toUpperCase();
-    const normalizedRange = range.match(/^\d+$/) ? `${range}W` : range.toUpperCase();
+    // Normalize township/range with proper padding for D1 format
+    // D1 stores as '05N', '09W' with leading zeros
+    let normalizedTownship = township.toUpperCase();
+    let normalizedRange = range.toUpperCase();
+    
+    // Add direction if missing (default N for township, W for range)
+    if (normalizedTownship.match(/^\d+$/)) {
+      normalizedTownship = `${normalizedTownship}N`;
+    }
+    if (normalizedRange.match(/^\d+$/)) {
+      normalizedRange = `${normalizedRange}W`;
+    }
+    
+    // Pad single digits with leading zero: '5N' → '05N', '24N' → '24N'
+    normalizedTownship = normalizedTownship.replace(/^(\d)([NS])$/i, '0$1$2');
+    normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
     
     // Try multiple section formats: numeric, string, and padded
     const sectionNum = parseInt(section);
@@ -537,11 +565,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Debug: Try to find any well with the name
   if (wellName && !operator && !section) {
     try {
-      const debugQuery = `SELECT api_number, well_name FROM wells WHERE UPPER(well_name) LIKE UPPER(?) LIMIT 3`;
+      const debugQuery = `SELECT api_number, well_name, well_number, well_name || ' ' || COALESCE(well_number, '') as combined_name FROM wells WHERE UPPER(well_name) LIKE UPPER(?) OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?) LIMIT 3`;
       const debugResults = await env.WELLS_DB.prepare(debugQuery)
-        .bind(`%${wellName}%`)
+        .bind(`%${wellName}%`, `%${fullWellName}%`)
         .all();
-      console.log(`[SearchWells] Debug query for "${wellName}" found:`, debugResults.results);
+      console.log(`[SearchWells] Debug query for "${wellName}" (full: "${fullWellName}") found:`, debugResults.results);
     } catch (e) {
       console.error('[SearchWells] Debug query failed:', e);
     }
