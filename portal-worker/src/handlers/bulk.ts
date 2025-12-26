@@ -524,11 +524,15 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     normalizedTownship = normalizedTownship.replace(/^(\d)([NS])$/i, '0$1$2');
     normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
     
+    // Determine meridian based on county
+    const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+    const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
+    
     // Try multiple section formats: numeric, string, and padded
     const sectionNum = parseInt(section);
     const sectionPadded = section.toString().padStart(2, '0');
-    conditions.push(`((section = ? OR section = ? OR section = ?) AND township = ? AND range = ?)`);
-    params.push(sectionNum, section.toString(), sectionPadded, normalizedTownship, normalizedRange);
+    conditions.push(`((section = ? OR section = ? OR section = ?) AND township = ? AND range = ? AND meridian = ?)`);
+    params.push(sectionNum, section.toString(), sectionPadded, normalizedTownship, normalizedRange, meridian);
   }
 
   if (county) {
@@ -623,9 +627,82 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     LIMIT 10
   `;
 
-  const results = await env.WELLS_DB.prepare(query)
+  let results = await env.WELLS_DB.prepare(query)
     .bind(...params)
     .all();
+
+  // If no results and we had multiple criteria, try a fallback search with just location
+  if (results.results.length === 0 && totalCriteria > 1 && hasLocationSearch) {
+    console.log('[SearchWells] No results with full criteria, trying location-only fallback');
+    
+    // Build location-only query
+    const fallbackConditions: string[] = [];
+    const fallbackParams: (string | number)[] = [];
+    
+    if (section && township && range) {
+      const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+      const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
+      const sectionNum = parseInt(section);
+      const sectionPadded = section.toString().padStart(2, '0');
+      
+      // Get normalized township/range from above
+      let normalizedTownship = township.toUpperCase();
+      let normalizedRange = range.toUpperCase();
+      if (normalizedTownship.match(/^\d+$/)) normalizedTownship = `${normalizedTownship}N`;
+      if (normalizedRange.match(/^\d+$/)) normalizedRange = `${normalizedRange}W`;
+      normalizedTownship = normalizedTownship.replace(/^(\d)([NS])$/i, '0$1$2');
+      normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
+      
+      fallbackConditions.push(`((section = ? OR section = ? OR section = ?) AND township = ? AND range = ? AND meridian = ?)`);
+      fallbackParams.push(sectionNum, section.toString(), sectionPadded, normalizedTownship, normalizedRange, meridian);
+    }
+    
+    if (county) {
+      fallbackConditions.push(`UPPER(county) LIKE UPPER(?)`);
+      fallbackParams.push(`%${county}%`);
+    }
+    
+    if (fallbackConditions.length > 0) {
+      const fallbackWhereClause = fallbackConditions.join(' AND ');
+      const fallbackQuery = `
+        SELECT 
+          w.api_number,
+          w.well_name,
+          w.well_number,
+          w.operator,
+          w.operator as operator_display,
+          w.section,
+          w.township,
+          w.range as range,
+          w.meridian,
+          w.county,
+          w.well_status,
+          w.well_type,
+          w.formation_name,
+          w.measured_total_depth,
+          w.true_vertical_depth
+        FROM wells w
+        WHERE ${fallbackWhereClause}
+        ORDER BY w.well_status = 'AC' DESC, w.api_number DESC
+        LIMIT 10
+      `;
+      
+      const fallbackResults = await env.WELLS_DB.prepare(fallbackQuery)
+        .bind(...fallbackParams)
+        .all();
+      
+      if (fallbackResults.results.length > 0) {
+        console.log(`[SearchWells] Fallback search found ${fallbackResults.results.length} wells by location`);
+        results = fallbackResults;
+        // Recount with location-only query
+        const fallbackCountQuery = `SELECT COUNT(*) as total FROM wells w WHERE ${fallbackWhereClause}`;
+        const fallbackCountResult = await env.WELLS_DB.prepare(fallbackCountQuery)
+          .bind(...fallbackParams)
+          .first<{ total: number }>();
+        total = fallbackCountResult?.total || 0;
+      }
+    }
+  }
 
   return {
     matches: results.results || [],
@@ -760,6 +837,13 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
           } else if (searchResults.total <= 10) {
             matchStatus = 'ambiguous';
             warnings.push(`${searchResults.total} matches found - please select the correct well`);
+            // If we only found location matches, add a note
+            if (searchResults.matches.length > 0 && !searchResults.matches.some((m: any) => 
+              m.well_name.toUpperCase().includes(wellName.toUpperCase()) || 
+              m.operator.toUpperCase().includes(operator.toUpperCase())
+            )) {
+              warnings.push('Note: Matches found by location only - well name/operator may differ');
+            }
           } else {
             matchStatus = 'ambiguous';
             const displayCount = searchResults.total > 1000 ? `${Math.floor(searchResults.total / 1000)}k+` : searchResults.total.toString();
