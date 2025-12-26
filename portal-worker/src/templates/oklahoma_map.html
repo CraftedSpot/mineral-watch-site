@@ -3507,19 +3507,75 @@
                     console.log(`Finished pre-fetching. Cache now has ${Object.keys(geometryCache).length} geometries`);
                 }
                 
+                // Fetch D1 lateral data for tracked wells
+                console.log('Fetching D1 lateral data for tracked wells...');
+                const apiNumbers = wells
+                    .map(w => w.fields['API Number'])
+                    .filter(api => api && api.length >= 10);
+                
+                let d1LateralData = {};
+                if (apiNumbers.length > 0) {
+                    try {
+                        // Fetch enrichment data for all tracked wells in a batch
+                        const enrichmentPromises = apiNumbers.map(api => 
+                            fetch(`/api/well-enrichment/${api}`)
+                                .then(res => res.json())
+                                .then(result => ({ api, data: result.data || {} }))
+                                .catch(err => ({ api, data: {} }))
+                        );
+                        
+                        const enrichmentResults = await Promise.all(enrichmentPromises);
+                        enrichmentResults.forEach(({ api, data }) => {
+                            if (data.bottom_hole_location && data.bottom_hole_location.latitude) {
+                                d1LateralData[api] = data;
+                            }
+                        });
+                        
+                        console.log(`Found D1 lateral data for ${Object.keys(d1LateralData).length} tracked wells`);
+                    } catch (error) {
+                        console.error('Error fetching D1 lateral data:', error);
+                    }
+                }
+                
                 // Now create lateral paths for wells with BH data and add them to wellsLayer
                 console.log('Creating lateral paths for wells with BH data...');
                 let lateralPathCount = 0;
                 
                 for (const well of wells) {
                     const fields = well.fields || {};
+                    const apiNumber = fields['API Number'];
                     
                     // Get surface coordinates
                     const coords = parseOccMapLink(fields['OCC Map Link']);
                     if (!coords) continue;
                     
-                    // Check if well has BH (bottom hole) location data
-                    if (fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
+                    // First check D1 data for bottom hole coordinates
+                    const d1Data = d1LateralData[apiNumber];
+                    if (d1Data && d1Data.has_lateral && d1Data.bottom_hole_location) {
+                        const bhLat = d1Data.bottom_hole_location.latitude;
+                        const bhLng = d1Data.bottom_hole_location.longitude;
+                        
+                        // Apply same distance filtering as nearby wells
+                        const latDiff = Math.abs(bhLat - coords.lat);
+                        const lngDiff = Math.abs(bhLng - coords.lon);
+                        const approxDistanceMiles = (latDiff + lngDiff) * 69;
+                        
+                        if (approxDistanceMiles < 3) {
+                            const lateralPath = drawLateralPath(
+                                coords,
+                                { lat: bhLat, lng: bhLng },
+                                well,
+                                'tracked'
+                            );
+                            
+                            if (lateralPath) {
+                                wellsLayer.addLayer(lateralPath);
+                                lateralPathCount++;
+                            }
+                        }
+                    }
+                    // Fall back to Airtable BH Section/Township/Range if no D1 data
+                    else if (fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
                         const bhCacheKey = `${fields['BH Section']}-${fields['BH Township']}-${fields['BH Range']}`;
                         const bhGeometry = geometryCache[bhCacheKey];
                         
@@ -4888,10 +4944,6 @@
                 map.addLayer(activityHeatmapLayer);
             }
             
-            // Laterals layer should be below wells but above heatmap
-            if (lateralsLayer && map.hasLayer(lateralsLayer)) {
-                lateralsLayer.bringToFront();
-            }
             
             // Bring wells layer to appropriate position
             if (wellsLayer && map.hasLayer(wellsLayer)) {
@@ -5659,11 +5711,6 @@
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
                     map.removeLayer(nearbyWellsLayer);
                 }
-                // Also clear laterals layer when nearby wells are turned off
-                lateralsLayer.clearLayers();
-                if (map.hasLayer(lateralsLayer)) {
-                    map.removeLayer(lateralsLayer);
-                }
                 filterDiv.style.display = 'none'; // Hide filter dropdown
                 countDiv.style.display = 'none'; // Hide count
                 separatorDiv.style.display = 'none'; // Hide separator
@@ -5672,22 +5719,6 @@
             }
         }
         
-        // Toggle horizontal well laterals
-        function toggleLaterals() {
-            const checkbox = document.getElementById('toggle-laterals');
-            
-            if (checkbox.checked) {
-                if (lateralsLayer.getLayers().length > 0 && !map.hasLayer(lateralsLayer)) {
-                    map.addLayer(lateralsLayer);
-                    console.log(`Showing ${lateralsLayer.getLayers().length} lateral lines`);
-                }
-            } else {
-                if (map.hasLayer(lateralsLayer)) {
-                    map.removeLayer(lateralsLayer);
-                    console.log('Hiding lateral lines');
-                }
-            }
-        }
         
         // Helper function to generate cache key
         function getWellsCacheKey(status) {
@@ -6311,7 +6342,8 @@
                             );
                             
                             if (lateralPath) {
-                                lateralsLayer.addLayer(lateralPath);
+                                // Add lateral to the same layer group as the wells
+                                nearbyWellsLayer.addLayer(lateralPath);
                                 lateralStats.drawn++;
                             }
                         } else {
@@ -6329,9 +6361,8 @@
                 map.addLayer(nearbyWellsLayer);
             }
             
-            // Add laterals layer if it has content
-            if (!map.hasLayer(lateralsLayer) && lateralsLayer.getLayers().length > 0) {
-                map.addLayer(lateralsLayer);
+            // Log lateral statistics
+            if (lateralStats.total > 0) {
                 console.log(`Lateral lines: ${lateralStats.drawn} drawn, ${lateralStats.filteredOut} filtered out (too long), ${lateralStats.total} total with BH coords`);
             }
             
@@ -6347,7 +6378,6 @@
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
         document.getElementById('toggle-heatmap').addEventListener('change', toggleActivityHeatmap);
         document.getElementById('toggle-nearby-wells').addEventListener('change', toggleNearbyWells);
-        document.getElementById('toggle-laterals').addEventListener('change', toggleLaterals);
         
         // Add event listener for well status filter
         document.getElementById('well-status-filter').addEventListener('change', function() {
