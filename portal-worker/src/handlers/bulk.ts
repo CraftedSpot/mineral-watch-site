@@ -463,13 +463,17 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const fullWellName = cleanWellNumber ? `${wellName} ${cleanWellNumber}`.trim() : wellName;
   
   // Debug logging
-  console.log('[SearchWells] Extracted fields:', { wellName, wellNumber: cleanWellNumber, fullWellName, operator, section, township, range, county });
+  // Determine meridian for debugging
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+  const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
+  
+  console.log('[SearchWells] Extracted fields:', { wellName, wellNumber: cleanWellNumber, fullWellName, operator, section, township, range, meridian, county });
   console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
   console.log('[SearchWells] Well name construction:', `"${wellName}" + "${cleanWellNumber}" = "${fullWellName}"`);
   console.log('[SearchWells] Sample raw data:', JSON.stringify(rowData).substring(0, 200));
   
   // Extra debug for specific problem wells
-  if (wellName && (wellName.includes('RIBEYE') || wellName.includes('STATE') || wellName.includes('GLORIETTA'))) {
+  if (wellName && (wellName.includes('RIBEYE') || wellName.includes('STATE') || wellName.includes('GLORIETTA') || wellName.includes('DENTON'))) {
     console.log('[SearchWells] SPECIAL DEBUG - Problem well detected:');
     console.log('  - WELL_NAME field:', rowData.WELL_NAME || 'not found');
     console.log('  - Well_Name field:', rowData.Well_Name || 'not found');
@@ -478,6 +482,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     console.log('  - Raw wellNumber extracted:', wellNumber);
     console.log('  - Clean wellNumber:', cleanWellNumber);
     console.log('  - Combined result:', fullWellName);
+    console.log('  - Well Comments:', rowData['Well Comments'] || rowData['Well comments'] || rowData.Well_Comments || 'not found');
+    console.log('  - Location:', `${section}-${township}-${range}-${meridian}`);
   }
 
   // Build search conditions
