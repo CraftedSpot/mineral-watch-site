@@ -15,7 +15,7 @@ for file in legacy-batch-*.sql; do
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Processing batch $processed/441: $file"
         
         # Execute with wrangler
-        if wrangler d1 execute oklahoma-wells --remote --file="$file"; then
+        if wrangler d1 execute oklahoma-wells --remote -y --file="$file"; then
             echo "  ✓ Success"
         else
             echo "  ✗ Failed - check logs"
