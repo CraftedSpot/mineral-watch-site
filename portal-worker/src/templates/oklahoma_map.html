@@ -1944,6 +1944,10 @@
                                 <option value="ALL">All Wells</option>
                             </select>
                         </div>
+                        <label class="toggle-btn">
+                            <input type="checkbox" id="toggle-laterals" checked>
+                            <span title="Show horizontal well paths">Laterals</span>
+                        </label>
                         <label class="toggle-btn active">
                             <input type="checkbox" id="toggle-heatmap" checked>
                             <span title="All drilling permits and completions statewide within 90 days">Heat Map</span>
@@ -3050,6 +3054,14 @@
                 pathColor = '#F59E0B'; // Yellow for permits
             } else if (pathType === 'completion') {
                 pathColor = '#3B82F6'; // Blue for completions
+            } else if (pathType === 'nearby') {
+                // For nearby wells, use green for oil, red for gas
+                const wellType = fields['Well Type'] || fields['well_type'] || '';
+                if (wellType.toLowerCase().includes('gas')) {
+                    pathColor = '#EF4444'; // Red for gas
+                } else {
+                    pathColor = '#22C55E'; // Green for oil (default)
+                }
             } else if (status === 'AC') {
                 pathColor = '#22C55E'; // Green for active tracked wells
             }
@@ -5630,6 +5642,23 @@
                 separatorDiv.style.display = 'none'; // Hide separator
                 document.getElementById('wellsFilterPanel').style.display = 'none'; // Hide filter panel
                 document.getElementById('nearbyWellCount').textContent = '0'; // Reset count
+            }
+        }
+        
+        // Toggle horizontal well laterals
+        function toggleLaterals() {
+            const checkbox = document.getElementById('toggle-laterals');
+            
+            if (checkbox.checked) {
+                if (lateralsLayer.getLayers().length > 0 && !map.hasLayer(lateralsLayer)) {
+                    map.addLayer(lateralsLayer);
+                    console.log(`Showing ${lateralsLayer.getLayers().length} lateral lines`);
+                }
+            } else {
+                if (map.hasLayer(lateralsLayer)) {
+                    map.removeLayer(lateralsLayer);
+                    console.log('Hiding lateral lines');
+                }
             }
         }
         
