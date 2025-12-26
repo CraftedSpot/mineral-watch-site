@@ -506,8 +506,33 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const hasLocation = section && township && range;
   const hasNameOrOperator = fullWellName || operator;
   
-  // Always use OR logic to be less restrictive - find wells that match ANY of the criteria
-  const whereClause = conditions.join(' OR ');
+  // Use AND logic when we have multiple criteria to narrow down results
+  // Only use OR when we have just one search criterion
+  let whereClause: string;
+  if (conditions.length === 1) {
+    whereClause = conditions[0];
+  } else if (hasLocation && hasNameOrOperator) {
+    // If we have both location AND name/operator, require BOTH to match
+    const locationConditions = [];
+    const nameOperatorConditions = [];
+    
+    conditions.forEach((condition, index) => {
+      if (condition.includes('section') || condition.includes('township') || condition.includes('range')) {
+        locationConditions.push(condition);
+      } else {
+        nameOperatorConditions.push(condition);
+      }
+    });
+    
+    if (locationConditions.length > 0 && nameOperatorConditions.length > 0) {
+      whereClause = `(${locationConditions.join(' AND ')}) AND (${nameOperatorConditions.join(' OR ')})`;
+    } else {
+      whereClause = conditions.join(' AND ');
+    }
+  } else {
+    // Default to AND for multiple conditions
+    whereClause = conditions.join(' AND ');
+  }
   
   console.log('[SearchWells] Has location:', hasLocation, 'Has name/operator:', hasNameOrOperator);
   console.log('[SearchWells] Query conditions:', conditions);
