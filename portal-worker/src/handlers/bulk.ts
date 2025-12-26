@@ -461,18 +461,18 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const fullWellName = wellNumber ? `${wellName} ${wellNumber}`.trim() : wellName;
   
   // Debug logging
-  console.log('[SearchWells] Extracted fields:', { wellName, operator, section, township, range, county });
+  console.log('[SearchWells] Extracted fields:', { wellName, wellNumber, fullWellName, operator, section, township, range, county });
   console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
-  console.log('[SearchWells] Section raw value:', section, 'parseInt:', parseInt(section));
+  console.log('[SearchWells] Well name construction:', `"${wellName}" + "${wellNumber}" = "${fullWellName}"`);
 
   // Build search conditions
   const conditions: string[] = [];
   const params: (string | number)[] = [];
 
-  if (wellName) {
-    // Search for well name with flexible matching
-    conditions.push(`(UPPER(well_name) LIKE UPPER(?) OR UPPER(REPLACE(well_name, ' ', '')) LIKE UPPER(REPLACE(?, ' ', '')))`);
-    params.push(`%${wellName}%`, `%${wellName}%`);
+  if (fullWellName) {
+    // Search for well name with flexible matching - try both full name and partial
+    conditions.push(`(UPPER(well_name) LIKE UPPER(?) OR UPPER(REPLACE(well_name, ' ', '')) LIKE UPPER(REPLACE(?, ' ', '')) OR UPPER(well_name) LIKE UPPER(?))`);
+    params.push(`%${fullWellName}%`, `%${fullWellName}%`, `%${wellName}%`);
   }
   
   if (operator) {
@@ -503,18 +503,10 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
 
   // Use OR logic if only name/operator provided, AND logic if location provided
   const hasLocation = section && township && range;
-  const hasNameOrOperator = wellName || operator;
+  const hasNameOrOperator = fullWellName || operator;
   
-  // If we have both location and name/operator, use OR between them but AND within location
-  let whereClause = '';
-  if (hasLocation && hasNameOrOperator) {
-    // Split conditions into location and name/operator groups
-    const locationConditions = conditions.filter(c => c.includes('section'));
-    const nameConditions = conditions.filter(c => !c.includes('section'));
-    whereClause = `(${locationConditions.join(' AND ')}) OR (${nameConditions.join(' OR ')})`;
-  } else {
-    whereClause = hasLocation ? conditions.join(' AND ') : conditions.join(' OR ');
-  }
+  // Always use OR logic to be less restrictive - find wells that match ANY of the criteria
+  const whereClause = conditions.join(' OR ');
   
   console.log('[SearchWells] Has location:', hasLocation, 'Has name/operator:', hasNameOrOperator);
   console.log('[SearchWells] Query conditions:', conditions);
