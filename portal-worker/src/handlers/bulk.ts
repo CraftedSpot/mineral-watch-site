@@ -478,12 +478,22 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     // 3. Well name and number as separate conditions
     if (wellNumber) {
       // We have both name and number - search more precisely
+      // Also handle cases where section number is part of well name (e.g., "RIBEYE 33")
+      const wellNameWithoutSection = wellName.replace(/\s+\d{1,2}$/, '').trim(); // Remove trailing section number
       conditions.push(`(
         UPPER(well_name || ' ' || well_number) LIKE UPPER(?) OR
         UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?) OR
+        (UPPER(well_name) LIKE UPPER(?) AND UPPER(well_number) LIKE UPPER(?)) OR
         (UPPER(well_name) LIKE UPPER(?) AND UPPER(well_number) LIKE UPPER(?))
       )`);
-      params.push(`%${fullWellName}%`, `%${fullWellName}%`, `%${wellName}%`, `%${wellNumber}%`);
+      params.push(
+        `%${fullWellName}%`, 
+        `%${fullWellName}%`, 
+        `%${wellName}%`, 
+        `%${wellNumber}%`,
+        `%${wellNameWithoutSection}%`,  // Try without section number
+        `%${wellNumber}%`
+      );
     } else {
       // Just well name, no number
       conditions.push(`UPPER(well_name) LIKE UPPER(?)`);
