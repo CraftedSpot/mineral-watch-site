@@ -6202,6 +6202,9 @@ async function validateAndPreviewWells() {
                 
                 updateBatchProgress(i, totalRows, `Processing batch ${batchNum}/${totalBatches}...`);
                 
+                console.log(`[BulkValidate] Sending batch ${batchNum} with ${batch.length} wells`);
+                console.log('[BulkValidate] First well in batch:', batch[0]);
+                
                 const response = await fetch('/api/bulk-validate-wells', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
