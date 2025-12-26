@@ -676,8 +676,14 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     }
   }));
   
+  // Count matches by status
+  const exactMatches = results.filter(r => r.matchStatus === 'exact' && !r.isDuplicate).length;
+  const needsReview = results.filter(r => r.needsSelection).length;
+  const notFound = results.filter(r => r.matchStatus === 'not_found').length;
+  const hasApi = results.filter(r => r.matchStatus === 'has_api' && !r.isDuplicate).length;
+  
   // Count valid non-duplicates
-  const validCount = results.filter(r => r.isValid && !r.isDuplicate).length;
+  const validCount = exactMatches + hasApi;
   const newWellCount = wellsCount + validCount;
   const wouldExceedLimit = newWellCount > planLimits.wells;
   
@@ -685,11 +691,13 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     results,
     summary: {
       total: wells.length,
-      valid: results.filter(r => r.isValid).length,
-      invalid: results.filter(r => !r.isValid).length,
+      exactMatches,
+      needsReview,
+      notFound,
+      hasApi,
       duplicates: results.filter(r => r.isDuplicate).length,
-      warnings: results.filter(r => r.warnings.length > 0).length,
-      willImport: validCount
+      willImport: validCount,
+      canImport: validCount > 0 && !wouldExceedLimit
     },
     planCheck: {
       current: wellsCount,
@@ -712,7 +720,7 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   const body = await request.json();
-  const { wells } = body; // Array of validated, normalized well objects
+  const { wells, selections } = body; // Array of validated wells + optional selections for ambiguous matches
   
   if (!wells || !Array.isArray(wells)) {
     return jsonResponse({ error: "Invalid data format" }, 400);
