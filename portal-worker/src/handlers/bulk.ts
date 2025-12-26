@@ -450,7 +450,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const wellName = rowData['Well Name'] || rowData['well_name'] || rowData.WellName || 
                    rowData.wellName || rowData.WELL_NAME || rowData.Well_Name || rowData.Name || rowData.name || '';
   const wellNumber = rowData['Well Number'] || rowData['well_number'] || rowData.WellNumber || 
-                     rowData.wellNumber || rowData.WELL_NUM || rowData['Well Num'] || rowData.Well_Num || rowData.well_num || '';
+                     rowData.wellNumber || rowData.WELL_NUMBER || rowData['WELL_NUM'] || rowData.WELL_NUM || 
+                     rowData['Well_Num'] || rowData.Well_Num || rowData.well_num || '';
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
   const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
   const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
@@ -460,6 +461,18 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Combine well name and number if both exist
   const cleanWellNumber = wellNumber.trim();
   const fullWellName = cleanWellNumber ? `${wellName} ${cleanWellNumber}`.trim() : wellName;
+  
+  // Log extracted fields for debugging
+  console.log('[SearchWells] Extracted fields:', {
+    wellName, 
+    wellNumber: cleanWellNumber, 
+    fullWellName, 
+    operator, 
+    section, 
+    township, 
+    range,
+    county
+  });
   
   // Normalize location data
   const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
@@ -505,6 +518,12 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   if (fullWellName) {
     whereConditions.push(`UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)`);
     params.push(`%${fullWellName}%`);
+  }
+  
+  // Add operator to WHERE clause for better filtering
+  if (operator) {
+    whereConditions.push(`UPPER(operator) LIKE UPPER(?)`);
+    params.push(`%${operator}%`);
   }
   
   if (normalizedTownship && normalizedRange) {
@@ -785,11 +804,18 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             }
             
             // If we only found location matches, add a note
-            if (searchResults.matches.length > 0 && !searchResults.matches.some((m: any) => 
-              m.well_name.toUpperCase().includes(wellName.toUpperCase()) || 
-              m.operator.toUpperCase().includes(operator.toUpperCase())
-            )) {
-              warnings.push('Note: Matches found by location only - well name/operator may differ');
+            if (searchResults.matches.length > 0) {
+              // Extract well name and operator from the original CSV data for comparison
+              const csvWellName = well['Well Name'] || well['well_name'] || well.WellName || 
+                                 well.wellName || well.WELL_NAME || well.Well_Name || well.Name || well.name || '';
+              const csvOperator = well.Operator || well.operator || well.OPERATOR || '';
+              
+              if (!searchResults.matches.some((m: any) => 
+                m.well_name.toUpperCase().includes(csvWellName.toUpperCase()) || 
+                (csvOperator && m.operator.toUpperCase().includes(csvOperator.toUpperCase()))
+              )) {
+                warnings.push('Note: Matches found by location only - well name/operator may differ');
+              }
             }
           } else {
             matchStatus = 'ambiguous';
