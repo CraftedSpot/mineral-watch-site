@@ -601,7 +601,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     .bind(...params)
     .first<{ total: number }>();
   
-  const total = countResult?.total || 0;
+  let total = countResult?.total || 0;
   
   // Get results (limit to 10 for CSV matching)
   const query = `
