@@ -539,6 +539,18 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Create WHERE clause with OR between main conditions
   const whereClause = whereConditions.join(' OR ');
   
+  // Debug log the search parameters
+  console.log('[CascadingSearch] Query parameters:', {
+    wellName: fullWellName,
+    operator,
+    section: sectionNum,
+    township: normalizedTownship,
+    range: normalizedRange,
+    meridian,
+    whereClause,
+    params: params.map((p, i) => `param${i + 1}: ${p}`)
+  });
+  
   // Build the scoring CASE statement
   const scoreParts: string[] = [];
   let scoreParamIndex = params.length + 1; // Start after WHERE params
@@ -640,6 +652,23 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   
   // Filter to only include results with score > 0
   const scoredResults = results.results.filter((well: any) => well.match_score > 0);
+  
+  // Log first few results for debugging
+  if (results.results.length > 0) {
+    console.log('[CascadingSearch] First result:', {
+      api_number: results.results[0].api_number,
+      well_name: results.results[0].well_name,
+      well_number: results.results[0].well_number,
+      operator: results.results[0].operator,
+      section: results.results[0].section,
+      township: results.results[0].township,
+      range: results.results[0].range,
+      meridian: results.results[0].meridian,
+      score: results.results[0].match_score
+    });
+  } else {
+    console.log('[CascadingSearch] No results found');
+  }
   
   // For logging purposes, show what matched
   if (scoredResults.length > 0 && scoredResults.length <= 5) {
