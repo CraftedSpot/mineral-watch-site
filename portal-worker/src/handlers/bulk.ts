@@ -454,6 +454,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
   const range = rowData.Range || rowData.range || rowData.RANGE || rowData.RNG || rowData.rng || '';
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
+  
+  // Debug logging
+  console.log('[SearchWells] Extracted fields:', { wellName, operator, section, township, range, county });
 
   // Build search conditions
   const conditions: string[] = [];
