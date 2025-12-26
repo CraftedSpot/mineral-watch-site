@@ -6205,6 +6205,13 @@
             // Store wells data globally for popup access
             window.nearbyWellsData = {};
             
+            // Track lateral statistics
+            let lateralStats = {
+                total: 0,
+                drawn: 0,
+                filteredOut: 0
+            };
+            
             // Add filtered wells to map
             wells.forEach(well => {
                 // Store well data by API number
@@ -6279,27 +6286,43 @@
                     if (well.bh_latitude && well.bh_longitude && 
                         (well.bh_latitude !== well.latitude || well.bh_longitude !== well.longitude)) {
                         
-                        // Draw lateral line
-                        const lateralPath = drawLateralPath(
-                            { lat: well.latitude, lng: well.longitude },
-                            { lat: well.bh_latitude, lng: well.bh_longitude },
-                            { 
-                                fields: {
-                                    'Well Name': well.well_name,
-                                    'API Number': well.api_number,
-                                    'Operator': well.operator,
-                                    'Well Status': well.well_status,
-                                    'Formation': well.formation_name,
-                                    'wellName': well.well_name,
-                                    'operator': well.operator,
-                                    'formation': well.formation_name
-                                }
-                            },
-                            'nearby'
-                        );
+                        lateralStats.total++;
                         
-                        if (lateralPath) {
-                            lateralsLayer.addLayer(lateralPath);
+                        // Calculate approximate distance to filter out bad data
+                        const latDiff = Math.abs(well.bh_latitude - well.latitude);
+                        const lngDiff = Math.abs(well.bh_longitude - well.longitude);
+                        const approxDistanceMiles = (latDiff + lngDiff) * 69; // Very rough approximation
+                        
+                        // Only draw laterals that are reasonable length (< 3 miles)
+                        if (approxDistanceMiles < 3) {
+                            // Draw lateral line
+                            const lateralPath = drawLateralPath(
+                                { lat: well.latitude, lng: well.longitude },
+                                { lat: well.bh_latitude, lng: well.bh_longitude },
+                                { 
+                                    fields: {
+                                        'Well Name': well.well_name,
+                                        'API Number': well.api_number,
+                                        'Operator': well.operator,
+                                        'Well Status': well.well_status,
+                                        'Formation': well.formation_name,
+                                        'wellName': well.well_name,
+                                        'operator': well.operator,
+                                        'formation': well.formation_name
+                                    }
+                                },
+                                'nearby'
+                            );
+                            
+                            if (lateralPath) {
+                                lateralsLayer.addLayer(lateralPath);
+                                lateralStats.drawn++;
+                            }
+                        } else {
+                            lateralStats.filteredOut++;
+                            if (lateralStats.filteredOut <= 5) {  // Log first few filtered wells
+                                console.log(`Filtered out lateral for ${well.well_name} (${well.api_number}): ~${approxDistanceMiles.toFixed(1)} miles`);
+                            }
                         }
                     }
                 }
@@ -6313,7 +6336,7 @@
             // Add laterals layer if it has content
             if (!map.hasLayer(lateralsLayer) && lateralsLayer.getLayers().length > 0) {
                 map.addLayer(lateralsLayer);
-                console.log(`Added ${lateralsLayer.getLayers().length} lateral lines to map`);
+                console.log(`Lateral lines: ${lateralStats.drawn} drawn, ${lateralStats.filteredOut} filtered out (too long), ${lateralStats.total} total with BH coords`);
             }
             
             ensureLayerOrder();
