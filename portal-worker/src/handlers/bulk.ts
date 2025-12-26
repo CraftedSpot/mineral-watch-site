@@ -820,31 +820,31 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
               // Multiple matches without clear winner - needs review
               matchStatus = 'ambiguous';
               warnings.push(`${searchResults.total} matches found - please select the correct well`);
-            
-            // Check for section mismatches
-            if (searchResults.hasSectionMismatches) {
-              const mismatchedSections = searchResults.matches
-                .filter((m: any) => m.sectionMismatch)
-                .map((m: any) => m.section)
-                .filter((v: number, i: number, a: number[]) => a.indexOf(v) === i); // unique sections
-              warnings.push(`Section mismatches found - Wells are in sections: ${mismatchedSections.join(', ')} (your CSV shows section ${section})`);
-            }
-            
-            // If we only found location matches, add a note
-            if (searchResults.matches.length > 0) {
-              // Extract well name and operator from the original CSV data for comparison
-              const csvWellName = well['Well Name'] || well['well_name'] || well.WellName || 
-                                 well.wellName || well.WELL_NAME || well.Well_Name || well.Name || well.name || '';
-              const csvOperator = well.Operator || well.operator || well.OPERATOR || '';
               
-              if (!searchResults.matches.some((m: any) => 
-                m.well_name.toUpperCase().includes(csvWellName.toUpperCase()) || 
-                (csvOperator && m.operator.toUpperCase().includes(csvOperator.toUpperCase()))
-              )) {
-                warnings.push('Note: Matches found by location only - well name/operator may differ');
+              // Check for section mismatches
+              if (searchResults.hasSectionMismatches) {
+                const mismatchedSections = searchResults.matches
+                  .filter((m: any) => m.sectionMismatch)
+                  .map((m: any) => m.section)
+                  .filter((v: number, i: number, a: number[]) => a.indexOf(v) === i); // unique sections
+                warnings.push(`Section mismatches found - Wells are in sections: ${mismatchedSections.join(', ')} (your CSV shows section ${section})`);
               }
-            }
-          } else {
+              
+              // If we only found location matches, add a note
+              if (searchResults.matches.length > 0) {
+                // Extract well name and operator from the original CSV data for comparison
+                const csvWellName = well['Well Name'] || well['well_name'] || well.WellName || 
+                                   well.wellName || well.WELL_NAME || well.Well_Name || well.Name || well.name || '';
+                const csvOperator = well.Operator || well.operator || well.OPERATOR || '';
+                
+                if (!searchResults.matches.some((m: any) => 
+                  m.well_name.toUpperCase().includes(csvWellName.toUpperCase()) || 
+                  (csvOperator && m.operator.toUpperCase().includes(csvOperator.toUpperCase()))
+                )) {
+                  warnings.push('Note: Matches found by location only - well name/operator may differ');
+                }
+              }
+            } else {
             matchStatus = 'ambiguous';
             const displayCount = searchResults.total > 1000 ? `${Math.floor(searchResults.total / 1000)}k+` : searchResults.total.toString();
             warnings.push(`Too many matches (${displayCount}) - showing first 10. Add more specific details to narrow results`);
