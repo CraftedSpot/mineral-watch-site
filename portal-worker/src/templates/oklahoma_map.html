@@ -3671,7 +3671,7 @@
             
             // Fetch D1 enrichment data if we have a valid API number
             if (apiNumber && apiNumber !== 'Unknown') {
-                fetchWellEnrichment(apiNumber, formation, totalDepth);
+                fetchWellEnrichment(apiNumber, formation, totalDepth, completionDate);
             }
             
             // Build modal actions
@@ -3714,7 +3714,7 @@
         }
         
         // Fetch D1 enrichment data for a well
-        async function fetchWellEnrichment(apiNumber, existingFormation, existingDepth) {
+        async function fetchWellEnrichment(apiNumber, existingFormation, existingDepth, existingCompletionDate) {
             try {
                 const response = await fetch(`/api/well-enrichment/${apiNumber}`);
                 if (!response.ok) {
@@ -3734,6 +3734,17 @@
                 if (!hasD1Formation && !hasD1Depth && !hasProduction && !hasDates) {
                     console.log('No D1 enrichment data for well:', apiNumber);
                     return;
+                }
+                
+                // Update title with completion date if we have one from D1 but not from Airtable
+                if (!existingCompletionDate && data.completion_date) {
+                    const completionDate = new Date(data.completion_date).toLocaleDateString();
+                    const titleElement = document.getElementById('wellModalTitle');
+                    const currentTitle = titleElement.querySelector('span').textContent;
+                    titleElement.innerHTML = `
+                        <span>${currentTitle}</span>
+                        <span class="well-date-badge">${completionDate}</span>
+                    `;
                 }
                 
                 // Build enrichment HTML
@@ -3791,7 +3802,7 @@
                 }
                 
                 // Dates (if different from what we already have)
-                if (data.completion_date || data.spud_date) {
+                if ((data.completion_date && !existingCompletionDate) || data.spud_date) {
                     enrichmentHtml += `<div class="well-detail-grid" style="margin-top: 12px;">`;
                     
                     if (data.spud_date) {
@@ -3804,7 +3815,8 @@
                         `;
                     }
                     
-                    if (data.completion_date) {
+                    // Only show completion date in body if we don't already have it from Airtable
+                    if (data.completion_date && !existingCompletionDate) {
                         const completionDate = new Date(data.completion_date).toLocaleDateString();
                         enrichmentHtml += `
                             <div class="well-detail-section">
