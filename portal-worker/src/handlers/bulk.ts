@@ -463,9 +463,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const fullWellName = cleanWellNumber ? `${wellName} ${cleanWellNumber}`.trim() : wellName;
   
   // Debug logging
-  console.log('[SearchWells] Extracted fields:', { wellName, wellNumber, fullWellName, operator, section, township, range, county });
+  console.log('[SearchWells] Extracted fields:', { wellName, wellNumber: cleanWellNumber, fullWellName, operator, section, township, range, county });
   console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
-  console.log('[SearchWells] Well name construction:', `"${wellName}" + "${wellNumber}" = "${fullWellName}"`);
+  console.log('[SearchWells] Well name construction:', `"${wellName}" + "${cleanWellNumber}" = "${fullWellName}"`);
   console.log('[SearchWells] Sample raw data:', JSON.stringify(rowData).substring(0, 200));
   
   // Extra debug for specific problem wells
@@ -475,6 +475,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     console.log('  - Well_Name field:', rowData.Well_Name || 'not found');
     console.log('  - WELL_NUM field:', rowData.WELL_NUM || 'not found');
     console.log('  - Well_Num field:', rowData.Well_Num || 'not found');
+    console.log('  - Raw wellNumber extracted:', wellNumber);
+    console.log('  - Clean wellNumber:', cleanWellNumber);
     console.log('  - Combined result:', fullWellName);
   }
 
@@ -488,7 +490,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     // 1. Concatenated columns match full name
     // 2. Just well_name matches (for cases where well_number might be different)
     // 3. Well name and number as separate conditions
-    if (wellNumber) {
+    if (cleanWellNumber) {
       // We have both name and number - search more precisely
       // Also handle cases where section number is part of well name (e.g., "RIBEYE 33")
       const wellNameWithoutSection = wellName.replace(/\s+\d{1,2}$/, '').trim(); // Remove trailing section number
@@ -502,9 +504,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
         `%${fullWellName}%`, 
         `%${fullWellName}%`, 
         `%${wellName}%`, 
-        `%${wellNumber}%`,
+        `%${cleanWellNumber}%`,
         `%${wellNameWithoutSection}%`,  // Try without section number
-        `%${wellNumber}%`
+        `%${cleanWellNumber}%`
       );
     } else {
       // Just well name, no number
