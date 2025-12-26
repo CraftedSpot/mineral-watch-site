@@ -457,6 +457,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   
   // Debug logging
   console.log('[SearchWells] Extracted fields:', { wellName, operator, section, township, range, county });
+  console.log('[SearchWells] Raw row data keys:', Object.keys(rowData));
 
   // Build search conditions
   const conditions: string[] = [];
@@ -494,6 +495,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Use OR logic if only name/operator provided, AND logic if location provided
   const hasLocation = section && township && range;
   const whereClause = hasLocation ? conditions.join(' AND ') : conditions.join(' OR ');
+  
+  console.log('[SearchWells] Query conditions:', conditions);
+  console.log('[SearchWells] Query params:', params);
   
   // First get count
   const countQuery = `
