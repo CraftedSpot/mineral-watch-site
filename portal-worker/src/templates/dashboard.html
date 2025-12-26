@@ -6234,9 +6234,9 @@ async function validateAndPreviewWells() {
                 // Use last batch's plan check (most accurate)
                 wellsValidationResults.planCheck = batchResult.planCheck;
                 
-                // Brief pause between batches
+                // Longer pause between batches to avoid rate limiting
                 if (i + BATCH_SIZE < totalRows) {
-                    await new Promise(resolve => setTimeout(resolve, 100));
+                    await new Promise(resolve => setTimeout(resolve, 500));
                 }
             }
             
