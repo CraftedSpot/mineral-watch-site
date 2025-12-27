@@ -23,6 +23,12 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     const authUser = await authenticateRequest(request, env);
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
     
+    // Get full user record to access organization info
+    const userRecord = await getUserById(env, authUser.id);
+    if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
+    
+    const userOrgId = userRecord.fields.Organization?.[0];
+    
     console.log(`[GetLinkedWells] Fetching linked wells for property ${propertyId}`);
     
     // First verify the user owns this property
@@ -45,7 +51,6 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     // Verify ownership
     const propertyUserId = propertyData.fields.User?.[0];
     const propertyOrgId = propertyData.fields.Organization?.[0];
-    const userOrgId = authUser.organizationId;
     
     if (propertyUserId !== authUser.id && (!userOrgId || propertyOrgId !== userOrgId)) {
       return jsonResponse({ error: "Unauthorized" }, 403);
