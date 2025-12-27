@@ -269,7 +269,7 @@ export async function handleListWells(request: Request, env: Env) {
  * @param env Worker environment
  * @returns JSON response with created well
  */
-export async function handleAddWell(request: Request, env: Env) {
+export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionContext) {
   try {
     const user = await authenticateRequest(request, env);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
