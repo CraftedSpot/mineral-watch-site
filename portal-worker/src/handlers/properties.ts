@@ -78,7 +78,7 @@ export async function handleListProperties(request: Request, env: Env) {
  * @param env Worker environment
  * @returns JSON response with created property
  */
-export async function handleAddProperty(request: Request, env: Env) {
+export async function handleAddProperty(request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   const body = await request.json();
@@ -161,12 +161,12 @@ export async function handleAddProperty(request: Request, env: Env) {
   console.log(`[PropertyCreate] New property record:`, JSON.stringify(newRecord, null, 2));
   
   // Trigger auto-matching in background (fire and forget)
-  if (newRecord.id) {
+  if (newRecord.id && ctx) {
     const matchUrl = `${new URL(request.url).origin}/api/match-single-property/${newRecord.id}`;
     console.log(`[PropertyCreate] Triggering auto-match for property: ${newRecord.id}`);
     console.log(`[PropertyCreate] Match URL: ${matchUrl}`);
     
-    fetch(matchUrl, {
+    const matchPromise = fetch(matchUrl, {
       method: 'POST',
       headers: {
         'Cookie': request.headers.get('Cookie') || '',
@@ -184,8 +184,13 @@ export async function handleAddProperty(request: Request, env: Env) {
       console.error('[PropertyCreate] Auto-match trigger failed:', err);
       console.error('[PropertyCreate] Error details:', err.message, err.stack);
     });
-  } else {
+    
+    // Keep the worker alive until the match completes
+    ctx.waitUntil(matchPromise);
+  } else if (!newRecord.id) {
     console.error('[PropertyCreate] No ID in new record:', newRecord);
+  } else if (!ctx) {
+    console.error('[PropertyCreate] No ExecutionContext available for background matching');
   }
   
   return jsonResponse(newRecord, 201);

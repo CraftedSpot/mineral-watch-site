@@ -519,7 +519,7 @@ var index_default = {
         return handleListProperties(request, env);
       }
       if (path === "/api/properties" && request.method === "POST") {
-        return handleAddProperty(request, env);
+        return handleAddProperty(request, env, ctx);
       }
       const propertyIdMatch = path.match(/^\/api\/properties\/([a-zA-Z0-9]+)$/);
       if (propertyIdMatch && request.method === "PATCH") {
@@ -534,7 +534,7 @@ var index_default = {
         return handleListWells(request, env);
       }
       if (path === "/api/wells" && request.method === "POST") {
-        return handleAddWell(request, env);
+        return handleAddWell(request, env, ctx);
       }
       // Wells search endpoint
       if (path === "/api/wells/search" && request.method === "GET") {
@@ -542,7 +542,7 @@ var index_default = {
       }
       // Track well endpoint (alias for adding wells)
       if (path === "/api/wells/track" && request.method === "POST") {
-        return handleAddWell(request, env);
+        return handleAddWell(request, env, ctx);
       }
       const deleteWellMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)$/);
       if (deleteWellMatch && request.method === "DELETE") {
