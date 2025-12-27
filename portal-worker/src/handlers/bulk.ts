@@ -1152,9 +1152,11 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
     }, 403);
   }
   
-  // Get existing wells for duplicate check
+  // Get existing wells for duplicate check - CRITICAL for preventing partial import duplicates
   const existingWells = await fetchUserWells(env, user.email);
   const existingSet = new Set(existingWells.map(w => w.apiNumber));
+  
+  console.log(`[BulkUpload] User has ${existingWells.length} existing wells`);
   
   // Process wells based on their match status and selections
   const toCreate: any[] = [];
@@ -1184,12 +1186,16 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
       }
     }
     
-    if (apiNumber && !existingSet.has(apiNumber)) {
-      toCreate.push({
-        apiNumber,
-        wellName,
-        notes: well.original.Notes || well.original.notes || ''
-      });
+    if (apiNumber) {
+      if (existingSet.has(apiNumber)) {
+        console.log(`[BulkUpload] Skipping duplicate: ${apiNumber} - ${wellName}`);
+      } else {
+        toCreate.push({
+          apiNumber,
+          wellName,
+          notes: well.original.Notes || well.original.notes || ''
+        });
+      }
     }
   });
   
@@ -1197,8 +1203,16 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
     successful: 0,
     failed: 0,
     skipped: wells.length - toCreate.length,
+    duplicatesSkipped: 0,
     errors: []
   };
+  
+  // Count how many were skipped due to duplicates vs other reasons
+  wells.forEach((well: any) => {
+    if (well.isDuplicate) results.duplicatesSkipped++;
+  });
+  
+  console.log(`[BulkUpload] Processing ${toCreate.length} new wells (${results.skipped} skipped: ${results.duplicatesSkipped} duplicates, ${results.skipped - results.duplicatesSkipped} other reasons)`);
   
   // Fetch OCC data for each well (in parallel batches to speed up)
   const wellsWithData: any[] = [];
