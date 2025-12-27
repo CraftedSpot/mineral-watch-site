@@ -7,6 +7,7 @@
 import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
+import { getUserById } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 // Table names
@@ -57,7 +58,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     if (userOrgId) {
       // For org users, get the organization name first
       const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${userOrgId}`,
         {
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }
