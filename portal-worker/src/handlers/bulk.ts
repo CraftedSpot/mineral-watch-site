@@ -546,90 +546,91 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   let results: any = { results: [] };
   let searchStrategy = '';
   
-  // Strategy 1: Try well name + location with operator scoring
-  if (cleanedWellName && normalizedTownship && normalizedRange) {
-    console.log('[CascadingSearch] Trying Strategy 1: Name + Location + Operator scoring');
-    
-    // Build scoring that heavily weights operator matches
-    let scoringCase = '';
-    const params1: any[] = [];
-    let paramIndex = 1;
-    
-    if (operator && sectionNum !== null) {
-      // Best case: name + location + operator + section all match
-      scoringCase = `CASE 
-        WHEN UPPER(operator) LIKE UPPER(?${paramIndex}) AND section = ?${paramIndex + 1} THEN 100
-        WHEN UPPER(operator) LIKE UPPER(?${paramIndex + 2}) THEN 90
-        WHEN section = ?${paramIndex + 3} THEN 80
-        ELSE 70
-      END`;
-      params1.push(`%${operator}%`, sectionNum, `%${operator}%`, sectionNum);
-      paramIndex += 4;
-    } else if (operator) {
-      // Have operator but no section
-      scoringCase = `CASE 
-        WHEN UPPER(operator) LIKE UPPER(?${paramIndex}) THEN 100
-        ELSE 70
-      END`;
-      params1.push(`%${operator}%`);
-      paramIndex++;
-    } else if (sectionNum !== null) {
-      // Have section but no operator
-      scoringCase = `CASE 
-        WHEN section = ?${paramIndex} THEN 90
-        ELSE 70
-      END`;
-      params1.push(sectionNum);
-      paramIndex++;
-    } else {
-      // No operator or section - all get same score
-      scoringCase = '70';
-    }
-    
+  // Strategy 1: Name + Section + T-R (most specific)
+  if (cleanedWellName && normalizedTownship && normalizedRange && sectionNum !== null) {
+    console.log('[CascadingSearch] Strategy 1: Name + Section + T-R');
     const query1 = `
       SELECT w.*, 
-        ${scoringCase} as match_score
+        CASE 
+          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} THEN 100
+          ELSE 90
+        END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${paramIndex})
-        AND township = ?${paramIndex + 1} AND range = ?${paramIndex + 2} AND meridian = ?${paramIndex + 3}
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
+        AND section = ? AND township = ? AND range = ? AND meridian = ?
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    const params1 = operator ? 
+      [`%${operator}%`, `%${cleanedWellName}%`, sectionNum, normalizedTownship, normalizedRange, meridian] :
+      [`%${cleanedWellName}%`, sectionNum, normalizedTownship, normalizedRange, meridian];
+    
+    results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
+    searchStrategy = 'name+section+T-R';
+    console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
+  }
+  
+  // Strategy 2: Name + T-R (no section - handles horizontal wells)
+  if (results.results.length === 0 && cleanedWellName && normalizedTownship && normalizedRange) {
+    console.log('[CascadingSearch] Strategy 2: Name + T-R (no section)');
+    const query2 = `
+      SELECT w.*, 
+        CASE 
+          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} AND ${sectionNum !== null ? `section = ?` : 'FALSE'} THEN 90
+          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} THEN 85
+          WHEN ${sectionNum !== null ? `section = ?` : 'FALSE'} THEN 80
+          ELSE 70
+        END as match_score
+      FROM wells w
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
+        AND township = ? AND range = ? AND meridian = ?
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
     
-    params1.push(`%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian);
-    
-    results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
-    searchStrategy = 'name+location+operator';
-    
-    console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
-    
-    // If we have operator and only one result has score 100, it's an exact match
-    if (operator && results.results.filter((r: any) => r.match_score >= 90).length === 1) {
-      console.log('[CascadingSearch] Single operator match found - will auto-select');
+    // Build params based on what we have
+    const params2: any[] = [];
+    if (operator && sectionNum !== null) {
+      params2.push(`%${operator}%`, sectionNum, `%${operator}%`, sectionNum);
+    } else if (operator) {
+      params2.push(`%${operator}%`);
+    } else if (sectionNum !== null) {
+      params2.push(sectionNum);
     }
-  }
-  
-  // Strategy 2: If no results, try just well name (broader search)
-  if (results.results.length === 0 && cleanedWellName) {
-    console.log('[CascadingSearch] Trying Strategy 2: Name only');
-    const query2 = `
-      SELECT w.*, 50 as match_score
-      FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
-      ORDER BY well_status = 'AC' DESC
-      LIMIT 15
-    `;
+    params2.push(`%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian);
     
-    results = await env.WELLS_DB.prepare(query2).bind(`%${cleanedWellName}%`).all();
-    searchStrategy = 'name-only';
-    
+    results = await env.WELLS_DB.prepare(query2).bind(...params2).all();
+    searchStrategy = 'name+T-R';
     console.log(`[CascadingSearch] Strategy 2 found ${results.results.length} results`);
   }
   
-  // Strategy 3: If still no results, try just location
-  if (results.results.length === 0 && normalizedTownship && normalizedRange) {
-    console.log('[CascadingSearch] Trying Strategy 3: Location only');
+  // Strategy 3: Name only (broader search)
+  if (results.results.length === 0 && cleanedWellName) {
+    console.log('[CascadingSearch] Strategy 3: Name only');
     const query3 = `
+      SELECT w.*, 
+        CASE 
+          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} THEN 60
+          ELSE 50
+        END as match_score
+      FROM wells w
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    const params3 = operator ? 
+      [`%${operator}%`, `%${cleanedWellName}%`] :
+      [`%${cleanedWellName}%`];
+    
+    results = await env.WELLS_DB.prepare(query3).bind(...params3).all();
+    searchStrategy = 'name-only';
+    console.log(`[CascadingSearch] Strategy 3 found ${results.results.length} results`);
+  }
+  
+  // Strategy 4: Location only (LAST RESORT - only if name search failed)
+  if (results.results.length === 0 && normalizedTownship && normalizedRange && !cleanedWellName) {
+    console.log('[CascadingSearch] Strategy 4: Location only (no name provided)');
+    const query4 = `
       SELECT w.*, 30 as match_score
       FROM wells w
       WHERE township = ? AND range = ? AND meridian = ?
@@ -637,13 +638,35 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       ORDER BY well_status = 'AC' DESC
       LIMIT 15
     `;
-    const params3 = [normalizedTownship, normalizedRange, meridian];
-    if (sectionNum !== null) params3.push(sectionNum);
+    const params4 = [normalizedTownship, normalizedRange, meridian];
+    if (sectionNum !== null) params4.push(sectionNum);
     
-    results = await env.WELLS_DB.prepare(query3).bind(...params3).all();
+    results = await env.WELLS_DB.prepare(query4).bind(...params4).all();
     searchStrategy = 'location-only';
+    console.log(`[CascadingSearch] Strategy 4 found ${results.results.length} results`);
+  }
+  
+  // Post-process: If operator provided and multiple results, filter/prioritize operator matches
+  if (operator && results.results.length > 1) {
+    const operatorMatches = results.results.filter((r: any) => 
+      r.operator && (
+        r.operator.toUpperCase().includes(operator.toUpperCase()) ||
+        operator.toUpperCase().includes(r.operator.toUpperCase())
+      )
+    );
     
-    console.log(`[CascadingSearch] Strategy 3 found ${results.results.length} results`);
+    console.log(`[CascadingSearch] Operator filtering: ${results.results.length} total, ${operatorMatches.length} match operator`);
+    
+    // If operator narrows it down to exactly 1, use only that
+    if (operatorMatches.length === 1) {
+      results.results = operatorMatches;
+      results.results[0].match_score = 100; // Boost score for exact operator match
+      console.log('[CascadingSearch] Operator match narrowed to single result');
+    } else if (operatorMatches.length > 1) {
+      // Multiple operator matches - show only those
+      results.results = operatorMatches;
+    }
+    // If no operator matches, keep all results but with lower scores
   }
   
   console.log(`[CascadingSearch] Final strategy: ${searchStrategy}, Results: ${results.results.length}`);
