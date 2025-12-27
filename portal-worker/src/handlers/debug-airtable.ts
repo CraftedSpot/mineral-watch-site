@@ -17,36 +17,47 @@ export async function handleDebugAirtable(request: Request, env: Env) {
   }
   
   try {
-    // Fetch one property to see field structure
-    const propertyResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('📍 Client Properties')}?maxRecords=1&filterByFormula=NOT({User} = BLANK())`,
+    // Test different filter approaches
+    const testFilters = [
+      `FIND('${user.id}', ARRAYJOIN({User})) > 0`,
+      `FIND('${user.email}', ARRAYJOIN({User})) > 0`,
+      `NOT({User} = BLANK())`
+    ];
+    
+    const results: any = {};
+    
+    for (const filter of testFilters) {
+      const propertyResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('📍 Client Properties')}?maxRecords=3&filterByFormula=${encodeURIComponent(filter)}`,
+        {
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        }
+      );
+      
+      const data = await propertyResponse.json();
+      results[filter] = {
+        status: propertyResponse.status,
+        count: data.records?.length || 0,
+        sample: data.records?.[0] || null,
+        error: data.error || null
+      };
+    }
+    
+    // Also test without filter
+    const noFilterResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('📍 Client Properties')}?maxRecords=1`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
     
-    // Fetch one well to see field structure  
-    const wellResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🛢️ Client Wells')}?maxRecords=1&filterByFormula=NOT({User} = BLANK())`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-    
-    const propertyData = await propertyResponse.json();
-    const wellData = await wellResponse.json();
+    const noFilterData = await noFilterResponse.json();
     
     return jsonResponse({
       success: true,
       debug: {
-        property: {
-          sample: propertyData.records[0],
-          fieldNames: propertyData.records[0] ? Object.keys(propertyData.records[0].fields) : []
-        },
-        well: {
-          sample: wellData.records[0],
-          fieldNames: wellData.records[0] ? Object.keys(wellData.records[0].fields) : []
-        },
+        filterTests: results,
+        noFilterSample: noFilterData.records?.[0] || null,
         userId: user.id,
         userEmail: user.email
       }

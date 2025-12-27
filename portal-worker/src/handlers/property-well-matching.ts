@@ -253,14 +253,14 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     
     if (organizationId) {
       // Organization user - filter by org (organization is also a linked field)
-      propertiesFilter = `FIND('${organizationId}', ARRAYJOIN({${PROPERTY_FIELDS.ORGANIZATION}})) > 0`;
-      wellsFilter = `FIND('${organizationId}', ARRAYJOIN({${WELL_FIELDS.ORGANIZATION}})) > 0`;
-      linksFilter = `FIND('${organizationId}', ARRAYJOIN({${LINK_FIELDS.ORGANIZATION}})) > 0`;
+      propertiesFilter = `FIND('${organizationId}', ARRAYJOIN({Organization})) > 0`;
+      wellsFilter = `FIND('${organizationId}', ARRAYJOIN({Organization})) > 0`;
+      linksFilter = `FIND('${organizationId}', ARRAYJOIN({Organization})) > 0`;
     } else {
       // Solo user - filter by user record ID (not email)
-      propertiesFilter = `FIND('${userId}', ARRAYJOIN({${PROPERTY_FIELDS.USER}})) > 0`;
-      wellsFilter = `FIND('${userId}', ARRAYJOIN({${WELL_FIELDS.USER}})) > 0`;
-      linksFilter = `FIND('${userId}', ARRAYJOIN({${LINK_FIELDS.USER}})) > 0`;
+      propertiesFilter = `FIND('${userId}', ARRAYJOIN({User})) > 0`;
+      wellsFilter = `FIND('${userId}', ARRAYJOIN({User})) > 0`;
+      linksFilter = `FIND('${userId}', ARRAYJOIN({User})) > 0`;
     }
     
     console.log(`[PropertyWellMatch] Filters - Properties: ${propertiesFilter}`);
