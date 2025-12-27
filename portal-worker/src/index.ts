@@ -167,7 +167,7 @@ var index_default = {
         return servePage(upgradeHtml, request, env);
       }
       if (path === "/portal/map" || path === "/portal/map/") {
-        return servePage(myPropertiesMapHtml, request, env);
+        return servePage(oklahomaMapHtml, request, env);
       }
       if (path === "/portal/oklahoma-map" || path === "/portal/oklahoma-map/") {
         return servePage(oklahomaMapHtml, request, env);
