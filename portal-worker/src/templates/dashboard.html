@@ -6431,7 +6431,7 @@ function renderWellsPreviewTable() {
                 <select id="${selectId}" class="bulk-well-select" onchange="updateWellSelection(${index}, this.value)" style="max-width: 300px;">
                     <option value="">— Select well (${result.searchResults.total} matches) —</option>
                     ${result.searchResults.matches.map(m => 
-                        `<option value="${m.api_number}">${escapeHtmlBulk(m.well_name)} - ${m.county}</option>`
+                        `<option value="${m.api_number}">${escapeHtmlBulk(m.well_name)}${m.well_number ? ' ' + escapeHtmlBulk(m.well_number) : ''} - ${m.api_number} - ${m.operator || 'Unknown Op'} - S${m.section}-T${m.township}-R${m.range} - ${m.county} - ${m.well_status || 'UNK'}</option>`
                     ).join('')}
                 </select>
             `;
