@@ -316,7 +316,7 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
  * @param env Worker environment
  * @returns JSON response with upload results
  */
-export async function handleBulkUploadProperties(request: Request, env: Env) {
+export async function handleBulkUploadProperties(request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
