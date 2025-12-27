@@ -252,15 +252,28 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     console.log(`[PropertyWellMatch] User ID: ${userId}, Org ID: ${organizationId || 'none'}`);
     
     if (organizationId) {
-      // Organization user - filter by org (organization is also a linked field)
-      propertiesFilter = `FIND('${organizationId}', ARRAYJOIN({Organization})) > 0`;
-      wellsFilter = `FIND('${organizationId}', ARRAYJOIN({Organization})) > 0`;
-      linksFilter = `FIND('${organizationId}', ARRAYJOIN({Organization})) > 0`;
+      // Organization user - get org name for filtering
+      const orgResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        {
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        }
+      );
+      
+      const orgData = await orgResponse.json();
+      const orgName = orgData.fields?.Name || '';
+      
+      console.log(`[PropertyWellMatch] Organization name: ${orgName}`);
+      
+      // Filter by organization name (as displayed in linked field)
+      propertiesFilter = `FIND('${orgName}', ARRAYJOIN({Organization})) > 0`;
+      wellsFilter = `FIND('${orgName}', ARRAYJOIN({Organization})) > 0`;
+      linksFilter = `FIND('${orgName}', ARRAYJOIN({Organization})) > 0`;
     } else {
-      // Solo user - filter by user record ID (not email)
-      propertiesFilter = `FIND('${userId}', ARRAYJOIN({User})) > 0`;
-      wellsFilter = `FIND('${userId}', ARRAYJOIN({User})) > 0`;
-      linksFilter = `FIND('${userId}', ARRAYJOIN({User})) > 0`;
+      // Solo user - filter by user email (as displayed in linked field)
+      propertiesFilter = `FIND('${authUser.email}', ARRAYJOIN({User})) > 0`;
+      wellsFilter = `FIND('${authUser.email}', ARRAYJOIN({User})) > 0`;
+      linksFilter = `FIND('${authUser.email}', ARRAYJOIN({User})) > 0`;
     }
     
     console.log(`[PropertyWellMatch] Filters - Properties: ${propertiesFilter}`);
