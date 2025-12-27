@@ -324,6 +324,9 @@ export async function createLinksInBatches(
   for (let i = 0; i < links.length; i += batchSize) {
     const batch = links.slice(i, i + batchSize);
     
+    // Debug log the batch
+    console.log(`[CreateLinks] Sending batch ${i/batchSize + 1}:`, JSON.stringify(batch, null, 2));
+    
     try {
       const response = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}`,
@@ -338,10 +341,17 @@ export async function createLinksInBatches(
       );
       
       if (response.ok) {
+        const result = await response.json();
         created += batch.length;
+        console.log(`[CreateLinks] Batch created successfully:`, result.records?.map(r => ({
+          id: r.id,
+          property: r.fields.Property,
+          well: r.fields.Well
+        })));
       } else {
         const error = await response.text();
         console.error(`[CreateLinks] Batch create failed:`, error);
+        console.error(`[CreateLinks] Failed batch data:`, JSON.stringify(batch, null, 2));
         failed += batch.length;
       }
       
