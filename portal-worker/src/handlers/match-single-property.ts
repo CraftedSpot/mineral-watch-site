@@ -138,6 +138,8 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
           }
         };
         
+        console.log(`[MatchSingleProperty] Creating link with Property=${propertyId}, Well=${wellData.id}`);
+        
         // Add organization if exists
         if (organizationId) {
           linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
@@ -148,6 +150,8 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
     }
     
     console.log(`[MatchSingleProperty] Found ${newLinks.length} new matches`);
+    console.log(`[MatchSingleProperty] PropertyId being used: "${propertyId}"`);
+    console.log(`[MatchSingleProperty] First link to create:`, newLinks[0] ? JSON.stringify(newLinks[0], null, 2) : 'none');
     
     // Create links in batches
     const { created, failed } = await createLinksInBatches(env, newLinks);
