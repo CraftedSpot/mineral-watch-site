@@ -1383,13 +1383,20 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   
   // Trigger full property-well matching if any wells were created
   if (results.successful > 0 && ctx) {
-    const matchPromise = fetch(`${new URL(request.url).origin}/api/match-property-wells`, {
-      method: 'POST',
-      headers: {
-        'Cookie': request.headers.get('Cookie') || '',
-        'Authorization': request.headers.get('Authorization') || ''
-      }
-    }).catch(err => console.error('[BulkWellUpload] Background matching failed:', err));
+    console.log('[BulkWellUpload] Triggering full property-well matching');
+    
+    const organizationId = userOrganization || undefined;
+    const matchPromise = runFullPropertyWellMatching(user.id, user.email, organizationId, env)
+      .then(result => {
+        console.log(`[BulkWellUpload] Matching complete:`, result);
+        if (result.linksCreated > 0) {
+          console.log(`[BulkWellUpload] Created ${result.linksCreated} links from ${result.propertiesProcessed} properties and ${result.wellsProcessed} wells`);
+        }
+      })
+      .catch(err => {
+        console.error('[BulkWellUpload] Background matching failed:', err);
+        console.error('[BulkWellUpload] Error details:', err.message, err.stack);
+      });
     
     // Keep the worker alive until the match completes
     ctx.waitUntil(matchPromise);
