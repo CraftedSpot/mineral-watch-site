@@ -6430,6 +6430,7 @@ function renderWellsPreviewTable() {
             matchedWellHtml = `
                 <select id="${selectId}" class="bulk-well-select" onchange="updateWellSelection(${index}, this.value)" style="max-width: 300px;">
                     <option value="">— Select well (${result.searchResults.total} matches) —</option>
+                    <option value="SKIP">— Skip this well —</option>
                     ${result.searchResults.matches.map(m => 
                         `<option value="${m.api_number}">${escapeHtmlBulk(m.well_name)}${m.well_number ? ' ' + escapeHtmlBulk(m.well_number) : ''} - ${m.api_number} - ${m.operator || 'Unknown Op'} - S${m.section}-T${m.township}-R${m.range} - ${m.county} - ${m.well_status || 'UNK'}</option>`
                     ).join('')}
@@ -6467,7 +6468,12 @@ let wellsSelections = {};
 
 // Update well selection
 function updateWellSelection(index, apiNumber) {
-    if (apiNumber) {
+    if (apiNumber === 'SKIP') {
+        wellsSelections[index] = 'SKIP';
+        // Update the display for skipped wells
+        document.getElementById(`api-${index}`).textContent = '—';
+        document.getElementById(`action-${index}`).innerHTML = '<span style="color: #6b7280;">Skip</span>';
+    } else if (apiNumber) {
         wellsSelections[index] = apiNumber;
         // Update the API and action display
         document.getElementById(`api-${index}`).textContent = apiNumber;
@@ -6538,11 +6544,28 @@ async function startWellsImport() {
     const progressBar = document.getElementById('wells-progress-bar');
     progressBar.classList.remove('indeterminate');
     
-    // Count total wells to import
+    // Count total wells to import (excluding skipped)
     const summary = wellsValidationResults.summary;
-    const totalToImport = summary.exactMatches + summary.hasApi + Object.keys(wellsSelections).length;
+    const skippedSelections = Object.values(wellsSelections).filter(v => v === 'SKIP').length;
+    const totalToImport = summary.exactMatches + summary.hasApi + Object.keys(wellsSelections).length - skippedSelections;
     
     document.getElementById('wells-import-progress').textContent = `Processing ${totalToImport} wells...`;
+    
+    // Simulate progress since we can't get real-time updates from backend
+    let simulatedProgress = 0;
+    const progressInterval = setInterval(() => {
+        simulatedProgress = Math.min(simulatedProgress + Math.random() * 15, 90);
+        progressBar.style.width = simulatedProgress + '%';
+        
+        // Update message based on progress
+        if (simulatedProgress < 30) {
+            document.getElementById('wells-import-progress').textContent = `Validating ${totalToImport} wells...`;
+        } else if (simulatedProgress < 60) {
+            document.getElementById('wells-import-progress').textContent = `Fetching well data from OCC...`;
+        } else {
+            document.getElementById('wells-import-progress').textContent = `Creating well records...`;
+        }
+    }, 500);
     
     try {
         // Send all validation results with selections
@@ -6562,7 +6585,10 @@ async function startWellsImport() {
         
         const results = await response.json();
         
-        // Update progress
+        // Clear the progress simulation
+        clearInterval(progressInterval);
+        
+        // Update progress to 100%
         progressBar.style.width = '100%';
         document.getElementById('wells-import-progress').textContent = 'Processing complete!';
         
@@ -6572,6 +6598,8 @@ async function startWellsImport() {
         showWellsResults(results);
         
     } catch (error) {
+        // Clear the progress simulation on error too
+        clearInterval(progressInterval);
         console.error('Wells upload error:', error);
         showWellsError(error.message);
     }

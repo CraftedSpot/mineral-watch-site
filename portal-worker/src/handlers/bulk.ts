@@ -1179,6 +1179,11 @@ export async function handleBulkUploadWells(request: Request, env: Env) {
     } else if (well.matchStatus === 'ambiguous' && selections && selections[index]) {
       // User selected from multiple matches
       const selectedApi = selections[index];
+      if (selectedApi === 'SKIP') {
+        // User explicitly chose to skip this well
+        console.log(`[BulkUpload] User chose to skip ambiguous well at index ${index}`);
+        return; // Skip this well
+      }
       const selectedMatch = well.searchResults?.matches?.find((m: any) => m.api_number === selectedApi);
       if (selectedMatch) {
         apiNumber = selectedMatch.api_number;
