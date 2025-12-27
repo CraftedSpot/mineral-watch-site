@@ -6500,12 +6500,21 @@ function selectAllExactMatches() {
 // Update import button based on selections
 function updateImportButtonState() {
     const summary = wellsValidationResults.summary;
-    const needsReview = wellsValidationResults.results.filter(r => r.needsSelection);
+    const needsReview = wellsValidationResults.results.filter(r => r.matchStatus === 'ambiguous' && !r.isDuplicate);
     const selectedCount = Object.keys(wellsSelections).length;
     const allSelected = selectedCount >= needsReview.length;
     
-    const canImport = summary.canImport || (allSelected && needsReview.length > 0);
+    // Only allow import if all ambiguous wells have selections
+    const canImport = summary.canImport && (needsReview.length === 0 || allSelected);
     const btn = document.getElementById('wells-import-btn');
+    
+    // Update button text to show pending selections
+    const pendingSelections = needsReview.length - selectedCount;
+    if (pendingSelections > 0) {
+        btn.textContent = `Select ${pendingSelections} wells to continue`;
+    } else {
+        btn.textContent = 'Import Wells';
+    }
     
     if (canImport) {
         btn.disabled = false;
@@ -6581,10 +6590,14 @@ function showWellsResults(results) {
     document.getElementById('wells-result-skipped').textContent = skipped;
     document.getElementById('wells-result-failed').textContent = failed;
     
-    if (failed === 0) {
+    if (failed === 0 && skipped === 0) {
         document.getElementById('wells-results-icon').textContent = '✅';
         document.getElementById('wells-results-title').textContent = 'Import Complete!';
         document.getElementById('wells-results-details').textContent = 'Your wells are now being monitored for OCC activity.';
+    } else if (failed === 0 && skipped > 0) {
+        document.getElementById('wells-results-icon').textContent = '⚠️';
+        document.getElementById('wells-results-title').textContent = 'Import Completed';
+        document.getElementById('wells-results-details').textContent = `${success} wells added successfully. ${skipped} wells were skipped (duplicates, invalid, or no selection made for ambiguous matches).`;
     } else {
         document.getElementById('wells-results-icon').textContent = '⚠️';
         document.getElementById('wells-results-title').textContent = 'Import Completed with Errors';
