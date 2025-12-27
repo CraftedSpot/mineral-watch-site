@@ -639,6 +639,32 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     console.log(`[CascadingSearch] Strategy 2 found ${results.results.length} results`);
   }
   
+  // Strategy 2b: Location + Section (when name doesn't match but we have location)
+  if (results.results.length === 0 && normalizedTownship && normalizedRange && sectionNum !== null) {
+    console.log('[CascadingSearch] Strategy 2b: Location + Section only (name not found)');
+    const query2b = `
+      SELECT w.*, 
+        CASE 
+          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?1)` : 'FALSE'} THEN 75
+          ELSE 65
+        END as match_score
+      FROM wells w
+      WHERE section = ?${operator ? 2 : 1} 
+        AND township = ?${operator ? 3 : 2} 
+        AND range = ?${operator ? 4 : 3} 
+        AND meridian = ?${operator ? 5 : 4}
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    const params2b = operator ? 
+      [`%${operator}%`, sectionNum, normalizedTownship, normalizedRange, meridian] :
+      [sectionNum, normalizedTownship, normalizedRange, meridian];
+    
+    results = await env.WELLS_DB.prepare(query2b).bind(...params2b).all();
+    searchStrategy = 'location+section-only';
+    console.log(`[CascadingSearch] Strategy 2b found ${results.results.length} results`);
+  }
+  
   // Strategy 3: Name only (broader search)
   if (results.results.length === 0 && cleanedWellName) {
     console.log('[CascadingSearch] Strategy 3: Name only');
