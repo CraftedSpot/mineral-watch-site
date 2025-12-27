@@ -495,12 +495,12 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     console.log(`[WellCreate] New well record:`, JSON.stringify(newRecord, null, 2));
     
     // Trigger auto-matching in background (fire and forget)
-    if (newRecord.id) {
+    if (newRecord.id && ctx) {
       const matchUrl = `${new URL(request.url).origin}/api/match-single-well/${newRecord.id}`;
       console.log(`[WellCreate] Triggering auto-match for well: ${newRecord.id}`);
       console.log(`[WellCreate] Match URL: ${matchUrl}`);
       
-      fetch(matchUrl, {
+      const matchPromise = fetch(matchUrl, {
         method: 'POST',
         headers: {
           'Cookie': request.headers.get('Cookie') || '',
@@ -518,8 +518,13 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
         console.error('[WellCreate] Auto-match trigger failed:', err);
         console.error('[WellCreate] Error details:', err.message, err.stack);
       });
-    } else {
+      
+      // Keep the worker alive until the match completes
+      ctx.waitUntil(matchPromise);
+    } else if (!newRecord.id) {
       console.error('[WellCreate] No ID in new record:', newRecord);
+    } else if (!ctx) {
+      console.error('[WellCreate] No ExecutionContext available for background matching');
     }
     
     return jsonResponse(newRecord, 201);
