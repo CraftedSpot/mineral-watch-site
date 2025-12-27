@@ -6451,12 +6451,9 @@
                             // Find the well in loaded data
                             const well = trackedWells.find(w => w.id === wellId);
                             if (well) {
-                                const fields = well.fields || {};
-                                const apiNumber = fields['API Number'];
-                                
-                                // Look for the well marker
-                                if (wellMarkers[apiNumber]) {
-                                    const marker = wellMarkers[apiNumber];
+                                // Look for the well marker using well.id (not API number)
+                                if (wellMarkers[wellId]) {
+                                    const marker = wellMarkers[wellId];
                                     const lat = marker.getLatLng().lat;
                                     const lng = marker.getLatLng().lng;
                                     
@@ -6467,7 +6464,11 @@
                                     setTimeout(() => {
                                         marker.openPopup();
                                     }, 500);
+                                } else {
+                                    console.warn(`Well marker not found for well ID: ${wellId}`);
                                 }
+                            } else {
+                                console.warn(`Well not found with ID: ${wellId}`);
                             }
                         }
                         
