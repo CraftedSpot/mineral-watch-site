@@ -21,7 +21,35 @@ export async function handleDebugAirtable(request: Request, env: Env) {
   const debugType = url.searchParams.get('type');
   
   try {
-    // Test different filter approaches
+    // Debug links table
+    if (debugType === 'links') {
+      const propertyId = url.searchParams.get('propertyId');
+      
+      // Fetch some sample links
+      const linksResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🔗 Property-Well Links')}?maxRecords=10${propertyId ? `&filterByFormula=${encodeURIComponent(`FIND('${propertyId}', ARRAYJOIN({Property})) > 0`)}` : ''}`,
+        {
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        }
+      );
+      
+      const linksData = await linksResponse.json();
+      
+      return jsonResponse({
+        success: true,
+        propertyId,
+        linksFound: linksData.records?.length || 0,
+        sampleLinks: linksData.records?.slice(0, 5).map((r: any) => ({
+          id: r.id,
+          Property: r.fields.Property,
+          Well: r.fields.Well,
+          Status: r.fields.Status,
+          MatchReason: r.fields['Match Reason']
+        }))
+      });
+    }
+    
+    // Original debug code
     const testFilters = [
       `FIND('${user.id}', ARRAYJOIN({User})) > 0`,
       `FIND('${user.email}', ARRAYJOIN({User})) > 0`,
