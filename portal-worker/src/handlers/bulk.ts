@@ -426,14 +426,17 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   console.log(`Bulk upload complete: ${results.successful} created, ${results.failed} failed, ${results.skipped} skipped`);
   
   // Trigger full property-well matching if any properties were created
-  if (results.successful > 0) {
-    fetch(`${new URL(request.url).origin}/api/match-property-wells`, {
+  if (results.successful > 0 && ctx) {
+    const matchPromise = fetch(`${new URL(request.url).origin}/api/match-property-wells`, {
       method: 'POST',
       headers: {
         'Cookie': request.headers.get('Cookie') || '',
         'Authorization': request.headers.get('Authorization') || ''
       }
     }).catch(err => console.error('[BulkPropertyUpload] Background matching failed:', err));
+    
+    // Keep the worker alive until the match completes
+    ctx.waitUntil(matchPromise);
   }
   
   return jsonResponse({
@@ -1132,7 +1135,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
  * @param env Worker environment
  * @returns JSON response with upload results
  */
-export async function handleBulkUploadWells(request: Request, env: Env) {
+export async function handleBulkUploadWells(request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
