@@ -19,8 +19,8 @@ const LINKS_TABLE = '🔗 Property-Well Links';
  */
 export async function handleGetPropertyLinkedWells(propertyId: string, request: Request, env: Env) {
   try {
-    const user = await authenticateRequest(request, env);
-    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
     
     console.log(`[GetLinkedWells] Fetching linked wells for property ${propertyId}`);
     
