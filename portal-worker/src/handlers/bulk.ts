@@ -671,6 +671,25 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   
   console.log(`[CascadingSearch] Final strategy: ${searchStrategy}, Results: ${results.results.length}`);
   
+  // Enhanced debug logging
+  console.log('[CascadingSearch] Search details:', {
+    strategy: searchStrategy,
+    wellName: cleanedWellName,
+    operator,
+    township: normalizedTownship,
+    range: normalizedRange,
+    section: sectionNum,
+    meridian,
+    resultsFound: results.results.length,
+    firstResult: results.results.length > 0 ? {
+      name: results.results[0].well_name,
+      number: results.results[0].well_number,
+      operator: results.results[0].operator,
+      section: results.results[0].section,
+      score: results.results[0].match_score
+    } : null
+  });
+  
   
   // Log first result for debugging
   if (results.results.length > 0) {
