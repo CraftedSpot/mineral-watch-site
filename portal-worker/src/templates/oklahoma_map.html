@@ -6429,6 +6429,8 @@
                         // Check if we need to center on a specific property from URL
                         const urlParams = new URLSearchParams(window.location.search);
                         const propertyId = urlParams.get('property');
+                        const wellId = urlParams.get('well');
+                        
                         if (propertyId) {
                             // Find the property in loaded data
                             const property = userProperties.find(p => p.id === propertyId);
@@ -6441,6 +6443,31 @@
                                 setTimeout(() => {
                                     marker.openPopup();
                                 }, 500);
+                            }
+                        }
+                        
+                        // Check if we need to center on a specific well from URL
+                        else if (wellId) {
+                            // Find the well in loaded data
+                            const well = trackedWells.find(w => w.id === wellId);
+                            if (well) {
+                                const fields = well.fields || {};
+                                const apiNumber = fields['API Number'];
+                                
+                                // Look for the well marker
+                                if (wellMarkers[apiNumber]) {
+                                    const marker = wellMarkers[apiNumber];
+                                    const lat = marker.getLatLng().lat;
+                                    const lng = marker.getLatLng().lng;
+                                    
+                                    // Center map on the well with good zoom level
+                                    map.setView([lat, lng], 14);
+                                    
+                                    // Open the popup after a short delay
+                                    setTimeout(() => {
+                                        marker.openPopup();
+                                    }, 500);
+                                }
                             }
                         }
                         
