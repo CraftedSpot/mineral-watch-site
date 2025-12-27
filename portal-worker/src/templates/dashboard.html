@@ -4482,7 +4482,7 @@
                     console.log('[LinkedWells] Found', data.wells.length, 'wells, updating DOM');
                     listEl.innerHTML = data.wells.map(w => `
                         <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
-                            <div style="flex: 1; cursor: pointer;" onclick="openWellDetail('${w.wellId}')">
+                            <div style="flex: 1; cursor: pointer;" onclick="openWellFromProperty('${w.wellId}')">
                                 <div style="font-weight: 500; color: #2563eb;">${escapeHtml(w.wellName)}</div>
                                 <div style="font-size: 12px; color: #6b7280;">${escapeHtml(w.operator)} • ${escapeHtml(w.county)}</div>
                             </div>
@@ -4538,6 +4538,14 @@
         // Alias for openWellDetailsModal for consistency
         function openWellDetail(wellId) {
             openWellDetailsModal(wellId);
+        }
+        
+        // Open well from property modal - close property first to avoid stacking
+        function openWellFromProperty(wellId) {
+            closePropertyDetailsModal();  // Close property first
+            setTimeout(() => {
+                openWellDetail(wellId);  // Then open well
+            }, 100);  // Small delay to let close animation finish
         }
         
         async function unlinkWell(linkId) {
