@@ -1159,6 +1159,15 @@
             #propertiesContent .data-table td:nth-child(4) { min-width: 50px; } /* Acres */
             #propertiesContent .data-table td:nth-child(5) { min-width: 100px; } /* Notes */
             
+            /* Wells table specific mobile adjustments */
+            #wellsContent .col-well-map { 
+                min-width: 80px !important; /* Ensure map button has space */
+                text-align: right !important;
+            }
+            #wellsContent .col-well-info {
+                max-width: 50%; /* Prevent well info from taking too much space */
+            }
+            
             /* Adjust padding for mobile */
             #propertiesContent .data-table td:nth-child(5) {
                 padding-left: 8px !important;
