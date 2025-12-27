@@ -25,6 +25,8 @@ import {
   authenticateRequest
 } from '../utils/auth.js';
 
+import { matchSingleProperty } from '../utils/property-well-matching.js';
+
 import type { Env } from '../types/env.js';
 
 /**
@@ -160,30 +162,22 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
   console.log(`Property added: ${body.COUNTY} S${section} T${township} R${range} for ${user.email}`);
   console.log(`[PropertyCreate] New property record:`, JSON.stringify(newRecord, null, 2));
   
-  // Trigger auto-matching in background (fire and forget)
+  // Trigger auto-matching in background
   if (newRecord.id && ctx) {
-    const matchUrl = `${new URL(request.url).origin}/api/match-single-property/${newRecord.id}`;
     console.log(`[PropertyCreate] Triggering auto-match for property: ${newRecord.id}`);
-    console.log(`[PropertyCreate] Match URL: ${matchUrl}`);
     
-    const matchPromise = fetch(matchUrl, {
-      method: 'POST',
-      headers: {
-        'Cookie': request.headers.get('Cookie') || '',
-        'Authorization': request.headers.get('Authorization') || ''
-      }
-    })
-    .then(res => {
-      console.log(`[PropertyCreate] Auto-match response status: ${res.status}`);
-      return res.text();
-    })
-    .then(body => {
-      console.log(`[PropertyCreate] Auto-match response body:`, body);
-    })
-    .catch(err => {
-      console.error('[PropertyCreate] Auto-match trigger failed:', err);
-      console.error('[PropertyCreate] Error details:', err.message, err.stack);
-    });
+    const organizationId = userOrganization || undefined;
+    const matchPromise = matchSingleProperty(newRecord.id, user.id, organizationId, env)
+      .then(result => {
+        console.log(`[PropertyCreate] Auto-match complete:`, result);
+        if (result.linksCreated > 0) {
+          console.log(`[PropertyCreate] Created ${result.linksCreated} links out of ${result.wellsChecked} wells checked`);
+        }
+      })
+      .catch(err => {
+        console.error('[PropertyCreate] Auto-match failed:', err);
+        console.error('[PropertyCreate] Error details:', err.message, err.stack);
+      });
     
     // Keep the worker alive until the match completes
     ctx.waitUntil(matchPromise);
