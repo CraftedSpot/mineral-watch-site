@@ -121,7 +121,10 @@ import {
   // Property-well matching handler
   handleMatchPropertyWells,
   // Debug handler
-  handleDebugAirtable
+  handleDebugAirtable,
+  // Property-Wells handlers
+  handleGetPropertyLinkedWells,
+  handleUnlinkPropertyWell
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -655,6 +658,18 @@ var index_default = {
       // Debug endpoint
       if (path === "/api/debug-airtable" && request.method === "GET") {
         return handleDebugAirtable(request, env);
+      }
+      
+      // Property linked wells endpoint
+      const propertyLinkedWellsMatch = path.match(/^\/api\/property\/([a-zA-Z0-9]+)\/linked-wells$/);
+      if (propertyLinkedWellsMatch && request.method === "GET") {
+        return handleGetPropertyLinkedWells(propertyLinkedWellsMatch[1], request, env);
+      }
+      
+      // Unlink property-well endpoint
+      const unlinkMatch = path.match(/^\/api\/property-well-link\/([a-zA-Z0-9]+)$/);
+      if (unlinkMatch && request.method === "DELETE") {
+        return handleUnlinkPropertyWell(unlinkMatch[1], request, env);
       }
       
       // Test endpoint for TRS parsing debug

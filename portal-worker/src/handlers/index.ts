@@ -105,3 +105,9 @@ export {
 export {
   handleDebugAirtable
 } from './debug-airtable.js';
+
+// Property-Wells handlers
+export {
+  handleGetPropertyLinkedWells,
+  handleUnlinkPropertyWell
+} from './property-wells.js';

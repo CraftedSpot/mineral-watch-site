@@ -2066,9 +2066,25 @@
                     <span class="details-label">WI Acres</span>
                     <input type="number" id="propertyDetailsWIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0" oninput="updateTotalAcres()">
                 </div>
-                <div class="details-row">
-                    <span class="details-label">Monitor Adjacent</span>
-                    <span class="details-value" id="propertyDetailsAdjacent">—</span>
+                <!-- Linked Wells Accordion -->
+                <div class="linked-wells-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="linked-wells-header" onclick="toggleLinkedWells()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-wells-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Wells</span>
+                            <span id="linked-wells-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                        <button onclick="event.stopPropagation(); openManualLinkWell()" style="font-size: 12px; color: #2563eb; background: none; border: none; cursor: pointer;">+ Link</button>
+                    </div>
+                    
+                    <div id="linked-wells-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-wells-list">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-wells-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No wells linked to this property
+                        </div>
+                    </div>
                 </div>
                 <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                     <span class="details-label" style="margin-bottom: 8px;">Notes</span>
@@ -4361,13 +4377,15 @@
             }
             
             // Set other fields
-            document.getElementById('propertyDetailsAdjacent').textContent = (f['Monitor Adjacent'] === false) ? 'No' : 'Yes';
             document.getElementById('propertyDetailsRIAcres').value = riAcres;
             document.getElementById('propertyDetailsWIAcres').value = wiAcres;
             document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
             // Update total acres display in form
             updateTotalAcres();
+            
+            // Load linked wells
+            loadLinkedWells(propId);
             
             // Show modal with forced high z-index like bulk modals
             const propModal = document.getElementById('propertyDetailsModal');
@@ -4415,6 +4433,114 @@
                 acreageBadge.style.display = 'inline-block';
             } else {
                 acreageBadge.style.display = 'none';
+            }
+        }
+        
+        // Linked Wells Functions
+        function toggleLinkedWells() {
+            const content = document.getElementById('linked-wells-content');
+            const arrow = document.getElementById('linked-wells-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        async function loadLinkedWells(propertyId) {
+            try {
+                const response = await fetch(`/api/property/${propertyId}/linked-wells`);
+                const data = await response.json();
+                
+                const countEl = document.getElementById('linked-wells-count');
+                const listEl = document.getElementById('linked-wells-list');
+                const emptyEl = document.getElementById('linked-wells-empty');
+                
+                countEl.textContent = data.wells.length;
+                
+                if (data.wells.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                } else {
+                    listEl.innerHTML = data.wells.map(w => `
+                        <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                            <div style="flex: 1; cursor: pointer;" onclick="openWellDetail('${w.wellId}')">
+                                <div style="font-weight: 500; color: #2563eb;">${escapeHtml(w.wellName)}</div>
+                                <div style="font-size: 12px; color: #6b7280;">${escapeHtml(w.operator)} • ${escapeHtml(w.county)}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(w.matchReason)}">${getMatchReasonLabel(w.matchReason)}</span>
+                                <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getStatusStyle(w.wellStatus)}">${w.wellStatus || 'AC'}</span>
+                                <button onclick="event.stopPropagation(); unlinkWell('${w.linkId}')" style="color: #9ca3af; background: none; border: none; cursor: pointer; padding: 4px;" title="Unlink">×</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    listEl.style.display = 'block';
+                    emptyEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load linked wells:', error);
+                document.getElementById('linked-wells-count').textContent = '0';
+                document.getElementById('linked-wells-list').style.display = 'none';
+                document.getElementById('linked-wells-empty').style.display = 'block';
+            }
+        }
+        
+        function getMatchReasonStyle(reason) {
+            switch(reason) {
+                case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
+                case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
+                case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+        
+        function getMatchReasonLabel(reason) {
+            switch(reason) {
+                case 'Surface Location': return 'Surface';
+                case 'Bottom Hole': return 'Bottom Hole';
+                case 'Lateral Path': return 'Lateral';
+                default: return reason;
+            }
+        }
+        
+        function getStatusStyle(status) {
+            switch(status) {
+                case 'AC': return 'background: #dcfce7; color: #166534;';
+                case 'TA': return 'background: #fef9c3; color: #854d0e;';
+                case 'PA': return 'background: #f3f4f6; color: #6b7280;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+        
+        function openManualLinkWell() {
+            alert('Manual well linking coming soon');
+        }
+        
+        // Alias for openWellDetailsModal for consistency
+        function openWellDetail(wellId) {
+            openWellDetailsModal(wellId);
+        }
+        
+        async function unlinkWell(linkId) {
+            if (!confirm('Remove this well link?')) return;
+            
+            try {
+                const response = await fetch(`/api/property-well-link/${linkId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    // Reload the linked wells list
+                    const propertyId = document.getElementById('propertyDetailsId').value;
+                    loadLinkedWells(propertyId);
+                } else {
+                    console.error('Failed to unlink well');
+                }
+            } catch (error) {
+                console.error('Error unlinking well:', error);
             }
         }
         

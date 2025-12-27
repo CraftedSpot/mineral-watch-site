@@ -266,14 +266,17 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       console.log(`[PropertyWellMatch] Organization name: ${orgName}`);
       
       // Filter by organization name (as displayed in linked field)
-      propertiesFilter = `FIND('${orgName}', ARRAYJOIN({Organization})) > 0`;
-      wellsFilter = `FIND('${orgName}', ARRAYJOIN({Organization})) > 0`;
-      linksFilter = `FIND('${orgName}', ARRAYJOIN({Organization})) > 0`;
+      // Using FIND with organization name since linked fields display names
+      propertiesFilter = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization})) > 0`;
+      wellsFilter = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization})) > 0`;
+      linksFilter = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization})) > 0`;
     } else {
       // Solo user - filter by user email (as displayed in linked field)
-      propertiesFilter = `FIND('${authUser.email}', ARRAYJOIN({User})) > 0`;
-      wellsFilter = `FIND('${authUser.email}', ARRAYJOIN({User})) > 0`;
-      linksFilter = `FIND('${authUser.email}', ARRAYJOIN({User})) > 0`;
+      // Airtable displays emails in linked User fields, not record IDs
+      const userEmail = authUser.email.replace(/'/g, "\\'");
+      propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+      wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+      linksFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
     
     console.log(`[PropertyWellMatch] Filters - Properties: ${propertiesFilter}`);
