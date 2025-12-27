@@ -2859,7 +2859,8 @@
             
             displayProperties.forEach(p => {
                 const f = p.fields;
-                const str = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+                const meridian = f.MERIDIAN || 'IM';
+                const str = `T${f.TWN} R${f.RNG} ${f.SEC} ${meridian}`;
                 const riAcres = parseFloat(f['RI Acres'] || 0);
                 const wiAcres = parseFloat(f['WI Acres'] || 0);
                 const totalAcres = riAcres + wiAcres;
