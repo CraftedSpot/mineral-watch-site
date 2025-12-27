@@ -621,15 +621,18 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
           ELSE 70
         END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${caseParams.length + 1})
-        AND township = ?${caseParams.length + 2} 
-        AND range = ?${caseParams.length + 3} 
-        AND meridian = ?${caseParams.length + 4}
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${caseParams.length + 1})
+        OR UPPER(well_name) LIKE UPPER(?${caseParams.length + 2})
+      )
+        AND township = ?${caseParams.length + 3} 
+        AND range = ?${caseParams.length + 4} 
+        AND meridian = ?${caseParams.length + 5}
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
     
-    const params2 = [...caseParams, `%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian];
+    const params2 = [...caseParams, `%${cleanedWellName}%`, `%${baseWellName}%`, normalizedTownship, normalizedRange, meridian];
     
     results = await env.WELLS_DB.prepare(query2).bind(...params2).all();
     searchStrategy = 'name+T-R';
@@ -646,19 +649,25 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
           ELSE 50
         END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        OR UPPER(well_name) LIKE UPPER(?3)
+      )
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     ` : `
       SELECT w.*, 50 as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+        OR UPPER(well_name) LIKE UPPER(?2)
+      )
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
     const params3 = operator ? 
-      [`%${operator}%`, `%${cleanedWellName}%`] :
-      [`%${cleanedWellName}%`];
+      [`%${operator}%`, `%${cleanedWellName}%`, `%${baseWellName}%`] :
+      [`%${cleanedWellName}%`, `%${baseWellName}%`];
     
     results = await env.WELLS_DB.prepare(query3).bind(...params3).all();
     searchStrategy = 'name-only';
