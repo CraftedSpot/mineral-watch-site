@@ -18,42 +18,42 @@ const PROPERTIES_TABLE = '📍 Client Properties';
 const WELLS_TABLE = '🛢️ Client Wells';
 const LINKS_TABLE = '🔗 Property-Well Links';
 
-// Field IDs for properties
+// Use human-readable field names (Airtable API returns these, not field IDs)
 const PROPERTY_FIELDS = {
-  SEC: 'fldMUdSwoeIld3so6',
-  TWN: 'flduJVIeILS8BxMti',
-  RNG: 'fldMnVcuh22kFDwBK',
-  MERIDIAN: 'fldQXLIUduXWPmb6A',
-  USER: 'fldpib59FuQYaZvQm',
-  ORGANIZATION: 'fldaQdGOSstiSPB7N',
-  COUNTY: 'County' // Standard field name
+  SEC: 'SEC',
+  TWN: 'TWN',
+  RNG: 'RNG',
+  MERIDIAN: 'MERIDIAN',
+  USER: 'User',
+  ORGANIZATION: 'Organization',
+  COUNTY: 'County'
 };
 
-// Field IDs for wells
+// Field names for wells
 const WELL_FIELDS = {
-  SECTION: 'fldsrDPnsri8uMnXl',
-  TOWNSHIP: 'fld2QhSvh6RN0hfy7',
-  RANGE: 'fldyU8PkVe3X7CA4j',
-  BH_SECTION: 'fldIfoEUV6o5rCbSh',
-  BH_TOWNSHIP: 'fldWXtigSOBLcCwpJ',
-  BH_RANGE: 'fldTZc6IAGTYfNwpS',
-  SECTIONS_AFFECTED: 'fldaXdn7QL4OtZ3Ub',
-  WELL_NAME: 'fld3WgkKdn677hpRr',
-  USER: 'fldjWUP6q4U6kVvMN',
-  ORGANIZATION: 'fldv34039tLADSUFm',
-  COUNTY: 'County' // Standard field name
+  SECTION: 'Section',
+  TOWNSHIP: 'Township',
+  RANGE: 'Range',
+  BH_SECTION: 'BH Section',
+  BH_TOWNSHIP: 'BH Township',
+  BH_RANGE: 'BH Range',
+  SECTIONS_AFFECTED: 'Sections Affected',
+  WELL_NAME: 'Well Name',
+  USER: 'User',
+  ORGANIZATION: 'Organization',
+  COUNTY: 'County'
 };
 
-// Field IDs for links
+// Field names for links
 const LINK_FIELDS = {
-  LINK_NAME: 'fldXZOU3LJZg6Jjce',
-  PROPERTY: 'fldXizudmN80KHZfv',
-  WELL: 'fldhkF6FxNnT9WRhl',
-  LINK_TYPE: 'flduwB0g5Ew9EU22n',
-  MATCH_REASON: 'fldTbERRalyNWIkYb',
-  STATUS: 'fldMGHRT3N6gyziXh',
-  USER: 'fldsTbPjPc4W2VHk8',
-  ORGANIZATION: 'fldPslA7jjs5BIO76'
+  LINK_NAME: 'Link Name',
+  PROPERTY: 'Property',
+  WELL: 'Well',
+  LINK_TYPE: 'Link Type',
+  MATCH_REASON: 'Match Reason',
+  STATUS: 'Status',
+  USER: 'User',
+  ORGANIZATION: 'Organization'
 };
 
 interface LocationKey {
