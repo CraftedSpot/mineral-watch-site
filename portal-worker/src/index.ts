@@ -609,7 +609,7 @@ var index_default = {
         return handleBulkValidateProperties(request, env);
       }
       if (path === "/api/bulk-upload-properties" && request.method === "POST") {
-        return handleBulkUploadProperties(request, env);
+        return handleBulkUploadProperties(request, env, ctx);
       }
       
       // Bulk wells endpoints
