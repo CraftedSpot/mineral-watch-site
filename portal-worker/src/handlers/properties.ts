@@ -158,6 +158,18 @@ export async function handleAddProperty(request: Request, env: Env) {
   }
   const newRecord = await response.json();
   console.log(`Property added: ${body.COUNTY} S${section} T${township} R${range} for ${user.email}`);
+  
+  // Trigger auto-matching in background (fire and forget)
+  if (newRecord.id) {
+    fetch(`${new URL(request.url).origin}/api/match-single-property/${newRecord.id}`, {
+      method: 'POST',
+      headers: {
+        'Cookie': request.headers.get('Cookie') || '',
+        'Authorization': request.headers.get('Authorization') || ''
+      }
+    }).catch(err => console.error('[PropertyAdd] Background matching failed:', err));
+  }
+  
   return jsonResponse(newRecord, 201);
 }
 

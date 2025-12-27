@@ -492,6 +492,18 @@ export async function handleAddWell(request: Request, env: Env) {
   
     const newRecord = await response.json();
     console.log(`Well added: API ${cleanApi} for ${user.email}`);
+    
+    // Trigger auto-matching in background (fire and forget)
+    if (newRecord.id) {
+      fetch(`${new URL(request.url).origin}/api/match-single-well/${newRecord.id}`, {
+        method: 'POST',
+        headers: {
+          'Cookie': request.headers.get('Cookie') || '',
+          'Authorization': request.headers.get('Authorization') || ''
+        }
+      }).catch(err => console.error('[WellAdd] Background matching failed:', err));
+    }
+    
     return jsonResponse(newRecord, 201);
   } catch (error) {
     console.error("Error in handleAddWell:", error);

@@ -125,7 +125,10 @@ import {
   // Property-Wells handlers
   handleGetPropertyLinkedWells,
   handleGetWellLinkedProperties,
-  handleUnlinkPropertyWell
+  handleUnlinkPropertyWell,
+  // Single item matching handlers
+  handleMatchSingleProperty,
+  handleMatchSingleWell
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -677,6 +680,18 @@ var index_default = {
       const unlinkMatch = path.match(/^\/api\/property-well-link\/([a-zA-Z0-9]+)$/);
       if (unlinkMatch && request.method === "DELETE") {
         return handleUnlinkPropertyWell(unlinkMatch[1], request, env);
+      }
+      
+      // Match single property endpoint
+      const matchPropertyMatch = path.match(/^\/api\/match-single-property\/([a-zA-Z0-9]+)$/);
+      if (matchPropertyMatch && request.method === "POST") {
+        return handleMatchSingleProperty(matchPropertyMatch[1], request, env);
+      }
+      
+      // Match single well endpoint
+      const matchWellMatch = path.match(/^\/api\/match-single-well\/([a-zA-Z0-9]+)$/);
+      if (matchWellMatch && request.method === "POST") {
+        return handleMatchSingleWell(matchWellMatch[1], request, env);
       }
       
       // Test endpoint for TRS parsing debug

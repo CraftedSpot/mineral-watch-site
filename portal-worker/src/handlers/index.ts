@@ -112,3 +112,12 @@ export {
   handleGetWellLinkedProperties,
   handleUnlinkPropertyWell
 } from './property-wells.js';
+
+// Single item matching handlers
+export {
+  handleMatchSingleProperty
+} from './match-single-property.js';
+
+export {
+  handleMatchSingleWell
+} from './match-single-well.js';
