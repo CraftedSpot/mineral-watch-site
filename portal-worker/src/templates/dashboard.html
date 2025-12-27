@@ -4385,6 +4385,7 @@
             updateTotalAcres();
             
             // Load linked wells
+            console.log('[PropertyDetails] Opening property:', propId);
             loadLinkedWells(propId);
             
             // Show modal with forced high z-index like bulk modals
@@ -4450,20 +4451,25 @@
         }
         
         async function loadLinkedWells(propertyId) {
+            console.log('[LinkedWells] Loading linked wells for property:', propertyId);
             try {
                 const response = await fetch(`/api/property/${propertyId}/linked-wells`);
+                console.log('[LinkedWells] API Response status:', response.status);
                 const data = await response.json();
+                console.log('[LinkedWells] API Response data:', data);
                 
                 const countEl = document.getElementById('linked-wells-count');
                 const listEl = document.getElementById('linked-wells-list');
                 const emptyEl = document.getElementById('linked-wells-empty');
                 
-                countEl.textContent = data.wells.length;
+                countEl.textContent = data.wells ? data.wells.length : 0;
                 
-                if (data.wells.length === 0) {
+                if (!data.wells || data.wells.length === 0) {
+                    console.log('[LinkedWells] No wells found, showing empty state');
                     listEl.style.display = 'none';
                     emptyEl.style.display = 'block';
                 } else {
+                    console.log('[LinkedWells] Found', data.wells.length, 'wells, updating DOM');
                     listEl.innerHTML = data.wells.map(w => `
                         <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
                             <div style="flex: 1; cursor: pointer;" onclick="openWellDetail('${w.wellId}')">

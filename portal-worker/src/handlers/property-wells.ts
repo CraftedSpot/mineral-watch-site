@@ -51,7 +51,10 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     }
     
     // Fetch active links for this property
-    const linksFilter = `AND({Property} = '${propertyId}', {Status} = 'Active')`;
+    // Using FIND() to search within the linked record array
+    const linksFilter = `AND(FIND('${propertyId}', ARRAYJOIN({Property})) > 0, {Status} = 'Active')`;
+    console.log(`[GetLinkedWells] Filter formula: ${linksFilter}`);
+    
     const linksResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?filterByFormula=${encodeURIComponent(linksFilter)}`,
       {
@@ -60,10 +63,13 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     );
     
     if (!linksResponse.ok) {
+      const errorText = await linksResponse.text();
+      console.error(`[GetLinkedWells] Failed to fetch links: ${linksResponse.status} - ${errorText}`);
       throw new Error(`Failed to fetch links: ${linksResponse.status}`);
     }
     
     const linksData = await linksResponse.json();
+    console.log(`[GetLinkedWells] Found ${linksData.records.length} links for property ${propertyId}`);
     const wells = [];
     
     // Fetch well details for each link
