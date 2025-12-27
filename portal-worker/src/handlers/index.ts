@@ -95,3 +95,8 @@ export {
   handleUpdateMemberRole,
   handleRemoveMember
 } from './organization.js';
+
+// Property-well matching handler
+export {
+  handleMatchPropertyWells
+} from './property-well-matching.js';

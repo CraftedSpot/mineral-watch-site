@@ -117,7 +117,9 @@ import {
   // Statewide activity handler
   handleStatewideActivity,
   // Statewide activity backfill handler
-  handleBackfillStatewideActivity
+  handleBackfillStatewideActivity,
+  // Property-well matching handler
+  handleMatchPropertyWells
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -641,6 +643,11 @@ var index_default = {
       // Statewide activity backfill endpoint
       if (path === "/api/backfill-statewide-activity" && request.method === "POST") {
         return handleBackfillStatewideActivity(request, env);
+      }
+      
+      // Property-well matching endpoint
+      if (path === "/api/match-property-wells" && request.method === "POST") {
+        return handleMatchPropertyWells(request, env);
       }
       
       // Test endpoint for TRS parsing debug
