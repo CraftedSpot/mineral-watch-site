@@ -593,6 +593,56 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
   }
   
+  // Strategy 1.5: Exact name match statewide (for very specific well names)
+  if (results.results.length === 0 && cleanedWellName && cleanedWellName.length > 10) {
+    console.log('[CascadingSearch] Strategy 1.5: Exact name match statewide');
+    
+    // Try to match with # added if not present
+    // "MCCARTHY 1506 3H-30X" should also match "MCCARTHY 1506 #3H-30X"
+    const nameWithHash = cleanedWellName.replace(/\s+(\d+[A-Z]?-\d+[A-Z]?X?)$/i, ' #$1');
+    const nameWithoutHash = cleanedWellName.replace(/\s+#(\d+[A-Z]?-\d+[A-Z]?X?)$/i, ' $1');
+    
+    const query15 = operator ? `
+      SELECT w.*, 
+        CASE 
+          WHEN UPPER(operator) LIKE UPPER(?1) THEN 95
+          WHEN township = ?2 AND range = ?3 THEN 85
+          ELSE 80
+        END as match_score
+      FROM wells w
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) = UPPER(?4)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) = UPPER(?5)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) = UPPER(?6)
+      )
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    ` : `
+      SELECT w.*, 
+        CASE 
+          WHEN township = ?1 AND range = ?2 THEN 85
+          ELSE 80
+        END as match_score
+      FROM wells w
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) = UPPER(?3)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) = UPPER(?4)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) = UPPER(?5)
+      )
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    
+    const params15 = operator ? 
+      [`%${operator}%`, normalizedTownship, normalizedRange, cleanedWellName, nameWithHash, nameWithoutHash] :
+      [normalizedTownship, normalizedRange, cleanedWellName, nameWithHash, nameWithoutHash];
+    
+    console.log(`[CascadingSearch] Strategy 1.5 searching for exact names: "${cleanedWellName}", "${nameWithHash}", "${nameWithoutHash}"`);
+    results = await env.WELLS_DB.prepare(query15).bind(...params15).all();
+    searchStrategy = 'exact-name-statewide';
+    console.log(`[CascadingSearch] Strategy 1.5 found ${results.results.length} results`);
+  }
+  
   // Strategy 2: Name + T-R (no section - handles horizontal wells)
   if (results.results.length === 0 && cleanedWellName && normalizedTownship && normalizedRange) {
     console.log('[CascadingSearch] Strategy 2: Name + T-R (no section)');
