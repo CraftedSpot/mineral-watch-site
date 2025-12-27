@@ -136,12 +136,24 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         // Try to extract full well name from OCC Map Link
         let displayName = wellName;
         if (occMapLink) {
-          // Look for title parameter in the URL
-          const titleMatch = occMapLink.match(/title%22%3A%22([^%]+)/);
-          if (titleMatch) {
-            displayName = decodeURIComponent(titleMatch[1].replace(/%20/g, ' '));
-          } else if (wellNumber && !wellName.includes(wellNumber)) {
-            displayName += ` ${wellNumber}`;
+          try {
+            // First decode the URL to handle encoded characters
+            const decoded = decodeURIComponent(occMapLink);
+            // Look for the title in the JSON structure
+            const titleMatch = decoded.match(/"title":"([^"]+)"/);
+            if (titleMatch && titleMatch[1]) {
+              displayName = titleMatch[1];
+            } else if (wellNumber && !wellName.includes(wellNumber)) {
+              displayName += ` ${wellNumber}`;
+            }
+          } catch (e) {
+            // If decoding fails, try the old method
+            const titleMatch = occMapLink.match(/title%22%3A%22([^%]+)/);
+            if (titleMatch) {
+              displayName = decodeURIComponent(titleMatch[1].replace(/%20/g, ' '));
+            } else if (wellNumber && !wellName.includes(wellNumber)) {
+              displayName += ` ${wellNumber}`;
+            }
           }
         } else if (wellNumber && !wellName.includes(wellNumber)) {
           displayName += ` ${wellNumber}`;
