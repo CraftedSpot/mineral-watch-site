@@ -549,15 +549,22 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Strategy 1: Name + Section + T-R (most specific)
   if (cleanedWellName && normalizedTownship && normalizedRange && sectionNum !== null) {
     console.log('[CascadingSearch] Strategy 1: Name + Section + T-R');
-    const query1 = `
+    const query1 = operator ? `
       SELECT w.*, 
         CASE 
-          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} THEN 100
+          WHEN UPPER(operator) LIKE UPPER(?1) THEN 100
           ELSE 90
         END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
-        AND section = ? AND township = ? AND range = ? AND meridian = ?
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        AND section = ?3 AND township = ?4 AND range = ?5 AND meridian = ?6
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    ` : `
+      SELECT w.*, 90 as match_score
+      FROM wells w
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+        AND section = ?2 AND township = ?3 AND range = ?4 AND meridian = ?5
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
