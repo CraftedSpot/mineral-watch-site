@@ -617,7 +617,7 @@ var index_default = {
         return handleBulkValidateWells(request, env);
       }
       if (path === "/api/bulk-upload-wells" && request.method === "POST") {
-        return handleBulkUploadWells(request, env);
+        return handleBulkUploadWells(request, env, ctx);
       }
 
       
