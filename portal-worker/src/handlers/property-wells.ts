@@ -80,24 +80,33 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     
     console.log(`[GetLinkedWells] Fetching all user links with filter: ${linksFilter}`);
     
-    const linksResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?filterByFormula=${encodeURIComponent(linksFilter)}&maxRecords=1000`,
-      {
+    // Fetch all links with pagination support
+    const allRecords: any[] = [];
+    let offset: string | undefined;
+    
+    do {
+      const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?filterByFormula=${encodeURIComponent(linksFilter)}&pageSize=100${offset ? `&offset=${offset}` : ''}`;
+      
+      const linksResponse = await fetch(url, {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      });
+      
+      if (!linksResponse.ok) {
+        const errorText = await linksResponse.text();
+        console.error(`[GetLinkedWells] Failed to fetch links: ${linksResponse.status} - ${errorText}`);
+        throw new Error(`Failed to fetch links: ${linksResponse.status}`);
       }
-    );
+      
+      const pageData = await linksResponse.json();
+      allRecords.push(...pageData.records);
+      offset = pageData.offset;
+      
+    } while (offset);
     
-    if (!linksResponse.ok) {
-      const errorText = await linksResponse.text();
-      console.error(`[GetLinkedWells] Failed to fetch links: ${linksResponse.status} - ${errorText}`);
-      throw new Error(`Failed to fetch links: ${linksResponse.status}`);
-    }
-    
-    const allLinksData = await linksResponse.json();
-    console.log(`[GetLinkedWells] Found ${allLinksData.records.length} total active links for user`);
+    console.log(`[GetLinkedWells] Found ${allRecords.length} total active links for user`);
     
     // Filter for this specific property in JavaScript
-    const propertyLinks = allLinksData.records.filter((link: any) => {
+    const propertyLinks = allRecords.filter((link: any) => {
       const linkedProperties = link.fields.Property || [];
       return linkedProperties.includes(propertyId);
     });
@@ -123,13 +132,10 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         const apiNumber = wellData.fields['API Number'] || '';
         const wellNumber = wellData.fields['Well Number'] || '';
         
-        // Construct display name with API or well number for differentiation
+        // Construct display name with well number (not API)
         let displayName = wellName;
         if (wellNumber && !wellName.includes(wellNumber)) {
           displayName += ` ${wellNumber}`;
-        }
-        if (apiNumber) {
-          displayName += ` (${apiNumber})`;
         }
         
         // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"

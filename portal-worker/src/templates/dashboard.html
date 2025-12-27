@@ -2078,7 +2078,7 @@
                     </div>
                     
                     <div id="linked-wells-content" style="display: none; padding: 0 16px 16px;">
-                        <div id="linked-wells-list">
+                        <div id="linked-wells-list" style="max-height: 300px; overflow-y: auto;">
                             <!-- Populated dynamically -->
                         </div>
                         <div id="linked-wells-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
@@ -4455,15 +4455,22 @@
         
         async function loadLinkedWells(propertyId) {
             console.log('[LinkedWells] Loading linked wells for property:', propertyId);
+            
+            // Clear immediately to avoid showing stale data
+            const countEl = document.getElementById('linked-wells-count');
+            const listEl = document.getElementById('linked-wells-list');
+            const emptyEl = document.getElementById('linked-wells-empty');
+            
+            countEl.textContent = '0';
+            listEl.innerHTML = '';
+            listEl.style.display = 'none';
+            emptyEl.style.display = 'block';
+            
             try {
                 const response = await fetch(`/api/property/${propertyId}/linked-wells`);
                 console.log('[LinkedWells] API Response status:', response.status);
                 const data = await response.json();
                 console.log('[LinkedWells] API Response data:', data);
-                
-                const countEl = document.getElementById('linked-wells-count');
-                const listEl = document.getElementById('linked-wells-list');
-                const emptyEl = document.getElementById('linked-wells-empty');
                 
                 countEl.textContent = data.wells ? data.wells.length : 0;
                 
