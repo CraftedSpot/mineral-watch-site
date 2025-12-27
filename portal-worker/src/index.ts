@@ -119,7 +119,9 @@ import {
   // Statewide activity backfill handler
   handleBackfillStatewideActivity,
   // Property-well matching handler
-  handleMatchPropertyWells
+  handleMatchPropertyWells,
+  // Debug handler
+  handleDebugAirtable
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -648,6 +650,11 @@ var index_default = {
       // Property-well matching endpoint
       if (path === "/api/match-property-wells" && request.method === "POST") {
         return handleMatchPropertyWells(request, env);
+      }
+      
+      // Debug endpoint
+      if (path === "/api/debug-airtable" && request.method === "GET") {
+        return handleDebugAirtable(request, env);
       }
       
       // Test endpoint for TRS parsing debug

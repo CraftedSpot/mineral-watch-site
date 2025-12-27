@@ -100,3 +100,8 @@ export {
 export {
   handleMatchPropertyWells
 } from './property-well-matching.js';
+
+// Debug handler
+export {
+  handleDebugAirtable
+} from './debug-airtable.js';
