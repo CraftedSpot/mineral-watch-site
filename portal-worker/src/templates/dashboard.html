@@ -4385,10 +4385,6 @@
             // Update total acres display in form
             updateTotalAcres();
             
-            // Load linked wells
-            console.log('[PropertyDetails] Opening property:', propId);
-            loadLinkedWells(propId);
-            
             // Show modal with forced high z-index like bulk modals
             const propModal = document.getElementById('propertyDetailsModal');
             
@@ -4398,6 +4394,12 @@
             }
             
             propModal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999999 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
+            
+            // Load linked wells after modal is shown to avoid race condition
+            console.log('[PropertyDetails] Opening property:', propId);
+            setTimeout(() => {
+                loadLinkedWells(propId);
+            }, 100);
             
             // Handle viewer permissions
             const isViewer = currentUser?.role === 'Viewer';

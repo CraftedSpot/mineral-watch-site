@@ -119,14 +119,32 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       
       if (wellResponse.ok) {
         const wellData = await wellResponse.json();
+        const wellName = wellData.fields['Well Name'] || 'Unknown Well';
+        const apiNumber = wellData.fields['API Number'] || '';
+        const wellNumber = wellData.fields['Well Number'] || '';
+        
+        // Construct display name with API or well number for differentiation
+        let displayName = wellName;
+        if (wellNumber && !wellName.includes(wellNumber)) {
+          displayName += ` ${wellNumber}`;
+        }
+        if (apiNumber) {
+          displayName += ` (${apiNumber})`;
+        }
+        
+        // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"
+        const county = wellData.fields.County || 'Unknown County';
+        const cleanCounty = county.replace(/^\d+-/, '');
+        
         wells.push({
           linkId: link.id,
           wellId: wellData.id,
-          wellName: wellData.fields['Well Name'] || 'Unknown Well',
+          wellName: displayName,
           operator: wellData.fields.Operator || 'Unknown Operator',
-          county: wellData.fields.County || 'Unknown County',
+          county: cleanCounty,
           wellStatus: wellData.fields['Well Status'] || 'AC',
-          matchReason: link.fields['Match Reason'] || 'Manual'
+          matchReason: link.fields['Match Reason'] || 'Manual',
+          apiNumber: apiNumber
         });
       }
     }
