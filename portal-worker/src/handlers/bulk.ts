@@ -474,6 +474,12 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // D1 has: FEIKES A UNIT, ADAMS Q, RICHARDSON B
   const cleanedWellName = fullWellName.replace(/["""'']/g, '').trim();
   
+  // For fuzzy matching, extract the base well name (before well number)
+  // Examples: "MCCARTHY 1506 3H-30X" -> "MCCARTHY 1506"
+  // This helps match variations like "3H-30X" vs "#1H-30X"
+  const wellNameParts = cleanedWellName.match(/^(.*?)\s+(\d+[A-Z]?-\d+[A-Z]?X?|\#\d+[A-Z]?-\d+[A-Z]?X?)$/i);
+  const baseWellName = wellNameParts ? wellNameParts[1].trim() : cleanedWellName;
+  
   // Extract other fields
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
   const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
@@ -521,6 +527,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   console.log('[CascadingSearch] Parsed values:', {
     originalWellName: fullWellName,
     cleanedWellName,  // After quotes removed
+    baseWellName,     // Base name for fuzzy matching
     sectionString: section,
     sectionNum,
     normalizedTownship,
