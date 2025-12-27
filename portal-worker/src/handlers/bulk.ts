@@ -1373,14 +1373,17 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   console.log(`Bulk wells upload complete: ${results.successful} created, ${results.failed} failed, ${results.skipped} skipped`);
   
   // Trigger full property-well matching if any wells were created
-  if (results.successful > 0) {
-    fetch(`${new URL(request.url).origin}/api/match-property-wells`, {
+  if (results.successful > 0 && ctx) {
+    const matchPromise = fetch(`${new URL(request.url).origin}/api/match-property-wells`, {
       method: 'POST',
       headers: {
         'Cookie': request.headers.get('Cookie') || '',
         'Authorization': request.headers.get('Authorization') || ''
       }
     }).catch(err => console.error('[BulkWellUpload] Background matching failed:', err));
+    
+    // Keep the worker alive until the match completes
+    ctx.waitUntil(matchPromise);
   }
   
   return jsonResponse({
