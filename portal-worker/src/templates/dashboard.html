@@ -6421,7 +6421,7 @@ function renderWellsPreviewTable() {
             actionHtml = result.isDuplicate ? '<span style="color: #6b7280;">Already tracked</span>' : '<span style="color: #22c55e;">✓ Will add</span>';
         } else if (result.matchStatus === 'exact' && result.searchResults) {
             const match = result.searchResults.matches[0];
-            matchedWellHtml = escapeHtmlBulk(match.well_name || '-');
+            matchedWellHtml = escapeHtmlBulk(match.well_name || '-') + (match.well_number ? ' ' + escapeHtmlBulk(match.well_number) : '');
             apiNumberHtml = escapeHtmlBulk(match.api_number);
             actionHtml = result.isDuplicate ? '<span style="color: #6b7280;">Already tracked</span>' : '<span style="color: #22c55e;">✓ Will add</span>';
         } else if (result.matchStatus === 'ambiguous' && result.searchResults) {
