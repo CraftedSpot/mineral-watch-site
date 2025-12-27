@@ -50,13 +50,32 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       return jsonResponse({ error: "Unauthorized" }, 403);
     }
     
-    // Fetch active links for this property
-    // Using SEARCH() for linked record fields - more reliable than FIND()
-    const linksFilter = `AND(SEARCH("${propertyId}", ARRAYJOIN({Property})), {Status} = 'Active')`;
-    console.log(`[GetLinkedWells] Filter formula: ${linksFilter}`);
+    // Fetch ALL active links for this user/org, then filter in JS
+    // Airtable's linked record filtering is unreliable, so we fetch all and filter locally
+    let linksFilter: string;
+    
+    if (organizationId) {
+      // For org users, get the organization name first
+      const orgResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        {
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        }
+      );
+      
+      const orgData = await orgResponse.json();
+      const orgName = orgData.fields?.Name || '';
+      
+      linksFilter = `AND({Status} = 'Active', FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization})) > 0)`;
+    } else {
+      // For solo users, filter by user email
+      linksFilter = `AND({Status} = 'Active', FIND('${authUser.email}', ARRAYJOIN({User})) > 0)`;
+    }
+    
+    console.log(`[GetLinkedWells] Fetching all user links with filter: ${linksFilter}`);
     
     const linksResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?filterByFormula=${encodeURIComponent(linksFilter)}`,
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?filterByFormula=${encodeURIComponent(linksFilter)}&maxRecords=1000`,
       {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
@@ -68,12 +87,20 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       throw new Error(`Failed to fetch links: ${linksResponse.status}`);
     }
     
-    const linksData = await linksResponse.json();
-    console.log(`[GetLinkedWells] Found ${linksData.records.length} links for property ${propertyId}`);
+    const allLinksData = await linksResponse.json();
+    console.log(`[GetLinkedWells] Found ${allLinksData.records.length} total active links for user`);
+    
+    // Filter for this specific property in JavaScript
+    const propertyLinks = allLinksData.records.filter((link: any) => {
+      const linkedProperties = link.fields.Property || [];
+      return linkedProperties.includes(propertyId);
+    });
+    
+    console.log(`[GetLinkedWells] Found ${propertyLinks.length} links for property ${propertyId}`);
     const wells = [];
     
     // Fetch well details for each link
-    for (const link of linksData.records) {
+    for (const link of propertyLinks) {
       const wellId = link.fields.Well?.[0];
       if (!wellId) continue;
       
