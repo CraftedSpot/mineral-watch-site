@@ -1999,6 +1999,27 @@
                     </div>
                 </div>
                 
+                <!-- Linked Properties Accordion -->
+                <div class="linked-properties-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="linked-properties-header" onclick="toggleLinkedProperties()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-properties-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Properties</span>
+                            <span id="linked-properties-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                        <button onclick="event.stopPropagation(); openManualLinkProperty()" style="font-size: 12px; color: #2563eb; background: none; border: none; cursor: pointer;">+ Link</button>
+                    </div>
+                    
+                    <div id="linked-properties-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-properties-list" style="max-height: 250px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-properties-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No properties linked to this well
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Notes Section -->
                 <div class="info-section" style="margin-top: 16px;">
                     <div class="section-label">Notes</div>
@@ -4201,6 +4222,20 @@
             // Store well ID for saving
             document.getElementById('wellDetailsId').value = wellId;
             
+            // Show linked properties count immediately from well data
+            const linkedPropertiesCount = f['Linked Properties']?.length || 0;
+            document.getElementById('linked-properties-count').textContent = linkedPropertiesCount;
+            
+            // Show loading state if there are properties
+            if (linkedPropertiesCount > 0) {
+                document.getElementById('linked-properties-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading properties...</div>';
+                document.getElementById('linked-properties-list').style.display = 'block';
+                document.getElementById('linked-properties-empty').style.display = 'none';
+            } else {
+                document.getElementById('linked-properties-list').style.display = 'none';
+                document.getElementById('linked-properties-empty').style.display = 'block';
+            }
+            
             // Show modal with forced high z-index like bulk modals
             const wellModal = document.getElementById('wellDetailsModal');
             
@@ -4210,6 +4245,11 @@
             }
             
             wellModal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999999 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
+            
+            // Load linked properties after modal is shown
+            setTimeout(() => {
+                loadLinkedProperties(wellId);
+            }, 100);
             
             // Handle viewer permissions
             const isViewer = currentUser?.role === 'Viewer';
@@ -4583,6 +4623,104 @@
             } catch (error) {
                 console.error('Error unlinking well:', error);
             }
+        }
+        
+        // Linked Properties Functions (for well modal)
+        function toggleLinkedProperties() {
+            const content = document.getElementById('linked-properties-content');
+            const arrow = document.getElementById('linked-properties-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        async function loadLinkedProperties(wellId) {
+            console.log('[LinkedProperties] Loading linked properties for well:', wellId);
+            
+            // Clear and show loading state
+            const countEl = document.getElementById('linked-properties-count');
+            const listEl = document.getElementById('linked-properties-list');
+            const emptyEl = document.getElementById('linked-properties-empty');
+            
+            // Don't reset count if it's already set from well data
+            const currentCount = parseInt(countEl.textContent) || 0;
+            if (currentCount > 0) {
+                listEl.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading properties...</div>';
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+            } else {
+                listEl.innerHTML = '';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+            
+            try {
+                const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
+                const data = await response.json();
+                
+                countEl.textContent = data.properties?.length || 0;
+                
+                if (!data.properties || data.properties.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                } else {
+                    listEl.innerHTML = data.properties.map(p => `
+                        <div class="linked-property-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                            <div style="flex: 1; cursor: pointer;" onclick="openPropertyFromWell('${p.propertyId}')">
+                                <div style="font-weight: 500; color: #2563eb;">${escapeHtml(p.location)}</div>
+                                <div style="font-size: 12px; color: #6b7280;">${escapeHtml(p.county)}${p.acres ? ' • ' + p.acres + ' acres' : ''}${p.group ? ' • ' + escapeHtml(p.group) : ''}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
+                                <button onclick="event.stopPropagation(); unlinkProperty('${p.linkId}')" style="color: #9ca3af; background: none; border: none; cursor: pointer; padding: 4px;" title="Unlink">×</button>
+                            </div>
+                        </div>
+                    `).join('');
+                    listEl.style.display = 'block';
+                    emptyEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load linked properties:', error);
+                countEl.textContent = '0';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+        }
+        
+        function openPropertyFromWell(propertyId) {
+            closeWellDetailsModal();  // Close well modal first
+            setTimeout(() => {
+                openPropertyDetails(propertyId);  // Then open property
+            }, 100);
+        }
+        
+        async function unlinkProperty(linkId) {
+            if (!confirm('Remove this property link?')) return;
+            
+            try {
+                const response = await fetch(`/api/property-well-link/${linkId}`, { 
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    // Reload the linked properties list
+                    const wellId = document.getElementById('wellDetailsId').value;
+                    loadLinkedProperties(wellId);
+                } else {
+                    console.error('Failed to unlink property');
+                }
+            } catch (error) {
+                console.error('Error unlinking property:', error);
+            }
+        }
+        
+        function openManualLinkProperty() {
+            alert('Manual property linking coming soon');
         }
         
         async function savePropertyDetails() {

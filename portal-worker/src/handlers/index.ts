@@ -109,5 +109,6 @@ export {
 // Property-Wells handlers
 export {
   handleGetPropertyLinkedWells,
+  handleGetWellLinkedProperties,
   handleUnlinkPropertyWell
 } from './property-wells.js';

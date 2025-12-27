@@ -124,6 +124,7 @@ import {
   handleDebugAirtable,
   // Property-Wells handlers
   handleGetPropertyLinkedWells,
+  handleGetWellLinkedProperties,
   handleUnlinkPropertyWell
 } from './handlers/index.js';
 
@@ -664,6 +665,12 @@ var index_default = {
       const propertyLinkedWellsMatch = path.match(/^\/api\/property\/([a-zA-Z0-9]+)\/linked-wells$/);
       if (propertyLinkedWellsMatch && request.method === "GET") {
         return handleGetPropertyLinkedWells(propertyLinkedWellsMatch[1], request, env);
+      }
+      
+      // Well linked properties endpoint
+      const wellLinkedPropertiesMatch = path.match(/^\/api\/well\/([a-zA-Z0-9]+)\/linked-properties$/);
+      if (wellLinkedPropertiesMatch && request.method === "GET") {
+        return handleGetWellLinkedProperties(wellLinkedPropertiesMatch[1], request, env);
       }
       
       // Unlink property-well endpoint
