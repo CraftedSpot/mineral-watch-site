@@ -35,6 +35,8 @@ import {
 
 import { findOperatorByName } from '../services/operators.js';
 
+import { runFullPropertyWellMatching } from '../utils/property-well-matching.js';
+
 import type { Env } from '../types/env.js';
 
 // Normalization Helper Functions
@@ -427,13 +429,20 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   
   // Trigger full property-well matching if any properties were created
   if (results.successful > 0 && ctx) {
-    const matchPromise = fetch(`${new URL(request.url).origin}/api/match-property-wells`, {
-      method: 'POST',
-      headers: {
-        'Cookie': request.headers.get('Cookie') || '',
-        'Authorization': request.headers.get('Authorization') || ''
-      }
-    }).catch(err => console.error('[BulkPropertyUpload] Background matching failed:', err));
+    console.log('[BulkPropertyUpload] Triggering full property-well matching');
+    
+    const organizationId = userOrganization || undefined;
+    const matchPromise = runFullPropertyWellMatching(user.id, user.email, organizationId, env)
+      .then(result => {
+        console.log(`[BulkPropertyUpload] Matching complete:`, result);
+        if (result.linksCreated > 0) {
+          console.log(`[BulkPropertyUpload] Created ${result.linksCreated} links from ${result.propertiesProcessed} properties and ${result.wellsProcessed} wells`);
+        }
+      })
+      .catch(err => {
+        console.error('[BulkPropertyUpload] Background matching failed:', err);
+        console.error('[BulkPropertyUpload] Error details:', err.message, err.stack);
+      });
     
     // Keep the worker alive until the match completes
     ctx.waitUntil(matchPromise);
