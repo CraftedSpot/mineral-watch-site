@@ -496,30 +496,22 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     console.log(`Well added: API ${cleanApi} for ${user.email}`);
     console.log(`[WellCreate] New well record:`, JSON.stringify(newRecord, null, 2));
     
-    // Trigger auto-matching in background (fire and forget)
+    // Trigger auto-matching in background
     if (newRecord.id && ctx) {
-      const matchUrl = `${new URL(request.url).origin}/api/match-single-well/${newRecord.id}`;
       console.log(`[WellCreate] Triggering auto-match for well: ${newRecord.id}`);
-      console.log(`[WellCreate] Match URL: ${matchUrl}`);
       
-      const matchPromise = fetch(matchUrl, {
-        method: 'POST',
-        headers: {
-          'Cookie': request.headers.get('Cookie') || '',
-          'Authorization': request.headers.get('Authorization') || ''
-        }
-      })
-      .then(res => {
-        console.log(`[WellCreate] Auto-match response status: ${res.status}`);
-        return res.text();
-      })
-      .then(body => {
-        console.log(`[WellCreate] Auto-match response body:`, body);
-      })
-      .catch(err => {
-        console.error('[WellCreate] Auto-match trigger failed:', err);
-        console.error('[WellCreate] Error details:', err.message, err.stack);
-      });
+      const organizationId = userOrganization || undefined;
+      const matchPromise = matchSingleWell(newRecord.id, user.id, organizationId, env)
+        .then(result => {
+          console.log(`[WellCreate] Auto-match complete:`, result);
+          if (result.linksCreated > 0) {
+            console.log(`[WellCreate] Created ${result.linksCreated} links out of ${result.propertiesChecked} properties checked`);
+          }
+        })
+        .catch(err => {
+          console.error('[WellCreate] Auto-match failed:', err);
+          console.error('[WellCreate] Error details:', err.message, err.stack);
+        });
       
       // Keep the worker alive until the match completes
       ctx.waitUntil(matchPromise);
