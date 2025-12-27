@@ -23,12 +23,19 @@ import type { Env } from '../types/env.js';
  * Match a single property against all user's wells
  */
 export async function handleMatchSingleProperty(propertyId: string, request: Request, env: Env) {
+  console.log(`[MatchSingleProperty] Handler called for property: ${propertyId}`);
+  console.log(`[MatchSingleProperty] Request URL: ${request.url}`);
+  console.log(`[MatchSingleProperty] Request headers:`, Object.fromEntries(request.headers.entries()));
+  
   const startTime = Date.now();
   
   try {
     // Authenticate user
     const authUser = await authenticateRequest(request, env);
-    if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
+    if (!authUser) {
+      console.error('[MatchSingleProperty] Authentication failed');
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
     
     // Get full user record
     const userRecord = await getUserById(env, authUser.id);

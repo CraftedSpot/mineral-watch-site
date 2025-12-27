@@ -492,16 +492,34 @@ export async function handleAddWell(request: Request, env: Env) {
   
     const newRecord = await response.json();
     console.log(`Well added: API ${cleanApi} for ${user.email}`);
+    console.log(`[WellCreate] New well record:`, JSON.stringify(newRecord, null, 2));
     
     // Trigger auto-matching in background (fire and forget)
     if (newRecord.id) {
-      fetch(`${new URL(request.url).origin}/api/match-single-well/${newRecord.id}`, {
+      const matchUrl = `${new URL(request.url).origin}/api/match-single-well/${newRecord.id}`;
+      console.log(`[WellCreate] Triggering auto-match for well: ${newRecord.id}`);
+      console.log(`[WellCreate] Match URL: ${matchUrl}`);
+      
+      fetch(matchUrl, {
         method: 'POST',
         headers: {
           'Cookie': request.headers.get('Cookie') || '',
           'Authorization': request.headers.get('Authorization') || ''
         }
-      }).catch(err => console.error('[WellAdd] Background matching failed:', err));
+      })
+      .then(res => {
+        console.log(`[WellCreate] Auto-match response status: ${res.status}`);
+        return res.text();
+      })
+      .then(body => {
+        console.log(`[WellCreate] Auto-match response body:`, body);
+      })
+      .catch(err => {
+        console.error('[WellCreate] Auto-match trigger failed:', err);
+        console.error('[WellCreate] Error details:', err.message, err.stack);
+      });
+    } else {
+      console.error('[WellCreate] No ID in new record:', newRecord);
     }
     
     return jsonResponse(newRecord, 201);
