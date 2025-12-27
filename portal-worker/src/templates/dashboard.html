@@ -3381,7 +3381,7 @@
             if (!isViewer) html += '<col class="col-select">';
             html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-well-map"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th>';
-            html += '<th>Well Information</th><th>Operator Contact</th><th></th></tr></thead><tbody>';
+            html += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right; padding-right: 16px;">Actions</th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
@@ -3440,7 +3440,7 @@
                         </div>
                     </td>
                     <td class="operator-contact-cell">${operatorContactDisplay}</td>
-                    <td onclick="event.stopPropagation()">
+                    <td onclick="event.stopPropagation()" style="text-align: right; padding-right: 16px;">
                         <button class="btn-map-link" onclick="viewWellOnMap('${w.id}')" title="View on Map">📍 Map</button>
                     </td>
                 </tr>`;
