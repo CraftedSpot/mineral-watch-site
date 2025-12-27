@@ -730,6 +730,15 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     
     console.log(`[CascadingSearch] Operator filtering: ${results.results.length} total, ${operatorMatches.length} match operator`);
     
+    // Debug: log operator comparison details
+    if (operatorMatches.length > 1) {
+      console.log('[CascadingSearch] Multiple operator matches found:', operatorMatches.map((r: any) => ({
+        well: `${r.well_name} ${r.well_number}`,
+        operator: r.operator,
+        searchOperator: operator
+      })));
+    }
+    
     // If operator narrows it down to exactly 1, use only that
     if (operatorMatches.length === 1) {
       results.results = operatorMatches;
@@ -738,6 +747,9 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     } else if (operatorMatches.length > 1) {
       // Multiple operator matches - show only those
       results.results = operatorMatches;
+    } else if (operatorMatches.length === 0 && operator) {
+      // No operator matches - this might indicate the well doesn't exist with this operator
+      console.log(`[CascadingSearch] WARNING: No wells match operator "${operator}" at this location`);
     }
     // If no operator matches, keep all results but with lower scores
   }
