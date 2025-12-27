@@ -146,8 +146,9 @@
         
         /* Wells table specific column widths - desktop */
         #wellsContent .data-table { table-layout: fixed; }
-        .col-well-info { width: 50%; }
-        .col-well-operator { width: calc(100% - 50% - 40px - 40px); }
+        .col-well-info { width: 45%; }
+        .col-well-operator { width: calc(100% - 45% - 80px - 40px - 40px); }
+        .col-well-map { width: 80px; }
         
         /* Expandable well table styles */
         .wells-expandable .well-row {
@@ -1139,8 +1140,10 @@
             .col-prop-legal,
             .col-prop-acres,
             .col-prop-notes,
-            .col-well-name-wide,
+            .col-well-info,
             .col-well-operator,
+            .col-well-map,
+            .col-well-name-wide,
             .col-well-county,
             .col-well-location,
             .col-actions { 
@@ -2246,6 +2249,23 @@
                     section: f.SEC,
                     township: f.TWN,
                     range: f.RNG
+                });
+                window.open(`/portal/oklahoma-map?${params.toString()}`, '_blank');
+            }
+        }
+        
+        // View well on Map
+        function viewWellOnMap(wellId) {
+            const well = loadedWells.find(w => w.id === wellId);
+            if (well) {
+                const f = well.fields;
+                // Pass well ID and location info for centering
+                const params = new URLSearchParams({
+                    well: wellId,
+                    county: f.County,
+                    section: f.Section,
+                    township: f.Township,
+                    range: f.Range
                 });
                 window.open(`/portal/oklahoma-map?${params.toString()}`, '_blank');
             }
@@ -3361,9 +3381,9 @@
             const isViewer = currentUser?.role === 'Viewer';
             let html = '<table class="data-table wells-table"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
-            html += '<col class="col-well-info"><col class="col-well-operator"></colgroup><thead><tr>';
+            html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-well-map"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th>';
-            html += '<th>Well Information</th><th>Operator Contact</th></tr></thead><tbody>';
+            html += '<th>Well Information</th><th>Operator Contact</th><th></th></tr></thead><tbody>';
             
             displayWells.forEach(w => {
                 const f = w.fields;
@@ -3422,6 +3442,9 @@
                         </div>
                     </td>
                     <td class="operator-contact-cell">${operatorContactDisplay}</td>
+                    <td onclick="event.stopPropagation()">
+                        <button class="btn-map-link" onclick="viewWellOnMap('${w.id}')" title="View on Map">📍 Map</button>
+                    </td>
                 </tr>`;
             });
             
