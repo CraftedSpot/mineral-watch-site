@@ -51,8 +51,8 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     }
     
     // Fetch active links for this property
-    // Using FIND() to search within the linked record array
-    const linksFilter = `AND(FIND('${propertyId}', ARRAYJOIN({Property})) > 0, {Status} = 'Active')`;
+    // Using SEARCH() for linked record fields - more reliable than FIND()
+    const linksFilter = `AND(SEARCH("${propertyId}", ARRAYJOIN({Property})), {Status} = 'Active')`;
     console.log(`[GetLinkedWells] Filter formula: ${linksFilter}`);
     
     const linksResponse = await fetch(
