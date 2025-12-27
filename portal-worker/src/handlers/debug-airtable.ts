@@ -41,10 +41,12 @@ export async function handleDebugAirtable(request: Request, env: Env) {
         linksFound: linksData.records?.length || 0,
         sampleLinks: linksData.records?.slice(0, 5).map((r: any) => ({
           id: r.id,
-          Property: r.fields.Property,
-          Well: r.fields.Well,
-          Status: r.fields.Status,
-          MatchReason: r.fields['Match Reason']
+          fields: r.fields,
+          propertyInfo: {
+            propertyField: r.fields.Property,
+            isArray: Array.isArray(r.fields.Property),
+            firstValue: r.fields.Property?.[0]
+          }
         }))
       });
     }
