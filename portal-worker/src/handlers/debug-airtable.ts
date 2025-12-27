@@ -16,6 +16,10 @@ export async function handleDebugAirtable(request: Request, env: Env) {
     return jsonResponse({ error: "Not authorized for debug" }, 403);
   }
   
+  // Check for debug type parameter
+  const url = new URL(request.url);
+  const debugType = url.searchParams.get('type');
+  
   try {
     // Test different filter approaches
     const testFilters = [
