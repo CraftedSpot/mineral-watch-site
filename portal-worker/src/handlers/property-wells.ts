@@ -44,9 +44,9 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     // Verify ownership
     const propertyUserId = propertyData.fields.User?.[0];
     const propertyOrgId = propertyData.fields.Organization?.[0];
-    const userOrgId = user.organizationId;
+    const userOrgId = authUser.organizationId;
     
-    if (propertyUserId !== user.id && (!userOrgId || propertyOrgId !== userOrgId)) {
+    if (propertyUserId !== authUser.id && (!userOrgId || propertyOrgId !== userOrgId)) {
       return jsonResponse({ error: "Unauthorized" }, 403);
     }
     
@@ -54,7 +54,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     // Airtable's linked record filtering is unreliable, so we fetch all and filter locally
     let linksFilter: string;
     
-    if (organizationId) {
+    if (userOrgId) {
       // For org users, get the organization name first
       const orgResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
