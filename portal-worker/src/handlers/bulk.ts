@@ -572,6 +572,15 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       [`%${operator}%`, `%${cleanedWellName}%`, sectionNum, normalizedTownship, normalizedRange, meridian] :
       [`%${cleanedWellName}%`, sectionNum, normalizedTownship, normalizedRange, meridian];
     
+    console.log('[CascadingSearch] Strategy 1 SQL params:', {
+      wellNamePattern: `%${cleanedWellName}%`,
+      section: sectionNum,
+      township: normalizedTownship,
+      range: normalizedRange,
+      meridian: meridian,
+      operator: operator ? `%${operator}%` : 'none'
+    });
+    
     results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
     searchStrategy = 'name+section+T-R';
     console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
@@ -580,31 +589,40 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Strategy 2: Name + T-R (no section - handles horizontal wells)
   if (results.results.length === 0 && cleanedWellName && normalizedTownship && normalizedRange) {
     console.log('[CascadingSearch] Strategy 2: Name + T-R (no section)');
+    // Build the query dynamically based on what we have
+    let scoreConditions: string[] = [];
+    let caseParams: any[] = [];
+    
+    if (operator && sectionNum !== null) {
+      scoreConditions.push(`WHEN UPPER(operator) LIKE UPPER(?1) AND section = ?2 THEN 90`);
+      scoreConditions.push(`WHEN UPPER(operator) LIKE UPPER(?1) THEN 85`);
+      scoreConditions.push(`WHEN section = ?2 THEN 80`);
+      caseParams = [`%${operator}%`, sectionNum];
+    } else if (operator) {
+      scoreConditions.push(`WHEN UPPER(operator) LIKE UPPER(?1) THEN 85`);
+      caseParams = [`%${operator}%`];
+    } else if (sectionNum !== null) {
+      scoreConditions.push(`WHEN section = ?1 THEN 80`);
+      caseParams = [sectionNum];
+    }
+    
     const query2 = `
       SELECT w.*, 
         CASE 
-          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} AND ${sectionNum !== null ? `section = ?` : 'FALSE'} THEN 90
-          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} THEN 85
-          WHEN ${sectionNum !== null ? `section = ?` : 'FALSE'} THEN 80
+          ${scoreConditions.length > 0 ? scoreConditions.join('\n          ') : ''}
+          ${scoreConditions.length > 0 ? '' : 'WHEN 1=1 THEN 70'}
           ELSE 70
         END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
-        AND township = ? AND range = ? AND meridian = ?
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${caseParams.length + 1})
+        AND township = ?${caseParams.length + 2} 
+        AND range = ?${caseParams.length + 3} 
+        AND meridian = ?${caseParams.length + 4}
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
     
-    // Build params based on what we have
-    const params2: any[] = [];
-    if (operator && sectionNum !== null) {
-      params2.push(`%${operator}%`, sectionNum, `%${operator}%`, sectionNum);
-    } else if (operator) {
-      params2.push(`%${operator}%`);
-    } else if (sectionNum !== null) {
-      params2.push(sectionNum);
-    }
-    params2.push(`%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian);
+    const params2 = [...caseParams, `%${cleanedWellName}%`, normalizedTownship, normalizedRange, meridian];
     
     results = await env.WELLS_DB.prepare(query2).bind(...params2).all();
     searchStrategy = 'name+T-R';
@@ -614,14 +632,20 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Strategy 3: Name only (broader search)
   if (results.results.length === 0 && cleanedWellName) {
     console.log('[CascadingSearch] Strategy 3: Name only');
-    const query3 = `
+    const query3 = operator ? `
       SELECT w.*, 
         CASE 
-          WHEN ${operator ? `UPPER(operator) LIKE UPPER(?)` : 'FALSE'} THEN 60
+          WHEN UPPER(operator) LIKE UPPER(?1) THEN 60
           ELSE 50
         END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?)
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    ` : `
+      SELECT w.*, 50 as match_score
+      FROM wells w
+      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
