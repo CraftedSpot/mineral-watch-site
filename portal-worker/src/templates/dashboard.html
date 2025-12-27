@@ -6597,6 +6597,12 @@ async function startWellsImport() {
         
         showWellsResults(results);
         
+        // Auto-refresh wells in the background if import was successful
+        if (results.results.successful > 0) {
+            console.log(`Auto-refreshing wells after importing ${results.results.successful} wells`);
+            loadWells();
+        }
+        
     } catch (error) {
         // Clear the progress simulation on error too
         clearInterval(progressInterval);
@@ -6617,6 +6623,13 @@ function showWellsResults(results) {
     document.getElementById('wells-result-created').textContent = success;
     document.getElementById('wells-result-skipped').textContent = skipped;
     document.getElementById('wells-result-failed').textContent = failed;
+    
+    // Update the well count in the tab immediately
+    if (success > 0) {
+        const currentCount = parseInt(document.getElementById('wellCount').textContent) || 0;
+        document.getElementById('wellCount').textContent = currentCount + success;
+        updateTotalCount();
+    }
     
     if (failed === 0 && skipped === 0) {
         document.getElementById('wells-results-icon').textContent = '✅';
