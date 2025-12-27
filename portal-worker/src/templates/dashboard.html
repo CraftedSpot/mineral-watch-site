@@ -4385,6 +4385,20 @@
             // Update total acres display in form
             updateTotalAcres();
             
+            // Show linked wells count immediately from property data
+            const linkedWellsCount = f['Linked Wells']?.length || 0;
+            document.getElementById('linked-wells-count').textContent = linkedWellsCount;
+            
+            // Show loading state if there are wells
+            if (linkedWellsCount > 0) {
+                document.getElementById('linked-wells-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading wells...</div>';
+                document.getElementById('linked-wells-list').style.display = 'block';
+                document.getElementById('linked-wells-empty').style.display = 'none';
+            } else {
+                document.getElementById('linked-wells-list').style.display = 'none';
+                document.getElementById('linked-wells-empty').style.display = 'block';
+            }
+            
             // Show modal with forced high z-index like bulk modals
             const propModal = document.getElementById('propertyDetailsModal');
             
@@ -4456,15 +4470,18 @@
         async function loadLinkedWells(propertyId) {
             console.log('[LinkedWells] Loading linked wells for property:', propertyId);
             
-            // Clear immediately to avoid showing stale data
             const countEl = document.getElementById('linked-wells-count');
             const listEl = document.getElementById('linked-wells-list');
             const emptyEl = document.getElementById('linked-wells-empty');
             
-            countEl.textContent = '0';
-            listEl.innerHTML = '';
-            listEl.style.display = 'none';
-            emptyEl.style.display = 'block';
+            // Don't reset count - it's already set from property data
+            // Just ensure loading state is shown if count > 0
+            const currentCount = parseInt(countEl.textContent) || 0;
+            if (currentCount > 0 && !listEl.innerHTML.includes('linked-well-row')) {
+                listEl.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading wells...</div>';
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+            }
             
             try {
                 const response = await fetch(`/api/property/${propertyId}/linked-wells`);
