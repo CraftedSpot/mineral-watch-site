@@ -5874,7 +5874,7 @@
                 const result = await response.json();
                 console.log('API response:', result);
                 const allWells = result.data?.wells || [];
-                console.log(`Received ${allWells.length} wells from API`);
+                console.log(`Received ${allWells.length} wells from API (3x3 search)`);
                 
                 // Debug: Log first few wells to see exact field names
                 if (allWells.length > 0) {
@@ -5887,6 +5887,77 @@
                 console.log(`Wells with operator info: ${wellsWithOperatorInfo.length}/${allWells.length}`);
                 if (wellsWithOperatorInfo.length > 0) {
                     console.log('Sample well with operator info:', wellsWithOperatorInfo[0]);
+                }
+                
+                // Additional search: Look for long lateral wells in a wider area (5x5)
+                // This catches wells that start further away but might extend into properties
+                const extendedSections = new Set();
+                
+                for (const property of userProperties) {
+                    const fields = property.fields || property;
+                    const section = parseInt(fields.SEC || fields.Section);
+                    let township = (fields.TWN || fields.Township || '').replace(/\s+/g, '').toUpperCase();
+                    let range = (fields.RNG || fields.Range || '').replace(/\s+/g, '').toUpperCase();
+                    township = township.replace(/^T/, '');
+                    range = range.replace(/^R/, '');
+                    const meridian = fields.MERIDIAN || 'IM';
+                    
+                    if (section && township && range) {
+                        // Get 5x5 sections for wells with long laterals
+                        const extendedNearbySections = get5x5Sections(section, township, range, meridian);
+                        extendedNearbySections.forEach(trs => {
+                            // Only add if not already in our 3x3 search
+                            if (!sectionsToQuery.includes(trs)) {
+                                extendedSections.add(trs);
+                            }
+                        });
+                    }
+                }
+                
+                if (extendedSections.size > 0) {
+                    console.log(`Searching additional ${extendedSections.size} sections for long lateral wells...`);
+                    updateStatus('Searching for extended lateral wells...');
+                    
+                    try {
+                        const extendedRequestBody = {
+                            trs: Array.from(extendedSections),
+                            status: statusFilter.toLowerCase(),
+                            limit: 5000,
+                            lateralOnly: true // We'll filter for long laterals on the frontend
+                        };
+                        
+                        const extendedResponse = await fetch('/api/nearby-wells', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: {
+                                'Accept': 'application/json',
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify(extendedRequestBody)
+                        });
+                        
+                        if (extendedResponse.ok) {
+                            const extendedResult = await extendedResponse.json();
+                            const extendedWells = (extendedResult.data?.wells || []).filter(well => {
+                                // Only include wells with significant laterals (> 1 mile = 5280 ft)
+                                return well.lateral_length && well.lateral_length > 5280 &&
+                                       well.bh_latitude && well.bh_longitude;
+                            });
+                            
+                            console.log(`Found ${extendedWells.length} wells with long laterals in extended area`);
+                            
+                            // Mark these wells so we can style them differently
+                            extendedWells.forEach(well => {
+                                well.isExtendedLateral = true;
+                            });
+                            
+                            // Combine with existing wells
+                            allWells.push(...extendedWells);
+                        }
+                    } catch (error) {
+                        console.warn('Error loading extended lateral wells:', error);
+                        // Continue without extended wells
+                    }
                 }
                 
                 // Remove duplicates (wells might appear in multiple sections)
@@ -6010,6 +6081,45 @@
             // Get 3x3 grid (1 section in each direction)
             for (let row = Math.max(0, centerRow - 1); row <= Math.min(5, centerRow + 1); row++) {
                 for (let col = Math.max(0, centerCol - 1); col <= Math.min(5, centerCol + 1); col++) {
+                    const section = sectionGrid[row][col];
+                    sections.push(`${section}-${township}-${range}-${meridian}`);
+                }
+            }
+            
+            return sections;
+        }
+        
+        // Get 5x5 grid of sections centered on given section (for extended lateral search)
+        function get5x5Sections(centerSection, township, range, meridian = 'IM') {
+            const sections = [];
+            
+            // Standard 6x6 section layout
+            const sectionGrid = [
+                [6,  5,  4,  3,  2,  1],
+                [7,  8,  9,  10, 11, 12],
+                [18, 17, 16, 15, 14, 13],
+                [19, 20, 21, 22, 23, 24],
+                [30, 29, 28, 27, 26, 25],
+                [31, 32, 33, 34, 35, 36]
+            ];
+            
+            // Find center section position
+            let centerRow = -1, centerCol = -1;
+            for (let row = 0; row < 6; row++) {
+                for (let col = 0; col < 6; col++) {
+                    if (sectionGrid[row][col] === centerSection) {
+                        centerRow = row;
+                        centerCol = col;
+                        break;
+                    }
+                }
+            }
+            
+            if (centerRow === -1) return [`${centerSection}-${township}-${range}-${meridian}`];
+            
+            // Get 5x5 grid (2 sections in each direction)
+            for (let row = Math.max(0, centerRow - 2); row <= Math.min(5, centerRow + 2); row++) {
+                for (let col = Math.max(0, centerCol - 2); col <= Math.min(5, centerCol + 2); col++) {
                     const section = sectionGrid[row][col];
                     sections.push(`${section}-${township}-${range}-${meridian}`);
                 }
@@ -6249,15 +6359,22 @@
                     window.nearbyWellsData[well.api_number] = well;
                 }
                 if (well.latitude && well.longitude) {
-                    // Create gray teardrop marker (similar to tracked wells but gray)
+                    // Different styling for extended lateral wells
+                    const isExtendedLateral = well.isExtendedLateral;
+                    const markerColor = isExtendedLateral ? '#F59E0B' : '#9CA3AF'; // Amber for extended laterals
+                    const strokeColor = isExtendedLateral ? '#D97706' : '#6B7280';
+                    const centerColor = isExtendedLateral ? '#D97706' : '#6B7280';
+                    
+                    // Create marker
                     const marker = L.marker([well.latitude, well.longitude], {
                         icon: L.divIcon({
-                            className: 'nearby-well-marker',
+                            className: 'nearby-well-marker' + (isExtendedLateral ? ' extended-lateral' : ''),
                             html: `
                                 <svg width="${nearbyWellSize}" height="${nearbyWellSize * 1.4}" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg">
                                     <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
-                                          fill="#9CA3AF" stroke="#6B7280" stroke-width="2"/>
-                                    <circle cx="12" cy="12" r="4.5" fill="#6B7280"/>
+                                          fill="${markerColor}" stroke="${strokeColor}" stroke-width="2"/>
+                                    <circle cx="12" cy="12" r="4.5" fill="${centerColor}"/>
+                                    ${isExtendedLateral ? '<text x="12" y="16" text-anchor="middle" fill="white" font-size="10" font-weight="bold">L</text>' : ''}
                                 </svg>
                             `,
                             iconSize: [nearbyWellSize, nearbyWellSize * 1.4],
@@ -6292,13 +6409,16 @@
                     
                     const popupContent = `
                         <div class="popup-header">
-                            <span class="popup-tag" style="background: #E5E7EB; color: #374151;">Nearby Well</span>
+                            <span class="popup-tag" style="background: ${isExtendedLateral ? '#FEF3C7' : '#E5E7EB'}; color: ${isExtendedLateral ? '#92400E' : '#374151'};">
+                                ${isExtendedLateral ? 'Extended Lateral' : 'Nearby Well'}
+                            </span>
                         </div>
                         <div class="popup-well-name">${wellName}</div>
                         <div class="popup-details">
                             ${operator}<br>
                             S${well.section} T${well.township} R${well.range} • ${toTitleCase(well.county || 'Unknown')}<br>
                             Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
+                            ${isExtendedLateral && well.lateral_length ? `<br>Lateral: ${(well.lateral_length / 5280).toFixed(1)} miles` : ''}
                         </div>
                         <div class="popup-actions">
                             <button class="popup-btn popup-btn-secondary" data-api="${well.api_number}" onclick="expandNearbyWellCard(nearbyWellsData['${well.api_number}']); return false;">More →</button>

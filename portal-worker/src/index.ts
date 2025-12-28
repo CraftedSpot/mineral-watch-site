@@ -560,6 +560,10 @@ var index_default = {
       if (path === "/api/wells/surrounding" && request.method === "GET") {
         return handleSurroundingWells(request, env);
       }
+      if (path === "/api/wells/lateral-search" && request.method === "POST") {
+        const { handleLateralWellSearch } = await import('./handlers/lateral-wells.js');
+        return handleLateralWellSearch(request, env);
+      }
       
       // Well enrichment endpoint
       if (path.startsWith("/api/well-enrichment/") && request.method === "GET") {
