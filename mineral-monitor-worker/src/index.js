@@ -42,7 +42,7 @@ export default {
       }
       
       // Weekly run (transfers, status changes)
-      if (cronPattern === '0 8 * * 0') {
+      if (cronPattern === '0 8 * * 7') {
         result = await runWeeklyMonitor(env);
         await updateHealthStatus(env, 'weekly', {
           timestamp: new Date().toISOString(),
