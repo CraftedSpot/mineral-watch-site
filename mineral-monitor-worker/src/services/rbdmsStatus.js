@@ -143,6 +143,13 @@ export async function checkAllWellStatuses(env) {
   };
   
   try {
+    // Test mode: simulate a status change for a specific API
+    if (options.testStatusChangeApi) {
+      console.log(`[RBDMS] TEST MODE: Simulating status change for API ${options.testStatusChangeApi}`);
+      const testResults = await simulateStatusChange(env, options.testStatusChangeApi, options.testNewStatus || 'IA');
+      return testResults;
+    }
+    
     // Download RBDMS data
     console.log('[RBDMS] Starting RBDMS data download...');
     let rbdmsData;
