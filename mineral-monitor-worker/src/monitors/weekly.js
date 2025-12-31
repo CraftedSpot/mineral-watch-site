@@ -521,5 +521,18 @@ async function processTransfer(transfer, env, results, recentAlerts) {
     }
     
     results.alertsSent++;
+    
+    // Add test details if in test mode
+    if (testDetails) {
+      testDetails.alertsSent.push({
+        email: alert.user.email,
+        userName: alert.user.name,
+        alertLevel: alert.alertLevel,
+        viaOrganization: alert.viaOrganization || null
+      });
+    }
   }
+  
+  // Return test details if in test mode
+  return testDetails;
 }
