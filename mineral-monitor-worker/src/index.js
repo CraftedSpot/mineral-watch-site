@@ -351,11 +351,72 @@ export default {
       }
     }
     
+    // Test permit/completion simulation endpoint
+    if (url.pathname === '/test/daily') {
+      const testPermitApi = url.searchParams.get('permitApi');
+      const testCompletionApi = url.searchParams.get('completionApi');
+      
+      if (!testPermitApi && !testCompletionApi) {
+        return new Response(JSON.stringify({
+          error: 'Specify permitApi or completionApi parameter',
+          example: '/test/daily?permitApi=3504523551&completionApi=3504523552'
+        }, null, 2), {
+          status: 400,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      
+      try {
+        const { runDailyMonitor } = await import('./monitors/daily.js');
+        const startTime = Date.now();
+        
+        const options = {};
+        if (testPermitApi) options.testPermitApi = testPermitApi;
+        if (testCompletionApi) options.testCompletionApi = testCompletionApi;
+        
+        // Additional test parameters
+        if (url.searchParams.get('drillType')) options.drillType = url.searchParams.get('drillType');
+        if (url.searchParams.get('pbhSection')) options.pbhSection = url.searchParams.get('pbhSection');
+        if (url.searchParams.get('pbhTownship')) options.pbhTownship = url.searchParams.get('pbhTownship');
+        if (url.searchParams.get('pbhRange')) options.pbhRange = url.searchParams.get('pbhRange');
+        if (url.searchParams.get('bhSection')) options.bhSection = url.searchParams.get('bhSection');
+        if (url.searchParams.get('bhTownship')) options.bhTownship = url.searchParams.get('bhTownship');
+        if (url.searchParams.get('bhRange')) options.bhRange = url.searchParams.get('bhRange');
+        
+        const results = await runDailyMonitor(env, options);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          duration_ms: Date.now() - startTime,
+          results
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
     // Default response
     return new Response(JSON.stringify({
       service: 'Mineral Watch Oklahoma',
       version: '2.0.0',
-      endpoints: ['/health', '/trigger/daily', '/trigger/weekly', '/test/rbdms-status', '/test/weekly-transfers', '/test/status-change']
+      endpoints: [
+        '/health', 
+        '/trigger/daily', 
+        '/trigger/weekly', 
+        '/test/rbdms-status', 
+        '/test/weekly-transfers', 
+        '/test/status-change',
+        '/test/daily'
+      ]
     }), {
       headers: { 'Content-Type': 'application/json' }
     });

@@ -8,6 +8,7 @@ import { sendAlertEmail } from './email.js';
 import { normalizeAPI } from '../utils/normalize.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
+import { findMatchingWells } from './matching.js';
 
 /**
  * Check if a well's status has changed and alert users
@@ -177,10 +178,9 @@ export async function checkWellStatusChange(api10, currentData, env) {
         })
       });
         
-        if (!updateResponse.ok) {
-          console.error(`[Status Change] Failed to update well status in Airtable`);
-          result.errors.push('Failed to update well record');
-        }
+      if (!updateResponse.ok) {
+        console.error(`[Status Change] Failed to update well status in Airtable`);
+        result.errors.push('Failed to update well record');
       }
     }
     
