@@ -219,6 +219,12 @@ export async function createActivityLog(env, data) {
   fields['OCC Map Link'] = data.mapLink || "";
   console.log(`[Airtable] OCC Map Link field set to: ${fields['OCC Map Link']}`);
   
+  // Add MyMineralWatch map link if we have an API number
+  if (data.apiNumber) {
+    fields['Map Link'] = `https://portal.mymineralwatch.com/map?well=${data.apiNumber}`;
+    console.log(`[Airtable] MyMineralWatch Map Link set for API ${data.apiNumber}`);
+  }
+  
   const response = await fetch(url, {
     method: 'POST',
     headers: {
