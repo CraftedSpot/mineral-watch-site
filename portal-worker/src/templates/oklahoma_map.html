@@ -3518,7 +3518,7 @@
                     try {
                         // Fetch enrichment data for all tracked wells in a batch
                         const enrichmentPromises = apiNumbers.map(api => 
-                            fetch(`/api/well-enrichment/${api}`)
+                            fetch(`/api/well-enrichment/${api}`, { credentials: 'include' })
                                 .then(res => res.json())
                                 .then(result => ({ api, data: result.data || {} }))
                                 .catch(err => ({ api, data: {} }))
