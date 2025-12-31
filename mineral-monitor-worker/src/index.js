@@ -255,6 +255,7 @@ export default {
     // Test weekly transfers endpoint
     if (url.pathname === '/test/weekly-transfers') {
       const forceReprocess = url.searchParams.get('force') === 'true';
+      const testApi = url.searchParams.get('testApi');
       
       if (forceReprocess) {
         // Clear the processed transfers cache
@@ -265,13 +266,17 @@ export default {
       try {
         const { runWeeklyMonitor } = await import('./monitors/weekly.js');
         const startTime = Date.now();
-        const results = await runWeeklyMonitor(env);
+        
+        // Pass options if test API specified
+        const options = testApi ? { testApi } : {};
+        const results = await runWeeklyMonitor(env, options);
         
         return new Response(JSON.stringify({
           success: true,
           duration_ms: Date.now() - startTime,
           results,
-          forcedReprocess: forceReprocess
+          forcedReprocess: forceReprocess,
+          testMode: !!testApi
         }, null, 2), {
           headers: { 'Content-Type': 'application/json' }
         });
