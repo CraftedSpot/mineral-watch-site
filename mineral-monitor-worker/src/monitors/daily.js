@@ -1354,7 +1354,9 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         pumpingFlowing: completion.Pumping_Flowing || null,
         spudDate: completion.Spud,
         completionDate: completion.Well_Completion,
-        firstProdDate: completion.First_Prod
+        firstProdDate: completion.First_Prod,
+        // Organization ID if alert is via organization
+        organizationId: alert.organizationId || null
       };
       
       // Add alert to user's alert list
