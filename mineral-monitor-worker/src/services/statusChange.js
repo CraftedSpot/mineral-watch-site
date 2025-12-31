@@ -143,34 +143,39 @@ export async function checkWellStatusChange(api10, currentData, env) {
                   current: getStatusDescription(currentStatus)
                 },
                 mapLink: mapLink,
-                occLink: `https://imaging.occ.ok.gov/OG/Well/${api10.substring(2)}.pdf`
+                occLink: `https://imaging.occ.ok.gov/OG/Well/${api10.substring(2)}.pdf`,
+                userId: user.id
               });
               
               result.alertsSent++;
-              console.log(`[Status Change] Alert sent to ${user.fields.Email} for well ${api10}`);
+              console.log(`[Status Change] Alert sent to ${user.email} for well ${api10}${match.viaOrganization ? ` (via ${match.viaOrganization})` : ''}`);
             } catch (emailErr) {
               console.error(`[Status Change] Failed to send email: ${emailErr.message}`);
               result.errors.push(`Email failed: ${emailErr.message}`);
             }
           }
+        } catch (err) {
+          console.error(`[Status Change] Error processing alert for user ${match.user.email}:`, err);
+          result.errors.push(`Alert error for ${match.user.email}: ${err.message}`);
         }
-        
-        // Update well record with new status
-        const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
-        const updateResponse = await fetch(updateUrl, {
-          method: 'PATCH',
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            fields: {
-              'Well Status': currentStatus,
-              'Last Status Check': new Date().toISOString(),
-              'Status Last Changed': new Date().toISOString()
-            }
-          })
-        });
+      }
+      
+      // Update well record with new status (only once, after all users notified)
+      const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+      const updateResponse = await fetch(updateUrl, {
+        method: 'PATCH',
+        headers: {
+          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          fields: {
+            'Well Status': currentStatus,
+            'Last Status Check': new Date().toISOString(),
+            'Status Last Changed': new Date().toISOString()
+          }
+        })
+      });
         
         if (!updateResponse.ok) {
           console.error(`[Status Change] Failed to update well status in Airtable`);

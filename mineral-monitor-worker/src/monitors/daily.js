@@ -347,11 +347,13 @@ function collectUserIdsFromProperties(propertyMap) {
 /**
  * Main daily monitoring function
  * @param {Object} env - Worker environment bindings
+ * @param {Object} options - Options for test mode
  * @returns {Object} - Processing results
  */
-export async function runDailyMonitor(env) {
+export async function runDailyMonitor(env, options = {}) {
   const dryRun = isDryRun(env);
-  console.log(`[Daily] Starting daily monitor run ${dryRun ? '(DRY RUN)' : '(LIVE)'}`);
+  const isTestMode = !!(options.testPermitApi || options.testCompletionApi);
+  console.log(`[Daily] Starting daily monitor run ${dryRun ? '(DRY RUN)' : '(LIVE)'}${isTestMode ? ' - TEST MODE' : ''}`);
   
   const results = {
     permitsProcessed: 0,
@@ -362,7 +364,9 @@ export async function runDailyMonitor(env) {
     alertsSent: 0,
     alertsSkipped: 0,
     matchesFound: [],
-    errors: []
+    errors: [],
+    testMode: isTestMode,
+    testDetails: isTestMode ? { permits: [], completions: [] } : null
   };
   
   // Map to collect alerts by user for batching
@@ -373,12 +377,67 @@ export async function runDailyMonitor(env) {
     const processedAPIs = await loadProcessedAPIs(env);
     console.log(`[Daily] Starting with ${processedAPIs.size} previously processed API keys`);
     
-    // Fetch OCC files
-    const permits = await fetchOCCFile('itd', env);
-    console.log(`[Daily] Fetched ${permits.length} permits from ITD file`);
+    let permits, completions;
     
-    const completions = await fetchOCCFile('completions', env);
-    console.log(`[Daily] Fetched ${completions.length} completions`);
+    // Test mode: create test permits/completions
+    if (isTestMode) {
+      permits = [];
+      completions = [];
+      
+      if (options.testPermitApi) {
+        console.log(`[Daily] TEST MODE: Creating test permit for API ${options.testPermitApi}`);
+        permits.push({
+          API_Number: options.testPermitApi,
+          Well_Name: `TEST WELL ${options.testPermitApi}`,
+          Well_Number: '1H',
+          Entity_Name: 'TEST OPERATOR LLC',
+          Application_Type: 'DR',
+          Drill_Type: options.drillType || 'HH',
+          Section: '1',
+          Township: '1N',
+          Range: '1W',
+          PM: 'IM',
+          County: 'TEST',
+          Approval_Date: new Date().toISOString(),
+          Expire_Date: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000).toISOString(),
+          PBH_Section: options.pbhSection || '2',
+          PBH_Township: options.pbhTownship || '1N',
+          PBH_Range: options.pbhRange || '1W',
+          IMAGE_URL: 'https://test.example.com/permit.pdf'
+        });
+      }
+      
+      if (options.testCompletionApi) {
+        console.log(`[Daily] TEST MODE: Creating test completion for API ${options.testCompletionApi}`);
+        completions.push({
+          API_Number: options.testCompletionApi,
+          Well_Name: `TEST WELL ${options.testCompletionApi}`,
+          Well_Number: '1H',
+          Operator_Name: 'TEST OPERATOR LLC',
+          Drill_Type: 'HORIZONTAL HOLE',
+          Section: '1',
+          Township: '1N',
+          Range: '1W',
+          PM: 'IM',
+          County: 'TEST',
+          BH_Section: options.bhSection || '2',
+          BH_Township: options.bhTownship || '1N',
+          BH_Range: options.bhRange || '1W',
+          Well_Completion: new Date().toISOString(),
+          Formation_Name: 'TEST FORMATION',
+          Gas_MCF_Per_Day: '1000',
+          Oil_BBL_Per_Day: '500',
+          Water_BBL_Per_Day: '100'
+        });
+      }
+    } else {
+      // Normal operation: fetch from OCC
+      permits = await fetchOCCFile('itd', env);
+      console.log(`[Daily] Fetched ${permits.length} permits from ITD file`);
+      
+      completions = await fetchOCCFile('completions', env);
+      console.log(`[Daily] Fetched ${completions.length} completions`);
+    }
     
     // Filter to only unprocessed records
     const newPermits = permits.filter(p => {
