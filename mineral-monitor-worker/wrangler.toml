@@ -49,3 +49,4 @@ bucket_name = "mineral-watch-rbdms"
 # - MINERAL_AIRTABLE_API_KEY
 # - POSTMARK_API_KEY
 # - TRIGGER_SECRET
+# - TRACK_WELL_SECRET

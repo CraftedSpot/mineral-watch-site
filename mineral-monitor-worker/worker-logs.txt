@@ -498,3 +498,2320 @@
         }
     }
 }
+{
+    "wallTime": 5093,
+    "cpuTime": 27,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [
+        {
+            "message": [
+                "[Daily] Starting daily monitor run (LIVE) - TEST MODE"
+            ],
+            "level": "log",
+            "timestamp": 1767165303701
+        },
+        {
+            "message": [
+                "[Daily] Loaded 6 previously processed API keys"
+            ],
+            "level": "log",
+            "timestamp": 1767165303797
+        },
+        {
+            "message": [
+                "[Daily] Starting with 6 previously processed API keys"
+            ],
+            "level": "log",
+            "timestamp": 1767165303797
+        },
+        {
+            "message": [
+                "[Daily] TEST MODE: Creating test completion for API 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165303797
+        },
+        {
+            "message": [
+                "[Daily] After filtering: 0 new permits, 1 new completions"
+            ],
+            "level": "log",
+            "timestamp": 1767165303797
+        },
+        {
+            "message": [
+                "[Daily] Skipped: 0 permits, 0 completions (already processed)"
+            ],
+            "level": "log",
+            "timestamp": 1767165303797
+        },
+        {
+            "message": [
+                "[Airtable] Preloading alerts since 2025-12-24"
+            ],
+            "level": "log",
+            "timestamp": 1767165303797
+        },
+        {
+            "message": [
+                "[Airtable] Preloaded 9 recent alert keys from 11 activity records"
+            ],
+            "level": "log",
+            "timestamp": 1767165304106
+        },
+        {
+            "message": [
+                "[Daily] Batch loading properties for 12 unique sections"
+            ],
+            "level": "log",
+            "timestamp": 1767165304106
+        },
+        {
+            "message": [
+                "[Daily] Loaded 0 sections with properties"
+            ],
+            "level": "log",
+            "timestamp": 1767165304245
+        },
+        {
+            "message": [
+                "[Daily] Batch loaded 0 users for property matching"
+            ],
+            "level": "log",
+            "timestamp": 1767165304245
+        },
+        {
+            "message": [
+                "[Daily] Found enhanced formation data for 3504523551: CLEVELAND"
+            ],
+            "level": "log",
+            "timestamp": 1767165304295
+        },
+        {
+            "message": [
+                "[Daily] Horizontal well 3504523551 passes through 3 sections"
+            ],
+            "level": "log",
+            "timestamp": 1767165304295
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165304719
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165304823
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165305419
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165305515
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551: found 5 users to notify"
+            ],
+            "level": "log",
+            "timestamp": 1767165305515
+        },
+        {
+            "message": [
+                "[Coordinates] Trying OCC GIS lookup for 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165305515
+        },
+        {
+            "message": [
+                "[OCC GIS] Cache hit for 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165305565
+        },
+        {
+            "message": [
+                "[Coordinates] SUCCESS: OCC GIS coordinates for 3504523551: 36.158474, -99.991786"
+            ],
+            "level": "log",
+            "timestamp": 1767165305565
+        },
+        {
+            "message": [
+                "[Daily] Generated map link for completion 3504523551 using OCC_GIS coordinates"
+            ],
+            "level": "log",
+            "timestamp": 1767165305565
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165305976
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165306181
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165306715
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165306811
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551: found 5 users to notify"
+            ],
+            "level": "log",
+            "timestamp": 1767165306811
+        },
+        {
+            "message": [
+                "[Daily] Creating statewide activity for completion 3504523551 with OCC_GIS coordinates"
+            ],
+            "level": "log",
+            "timestamp": 1767165306811
+        },
+        {
+            "message": [
+                "[Statewide] Updating existing record for 3504523551 with new data"
+            ],
+            "level": "log",
+            "timestamp": 1767165306908
+        },
+        {
+            "message": [
+                "[Daily] Statewide activity created for completion 3504523551 with OCC_GIS coordinates"
+            ],
+            "level": "log",
+            "timestamp": 1767165307108
+        },
+        {
+            "message": [
+                "[Daily] Failed to store well location for completion 3504523551: Update failed: {\"error\":{\"type\":\"INVALID_VALUE_FOR_COLUMN\",\"message\":\"Field \\\"Completion Date\\\" cannot accept the provided value\"}}"
+            ],
+            "level": "error",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Daily] Completion 3504523551 has 5 alerts for user photog12@gmail.com:"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "  1. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "  2. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "  3. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "  4. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "  5. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for photog12@gmail.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for mrsprice518@gmail.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for steve.foerster@griffin.news for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for billprice@priceoilandgas.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for annekoconnor@gmail.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Daily] Sending batched emails to 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Test Mode] Sending batched email to: photog12@gmail.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Airtable] OCC Map Link field set to: https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b&marker=-99.991786,36.158474,,,,&markertemplate=%7B%22title%22%3A%22HD%20DOWLING%2032-20-26%22%2C%22longitude%22%3A-99.991786%2C%22latitude%22%3A36.158474%2C%22isIncludeShareUrl%22%3Atrue%7D&level=19"
+            ],
+            "level": "log",
+            "timestamp": 1767165307381
+        },
+        {
+            "message": [
+                "[Email] Track link not generated: apiNumber=3504523551, userId=undefined, hasSecret=true"
+            ],
+            "level": "log",
+            "timestamp": 1767165307697
+        },
+        {
+            "message": [
+                "[Email] Sent Well Completed alert to photog12@gmail.com"
+            ],
+            "level": "log",
+            "timestamp": 1767165307976
+        },
+        {
+            "message": [
+                "[EmailBatch] Sent email to photog12@gmail.com with 1 alerts"
+            ],
+            "level": "log",
+            "timestamp": 1767165308150
+        },
+        {
+            "message": [
+                "[Test Mode] Sending batched email to: mrsprice518@gmail.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165308150
+        },
+        {
+            "message": [
+                "[Airtable] OCC Map Link field set to: https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b&marker=-99.991786,36.158474,,,,&markertemplate=%7B%22title%22%3A%22HD%20DOWLING%2032-20-26%22%2C%22longitude%22%3A-99.991786%2C%22latitude%22%3A36.158474%2C%22isIncludeShareUrl%22%3Atrue%7D&level=19"
+            ],
+            "level": "log",
+            "timestamp": 1767165308150
+        },
+        {
+            "message": [
+                "[Email] Track link not generated: apiNumber=3504523551, userId=undefined, hasSecret=true"
+            ],
+            "level": "log",
+            "timestamp": 1767165308361
+        },
+        {
+            "message": [
+                "[Email] Sent Well Completed alert to mrsprice518@gmail.com"
+            ],
+            "level": "log",
+            "timestamp": 1767165308520
+        },
+        {
+            "message": [
+                "[EmailBatch] Sent email to mrsprice518@gmail.com with 1 alerts"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Test Mode] Skipping batched email to: steve.foerster@griffin.news (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Test Mode] Skipping batched email to: billprice@priceoilandgas.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Test Mode] Skipping batched email to: annekoconnor@gmail.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Daily] Sent 2 emails containing 2 alerts"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Daily] Test mode - skipped 3 non-test users"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Daily] Completed. Permits: 0, Completions: 1, Status Changes: 0, Alerts: 2, Skipped: 0"
+            ],
+            "level": "log",
+            "timestamp": 1767165308681
+        },
+        {
+            "message": [
+                "[Daily] Failed to cleanup old records: Failed to fetch old records"
+            ],
+            "level": "error",
+            "timestamp": 1767165308791
+        }
+    ],
+    "eventTimestamp": 1767165303657,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/test/daily?completionApi=3504523551",
+            "method": "GET",
+            "headers": {
+                "accept": "*/*",
+                "accept-encoding": "gzip, br",
+                "cf-connecting-ip": "2600:1700:8360:5030:653d:472f:9181:5c86",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b67fbcbcc3e6c53",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "user-agent": "curl/8.7.1",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2600:1700:8360:5030:653d:472f:9181:5c86"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/2",
+                "requestPriority": "weight=16;exclusive=0;group=0;group-weight=0",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 14,
+                "colo": "DFW",
+                "asn": 7018,
+                "asOrganization": "AT&T Enterprises, LLC",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Oklahoma City",
+                "continent": "NA",
+                "region": "Oklahoma",
+                "regionCode": "OK",
+                "timezone": "America/Chicago",
+                "longitude": "-97.51643",
+                "latitude": "35.46756",
+                "postalCode": "73102",
+                "metroCode": "650",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES256-GCM-SHA384",
+                "tlsClientRandom": "0GgSSpQalq0Tyc1wKJQaWgx0qxRprnKhcJBBcxss2yg=",
+                "tlsClientCiphersSha1": "De6XredN64ifthhYZ0E1e9w8cms=",
+                "tlsClientExtensionsSha1": "Ub+nUmIm1U57hdNSUph0R+kx9Gc=",
+                "tlsClientExtensionsSha1Le": "NMNf2YIpLBhtroOEBooGFi+jtJ8=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "c7746f6bd23e132727ee6f036169686cb7aa8b0c192a02b2384d3c187c61a841a5d1ece0f5141c6bc366e46ddbb63d0f",
+                    "serverHandshake": "74b237abd7763f991b473f294771b50b0afed4887424ba7237acbad1b2c3b9b1e3673e780f5cc4081b8c7d36e9d8091a",
+                    "clientFinished": "0225210cab2ae5eadc36f95f027579c08499d9b46d71f098fc54b104f050932ff131fd6b64358f4a35f0657707e29c33",
+                    "serverFinished": "edd24de8a98eb1eb2f6647ab3b62ead5c0b0968d19a7efe3b5d2cb44861c1a85a444ad414ddc1f6a652a69a5ed0e3a67"
+                },
+                "tlsClientHelloLength": "343",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": ""
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 97,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767165377402,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "52.87.72.16",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b67fd98ab66172d",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "52.87.72.16"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 14618,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "c+HGU9c+70JkMfIwvdm5FABh/Nn9CgiedKzeaZeqfUo=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "fcf32b984c7d2a55df1c7edb490c54ee8e5997110224cc61aaf702f396afc3ee",
+                    "serverHandshake": "4b1fbe55df03e263640c9095edbc0a15292ac9077005ddbea99e5d5f3c04fabf",
+                    "clientFinished": "b5fd4a43707fa9f44b7d5cbed7758c6c55fe30b962a98ee51c8cdd9b2ec34ec7",
+                    "serverFinished": "76b281d33aab2252c40f363f5c7f93b4aa21e0193f49a0af385d20bd9261b1ff"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 83,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767165681969,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "178.156.189.113",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b6805083df01625",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "178.156.189.113"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "t1D3dsw6o78EYQBt1Djiuoy/trZ7aONCSIh05MAwx1w=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "0b598e8c68689184d26cb912a8ea916466e95462dd231ef6e4759785b6e1178f",
+                    "serverHandshake": "c140f40cdc1a64e35be96b0d8fd8b4562ef0a7877c30ef627d0b8b9d25c564aa",
+                    "clientFinished": "8d94017b38c81e254f1501e0bae6e1da607b86128347fa9b126a82239523b242",
+                    "serverFinished": "3893e1efc4bd1ca6ef623fa24ed02ef9ff30ef8d5938fddaa0ba56b1134ebd34"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 181,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767165986629,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "3.20.63.178",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b680c785974fc7d",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "3.20.63.178"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 14,
+                "colo": "YYZ",
+                "asn": 16509,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Columbus",
+                "continent": "NA",
+                "region": "Ohio",
+                "regionCode": "OH",
+                "timezone": "America/New_York",
+                "longitude": "-82.99879",
+                "latitude": "39.96118",
+                "postalCode": "43215",
+                "metroCode": "535",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "/vq8Xkk9hEV2knmn0WcsnoPq6U7y76tm0U4TP2tLNQc=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "2c80f0c350e2f5ae35e9d7454c925c07a52e75da6bd9131b18473c4f33c86606",
+                    "serverHandshake": "430c9fa83f8fd406beee8ea2cb209e7e8462fd06c5b684405e162dca0a3e94f2",
+                    "clientFinished": "397dad7f7227ed2e8a20c62a8df534d5d6f3ce776710f406b8f6f05b3053cef7",
+                    "serverFinished": "bfa626ae86bf60c9728d80dc452fe7d56819b8b099bc255ff06c87bb240edc0b"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 105,
+    "cpuTime": 2,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767166295372,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "34.198.201.66",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b681401f9c4c5fb",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "34.198.201.66"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 14618,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "OtBx0mZmxjBOUdSQbuV3ITO6XMFVAah/UpxyY5oAvmk=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "f42c8dc999e6e11f7d8c68ff20a8ab8a1e53cec118ada7cf60f64d1d35491e29",
+                    "serverHandshake": "7de5b56d9e83fbd9eef8f77ab128242a054dd4b7833cbe8531b4bfaaf4224837",
+                    "clientFinished": "e8738f8e8b45f32cfb608d7068d000d08be582494435e69c3c13ed2f99404e2b",
+                    "serverFinished": "e3b7800285e0c9a951d01795d0f14988a59d4e423453a6832e1422f07f84f095"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 109,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767166600070,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "3.212.128.62",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b681b725a8b7411",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "3.212.128.62"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 1,
+                "colo": "IAD",
+                "asn": 14618,
+                "asOrganization": "Amazon Data Services Northern Virginia",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "UfvKQ367VQcBrCw9oNg6wTYtae+A2hxDk9bnLX4uXCA=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "7d099fe224599d834e94ba2c475d26db1c27e26e322caf17045112496e73bb52",
+                    "serverHandshake": "192e84c409930a89651a431ff6f51affe70b7a8e46f091d0bad1af707c330e51",
+                    "clientFinished": "52fa9a830aa014d030afb18b08650b6812b5870dabc57a423b98557f03bea9a7",
+                    "serverFinished": "f6c811ebda69c481a916b101acf876686e182361776101cc767370714397fab5"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 201,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767166905985,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "52.15.147.27",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b6822ea5d5eac88",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "52.15.147.27"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 18,
+                "colo": "YYZ",
+                "asn": 16509,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Columbus",
+                "continent": "NA",
+                "region": "Ohio",
+                "regionCode": "OH",
+                "timezone": "America/New_York",
+                "longitude": "-82.99879",
+                "latitude": "39.96118",
+                "postalCode": "43215",
+                "metroCode": "535",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "OOfcgUrxENGXB/AzS0YPTWb0XvKWXcRBLqi1aZPGU+4=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "2fb4495446bd69ebb9118beda6c273f81cfc4d5c3307401545af0fa36bac88a2",
+                    "serverHandshake": "99fb45973f3078fec1268b841c2c35cf620b09032d925faafbe2dddfca22d607",
+                    "clientFinished": "2192f839712c3350a44b9de6ad0058cda3b4e1a7b44fc323cc3545de407f2408",
+                    "serverFinished": "851a0228b8735086bcb164a7c722484b419fa99ba3d95c15a062e2282df89e0d"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 94,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767167217175,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "2a01:4ff:f0:fdc7::1",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b682a833e7739a6",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2a01:4ff:f0:fdc7::1"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 1,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "dI0dBFHt9BGcDzFN6OzvDwBLCK3J/yUMhcpB/T9SxQo=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "3623cb4b9abb508f1101de5c0f8f5505243680e3308b004f3a07b66c8430e7d1",
+                    "serverHandshake": "f89b49110d2c2179392ea7df78d14c2ee92dd8e2d2fc1a1678c030d33464cb10",
+                    "clientFinished": "194dbf8a68b8af94d2bb76b2d276dc5b0769823b7cae1c53e5517611eee06c8c",
+                    "serverFinished": "8f8babdaa28c5ebfdb3c13d672e6685c6a693765d74a37189dc2a7ac9fdb5071"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 90,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767167526187,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "5.161.73.160",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b68320e9ed11dd5",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "5.161.73.160"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "1lp4UXIDnjh7VsrO5hJxw7JQ3ba3W6cZFytcO2QbN/w=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "ef243f7830341449ec46bc6c21d22090dfeabd15ec86b6331655e81613c1f9fd",
+                    "serverHandshake": "5139b943bad5351e53f67eb2d3d51889672716d63102cb58ee65f49f517dbec8",
+                    "clientFinished": "a7089b1d15adcbb4596d331a7faf48c668d860a5450bd8b7824f2dfb4aa444c1",
+                    "serverFinished": "06bee3910a5b959ef6860c002690b315ffc68a7138207597d1087fbb50e92ee3"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 90,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767167830949,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "178.156.189.249",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b68397f5dc705f8",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "178.156.189.249"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "XQDetTpz6lx4ts0m/Jtpowr8Ir5/QOOXeLTCElKrjP0=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "a4013e84d4e7bc088e864bb57f7669e7b875b7aaf8a60d549ea6c9e19b749d8c",
+                    "serverHandshake": "2e517913c4d7592c587fb85a8f71e17f34e877f45302eb0242819445c845a72c",
+                    "clientFinished": "6a61072b28e1a2f0408c5ddbec55aaa408864182c2e25fd5df9bde42e3737058",
+                    "serverFinished": "ab25b7091a7c2e6b4ab735e57ed48af880e107d740c1e22b34e85a6c74465b53"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 96,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767168136976,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "5.161.215.244",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b6840f7f88c05f4",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "5.161.215.244"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "ESFqu61C1tVpfpJ1oRBAUCUjAufDoGauED3/CgpQAN4=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "9a07e1cabc63e2554b30b06cc0e2619a47ddb1bfa0b924d8b730051866e3d1bb",
+                    "serverHandshake": "69a7cc3233fb14eb3e2848f167348a5247a435e8a5919c14a0b2fa1a17642283",
+                    "clientFinished": "61262b8f2a737a5b81864af82360ce1519a4d2b6d809433d233b730a939321f2",
+                    "serverFinished": "68ff0860ad70b031065330d899ab10db7eac1534a7d10cbfbd110a64aa836c16"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 189,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767168441968,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "52.15.147.27",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b68486a389360a9",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "52.15.147.27"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 18,
+                "colo": "YYZ",
+                "asn": 16509,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Columbus",
+                "continent": "NA",
+                "region": "Ohio",
+                "regionCode": "OH",
+                "timezone": "America/New_York",
+                "longitude": "-82.99879",
+                "latitude": "39.96118",
+                "postalCode": "43215",
+                "metroCode": "535",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "lQ5EJHpIHsvtow11rEHSHdSBTKwW4YtSG3obTIJ+tco=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "70ba15419a2f49b6fd91c869af49593fea987143df19b90453bbcfd0b88256dd",
+                    "serverHandshake": "323a32c78cfd7f15dc178f618c8a70172654a31b84764f1219f32246279201f7",
+                    "clientFinished": "318984dc1e7ae84ab14610cf2644d4dede726067292e72ff1d6ec09d1227f942",
+                    "serverFinished": "9d5513cf94fcaff999559a149f5e87f81da1e2487955b94aa25a71e80dc6eb93"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 95,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767168746862,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "2a01:4ff:f0:5f80::1",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b684fdbca33d673",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2a01:4ff:f0:5f80::1"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "zNO3ufUJKiBzhxT6gVgn/l9jNJbjnxI+Zpu70N/bvJ0=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "a1a722bba36ec7aed3ee8cd538a2e39b53a39685bf62aeefd357ee7f65988ca9",
+                    "serverHandshake": "634042bad1fa7d18047cb3e0933c0aad17cd3b56a6fe831536bfeb24951c6d1b",
+                    "clientFinished": "0b7b59c50aa3ca145ed4ef412a594723dad719160d561b73dadab9de1171ecce",
+                    "serverFinished": "1b5e37ad9baf4510b007ee7da69ef8eeae778718559104aab6505c019eefed50"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 89,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767169052034,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "5.161.61.238",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b68574f1eb87067",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "5.161.61.238"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "rfjZgQZBQxSSGBKjoxketxDSQOOCN1cCn2uWdGlSgFU=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "4d4328fb1bbd3b173fdb2f8be9e1ed9fd7473a8003e060c46e87d4d2b728ddb2",
+                    "serverHandshake": "3e75b8e2504720d5fd1127c71dce7ad1a6ddc6f3ef2372c5f198ce565669f291",
+                    "clientFinished": "c316ed910fd6c56b6fc977fc37c8963fefb1937a4e7381d597eb4b506bfd20ff",
+                    "serverFinished": "4d0e8cd8805eab2b25c1f8a1f566631d39c6c3de6e314a334589f6c92456edb2"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 133,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767169356854,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "2600:1f16:775:3a00:8c2c:2ba6:778f:5be5",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b685ec038a90611",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2600:1f16:775:3a00:8c2c:2ba6:778f:5be5"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 18,
+                "colo": "IAD",
+                "asn": 16509,
+                "asOrganization": "Amazon.com, Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Columbus",
+                "continent": "NA",
+                "region": "Ohio",
+                "regionCode": "OH",
+                "timezone": "America/New_York",
+                "longitude": "-82.99879",
+                "latitude": "39.96118",
+                "postalCode": "43215",
+                "metroCode": "535",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "DV1b2KrOnfuhtldCLmT/Ts7PuAY2aFj1OG9btpkgY2I=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "49f8d428cf3b72eae070f38f4183e4b098f82306cd43b4522e2f4f44e6548bd8",
+                    "serverHandshake": "37e776bd4243e50c16c03157f7b5fe0e6920ed66b89297d0c00b11ece895449e",
+                    "clientFinished": "8939b038eb85b914a82ee1990ebb725c204c473dd5d0003aeab09f43df618a07",
+                    "serverFinished": "39491f555b400b77a8c4889cccb66ef318bdd0a375985efdd78ab5bbfda63b20"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 163,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767169662679,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "3.212.128.62",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b6866379c3b05e1",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "3.212.128.62"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 14618,
+                "asOrganization": "Amazon Data Services Northern Virginia",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "xFHyBjvMQGjBCD4zQeDRKgtrA3W9WyfKpAgumSYlPSQ=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "896b99c47375134227731e2ca34b3542bf8d0cb1be2a851ba9498d0fb0979221",
+                    "serverHandshake": "162442104b388ed59b21d24ec706465ba8beaa01f4a0360355104ad45c322310",
+                    "clientFinished": "727ba95769548524603553339170f045cb390d33649d36551125103909e792ea",
+                    "serverFinished": "431aea3d549dcf6f8206436fcabea2bd38d426a682c6d67a073de4bdd3ae0a6d"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 105,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767169967328,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "52.22.236.30",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b686da7bd7ad739",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "52.22.236.30"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 1,
+                "colo": "IAD",
+                "asn": 14618,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "0I8WzMzcKac1+Zj+O+PdnZmrpEbQr8HzHkLpTeBQor0=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "d2ff0a77b71a4e2183e8baf349e1d280d7753bef6e3ac6e481dc106599d5f39b",
+                    "serverHandshake": "4d29bee179788aa49023a74a8b25e2627b37066b05247b2685fb2bd0db8a952c",
+                    "clientFinished": "b251cdee621fa92a88a8d9947ab9e87b283fc677cd1ffbd2b911e88d1a67cbec",
+                    "serverFinished": "c1cfeaf3c268323a1f3e77d27ef3e0ff32286ad49c580b5c4ffb3ca5ee808642"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 100,
+    "cpuTime": 1,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767170271921,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "3.12.251.153",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b6875176d4539d7",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "3.12.251.153"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 17,
+                "colo": "YYZ",
+                "asn": 16509,
+                "asOrganization": "Amazon Technologies Inc.",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Columbus",
+                "continent": "NA",
+                "region": "Ohio",
+                "regionCode": "OH",
+                "timezone": "America/New_York",
+                "longitude": "-82.99879",
+                "latitude": "39.96118",
+                "postalCode": "43215",
+                "metroCode": "535",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "qeNFskmKOAlYIYTjdgwf9UpclFLgeRFLSXGfMF7HwYw=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "ca3b961ad585e894cba54630a0dac8a5139609aa1508301324dea8803f236d98",
+                    "serverHandshake": "b57c2f6c3ec36e2bdb8ad4531cf2be6051c3790d1a15e20dfa164ed417e43d35",
+                    "clientFinished": "edcdd8146f40300761b5b5ee4fc45444250a33e0834304c9149e6f5cb457b27a",
+                    "serverFinished": "aa5ccb4f9bec94c41026817414cc1a44b3357307cb3e2139306c96e3fa5ae851"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 89,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767170577332,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "5.161.177.47",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b687c8c3e9d3af9",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "5.161.177.47"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 0,
+                "colo": "IAD",
+                "asn": 213230,
+                "asOrganization": "Hetzner Online GmbH",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "PnKCaZP3wcvDwMUkHvkyUq9Mgo0XREd6RKsku4OEotk=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "346703ab380853c4feeeb97f189b563522c166216cbe46ae6fb90a949682973f",
+                    "serverHandshake": "3087aa73180e58ec430054726f7c2dd8682854c96a8cd6f3e8a8740e76088289",
+                    "clientFinished": "f5e6de5eb31b18b9a695c81d4bab11108b036b6a014855e77bb3c1b2a9441696",
+                    "serverFinished": "00b430a48f34de5c38aea97175903a4b1e8527d70f952be6907d5706de763d5e"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}
+{
+    "wallTime": 100,
+    "cpuTime": 0,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "e057dfbd-5b53-450b-a585-db69f2701293"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [],
+    "eventTimestamp": 1767170882217,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/health",
+            "method": "HEAD",
+            "headers": {
+                "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                "accept-encoding": "gzip, br",
+                "accept-language": "en-US,en;q=0.8",
+                "cache-control": "no-cache",
+                "cf-connecting-ip": "3.212.128.62",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b6883fdcb68a13a",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "referer": "https://mineral-watch-monitor.photog12.workers.dev/health",
+                "user-agent": "Mozilla/5.0+(compatible; UptimeRobot/2.0; http://www.uptimerobot.com/)",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "3.212.128.62"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/1.1",
+                "clientAcceptEncoding": "gzip, deflate, br",
+                "requestPriority": "",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 1,
+                "colo": "IAD",
+                "asn": 14618,
+                "asOrganization": "Amazon Data Services Northern Virginia",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Ashburn",
+                "continent": "NA",
+                "region": "Virginia",
+                "regionCode": "VA",
+                "timezone": "America/New_York",
+                "longitude": "-77.48749",
+                "latitude": "39.04372",
+                "postalCode": "20147",
+                "metroCode": "511",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES128-GCM-SHA256",
+                "tlsClientRandom": "Klrxfci0zuM4e+kKsGwpTtyMXqMiJWKh4huH1MVZ5Tk=",
+                "tlsClientCiphersSha1": "MRsbbon4yqGto2Y6sTZcBnMwJCY=",
+                "tlsClientExtensionsSha1": "aWVCohOefx9sYmnLzIkGYW/Cb9M=",
+                "tlsClientExtensionsSha1Le": "G5t+uwtBmY9hJOvSdB/+WgzrvyI=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "1ff322b3b864e14e3da3da7824bf7ddd588930a07f64bc5649c83bff476d1b4e",
+                    "serverHandshake": "607938741c075bb8b58d94c78d5a835c3ef8f06bc476c35a9b5ee624c124a472",
+                    "clientFinished": "04d6af030b3135b6ea7df12e62f6e091d88d523ce800df6ae17677a160afd231",
+                    "serverFinished": "15d2a0cebfa3e2b26b817980f8cbdd25373e864eee00ccba0955c7e3e63581c9"
+                },
+                "tlsClientHelloLength": "1523",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": "Monitoring & Analytics"
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}

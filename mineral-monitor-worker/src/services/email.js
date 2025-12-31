@@ -451,14 +451,21 @@ async function buildHtmlBody(data, env) {
   const tipStyle = tipStyles[explanation.tipType] || tipStyles.info;
   
   // Generate signed tracking link if we have apiNumber and userId
+  // Only show for non-tracked wells (property/adjacent alerts)
   let trackingLink = null;
-  if (apiNumber && userId && env.TRACK_WELL_SECRET) {
+  const shouldShowTrackButton = alertLevel !== 'TRACKED WELL' && alertLevel !== 'STATUS CHANGE';
+  
+  if (shouldShowTrackButton && apiNumber && userId && env.TRACK_WELL_SECRET) {
     const expiration = Math.floor(Date.now() / 1000) + (48 * 60 * 60); // 48 hours from now
     const token = await generateTrackToken(userId, apiNumber, expiration, env.TRACK_WELL_SECRET);
     trackingLink = `https://portal.mymineralwatch.com/add-well?api=${apiNumber}&user=${userId}&token=${token}&exp=${expiration}`;
     console.log(`[Email] Generated track link for API ${apiNumber}, user ${userId}, token first 8 chars: ${token.substring(0, 8)}`);
   } else {
-    console.log(`[Email] Track link not generated: apiNumber=${apiNumber}, userId=${userId}, hasSecret=${!!env.TRACK_WELL_SECRET}`);
+    const reason = !shouldShowTrackButton ? 'already tracked' : 
+                   !apiNumber ? 'no API' : 
+                   !userId ? 'no userId' : 
+                   !env.TRACK_WELL_SECRET ? 'no secret' : 'unknown';
+    console.log(`[Email] Track link not generated: reason=${reason}, alertLevel=${alertLevel}, apiNumber=${apiNumber}, userId=${userId}`);
   }
   
   return `
