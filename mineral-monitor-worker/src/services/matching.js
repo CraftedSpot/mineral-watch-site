@@ -217,6 +217,7 @@ async function findUsersMonitoringAdjacentTo(location, env) {
                   },
                   alertLevel: 'ADJACENT SECTION',
                   matchedSection: propSection,
+                  organizationId: orgId,
                   permitSection: `${normalizeSection(section)}-${township}-${range}`,
                   viaOrganization: orgName
                 });
@@ -305,7 +306,8 @@ export async function findMatchingWells(api10, env) {
                     name: orgUser.fields.Name
                   },
                   alertLevel: 'TRACKED WELL',
-                  viaOrganization: orgName
+                  viaOrganization: orgName,
+                  organizationId: orgId
                 });
               }
             }
