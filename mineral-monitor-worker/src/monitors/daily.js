@@ -556,9 +556,18 @@ export async function runDailyMonitor(env, options = {}) {
     // Send batched emails
     if (userAlertMap.size > 0) {
       console.log(`[Daily] Sending batched emails to ${userAlertMap.size} users`);
-      const emailResults = await sendBatchedEmails(env, userAlertMap, dryRun);
+      const emailResults = await sendBatchedEmails(env, userAlertMap, dryRun, { 
+        testMode: isTestMode 
+      });
       results.alertsSent = emailResults.alertsSent;
       console.log(`[Daily] Sent ${emailResults.emailsSent} emails containing ${emailResults.alertsSent} alerts`);
+      
+      if (isTestMode && emailResults.skippedUsers.length > 0) {
+        console.log(`[Daily] Test mode - skipped ${emailResults.skippedUsers.length} non-test users`);
+        if (results.testDetails) {
+          results.testDetails.skippedUsers = emailResults.skippedUsers;
+        }
+      }
       
       if (emailResults.errors.length > 0) {
         console.error('[Daily] Email errors:', emailResults.errors);
