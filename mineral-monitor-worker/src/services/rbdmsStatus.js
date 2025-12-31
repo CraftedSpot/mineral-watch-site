@@ -381,6 +381,11 @@ export async function checkAllWellStatuses(env) {
           } else {
             console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
           }
+          
+        } catch (err) {
+          console.error(`[RBDMS] Error processing status mismatch for ${api}:`, err);
+          results.errors.push(`Processing error for ${api}: ${err.message}`);
+        }
       }
     }
     
