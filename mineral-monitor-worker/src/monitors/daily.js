@@ -509,7 +509,7 @@ export async function runDailyMonitor(env, options = {}) {
     for (let i = 0; i < newPermits.length; i++) {
       const permit = newPermits[i];
       try {
-        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap);
+        await processPermit(permit, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode);
         results.permitsProcessed++;
         
         // Mark as processed
@@ -531,7 +531,7 @@ export async function runDailyMonitor(env, options = {}) {
     for (let i = 0; i < newCompletions.length; i++) {
       const completion = newCompletions[i];
       try {
-        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap);
+        await processCompletion(completion, env, results, dryRun, propertyMap, userCache, recentAlerts, userAlertMap, isTestMode);
         results.completionsProcessed++;
         
         // Mark as processed with date to allow multiple zone completions
