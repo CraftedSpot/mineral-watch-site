@@ -23,20 +23,29 @@ export async function handleListActivity(request: Request, env: Env) {
   // Get user record to access plan information
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
+  const userOrganizations = userRecord?.fields.Organization || [];
   
   // Get plan-based record limit
   const planLimits = PLAN_LIMITS[plan] || PLAN_LIMITS["Free"];
   const recordLimit = planLimits.activityRecords;
   
   // Add debug logging
-  console.log(`Activity handler - User: ${user.email}, Plan: ${plan}, Record Limit: ${recordLimit}`);
+  console.log(`Activity handler - User: ${user.email}, Plan: ${plan}, Record Limit: ${recordLimit}, Organizations: ${userOrganizations.join(', ')}`);
   
   // Get query parameters
   const url = new URL(request.url);
   const days = url.searchParams.get('days');
   
-  // Build formula: user's records, sorted by date desc
-  let formula = `{Email} = '${user.email}'`;
+  // Build formula: user's records OR organization's records
+  let formula: string;
+  if (userOrganizations.length > 0) {
+    // User is part of an organization - show both personal and org activities
+    const orgId = userOrganizations[0]; // User typically belongs to one org
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+  } else {
+    // No organization - show only personal activities
+    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  }
   
   // If days parameter provided, add date filter
   if (days) {
@@ -95,8 +104,20 @@ export async function handleActivityStats(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
-  // Get all activity for this user (for stats, we count everything)
-  const formula = `{Email} = '${user.email}'`;
+  // Get user record to check for organization
+  const userRecord = await getUserById(env, user.id);
+  const userOrganizations = userRecord?.fields.Organization || [];
+  
+  // Build formula: user's records OR organization's records
+  let formula: string;
+  if (userOrganizations.length > 0) {
+    // User is part of an organization - count both personal and org activities
+    const orgId = userOrganizations[0];
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+  } else {
+    // No organization - count only personal activities
+    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  }
   
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc`;
   
