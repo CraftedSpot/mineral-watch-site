@@ -813,10 +813,10 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
   
   // 5. Send alerts (with deduplication check using preloaded set)
   for (const alert of alertsToSend) {
-    // OPTIMIZATION: Use preloaded alert set instead of individual queries
-    const alreadyAlerted = recentAlerts 
+    // OPTIMIZATION: Use preloaded alert set instead of individual queries (skip in test mode)
+    const alreadyAlerted = !isTestMode && recentAlerts 
       ? hasRecentAlertInSet(recentAlerts, api10, activityType, alert.user.id)
-      : false; // Fallback: don't skip if no preloaded data
+      : false; // Fallback: don't skip if no preloaded data or test mode
     
     if (alreadyAlerted) {
       console.log(`[Daily] Skipping duplicate alert for ${alert.user.email} on ${api10}`);
