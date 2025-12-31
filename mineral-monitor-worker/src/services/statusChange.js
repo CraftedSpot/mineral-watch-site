@@ -126,13 +126,13 @@ export async function checkWellStatusChange(api10, currentData, env) {
           if (!env.DRY_RUN || env.DRY_RUN === 'false') {
             try {
               await sendAlertEmail(env, {
-                to: user.fields.Email,
+                to: user.email,
                 subject: `Well Status Change Alert - ${well.fields['Well Name'] || api10}`,
                 userName: userName,
                 wellName: well.fields['Well Name'] || `API ${api10}`,
                 apiNumber: api10,
                 activityType: 'Status Change',
-                alertLevel: 'STATUS CHANGE',
+                alertLevel: match.alertLevel || 'STATUS CHANGE',
                 operator: well.fields.Operator || 'Unknown',
                 county: currentData.county || 'Unknown',
                 section: currentData.section || '',
