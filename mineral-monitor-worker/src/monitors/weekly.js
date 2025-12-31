@@ -224,7 +224,7 @@ function findMatchesInMap(location, propertyMap, userCache) {
  * @param {Object} env - Worker environment bindings
  * @returns {Object} - Processing results
  */
-export async function runWeeklyMonitor(env) {
+export async function runWeeklyMonitor(env, options = {}) {
   console.log('[Weekly] Starting weekly monitor run');
   
   const results = {
@@ -234,10 +234,41 @@ export async function runWeeklyMonitor(env) {
     statusChanges: 0,
     alertsSent: 0,
     alertsSkipped: 0,
-    errors: []
+    errors: [],
+    testMode: false,
+    testResults: null
   };
   
   try {
+    // Test mode: simulate a transfer for a specific API
+    if (options.testApi) {
+      console.log(`[Weekly] TEST MODE: Simulating transfer for API ${options.testApi}`);
+      results.testMode = true;
+      
+      // Create a fake transfer record
+      const testTransfer = {
+        'API Number': options.testApi,
+        'EventDate': new Date().toISOString(),
+        'FromOperatorName': 'TEST PREVIOUS OPERATOR LLC',
+        'ToOperatorName': 'TEST NEW OPERATOR INC',
+        'ToOperatorPhone': '(555) 123-4567',
+        'WellName': `Test Well for ${options.testApi}`,
+        'WellNum': '#1H',
+        'Section': '1',
+        'Township': '1N',
+        'Range': '1W',
+        'PM': 'IM',
+        'County': 'TEST'
+      };
+      
+      // Process just this test transfer
+      const recentAlerts = await preloadRecentAlerts(env);
+      results.testResults = await processTransfer(testTransfer, env, results, recentAlerts);
+      results.transfersProcessed = 1;
+      
+      console.log(`[Weekly] TEST MODE complete. Alerts sent: ${results.alertsSent}`);
+      return results;
+    }
     // OPTIMIZATION 1: Load already-processed transfer APIs
     const processedTransfers = await loadProcessedTransfers(env);
     console.log(`[Weekly] Starting with ${processedTransfers.size} previously processed transfers`);
@@ -347,10 +378,26 @@ async function processTransfer(transfer, env, results, recentAlerts) {
   const wellNum = transfer.WellNum || '';
   
   const alertsToSend = [];
+  const testDetails = results.testMode ? {
+    api: api10,
+    wellMatches: [],
+    alertsSent: [],
+    errors: []
+  } : null;
   
   // Check if any users are tracking this well by API Number
   // Transfers are well-level events - we match by API Number against Client Wells table
   const wellMatches = await findMatchingWells(api10, env);
+  
+  if (testDetails) {
+    testDetails.wellMatches = wellMatches.map(m => ({
+      wellName: m.well.fields['Well Name'],
+      wellStatus: m.well.fields['Status'],
+      userEmail: m.user.email,
+      userName: m.user.name,
+      viaOrganization: m.viaOrganization || null
+    }));
+  }
   for (const match of wellMatches) {
     if (!alertsToSend.some(a => a.user.email === match.user.email)) {
       alertsToSend.push({
