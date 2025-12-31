@@ -550,8 +550,10 @@ export async function runDailyMonitor(env, options = {}) {
       }
     }
     
-    // Save updated processed APIs
-    await saveProcessedAPIs(env, processedAPIs);
+    // Save updated processed APIs (skip in test mode to allow re-testing)
+    if (!isTestMode) {
+      await saveProcessedAPIs(env, processedAPIs);
+    }
     
     // Send batched emails
     if (userAlertMap.size > 0) {
