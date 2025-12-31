@@ -910,7 +910,9 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         bhTownship: permit.PBH_Township,
         bhRange: permit.PBH_Range,
         // Horizontal well data
-        isMultiSection: false
+        isMultiSection: false,
+        // Organization ID if alert is via organization
+        organizationId: alert.organizationId || null
       };
       
       // Add alert to user's alert list
