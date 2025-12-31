@@ -1232,8 +1232,8 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     });
   }
   for (const alert of alertsToSend) {
-    // OPTIMIZATION: Use preloaded alert set
-    const alreadyAlerted = recentAlerts 
+    // OPTIMIZATION: Use preloaded alert set (skip in test mode)
+    const alreadyAlerted = !isTestMode && recentAlerts 
       ? hasRecentAlertInSet(recentAlerts, api10, 'Well Completed', alert.user.id)
       : false;
     
