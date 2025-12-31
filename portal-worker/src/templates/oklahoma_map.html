@@ -3774,7 +3774,7 @@
         // Fetch D1 enrichment data for a well
         async function fetchWellEnrichment(apiNumber, existingFormation, existingDepth, existingCompletionDate) {
             try {
-                const response = await fetch(`/api/well-enrichment/${apiNumber}`);
+                const response = await fetch(`/api/well-enrichment/${apiNumber}`, { credentials: 'include' });
                 if (!response.ok) {
                     console.error('Failed to fetch enrichment data:', response.status);
                     return;
