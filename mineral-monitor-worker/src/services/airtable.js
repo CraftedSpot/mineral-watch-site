@@ -214,7 +214,7 @@ export async function createActivityLog(env, data) {
   // The portal enriches operator info when displaying wells
   if (data.notes) fields['Notes'] = data.notes;
   if (data.formation) fields['Formation'] = data.formation; // Add formation field
-  if (data.coordinateSource) fields['Coordinate Source'] = data.coordinateSource; // Track data quality
+  // Note: coordinateSource is tracked internally but not stored in Activity Log
   // Always include OCC Map Link field (empty string if no link)
   fields['OCC Map Link'] = data.mapLink || "";
   console.log(`[Airtable] OCC Map Link field set to: ${fields['OCC Map Link']}`);
