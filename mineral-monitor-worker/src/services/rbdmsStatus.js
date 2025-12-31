@@ -132,9 +132,10 @@ function parseCSVLine(line) {
 /**
  * Check all user-tracked wells for status changes
  * @param {Object} env - Worker environment
+ * @param {Object} options - Options for test mode
  * @returns {Object} - Results of status check
  */
-export async function checkAllWellStatuses(env) {
+export async function checkAllWellStatuses(env, options = {}) {
   const results = {
     wellsChecked: 0,
     statusChanges: 0,
