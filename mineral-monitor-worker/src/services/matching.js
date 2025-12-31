@@ -23,6 +23,7 @@ export async function findMatchingProperties(location, env) {
     (panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM');
   
   const matches = [];
+  const seenUsers = new Set(); // Prevent duplicate alerts
   
   // Query for exact property matches
   const formula = `AND(
@@ -36,23 +37,75 @@ export async function findMatchingProperties(location, env) {
   const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
   
   for (const prop of properties) {
-    // Get the linked user
+    // Case 1: Individual user linked to property
     const userIds = prop.fields.User;
-    if (!userIds || userIds.length === 0) continue;
+    if (userIds && userIds.length > 0) {
+      const user = await getUserById(env, userIds[0]);
+      if (user && user.fields.Status === 'Active' && !seenUsers.has(user.id)) {
+        seenUsers.add(user.id);
+        matches.push({
+          property: prop,
+          user: {
+            id: user.id,
+            email: user.fields.Email,
+            name: user.fields.Name
+          },
+          alertLevel: 'YOUR PROPERTY',
+          matchedSection: `${normalizedSec}-${township}-${range}`
+        });
+      }
+    }
     
-    const user = await getUserById(env, userIds[0]);
-    if (!user || user.fields.Status !== 'Active') continue;
-    
-    matches.push({
-      property: prop,
-      user: {
-        id: user.id,
-        email: user.fields.Email,
-        name: user.fields.Name
-      },
-      alertLevel: 'YOUR PROPERTY',
-      matchedSection: `${normalizedSec}-${township}-${range}`
-    });
+    // Case 2: Organization linked to property - get all users in the org
+    const orgIds = prop.fields.Organization;
+    if (orgIds && orgIds.length > 0) {
+      const orgId = orgIds[0]; // Get first org ID (properties typically belong to one org)
+      console.log(`[Matching] Property in ${normalizedSec}-${township}-${range} belongs to organization ID: ${orgId}`);
+      
+      // Fetch the Organization record directly by ID
+      try {
+        const orgUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
+        const orgResponse = await fetch(orgUrl, {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (orgResponse.ok) {
+          const org = await orgResponse.json();
+          const orgName = org.fields.Name;
+          const orgUserIds = org.fields['👤 Users'] || [];
+          
+          console.log(`[Matching] Organization "${orgName}" has ${orgUserIds.length} users`);
+          
+          // Get all active users in the organization
+          for (const orgUserId of orgUserIds) {
+            if (!seenUsers.has(orgUserId)) {
+              const orgUser = await getUserById(env, orgUserId);
+              if (orgUser && orgUser.fields.Status === 'Active') {
+                seenUsers.add(orgUserId);
+                matches.push({
+                  property: prop,
+                  user: {
+                    id: orgUser.id,
+                    email: orgUser.fields.Email,
+                    name: orgUser.fields.Name
+                  },
+                  alertLevel: 'YOUR PROPERTY',
+                  matchedSection: `${normalizedSec}-${township}-${range}`,
+                  viaOrganization: orgName
+                });
+              }
+            }
+          }
+        } else {
+          console.error(`[Matching] Failed to fetch organization ${orgId}: ${orgResponse.status}`);
+        }
+      } catch (error) {
+        console.error(`[Matching] Error fetching organization ${orgId}:`, error);
+      }
+    }
   }
   
   // ALWAYS check for adjacent section matches (users who own sections adjacent to this permit)
