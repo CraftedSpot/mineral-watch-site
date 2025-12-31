@@ -119,7 +119,8 @@ async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
       await sendAlertEmail(env, {
         ...alerts[0],
         to: userEmail,
-        userName: userName
+        userName: userName,
+        userId: userId  // Ensure userId is passed for track link generation
       });
     } else {
       // Multiple alerts - send batched email
