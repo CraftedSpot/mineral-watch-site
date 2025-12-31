@@ -455,7 +455,7 @@ export async function runDailyMonitor(env, options = {}) {
       // Include completion date in key to allow multiple zone completions
       const completionDate = c.Well_Completion || 'unknown';
       const key = `${api}|completion|${completionDate}`;
-      if (processedAPIs.has(key)) {
+      if (!isTestMode && processedAPIs.has(key)) {
         results.completionsSkippedAsProcessed++;
         return false;
       }
