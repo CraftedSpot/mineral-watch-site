@@ -316,11 +316,46 @@ export default {
       }
     }
     
+    // Test status change simulation endpoint
+    if (url.pathname === '/test/status-change') {
+      const testApi = url.searchParams.get('api') || '3504523551';
+      const newStatus = url.searchParams.get('newStatus') || 'IA';
+      
+      try {
+        const { checkAllWellStatuses } = await import('./services/rbdmsStatus.js');
+        const startTime = Date.now();
+        
+        const results = await checkAllWellStatuses(env, {
+          testStatusChangeApi: testApi,
+          testNewStatus: newStatus
+        });
+        
+        return new Response(JSON.stringify({
+          success: true,
+          duration_ms: Date.now() - startTime,
+          results,
+          testApi,
+          simulatedStatus: newStatus
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
     // Default response
     return new Response(JSON.stringify({
       service: 'Mineral Watch Oklahoma',
       version: '2.0.0',
-      endpoints: ['/health', '/trigger/daily', '/trigger/weekly', '/test/rbdms-status', '/test/weekly-transfers']
+      endpoints: ['/health', '/trigger/daily', '/trigger/weekly', '/test/rbdms-status', '/test/weekly-transfers', '/test/status-change']
     }), {
       headers: { 'Content-Type': 'application/json' }
     });
