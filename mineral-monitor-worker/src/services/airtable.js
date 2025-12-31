@@ -210,7 +210,8 @@ export async function createActivityLog(env, data) {
   if (data.previousValue) fields['Previous Value'] = data.previousValue;
   if (data.newValue) fields['New Value'] = data.newValue;
   if (data.occLink) fields['OCC Link'] = data.occLink;
-  if (data.operatorPhone) fields['Operator Phone'] = data.operatorPhone;
+  // Note: operatorPhone is sent in email alerts but not stored in Activity Log
+  // The portal enriches operator info when displaying wells
   if (data.notes) fields['Notes'] = data.notes;
   if (data.formation) fields['Formation'] = data.formation; // Add formation field
   if (data.coordinateSource) fields['Coordinate Source'] = data.coordinateSource; // Track data quality
