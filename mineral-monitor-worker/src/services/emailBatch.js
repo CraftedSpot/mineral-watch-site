@@ -100,7 +100,8 @@ async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
       mapLink: alert.mapLink || "",
       userId: alert.user.id,
       formation: alert.formation || null,
-      coordinateSource: alert.coordinateSource || null
+      coordinateSource: alert.coordinateSource || null,
+      organizationId: alert.organizationId || null
     };
 
     const record = await createActivityLog(env, activityData);
