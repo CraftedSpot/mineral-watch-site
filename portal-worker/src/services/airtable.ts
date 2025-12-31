@@ -99,13 +99,28 @@ export async function getUserById(env: Env, userId: string): Promise<AirtableUse
 }
 
 /**
- * Count the number of properties for a user
+ * Count the number of properties for a user (including organization properties)
  * @param env Worker environment
  * @param userEmail User's email address
  * @returns Number of properties
  */
 export async function countUserProperties(env: Env, userEmail: string): Promise<number> {
-  const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+  // First get the user to check for organization
+  const user = await findUserByEmail(env, userEmail);
+  if (!user) return 0;
+  
+  const userOrganizations = user.fields.Organization || [];
+  
+  let formula: string;
+  if (userOrganizations.length > 0) {
+    // User is part of an organization - count both personal and org properties
+    const orgId = userOrganizations[0];
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+  } else {
+    // No organization - count only personal properties
+    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  }
+  
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -116,13 +131,28 @@ export async function countUserProperties(env: Env, userEmail: string): Promise<
 }
 
 /**
- * Count the number of wells for a user
+ * Count the number of wells for a user (including organization wells)
  * @param env Worker environment
  * @param userEmail User's email address
  * @returns Number of wells
  */
 export async function countUserWells(env: Env, userEmail: string): Promise<number> {
-  const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+  // First get the user to check for organization
+  const user = await findUserByEmail(env, userEmail);
+  if (!user) return 0;
+  
+  const userOrganizations = user.fields.Organization || [];
+  
+  let formula: string;
+  if (userOrganizations.length > 0) {
+    // User is part of an organization - count both personal and org wells
+    const orgId = userOrganizations[0];
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+  } else {
+    // No organization - count only personal wells
+    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  }
+  
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -286,7 +316,7 @@ export async function fetchAllAirtableRecords(env: Env, table: string, formula: 
 }
 
 /**
- * Fetch all properties for a user
+ * Fetch all properties for a user (including organization properties)
  * @param env Worker environment
  * @param userEmail User's email address
  * @returns Array of simplified property objects
@@ -295,7 +325,18 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
   const user = await findUserByEmail(env, userEmail);
   if (!user) return [];
   
-  const formula = `FIND("${userEmail}", ARRAYJOIN({User})) > 0`;
+  const userOrganizations = user.fields.Organization || [];
+  
+  let formula: string;
+  if (userOrganizations.length > 0) {
+    // User is part of an organization - fetch both personal and org properties
+    const orgId = userOrganizations[0];
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+  } else {
+    // No organization - fetch only personal properties
+    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  }
+  
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
   
   const response = await fetch(url, {
@@ -316,7 +357,7 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
 }
 
 /**
- * Fetch all wells for a user
+ * Fetch all wells for a user (including organization wells)
  * @param env Worker environment
  * @param userEmail User's email address
  * @returns Array of simplified well objects
@@ -325,7 +366,18 @@ export async function fetchUserWells(env: Env, userEmail: string): Promise<Simpl
   const user = await findUserByEmail(env, userEmail);
   if (!user) return [];
   
-  const formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+  const userOrganizations = user.fields.Organization || [];
+  
+  let formula: string;
+  if (userOrganizations.length > 0) {
+    // User is part of an organization - fetch both personal and org wells
+    const orgId = userOrganizations[0];
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+  } else {
+    // No organization - fetch only personal wells
+    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+  }
+  
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
   
   const response = await fetch(url, {
