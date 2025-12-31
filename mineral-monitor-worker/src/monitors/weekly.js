@@ -15,14 +15,11 @@ import {
   preloadRecentAlerts, 
   hasRecentAlertInSet, 
   createActivityLog,
-  updateActivityLog,
-  queryAirtable,
-  batchGetUsers
+  updateActivityLog
 } from '../services/airtable.js';
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeAPI, normalizeOperator, normalizeSection } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
-import { getAdjacentSections } from '../utils/plss.js';
 import { checkAllWellStatuses } from '../services/rbdmsStatus.js';
 
 /**
@@ -288,21 +285,13 @@ export async function runWeeklyMonitor(env) {
       return results;
     }
     
-    // OPTIMIZATION 2: Preload recent alerts for dedup
+    // OPTIMIZATION: Preload recent alerts for dedup
     const recentAlerts = await preloadRecentAlerts(env);
     
-    // OPTIMIZATION 3: Batch load properties for all transfers
-    const propertyMap = await batchLoadPropertiesForTransfers(newTransfers, env);
-    
-    // OPTIMIZATION 4: Batch load all users
-    const userIds = collectUserIdsFromProperties(propertyMap);
-    const userCache = await batchGetUsers(env, userIds);
-    console.log(`[Weekly] Batch loaded ${userCache.size} users for property matching`);
-    
-    // Process each transfer
+    // Process each transfer - match by API Number against Client Wells
     for (const transfer of newTransfers) {
       try {
-        await processTransfer(transfer, env, results, propertyMap, userCache, recentAlerts);
+        await processTransfer(transfer, env, results, recentAlerts);
         results.transfersProcessed++;
         
         // Mark as processed
@@ -348,7 +337,7 @@ export async function runWeeklyMonitor(env) {
  *   EventDate (not Transfer_Date)
  *   Section, Township, Range, PM, County
  */
-async function processTransfer(transfer, env, results, propertyMap, userCache, recentAlerts) {
+async function processTransfer(transfer, env, results, recentAlerts) {
   // Use correct column names from OCC file
   const api10 = normalizeAPI(transfer['API Number']);
   const previousOperator = transfer.FromOperatorName;
@@ -359,26 +348,8 @@ async function processTransfer(transfer, env, results, propertyMap, userCache, r
   
   const alertsToSend = [];
   
-  // Check property matches using preloaded data
-  if (transfer.Section && transfer.Township && transfer.Range) {
-    const propertyMatches = findMatchesInMap({
-      section: transfer.Section,
-      township: transfer.Township,
-      range: transfer.Range,
-      meridian: transfer.PM
-    }, propertyMap, userCache);
-    
-    for (const match of propertyMatches) {
-      alertsToSend.push({
-        user: match.user,
-        alertLevel: match.alertLevel,
-        matchedLocation: match.matchedSection,
-        reason: match.alertLevel === 'YOUR PROPERTY' ? 'property_location' : 'adjacent_section'
-      });
-    }
-  }
-  
-  // Check tracked wells (still individual query - tracked wells are sparse)
+  // Check if any users are tracking this well by API Number
+  // Transfers are well-level events - we match by API Number against Client Wells table
   const wellMatches = await findMatchingWells(api10, env);
   for (const match of wellMatches) {
     if (!alertsToSend.some(a => a.user.email === match.user.email)) {

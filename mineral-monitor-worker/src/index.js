@@ -252,11 +252,46 @@ export default {
       }
     }
     
+    // Test weekly transfers endpoint
+    if (url.pathname === '/test/weekly-transfers') {
+      const forceReprocess = url.searchParams.get('force') === 'true';
+      
+      if (forceReprocess) {
+        // Clear the processed transfers cache
+        await env.COMPLETIONS_CACHE.delete('processed-transfers');
+        console.log('[Test] Cleared processed transfers cache');
+      }
+      
+      try {
+        const { runWeeklyMonitor } = await import('./monitors/weekly.js');
+        const startTime = Date.now();
+        const results = await runWeeklyMonitor(env);
+        
+        return new Response(JSON.stringify({
+          success: true,
+          duration_ms: Date.now() - startTime,
+          results,
+          forcedReprocess: forceReprocess
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+    
     // Default response
     return new Response(JSON.stringify({
       service: 'Mineral Watch Oklahoma',
       version: '2.0.0',
-      endpoints: ['/health', '/trigger/daily', '/trigger/weekly', '/test/rbdms-status']
+      endpoints: ['/health', '/trigger/daily', '/trigger/weekly', '/test/rbdms-status', '/test/weekly-transfers']
     }), {
       headers: { 'Content-Type': 'application/json' }
     });

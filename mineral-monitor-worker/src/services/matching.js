@@ -143,24 +143,78 @@ export async function findMatchingWells(api10, env) {
   
   const wells = await queryAirtable(env, env.AIRTABLE_WELLS_TABLE, formula);
   const matches = [];
+  const seenUsers = new Set(); // Prevent duplicate alerts
   
   for (const well of wells) {
+    // Case 1: Individual user directly linked to well
     const userIds = well.fields.User;
-    if (!userIds || userIds.length === 0) continue;
+    if (userIds && userIds.length > 0) {
+      const user = await getUserById(env, userIds[0]);
+      if (user && user.fields.Status === 'Active' && !seenUsers.has(user.id)) {
+        seenUsers.add(user.id);
+        matches.push({
+          well: well,
+          user: {
+            id: user.id,
+            email: user.fields.Email,
+            name: user.fields.Name
+          },
+          alertLevel: 'TRACKED WELL'
+        });
+      }
+    }
     
-    const user = await getUserById(env, userIds[0]);
-    if (!user || user.fields.Status !== 'Active') continue;
-    
-    matches.push({
-      well: well,
-      user: {
-        id: user.id,
-        email: user.fields.Email,
-        name: user.fields.Name
-      },
-      alertLevel: 'TRACKED WELL'
-    });
+    // Case 2: Organization linked to well - get all users in the org
+    const orgIds = well.fields.Organization;
+    if (orgIds && orgIds.length > 0) {
+      const orgId = orgIds[0]; // Get first org ID (wells typically belong to one org)
+      console.log(`[Matching] Well ${api10} belongs to organization ID: ${orgId}`);
+      
+      // Fetch the Organization record directly by ID
+      try {
+        const orgUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
+        const orgResponse = await fetch(orgUrl, {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (orgResponse.ok) {
+          const org = await orgResponse.json();
+          const orgName = org.fields.Name;
+          const orgUserIds = org.fields['👤 Users'] || [];
+          
+          console.log(`[Matching] Organization "${orgName}" has ${orgUserIds.length} users`);
+          
+          // Get all active users in the organization
+          for (const orgUserId of orgUserIds) {
+            if (!seenUsers.has(orgUserId)) {
+              const orgUser = await getUserById(env, orgUserId);
+              if (orgUser && orgUser.fields.Status === 'Active') {
+                seenUsers.add(orgUserId);
+                matches.push({
+                  well: well,
+                  user: {
+                    id: orgUser.id,
+                    email: orgUser.fields.Email,
+                    name: orgUser.fields.Name
+                  },
+                  alertLevel: 'TRACKED WELL',
+                  viaOrganization: orgName
+                });
+              }
+            }
+          }
+        } else {
+          console.error(`[Matching] Failed to fetch organization ${orgId}: ${orgResponse.status}`);
+        }
+      } catch (error) {
+        console.error(`[Matching] Error fetching organization ${orgId}:`, error);
+      }
+    }
   }
   
+  console.log(`[Matching] Well ${api10}: found ${matches.length} users to notify`);
   return matches;
 }
