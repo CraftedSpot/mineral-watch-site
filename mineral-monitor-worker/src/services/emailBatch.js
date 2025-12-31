@@ -17,18 +17,38 @@ const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
  * @param {Object} env - Worker environment
  * @param {Map} userAlertMap - Map of userId -> array of alerts
  * @param {boolean} dryRun - Whether this is a dry run
+ * @param {Object} options - Additional options including test mode
  * @returns {Object} - Results of email sending
  */
-export async function sendBatchedEmails(env, userAlertMap, dryRun = false) {
+export async function sendBatchedEmails(env, userAlertMap, dryRun = false, options = {}) {
   const results = {
     emailsSent: 0,
     alertsSent: 0,
-    errors: []
+    errors: [],
+    testMode: options.testMode || false,
+    skippedUsers: []
   };
 
+  // Test mode email filtering
+  const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
+  
   // Process each user's alerts
   for (const [userId, userAlerts] of userAlertMap.entries()) {
     try {
+      // Get user email from first alert
+      const userEmail = userAlerts[0]?.user?.email;
+      
+      // In test mode, filter to approved emails only
+      if (results.testMode && userEmail) {
+        if (!approvedTestEmails.includes(userEmail)) {
+          console.log(`[Test Mode] Skipping batched email to: ${userEmail} (${userAlerts.length} alerts)`);
+          results.skippedUsers.push({ email: userEmail, alertCount: userAlerts.length });
+          continue;
+        } else {
+          console.log(`[Test Mode] Sending batched email to: ${userEmail} (${userAlerts.length} alerts)`);
+        }
+      }
+      
       // Send one email per user with all their alerts
       const sent = await sendBatchedUserEmail(env, userId, userAlerts, dryRun);
       if (sent) {
