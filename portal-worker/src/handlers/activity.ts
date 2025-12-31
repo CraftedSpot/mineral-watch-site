@@ -184,8 +184,10 @@ export async function handleDeleteActivity(activityId: string, request: Request,
   const activity = await getResponse.json();
   
   // Check ownership - Activity Log uses linked User field like properties/wells
-  if (activity.fields.User?.[0] !== user.id) {
-    return jsonResponse({ error: "Not authorized" }, 403);
+  // Users can only delete their own activities, not organization-wide activities
+  const activityUserIds = activity.fields.User || [];
+  if (!activityUserIds.includes(user.id)) {
+    return jsonResponse({ error: "Not authorized to delete this activity" }, 403);
   }
   
   // Delete the record
