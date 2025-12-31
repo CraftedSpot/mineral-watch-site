@@ -381,11 +381,6 @@ export async function checkAllWellStatuses(env) {
           } else {
             console.log(`[RBDMS] Updated Airtable status for ${api} from ${airtableStatus} to ${rbdmsStatus}`);
           }
-          
-        } catch (err) {
-          console.error(`[RBDMS] Error processing status mismatch for ${api}:`, err);
-          results.errors.push(`Processing error for ${api}: ${err.message}`);
-        }
       }
     }
     
@@ -393,6 +388,198 @@ export async function checkAllWellStatuses(env) {
     
   } catch (error) {
     console.error('[RBDMS] Status check failed:', error);
+    results.errors.push(error.message);
+  }
+  
+  return results;
+}
+
+/**
+ * Simulate a status change for testing
+ * @param {Object} env - Worker environment
+ * @param {string} testApi - API number to test
+ * @param {string} newStatus - New status to simulate (default: 'IA')
+ * @returns {Object} - Test results
+ */
+async function simulateStatusChange(env, testApi, newStatus = 'IA') {
+  const results = {
+    testMode: true,
+    wellsChecked: 1,
+    statusChanges: 0,
+    alertsSent: 0,
+    errors: [],
+    testDetails: {
+      api: testApi,
+      wellFound: false,
+      currentStatus: null,
+      simulatedStatus: newStatus,
+      usersNotified: [],
+      usersSkipped: []
+    }
+  };
+  
+  const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
+  
+  try {
+    // Find the well in Airtable
+    const wellUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_WELLS_TABLE}?filterByFormula={API Number}="${testApi}"`;
+    const wellResponse = await fetch(wellUrl, {
+      headers: {
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    if (!wellResponse.ok) {
+      throw new Error(`Failed to fetch well: ${wellResponse.status}`);
+    }
+    
+    const wellData = await wellResponse.json();
+    if (!wellData.records || wellData.records.length === 0) {
+      console.log(`[RBDMS Test] Well ${testApi} not found in Airtable`);
+      results.errors.push('Well not found');
+      return results;
+    }
+    
+    const well = wellData.records[0];
+    const currentStatus = well.fields['Well Status'];
+    results.testDetails.wellFound = true;
+    results.testDetails.currentStatus = currentStatus;
+    
+    console.log(`[RBDMS Test] Found well ${testApi} with current status: ${currentStatus}`);
+    console.log(`[RBDMS Test] Simulating status change to: ${newStatus}`);
+    
+    if (currentStatus === newStatus) {
+      console.log(`[RBDMS Test] Well already has status ${newStatus}, simulating different status`);
+      results.testDetails.simulatedStatus = currentStatus === 'AC' ? 'IA' : 'AC';
+      newStatus = results.testDetails.simulatedStatus;
+    }
+    
+    // Find all users to notify
+    const wellMatches = await findMatchingWells(testApi, env);
+    
+    if (wellMatches.length === 0) {
+      console.log(`[RBDMS Test] No users tracking well ${testApi}`);
+      results.errors.push('No users tracking this well');
+      return results;
+    }
+    
+    console.log(`[RBDMS Test] Would notify ${wellMatches.length} users, filtering to test emails only`);
+    
+    // Log all users and filter to approved test emails
+    const filteredMatches = [];
+    for (const match of wellMatches) {
+      if (!approvedTestEmails.includes(match.user.email)) {
+        console.log(`[Test Mode] Skipping: ${match.user.email}${match.viaOrganization ? ` (via ${match.viaOrganization})` : ''}`);
+        results.testDetails.usersSkipped.push({
+          email: match.user.email,
+          name: match.user.name,
+          viaOrganization: match.viaOrganization || null
+        });
+      } else {
+        console.log(`[Test Mode] Sending to: ${match.user.email}${match.viaOrganization ? ` (via ${match.viaOrganization})` : ''}`);
+        filteredMatches.push(match);
+      }
+    }
+    
+    if (filteredMatches.length === 0) {
+      console.log('[RBDMS Test] No approved test emails found in notification list');
+      return results;
+    }
+    
+    results.statusChanges = 1;
+    
+    // Simulate coordinates for map link
+    const wellRecord = {
+      API_Number: testApi,
+      Section: well.fields.Section || '1',
+      Township: well.fields.Township || '1N',
+      Range: well.fields.Range || '1W',
+      PM: well.fields.PM || 'IM',
+      County: well.fields.County || 'TEST'
+    };
+    
+    let mapLink = null;
+    try {
+      const coordResult = await getCoordinatesWithFallback(testApi, wellRecord, env);
+      if (coordResult.coordinates) {
+        const mapWellData = {
+          sh_lat: coordResult.coordinates.latitude,
+          sh_lon: coordResult.coordinates.longitude,
+          well_name: well.fields['Well Name'] || `API ${testApi}`,
+          api: testApi
+        };
+        mapLink = getMapLinkFromWellData(mapWellData);
+      }
+    } catch (err) {
+      console.error(`[RBDMS Test] Failed to get coordinates: ${err.message}`);
+    }
+    
+    // Process alerts for approved test emails only
+    for (const match of filteredMatches) {
+      try {
+        const user = match.user;
+        
+        // Create activity log
+        const activityData = {
+          userId: user.id,
+          apiNumber: testApi,
+          activityType: 'Status Change',
+          alertLevel: match.alertLevel || 'TRACKED WELL',
+          previousValue: currentStatus,
+          newValue: newStatus,
+          wellName: well.fields['Well Name'] || `API ${testApi}`,
+          operator: well.fields.Operator || 'Unknown',
+          sectionTownshipRange: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
+          county: wellRecord.County,
+          notes: `TEST MODE: Simulated status change from ${getStatusDescription(currentStatus)} to ${getStatusDescription(newStatus)}`,
+          mapLink: mapLink || ""
+        };
+        
+        await createActivityLog(env, activityData);
+        
+        // Send email
+        await sendAlertEmail(env, {
+          to: user.email,
+          subject: `[TEST] Well Status Update - ${well.fields['Well Name'] || testApi}`,
+          userName: user.name,
+          wellName: well.fields['Well Name'] || `API ${testApi}`,
+          apiNumber: testApi,
+          activityType: 'Status Change',
+          alertLevel: match.alertLevel || 'TRACKED WELL',
+          operator: well.fields.Operator || 'Unknown',
+          county: wellRecord.County,
+          location: `S${wellRecord.Section} T${wellRecord.Township} R${wellRecord.Range}`,
+          section: wellRecord.Section,
+          township: wellRecord.Township,
+          range: wellRecord.Range,
+          statusChange: {
+            previous: getStatusDescription(currentStatus),
+            current: getStatusDescription(newStatus)
+          },
+          mapLink: mapLink,
+          occLink: getOCCWellRecordsLink(testApi),
+          userId: user.id
+        });
+        
+        results.alertsSent++;
+        results.testDetails.usersNotified.push({
+          email: user.email,
+          name: user.name,
+          viaOrganization: match.viaOrganization || null
+        });
+        
+        console.log(`[RBDMS Test] Alert sent to ${user.email}`);
+      } catch (err) {
+        console.error(`[RBDMS Test] Error sending alert to ${match.user.email}:`, err);
+        results.errors.push(`Alert error for ${match.user.email}: ${err.message}`);
+      }
+    }
+    
+    console.log(`[RBDMS Test] Complete: Sent ${results.alertsSent} alerts`);
+    
+  } catch (error) {
+    console.error('[RBDMS Test] Fatal error:', error);
     results.errors.push(error.message);
   }
   

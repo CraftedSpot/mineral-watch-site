@@ -339,7 +339,10 @@ export async function runWeeklyMonitor(env, options = {}) {
     
     // Check all tracked wells for status changes
     console.log('[Weekly] Starting RBDMS status check...');
-    const statusResults = await checkAllWellStatuses(env);
+    const statusResults = await checkAllWellStatuses(env, {
+      testStatusChangeApi: options.testStatusChangeApi,
+      testNewStatus: options.testNewStatus
+    });
     
     // Merge status check results
     results.wellsChecked = statusResults.wellsChecked;
@@ -377,7 +380,7 @@ async function processTransfer(transfer, env, results, recentAlerts) {
   const wellName = transfer.WellName || '';
   const wellNum = transfer.WellNum || '';
   
-  const alertsToSend = [];
+  let alertsToSend = [];
   const testDetails = results.testMode ? {
     api: api10,
     wellMatches: [],
@@ -454,6 +457,34 @@ async function processTransfer(transfer, env, results, recentAlerts) {
         ? `${wellData.well_name} ${wellData.well_num}`.trim()
         : wellData.well_name)
     : (wellNum && !wellName.includes(wellNum) ? `${wellName} ${wellNum}`.trim() : wellName);
+  
+  // Test mode email filtering
+  const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
+  
+  if (results.testMode) {
+    console.log(`[Test Mode] Would notify ${alertsToSend.length} users, filtering to test emails only`);
+    
+    // Log all users who would be notified
+    for (const alert of alertsToSend) {
+      if (!approvedTestEmails.includes(alert.user.email)) {
+        console.log(`[Test Mode] Skipping: ${alert.user.email}`);
+      } else {
+        console.log(`[Test Mode] Sending to: ${alert.user.email}`);
+      }
+    }
+    
+    // Filter to only approved test emails
+    alertsToSend = alertsToSend.filter(alert => approvedTestEmails.includes(alert.user.email));
+    
+    if (alertsToSend.length === 0) {
+      console.log('[Test Mode] No approved test emails found in notification list');
+      if (testDetails) {
+        testDetails.skippedUsers = testDetails.alertsSent;
+        testDetails.alertsSent = [];
+      }
+      return testDetails;
+    }
+  }
   
   // Send alerts with dedup check
   for (const alert of alertsToSend) {

@@ -113,8 +113,24 @@ export default {
         return new Response('Unauthorized', { status: 401 });
       }
       
-      ctx.waitUntil(runWeeklyMonitor(env));
-      return new Response(JSON.stringify({ status: 'started', type: 'weekly' }), {
+      // Check for test parameters
+      const testApi = url.searchParams.get('testApi');
+      const testStatusChangeApi = url.searchParams.get('testStatusChangeApi');
+      const testNewStatus = url.searchParams.get('testNewStatus');
+      
+      const options = {};
+      if (testApi) options.testApi = testApi;
+      if (testStatusChangeApi) {
+        options.testStatusChangeApi = testStatusChangeApi;
+        if (testNewStatus) options.testNewStatus = testNewStatus;
+      }
+      
+      ctx.waitUntil(runWeeklyMonitor(env, options));
+      return new Response(JSON.stringify({ 
+        status: 'started', 
+        type: 'weekly',
+        testMode: !!(testApi || testStatusChangeApi) 
+      }), {
         headers: { 'Content-Type': 'application/json' }
       });
     }
