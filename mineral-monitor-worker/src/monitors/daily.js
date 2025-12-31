@@ -439,11 +439,11 @@ export async function runDailyMonitor(env, options = {}) {
       console.log(`[Daily] Fetched ${completions.length} completions`);
     }
     
-    // Filter to only unprocessed records
+    // Filter to only unprocessed records (skip cache check in test mode)
     const newPermits = permits.filter(p => {
       const api = normalizeAPI(p.API_Number);
       const key = `${api}|permit`;
-      if (processedAPIs.has(key)) {
+      if (!isTestMode && processedAPIs.has(key)) {
         results.permitsSkippedAsProcessed++;
         return false;
       }
