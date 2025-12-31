@@ -3516,20 +3516,35 @@
                 let d1LateralData = {};
                 if (apiNumbers.length > 0) {
                     try {
-                        // Fetch enrichment data for all tracked wells in a batch
-                        const enrichmentPromises = apiNumbers.map(api => 
-                            fetch(`/api/well-enrichment/${api}`, { credentials: 'include' })
-                                .then(res => res.json())
-                                .then(result => ({ api, data: result.data || {} }))
-                                .catch(err => ({ api, data: {} }))
-                        );
+                        // Process wells in batches to avoid overwhelming the server
+                        const BATCH_SIZE = 10;  // Process 10 wells at a time
+                        const DELAY_MS = 100;   // 100ms delay between batches
                         
-                        const enrichmentResults = await Promise.all(enrichmentPromises);
-                        enrichmentResults.forEach(({ api, data }) => {
-                            if (data.bottom_hole_location && data.bottom_hole_location.latitude) {
-                                d1LateralData[api] = data;
+                        console.log(`Fetching enrichment data for ${apiNumbers.length} tracked wells in batches of ${BATCH_SIZE}`);
+                        
+                        for (let i = 0; i < apiNumbers.length; i += BATCH_SIZE) {
+                            const batch = apiNumbers.slice(i, i + BATCH_SIZE);
+                            
+                            // Fetch this batch
+                            const batchPromises = batch.map(api => 
+                                fetch(`/api/well-enrichment/${api}`, { credentials: 'include' })
+                                    .then(res => res.json())
+                                    .then(result => ({ api, data: result.data || {} }))
+                                    .catch(err => ({ api, data: {} }))
+                            );
+                            
+                            const batchResults = await Promise.all(batchPromises);
+                            batchResults.forEach(({ api, data }) => {
+                                if (data.bottom_hole_location && data.bottom_hole_location.latitude) {
+                                    d1LateralData[api] = data;
+                                }
+                            });
+                            
+                            // Add delay between batches (except after the last batch)
+                            if (i + BATCH_SIZE < apiNumbers.length) {
+                                await new Promise(resolve => setTimeout(resolve, DELAY_MS));
                             }
-                        });
+                        }
                         
                         console.log(`Found D1 lateral data for ${Object.keys(d1LateralData).length} tracked wells`);
                     } catch (error) {
