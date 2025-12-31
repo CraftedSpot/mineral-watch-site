@@ -612,7 +612,7 @@ export async function runDailyMonitor(env, options = {}) {
 /**
  * Process a single permit record
  */
-async function processPermit(permit, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null) {
+async function processPermit(permit, env, results, dryRun = false, propertyMap = null, userCache = null, recentAlerts = null, userAlertMap = null, isTestMode = false) {
   const api10 = normalizeAPI(permit.API_Number);
   const activityType = mapApplicationType(permit.Application_Type);
   
