@@ -269,6 +269,25 @@ export async function runWeeklyMonitor(env, options = {}) {
       console.log(`[Weekly] TEST MODE complete. Alerts sent: ${results.alertsSent}`);
       return results;
     }
+    
+    // Test mode: simulate a status change for a specific API
+    if (options.testStatusChangeApi) {
+      console.log(`[Weekly] TEST MODE: Simulating status change for API ${options.testStatusChangeApi}`);
+      results.testMode = true;
+      
+      // Run status check with test options
+      const statusResults = await checkAllWellStatuses(env, options);
+      
+      // Merge results
+      results.wellsChecked = statusResults.wellsChecked;
+      results.statusChanges = statusResults.statusChanges;
+      results.alertsSent = statusResults.alertsSent;
+      results.errors = statusResults.errors;
+      results.testDetails = statusResults.testDetails;
+      
+      console.log(`[Weekly] STATUS TEST MODE complete. Alerts sent: ${results.alertsSent}`);
+      return results;
+    }
     // OPTIMIZATION 1: Load already-processed transfer APIs
     const processedTransfers = await loadProcessedTransfers(env);
     console.log(`[Weekly] Starting with ${processedTransfers.size} previously processed transfers`);
