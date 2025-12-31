@@ -500,7 +500,7 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     if (newRecord.id && ctx) {
       console.log(`[WellCreate] Triggering auto-match for well: ${newRecord.id}`);
       
-      const organizationId = userOrganization || undefined;
+      const organizationId = userRecord?.fields.Organization?.[0] || undefined;
       const matchPromise = matchSingleWell(newRecord.id, user.id, organizationId, env)
         .then(result => {
           console.log(`[WellCreate] Auto-match complete:`, result);
