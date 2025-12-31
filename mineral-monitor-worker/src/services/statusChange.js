@@ -113,7 +113,8 @@ export async function checkWellStatusChange(api10, currentData, env) {
             operator: well.fields.Operator || currentData.operator || 'Unknown',
             notes: `Well status changed from ${getStatusDescription(previousStatus)} to ${getStatusDescription(currentStatus)}`,
             mapLink: mapLink || "",
-            coordinateSource: coordinateSource
+            coordinateSource: coordinateSource,
+            organizationId: match.organizationId || null
           };
           
           const activityResult = await createActivityLog(env, activityData);
