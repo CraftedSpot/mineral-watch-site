@@ -34,45 +34,34 @@ export async function checkWellStatusChange(api10, currentData, env) {
     
     result.currentStatus = currentStatus;
 
-    // Query tracked wells for this API
-    const formula = `AND({API Number}="${api10}",{Status}="Active")`;
-    const wellsResponse = await queryAirtable(
-      env,
-      env.AIRTABLE_WELLS_TABLE,
-      formula,
-      ['Well Name', 'Well Status', 'User', 'Operator']
-    );
-
-    if (!wellsResponse.success || wellsResponse.records.length === 0) {
-      return result; // No tracked wells
+    // Find all users tracking this well (handles both individual users and organizations)
+    const wellMatches = await findMatchingWells(api10, env);
+    
+    if (wellMatches.length === 0) {
+      return result; // No users tracking this well
     }
-
-    // Check each tracked well
-    for (const well of wellsResponse.records) {
-      const previousStatus = well.fields['Well Status'];
-      const userIds = well.fields.User;
+    
+    // Get the well data from the first match
+    const well = wellMatches[0].well;
+    const previousStatus = well.fields['Well Status'];
+    
+    if (!previousStatus) {
+      return result; // No previous status to compare
+    }
+    
+    result.previousStatus = previousStatus;
+    
+    // Check if status changed
+    if (previousStatus !== currentStatus) {
+      result.hasChange = true;
+      console.log(`[Status Change] Well ${api10} changed from ${previousStatus} to ${currentStatus}`);
+      console.log(`[Status Change] Found ${wellMatches.length} users to notify`);
       
-      if (!userIds || userIds.length === 0) continue;
-      if (!previousStatus) continue; // No previous status to compare
-      
-      result.previousStatus = previousStatus;
-      
-      // Check if status changed
-      if (previousStatus !== currentStatus) {
-        result.hasChange = true;
-        console.log(`[Status Change] Well ${api10} changed from ${previousStatus} to ${currentStatus}`);
-        
-        // Get user email
-        const userQuery = await queryAirtable(
-          env,
-          env.AIRTABLE_USERS_TABLE,
-          `RECORD_ID()="${userIds[0]}"`,
-          ['Email', 'Name']
-        );
-        
-        if (userQuery.success && userQuery.records.length > 0) {
-          const user = userQuery.records[0];
-          const userName = user.fields.Name || user.fields.Email;
+      // Process status change alert for each user
+      for (const match of wellMatches) {
+        try {
+          const user = match.user;
+          const userName = user.name || user.email;
           
           // Try to get coordinates and map link with fallback system
           let mapLink = null;
@@ -112,12 +101,11 @@ export async function checkWellStatusChange(api10, currentData, env) {
           }
           
           // Create activity log
-          const activityResult = await createActivityLog(env, {
-            userEmail: user.fields.Email,
+          const activityData = {
+            userId: user.id,
             apiNumber: api10,
             activityType: 'Status Change',
-            alertLevel: 'STATUS CHANGE',
-            changeType: `${previousStatus} → ${currentStatus}`,
+            alertLevel: match.alertLevel || 'STATUS CHANGE',
             previousValue: previousStatus,
             newValue: currentStatus,
             wellName: well.fields['Well Name'] || `API ${api10}`,
@@ -125,7 +113,9 @@ export async function checkWellStatusChange(api10, currentData, env) {
             notes: `Well status changed from ${getStatusDescription(previousStatus)} to ${getStatusDescription(currentStatus)}`,
             mapLink: mapLink || "",
             coordinateSource: coordinateSource
-          });
+          };
+          
+          const activityResult = await createActivityLog(env, activityData);
           
           if (!activityResult.success) {
             console.error(`[Status Change] Failed to create activity log: ${activityResult.error}`);

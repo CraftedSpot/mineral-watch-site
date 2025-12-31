@@ -153,30 +153,81 @@ async function findUsersMonitoringAdjacentTo(location, env) {
   const seenUsers = new Set();
   
   for (const prop of properties) {
+    // Case 1: Individual user linked to property
     const userIds = prop.fields.User;
-    if (!userIds || userIds.length === 0) continue;
+    if (userIds && userIds.length > 0) {
+      const userId = userIds[0];
+      if (!seenUsers.has(userId)) {
+        seenUsers.add(userId);
+        
+        const user = await getUserById(env, userId);
+        if (user && user.fields.Status === 'Active') {
+          // Determine which adjacent section this property is in
+          const propSection = `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`;
+          
+          matches.push({
+            property: prop,
+            user: {
+              id: user.id,
+              email: user.fields.Email,
+              name: user.fields.Name
+            },
+            alertLevel: 'ADJACENT SECTION',
+            matchedSection: propSection,
+            permitSection: `${normalizeSection(section)}-${township}-${range}`
+          });
+        }
+      }
+    }
     
-    const userId = userIds[0];
-    if (seenUsers.has(userId)) continue;
-    seenUsers.add(userId);
-    
-    const user = await getUserById(env, userId);
-    if (!user || user.fields.Status !== 'Active') continue;
-    
-    // Determine which adjacent section this property is in
-    const propSection = `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`;
-    
-    matches.push({
-      property: prop,
-      user: {
-        id: user.id,
-        email: user.fields.Email,
-        name: user.fields.Name
-      },
-      alertLevel: 'ADJACENT SECTION',
-      matchedSection: propSection,
-      permitSection: `${normalizeSection(section)}-${township}-${range}`
-    });
+    // Case 2: Organization linked to property - get all users in the org
+    const orgIds = prop.fields.Organization;
+    if (orgIds && orgIds.length > 0) {
+      const orgId = orgIds[0];
+      
+      try {
+        const orgUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
+        const orgResponse = await fetch(orgUrl, {
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        if (orgResponse.ok) {
+          const org = await orgResponse.json();
+          const orgName = org.fields.Name;
+          const orgUserIds = org.fields['👤 Users'] || [];
+          
+          // Determine which adjacent section this property is in
+          const propSection = `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`;
+          
+          // Get all active users in the organization
+          for (const orgUserId of orgUserIds) {
+            if (!seenUsers.has(orgUserId)) {
+              const orgUser = await getUserById(env, orgUserId);
+              if (orgUser && orgUser.fields.Status === 'Active') {
+                seenUsers.add(orgUserId);
+                matches.push({
+                  property: prop,
+                  user: {
+                    id: orgUser.id,
+                    email: orgUser.fields.Email,
+                    name: orgUser.fields.Name
+                  },
+                  alertLevel: 'ADJACENT SECTION',
+                  matchedSection: propSection,
+                  permitSection: `${normalizeSection(section)}-${township}-${range}`,
+                  viaOrganization: orgName
+                });
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[Matching] Error fetching organization ${orgId}:`, error);
+      }
+    }
   }
   
   return matches;
