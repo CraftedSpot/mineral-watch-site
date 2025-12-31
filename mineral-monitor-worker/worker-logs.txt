@@ -1,0 +1,500 @@
+{
+    "wallTime": 4434,
+    "cpuTime": 19,
+    "truncated": false,
+    "executionModel": "stateless",
+    "outcome": "ok",
+    "scriptVersion": {
+        "id": "3e2da94f-e790-4e8c-b7c5-d1b26a69b65e"
+    },
+    "scriptName": "mineral-watch-monitor",
+    "diagnosticsChannelEvents": [],
+    "exceptions": [],
+    "logs": [
+        {
+            "message": [
+                "[Daily] Starting daily monitor run (LIVE) - TEST MODE"
+            ],
+            "level": "log",
+            "timestamp": 1767165224920
+        },
+        {
+            "message": [
+                "[Daily] Loaded 6 previously processed API keys"
+            ],
+            "level": "log",
+            "timestamp": 1767165224922
+        },
+        {
+            "message": [
+                "[Daily] Starting with 6 previously processed API keys"
+            ],
+            "level": "log",
+            "timestamp": 1767165224922
+        },
+        {
+            "message": [
+                "[Daily] TEST MODE: Creating test completion for API 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165224922
+        },
+        {
+            "message": [
+                "[Daily] After filtering: 0 new permits, 1 new completions"
+            ],
+            "level": "log",
+            "timestamp": 1767165224922
+        },
+        {
+            "message": [
+                "[Daily] Skipped: 0 permits, 0 completions (already processed)"
+            ],
+            "level": "log",
+            "timestamp": 1767165224922
+        },
+        {
+            "message": [
+                "[Airtable] Preloading alerts since 2025-12-24"
+            ],
+            "level": "log",
+            "timestamp": 1767165224922
+        },
+        {
+            "message": [
+                "[Airtable] Preloaded 9 recent alert keys from 9 activity records"
+            ],
+            "level": "log",
+            "timestamp": 1767165225342
+        },
+        {
+            "message": [
+                "[Daily] Batch loading properties for 12 unique sections"
+            ],
+            "level": "log",
+            "timestamp": 1767165225342
+        },
+        {
+            "message": [
+                "[Daily] Loaded 0 sections with properties"
+            ],
+            "level": "log",
+            "timestamp": 1767165225582
+        },
+        {
+            "message": [
+                "[Daily] Batch loaded 0 users for property matching"
+            ],
+            "level": "log",
+            "timestamp": 1767165225582
+        },
+        {
+            "message": [
+                "[Daily] Found enhanced formation data for 3504523551: CLEVELAND"
+            ],
+            "level": "log",
+            "timestamp": 1767165225634
+        },
+        {
+            "message": [
+                "[Daily] Horizontal well 3504523551 passes through 3 sections"
+            ],
+            "level": "log",
+            "timestamp": 1767165225634
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165225961
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165226068
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165226679
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165226889
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551: found 5 users to notify"
+            ],
+            "level": "log",
+            "timestamp": 1767165226889
+        },
+        {
+            "message": [
+                "[Coordinates] Trying OCC GIS lookup for 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165226889
+        },
+        {
+            "message": [
+                "[OCC GIS] Cache hit for 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165226940
+        },
+        {
+            "message": [
+                "[Coordinates] SUCCESS: OCC GIS coordinates for 3504523551: 36.158474, -99.991786"
+            ],
+            "level": "log",
+            "timestamp": 1767165226940
+        },
+        {
+            "message": [
+                "[Daily] Generated map link for completion 3504523551 using OCC_GIS coordinates"
+            ],
+            "level": "log",
+            "timestamp": 1767165226940
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165227153
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165227254
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551 belongs to organization ID: recXvUmWkcgOC04nN"
+            ],
+            "level": "log",
+            "timestamp": 1767165227781
+        },
+        {
+            "message": [
+                "[Matching] Organization \"Price Oil & Gas\" has 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165227882
+        },
+        {
+            "message": [
+                "[Matching] Well 3504523551: found 5 users to notify"
+            ],
+            "level": "log",
+            "timestamp": 1767165227882
+        },
+        {
+            "message": [
+                "[Daily] Creating statewide activity for completion 3504523551 with OCC_GIS coordinates"
+            ],
+            "level": "log",
+            "timestamp": 1767165227882
+        },
+        {
+            "message": [
+                "[Statewide] Updating existing record for 3504523551 with new data"
+            ],
+            "level": "log",
+            "timestamp": 1767165227984
+        },
+        {
+            "message": [
+                "[Daily] Statewide activity created for completion 3504523551 with OCC_GIS coordinates"
+            ],
+            "level": "log",
+            "timestamp": 1767165228199
+        },
+        {
+            "message": [
+                "[Daily] Failed to store well location for completion 3504523551: Update failed: {\"error\":{\"type\":\"INVALID_VALUE_FOR_COLUMN\",\"message\":\"Field \\\"Completion Date\\\" cannot accept the provided value\"}}"
+            ],
+            "level": "error",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Daily] Completion 3504523551 has 5 alerts for user photog12@gmail.com:"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "  1. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "  2. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "  3. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "  4. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "  5. Alert Level: TRACKED WELL, Reason: tracked_well, Location: API: 3504523551"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for photog12@gmail.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for mrsprice518@gmail.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for steve.foerster@griffin.news for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for billprice@priceoilandgas.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Completion] Queued alert for annekoconnor@gmail.com for HD DOWLING 32-20-26 #1H"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Daily] Sending batched emails to 5 users"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Test Mode] Sending batched email to: photog12@gmail.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Airtable] OCC Map Link field set to: https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b&marker=-99.991786,36.158474,,,,&markertemplate=%7B%22title%22%3A%22HD%20DOWLING%2032-20-26%22%2C%22longitude%22%3A-99.991786%2C%22latitude%22%3A36.158474%2C%22isIncludeShareUrl%22%3Atrue%7D&level=19"
+            ],
+            "level": "log",
+            "timestamp": 1767165228431
+        },
+        {
+            "message": [
+                "[Email] Track link not generated: apiNumber=3504523551, userId=undefined, hasSecret=true"
+            ],
+            "level": "log",
+            "timestamp": 1767165228691
+        },
+        {
+            "message": [
+                "[EmailBatch] Failed to send email to photog12@gmail.com:",
+                "Postmark send failed: 422 - {\"ErrorCode\":300,\"Message\":\"Zero recipients specified.\"}"
+            ],
+            "level": "error",
+            "timestamp": 1767165228904
+        },
+        {
+            "message": [
+                "[Test Mode] Sending batched email to: mrsprice518@gmail.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165228904
+        },
+        {
+            "message": [
+                "[Airtable] OCC Map Link field set to: https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b&marker=-99.991786,36.158474,,,,&markertemplate=%7B%22title%22%3A%22HD%20DOWLING%2032-20-26%22%2C%22longitude%22%3A-99.991786%2C%22latitude%22%3A36.158474%2C%22isIncludeShareUrl%22%3Atrue%7D&level=19"
+            ],
+            "level": "log",
+            "timestamp": 1767165228904
+        },
+        {
+            "message": [
+                "[Email] Track link not generated: apiNumber=3504523551, userId=undefined, hasSecret=true"
+            ],
+            "level": "log",
+            "timestamp": 1767165229123
+        },
+        {
+            "message": [
+                "[EmailBatch] Failed to send email to mrsprice518@gmail.com:",
+                "Postmark send failed: 422 - {\"ErrorCode\":300,\"Message\":\"Zero recipients specified.\"}"
+            ],
+            "level": "error",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Test Mode] Skipping batched email to: steve.foerster@griffin.news (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Test Mode] Skipping batched email to: billprice@priceoilandgas.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Test Mode] Skipping batched email to: annekoconnor@gmail.com (1 alerts)"
+            ],
+            "level": "log",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Daily] Sent 0 emails containing 0 alerts"
+            ],
+            "level": "log",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Daily] Test mode - skipped 3 non-test users"
+            ],
+            "level": "log",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Daily] Completed. Permits: 0, Completions: 1, Status Changes: 0, Alerts: 0, Skipped: 0"
+            ],
+            "level": "log",
+            "timestamp": 1767165229249
+        },
+        {
+            "message": [
+                "[Daily] Failed to cleanup old records: Failed to fetch old records"
+            ],
+            "level": "error",
+            "timestamp": 1767165229350
+        }
+    ],
+    "eventTimestamp": 1767165224886,
+    "event": {
+        "request": {
+            "url": "https://mineral-watch-monitor.photog12.workers.dev/test/daily?completionApi=3504523551",
+            "method": "GET",
+            "headers": {
+                "accept": "*/*",
+                "accept-encoding": "gzip, br",
+                "cf-connecting-ip": "2600:1700:8360:5030:653d:472f:9181:5c86",
+                "cf-ipcountry": "US",
+                "cf-ray": "9b67f9df7e1c765b",
+                "cf-visitor": "{\"scheme\":\"https\"}",
+                "connection": "Keep-Alive",
+                "host": "mineral-watch-monitor.photog12.workers.dev",
+                "user-agent": "curl/8.7.1",
+                "x-forwarded-proto": "https",
+                "x-real-ip": "2600:1700:8360:5030:653d:472f:9181:5c86"
+            },
+            "cf": {
+                "httpProtocol": "HTTP/2",
+                "requestPriority": "weight=16;exclusive=0;group=0;group-weight=0",
+                "edgeRequestKeepAliveStatus": 1,
+                "requestHeaderNames": {},
+                "clientTcpRtt": 11,
+                "colo": "DFW",
+                "asn": 7018,
+                "asOrganization": "AT&T Enterprises, LLC",
+                "country": "US",
+                "isEUCountry": false,
+                "city": "Oklahoma City",
+                "continent": "NA",
+                "region": "Oklahoma",
+                "regionCode": "OK",
+                "timezone": "America/Chicago",
+                "longitude": "-97.51643",
+                "latitude": "35.46756",
+                "postalCode": "73102",
+                "metroCode": "650",
+                "tlsVersion": "TLSv1.3",
+                "tlsCipher": "AEAD-AES256-GCM-SHA384",
+                "tlsClientRandom": "t7oxYga07A2sCeq9P1HoduTG2hltYb6Dj2+iGcODY6A=",
+                "tlsClientCiphersSha1": "De6XredN64ifthhYZ0E1e9w8cms=",
+                "tlsClientExtensionsSha1": "Ub+nUmIm1U57hdNSUph0R+kx9Gc=",
+                "tlsClientExtensionsSha1Le": "NMNf2YIpLBhtroOEBooGFi+jtJ8=",
+                "tlsExportedAuthenticator": {
+                    "clientHandshake": "ad7c9d6ef1d990d42ab93f8c5df3adbbece25ec2602736b6ff697c5c02674eb9df5453782a7a6ca3230f52a02cc53d12",
+                    "serverHandshake": "14d9bbc79bf0c2c9166768fd760910f17f04ce5cdd9bf488b6273b096c77b90c515c348db06b0cf41202527b5c8523aa",
+                    "clientFinished": "8fcc758ba3d52c736ab9d8cac18acd719431f3527de1fde388e632a5d032ec447de1c0e18f4a1b1c0678b9aa909bf78d",
+                    "serverFinished": "c96648e9dae916ae6c20af15887094ec27d9bfb2bcc40f81e2696b05b9d7fcb18163126b5aa6d470ecfacaca9d0d6ba6"
+                },
+                "tlsClientHelloLength": "343",
+                "tlsClientAuth": {
+                    "certPresented": "0",
+                    "certVerified": "NONE",
+                    "certRevoked": "0",
+                    "certIssuerDN": "",
+                    "certSubjectDN": "",
+                    "certIssuerDNRFC2253": "",
+                    "certSubjectDNRFC2253": "",
+                    "certIssuerDNLegacy": "",
+                    "certSubjectDNLegacy": "",
+                    "certSerial": "",
+                    "certIssuerSerial": "",
+                    "certSKI": "",
+                    "certIssuerSKI": "",
+                    "certFingerprintSHA1": "",
+                    "certFingerprintSHA256": "",
+                    "certNotBefore": "",
+                    "certNotAfter": ""
+                },
+                "verifiedBotCategory": ""
+            }
+        },
+        "response": {
+            "status": 200
+        }
+    }
+}

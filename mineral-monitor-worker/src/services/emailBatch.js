@@ -116,7 +116,11 @@ async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
     // Send the batched email
     if (alerts.length === 1) {
       // Single alert - use existing email format
-      await sendAlertEmail(env, alerts[0]);
+      await sendAlertEmail(env, {
+        ...alerts[0],
+        to: userEmail,
+        userName: userName
+      });
     } else {
       // Multiple alerts - send batched email
       await sendBatchedAlertEmail(env, {
