@@ -2812,8 +2812,15 @@
         });
         
         async function loadAllData() {
-        await Promise.all([loadProperties(), loadWells(), loadActivity(), loadActivityStats()]);
-}
+            const promises = [loadProperties(), loadWells(), loadActivity(), loadActivityStats()];
+            
+            // Only load documents if the tab is visible (user has access)
+            if (document.getElementById('documentsTab') && document.getElementById('documentsTab').style.display !== 'none') {
+                promises.push(loadDocuments());
+            }
+            
+            await Promise.all(promises);
+        }
 
         async function loadProperties() {
             try {
@@ -4085,11 +4092,6 @@
             
             html += '</tbody></table>';
             container.innerHTML = html;
-            
-            // Show bulk delete button after loading documents
-            if (documents.length > 0) {
-                document.getElementById('bulkDeleteDocumentsBtn').style.display = 'inline-flex';
-            }
             
             // Add select all checkbox handler
             const selectAllCheckbox = document.getElementById('selectAllDocuments');
