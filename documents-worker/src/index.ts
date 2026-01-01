@@ -113,9 +113,11 @@ export default {
 
       try {
         console.log('User authenticated:', user.id, user.email);
+        console.log('User object:', JSON.stringify(user));
         
         // Build query to get documents for user or their organization
-        const userOrg = user.fields.Organization?.[0];
+        // Handle both possible user object structures
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
         const conditions = [`user_id = ?`];
         const params = [user.id];
         
@@ -155,7 +157,8 @@ export default {
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       // Gate to James/Enterprise 500
-      if (user.id !== 'recEpgbS88AbuzAH8' && user.fields.Plan !== 'Enterprise 500') {
+      const userPlan = user.fields?.Plan || user.plan || user.Plan;
+      if (user.id !== 'recEpgbS88AbuzAH8' && userPlan !== 'Enterprise 500') {
         return errorResponse('Feature not available for your plan', 403, env);
       }
 
