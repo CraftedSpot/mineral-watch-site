@@ -2361,6 +2361,21 @@
         let selectedDocuments = new Set();
         
         // Bulk Selection Functions
+        function toggleBulkMode(type) {
+            if (type === 'documents') {
+                const checkboxes = document.querySelectorAll('.document-checkbox');
+                const isVisible = checkboxes[0]?.style.display !== 'none';
+                
+                checkboxes.forEach(cb => {
+                    cb.style.display = isVisible ? 'none' : 'inline-block';
+                });
+                
+                if (isVisible) {
+                    clearSelection('documents');
+                }
+            }
+        }
+        
         function updateBulkActionVisibility() {
             // Show/hide bulk action bars based on selection state
             const propBar = document.getElementById('propertiesBulkActionBar');
