@@ -3901,8 +3901,8 @@
             document.getElementById('documentViewModal').style.display = 'flex';
             const viewer = document.getElementById('pdfViewer');
             
-            // Use direct URL - the browser will handle authentication cookies
-            const pdfUrl = `/api/documents/${docId}/download`;
+            // Use direct URL with view=true parameter for inline display
+            const pdfUrl = `/api/documents/${docId}/download?view=true`;
             viewer.data = pdfUrl;
         }
         
