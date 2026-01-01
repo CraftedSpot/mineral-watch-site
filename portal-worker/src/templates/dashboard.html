@@ -7551,6 +7551,14 @@ async function handleDocumentUpload(e) {
         }
     }
 }
+
+// Expose document functions to window
+window.handleFileDrop = handleFileDrop;
+window.handleDragOver = handleDragOver;
+window.handleDragLeave = handleDragLeave;
+window.handleFileSelect = handleFileSelect;
+window.clearSelectedFile = clearSelectedFile;
+window.handleDocumentUpload = handleDocumentUpload;
 </script>
 
 <!-- Add Papa Parse library (CSV parsing) -->
