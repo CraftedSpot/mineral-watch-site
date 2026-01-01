@@ -315,6 +315,62 @@ export default {
       }
     }
 
+    // Route: DELETE /api/documents/:id - Delete a document
+    if (path.match(/^\/api\/documents\/[^\/]+$/) && request.method === 'DELETE') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const docId = path.split('/')[3];
+      
+      try {
+        // Check access and get document info
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
+        const conditions = [`user_id = ?`];
+        const params = [user.id];
+        
+        if (userOrg) {
+          conditions.push('organization_id = ?');
+          params.push(userOrg);
+        }
+
+        const query = `
+          SELECT id, r2_key FROM documents 
+          WHERE id = ? 
+            AND (${conditions.join(' OR ')})
+            AND deleted_at IS NULL
+        `;
+
+        const doc = await env.WELLS_DB.prepare(query)
+          .bind(docId, ...params)
+          .first<{ id: string; r2_key: string }>();
+
+        if (!doc) return errorResponse('Document not found', 404, env);
+
+        console.log('Deleting document:', docId, 'R2 key:', doc.r2_key);
+
+        // Soft delete in database
+        await env.WELLS_DB.prepare(`
+          UPDATE documents 
+          SET deleted_at = datetime('now') 
+          WHERE id = ?
+        `).bind(docId).run();
+
+        // Delete from R2
+        try {
+          await env.UPLOADS_BUCKET.delete(doc.r2_key);
+          console.log('Deleted from R2:', doc.r2_key);
+        } catch (r2Error) {
+          console.error('Failed to delete from R2:', r2Error);
+          // Continue anyway - the DB record is already soft deleted
+        }
+
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('Delete document error:', error);
+        return errorResponse('Failed to delete document', 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
