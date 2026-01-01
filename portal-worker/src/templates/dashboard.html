@@ -3929,7 +3929,8 @@
             }
             
             // Document list with cards
-            let html = '<div class="documents-list" style="display: grid; gap: 16px;">';
+            let html = '<div class="documents-list" style="display: grid; gap: 16px;">
+                <p style="font-size: 14px; color: var(--slate-blue); margin: 0 0 16px;">Click the eye icon to view documents in your browser, or the download icon to save them to your device.</p>';
             
             documents.forEach(doc => {
                 const uploadDate = new Date(doc.upload_date).toLocaleDateString();
@@ -3980,6 +3981,11 @@
             
             html += '</div>';
             container.innerHTML = html;
+        }
+        
+        function viewDocument(docId) {
+            // Open PDF in new tab for viewing
+            window.open(`/api/documents/${docId}/download`, '_blank');
         }
         
         async function downloadDocument(docId) {
