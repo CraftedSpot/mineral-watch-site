@@ -3984,8 +3984,8 @@
         }
         
         function viewDocument(docId) {
-            // Open PDF in new tab for viewing
-            window.open(`/api/documents/${docId}/download`, '_blank');
+            // Open PDF in new tab for viewing (inline display)
+            window.open(`/api/documents/${docId}/download?view=true`, '_blank');
         }
         
         async function downloadDocument(docId) {
