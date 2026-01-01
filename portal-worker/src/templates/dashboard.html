@@ -7472,34 +7472,75 @@ function clearSelectedFile() {
 async function handleDocumentUpload(e) {
     e.preventDefault();
     
-    if (!selectedFile) return;
+    if (!selectedFiles.length) return;
     
     // Show progress
     document.getElementById('documentUploadForm').style.display = 'none';
     document.getElementById('uploadProgress').style.display = 'block';
     
     const formData = new FormData();
-    formData.append('file', selectedFile);
     
-    try {
-        const response = await fetch('/api/documents/upload', {
-            method: 'POST',
-            body: formData,
-            credentials: 'include'
-        });
+    // Use multi-file endpoint if multiple files, otherwise single file endpoint
+    if (selectedFiles.length === 1) {
+        formData.append('file', selectedFiles[0]);
         
-        if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Upload failed');
+        try {
+            const response = await fetch('/api/documents/upload', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Upload failed');
+            }
+            
+            // Close modal and refresh documents list
+            closeUploadModal();
+            loadDocuments();
+        } catch (error) {
+            alert('Upload failed: ' + error.message);
+            // Reset modal
+            document.getElementById('documentUploadForm').style.display = 'block';
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+    } else {
+        // Multiple files
+        for (const file of selectedFiles) {
+            formData.append('files', file);
         }
         
-        const result = await response.json();
-        
-        // Close modal and refresh documents list
-        closeUploadModal();
-        loadDocuments();
-        
-        // Show success message (optional)
+        try {
+            const response = await fetch('/api/documents/upload-multiple', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Upload failed');
+            }
+            
+            const result = await response.json();
+            
+            // Show results
+            let message = `Uploaded: ${result.uploaded} files`;
+            if (result.failed > 0) {
+                message += `\nFailed: ${result.failed} files`;
+                if (result.errors && result.errors.length > 0) {
+                    message += '\n\nErrors:\n' + result.errors.map(e => `- ${e.filename}: ${e.error}`).join('\n');
+                }
+            }
+            
+            if (result.failed > 0) {
+                alert(message);
+            }
+            
+            // Close modal and refresh documents list
+            closeUploadModal();
+            loadDocuments();
         console.log('Document uploaded successfully:', result);
         
     } catch (error) {
