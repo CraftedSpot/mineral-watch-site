@@ -16,4 +16,3 @@ SET user_id = 'recEpgbS88AbuzAH8',
     organization_id = 'recXvUmWkcgOC04nN',
     status = 'complete' 
 WHERE user_id IS NULL;
-EOF < /dev/null
