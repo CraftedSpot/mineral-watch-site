@@ -3931,16 +3931,16 @@
         }
         
         function closeDocumentViewer() {
-            const iframe = document.getElementById('pdfViewer');
+            const viewer = document.getElementById('pdfViewer');
             
             // Clean up blob URL if exists
-            if (iframe.dataset.blobUrl) {
-                URL.revokeObjectURL(iframe.dataset.blobUrl);
-                delete iframe.dataset.blobUrl;
+            if (viewer.dataset.blobUrl) {
+                URL.revokeObjectURL(viewer.dataset.blobUrl);
+                delete viewer.dataset.blobUrl;
             }
             
             document.getElementById('documentViewModal').style.display = 'none';
-            iframe.src = 'about:blank';
+            viewer.data = '';
             currentDocumentId = null;
         }
         
