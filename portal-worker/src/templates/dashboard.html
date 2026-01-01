@@ -2542,7 +2542,8 @@
                     const batch = itemsToDelete.slice(i, i + 5);
                     const deletePromises = batch.map(async id => {
                         const endpoint = type === 'properties' ? `/api/properties/${id}` : 
-                                       type === 'wells' ? `/api/wells/${id}` : `/api/activity/${id}`;
+                                       type === 'wells' ? `/api/wells/${id}` : 
+                                       type === 'documents' ? `/api/documents/${id}` : `/api/activity/${id}`;
                         try {
                             const res = await fetch(endpoint, { method: 'DELETE' });
                             if (res.ok) {
