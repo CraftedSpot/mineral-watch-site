@@ -210,6 +210,103 @@ export default {
       }
     }
 
+    // Route: POST /api/documents/upload-multiple - Upload multiple documents
+    if (path === '/api/documents/upload-multiple' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      // Gate to James/Enterprise 500
+      const userPlan = user.fields?.Plan || user.plan || user.Plan;
+      if (user.id !== 'recEpgbS88AbuzAH8' && userPlan !== 'Enterprise 500') {
+        return errorResponse('Feature not available for your plan', 403, env);
+      }
+
+      try {
+        const formData = await request.formData();
+        const files = formData.getAll('files') as File[];
+        
+        if (!files || files.length === 0) {
+          return errorResponse('No files provided', 400, env);
+        }
+
+        // Limit number of files
+        if (files.length > 10) {
+          return errorResponse('Maximum 10 files can be uploaded at once', 400, env);
+        }
+
+        const results = [];
+        const errors = [];
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+
+        // Process each file
+        for (let i = 0; i < files.length; i++) {
+          const file = files[i];
+          
+          try {
+            // Validate file
+            if (file.type !== 'application/pdf') {
+              errors.push({
+                filename: file.name,
+                error: 'Only PDF files are allowed'
+              });
+              continue;
+            }
+            
+            if (file.size > 50 * 1024 * 1024) { // 50MB limit
+              errors.push({
+                filename: file.name,
+                error: 'File too large. Maximum size is 50MB'
+              });
+              continue;
+            }
+
+            // Generate unique document ID
+            const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+            const r2Key = `${docId}.pdf`;
+
+            // Store in R2
+            await env.UPLOADS_BUCKET.put(r2Key, file.stream(), {
+              httpMetadata: { 
+                contentType: 'application/pdf',
+                contentDisposition: `attachment; filename="${file.name}"`
+              }
+            });
+
+            // Create D1 record
+            await env.WELLS_DB.prepare(`
+              INSERT INTO documents (
+                id, r2_key, filename, user_id, organization_id, 
+                file_size, status, upload_date
+              ) VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'))
+            `).bind(docId, r2Key, file.name, user.id, userOrg, file.size).run();
+
+            results.push({
+              success: true,
+              id: docId,
+              filename: file.name,
+              size: file.size,
+            });
+          } catch (fileError) {
+            console.error(`Error uploading file ${file.name}:`, fileError);
+            errors.push({
+              filename: file.name,
+              error: 'Upload failed'
+            });
+          }
+        }
+
+        return jsonResponse({
+          uploaded: results.length,
+          failed: errors.length,
+          results,
+          errors,
+        }, 200, env);
+      } catch (error) {
+        console.error('Multi-upload error:', error);
+        return errorResponse('Multi-upload failed', 500, env);
+      }
+    }
+
     // Route: GET /api/documents/:id - Get document details
     if (path.match(/^\/api\/documents\/[^\/]+$/) && request.method === 'GET') {
       const user = await authenticateUser(request, env);
