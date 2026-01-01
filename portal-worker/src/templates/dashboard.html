@@ -3890,25 +3890,57 @@
         // Document functions
         let currentDocumentId = null;
         
-        function viewDocumentInModal(docId, filename) {
+        async function viewDocumentInModal(docId, filename) {
             console.log('Opening document in modal:', docId, filename);
             currentDocumentId = docId;
             
             // Update modal title
             document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
             
-            // Set iframe source to the PDF URL
-            const pdfUrl = `/api/documents/${docId}/download`;
-            const iframe = document.getElementById('pdfViewer');
-            iframe.src = pdfUrl;
-            
-            // Show modal
+            // Show modal with loading state
             document.getElementById('documentViewModal').style.display = 'flex';
+            const iframe = document.getElementById('pdfViewer');
+            iframe.src = 'about:blank';
+            
+            try {
+                // Fetch the PDF with credentials
+                const response = await fetch(`/api/documents/${docId}/download`, {
+                    credentials: 'include'
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to load document: ${response.status}`);
+                }
+                
+                // Get the blob
+                const blob = await response.blob();
+                console.log('PDF blob size:', blob.size);
+                
+                // Create blob URL and set as iframe source
+                const blobUrl = URL.createObjectURL(blob);
+                iframe.src = blobUrl;
+                
+                // Clean up blob URL when modal closes
+                iframe.dataset.blobUrl = blobUrl;
+                
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                alert('Failed to load document: ' + error.message);
+                closeDocumentViewer();
+            }
         }
         
         function closeDocumentViewer() {
+            const iframe = document.getElementById('pdfViewer');
+            
+            // Clean up blob URL if exists
+            if (iframe.dataset.blobUrl) {
+                URL.revokeObjectURL(iframe.dataset.blobUrl);
+                delete iframe.dataset.blobUrl;
+            }
+            
             document.getElementById('documentViewModal').style.display = 'none';
-            document.getElementById('pdfViewer').src = 'about:blank';
+            iframe.src = 'about:blank';
             currentDocumentId = null;
         }
         
@@ -5592,7 +5624,7 @@
             </div>
         </div>
         <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659;">
-            <iframe id="pdfViewer" style="width: 100%; height: 100%; border: none;" sandbox="allow-same-origin allow-scripts"></iframe>
+            <iframe id="pdfViewer" style="width: 100%; height: 100%; border: none;"></iframe>
         </div>
     </div>
 </div>
