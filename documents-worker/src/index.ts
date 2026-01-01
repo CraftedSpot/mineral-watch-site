@@ -284,10 +284,15 @@ export default {
         if (!object) return errorResponse('File not found', 404, env);
 
         // Stream the file
+        // Check if this is a view request (has ?view=true) or download request
+        const isView = url.searchParams.get('view') === 'true';
+        
         return new Response(object.body, {
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${doc.filename}"`,
+            'Content-Disposition': isView 
+              ? `inline; filename="${doc.filename}"` 
+              : `attachment; filename="${doc.filename}"`,
             ...getCorsHeaders(env),
           },
         });
