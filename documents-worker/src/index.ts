@@ -279,9 +279,16 @@ export default {
 
         if (!doc) return errorResponse('Document not found', 404, env);
 
+        console.log('Attempting to fetch from R2:', doc.r2_key);
+        
         // Get from R2
         const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
-        if (!object) return errorResponse('File not found', 404, env);
+        if (!object) {
+          console.error('File not found in R2:', doc.r2_key);
+          return errorResponse('File not found in R2', 404, env);
+        }
+        
+        console.log('R2 object found, size:', object.size);
 
         // Stream the file
         // Check if this is a view request (has ?view=true) or download request
