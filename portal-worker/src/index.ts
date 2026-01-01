@@ -522,8 +522,17 @@ var index_default = {
         }
         
         try {
+          // Create new request with full URL for service binding
+          const documentsUrl = new URL(path, request.url);
+          const documentsRequest = new Request(documentsUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+            redirect: 'manual'
+          });
+          
           // Forward the request with all headers intact
-          const documentsResponse = await env.DOCUMENTS_WORKER.fetch(request.clone());
+          const documentsResponse = await env.DOCUMENTS_WORKER.fetch(documentsRequest);
           
           // Return the response with CORS headers
           return new Response(await documentsResponse.text(), {
