@@ -23,6 +23,11 @@ id = "d39109ffa98d4f4d999ee37098d0c13e"
 binding = "AUTH_WORKER"
 service = "auth-worker"
 
+# Service binding to documents-worker
+[[services]]
+binding = "DOCUMENTS_WORKER"
+service = "documents-worker"
+
 # D1 Database for Oklahoma Wells
 [[d1_databases]]
 binding = "WELLS_DB"

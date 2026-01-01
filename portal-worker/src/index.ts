@@ -514,6 +514,33 @@ var index_default = {
         }
       }
       
+      // Proxy documents endpoints to documents-worker
+      if (path.startsWith("/api/documents")) {
+        console.log(`[Portal] Proxying documents request: ${path}`);
+        if (!env.DOCUMENTS_WORKER) {
+          return jsonResponse({ error: 'Documents service not available' }, 503);
+        }
+        
+        try {
+          // Forward the request with all headers intact
+          const documentsResponse = await env.DOCUMENTS_WORKER.fetch(request.clone());
+          
+          // Return the response with CORS headers
+          return new Response(await documentsResponse.text(), {
+            status: documentsResponse.status,
+            headers: {
+              ...Object.fromEntries(documentsResponse.headers.entries()),
+              ...CORS_HEADERS
+            }
+          });
+        } catch (error) {
+          console.error('Documents proxy error:', error);
+          return jsonResponse({ 
+            error: 'Documents service temporarily unavailable. Please try again later.' 
+          }, 503);
+        }
+      }
+      
       // Properties endpoints
       if (path === "/api/properties" && request.method === "GET") {
         return handleListProperties(request, env);
