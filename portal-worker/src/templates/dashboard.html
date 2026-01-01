@@ -2480,9 +2480,11 @@
             deleteInProgress = true;
             
             const selectedSet = type === 'properties' ? selectedProperties : 
-                               type === 'wells' ? selectedWells : selectedActivity;
+                               type === 'wells' ? selectedWells : 
+                               type === 'documents' ? selectedDocuments : selectedActivity;
             const itemName = type === 'properties' ? 'properties' : 
-                           type === 'wells' ? 'wells' : 'activities';
+                           type === 'wells' ? 'wells' : 
+                           type === 'documents' ? 'documents' : 'activities';
             
             if (selectedSet.size === 0) {
                 deleteInProgress = false;
