@@ -3890,26 +3890,65 @@
         // Document functions
         let currentDocumentId = null;
         
-        function viewDocumentInModal(docId, filename) {
+        async function viewDocumentInModal(docId, filename) {
             console.log('Opening document in modal:', docId, filename);
             currentDocumentId = docId;
             
             // Update modal title
             document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
             
-            // Show modal and set object data to PDF URL
+            // Show modal
             document.getElementById('documentViewModal').style.display = 'flex';
-            const viewer = document.getElementById('pdfViewer');
+            const viewerContainer = document.getElementById('pdfViewerContainer');
             
-            // Use direct URL with view=true parameter for inline display
-            const pdfUrl = `/api/documents/${docId}/download?view=true`;
-            viewer.data = pdfUrl;
+            // Show loading state
+            viewerContainer.innerHTML = '<div style="color: white; text-align: center; padding: 50px;">Loading PDF...</div>';
+            
+            try {
+                // Fetch the PDF as blob
+                const response = await fetch(`/api/documents/${docId}/download?view=true`);
+                if (!response.ok) throw new Error('Failed to load PDF');
+                
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                
+                // Use iframe with blob URL - this should work with proper CSP
+                viewerContainer.innerHTML = `
+                    <iframe 
+                        src="${objectUrl}" 
+                        style="width: 100%; height: 100%; border: none;"
+                        title="${escapeHtml(filename || 'Document')}"
+                    ></iframe>
+                `;
+                
+                // Clean up blob URL when modal is closed
+                window.currentBlobUrl = objectUrl;
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                viewerContainer.innerHTML = `
+                    <div style="color: white; text-align: center; padding: 50px;">
+                        <p>Unable to display PDF in browser</p>
+                        <p style="margin-top: 20px;">
+                            <button onclick="downloadCurrentDocument()" class="btn-secondary" style="background: #3B82F6; color: white; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer;">
+                                Download PDF
+                            </button>
+                        </p>
+                    </div>
+                `;
+            }
         }
         
         function closeDocumentViewer() {
-            const viewer = document.getElementById('pdfViewer');
             document.getElementById('documentViewModal').style.display = 'none';
-            viewer.data = '';
+            
+            // Clean up blob URL if exists
+            if (window.currentBlobUrl) {
+                URL.revokeObjectURL(window.currentBlobUrl);
+                window.currentBlobUrl = null;
+            }
+            
+            // Clear the container
+            document.getElementById('pdfViewerContainer').innerHTML = '';
             currentDocumentId = null;
         }
         
