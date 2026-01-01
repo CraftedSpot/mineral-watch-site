@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Multi-File Upload</title>
+</head>
+<body>
+    <h1>Test Document Multi-Upload</h1>
+    
+    <form id="uploadForm">
+        <input type="file" id="files" name="files" accept=".pdf" multiple>
+        <button type="submit">Upload</button>
+    </form>
+    
+    <div id="results"></div>
+    
+    <script>
+    document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const files = document.getElementById('files').files;
+        if (files.length === 0) {
+            alert('Please select files');
+            return;
+        }
+        
+        const formData = new FormData();
+        for (const file of files) {
+            formData.append('files', file);
+        }
+        
+        try {
+            const response = await fetch('http://localhost:8788/api/documents/upload-multiple', {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Cookie': 'mw_session_v2=test-session'
+                }
+            });
+            
+            const result = await response.json();
+            document.getElementById('results').innerHTML = '<pre>' + JSON.stringify(result, null, 2) + '</pre>';
+        } catch (error) {
+            document.getElementById('results').innerHTML = 'Error: ' + error.message;
+        }
+    });
+    </script>
+</body>
+</html>
