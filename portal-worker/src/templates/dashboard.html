@@ -7541,15 +7541,12 @@ async function handleDocumentUpload(e) {
             // Close modal and refresh documents list
             closeUploadModal();
             loadDocuments();
-        console.log('Document uploaded successfully:', result);
-        
-    } catch (error) {
-        console.error('Upload error:', error);
-        alert('Failed to upload document: ' + error.message);
-        
-        // Reset modal
-        document.getElementById('documentUploadForm').style.display = 'block';
-        document.getElementById('uploadProgress').style.display = 'none';
+        } catch (error) {
+            alert('Upload failed: ' + error.message);
+            // Reset modal
+            document.getElementById('documentUploadForm').style.display = 'block';
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
     }
 }
 </script>
