@@ -2692,8 +2692,22 @@
                 }
                 
                 // Show Documents tab for James or Enterprise 500 users
-                if (currentUser.id === 'recEpgbS88AbuzAH8' || currentUser.plan === 'Enterprise 500') {
+                console.log('Current user:', currentUser);
+                console.log('User ID:', currentUser.id);
+                console.log('User plan:', currentUser.plan);
+                console.log('User fields:', currentUser.fields);
+                console.log('Organization:', currentUser.organizationId);
+                
+                // Check both plan formats
+                const userPlan = currentUser.plan || currentUser.Plan || currentUser.fields?.Plan;
+                console.log('Detected plan:', userPlan);
+                
+                if (currentUser.id === 'recEpgbS88AbuzAH8' || userPlan === 'Enterprise 500') {
+                    console.log('Showing documents tab for user');
                     document.getElementById('documentsTab').style.display = 'flex';
+                } else {
+                    console.log('Not showing documents tab - user does not have access');
+                    console.log('User plan is:', userPlan, 'not Enterprise 500');
                 }
                 
                 // Hide add/edit/delete buttons for Viewers
