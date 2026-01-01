@@ -5697,16 +5697,10 @@
                 <input type="file" id="fileInput" accept=".pdf" multiple style="display: none;" onchange="handleFileSelect(event)">
             </div>
             
-            <!-- Selected File Display -->
-            <div id="selectedFileDisplay" style="display: none; background: var(--success-bg); border: 1px solid var(--success); border-radius: 6px; padding: 12px 16px; margin-bottom: 24px;">
-                <div style="display: flex; justify-content: space-between; align-items: center;">
-                    <span id="selectedFileName" style="font-weight: 500; color: var(--success);"></span>
-                    <button type="button" onclick="clearSelectedFile()" style="background: none; border: none; color: var(--success); cursor: pointer;">
-                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-                        </svg>
-                    </button>
-                </div>
+            <!-- Selected Files Display -->
+            <div id="selectedFilesDisplay" style="display: none; max-height: 200px; overflow-y: auto; margin-bottom: 24px;">
+                <h4 style="margin: 0 0 12px; font-size: 14px; color: var(--oil-navy);">Selected Files:</h4>
+                <div id="selectedFilesList"></div>
             </div>
             
             <!-- Upload Button -->
@@ -7356,7 +7350,7 @@ function finishBulkUploadWells() {
 }
 
 // Document Upload Functions
-let selectedFile = null;
+let selectedFiles = [];
 
 function openUploadModal() {
     document.getElementById('documentUploadModal').style.display = 'flex';
@@ -7388,42 +7382,90 @@ function handleFileDrop(e) {
     e.currentTarget.style.borderColor = 'var(--border)';
     e.currentTarget.style.background = '#f8f9fa';
     
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-        processSelectedFile(files[0]);
-    }
+    const files = Array.from(e.dataTransfer.files);
+    processSelectedFiles(files);
 }
 
 function handleFileSelect(e) {
-    const files = e.target.files;
-    if (files.length > 0) {
-        processSelectedFile(files[0]);
+    const files = Array.from(e.target.files);
+    processSelectedFiles(files);
+}
+
+function processSelectedFiles(files) {
+    // Filter and validate files
+    const validFiles = [];
+    const errors = [];
+    
+    for (const file of files) {
+        if (file.type !== 'application/pdf') {
+            errors.push(`${file.name}: Only PDF files are allowed`);
+            continue;
+        }
+        
+        if (file.size > 50 * 1024 * 1024) {
+            errors.push(`${file.name}: File size must be less than 50MB`);
+            continue;
+        }
+        
+        validFiles.push(file);
+    }
+    
+    // Check total file limit
+    if (validFiles.length > 10) {
+        alert('Maximum 10 files can be uploaded at once');
+        validFiles.splice(10);
+    }
+    
+    if (errors.length > 0) {
+        alert('Some files were not added:\n' + errors.join('\n'));
+    }
+    
+    if (validFiles.length > 0) {
+        selectedFiles = validFiles;
+        displaySelectedFiles();
     }
 }
 
-function processSelectedFile(file) {
-    // Validate file type
-    if (file.type !== 'application/pdf') {
-        alert('Please select a PDF file');
-        return;
-    }
+function displaySelectedFiles() {
+    const listDiv = document.getElementById('selectedFilesList');
+    listDiv.innerHTML = '';
     
-    // Validate file size (50MB limit)
-    if (file.size > 50 * 1024 * 1024) {
-        alert('File size must be less than 50MB');
-        return;
-    }
+    selectedFiles.forEach((file, index) => {
+        const fileDiv = document.createElement('div');
+        fileDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--success-bg); border: 1px solid var(--success); border-radius: 4px; margin-bottom: 8px;';
+        
+        const fileName = document.createElement('span');
+        fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`;
+        fileName.style.cssText = 'font-size: 14px; color: var(--oil-navy);';
+        
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.onclick = () => removeFile(index);
+        removeBtn.style.cssText = 'background: none; border: none; color: var(--red-dirt); cursor: pointer;';
+        removeBtn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+        
+        fileDiv.appendChild(fileName);
+        fileDiv.appendChild(removeBtn);
+        listDiv.appendChild(fileDiv);
+    });
     
-    selectedFile = file;
-    document.getElementById('selectedFileName').textContent = file.name;
-    document.getElementById('selectedFileDisplay').style.display = 'block';
-    document.getElementById('uploadBtn').disabled = false;
+    document.getElementById('selectedFilesDisplay').style.display = 'block';
+    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    if (selectedFiles.length === 0) {
+        clearSelectedFile();
+    } else {
+        displaySelectedFiles();
+    }
 }
 
 function clearSelectedFile() {
-    selectedFile = null;
+    selectedFiles = [];
     document.getElementById('fileInput').value = '';
-    document.getElementById('selectedFileDisplay').style.display = 'none';
+    document.getElementById('selectedFilesDisplay').style.display = 'none';
     document.getElementById('uploadBtn').disabled = true;
 }
 
