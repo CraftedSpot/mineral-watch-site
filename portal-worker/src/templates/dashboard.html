@@ -3887,6 +3887,24 @@
             searchDebounceTimer = setTimeout(searchFunction, delay);
         }
         
+        // Document functions
+        function viewDocument(docId) {
+            console.log('View document clicked:', docId);
+            // Open PDF in new tab for viewing (inline display)
+            const viewUrl = `/api/documents/${docId}/download?view=true`;
+            console.log('Opening URL:', viewUrl);
+            window.open(viewUrl, '_blank');
+        }
+        
+        function downloadDocument(docId) {
+            console.log('Download document clicked:', docId);
+            window.location.href = `/api/documents/${docId}/download`;
+        }
+        
+        // Make functions available globally
+        window.viewDocument = viewDocument;
+        window.downloadDocument = downloadDocument;
+        
         // Load Documents
         async function loadDocuments() {
             try {
@@ -3981,20 +3999,6 @@
             
             html += '</div>';
             container.innerHTML = html;
-        }
-        
-        function viewDocument(docId) {
-            // Open PDF in new tab for viewing (inline display)
-            window.open(`/api/documents/${docId}/download?view=true`, '_blank');
-        }
-        
-        async function downloadDocument(docId) {
-            try {
-                window.location.href = `/api/documents/${docId}/download`;
-            } catch (error) {
-                console.error('Download error:', error);
-                alert('Failed to download document');
-            }
         }
         
         async function searchWells() {
