@@ -7356,11 +7356,13 @@ function openUploadModal() {
     document.getElementById('documentUploadModal').style.display = 'flex';
     clearSelectedFile();
 }
+window.openUploadModal = openUploadModal;
 
 function closeUploadModal() {
     document.getElementById('documentUploadModal').style.display = 'none';
     clearSelectedFile();
 }
+window.closeUploadModal = closeUploadModal;
 
 function handleDragOver(e) {
     e.preventDefault();
