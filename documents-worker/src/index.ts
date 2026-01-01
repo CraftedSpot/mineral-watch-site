@@ -190,7 +190,7 @@ export default {
         });
 
         // Create D1 record
-        const userOrg = user.fields.Organization?.[0] || null;
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
             id, r2_key, filename, user_id, organization_id, 
@@ -219,7 +219,7 @@ export default {
       
       try {
         // Check access
-        const userOrg = user.fields.Organization?.[0];
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
         const conditions = [`user_id = ?`];
         const params = [user.id];
         
@@ -257,7 +257,7 @@ export default {
       
       try {
         // Check access
-        const userOrg = user.fields.Organization?.[0];
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
         const conditions = [`user_id = ?`];
         const params = [user.id];
         
