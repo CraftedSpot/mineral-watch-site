@@ -3893,7 +3893,12 @@
             // Open PDF in new tab for viewing (inline display)
             const viewUrl = `/api/documents/${docId}/download?view=true`;
             console.log('Opening URL:', viewUrl);
-            window.open(viewUrl, '_blank');
+            
+            // Try to open in new tab
+            const newWindow = window.open(viewUrl, '_blank');
+            if (!newWindow) {
+                alert('Popup blocked! Please allow popups for this site to view documents.');
+            }
         }
         
         function downloadDocument(docId) {
