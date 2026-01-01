@@ -2601,6 +2601,9 @@
             } else if (type === 'activity') {
                 selectedActivity.clear();
                 document.querySelectorAll('.activity-checkbox-input').forEach(cb => cb.checked = false);
+            } else if (type === 'documents') {
+                selectedDocuments.clear();
+                document.querySelectorAll('.document-checkbox').forEach(cb => cb.checked = false);
             }
             updateBulkActionVisibility();
         }
