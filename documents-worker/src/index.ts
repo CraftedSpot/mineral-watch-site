@@ -91,6 +91,9 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
+    console.log('[Documents] Incoming request:', request.method, path);
+    console.log('[Documents] Headers:', Object.fromEntries(request.headers.entries()));
+
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
