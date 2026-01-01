@@ -3888,16 +3888,33 @@
         }
         
         // Document functions
-        function viewDocument(docId) {
-            console.log('View document clicked:', docId);
-            // Open PDF in new tab for viewing (inline display)
-            const viewUrl = `/api/documents/${docId}/download?view=true`;
-            console.log('Opening URL:', viewUrl);
+        let currentDocumentId = null;
+        
+        function viewDocumentInModal(docId, filename) {
+            console.log('Opening document in modal:', docId, filename);
+            currentDocumentId = docId;
             
-            // Try to open in new tab
-            const newWindow = window.open(viewUrl, '_blank');
-            if (!newWindow) {
-                alert('Popup blocked! Please allow popups for this site to view documents.');
+            // Update modal title
+            document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
+            
+            // Set iframe source to the PDF URL
+            const pdfUrl = `/api/documents/${docId}/download`;
+            const iframe = document.getElementById('pdfViewer');
+            iframe.src = pdfUrl;
+            
+            // Show modal
+            document.getElementById('documentViewModal').style.display = 'flex';
+        }
+        
+        function closeDocumentViewer() {
+            document.getElementById('documentViewModal').style.display = 'none';
+            document.getElementById('pdfViewer').src = 'about:blank';
+            currentDocumentId = null;
+        }
+        
+        function downloadCurrentDocument() {
+            if (currentDocumentId) {
+                downloadDocument(currentDocumentId);
             }
         }
         
@@ -3907,7 +3924,9 @@
         }
         
         // Make functions available globally
-        window.viewDocument = viewDocument;
+        window.viewDocumentInModal = viewDocumentInModal;
+        window.closeDocumentViewer = closeDocumentViewer;
+        window.downloadCurrentDocument = downloadCurrentDocument;
         window.downloadDocument = downloadDocument;
         
         // Load Documents
@@ -3986,12 +4005,12 @@
                             <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">
                                 ${statusText}
                             </span>
-                            <a href="/api/documents/${doc.id}/download?view=true" target="_blank" title="View" style="background: #E0F2FE; border: none; padding: 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s; text-decoration: none;" onmouseover="this.style.background='#BAE6FD'" onmouseout="this.style.background='#E0F2FE'">
+                            <button onclick="event.stopPropagation(); viewDocumentInModal('${doc.id}', '${escapeHtml(doc.filename)}')" title="View" style="background: #E0F2FE; border: none; padding: 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#BAE6FD'" onmouseout="this.style.background='#E0F2FE'">
                                 <svg width="20" height="20" fill="none" stroke="#1E40AF" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                 </svg>
-                            </a>
+                            </button>
                             <button onclick="event.stopPropagation(); downloadDocument('${doc.id}')" title="Download" style="background: #F3F4F6; border: none; padding: 10px; border-radius: 6px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all 0.2s;" onmouseover="this.style.background='#E5E7EB'" onmouseout="this.style.background='#F3F4F6'">
                                 <svg width="20" height="20" fill="none" stroke="#374151" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
@@ -5553,6 +5572,27 @@
                 <p class="bulk-text" id="wells-results-details">Your wells are now being monitored for OCC activity.</p>
                 <button class="btn-primary" onclick="finishBulkUploadWells()">Done</button>
             </div>
+        </div>
+    </div>
+</div>
+
+<!-- DOCUMENT VIEW MODAL -->
+<div class="modal-overlay" id="documentViewModal" style="display: none;">
+    <div class="modal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
+            <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button onclick="downloadCurrentDocument()" class="btn-secondary-action" style="padding: 8px 16px;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Download
+                </button>
+                <button onclick="closeDocumentViewer()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 4px;">×</button>
+            </div>
+        </div>
+        <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659;">
+            <iframe id="pdfViewer" style="width: 100%; height: 100%; border: none;" sandbox="allow-same-origin allow-scripts"></iframe>
         </div>
     </div>
 </div>
