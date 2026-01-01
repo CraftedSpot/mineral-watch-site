@@ -3899,8 +3899,8 @@
             
             // Show modal with loading state
             document.getElementById('documentViewModal').style.display = 'flex';
-            const iframe = document.getElementById('pdfViewer');
-            iframe.src = 'about:blank';
+            const viewer = document.getElementById('pdfViewer');
+            viewer.data = '';
             
             try {
                 // Fetch the PDF with credentials
@@ -3916,12 +3916,12 @@
                 const blob = await response.blob();
                 console.log('PDF blob size:', blob.size);
                 
-                // Create blob URL and set as iframe source
+                // Create blob URL and set as object data
                 const blobUrl = URL.createObjectURL(blob);
-                iframe.src = blobUrl;
+                viewer.data = blobUrl;
                 
                 // Clean up blob URL when modal closes
-                iframe.dataset.blobUrl = blobUrl;
+                viewer.dataset.blobUrl = blobUrl;
                 
             } catch (error) {
                 console.error('Error loading PDF:', error);
@@ -5623,8 +5623,10 @@
                 <button onclick="closeDocumentViewer()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 4px;">×</button>
             </div>
         </div>
-        <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659;">
-            <iframe id="pdfViewer" style="width: 100%; height: 100%; border: none;"></iframe>
+        <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659; position: relative;">
+            <object id="pdfViewer" type="application/pdf" style="width: 100%; height: 100%; border: none;">
+                <p style="color: white; text-align: center; padding: 20px;">PDF cannot be displayed. <a href="#" onclick="downloadCurrentDocument(); return false;" style="color: #60A5FA;">Download instead</a></p>
+            </object>
         </div>
     </div>
 </div>
