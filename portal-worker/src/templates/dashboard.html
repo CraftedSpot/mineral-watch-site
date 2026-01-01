@@ -3890,55 +3890,24 @@
         // Document functions
         let currentDocumentId = null;
         
-        async function viewDocumentInModal(docId, filename) {
+        function viewDocumentInModal(docId, filename) {
             console.log('Opening document in modal:', docId, filename);
             currentDocumentId = docId;
             
             // Update modal title
             document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
             
-            // Show modal with loading state
+            // Show modal and set object data to PDF URL
             document.getElementById('documentViewModal').style.display = 'flex';
             const viewer = document.getElementById('pdfViewer');
-            viewer.data = '';
             
-            try {
-                // Fetch the PDF with credentials
-                const response = await fetch(`/api/documents/${docId}/download`, {
-                    credentials: 'include'
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`Failed to load document: ${response.status}`);
-                }
-                
-                // Get the blob
-                const blob = await response.blob();
-                console.log('PDF blob size:', blob.size);
-                
-                // Create blob URL and set as object data
-                const blobUrl = URL.createObjectURL(blob);
-                viewer.data = blobUrl;
-                
-                // Clean up blob URL when modal closes
-                viewer.dataset.blobUrl = blobUrl;
-                
-            } catch (error) {
-                console.error('Error loading PDF:', error);
-                alert('Failed to load document: ' + error.message);
-                closeDocumentViewer();
-            }
+            // Use direct URL - the browser will handle authentication cookies
+            const pdfUrl = `/api/documents/${docId}/download`;
+            viewer.data = pdfUrl;
         }
         
         function closeDocumentViewer() {
             const viewer = document.getElementById('pdfViewer');
-            
-            // Clean up blob URL if exists
-            if (viewer.dataset.blobUrl) {
-                URL.revokeObjectURL(viewer.dataset.blobUrl);
-                delete viewer.dataset.blobUrl;
-            }
-            
             document.getElementById('documentViewModal').style.display = 'none';
             viewer.data = '';
             currentDocumentId = null;
