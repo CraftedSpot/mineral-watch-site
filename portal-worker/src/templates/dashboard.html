@@ -2366,6 +2366,7 @@
             const propBar = document.getElementById('propertiesBulkActionBar');
             const wellBar = document.getElementById('wellsBulkActionBar');
             const activityBar = document.getElementById('activityBulkBar');
+            const docBar = document.getElementById('documentsBulkActionBar');
             
             if (propBar) {
                 propBar.style.display = selectedProperties.size > 0 ? 'flex' : 'none';
@@ -2383,6 +2384,24 @@
                 activityBar.classList.toggle('active', selectedActivity.size > 0);
                 const count = document.getElementById('activitySelectedCount');
                 if (count) count.textContent = selectedActivity.size;
+            }
+            
+            if (docBar) {
+                docBar.style.display = selectedDocuments.size > 0 ? 'flex' : 'none';
+                docBar.innerHTML = `
+                    <div class="bulk-action-info">
+                        <span class="selected-count">${selectedDocuments.size}</span> document${selectedDocuments.size !== 1 ? 's' : ''} selected
+                    </div>
+                    <div class="bulk-actions">
+                        <button onclick="clearSelection('documents')" class="btn-bulk-action-secondary">Clear</button>
+                        <button onclick="bulkDeleteSelected('documents')" class="btn-bulk-action-danger">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+                            </svg>
+                            Delete Selected
+                        </button>
+                    </div>
+                `;
             }
         }
         
@@ -2404,6 +2423,15 @@
             }
             updateBulkActionVisibility();
             updateSelectAllState('wells');
+        }
+        
+        function toggleDocumentSelection(docId, checked) {
+            if (checked) {
+                selectedDocuments.add(docId);
+            } else {
+                selectedDocuments.delete(docId);
+            }
+            updateBulkActionVisibility();
         }
         
         function selectAllItems(type, checked) {
