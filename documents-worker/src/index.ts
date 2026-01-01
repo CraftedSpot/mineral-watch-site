@@ -173,8 +173,8 @@ export default {
           return errorResponse('Only PDF files are allowed', 400, env);
         }
         
-        if (file.size > 50 * 1024 * 1024) { // 50MB limit
-          return errorResponse('File too large. Maximum size is 50MB', 400, env);
+        if (file.size > 100 * 1024 * 1024) { // 100MB limit
+          return errorResponse('File too large. Maximum size is 100MB', 400, env);
         }
 
         // Generate unique document ID
@@ -252,10 +252,10 @@ export default {
               continue;
             }
             
-            if (file.size > 50 * 1024 * 1024) { // 50MB limit
+            if (file.size > 100 * 1024 * 1024) { // 100MB limit
               errors.push({
                 filename: file.name,
-                error: 'File too large. Maximum size is 50MB'
+                error: 'File too large. Maximum size is 100MB'
               });
               continue;
             }
