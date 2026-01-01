@@ -293,13 +293,19 @@ export default {
         // Stream the file
         // Check if this is a view request (has ?view=true) or download request
         const isView = url.searchParams.get('view') === 'true';
+        console.log('Download request - isView:', isView, 'URL:', url.toString());
+        
+        const contentDisposition = isView 
+          ? `inline; filename="${doc.filename}"` 
+          : `attachment; filename="${doc.filename}"`;
+        
+        console.log('Setting Content-Disposition:', contentDisposition);
         
         return new Response(object.body, {
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': isView 
-              ? `inline; filename="${doc.filename}"` 
-              : `attachment; filename="${doc.filename}"`,
+            'Content-Disposition': contentDisposition,
+            'Cache-Control': 'no-cache', // Prevent caching issues
             ...getCorsHeaders(env),
           },
         });
