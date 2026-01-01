@@ -53,11 +53,14 @@ async function authenticateUser(request: Request, env: Env): Promise<AuthUser | 
   if (!sessionCookie) return null;
 
   try {
-    const authResponse = await env.AUTH_WORKER.fetch(
-      new Request('https://auth/validate', {
-        headers: { 'Authorization': `Bearer ${sessionCookie}` }
-      })
-    );
+    // Forward the cookie to auth-worker's /api/auth/me endpoint
+    const authRequest = new Request('https://auth-worker/api/auth/me', {
+      headers: { 
+        'Cookie': `mw_session_v2=${sessionCookie}`
+      }
+    });
+    
+    const authResponse = await env.AUTH_WORKER.fetch(authRequest);
 
     if (!authResponse.ok) return null;
     return await authResponse.json();
@@ -106,6 +109,8 @@ export default {
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       try {
+        console.log('User authenticated:', user.id, user.email);
+        
         // Build query to get documents for user or their organization
         const userOrg = user.fields.Organization?.[0];
         const conditions = [`user_id = ?`];
@@ -125,14 +130,19 @@ export default {
           ORDER BY upload_date DESC
         `;
 
+        console.log('Query:', query);
+        console.log('Params:', params);
+
         const { results } = await env.WELLS_DB.prepare(query)
           .bind(...params)
           .all();
 
+        console.log('Results found:', results?.length || 0);
         return jsonResponse(results || [], 200, env);
       } catch (error) {
         console.error('Error listing documents:', error);
-        return errorResponse('Failed to list documents', 500, env);
+        console.error('Error details:', error.message, error.stack);
+        return errorResponse(`Database error: ${error.message}`, 500, env);
       }
     }
 
