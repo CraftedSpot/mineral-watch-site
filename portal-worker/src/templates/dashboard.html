@@ -1742,6 +1742,39 @@
                     <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
                 </div>
                 </div>
+                
+                <div id="documents-tab" class="tab-content">
+                    <div class="documents-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding: 0 20px;">
+                        <div>
+                            <h2 style="margin: 0; font-size: 20px; color: var(--oil-navy);">Digital Document Locker</h2>
+                            <p style="margin: 4px 0 0; color: var(--slate-blue); font-size: 14px;">Securely store and organize your mineral documents</p>
+                        </div>
+                        <button class="btn-add" onclick="openUploadModal()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Upload Document
+                        </button>
+                    </div>
+                    
+                    <div id="documentsContent" style="padding: 0 20px;">
+                        <!-- Loading skeleton will be here initially -->
+                        <div class="skeleton-activity">
+                            <div class="skeleton skeleton-avatar"></div>
+                            <div class="skeleton-activity-content">
+                                <div class="skeleton skeleton-line short"></div>
+                                <div class="skeleton skeleton-line long"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-activity">
+                            <div class="skeleton skeleton-avatar"></div>
+                            <div class="skeleton-activity-content">
+                                <div class="skeleton skeleton-line short"></div>
+                                <div class="skeleton skeleton-line long"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </main>
@@ -2617,6 +2650,11 @@
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
                 
+                // Show Documents tab for James or Enterprise 500 users
+                if (currentUser.id === 'recEpgbS88AbuzAH8' || currentUser.plan === 'Enterprise 500') {
+                    document.getElementById('documentsTab').style.display = 'flex';
+                }
+                
                 // Hide add/edit/delete buttons for Viewers
                 if (currentUser.role === 'Viewer') {
                     // Hide property add/import buttons
@@ -2655,6 +2693,10 @@
                     // Load activity data when tab is selected (lazy load)
                     if (currentTab === 'activity') {
                         loadActivity();
+                    }
+                    // Load documents data when tab is selected (lazy load)
+                    if (currentTab === 'documents') {
+                        loadDocuments();
                     }
                 });
             });
@@ -3843,6 +3885,104 @@
         function debounceSearch(searchFunction, delay = SEARCH_DEBOUNCE_MS) {
             clearTimeout(searchDebounceTimer);
             searchDebounceTimer = setTimeout(searchFunction, delay);
+        }
+        
+        // Load Documents
+        async function loadDocuments() {
+            try {
+                const res = await fetch('/api/documents');
+                if (!res.ok) throw new Error('Failed to load documents');
+                
+                const documents = await res.json();
+                renderDocumentsList(documents);
+            } catch (error) {
+                console.error('Error loading documents:', error);
+                document.getElementById('documentsContent').innerHTML = `
+                    <div class="empty-state">
+                        <p>Error loading documents</p>
+                        <p style="font-size: 13px; color: var(--slate-blue);">${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderDocumentsList(documents) {
+            const container = document.getElementById('documentsContent');
+            
+            if (!documents || documents.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state" style="text-align: center; padding: 60px 20px;">
+                        <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.3;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        <p style="font-size: 18px; font-weight: 600; color: var(--oil-navy); margin-bottom: 8px;">No documents yet</p>
+                        <p style="font-size: 14px; color: var(--slate-blue); margin-bottom: 24px;">Upload your first document to get started</p>
+                        <button class="btn-add" onclick="openUploadModal()">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                            </svg>
+                            Upload Document
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Document list with cards
+            let html = '<div class="documents-list" style="display: grid; gap: 16px;">';
+            
+            documents.forEach(doc => {
+                const uploadDate = new Date(doc.upload_date).toLocaleDateString();
+                const statusColor = doc.status === 'complete' ? 'var(--success)' : 
+                                   doc.status === 'failed' ? 'var(--error)' : 
+                                   '#F59E0B';
+                const statusText = doc.status === 'complete' ? 'Complete' : 
+                                  doc.status === 'failed' ? 'Failed' : 
+                                  'Processing';
+                
+                html += `
+                    <div class="document-card" style="background: white; border: 1px solid var(--border); border-radius: 8px; padding: 20px; display: flex; justify-content: space-between; align-items: center; transition: all 0.2s;" onmouseover="this.style.borderColor='var(--slate-blue)'; this.style.boxShadow='0 2px 4px rgba(0,0,0,0.1)'" onmouseout="this.style.borderColor='var(--border)'; this.style.boxShadow='none'">
+                        <div style="display: flex; gap: 16px; align-items: center;">
+                            <div style="width: 48px; height: 48px; background: #FEF3C7; border-radius: 8px; display: flex; align-items: center; justify-content: center;">
+                                <svg width="24" height="24" fill="none" stroke="#F59E0B" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </div>
+                            <div>
+                                <h3 style="margin: 0 0 4px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">${escapeHtml(doc.filename)}</h3>
+                                <div style="display: flex; gap: 16px; align-items: center;">
+                                    ${doc.doc_type ? `<span style="font-size: 13px; color: var(--slate-blue);">Type: ${escapeHtml(doc.doc_type)}</span>` : ''}
+                                    ${doc.county ? `<span style="font-size: 13px; color: var(--slate-blue);">County: ${escapeHtml(doc.county)}</span>` : ''}
+                                    <span style="font-size: 13px; color: var(--slate-blue);">Uploaded: ${uploadDate}</span>
+                                    ${doc.page_count ? `<span style="font-size: 13px; color: var(--slate-blue);">${doc.page_count} pages</span>` : ''}
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 12px; align-items: center;">
+                            <span style="padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">
+                                ${statusText}
+                            </span>
+                            <button class="btn-link" onclick="downloadDocument('${doc.id}')" title="Download">
+                                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        async function downloadDocument(docId) {
+            try {
+                window.location.href = `/api/documents/${docId}/download`;
+            } catch (error) {
+                console.error('Download error:', error);
+                alert('Failed to download document');
+            }
         }
         
         async function searchWells() {
@@ -5391,6 +5531,61 @@
                 </div>
                 <p class="bulk-text" id="wells-results-details">Your wells are now being monitored for OCC activity.</p>
                 <button class="btn-primary" onclick="finishBulkUploadWells()">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- DOCUMENT UPLOAD MODAL -->
+<div class="modal-overlay" id="documentUploadModal" style="display: none;">
+    <div class="modal" style="max-width: 500px;">
+        <button class="close-btn" onclick="closeUploadModal()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        <h2 style="margin-bottom: 24px; font-family: 'Merriweather', serif;">Upload Document</h2>
+        
+        <form id="documentUploadForm" onsubmit="handleDocumentUpload(event)">
+            <!-- File Drop Zone -->
+            <div id="fileDropZone" style="border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; background: #f8f9fa; cursor: pointer; margin-bottom: 24px;" 
+                 ondrop="handleFileDrop(event)" 
+                 ondragover="handleDragOver(event)" 
+                 ondragleave="handleDragLeave(event)"
+                 onclick="document.getElementById('fileInput').click()">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px; opacity: 0.4;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Drop PDF here or click to browse</p>
+                <p style="margin: 0; font-size: 13px; color: var(--slate-blue);">Maximum file size: 50MB</p>
+                <input type="file" id="fileInput" accept=".pdf" style="display: none;" onchange="handleFileSelect(event)">
+            </div>
+            
+            <!-- Selected File Display -->
+            <div id="selectedFileDisplay" style="display: none; background: var(--success-bg); border: 1px solid var(--success); border-radius: 6px; padding: 12px 16px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <span id="selectedFileName" style="font-weight: 500; color: var(--success);"></span>
+                    <button type="button" onclick="clearSelectedFile()" style="background: none; border: none; color: var(--success); cursor: pointer;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Upload Button -->
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn-secondary-action" onclick="closeUploadModal()">Cancel</button>
+                <button type="submit" class="btn-add" id="uploadBtn" disabled>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    Upload
+                </button>
+            </div>
+        </form>
+        
+        <!-- Progress Display -->
+        <div id="uploadProgress" style="display: none; margin-top: 24px;">
+            <div style="background: #E0F2FE; border-radius: 6px; padding: 16px; text-align: center;">
+                <div class="spinner" style="width: 24px; height: 24px; border: 2px solid #60A5FA; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
+                <p style="margin: 0; color: #1E40AF; font-weight: 500;">Uploading document...</p>
             </div>
         </div>
     </div>
@@ -7018,6 +7213,121 @@ function showWellsError(message) {
 function finishBulkUploadWells() {
     closeBulkUploadWellsModal();
     loadWells();
+}
+
+// Document Upload Functions
+let selectedFile = null;
+
+function openUploadModal() {
+    document.getElementById('documentUploadModal').style.display = 'flex';
+    clearSelectedFile();
+}
+
+function closeUploadModal() {
+    document.getElementById('documentUploadModal').style.display = 'none';
+    clearSelectedFile();
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'var(--red-dirt)';
+    e.currentTarget.style.background = '#FEF3C7';
+}
+
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'var(--border)';
+    e.currentTarget.style.background = '#f8f9fa';
+}
+
+function handleFileDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'var(--border)';
+    e.currentTarget.style.background = '#f8f9fa';
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        processSelectedFile(files[0]);
+    }
+}
+
+function handleFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+        processSelectedFile(files[0]);
+    }
+}
+
+function processSelectedFile(file) {
+    // Validate file type
+    if (file.type !== 'application/pdf') {
+        alert('Please select a PDF file');
+        return;
+    }
+    
+    // Validate file size (50MB limit)
+    if (file.size > 50 * 1024 * 1024) {
+        alert('File size must be less than 50MB');
+        return;
+    }
+    
+    selectedFile = file;
+    document.getElementById('selectedFileName').textContent = file.name;
+    document.getElementById('selectedFileDisplay').style.display = 'block';
+    document.getElementById('uploadBtn').disabled = false;
+}
+
+function clearSelectedFile() {
+    selectedFile = null;
+    document.getElementById('fileInput').value = '';
+    document.getElementById('selectedFileDisplay').style.display = 'none';
+    document.getElementById('uploadBtn').disabled = true;
+}
+
+async function handleDocumentUpload(e) {
+    e.preventDefault();
+    
+    if (!selectedFile) return;
+    
+    // Show progress
+    document.getElementById('documentUploadForm').style.display = 'none';
+    document.getElementById('uploadProgress').style.display = 'block';
+    
+    const formData = new FormData();
+    formData.append('file', selectedFile);
+    
+    try {
+        const response = await fetch('/api/documents/upload', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+        }
+        
+        const result = await response.json();
+        
+        // Close modal and refresh documents list
+        closeUploadModal();
+        loadDocuments();
+        
+        // Show success message (optional)
+        console.log('Document uploaded successfully:', result);
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        alert('Failed to upload document: ' + error.message);
+        
+        // Reset modal
+        document.getElementById('documentUploadForm').style.display = 'block';
+        document.getElementById('uploadProgress').style.display = 'none';
+    }
 }
 </script>
 
