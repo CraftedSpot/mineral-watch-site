@@ -2773,6 +2773,8 @@
                     togglePropertySelection(e.target.dataset.id, e.target.checked);
                 } else if (e.target.classList.contains('well-checkbox')) {
                     toggleWellSelection(e.target.dataset.id, e.target.checked);
+                } else if (e.target.classList.contains('document-checkbox')) {
+                    toggleDocumentSelection(e.target.dataset.id, e.target.checked);
                 }
             });
             
