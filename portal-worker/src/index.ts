@@ -534,14 +534,26 @@ var index_default = {
           // Forward the request with all headers intact
           const documentsResponse = await env.DOCUMENTS_WORKER.fetch(documentsRequest);
           
+          // Check if this is a binary response (like PDF download)
+          const contentType = documentsResponse.headers.get('Content-Type');
+          const isBinary = contentType && (
+            contentType.includes('application/pdf') || 
+            contentType.includes('application/octet-stream') ||
+            contentType.includes('image/')
+          );
+          
           // Return the response with CORS headers
-          return new Response(await documentsResponse.text(), {
-            status: documentsResponse.status,
-            headers: {
-              ...Object.fromEntries(documentsResponse.headers.entries()),
-              ...CORS_HEADERS
+          // For binary data, use the body stream directly
+          return new Response(
+            isBinary ? documentsResponse.body : await documentsResponse.text(), 
+            {
+              status: documentsResponse.status,
+              headers: {
+                ...Object.fromEntries(documentsResponse.headers.entries()),
+                ...CORS_HEADERS
+              }
             }
-          });
+          );
         } catch (error) {
           console.error('Documents proxy error:', error);
           return jsonResponse({ 
