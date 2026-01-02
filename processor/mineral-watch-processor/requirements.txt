@@ -9,3 +9,6 @@ anthropic>=0.40.0
 
 # Environment variable handling (optional, for local dev)
 python-dotenv>=1.0.0
+
+# Image processing for compression
+Pillow>=10.0.0
