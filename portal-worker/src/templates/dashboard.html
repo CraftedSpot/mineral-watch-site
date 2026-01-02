@@ -6091,7 +6091,10 @@
                 </svg>
                 View Original PDF
             </button>
-            <button onclick="closeDocumentDetailModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
+            <div style="display: flex; gap: 12px;">
+                <button onclick="closeDocumentDetailModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
+                <button onclick="saveAndCloseDocumentNotes()" id="saveDocNotesBtn" style="background: #1D6F5C; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: none;">Save & Close</button>
+            </div>
         </div>
     </div>
 </div>
