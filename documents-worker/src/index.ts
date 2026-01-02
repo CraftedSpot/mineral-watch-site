@@ -150,7 +150,8 @@ export default {
 
         const query = `
           SELECT id, filename, doc_type, county, section, township, range, 
-                 confidence, status, upload_date, page_count, file_size, extracted_data, user_notes
+                 confidence, status, upload_date, page_count, file_size, extracted_data, user_notes,
+                 display_name, category, needs_review, field_scores, fields_needing_review
           FROM documents 
           WHERE (${conditions.join(' OR ')})
             AND deleted_at IS NULL
