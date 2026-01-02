@@ -4274,13 +4274,34 @@
                     content += '</div>';
                 }
             } else {
-                // No extracted data yet
-                content += '<div class="detail-section" style="text-align: center; padding: 40px 20px;">';
+                // No extracted data yet - show status and user notes
+                content += '<div class="doc-detail-grid">';
+                
+                // Status field
+                const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
+                                   doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
+                const statusText = doc.status === 'complete' ? 'Complete' : 
+                                  doc.status === 'failed' ? 'Failed' : 'Processing';
+                content += `
+                    <div class="doc-field">
+                        <label>Status</label>
+                        <div class="doc-value" style="color: ${statusColor}; font-weight: 600;">${statusText}</div>
+                    </div>`;
+                
+                content += '</div>';
+                
+                content += '<div class="detail-section" style="text-align: center; padding: 40px 20px; background: #F9FAFB; border-radius: 8px; margin: 20px 0;">';
                 content += '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.3;">';
                 content += '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>';
                 content += '</svg>';
-                content += '<p style="color: var(--slate-blue);">Document is being processed</p>';
+                content += '<p style="color: var(--slate-blue); font-weight: 500;">Document is being processed</p>';
                 content += '<p style="color: var(--slate-blue); font-size: 13px;">Data extraction will be available soon</p>';
+                content += '</div>';
+                
+                // User Notes - always show
+                content += '<div class="detail-section">';
+                content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
                 content += '</div>';
             }
             
