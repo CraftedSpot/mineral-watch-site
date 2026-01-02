@@ -80,6 +80,37 @@ async function ensureUserNotesColumn(env: Env) {
   }
 }
 
+// Ensure all processing columns exist
+async function ensureProcessingColumns(env: Env) {
+  const columnsToAdd = [
+    { name: 'display_name', type: 'TEXT' },
+    { name: 'category', type: 'TEXT' },
+    { name: 'needs_review', type: 'INTEGER DEFAULT 0' },
+    { name: 'field_scores', type: 'TEXT' },
+    { name: 'fields_needing_review', type: 'TEXT' },
+    { name: 'queued_at', type: 'TEXT' },
+    { name: 'processing_attempts', type: 'INTEGER DEFAULT 0' }
+  ];
+
+  for (const column of columnsToAdd) {
+    try {
+      // Try to query the column
+      await env.WELLS_DB.prepare(
+        `SELECT ${column.name} FROM documents LIMIT 1`
+      ).first().catch(async () => {
+        // Column doesn't exist, add it
+        console.log(`Adding ${column.name} column to documents table`);
+        await env.WELLS_DB.prepare(
+          `ALTER TABLE documents ADD COLUMN ${column.name} ${column.type}`
+        ).run();
+        console.log(`${column.name} column added successfully`);
+      });
+    } catch (error) {
+      console.error(`Error checking/adding column ${column.name}:`, error);
+    }
+  }
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
@@ -561,6 +592,9 @@ export default {
       if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
         return errorResponse('Invalid API key', 401, env);
       }
+
+      // Ensure processing columns exist
+      await ensureProcessingColumns(env);
 
       try {
         // Get documents with status='pending' that haven't started extraction
