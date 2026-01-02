@@ -4540,8 +4540,8 @@
                 const res = await fetch('/api/documents');
                 if (!res.ok) throw new Error('Failed to load documents');
                 
-                const documents = await res.json();
-                renderDocumentsList(documents);
+                const data = await res.json();
+                renderDocumentsList(data.documents);
             } catch (error) {
                 console.error('Error loading documents:', error);
                 document.getElementById('documentsContent').innerHTML = `
