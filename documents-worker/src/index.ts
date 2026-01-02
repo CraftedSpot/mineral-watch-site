@@ -738,43 +738,59 @@ export default {
         } = data;
 
         // Update the document with extraction results
-        await env.WELLS_DB.prepare(`
-          UPDATE documents 
-          SET status = ?,
-              extracted_data = ?,
-              doc_type = ?,
-              county = ?,
-              section = ?,
-              township = ?,
-              range = ?,
-              confidence = ?,
-              page_count = ?,
-              extraction_completed_at = datetime('now'),
-              extraction_error = ?,
-              display_name = ?,
-              category = ?,
-              needs_review = ?,
-              field_scores = ?,
-              fields_needing_review = ?
-          WHERE id = ?
-        `).bind(
-          status || 'failed',
-          extracted_data ? JSON.stringify(extracted_data) : null,
-          doc_type,
-          county,
-          section,
-          township,
-          range,
-          confidence,
-          page_count,
-          extraction_error,
-          display_name,
-          category,
-          needs_review ? 1 : 0,
-          field_scores ? JSON.stringify(field_scores) : null,
-          fields_needing_review ? JSON.stringify(fields_needing_review) : null,
-          docId
-        ).run();
+        // Handle both success and failure cases
+        if (status === 'failed') {
+          // For failed documents, only update status and error
+          await env.WELLS_DB.prepare(`
+            UPDATE documents 
+            SET status = 'failed',
+                extraction_completed_at = datetime('now'),
+                extraction_error = ?
+            WHERE id = ?
+          `).bind(
+            extraction_error || 'Unknown error',
+            docId
+          ).run();
+        } else {
+          // For successful extraction, update all fields
+          await env.WELLS_DB.prepare(`
+            UPDATE documents 
+            SET status = ?,
+                extracted_data = ?,
+                doc_type = ?,
+                county = ?,
+                section = ?,
+                township = ?,
+                range = ?,
+                confidence = ?,
+                page_count = ?,
+                extraction_completed_at = datetime('now'),
+                extraction_error = ?,
+                display_name = ?,
+                category = ?,
+                needs_review = ?,
+                field_scores = ?,
+                fields_needing_review = ?
+            WHERE id = ?
+          `).bind(
+            status || 'complete',
+            extracted_data ? JSON.stringify(extracted_data) : null,
+            doc_type,
+            county,
+            section,
+            township,
+            range,
+            confidence,
+            page_count,
+            extraction_error,
+            display_name,
+            category,
+            needs_review ? 1 : 0,
+            field_scores ? JSON.stringify(field_scores) : null,
+            fields_needing_review ? JSON.stringify(fields_needing_review) : null,
+            docId
+          ).run();
+        }
 
         return jsonResponse({ success: true }, 200, env);
       } catch (error) {
@@ -872,6 +888,101 @@ export default {
       } catch (error) {
         console.error('Split document error:', error);
         return errorResponse('Failed to split document', 500, env);
+      }
+    }
+
+    // Route: GET /api/processing/user/:id/queue-status - Get user's queue status
+    if (path.match(/^\/api\/processing\/user\/[^\/]+\/queue-status$/) && request.method === 'GET') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const userId = path.split('/')[4];
+
+      try {
+        // Count documents in different states for this user
+        const queued = await env.WELLS_DB.prepare(`
+          SELECT COUNT(*) as count 
+          FROM documents 
+          WHERE user_id = ? 
+            AND status = 'pending' 
+            AND deleted_at IS NULL
+        `).bind(userId).first();
+
+        const processing = await env.WELLS_DB.prepare(`
+          SELECT COUNT(*) as count 
+          FROM documents 
+          WHERE user_id = ? 
+            AND status = 'processing' 
+            AND deleted_at IS NULL
+        `).bind(userId).first();
+
+        return jsonResponse({
+          queued: queued?.count || 0,
+          processing: processing?.count || 0
+        }, 200, env);
+      } catch (error) {
+        console.error('Queue status error:', error);
+        return errorResponse('Failed to get queue status', 500, env);
+      }
+    }
+
+    // Route: GET /api/processing/user/:id - Get user info for notifications
+    if (path.match(/^\/api\/processing\/user\/[^\/]+$/) && request.method === 'GET') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const userId = path.split('/')[4];
+
+      try {
+        // Get user info from auth-worker
+        const authRequest = new Request(`https://auth-worker.photog12.workers.dev/api/users/${userId}`, {
+          headers: {
+            'Authorization': `Bearer ${env.PROCESSING_API_KEY}` // Internal service auth
+          },
+        });
+
+        const authResponse = await env.AUTH_WORKER.fetch(authRequest);
+        
+        if (!authResponse.ok) {
+          // For now, return a default response since we don't have user lookup
+          // In production, this would fetch from Airtable or user service
+          console.log('Could not fetch user from auth-worker, using defaults');
+          return jsonResponse({
+            id: userId,
+            email: 'james@mymineralwatch.com', // Default for testing
+            name: 'User',
+            notification_preferences: {
+              email_on_complete: true
+            }
+          }, 200, env);
+        }
+
+        const userData = await authResponse.json();
+        return jsonResponse({
+          id: userData.id,
+          email: userData.email || userData.fields?.Email,
+          name: userData.name || userData.fields?.Name,
+          notification_preferences: {
+            email_on_complete: true
+          }
+        }, 200, env);
+      } catch (error) {
+        console.error('Get user error:', error);
+        // Return default for now
+        return jsonResponse({
+          id: userId,
+          email: 'james@mymineralwatch.com',
+          name: 'User',
+          notification_preferences: {
+            email_on_complete: true
+          }
+        }, 200, env);
       }
     }
 
