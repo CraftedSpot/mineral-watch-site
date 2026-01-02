@@ -4074,20 +4074,49 @@
                 try {
                     const data = JSON.parse(doc.extracted_data);
                     
+                    // Basic Information
+                    content += '<div class="doc-detail-grid">';
+                    
+                    // Status field
+                    const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
+                                       doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
+                    const statusText = doc.status === 'complete' ? 'Complete' : 
+                                      doc.status === 'failed' ? 'Failed' : 'Processing';
+                    content += `
+                        <div class="doc-field">
+                            <label>Status</label>
+                            <div class="doc-value" style="color: ${statusColor}; font-weight: 600;">${statusText}</div>
+                        </div>`;
+                    
                     // Document Type
                     if (data.doc_type || doc.doc_type) {
-                        content += '<div class="detail-section">';
-                        content += '<h4 class="detail-section-title">Document Information</h4>';
-                        content += `<div class="detail-row"><strong>Type:</strong> <span>${formatDocType(data.doc_type || doc.doc_type)}</span></div>`;
-                        if (data.execution_date) {
-                            const date = new Date(data.execution_date);
-                            content += `<div class="detail-row"><strong>Execution Date:</strong> <span>${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>`;
-                        }
-                        if (data.recording_info && (data.recording_info.book || data.recording_info.page)) {
-                            content += `<div class="detail-row"><strong>Recording:</strong> <span>Book ${data.recording_info.book || '—'}, Page ${data.recording_info.page || '—'}</span></div>`;
-                        }
-                        content += '</div>';
+                        content += `
+                            <div class="doc-field">
+                                <label>Document Type</label>
+                                <div class="doc-value">${formatDocType(data.doc_type || doc.doc_type)}</div>
+                            </div>`;
                     }
+                    
+                    // Execution Date
+                    if (data.execution_date) {
+                        const date = new Date(data.execution_date);
+                        content += `
+                            <div class="doc-field">
+                                <label>Execution Date</label>
+                                <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                            </div>`;
+                    }
+                    
+                    // Recording Info
+                    if (data.recording_info && (data.recording_info.book || data.recording_info.page)) {
+                        content += `
+                            <div class="doc-field">
+                                <label>Recording</label>
+                                <div class="doc-value">Book ${data.recording_info.book || '—'}, Page ${data.recording_info.page || '—'}</div>
+                            </div>`;
+                    }
+                    
+                    content += '</div>';
                     
                     // Grantor Information
                     if (data.grantor && data.grantor.name) {
