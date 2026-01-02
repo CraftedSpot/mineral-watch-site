@@ -4231,15 +4231,20 @@
                     if (data.consideration) {
                         content += '<div class="detail-section">';
                         content += '<h4 class="detail-section-title">Consideration</h4>';
-                        content += `<div class="detail-row">${escapeHtml(data.consideration)}</div>`;
-                        content += '</div>';
+                        content += '<div class="doc-detail-grid">';
+                        content += `
+                            <div class="doc-field">
+                                <label>Amount/Terms</label>
+                                <div class="doc-value">${escapeHtml(data.consideration)}</div>
+                            </div>`;
+                        content += '</div></div>';
                     }
                     
                     // Notes
                     if (data.notes) {
                         content += '<div class="detail-section">';
                         content += '<h4 class="detail-section-title">Notes</h4>';
-                        content += `<div class="detail-row">${escapeHtml(data.notes)}</div>`;
+                        content += `<textarea readonly style="width: 100%; min-height: 80px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; background: #F9FAFB;">${escapeHtml(data.notes)}</textarea>`;
                         content += '</div>';
                     }
                     
