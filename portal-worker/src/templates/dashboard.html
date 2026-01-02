@@ -3953,6 +3953,7 @@
         
         // Document functions
         let currentDocumentId = null;
+        let loadedDocuments = [];
         
         async function viewDocumentInModal(docId, filename) {
             console.log('Opening document in modal:', docId, filename);
@@ -4053,6 +4054,7 @@
         }
         
         function renderDocumentsList(documents) {
+            loadedDocuments = documents;
             const container = document.getElementById('documentsContent');
             
             if (!documents || documents.length === 0) {
@@ -4090,7 +4092,7 @@
                 html += `<td>${doc.county ? escapeHtml(doc.county) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 html += `<td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">${statusText}</span></td>`;
                 html += `<td>${uploadDate}</td>`;
-                html += `<td style="text-align: right;">
+                html += `<td style="text-align: right;" onclick="event.stopPropagation()">
                     <div style="display: flex; gap: 8px; justify-content: flex-end;">
                         <button onclick="viewDocumentInModal('${doc.id}', '${escapeHtml(doc.filename)}')" title="View" class="btn-action-icon" style="background: #E0F2FE; color: #1E40AF;">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
