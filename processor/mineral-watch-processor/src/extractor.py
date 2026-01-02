@@ -223,7 +223,23 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     
     for i, image_path in enumerate(image_paths):
         with open(image_path, 'rb') as f:
-            image_data = base64.standard_b64encode(f.read()).decode('utf-8')
+            image_bytes = f.read()
+        
+        # Check if image is over 5MB (Claude's limit)
+        if len(image_bytes) > 5 * 1024 * 1024:
+            logger.warning(f"Page {i+1} exceeds 5MB ({len(image_bytes)} bytes), compressing...")
+            # Compress the image by re-encoding at lower quality
+            from PIL import Image
+            import io
+            
+            # Open image and re-save at lower quality
+            img = Image.open(io.BytesIO(image_bytes))
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            image_bytes = output.getvalue()
+            logger.info(f"Compressed to {len(image_bytes)} bytes")
+        
+        image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
         
         content.append({
             "type": "image",
