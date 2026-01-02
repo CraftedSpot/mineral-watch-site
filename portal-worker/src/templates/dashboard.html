@@ -4446,6 +4446,9 @@
             if (textarea && saveBtn) {
                 hasNotesChanged = textarea.value !== originalNotes;
                 saveBtn.style.display = hasNotesChanged ? 'block' : 'none';
+                console.log('Notes changed:', hasNotesChanged, 'Original:', originalNotes, 'Current:', textarea.value);
+            } else {
+                console.log('Could not find textarea or save button');
             }
         }
 
@@ -4504,22 +4507,8 @@
             }
         }
 
-        // Update openDocumentDetail to track original notes
+        // Store the original openDocumentDetail function before modification
         const originalOpenDocumentDetail = openDocumentDetail;
-        openDocumentDetail = async function(docId) {
-            await originalOpenDocumentDetail(docId);
-            
-            // Store original notes value
-            const doc = loadedDocuments.find(d => d.id === docId);
-            if (doc) {
-                originalNotes = doc.user_notes || '';
-                hasNotesChanged = false;
-                const saveBtn = document.getElementById('saveDocNotesBtn');
-                if (saveBtn) {
-                    saveBtn.style.display = 'none';
-                }
-            }
-        };
 
         // Make functions available globally
         window.viewDocumentInModal = viewDocumentInModal;
