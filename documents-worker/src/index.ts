@@ -1,89 +1,82 @@
-/**
- * Documents Worker
- * Manages document uploads, storage, and retrieval for MyMineralWatch Digital Locker
- */
-
 interface Env {
-  // R2 Buckets
+  WELLS_DB: D1Database;
   UPLOADS_BUCKET: R2Bucket;
   LOCKER_BUCKET: R2Bucket;
-  
-  // D1 Database
-  WELLS_DB: D1Database;
-  
-  // Service Bindings
-  AUTH_WORKER: Fetcher;
-  
-  // Environment Variables
+  AUTH_WORKER: { fetch: (request: Request) => Promise<Response> };
   ALLOWED_ORIGIN: string;
 }
 
-interface AuthUser {
-  id: string;
-  email: string;
-  name?: string;
-  fields: {
-    Email: string;
-    Name?: string;
-    Plan?: string;
-    Organization?: string[];
-    Role?: string;
-  };
-}
-
-// CORS Headers
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*', // Will be set dynamically
-  'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type',
-  'Access-Control-Allow-Credentials': 'true',
-};
-
-// Helper: Get CORS headers for response
-function getCorsHeaders(env: Env): HeadersInit {
+// Helper to ensure CORS headers
+function corsHeaders(env: Env) {
   return {
-    ...corsHeaders,
-    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || 'https://portal.mymineralwatch.com',
+    'Access-Control-Allow-Origin': env.ALLOWED_ORIGIN || '*',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Credentials': 'true',
   };
 }
 
-// Helper: Authenticate user via AUTH_WORKER
-async function authenticateUser(request: Request, env: Env): Promise<AuthUser | null> {
-  const sessionCookie = request.headers.get('Cookie')?.match(/mw_session_v2=([^;]+)/)?.[1];
-  if (!sessionCookie) return null;
+function jsonResponse(data: any, status: number, env: Env) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      ...corsHeaders(env),
+    },
+  });
+}
 
+function errorResponse(message: string, status: number, env: Env) {
+  return jsonResponse({ error: message }, status, env);
+}
+
+// Authenticate user via auth-worker
+async function authenticateUser(request: Request, env: Env) {
   try {
-    // Forward the cookie to auth-worker's /api/auth/me endpoint
-    const authRequest = new Request('https://auth-worker/api/auth/me', {
-      headers: { 
-        'Cookie': `mw_session_v2=${sessionCookie}`
-      }
+    // Forward the request to auth-worker
+    const authRequest = new Request('https://auth-worker.photog12.workers.dev/api/auth/me', {
+      headers: {
+        'Authorization': request.headers.get('Authorization') || '',
+        'Cookie': request.headers.get('Cookie') || '',
+      },
     });
-    
-    const authResponse = await env.AUTH_WORKER.fetch(authRequest);
 
-    if (!authResponse.ok) return null;
-    return await authResponse.json();
+    const authResponse = await env.AUTH_WORKER.fetch(authRequest);
+    
+    if (!authResponse.ok) {
+      console.log('Auth failed:', authResponse.status);
+      return null;
+    }
+
+    const userData = await authResponse.json();
+    console.log('Authenticated user:', userData.id);
+    return userData;
   } catch (error) {
     console.error('Auth error:', error);
     return null;
   }
 }
 
-// Helper: JSON Response with CORS
-function jsonResponse(data: any, status = 200, env: Env): Response {
-  return new Response(JSON.stringify(data), {
-    status,
-    headers: {
-      'Content-Type': 'application/json',
-      ...getCorsHeaders(env),
-    },
-  });
-}
-
-// Helper: Error Response
-function errorResponse(message: string, status = 400, env: Env): Response {
-  return jsonResponse({ error: message }, status, env);
+// Check if user_notes column exists and add it if not
+async function ensureUserNotesColumn(env: Env) {
+  try {
+    // Check if column exists by trying to query it
+    const testQuery = await env.WELLS_DB.prepare(
+      "SELECT user_notes FROM documents LIMIT 1"
+    ).first().catch(() => null);
+    
+    // If the query failed, add the column
+    if (testQuery === null) {
+      console.log('Adding user_notes column to documents table');
+      await env.WELLS_DB.prepare(
+        "ALTER TABLE documents ADD COLUMN user_notes TEXT"
+      ).run();
+      console.log('user_notes column added successfully');
+    }
+  } catch (error) {
+    console.error('Error ensuring user_notes column:', error);
+    // Continue anyway - the column might already exist
+  }
 }
 
 export default {
@@ -91,35 +84,32 @@ export default {
     const url = new URL(request.url);
     const path = url.pathname;
 
-    console.log('[Documents] Incoming request:', request.method, path);
-    console.log('[Documents] Headers:', Object.fromEntries(request.headers.entries()));
+    console.log(`${request.method} ${path}`);
 
     // Handle CORS preflight
     if (request.method === 'OPTIONS') {
       return new Response(null, {
-        headers: getCorsHeaders(env),
+        headers: corsHeaders(env),
       });
     }
 
-    // Health check
-    if (path === '/health') {
-      return new Response('OK');
+    // Ensure user_notes column exists on first request
+    if (path.includes('/documents')) {
+      await ensureUserNotesColumn(env);
     }
 
-    // Route: GET /api/documents - List user's documents
+    // Route: GET /api/documents - List documents
     if (path === '/api/documents' && request.method === 'GET') {
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       try {
-        console.log('User authenticated:', user.id, user.email);
-        console.log('User object:', JSON.stringify(user));
-        
-        // Build query to get documents for user or their organization
-        // Handle both possible user object structures
-        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
-        const conditions = [`user_id = ?`];
+        // Build query to show user's docs OR organization's docs
+        const conditions = ['user_id = ?'];
         const params = [user.id];
+        
+        // Handle different ways org might be stored
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         
         if (userOrg) {
           conditions.push('organization_id = ?');
@@ -138,37 +128,31 @@ export default {
         console.log('Query:', query);
         console.log('Params:', params);
 
-        const { results } = await env.WELLS_DB.prepare(query)
-          .bind(...params)
-          .all();
-
-        console.log('Results found:', results?.length || 0);
-        return jsonResponse(results || [], 200, env);
+        const results = await env.WELLS_DB.prepare(query).bind(...params).all();
+        
+        console.log(`Found ${results.results.length} documents`);
+        
+        return jsonResponse({ documents: results.results }, 200, env);
       } catch (error) {
-        console.error('Error listing documents:', error);
-        console.error('Error details:', error.message, error.stack);
-        return errorResponse(`Database error: ${error.message}`, 500, env);
+        console.error('List documents error:', error);
+        return errorResponse('Failed to fetch documents', 500, env);
       }
     }
 
-    // Route: POST /api/documents/upload - Upload new document
+    // Route: POST /api/documents/upload - Upload single document
     if (path === '/api/documents/upload' && request.method === 'POST') {
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
-
-      // Gate to James/Enterprise 500
-      const userPlan = user.fields?.Plan || user.plan || user.Plan;
-      if (user.id !== 'recEpgbS88AbuzAH8' && userPlan !== 'Enterprise 500') {
-        return errorResponse('Feature not available for your plan', 403, env);
-      }
 
       try {
         const formData = await request.formData();
         const file = formData.get('file') as File;
         
-        if (!file) return errorResponse('No file provided', 400, env);
-        
-        // Validate file
+        if (!file) {
+          return errorResponse('No file provided', 400, env);
+        }
+
+        // Validate file type
         if (file.type !== 'application/pdf') {
           return errorResponse('Only PDF files are allowed', 400, env);
         }
@@ -181,6 +165,8 @@ export default {
         const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
         const r2Key = `${docId}.pdf`;
 
+        console.log('Uploading to R2:', r2Key);
+
         // Store in R2
         await env.UPLOADS_BUCKET.put(r2Key, file.stream(), {
           httpMetadata: { 
@@ -189,8 +175,12 @@ export default {
           }
         });
 
-        // Create D1 record
+        console.log('Stored in R2, creating DB record');
+
+        // Get user's organization
         const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+
+        // Create record in D1
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
             id, r2_key, filename, user_id, organization_id, 
@@ -198,11 +188,16 @@ export default {
           ) VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'))
         `).bind(docId, r2Key, file.name, user.id, userOrg, file.size).run();
 
+        console.log('Document uploaded successfully:', docId);
+
         return jsonResponse({
           success: true,
-          id: docId,
-          filename: file.name,
-          size: file.size,
+          document: {
+            id: docId,
+            filename: file.name,
+            size: file.size,
+            status: 'pending'
+          }
         }, 200, env);
       } catch (error) {
         console.error('Upload error:', error);
@@ -313,13 +308,14 @@ export default {
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       const docId = path.split('/')[3];
-      
+      console.log('Get document:', docId);
+
       try {
-        // Check access
-        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
-        const conditions = [`user_id = ?`];
+        // Build query to check user's docs OR organization's docs
+        const conditions = ['user_id = ?'];
         const params = [user.id];
         
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         if (userOrg) {
           conditions.push('organization_id = ?');
           params.push(userOrg);
@@ -332,32 +328,33 @@ export default {
             AND deleted_at IS NULL
         `;
 
-        const doc = await env.WELLS_DB.prepare(query)
-          .bind(docId, ...params)
-          .first();
+        const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
 
-        if (!doc) return errorResponse('Document not found', 404, env);
+        if (!doc) {
+          return errorResponse('Document not found', 404, env);
+        }
 
-        return jsonResponse(doc, 200, env);
+        return jsonResponse({ document: doc }, 200, env);
       } catch (error) {
-        console.error('Error fetching document:', error);
-        return errorResponse('Failed to fetch document', 500, env);
+        console.error('Get document error:', error);
+        return errorResponse('Failed to get document', 500, env);
       }
     }
 
-    // Route: GET /api/documents/:id/download - Download original PDF
+    // Route: GET /api/documents/:id/download - Download document
     if (path.match(/^\/api\/documents\/[^\/]+\/download$/) && request.method === 'GET') {
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       const docId = path.split('/')[3];
-      
+      console.log('Download document:', docId);
+
       try {
         // Check access
-        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
-        const conditions = [`user_id = ?`];
+        const conditions = ['user_id = ?'];
         const params = [user.id];
         
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         if (userOrg) {
           conditions.push('organization_id = ?');
           params.push(userOrg);
@@ -370,40 +367,25 @@ export default {
             AND deleted_at IS NULL
         `;
 
-        const doc = await env.WELLS_DB.prepare(query)
-          .bind(docId, ...params)
-          .first<{ r2_key: string; filename: string }>();
+        const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
 
-        if (!doc) return errorResponse('Document not found', 404, env);
+        if (!doc) {
+          return errorResponse('Document not found', 404, env);
+        }
 
-        console.log('Attempting to fetch from R2:', doc.r2_key);
-        
         // Get from R2
         const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        
         if (!object) {
-          console.error('File not found in R2:', doc.r2_key);
-          return errorResponse('File not found in R2', 404, env);
+          return errorResponse('File not found in storage', 404, env);
         }
-        
-        console.log('R2 object found, size:', object.size);
 
-        // Stream the file
-        // Check if this is a view request (has ?view=true) or download request
-        const isView = url.searchParams.get('view') === 'true';
-        console.log('Download request - isView:', isView, 'URL:', url.toString());
-        
-        const contentDisposition = isView 
-          ? `inline; filename="${doc.filename}"` 
-          : `attachment; filename="${doc.filename}"`;
-        
-        console.log('Setting Content-Disposition:', contentDisposition);
-        
+        // Return the PDF with appropriate headers
         return new Response(object.body, {
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': contentDisposition,
-            'Cache-Control': 'no-cache', // Prevent caching issues
-            ...getCorsHeaders(env),
+            'Content-Disposition': `attachment; filename="${doc.filename}"`,
+            ...corsHeaders(env),
           },
         });
       } catch (error) {
@@ -412,19 +394,73 @@ export default {
       }
     }
 
-    // Route: DELETE /api/documents/:id - Delete a document
+    // Route: GET /api/documents/:id/view - View document (inline)
+    if (path.match(/^\/api\/documents\/[^\/]+\/view$/) && request.method === 'GET') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const docId = path.split('/')[3];
+      console.log('View document:', docId);
+
+      try {
+        // Same access check as download
+        const conditions = ['user_id = ?'];
+        const params = [user.id];
+        
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+        if (userOrg) {
+          conditions.push('organization_id = ?');
+          params.push(userOrg);
+        }
+
+        const query = `
+          SELECT r2_key, filename FROM documents 
+          WHERE id = ? 
+            AND (${conditions.join(' OR ')})
+            AND deleted_at IS NULL
+        `;
+
+        const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
+
+        if (!doc) {
+          return errorResponse('Document not found', 404, env);
+        }
+
+        // Get from R2
+        const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        
+        if (!object) {
+          return errorResponse('File not found in storage', 404, env);
+        }
+
+        // Return the PDF for inline viewing
+        return new Response(object.body, {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `inline; filename="${doc.filename}"`,
+            ...corsHeaders(env),
+          },
+        });
+      } catch (error) {
+        console.error('View error:', error);
+        return errorResponse('View failed', 500, env);
+      }
+    }
+
+    // Route: DELETE /api/documents/:id - Delete document
     if (path.match(/^\/api\/documents\/[^\/]+$/) && request.method === 'DELETE') {
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       const docId = path.split('/')[3];
-      
+      console.log('Delete document:', docId);
+
       try {
-        // Check access and get document info
-        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0];
-        const conditions = [`user_id = ?`];
+        // Check ownership
+        const conditions = ['user_id = ?'];
         const params = [user.id];
         
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         if (userOrg) {
           conditions.push('organization_id = ?');
           params.push(userOrg);
@@ -437,13 +473,11 @@ export default {
             AND deleted_at IS NULL
         `;
 
-        const doc = await env.WELLS_DB.prepare(query)
-          .bind(docId, ...params)
-          .first<{ id: string; r2_key: string }>();
+        const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
 
-        if (!doc) return errorResponse('Document not found', 404, env);
-
-        console.log('Deleting document:', docId, 'R2 key:', doc.r2_key);
+        if (!doc) {
+          return errorResponse('Document not found', 404, env);
+        }
 
         // Soft delete in database
         await env.WELLS_DB.prepare(`
