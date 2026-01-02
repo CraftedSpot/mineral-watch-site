@@ -220,10 +220,10 @@ export default {
         // Create record in D1
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
-            id, r2_key, filename, user_id, organization_id, 
-            file_size, status, upload_date
-          ) VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'))
-        `).bind(docId, r2Key, file.name, user.id, userOrg, file.size).run();
+            id, r2_key, filename, original_filename, user_id, organization_id, 
+            file_size, status, upload_date, queued_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size).run();
 
         console.log('Document uploaded successfully:', docId);
 
@@ -307,10 +307,10 @@ export default {
             // Create D1 record
             await env.WELLS_DB.prepare(`
               INSERT INTO documents (
-                id, r2_key, filename, user_id, organization_id, 
-                file_size, status, upload_date
-              ) VALUES (?, ?, ?, ?, ?, ?, 'pending', datetime('now'))
-            `).bind(docId, r2Key, file.name, user.id, userOrg, file.size).run();
+                id, r2_key, filename, original_filename, user_id, organization_id, 
+                file_size, status, upload_date, queued_at
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size).run();
 
             results.push({
               success: true,
