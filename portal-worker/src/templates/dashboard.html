@@ -4436,6 +4436,91 @@
             return null;
         }
 
+        // Document notes tracking
+        let originalNotes = '';
+        let hasNotesChanged = false;
+
+        function enableSaveButton() {
+            const textarea = document.getElementById('userNotesTextarea');
+            const saveBtn = document.getElementById('saveDocNotesBtn');
+            if (textarea && saveBtn) {
+                hasNotesChanged = textarea.value !== originalNotes;
+                saveBtn.style.display = hasNotesChanged ? 'block' : 'none';
+            }
+        }
+
+        function toggleObservations() {
+            const textDiv = document.getElementById('observationsText');
+            const toggleBtn = document.getElementById('observationsToggle');
+            
+            if (textDiv && toggleBtn) {
+                const isExpanded = toggleBtn.textContent.includes('less');
+                
+                if (isExpanded) {
+                    textDiv.textContent = textDiv.getAttribute('data-truncated');
+                    toggleBtn.innerHTML = 'Show more ▼';
+                } else {
+                    textDiv.textContent = textDiv.getAttribute('data-full');
+                    toggleBtn.innerHTML = 'Show less ▲';
+                }
+            }
+        }
+
+        async function saveAndCloseDocumentNotes() {
+            if (!currentDocumentId || !hasNotesChanged) {
+                closeDocumentDetailModal();
+                return;
+            }
+            
+            const textarea = document.getElementById('userNotesTextarea');
+            const notes = textarea.value;
+            
+            try {
+                const response = await fetch(`/api/documents/${currentDocumentId}/notes`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ notes }),
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    // Update the document in our loaded array
+                    const doc = loadedDocuments.find(d => d.id === currentDocumentId);
+                    if (doc) {
+                        doc.user_notes = notes;
+                    }
+                    
+                    closeDocumentDetailModal();
+                    // Optionally show a success message
+                } else {
+                    const error = await response.json();
+                    alert('Failed to save notes: ' + (error.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving notes:', error);
+                alert('Failed to save notes. Please try again.');
+            }
+        }
+
+        // Update openDocumentDetail to track original notes
+        const originalOpenDocumentDetail = openDocumentDetail;
+        openDocumentDetail = async function(docId) {
+            await originalOpenDocumentDetail(docId);
+            
+            // Store original notes value
+            const doc = loadedDocuments.find(d => d.id === docId);
+            if (doc) {
+                originalNotes = doc.user_notes || '';
+                hasNotesChanged = false;
+                const saveBtn = document.getElementById('saveDocNotesBtn');
+                if (saveBtn) {
+                    saveBtn.style.display = 'none';
+                }
+            }
+        };
+
         // Make functions available globally
         window.viewDocumentInModal = viewDocumentInModal;
         window.closeDocumentViewer = closeDocumentViewer;
@@ -4445,6 +4530,9 @@
         window.closeDocumentDetailModal = closeDocumentDetailModal;
         window.viewDocumentPDF = viewDocumentPDF;
         window.formatDocType = formatDocType;
+        window.enableSaveButton = enableSaveButton;
+        window.toggleObservations = toggleObservations;
+        window.saveAndCloseDocumentNotes = saveAndCloseDocumentNotes;
         
         // Load Documents
         async function loadDocuments() {
