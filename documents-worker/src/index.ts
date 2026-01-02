@@ -468,6 +468,54 @@ export default {
       }
     }
 
+    // Route: PUT /api/documents/:id/notes - Update document notes
+    if (path.match(/^\/api\/documents\/[^\/]+\/notes$/) && request.method === 'PUT') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const docId = path.split('/')[3];
+      console.log('Updating notes for document:', docId);
+
+      try {
+        // Check if document exists and user has access
+        const conditions = ['user_id = ?'];
+        const params = [user.id];
+        
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+        if (userOrg) {
+          conditions.push('organization_id = ?');
+          params.push(userOrg);
+        }
+
+        const query = `
+          SELECT id FROM documents 
+          WHERE id = ? 
+            AND (${conditions.join(' OR ')})
+            AND deleted_at IS NULL
+        `;
+        
+        const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
+        if (!doc) {
+          return errorResponse('Document not found or access denied', 404, env);
+        }
+
+        // Get the notes from request body
+        const { notes } = await request.json();
+        
+        // Update the notes
+        await env.WELLS_DB.prepare(`
+          UPDATE documents 
+          SET user_notes = ?
+          WHERE id = ?
+        `).bind(notes, docId).run();
+
+        return jsonResponse({ success: true, notes }, 200, env);
+      } catch (error) {
+        console.error('Update notes error:', error);
+        return errorResponse('Failed to update notes', 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
