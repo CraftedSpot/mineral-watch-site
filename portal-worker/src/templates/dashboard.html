@@ -4118,67 +4118,113 @@
                     
                     content += '</div>';
                     
-                    // Grantor Information
-                    if (data.grantor && data.grantor.name) {
+                    // Parties Section
+                    if ((data.grantor && data.grantor.name) || (data.grantee && data.grantee.name)) {
                         content += '<div class="detail-section">';
-                        content += '<h4 class="detail-section-title">Grantor</h4>';
-                        content += `<div class="detail-row"><strong>Name:</strong> <span>${escapeHtml(data.grantor.name)}</span></div>`;
-                        if (data.grantor.address) {
-                            content += `<div class="detail-row"><strong>Address:</strong> <span>${escapeHtml(data.grantor.address)}</span></div>`;
+                        content += '<h4 class="detail-section-title">Parties</h4>';
+                        content += '<div class="doc-detail-grid">';
+                        
+                        if (data.grantor && data.grantor.name) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Grantor</label>
+                                    <div class="doc-value">${escapeHtml(data.grantor.name)}</div>
+                                </div>`;
+                            if (data.grantor.address) {
+                                content += `
+                                    <div class="doc-field">
+                                        <label>Grantor Address</label>
+                                        <div class="doc-value">${escapeHtml(data.grantor.address)}</div>
+                                    </div>`;
+                            }
                         }
-                        content += '</div>';
+                        
+                        if (data.grantee && data.grantee.name) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Grantee</label>
+                                    <div class="doc-value">${escapeHtml(data.grantee.name)}</div>
+                                </div>`;
+                            if (data.grantee.address) {
+                                content += `
+                                    <div class="doc-field">
+                                        <label>Grantee Address</label>
+                                        <div class="doc-value">${escapeHtml(data.grantee.address)}</div>
+                                    </div>`;
+                            }
+                        }
+                        
+                        content += '</div></div>';
                     }
                     
-                    // Grantee Information
-                    if (data.grantee && data.grantee.name) {
-                        content += '<div class="detail-section">';
-                        content += '<h4 class="detail-section-title">Grantee</h4>';
-                        content += `<div class="detail-row"><strong>Name:</strong> <span>${escapeHtml(data.grantee.name)}</span></div>`;
-                        if (data.grantee.address) {
-                            content += `<div class="detail-row"><strong>Address:</strong> <span>${escapeHtml(data.grantee.address)}</span></div>`;
-                        }
-                        content += '</div>';
-                    }
-                    
-                    // Interest & Property Information
+                    // Property Information
                     if (data.interest_conveyed || data.legal_description) {
                         content += '<div class="detail-section">';
                         content += '<h4 class="detail-section-title">Property Details</h4>';
+                        content += '<div class="doc-detail-grid">';
                         
                         if (data.interest_conveyed) {
-                            content += `<div class="detail-row"><strong>Interest Conveyed:</strong> <span>${escapeHtml(data.interest_conveyed)}</span></div>`;
+                            content += `
+                                <div class="doc-field">
+                                    <label>Interest Conveyed</label>
+                                    <div class="doc-value">${escapeHtml(data.interest_conveyed)}</div>
+                                </div>`;
                         }
                         
                         if (data.legal_description) {
                             const ld = data.legal_description;
+                            
+                            // Legal Description
+                            let legalDesc = [];
+                            if (ld.section) legalDesc.push(`S${ld.section}`);
+                            if (ld.township) legalDesc.push(`T${ld.township}`);
+                            if (ld.range) legalDesc.push(`R${ld.range}`);
+                            if (legalDesc.length > 0) {
+                                content += `
+                                    <div class="doc-field">
+                                        <label>Legal</label>
+                                        <div class="doc-value">${legalDesc.join(' ')}</div>
+                                    </div>`;
+                            }
+                            
+                            if (ld.county) {
+                                content += `
+                                    <div class="doc-field">
+                                        <label>County</label>
+                                        <div class="doc-value">${ld.county}</div>
+                                    </div>`;
+                            }
+                            
                             if (ld.acres) {
-                                content += `<div class="detail-row"><strong>Acres:</strong> <span>${ld.acres}</span></div>`;
+                                content += `
+                                    <div class="doc-field">
+                                        <label>Total Acres</label>
+                                        <div class="doc-value">${ld.acres}</div>
+                                    </div>`;
                                 
                                 // Calculate mineral acres if we have interest
-                                if (data.interest_conveyed && ld.acres) {
+                                if (data.interest_conveyed) {
                                     const mineralAcres = calculateMineralAcres(data.interest_conveyed, ld.acres);
                                     if (mineralAcres) {
-                                        content += `<div class="detail-row"><strong>Mineral Acres:</strong> <span>${mineralAcres}</span></div>`;
+                                        content += `
+                                            <div class="doc-field">
+                                                <label>Mineral Acres</label>
+                                                <div class="doc-value">${mineralAcres}</div>
+                                            </div>`;
                                     }
                                 }
                             }
                             
-                            // Location details
-                            content += '<div class="detail-row"><strong>Location:</strong> <span>';
-                            const location = [];
-                            if (ld.section) location.push(`Section ${ld.section}`);
-                            if (ld.township) location.push(`Township ${ld.township}`);
-                            if (ld.range) location.push(`Range ${ld.range}`);
-                            if (ld.county) location.push(`${ld.county} County`);
-                            content += location.join(', ') || '—';
-                            content += '</span></div>';
-                            
                             if (ld.quarter) {
-                                content += `<div class="detail-row"><strong>Description:</strong> <span>${escapeHtml(ld.quarter)}</span></div>`;
+                                content += `
+                                    <div class="doc-field">
+                                        <label>Description</label>
+                                        <div class="doc-value">${escapeHtml(ld.quarter)}</div>
+                                    </div>`;
                             }
                         }
                         
-                        content += '</div>';
+                        content += '</div></div>';
                     }
                     
                     // Consideration
@@ -4219,23 +4265,56 @@
                 const style = document.createElement('style');
                 style.id = 'documentDetailStyles';
                 style.textContent = `
+                    .doc-detail-grid {
+                        display: grid;
+                        gap: 16px;
+                        margin-bottom: 24px;
+                    }
+                    .doc-field {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 12px 0;
+                        border-bottom: 1px solid #E5E7EB;
+                    }
+                    .doc-field:last-child {
+                        border-bottom: none;
+                    }
+                    .doc-field label {
+                        font-size: 14px;
+                        font-weight: 500;
+                        color: #6B7280;
+                        flex: 0 0 140px;
+                    }
+                    .doc-value {
+                        font-size: 14px;
+                        color: #111827;
+                        text-align: right;
+                        flex: 1;
+                    }
                     .detail-section {
                         margin-bottom: 24px;
-                        padding-bottom: 24px;
-                        border-bottom: 1px solid var(--border);
                     }
                     .detail-section:last-child {
-                        border-bottom: none;
                         margin-bottom: 0;
-                        padding-bottom: 0;
                     }
                     .detail-section-title {
-                        margin: 0 0 12px;
-                        font-size: 14px;
+                        margin: 0 0 16px;
+                        font-size: 16px;
                         font-weight: 600;
-                        color: var(--oil-navy);
-                        text-transform: uppercase;
-                        letter-spacing: 0.5px;
+                        color: #111827;
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                    }
+                    .detail-section-title::before {
+                        content: '';
+                        display: inline-block;
+                        width: 0;
+                        height: 0;
+                        border-style: solid;
+                        border-width: 4px 0 4px 6px;
+                        border-color: transparent transparent transparent #1D6F5C;
                     }
                     .detail-row {
                         margin-bottom: 8px;
@@ -4248,10 +4327,16 @@
                     .detail-row strong {
                         display: inline-block;
                         min-width: 120px;
-                        color: var(--slate-blue);
+                        color: #6B7280;
                     }
                     .detail-row span {
-                        color: var(--oil-navy);
+                        color: #111827;
+                    }
+                    #documentDetailModal .modal {
+                        border: none;
+                    }
+                    #viewOriginalBtn:hover {
+                        background: #155347 !important;
                     }
                 `;
                 document.head.appendChild(style);
