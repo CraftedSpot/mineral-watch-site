@@ -4083,10 +4083,10 @@
                                   doc.status === 'failed' ? 'Failed' : 
                                   'Processing';
                 
-                html += `<tr>`;
-                html += `<td class="bulk-only"><input type="checkbox" class="document-checkbox" data-id="${doc.id}"></td>`;
+                html += `<tr onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
+                html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="document-checkbox" data-id="${doc.id}"></td>`;
                 html += `<td><strong>${escapeHtml(doc.filename)}</strong></td>`;
-                html += `<td>${doc.doc_type ? escapeHtml(doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
+                html += `<td>${doc.doc_type ? formatDocType(doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 html += `<td>${doc.county ? escapeHtml(doc.county) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 html += `<td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">${statusText}</span></td>`;
                 html += `<td>${uploadDate}</td>`;
