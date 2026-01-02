@@ -48,7 +48,7 @@ class APIClient:
             )
             response.raise_for_status()
             data = response.json()
-            download_url = data.get("download_url")
+            download_url = data.get("url")  # Changed from "download_url" to "url"
             
             if not download_url:
                 raise ValueError(f"No download URL returned for document {doc_id}")
