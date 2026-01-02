@@ -4056,31 +4056,18 @@
             
             currentDocumentId = docId;
             
+            // Update modal header
+            document.getElementById('documentModalTitle').textContent = formatDocType(doc.doc_type) || 'Document Details';
+            
+            // Update subtitle with filename and status
+            let subtitleText = doc.filename;
+            if (doc.status === 'complete' && doc.confidence) {
+                subtitleText += ` • ${doc.confidence} confidence`;
+            }
+            document.getElementById('documentModalSubtitle').textContent = subtitleText;
+            
             // Format the content based on what data is available
             let content = '';
-            
-            // Document header with type and status
-            content += '<div style="margin-bottom: 24px;">';
-            content += `<h3 style="margin: 0 0 8px; color: var(--oil-navy);">${escapeHtml(doc.filename)}</h3>`;
-            
-            // Status and confidence badges
-            content += '<div style="display: flex; gap: 8px; align-items: center;">';
-            
-            // Status badge
-            const statusColor = doc.status === 'complete' ? 'var(--success)' : 
-                               doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
-            const statusText = doc.status === 'complete' ? 'Complete' : 
-                              doc.status === 'failed' ? 'Failed' : 'Processing';
-            content += `<span style="padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">${statusText}</span>`;
-            
-            // Confidence badge if available
-            if (doc.confidence) {
-                const confColor = doc.confidence === 'high' ? 'var(--success)' : 
-                                 doc.confidence === 'medium' ? '#F59E0B' : 'var(--error)';
-                content += `<span style="padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 600; background: ${confColor}20; color: ${confColor};">Confidence: ${doc.confidence}</span>`;
-            }
-            
-            content += '</div></div>';
             
             // Check if we have extracted data
             if (doc.extracted_data) {
