@@ -84,7 +84,8 @@ async function ensureUserNotesColumn(env: Env) {
 async function ensureProcessingColumns(env: Env) {
   const columnsToAdd = [
     { name: 'display_name', type: 'TEXT' },
-    { name: 'category', type: 'TEXT' },
+    { name: 'original_filename', type: 'TEXT' },
+    { name: 'category', type: 'TEXT DEFAULT "pending"' },
     { name: 'needs_review', type: 'INTEGER DEFAULT 0' },
     { name: 'field_scores', type: 'TEXT' },
     { name: 'fields_needing_review', type: 'TEXT' },
