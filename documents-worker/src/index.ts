@@ -602,17 +602,30 @@ export default {
       await ensureProcessingColumns(env);
 
       try {
-        // Get documents with status='pending' that haven't started extraction
+        // Get documents with status='pending' that haven't exceeded retry limit
         const results = await env.WELLS_DB.prepare(`
-          SELECT id, r2_key, filename, user_id, organization_id, 
-                 file_size, upload_date
+          SELECT id, r2_key, filename, original_filename, user_id, organization_id, 
+                 file_size, upload_date, page_count, processing_attempts
           FROM documents 
           WHERE status = 'pending'
-            AND extraction_started_at IS NULL
+            AND processing_attempts < 3
             AND deleted_at IS NULL
-          ORDER BY upload_date ASC
+          ORDER BY queued_at ASC, upload_date ASC
           LIMIT 10
         `).all();
+
+        // Mark documents as processing and increment attempts
+        const docIds = results.results.map(doc => doc.id);
+        if (docIds.length > 0) {
+          const placeholders = docIds.map(() => '?').join(',');
+          await env.WELLS_DB.prepare(`
+            UPDATE documents 
+            SET status = 'processing',
+                extraction_started_at = datetime('now'),
+                processing_attempts = processing_attempts + 1
+            WHERE id IN (${placeholders})
+          `).bind(...docIds).run();
+        }
 
         return jsonResponse({ 
           documents: results.results,
