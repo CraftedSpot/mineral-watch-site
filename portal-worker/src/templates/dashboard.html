@@ -4390,6 +4390,14 @@
             // Update modal content and show
             document.getElementById('documentDetailContent').innerHTML = content;
             document.getElementById('documentDetailModal').style.display = 'flex';
+            
+            // Initialize notes tracking after modal is shown
+            originalNotes = doc.user_notes || '';
+            hasNotesChanged = false;
+            const saveBtn = document.getElementById('saveDocNotesBtn');
+            if (saveBtn) {
+                saveBtn.style.display = 'none';
+            }
         }
 
         function closeDocumentDetailModal() {
