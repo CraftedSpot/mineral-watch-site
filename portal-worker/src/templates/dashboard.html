@@ -4028,11 +4028,277 @@
             window.location.href = `/api/documents/${docId}/download`;
         }
         
+        // Document detail functions
+        function formatDocType(docType) {
+            const typeMap = {
+                'mineral_deed': 'Mineral Deed',
+                'division_order': 'Division Order',
+                'oil_gas_lease': 'Oil & Gas Lease',
+                'assignment': 'Assignment',
+                'royalty_deed': 'Royalty Deed',
+                'warranty_deed': 'Warranty Deed',
+                'quitclaim_deed': 'Quitclaim Deed',
+                'probate': 'Probate Document',
+                'affidavit': 'Affidavit',
+                'other': 'Other Document'
+            };
+            return typeMap[docType] || docType;
+        }
+
+        async function openDocumentDetail(docId) {
+            console.log('Opening document details for:', docId);
+            const doc = loadedDocuments.find(d => d.id === docId);
+            
+            if (!doc) {
+                console.error('Document not found:', docId);
+                return;
+            }
+            
+            currentDocumentId = docId;
+            
+            // Format the content based on what data is available
+            let content = '';
+            
+            // Document header with type and status
+            content += '<div style="margin-bottom: 24px;">';
+            content += `<h3 style="margin: 0 0 8px; color: var(--oil-navy);">${escapeHtml(doc.filename)}</h3>`;
+            
+            // Status and confidence badges
+            content += '<div style="display: flex; gap: 8px; align-items: center;">';
+            
+            // Status badge
+            const statusColor = doc.status === 'complete' ? 'var(--success)' : 
+                               doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
+            const statusText = doc.status === 'complete' ? 'Complete' : 
+                              doc.status === 'failed' ? 'Failed' : 'Processing';
+            content += `<span style="padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">${statusText}</span>`;
+            
+            // Confidence badge if available
+            if (doc.confidence) {
+                const confColor = doc.confidence === 'high' ? 'var(--success)' : 
+                                 doc.confidence === 'medium' ? '#F59E0B' : 'var(--error)';
+                content += `<span style="padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 600; background: ${confColor}20; color: ${confColor};">Confidence: ${doc.confidence}</span>`;
+            }
+            
+            content += '</div></div>';
+            
+            // Check if we have extracted data
+            if (doc.extracted_data) {
+                try {
+                    const data = JSON.parse(doc.extracted_data);
+                    
+                    // Document Type
+                    if (data.doc_type || doc.doc_type) {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Document Information</h4>';
+                        content += `<div class="detail-row"><strong>Type:</strong> <span>${formatDocType(data.doc_type || doc.doc_type)}</span></div>`;
+                        if (data.execution_date) {
+                            const date = new Date(data.execution_date);
+                            content += `<div class="detail-row"><strong>Execution Date:</strong> <span>${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</span></div>`;
+                        }
+                        if (data.recording_info && (data.recording_info.book || data.recording_info.page)) {
+                            content += `<div class="detail-row"><strong>Recording:</strong> <span>Book ${data.recording_info.book || '—'}, Page ${data.recording_info.page || '—'}</span></div>`;
+                        }
+                        content += '</div>';
+                    }
+                    
+                    // Grantor Information
+                    if (data.grantor && data.grantor.name) {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Grantor</h4>';
+                        content += `<div class="detail-row"><strong>Name:</strong> <span>${escapeHtml(data.grantor.name)}</span></div>`;
+                        if (data.grantor.address) {
+                            content += `<div class="detail-row"><strong>Address:</strong> <span>${escapeHtml(data.grantor.address)}</span></div>`;
+                        }
+                        content += '</div>';
+                    }
+                    
+                    // Grantee Information
+                    if (data.grantee && data.grantee.name) {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Grantee</h4>';
+                        content += `<div class="detail-row"><strong>Name:</strong> <span>${escapeHtml(data.grantee.name)}</span></div>`;
+                        if (data.grantee.address) {
+                            content += `<div class="detail-row"><strong>Address:</strong> <span>${escapeHtml(data.grantee.address)}</span></div>`;
+                        }
+                        content += '</div>';
+                    }
+                    
+                    // Interest & Property Information
+                    if (data.interest_conveyed || data.legal_description) {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Property Details</h4>';
+                        
+                        if (data.interest_conveyed) {
+                            content += `<div class="detail-row"><strong>Interest Conveyed:</strong> <span>${escapeHtml(data.interest_conveyed)}</span></div>`;
+                        }
+                        
+                        if (data.legal_description) {
+                            const ld = data.legal_description;
+                            if (ld.acres) {
+                                content += `<div class="detail-row"><strong>Acres:</strong> <span>${ld.acres}</span></div>`;
+                                
+                                // Calculate mineral acres if we have interest
+                                if (data.interest_conveyed && ld.acres) {
+                                    const mineralAcres = calculateMineralAcres(data.interest_conveyed, ld.acres);
+                                    if (mineralAcres) {
+                                        content += `<div class="detail-row"><strong>Mineral Acres:</strong> <span>${mineralAcres}</span></div>`;
+                                    }
+                                }
+                            }
+                            
+                            // Location details
+                            content += '<div class="detail-row"><strong>Location:</strong> <span>';
+                            const location = [];
+                            if (ld.section) location.push(`Section ${ld.section}`);
+                            if (ld.township) location.push(`Township ${ld.township}`);
+                            if (ld.range) location.push(`Range ${ld.range}`);
+                            if (ld.county) location.push(`${ld.county} County`);
+                            content += location.join(', ') || '—';
+                            content += '</span></div>';
+                            
+                            if (ld.quarter) {
+                                content += `<div class="detail-row"><strong>Description:</strong> <span>${escapeHtml(ld.quarter)}</span></div>`;
+                            }
+                        }
+                        
+                        content += '</div>';
+                    }
+                    
+                    // Consideration
+                    if (data.consideration) {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Consideration</h4>';
+                        content += `<div class="detail-row">${escapeHtml(data.consideration)}</div>`;
+                        content += '</div>';
+                    }
+                    
+                    // Notes
+                    if (data.notes) {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Notes</h4>';
+                        content += `<div class="detail-row">${escapeHtml(data.notes)}</div>`;
+                        content += '</div>';
+                    }
+                    
+                } catch (e) {
+                    console.error('Error parsing extracted data:', e);
+                    content += '<div class="detail-section">';
+                    content += '<p style="color: var(--error);">Error displaying extracted data</p>';
+                    content += '</div>';
+                }
+            } else {
+                // No extracted data yet
+                content += '<div class="detail-section" style="text-align: center; padding: 40px 20px;">';
+                content += '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.3;">';
+                content += '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>';
+                content += '</svg>';
+                content += '<p style="color: var(--slate-blue);">Document is being processed</p>';
+                content += '<p style="color: var(--slate-blue); font-size: 13px;">Data extraction will be available soon</p>';
+                content += '</div>';
+            }
+            
+            // Add some CSS for the detail sections
+            if (!document.getElementById('documentDetailStyles')) {
+                const style = document.createElement('style');
+                style.id = 'documentDetailStyles';
+                style.textContent = `
+                    .detail-section {
+                        margin-bottom: 24px;
+                        padding-bottom: 24px;
+                        border-bottom: 1px solid var(--border);
+                    }
+                    .detail-section:last-child {
+                        border-bottom: none;
+                        margin-bottom: 0;
+                        padding-bottom: 0;
+                    }
+                    .detail-section-title {
+                        margin: 0 0 12px;
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: var(--oil-navy);
+                        text-transform: uppercase;
+                        letter-spacing: 0.5px;
+                    }
+                    .detail-row {
+                        margin-bottom: 8px;
+                        font-size: 14px;
+                        line-height: 1.5;
+                    }
+                    .detail-row:last-child {
+                        margin-bottom: 0;
+                    }
+                    .detail-row strong {
+                        display: inline-block;
+                        min-width: 120px;
+                        color: var(--slate-blue);
+                    }
+                    .detail-row span {
+                        color: var(--oil-navy);
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+            
+            // Update modal content and show
+            document.getElementById('documentDetailContent').innerHTML = content;
+            document.getElementById('documentDetailModal').style.display = 'flex';
+        }
+
+        function closeDocumentDetailModal() {
+            document.getElementById('documentDetailModal').style.display = 'none';
+            currentDocumentId = null;
+        }
+
+        function viewDocumentPDF() {
+            if (currentDocumentId) {
+                viewDocumentInModal(currentDocumentId, '');
+                closeDocumentDetailModal();
+            }
+        }
+
+        function calculateMineralAcres(interest, acres) {
+            // Parse interest fraction
+            const interestLower = interest.toLowerCase();
+            let fraction = null;
+            
+            // Try to extract fraction
+            if (interestLower.includes('1/8') || interestLower.includes('one-eighth')) {
+                fraction = 1/8;
+            } else if (interestLower.includes('1/4') || interestLower.includes('one-fourth')) {
+                fraction = 1/4;
+            } else if (interestLower.includes('1/2') || interestLower.includes('one-half')) {
+                fraction = 1/2;
+            } else if (interestLower.includes('3/4') || interestLower.includes('three-fourths')) {
+                fraction = 3/4;
+            } else if (interestLower.includes('1/16')) {
+                fraction = 1/16;
+            } else if (interestLower.includes('1/32')) {
+                fraction = 1/32;
+            } else if (interestLower.includes('1/64')) {
+                fraction = 1/64;
+            }
+            
+            if (fraction && acres) {
+                const acresNum = parseFloat(acres);
+                if (!isNaN(acresNum)) {
+                    return (acresNum * fraction).toFixed(2);
+                }
+            }
+            
+            return null;
+        }
+
         // Make functions available globally
         window.viewDocumentInModal = viewDocumentInModal;
         window.closeDocumentViewer = closeDocumentViewer;
         window.downloadCurrentDocument = downloadCurrentDocument;
         window.downloadDocument = downloadDocument;
+        window.openDocumentDetail = openDocumentDetail;
+        window.closeDocumentDetailModal = closeDocumentDetailModal;
+        window.viewDocumentPDF = viewDocumentPDF;
+        window.formatDocType = formatDocType;
         
         // Load Documents
         async function loadDocuments() {
