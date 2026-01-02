@@ -4,6 +4,7 @@ interface Env {
   LOCKER_BUCKET: R2Bucket;
   AUTH_WORKER: { fetch: (request: Request) => Promise<Response> };
   ALLOWED_ORIGIN: string;
+  PROCESSING_API_KEY: string;
 }
 
 // Helper to ensure CORS headers
