@@ -225,19 +225,40 @@ async def extract_document_data(image_paths: list[str]) -> dict:
         with open(image_path, 'rb') as f:
             image_bytes = f.read()
         
+        # Import PIL for image processing
+        from PIL import Image
+        import io
+        
+        # Open image to check dimensions and size
+        img = Image.open(io.BytesIO(image_bytes))
+        width, height = img.size
+        needs_processing = False
+        
         # Check if image is over 5MB (Claude's limit)
         if len(image_bytes) > 5 * 1024 * 1024:
-            logger.warning(f"Page {i+1} exceeds 5MB ({len(image_bytes)} bytes), compressing...")
-            # Compress the image by re-encoding at lower quality
-            from PIL import Image
-            import io
+            logger.warning(f"Page {i+1} exceeds 5MB ({len(image_bytes)} bytes), will compress...")
+            needs_processing = True
             
-            # Open image and re-save at lower quality
-            img = Image.open(io.BytesIO(image_bytes))
+        # Check if dimensions exceed 2000px (Claude's multi-image limit)
+        if width > 2000 or height > 2000:
+            logger.warning(f"Page {i+1} dimensions {width}x{height} exceed 2000px limit, will resize...")
+            needs_processing = True
+            
+        if needs_processing:
+            # Resize if needed to fit within 2000x2000
+            if width > 2000 or height > 2000:
+                # Calculate new size maintaining aspect ratio
+                ratio = min(2000/width, 2000/height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                logger.info(f"Resized to {new_width}x{new_height}")
+            
+            # Re-save with compression
             output = io.BytesIO()
             img.save(output, format='JPEG', quality=85, optimize=True)
             image_bytes = output.getvalue()
-            logger.info(f"Compressed to {len(image_bytes)} bytes")
+            logger.info(f"Final size: {len(image_bytes)} bytes")
         
         image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
         
