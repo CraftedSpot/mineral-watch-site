@@ -780,6 +780,98 @@ export default {
       }
     }
 
+    // Route: POST /api/processing/split/:id - Create child documents for multi-document PDF
+    if (path.match(/^\/api\/processing\/split\/[^\/]+$/) && request.method === 'POST') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const parentDocId = path.split('/')[4];
+
+      try {
+        const data = await request.json();
+        const { children } = data;
+
+        if (!children || !Array.isArray(children)) {
+          return errorResponse('Invalid request: children array required', 400, env);
+        }
+
+        // Get parent document info
+        const parentDoc = await env.WELLS_DB.prepare(`
+          SELECT r2_key, filename, user_id, organization_id 
+          FROM documents 
+          WHERE id = ? AND deleted_at IS NULL
+        `).bind(parentDocId).first();
+
+        if (!parentDoc) {
+          return errorResponse('Parent document not found', 404, env);
+        }
+
+        // Create child documents
+        const childIds = [];
+        for (const child of children) {
+          const childId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+          childIds.push(childId);
+
+          await env.WELLS_DB.prepare(`
+            INSERT INTO documents (
+              id, r2_key, filename, user_id, organization_id,
+              parent_document_id, page_range_start, page_range_end,
+              status, doc_type, display_name, category, confidence,
+              county, section, township, range, extracted_data,
+              needs_review, field_scores, fields_needing_review,
+              upload_date, extraction_completed_at
+            ) VALUES (
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              datetime('now'), datetime('now')
+            )
+          `).bind(
+            childId,
+            parentDoc.r2_key, // Same PDF file
+            parentDoc.filename,
+            parentDoc.user_id,
+            parentDoc.organization_id,
+            parentDocId,
+            child.page_range_start,
+            child.page_range_end,
+            child.status || 'complete',
+            child.doc_type,
+            child.display_name,
+            child.category,
+            child.confidence,
+            child.county,
+            child.section,
+            child.township,
+            child.range,
+            child.extracted_data ? JSON.stringify(child.extracted_data) : null,
+            child.needs_review ? 1 : 0,
+            child.field_scores ? JSON.stringify(child.field_scores) : null,
+            child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null
+          ).run();
+        }
+
+        // Mark parent as processed
+        await env.WELLS_DB.prepare(`
+          UPDATE documents 
+          SET status = 'complete',
+              extraction_completed_at = datetime('now')
+          WHERE id = ?
+        `).bind(parentDocId).run();
+
+        return jsonResponse({ 
+          success: true, 
+          parent_id: parentDocId,
+          child_ids: childIds,
+          child_count: children.length
+        }, 200, env);
+      } catch (error) {
+        console.error('Split document error:', error);
+        return errorResponse('Failed to split document', 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
