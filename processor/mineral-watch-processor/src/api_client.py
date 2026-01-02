@@ -54,7 +54,7 @@ class APIClient:
                 raise ValueError(f"No download URL returned for document {doc_id}")
             
             # Download the actual PDF
-            pdf_response = await client.get(download_url)
+            pdf_response = await client.get(download_url, headers=self.headers)
             pdf_response.raise_for_status()
             
             # Save to temp file
