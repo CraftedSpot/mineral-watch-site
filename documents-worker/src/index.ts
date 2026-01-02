@@ -551,6 +551,185 @@ export default {
       }
     }
 
+    // ===== PROCESSING API ENDPOINTS =====
+    // These endpoints are for the external processor service
+
+    // Route: GET /api/processing/queue - Get queued documents for processing
+    if (path === '/api/processing/queue' && request.method === 'GET') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        // Get documents with status='pending' that haven't started extraction
+        const results = await env.WELLS_DB.prepare(`
+          SELECT id, r2_key, filename, user_id, organization_id, 
+                 file_size, upload_date
+          FROM documents 
+          WHERE status = 'pending'
+            AND extraction_started_at IS NULL
+            AND deleted_at IS NULL
+          ORDER BY upload_date ASC
+          LIMIT 10
+        `).all();
+
+        return jsonResponse({ 
+          documents: results.results,
+          count: results.results.length 
+        }, 200, env);
+      } catch (error) {
+        console.error('Queue error:', error);
+        return errorResponse('Failed to get queue', 500, env);
+      }
+    }
+
+    // Route: GET /api/processing/download/:id - Get signed URL for document download
+    if (path.match(/^\/api\/processing\/download\/[^\/]+$/) && request.method === 'GET') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+
+      try {
+        // Mark as extraction started
+        await env.WELLS_DB.prepare(`
+          UPDATE documents 
+          SET extraction_started_at = datetime('now')
+          WHERE id = ? AND extraction_started_at IS NULL
+        `).bind(docId).run();
+
+        // Get document info
+        const doc = await env.WELLS_DB.prepare(`
+          SELECT r2_key, filename 
+          FROM documents 
+          WHERE id = ? AND deleted_at IS NULL
+        `).bind(docId).first();
+
+        if (!doc) {
+          return errorResponse('Document not found', 404, env);
+        }
+
+        // Generate a temporary signed URL for R2 (valid for 1 hour)
+        // For now, we'll return the direct download endpoint
+        // In production, you might want to use R2's presigned URLs
+        const downloadUrl = `https://${new URL(request.url).hostname}/api/processing/direct-download/${docId}`;
+
+        return jsonResponse({
+          url: downloadUrl,
+          filename: doc.filename,
+          r2_key: doc.r2_key
+        }, 200, env);
+      } catch (error) {
+        console.error('Download URL error:', error);
+        return errorResponse('Failed to generate download URL', 500, env);
+      }
+    }
+
+    // Route: GET /api/processing/direct-download/:id - Direct download for processor
+    if (path.match(/^\/api\/processing\/direct-download\/[^\/]+$/) && request.method === 'GET') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+
+      try {
+        const doc = await env.WELLS_DB.prepare(`
+          SELECT r2_key, filename 
+          FROM documents 
+          WHERE id = ? AND deleted_at IS NULL
+        `).bind(docId).first();
+
+        if (!doc) {
+          return errorResponse('Document not found', 404, env);
+        }
+
+        const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
+        if (!object) {
+          return errorResponse('File not found in storage', 404, env);
+        }
+
+        return new Response(object.body, {
+          headers: {
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': `attachment; filename="${doc.filename}"`,
+            ...corsHeaders(env),
+          },
+        });
+      } catch (error) {
+        console.error('Direct download error:', error);
+        return errorResponse('Download failed', 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/complete/:id - Update document with extraction results
+    if (path.match(/^\/api\/processing\/complete\/[^\/]+$/) && request.method === 'POST') {
+      // Verify processing API key
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      const docId = path.split('/')[4];
+
+      try {
+        const data = await request.json();
+        const { 
+          status,
+          extracted_data,
+          doc_type,
+          county,
+          section,
+          township,
+          range,
+          confidence,
+          page_count,
+          extraction_error
+        } = data;
+
+        // Update the document with extraction results
+        await env.WELLS_DB.prepare(`
+          UPDATE documents 
+          SET status = ?,
+              extracted_data = ?,
+              doc_type = ?,
+              county = ?,
+              section = ?,
+              township = ?,
+              range = ?,
+              confidence = ?,
+              page_count = ?,
+              extraction_completed_at = datetime('now'),
+              extraction_error = ?
+          WHERE id = ?
+        `).bind(
+          status || 'failed',
+          extracted_data ? JSON.stringify(extracted_data) : null,
+          doc_type,
+          county,
+          section,
+          township,
+          range,
+          confidence,
+          page_count,
+          extraction_error,
+          docId
+        ).run();
+
+        return jsonResponse({ success: true }, 200, env);
+      } catch (error) {
+        console.error('Complete processing error:', error);
+        return errorResponse('Failed to update document', 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
