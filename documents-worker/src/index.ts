@@ -691,7 +691,12 @@ export default {
           range,
           confidence,
           page_count,
-          extraction_error
+          extraction_error,
+          display_name,
+          category,
+          needs_review,
+          field_scores,
+          fields_needing_review
         } = data;
 
         // Update the document with extraction results
@@ -707,7 +712,12 @@ export default {
               confidence = ?,
               page_count = ?,
               extraction_completed_at = datetime('now'),
-              extraction_error = ?
+              extraction_error = ?,
+              display_name = ?,
+              category = ?,
+              needs_review = ?,
+              field_scores = ?,
+              fields_needing_review = ?
           WHERE id = ?
         `).bind(
           status || 'failed',
@@ -720,6 +730,11 @@ export default {
           confidence,
           page_count,
           extraction_error,
+          display_name,
+          category,
+          needs_review ? 1 : 0,
+          field_scores ? JSON.stringify(field_scores) : null,
+          fields_needing_review ? JSON.stringify(fields_needing_review) : null,
           docId
         ).run();
 
