@@ -5964,23 +5964,28 @@
 
 <!-- DOCUMENT DETAIL MODAL -->
 <div class="modal-overlay" id="documentDetailModal" style="display: none;">
-    <div class="modal" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
-        <button class="close-btn" onclick="closeDocumentDetailModal()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
-        <h2 style="margin-bottom: 24px; font-family: 'Merriweather', serif;">Document Details</h2>
+    <div class="modal" style="max-width: 600px; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);">
+        <!-- Modal Header with green background -->
+        <div style="background: #1D6F5C; color: white; padding: 24px; position: relative;">
+            <button onclick="closeDocumentDetailModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer; color: white; opacity: 0.9; hover: opacity: 1;">×</button>
+            <h2 id="documentModalTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 24px; font-weight: 700;">Document Details</h2>
+            <div id="documentModalSubtitle" style="margin-top: 4px; font-size: 16px; opacity: 0.9;"></div>
+        </div>
         
-        <div id="documentDetailContent">
+        <!-- Modal Content -->
+        <div id="documentDetailContent" style="padding: 24px; max-height: 60vh; overflow-y: auto;">
             <!-- Content will be populated dynamically -->
         </div>
         
-        <div style="margin-top: 24px; display: flex; justify-content: flex-end; gap: 12px;">
-            <button class="btn-secondary-action" onclick="closeDocumentDetailModal()">Close</button>
-            <button class="btn-primary" onclick="viewDocumentPDF()" id="viewOriginalBtn">
+        <!-- Modal Footer -->
+        <div style="padding: 16px 24px; border-top: 1px solid var(--border); display: flex; justify-content: space-between; gap: 12px;">
+            <button onclick="viewDocumentPDF()" id="viewOriginalBtn" style="background: #1D6F5C; color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
                 <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
                 </svg>
                 View Original PDF
             </button>
+            <button onclick="closeDocumentDetailModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
         </div>
     </div>
 </div>
