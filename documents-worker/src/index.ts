@@ -89,7 +89,10 @@ async function ensureProcessingColumns(env: Env) {
     { name: 'field_scores', type: 'TEXT' },
     { name: 'fields_needing_review', type: 'TEXT' },
     { name: 'queued_at', type: 'TEXT' },
-    { name: 'processing_attempts', type: 'INTEGER DEFAULT 0' }
+    { name: 'processing_attempts', type: 'INTEGER DEFAULT 0' },
+    { name: 'parent_document_id', type: 'TEXT' },
+    { name: 'page_range_start', type: 'INTEGER' },
+    { name: 'page_range_end', type: 'INTEGER' }
   ];
 
   for (const column of columnsToAdd) {
