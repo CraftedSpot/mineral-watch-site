@@ -17,7 +17,7 @@ class APIClient:
     def __init__(self):
         self.base_url = CONFIG.DOCUMENTS_API_URL.rstrip("/")
         self.headers = {
-            "Authorization": f"Bearer {CONFIG.PROCESSING_API_KEY}",
+            "X-API-Key": CONFIG.PROCESSING_API_KEY,
             "Content-Type": "application/json"
         }
     
