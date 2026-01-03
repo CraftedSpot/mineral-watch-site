@@ -154,7 +154,6 @@ def generate_display_name(extraction: dict) -> str:
         
         if cd_number:
             # Clean CD number - extract just the numeric part if possible
-            import re
             nums = re.findall(r'\d+', str(cd_number))
             if nums:
                 parts.append(f"CD {nums[0]}")
