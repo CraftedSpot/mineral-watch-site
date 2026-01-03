@@ -4253,6 +4253,7 @@
             } else if (doc.extracted_data) {
                 try {
                     const data = JSON.parse(doc.extracted_data);
+                    const fieldScores = data.field_scores || {};
                     
                     // Basic Information
                     content += '<div class="doc-detail-grid">';
