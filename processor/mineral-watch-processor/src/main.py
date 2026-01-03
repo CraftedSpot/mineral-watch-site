@@ -11,6 +11,7 @@ A background service that processes uploaded documents:
 """
 
 import asyncio
+import json
 import logging
 import os
 import shutil
