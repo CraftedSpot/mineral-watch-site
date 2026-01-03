@@ -4392,19 +4392,23 @@
                             padding: 0 !important;
                         }
                         #documentDetailModal .modal {
-                            max-height: calc(100vh - 40px) !important;
-                            max-height: calc(100dvh - 40px) !important; /* Use dvh for better mobile support */
-                            margin: 20px !important;
-                            width: calc(100vw - 40px) !important;
+                            max-height: calc(100vh - 16px) !important;
+                            max-height: calc(100dvh - 16px) !important; /* Use dvh for better mobile support */
+                            margin: 8px !important;
+                            width: calc(100vw - 16px) !important;
                             position: relative !important;
                         }
+                        /* Tighter padding on mobile */
+                        #documentDetailModal .modal > div:first-child {
+                            padding: 12px 16px !important;
+                        }
                         #documentDetailContent {
-                            /* Ensure content area is scrollable but not too tall */
+                            padding: 12px 16px !important;
                             min-height: 100px !important;
                         }
                         /* Ensure buttons don't overflow on small screens */
                         #documentDetailModal .modal > div:last-child {
-                            padding: 12px 16px;
+                            padding: 10px 12px !important;
                         }
                         #documentDetailModal button {
                             padding: 8px 12px;
@@ -4412,16 +4416,17 @@
                         }
                         /* Make header text smaller on mobile */
                         #documentModalTitle {
-                            font-size: 20px !important;
+                            font-size: 18px !important;
                         }
                         #documentModalSubtitle {
-                            font-size: 14px !important;
+                            font-size: 13px !important;
                         }
                         /* Stack footer buttons on very small screens */
                         @media (max-width: 480px) {
                             #documentDetailModal .modal > div:last-child {
                                 flex-direction: column;
                                 align-items: stretch;
+                                gap: 8px !important;
                             }
                             #documentDetailModal .modal > div:last-child > * {
                                 width: 100%;
