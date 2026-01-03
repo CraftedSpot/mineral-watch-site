@@ -4381,7 +4381,7 @@
                                 content += `
                                     <div class="doc-field">
                                         <label>County</label>
-                                        <div class="doc-value">${ld.county}</div>
+                                        <div class="doc-value">${ld.county}${getConfidenceIndicator('legal_county', fieldScores)}</div>
                                     </div>`;
                             }
                             
