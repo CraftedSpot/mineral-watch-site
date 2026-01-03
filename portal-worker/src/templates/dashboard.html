@@ -4363,10 +4363,17 @@
                             if (ld.township) legalDesc.push(`T${ld.township}`);
                             if (ld.range) legalDesc.push(`R${ld.range}`);
                             if (legalDesc.length > 0) {
+                                // Get worst confidence of the three fields
+                                const sectionScore = fieldScores['legal_section'] || 0;
+                                const townshipScore = fieldScores['legal_township'] || 0;
+                                const rangeScore = fieldScores['legal_range'] || 0;
+                                const minScore = Math.min(sectionScore, townshipScore, rangeScore);
+                                const legalIndicator = getConfidenceIndicator(minScore >= 0.9 ? 'legal_section' : minScore >= 0.6 ? 'legal_township' : 'legal_range', { 'legal_section': minScore, 'legal_township': minScore, 'legal_range': minScore });
+                                
                                 content += `
                                     <div class="doc-field">
                                         <label>Legal</label>
-                                        <div class="doc-value">${legalDesc.join(' ')}</div>
+                                        <div class="doc-value">${legalDesc.join(' ')}${legalIndicator}</div>
                                     </div>`;
                             }
                             
