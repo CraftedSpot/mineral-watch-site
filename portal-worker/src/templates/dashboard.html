@@ -4029,6 +4029,14 @@
             // Update modal title
             document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
             
+            // Show/hide back button based on how we got here
+            const backBtn = document.getElementById('backToDetailsBtn');
+            if (fromDetailModal) {
+                backBtn.style.display = 'flex';
+            } else {
+                backBtn.style.display = 'none';
+            }
+            
             // Show modal
             document.getElementById('documentViewModal').style.display = 'flex';
             const viewerContainer = document.getElementById('pdfViewerContainer');
