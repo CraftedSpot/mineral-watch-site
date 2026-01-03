@@ -4560,8 +4560,8 @@
 
         function viewDocumentPDF() {
             if (currentDocumentId) {
-                viewDocumentInModal(currentDocumentId, '');
-                closeDocumentDetailModal();
+                viewDocumentInModal(currentDocumentId, '', true);
+                // Don't close the detail modal - keep it in the background
             }
         }
 
