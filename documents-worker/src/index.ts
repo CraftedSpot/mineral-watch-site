@@ -813,28 +813,10 @@ export default {
           ).run();
         } else {
           // For successful extraction, update all fields
-          await env.WELLS_DB.prepare(`
-            UPDATE documents 
-            SET status = ?,
-                extracted_data = ?,
-                doc_type = ?,
-                county = ?,
-                section = ?,
-                township = ?,
-                range = ?,
-                confidence = ?,
-                page_count = ?,
-                extraction_completed_at = datetime('now'),
-                extraction_error = ?,
-                display_name = ?,
-                category = ?,
-                needs_review = ?,
-                field_scores = ?,
-                fields_needing_review = ?
-            WHERE id = ?
-          `).bind(
-            status || 'complete',
-            extracted_data ? JSON.stringify(extracted_data) : null,
+          console.log('Attempting to update document:', docId);
+          const updateValues = {
+            status: status || 'complete',
+            extracted_data: extracted_data ? JSON.stringify(extracted_data) : null,
             doc_type,
             county,
             section,
@@ -845,11 +827,58 @@ export default {
             extraction_error,
             display_name,
             category,
-            needs_review ? 1 : 0,
-            field_scores ? JSON.stringify(field_scores) : null,
-            fields_needing_review ? JSON.stringify(fields_needing_review) : null,
+            needs_review: needs_review ? 1 : 0,
+            field_scores: field_scores ? JSON.stringify(field_scores) : null,
+            fields_needing_review: fields_needing_review ? JSON.stringify(fields_needing_review) : null,
             docId
-          ).run();
+          };
+          
+          console.log('Update values:', JSON.stringify(updateValues, null, 2));
+          
+          try {
+            await env.WELLS_DB.prepare(`
+              UPDATE documents 
+              SET status = ?,
+                  extracted_data = ?,
+                  doc_type = ?,
+                  county = ?,
+                  section = ?,
+                  township = ?,
+                  range = ?,
+                  confidence = ?,
+                  page_count = ?,
+                  extraction_completed_at = datetime('now'),
+                  extraction_error = ?,
+                  display_name = ?,
+                  category = ?,
+                  needs_review = ?,
+                  field_scores = ?,
+                  fields_needing_review = ?
+              WHERE id = ?
+            `).bind(
+              status || 'complete',
+              extracted_data ? JSON.stringify(extracted_data) : null,
+              doc_type,
+              county,
+              section,
+              township,
+              range,
+              confidence,
+              page_count,
+              extraction_error,
+              display_name,
+              category,
+              needs_review ? 1 : 0,
+              field_scores ? JSON.stringify(field_scores) : null,
+              fields_needing_review ? JSON.stringify(fields_needing_review) : null,
+              docId
+            ).run();
+          } catch (dbError) {
+            console.error('Database update failed:', dbError);
+            console.error('Failed update for document:', docId);
+            console.error('Attempted values:', JSON.stringify(updateValues, null, 2));
+            throw dbError;
+          }
         }
 
         return jsonResponse({ success: true }, 200, env);
