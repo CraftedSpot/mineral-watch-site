@@ -4290,10 +4290,12 @@
                     
                     // Recording Info
                     if (data.recording_info && (data.recording_info.book || data.recording_info.page)) {
+                        const bookIndicator = data.recording_info.book ? getConfidenceIndicator('recording_book', fieldScores) : '';
+                        const pageIndicator = data.recording_info.page ? getConfidenceIndicator('recording_page', fieldScores) : '';
                         content += `
                             <div class="doc-field">
                                 <label>Recording</label>
-                                <div class="doc-value">Book ${data.recording_info.book || '—'}, Page ${data.recording_info.page || '—'}</div>
+                                <div class="doc-value">Book ${data.recording_info.book || '—'}${bookIndicator}, Page ${data.recording_info.page || '—'}${pageIndicator}</div>
                             </div>`;
                     }
                     
