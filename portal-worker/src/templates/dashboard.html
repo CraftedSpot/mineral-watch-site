@@ -1976,19 +1976,16 @@
     
     <!-- Well Details Modal - New Card Design -->
     <div class="modal-overlay" id="wellDetailsModal">
-        <div class="well-card" style="max-width: 520px; width: 100%;">
-            <!-- Header -->
-            <div class="card-header">
-                <button class="close-btn" onclick="closeWellDetailsModal()" aria-label="Close">×</button>
-                <div class="card-header-top">
-                    <h2 class="well-name" id="wellDetailsTitle">Well Details</h2>
-                    <span class="date-badge" id="wellDetailsDateBadge">2018-08-05</span>
-                </div>
-                <div class="api-number" id="wellDetailsApi">API: —</div>
+        <div class="well-card detail-modal" style="max-width: 600px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+            <!-- Header with Blue Gradient (full bleed) -->
+            <div class="card-header detail-modal-header" style="background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+                <button class="close-btn" onclick="closeWellDetailsModal()" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+                <h2 class="well-name" id="wellDetailsTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 22px; font-weight: 700;">Well Details</h2>
+                <div class="api-number" id="wellDetailsApi" style="margin-top: 2px; font-size: 15px; opacity: 0.9;">API: —</div>
             </div>
             
-            <!-- Content -->
-            <div class="card-content">
+            <!-- Content Body (scrollable) -->
+            <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
                 <!-- Status Row -->
                 <div class="status-row">
                     <div class="status-item">
