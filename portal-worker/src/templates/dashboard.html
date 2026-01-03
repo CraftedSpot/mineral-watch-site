@@ -4284,7 +4284,7 @@
                         content += `
                             <div class="doc-field">
                                 <label>Execution Date</label>
-                                <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+                                <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('execution_date', fieldScores)}</div>
                             </div>`;
                     }
                     
