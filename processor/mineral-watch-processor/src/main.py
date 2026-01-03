@@ -125,7 +125,8 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             'page_count': page_count,
             'needs_review': status == 'manual_review',
             'field_scores': extraction_result.get('field_scores'),
-            'fields_needing_review': extraction_result.get('fields_needing_review', [])
+            'fields_needing_review': extraction_result.get('fields_needing_review', []),
+            'extraction_error': None  # No error for successful extractions
         }
         
         # 8. Update database
