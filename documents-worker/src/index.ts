@@ -655,7 +655,7 @@ export default {
           WHERE status = 'pending'
             AND processing_attempts < 3
             AND deleted_at IS NULL
-          ORDER BY queued_at ASC, upload_date ASC
+          ORDER BY upload_date ASC
           LIMIT 10
         `).all();
 
