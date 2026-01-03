@@ -4143,6 +4143,15 @@
                     return;
                 }
                 
+                // Debug: Log document data
+                console.log('Document data received:', {
+                    id: doc.id,
+                    filename: doc.filename,
+                    has_children: !!doc.children,
+                    child_count: doc.child_count,
+                    children: doc.children
+                });
+                
                 currentDocumentId = docId;
             
             // Update modal header
@@ -4157,6 +4166,14 @@
             
             // Format the content based on what data is available
             let content = '';
+            
+            // Debug: Log which display path we're taking
+            console.log('Display logic:', {
+                has_children: !!doc.children,
+                children_length: doc.children ? doc.children.length : 0,
+                has_extracted_data: !!doc.extracted_data,
+                status: doc.status
+            });
             
             // Check if this is a parent document with children
             if (doc.children && doc.children.length > 0) {
