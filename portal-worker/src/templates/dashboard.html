@@ -2382,6 +2382,22 @@
             }
         }
         
+        // View well on Map from modal
+        function viewWellOnMapFromModal() {
+            const wellId = document.getElementById('wellDetailsId').value;
+            if (wellId) {
+                viewWellOnMap(wellId);
+            }
+        }
+        
+        // View property on Map from modal
+        function viewPropertyOnMapFromModal() {
+            const propertyId = document.getElementById('propertyDetailsId').value;
+            if (propertyId) {
+                viewOnMap(propertyId);
+            }
+        }
+        
         const planConfigs = { 
             'Free': { properties: 1, wells: 1 }, 
             'Starter': { properties: 10, wells: 10 }, 
