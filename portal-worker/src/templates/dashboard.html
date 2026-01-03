@@ -4158,8 +4158,71 @@
             // Format the content based on what data is available
             let content = '';
             
-            // Check if we have extracted data
-            if (doc.extracted_data) {
+            // Check if this is a parent document with children
+            if (doc.children && doc.children.length > 0) {
+                // Parent document - show split info
+                content += '<div class="doc-detail-grid">';
+                
+                // Status field
+                const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
+                                   doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
+                const statusText = doc.status === 'complete' ? 'Complete' : 
+                                  doc.status === 'failed' ? 'Failed' : 'Processing';
+                content += `
+                    <div class="doc-field">
+                        <label>Status</label>
+                        <div class="doc-value" style="color: ${statusColor}; font-weight: 600;">${statusText}</div>
+                    </div>`;
+                
+                content += '</div>';
+                
+                // Split document info
+                content += '<div class="detail-section" style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px; padding: 16px; margin: 20px 0;">';
+                content += '<h4 style="margin: 0 0 12px 0; color: #1E40AF; font-size: 16px; font-weight: 600;">📄 This PDF contained multiple documents</h4>';
+                content += `<p style="margin: 0; color: #1E40AF; font-size: 14px;">The uploaded PDF has been split into ${doc.children.length} separate documents for easier management.</p>`;
+                content += '</div>';
+                
+                // List of child documents
+                content += '<div class="detail-section">';
+                content += '<h4 class="detail-section-title">Individual Documents</h4>';
+                content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                
+                doc.children.forEach((child, index) => {
+                    const childDocType = formatDocType(child.doc_type) || 'Document';
+                    const pageInfo = child.page_range_start && child.page_range_end ? 
+                        ` (Pages ${child.page_range_start}-${child.page_range_end})` : '';
+                    
+                    content += `
+                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; display: flex; justify-content: between; align-items: center; cursor: pointer; transition: all 0.2s;"
+                             onmouseover="this.style.backgroundColor='#F3F4F6'" 
+                             onmouseout="this.style.backgroundColor='#F9FAFB'"
+                             onclick="openDocumentDetail('${child.id}')">
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">
+                                    ${index + 1}. ${escapeHtml(child.display_name || child.filename)}
+                                </div>
+                                <div style="font-size: 13px; color: #6B7280;">
+                                    ${childDocType}${pageInfo}
+                                    ${child.county ? ` • ${escapeHtml(child.county)} County` : ''}
+                                    ${child.confidence ? ` • ${child.confidence} confidence` : ''}
+                                </div>
+                            </div>
+                            <div style="color: #1D6F5C; font-weight: 500; font-size: 14px; margin-left: 16px;">
+                                View →
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                content += '</div></div>';
+                
+                // User Notes - always show
+                content += '<div class="detail-section">';
+                content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
+                content += '</div>';
+                
+            } else if (doc.extracted_data) {
                 try {
                     const data = JSON.parse(doc.extracted_data);
                     
