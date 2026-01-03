@@ -4311,13 +4311,13 @@
                             content += `
                                 <div class="doc-field">
                                     <label>Grantor</label>
-                                    <div class="doc-value">${escapeHtml(data.grantor.name)}</div>
+                                    <div class="doc-value">${escapeHtml(data.grantor.name)}${getConfidenceIndicator('grantor_name', fieldScores)}</div>
                                 </div>`;
                             if (data.grantor.address) {
                                 content += `
                                     <div class="doc-field">
                                         <label>Grantor Address</label>
-                                        <div class="doc-value">${escapeHtml(data.grantor.address)}</div>
+                                        <div class="doc-value">${escapeHtml(data.grantor.address)}${getConfidenceIndicator('grantor_address', fieldScores)}</div>
                                     </div>`;
                             }
                         }
