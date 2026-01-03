@@ -778,7 +778,13 @@ export default {
 
       let data: any;
       try {
-        data = await request.json();
+        try {
+          data = await request.json();
+        } catch (jsonError) {
+          console.error('Failed to parse request JSON:', jsonError);
+          return errorResponse('Invalid JSON in request body', 400, env);
+        }
+        
         const { 
           status,
           extracted_data,
