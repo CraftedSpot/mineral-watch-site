@@ -371,7 +371,24 @@ export default {
           return errorResponse('Document not found', 404, env);
         }
 
-        return jsonResponse({ document: doc }, 200, env);
+        // Check for child documents
+        const childrenResult = await env.WELLS_DB.prepare(`
+          SELECT id, display_name, filename, status, doc_type, county, confidence, 
+                 page_range_start, page_range_end, created_at
+          FROM documents 
+          WHERE parent_document_id = ?
+            AND deleted_at IS NULL
+          ORDER BY page_range_start ASC
+        `).bind(docId).all();
+
+        // Add children to response
+        const documentWithChildren = {
+          ...doc,
+          children: childrenResult.results || [],
+          child_count: childrenResult.results?.length || 0
+        };
+
+        return jsonResponse({ document: documentWithChildren }, 200, env);
       } catch (error) {
         console.error('Get document error:', error);
         return errorResponse('Failed to get document', 500, env);
