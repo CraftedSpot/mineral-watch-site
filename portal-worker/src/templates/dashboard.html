@@ -4130,9 +4130,9 @@
         function getConfidenceIndicator(fieldName, fieldScores) {
             const score = fieldScores?.[fieldName];
             if (score === null || score === undefined) return '';
-            if (score >= 0.9) return '<span class="confidence-high" title="High confidence">✓</span>';
-            if (score >= 0.6) return '<span class="confidence-medium" title="Medium confidence - may need review">⚠</span>';
-            return '<span class="confidence-low" title="Low confidence - needs review">✕</span>';
+            if (score >= 0.9) return '<span class="confidence-indicator confidence-high" title="High confidence">✓</span>';
+            if (score >= 0.6) return '<span class="confidence-indicator confidence-medium" title="Medium confidence - may need review">⚠</span>';
+            return '<span class="confidence-indicator confidence-low" title="Low confidence - needs review">✕</span>';
         }
         
         function toggleConfidenceDetails(btn) {
