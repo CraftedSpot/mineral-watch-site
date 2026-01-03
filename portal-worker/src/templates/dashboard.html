@@ -4021,9 +4021,10 @@
         let currentDocumentId = null;
         let loadedDocuments = [];
         
-        async function viewDocumentInModal(docId, filename) {
+        async function viewDocumentInModal(docId, filename, fromDetailModal = false) {
             console.log('Opening document in modal:', docId, filename);
             currentDocumentId = docId;
+            window.viewingFromDetailModal = fromDetailModal;
             
             // Update modal title
             document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
