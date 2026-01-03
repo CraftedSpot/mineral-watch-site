@@ -773,6 +773,9 @@ export default {
 
       const docId = path.split('/')[4];
 
+      // Ensure all processing columns exist
+      await ensureProcessingColumns(env);
+
       try {
         const data = await request.json();
         const { 
