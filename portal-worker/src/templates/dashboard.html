@@ -4425,7 +4425,7 @@
                         content += `
                             <div class="doc-field">
                                 <label>Amount/Terms</label>
-                                <div class="doc-value">${escapeHtml(data.consideration)}</div>
+                                <div class="doc-value">${escapeHtml(data.consideration)}${getConfidenceIndicator('consideration', fieldScores)}</div>
                             </div>`;
                         content += '</div></div>';
                     }
