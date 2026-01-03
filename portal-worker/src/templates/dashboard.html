@@ -2081,27 +2081,39 @@
                     </div>
                 </div>
                 
+                <!-- Completion Date -->
+                <div class="info-section">
+                    <div class="section-label">Completion Date</div>
+                    <div class="section-value" id="wellDetailsCompletionDate">—</div>
+                </div>
+                
                 <!-- Notes Section -->
                 <div class="info-section" style="margin-top: 16px;">
                     <div class="section-label">Notes</div>
-                    <textarea id="wellDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; margin-top: 6px;" placeholder="Add notes about this well..."></textarea>
+                    <textarea id="wellDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; margin-top: 6px;" placeholder="Add notes about this well..." onkeyup="toggleSaveButton('well')"></textarea>
                 </div>
             </div>
             
-            <!-- Footer Actions -->
-            <div class="card-footer">
-                <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsMapLink">OCC Map ↗</a>
-                <div class="occ-warning" style="flex: 1;">
-                    <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink" style="width: 100%;">Well Records ↗</a>
-                    <span class="occ-warning-icon">!</span>
-                    <div class="occ-tooltip">
-                        <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+            <!-- Footer Actions (fixed at bottom) -->
+            <div class="card-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; background: white;">
+                <div style="display: flex; gap: 10px; flex: 1;">
+                    <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsMapLink" style="flex: 1;">OCC Map ↗</a>
+                    <div class="occ-warning" style="position: relative;">
+                        <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
+                        <span class="occ-warning-icon">!</span>
+                        <div class="occ-tooltip">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
                     </div>
                 </div>
-                <button class="action-btn outline" id="saveWellBtn" onclick="saveWellNotesAndClose()">Save & Close</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="action-btn outline" onclick="closeWellDetailsModal()">Close</button>
+                    <button class="action-btn primary well-blue" id="saveWellBtn" onclick="saveWellNotesAndClose()" style="display: none;">Save & Close</button>
+                </div>
             </div>
             
             <input type="hidden" id="wellDetailsId">
+            <input type="hidden" id="wellDetailsOriginalNotes">
         </div>
     </div>
     
