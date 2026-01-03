@@ -2119,19 +2119,21 @@
     
     <!-- Property Details Modal - Orange Card Design -->
     <div class="modal-overlay" id="propertyDetailsModal">
-        <div class="property-card" style="max-width: 520px; width: 100%;">
-            <!-- Header with Orange Gradient -->
-            <div class="property-card-header">
-                <button class="close-btn" onclick="closePropertyDetailsModal()" aria-label="Close">×</button>
-                <div class="card-header-top">
-                    <h2 class="property-name" id="propertyDetailsTitle">Property Details</h2>
-                    <span class="acreage-badge" id="propertyDetailsAcreageBadge">47.5 acres</span>
+        <div class="property-card detail-modal" style="max-width: 600px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+            <!-- Header with Orange Gradient (full bleed) -->
+            <div class="property-card-header detail-modal-header" style="background: linear-gradient(135deg, var(--red-dirt) 0%, var(--red-dirt-dark) 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+                <button class="close-btn" onclick="closePropertyDetailsModal()" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                    <div>
+                        <h2 class="property-name" id="propertyDetailsTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 22px; font-weight: 700;">Property Details</h2>
+                        <div class="property-location" id="propertyDetailsLocation" style="margin-top: 2px; font-size: 15px; opacity: 0.9;">Garvin County • T03N R03W 25</div>
+                    </div>
+                    <span class="acreage-badge" id="propertyDetailsAcreageBadge" style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">47.5 acres</span>
                 </div>
-                <div class="property-location" id="propertyDetailsLocation">Garvin County • T03N R03W 25</div>
             </div>
             
-            <!-- Content -->
-            <div class="card-content">
+            <!-- Content Body (scrollable) -->
+            <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
             
             <div class="details-grid">
                 <div class="details-row">
