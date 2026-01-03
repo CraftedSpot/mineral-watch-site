@@ -4038,7 +4038,15 @@
             }
             
             // Show modal
-            document.getElementById('documentViewModal').style.display = 'flex';
+            const pdfModal = document.getElementById('documentViewModal');
+            pdfModal.style.display = 'flex';
+            
+            // If opened from detail modal, ensure PDF viewer is on top
+            if (fromDetailModal) {
+                pdfModal.style.zIndex = '9999999';
+            } else {
+                pdfModal.style.zIndex = '2000';
+            }
             const viewerContainer = document.getElementById('pdfViewerContainer');
             
             // Show loading state
