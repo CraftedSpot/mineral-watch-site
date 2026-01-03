@@ -4129,14 +4129,21 @@
 
         async function openDocumentDetail(docId) {
             console.log('Opening document details for:', docId);
-            const doc = loadedDocuments.find(d => d.id === docId);
             
-            if (!doc) {
-                console.error('Document not found:', docId);
-                return;
-            }
-            
-            currentDocumentId = docId;
+            // Fetch fresh document data to get children if any
+            try {
+                const response = await fetch(`/api/documents/${docId}`);
+                if (!response.ok) throw new Error('Failed to fetch document details');
+                
+                const data = await response.json();
+                const doc = data.document;
+                
+                if (!doc) {
+                    console.error('Document not found:', docId);
+                    return;
+                }
+                
+                currentDocumentId = docId;
             
             // Update modal header
             document.getElementById('documentModalTitle').textContent = formatDocType(doc.doc_type) || 'Document Details';
