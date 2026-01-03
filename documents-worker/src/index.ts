@@ -93,7 +93,10 @@ async function ensureProcessingColumns(env: Env) {
     { name: 'processing_attempts', type: 'INTEGER DEFAULT 0' },
     { name: 'parent_document_id', type: 'TEXT' },
     { name: 'page_range_start', type: 'INTEGER' },
-    { name: 'page_range_end', type: 'INTEGER' }
+    { name: 'page_range_end', type: 'INTEGER' },
+    { name: 'extraction_started_at', type: 'TEXT' },
+    { name: 'extraction_completed_at', type: 'TEXT' },
+    { name: 'extraction_error', type: 'TEXT' }
   ];
 
   for (const column of columnsToAdd) {
