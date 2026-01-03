@@ -1,5 +1,7 @@
 """Generate smart display names from extracted document data."""
 
+import re
+
 
 # Document type display names
 DOC_TYPE_NAMES = {
