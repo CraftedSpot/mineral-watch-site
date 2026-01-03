@@ -99,6 +99,7 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         
         # 5. Generate smart name
         display_name = generate_display_name(extraction_result)
+        logger.info(f"Generated display_name for {doc_id}: {display_name}")
         
         # 6. Determine status based on confidence
         doc_confidence = extraction_result.get('document_confidence', 'medium')
