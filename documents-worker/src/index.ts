@@ -406,6 +406,12 @@ export default {
           children,
           child_count
         };
+        
+        console.log('Returning document with children:', {
+          doc_id: documentWithChildren.id,
+          children_count: documentWithChildren.child_count,
+          has_children: documentWithChildren.children.length > 0
+        });
 
         return jsonResponse({ document: documentWithChildren }, 200, env);
       } catch (error) {
