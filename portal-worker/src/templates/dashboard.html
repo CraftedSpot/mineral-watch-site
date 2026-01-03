@@ -4637,6 +4637,10 @@
             if (saveBtn) {
                 saveBtn.style.display = 'none';
             }
+            } catch (error) {
+                console.error('Error loading document details:', error);
+                alert('Failed to load document details');
+            }
         }
 
         function closeDocumentDetailModal() {
