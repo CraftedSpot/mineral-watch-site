@@ -365,11 +365,17 @@ export default {
             AND deleted_at IS NULL
         `;
 
+        console.log('Fetching document with query:', query);
+        console.log('Query params:', [docId, ...params]);
+        
         const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
 
         if (!doc) {
+          console.log('Document not found for ID:', docId);
           return errorResponse('Document not found', 404, env);
         }
+        
+        console.log('Document found:', doc.id, doc.filename);
 
         // Check for child documents - wrap in try/catch for safety
         let children = [];
