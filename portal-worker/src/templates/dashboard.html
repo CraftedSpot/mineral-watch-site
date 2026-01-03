@@ -2218,6 +2218,35 @@
                 .replace(/'/g, '&#039;');
         }
         
+        // Toggle save button visibility when content changes
+        function toggleSaveButton(modalType) {
+            if (modalType === 'well') {
+                const notes = document.getElementById('wellDetailsNotes').value;
+                const originalNotes = document.getElementById('wellDetailsOriginalNotes').value || '';
+                const saveBtn = document.getElementById('saveWellBtn');
+                
+                if (notes !== originalNotes) {
+                    saveBtn.style.display = 'inline-block';
+                } else {
+                    saveBtn.style.display = 'none';
+                }
+            } else if (modalType === 'property') {
+                const notes = document.getElementById('propertyDetailsNotes').value;
+                const originalNotes = document.getElementById('propertyDetailsOriginalNotes').value || '';
+                const riAcres = document.getElementById('propertyDetailsRIAcres').value;
+                const originalRIAcres = document.getElementById('propertyDetailsOriginalRIAcres').value || '';
+                const wiAcres = document.getElementById('propertyDetailsWIAcres').value;
+                const originalWIAcres = document.getElementById('propertyDetailsOriginalWIAcres').value || '';
+                const saveBtn = document.getElementById('savePropertyBtn');
+                
+                if (notes !== originalNotes || riAcres !== originalRIAcres || wiAcres !== originalWIAcres) {
+                    saveBtn.style.display = 'inline-block';
+                } else {
+                    saveBtn.style.display = 'none';
+                }
+            }
+        }
+        
         // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"
         function cleanCountyDisplay(county) {
             if (!county) return '';
