@@ -4087,7 +4087,9 @@
         }
         
         function closeDocumentViewer() {
-            document.getElementById('documentViewModal').style.display = 'none';
+            const pdfModal = document.getElementById('documentViewModal');
+            pdfModal.style.display = 'none';
+            pdfModal.style.zIndex = '2000'; // Reset to default
             
             // Clean up blob URL if exists
             if (window.currentBlobUrl) {
