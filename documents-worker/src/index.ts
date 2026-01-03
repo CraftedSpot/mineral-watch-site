@@ -854,7 +854,10 @@ export default {
         return jsonResponse({ success: true }, 200, env);
       } catch (error) {
         console.error('Complete processing error:', error);
-        return errorResponse('Failed to update document', 500, env);
+        console.error('Error details:', error instanceof Error ? error.message : String(error));
+        console.error('Document ID:', docId);
+        console.error('Data received:', JSON.stringify(data).slice(0, 500));
+        return errorResponse('Failed to update document: ' + (error instanceof Error ? error.message : String(error)), 500, env);
       }
     }
 
