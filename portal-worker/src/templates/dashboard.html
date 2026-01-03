@@ -5210,9 +5210,10 @@
                 document.getElementById('wellDetailsNotes').readOnly = true;
                 document.getElementById('wellDetailsNotes').style.backgroundColor = '#f5f5f5';
             } else {
-                document.getElementById('saveWellBtn').style.display = 'inline-block';
                 document.getElementById('wellDetailsNotes').readOnly = false;
                 document.getElementById('wellDetailsNotes').style.backgroundColor = 'white';
+                // Save button will be shown by toggleSaveButton when notes change
+                toggleSaveButton('well');
             }
         }
         
