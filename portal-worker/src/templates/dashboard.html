@@ -4081,7 +4081,12 @@
             
             // Clear the container
             document.getElementById('pdfViewerContainer').innerHTML = '';
-            currentDocumentId = null;
+            
+            // Don't clear currentDocumentId if we're returning to detail modal
+            if (!window.viewingFromDetailModal) {
+                currentDocumentId = null;
+            }
+            window.viewingFromDetailModal = false;
         }
         
         function downloadCurrentDocument() {
