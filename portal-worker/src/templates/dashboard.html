@@ -4389,7 +4389,7 @@
                                 content += `
                                     <div class="doc-field">
                                         <label>Total Acres</label>
-                                        <div class="doc-value">${ld.acres}</div>
+                                        <div class="doc-value">${ld.acres}${getConfidenceIndicator('legal_acres', fieldScores)}</div>
                                     </div>`;
                                 
                                 // Calculate mineral acres if we have interest
