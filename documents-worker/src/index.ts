@@ -868,6 +868,9 @@ export default {
 
       const parentDocId = path.split('/')[4];
 
+      // Ensure all processing columns exist
+      await ensureProcessingColumns(env);
+
       try {
         const data = await request.json();
         const { children } = data;
