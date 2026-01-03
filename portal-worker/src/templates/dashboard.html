@@ -4383,6 +4383,44 @@
                     #viewOriginalBtn:hover {
                         background: #155347 !important;
                     }
+                    
+                    /* Mobile-specific fixes for document detail modal */
+                    @media (max-width: 768px) {
+                        #documentDetailModal .modal {
+                            max-height: calc(100vh - 40px) !important;
+                            margin: 20px;
+                            width: calc(100vw - 40px);
+                        }
+                        #documentDetailModal .modal-overlay {
+                            padding: 0;
+                            align-items: flex-start;
+                            padding-top: 20px;
+                        }
+                        #documentDetailContent {
+                            max-height: none !important;
+                        }
+                        /* Ensure buttons don't overflow on small screens */
+                        #documentDetailModal .modal > div:last-child {
+                            padding: 12px 16px;
+                        }
+                        #documentDetailModal button {
+                            padding: 8px 12px;
+                            font-size: 14px;
+                        }
+                        /* Stack footer buttons on very small screens */
+                        @media (max-width: 480px) {
+                            #documentDetailModal .modal > div:last-child {
+                                flex-direction: column;
+                                align-items: stretch;
+                            }
+                            #documentDetailModal .modal > div:last-child > * {
+                                width: 100%;
+                            }
+                            #documentDetailModal .modal > div:last-child button {
+                                justify-content: center;
+                            }
+                        }
+                    }
                 `;
                 document.head.appendChild(style);
             }
