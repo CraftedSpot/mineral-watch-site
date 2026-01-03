@@ -4137,9 +4137,18 @@
         
         function toggleConfidenceDetails(btn) {
             const details = btn.closest('.confidence-section').querySelector('.confidence-details');
+            const modal = btn.closest('.modal');
             const isHidden = details.style.display === 'none';
+            
             details.style.display = isHidden ? 'block' : 'none';
             btn.textContent = isHidden ? 'Hide Details ▴' : 'Show Details ▾';
+            
+            // Toggle confidence-visible class on modal to show/hide inline indicators
+            if (isHidden) {
+                modal.classList.add('confidence-visible');
+            } else {
+                modal.classList.remove('confidence-visible');
+            }
         }
         
         function calculateOverallScore(fieldScores) {
