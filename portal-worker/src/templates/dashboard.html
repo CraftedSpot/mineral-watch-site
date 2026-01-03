@@ -4386,18 +4386,21 @@
                     
                     /* Mobile-specific fixes for document detail modal */
                     @media (max-width: 768px) {
+                        #documentDetailModal {
+                            align-items: center !important;
+                            justify-content: center !important;
+                            padding: 0 !important;
+                        }
                         #documentDetailModal .modal {
                             max-height: calc(100vh - 40px) !important;
-                            margin: 20px;
-                            width: calc(100vw - 40px);
-                        }
-                        #documentDetailModal .modal-overlay {
-                            padding: 0;
-                            align-items: flex-start;
-                            padding-top: 20px;
+                            max-height: calc(100dvh - 40px) !important; /* Use dvh for better mobile support */
+                            margin: 20px !important;
+                            width: calc(100vw - 40px) !important;
+                            position: relative !important;
                         }
                         #documentDetailContent {
-                            max-height: none !important;
+                            /* Ensure content area is scrollable but not too tall */
+                            min-height: 100px !important;
                         }
                         /* Ensure buttons don't overflow on small screens */
                         #documentDetailModal .modal > div:last-child {
@@ -4406,6 +4409,13 @@
                         #documentDetailModal button {
                             padding: 8px 12px;
                             font-size: 14px;
+                        }
+                        /* Make header text smaller on mobile */
+                        #documentModalTitle {
+                            font-size: 20px !important;
+                        }
+                        #documentModalSubtitle {
+                            font-size: 14px !important;
                         }
                         /* Stack footer buttons on very small screens */
                         @media (max-width: 480px) {
