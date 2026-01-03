@@ -4350,7 +4350,7 @@
                             content += `
                                 <div class="doc-field">
                                     <label>Interest Conveyed</label>
-                                    <div class="doc-value">${escapeHtml(data.interest_conveyed)}</div>
+                                    <div class="doc-value">${escapeHtml(data.interest_conveyed)}${getConfidenceIndicator('interest_conveyed', fieldScores)}</div>
                                 </div>`;
                         }
                         
