@@ -73,6 +73,8 @@ class APIClient:
                 headers=self.headers,
                 json=result
             )
+            if response.status_code == 500:
+                logger.error(f"500 Error response from documents-worker: {response.text[:1000]}")
             response.raise_for_status()
             logger.info(f"Updated document {doc_id} with status: {result.get('status')}")
     
