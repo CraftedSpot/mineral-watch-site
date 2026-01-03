@@ -4384,6 +4384,42 @@
                         background: #155347 !important;
                     }
                     
+                    /* 
+                     * Full-bleed modal pattern (edge-to-edge header, scrollable body, fixed footer)
+                     * Currently used on: Document details
+                     * TODO: Apply to Properties and Wells detail modals for consistency
+                     * 
+                     * Usage: Apply these classes to any detail modal:
+                     * - .detail-modal on the modal container (with padding: 0)
+                     * - .detail-modal-header on the header section
+                     * - .detail-modal-body on the scrollable content area
+                     * - .detail-modal-footer on the fixed footer section
+                     */
+                    .detail-modal {
+                        padding: 0 !important;
+                        display: flex !important;
+                        flex-direction: column !important;
+                        overflow: hidden !important;
+                    }
+                    
+                    .detail-modal-header {
+                        flex-shrink: 0 !important;
+                        /* Header styling should be applied inline for different colors */
+                    }
+                    
+                    .detail-modal-body {
+                        flex: 1 !important;
+                        overflow-y: auto !important;
+                        -webkit-overflow-scrolling: touch !important;
+                        min-height: 0 !important;
+                    }
+                    
+                    .detail-modal-footer {
+                        flex-shrink: 0 !important;
+                        background: white !important;
+                        border-top: 1px solid #e5e7eb !important;
+                    }
+                    
                     /* Mobile-specific fixes for document detail modal */
                     @media (max-width: 768px) {
                         #documentDetailModal {
