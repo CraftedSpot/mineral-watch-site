@@ -4134,6 +4134,36 @@
             if (score >= 0.6) return '<span class="confidence-medium" title="Medium confidence - may need review">⚠</span>';
             return '<span class="confidence-low" title="Low confidence - needs review">✕</span>';
         }
+        
+        function toggleConfidenceDetails(btn) {
+            const details = btn.closest('.confidence-section').querySelector('.confidence-details');
+            const isHidden = details.style.display === 'none';
+            details.style.display = isHidden ? 'block' : 'none';
+            btn.textContent = isHidden ? 'Hide Details ▴' : 'Show Details ▾';
+        }
+        
+        function calculateOverallScore(fieldScores) {
+            if (!fieldScores || Object.keys(fieldScores).length === 0) return null;
+            
+            // Critical fields that drive the overall score
+            const criticalFields = [
+                'grantor_name', 'grantee_name', 'interest_conveyed',
+                'legal_section', 'legal_township', 'legal_range', 'legal_county'
+            ];
+            
+            const scores = [];
+            criticalFields.forEach(field => {
+                if (fieldScores[field] !== null && fieldScores[field] !== undefined) {
+                    scores.push(fieldScores[field]);
+                }
+            });
+            
+            if (scores.length === 0) return null;
+            
+            // Calculate average of critical fields
+            const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
+            return avg;
+        }
 
         async function openDocumentDetail(docId) {
             console.log('=== OPENING DOCUMENT DETAILS ===');
@@ -4300,6 +4330,75 @@
                     }
                     
                     content += '</div>';
+                    
+                    // Confidence Section with collapsible details
+                    if (fieldScores && Object.keys(fieldScores).length > 0) {
+                        const overallScore = calculateOverallScore(fieldScores);
+                        const confidenceLevel = doc.confidence || 'medium';
+                        const confidenceText = confidenceLevel.charAt(0).toUpperCase() + confidenceLevel.slice(1);
+                        
+                        content += '<div class="confidence-section">';
+                        content += '<div class="confidence-header">';
+                        content += '<span class="confidence-label">Confidence</span>';
+                        content += `<span class="confidence-badge confidence-${confidenceLevel}">`;
+                        content += `● ${confidenceText}`;
+                        if (overallScore) {
+                            content += ` (${Math.round(overallScore * 100)}%)`;
+                        }
+                        content += '</span>';
+                        content += '<button class="confidence-toggle" onclick="toggleConfidenceDetails(this)">Show Details ▾</button>';
+                        content += '</div>';
+                        
+                        // Collapsible details section
+                        content += '<div class="confidence-details" style="display: none;">';
+                        content += '<div class="confidence-details-grid">';
+                        
+                        // Field mapping for display
+                        const fieldMapping = {
+                            'grantor_name': 'Grantor Name',
+                            'grantor_address': 'Grantor Address',
+                            'grantee_name': 'Grantee Name',
+                            'grantee_address': 'Grantee Address',
+                            'interest_conveyed': 'Interest Conveyed',
+                            'legal_section': 'Section',
+                            'legal_township': 'Township',
+                            'legal_range': 'Range',
+                            'legal_county': 'County',
+                            'legal_quarter': 'Quarter/Description',
+                            'legal_acres': 'Total Acres',
+                            'execution_date': 'Execution Date',
+                            'recording_book': 'Recording Book',
+                            'recording_page': 'Recording Page',
+                            'recording_date': 'Recording Date',
+                            'consideration': 'Consideration'
+                        };
+                        
+                        // Sort fields by score (lowest first) for easier review
+                        const sortedFields = Object.entries(fieldScores)
+                            .filter(([field, score]) => score !== null && score !== undefined)
+                            .sort((a, b) => a[1] - b[1]);
+                        
+                        sortedFields.forEach(([field, score]) => {
+                            const displayName = fieldMapping[field] || field;
+                            const percentage = Math.round(score * 100);
+                            const indicator = score >= 0.9 ? '✓' : score >= 0.6 ? '⚠' : '✕';
+                            const indicatorClass = score >= 0.9 ? 'confidence-high' : score >= 0.6 ? 'confidence-medium' : 'confidence-low';
+                            
+                            content += `
+                                <div class="confidence-detail-item">
+                                    <span class="field-name">${displayName}</span>
+                                    <span class="field-score">
+                                        <span class="${indicatorClass}">${indicator}</span>
+                                        ${percentage}%
+                                    </span>
+                                </div>
+                            `;
+                        });
+                        
+                        content += '</div>';
+                        content += '</div>';
+                        content += '</div>';
+                    }
                     
                     // Parties Section
                     if ((data.grantor && data.grantor.name) || (data.grantee && data.grantee.name)) {
