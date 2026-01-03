@@ -4409,7 +4409,7 @@
                                 content += `
                                     <div class="doc-field">
                                         <label>Description</label>
-                                        <div class="doc-value">${escapeHtml(ld.quarter)}</div>
+                                        <div class="doc-value">${escapeHtml(ld.quarter)}${getConfidenceIndicator('legal_quarter', fieldScores)}</div>
                                     </div>`;
                             }
                         }
