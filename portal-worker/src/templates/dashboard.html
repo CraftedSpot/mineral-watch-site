@@ -5041,17 +5041,12 @@
             document.getElementById('wellDetailsTitle').textContent = f['Well Name'] || 'Unknown Well';
             document.getElementById('wellDetailsApi').textContent = `API: ${f['API Number'] || '—'}`;
             
-            // Date badge - prefer completion date, fallback to first production
+            // Store well ID
+            document.getElementById('wellDetailsId').value = wellId;
+            
+            // Populate completion date in the body
             const completionDate = formatDate(f['Completion Date']);
-            const firstProdDate = formatDate(f['First Production Date']);
-            const badgeDate = completionDate || firstProdDate;
-            const dateBadge = document.getElementById('wellDetailsDateBadge');
-            if (badgeDate) {
-                dateBadge.textContent = badgeDate;
-                dateBadge.style.display = 'inline-block';
-            } else {
-                dateBadge.style.display = 'none';
-            }
+            document.getElementById('wellDetailsCompletionDate').textContent = completionDate || '—';
             
             // Status badge
             const status = f['Well Status'] || f['OCC Status'] || '—';
