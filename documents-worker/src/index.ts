@@ -774,7 +774,12 @@ export default {
       const docId = path.split('/')[4];
 
       // Ensure all processing columns exist
-      await ensureProcessingColumns(env);
+      try {
+        await ensureProcessingColumns(env);
+      } catch (columnError) {
+        console.error('Failed to ensure processing columns:', columnError);
+        return errorResponse('Database column check failed: ' + (columnError instanceof Error ? columnError.message : String(columnError)), 500, env);
+      }
 
       let data: any;
       try {
