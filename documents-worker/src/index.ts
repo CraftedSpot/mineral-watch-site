@@ -861,13 +861,13 @@ export default {
                   range = ?,
                   confidence = ?,
                   page_count = ?,
-                  extraction_completed_at = datetime('now'),
                   extraction_error = ?,
                   display_name = ?,
                   category = ?,
                   needs_review = ?,
                   field_scores = ?,
-                  fields_needing_review = ?
+                  fields_needing_review = ?,
+                  extraction_completed_at = datetime('now')
               WHERE id = ?
             `).bind(
               status || 'complete',
