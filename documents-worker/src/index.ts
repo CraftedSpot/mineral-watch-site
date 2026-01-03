@@ -371,21 +371,32 @@ export default {
           return errorResponse('Document not found', 404, env);
         }
 
-        // Check for child documents
-        const childrenResult = await env.WELLS_DB.prepare(`
-          SELECT id, display_name, filename, status, doc_type, county, confidence, 
-                 page_range_start, page_range_end, created_at
-          FROM documents 
-          WHERE parent_document_id = ?
-            AND deleted_at IS NULL
-          ORDER BY page_range_start ASC
-        `).bind(docId).all();
+        // Check for child documents - wrap in try/catch for safety
+        let children = [];
+        let child_count = 0;
+        
+        try {
+          const childrenResult = await env.WELLS_DB.prepare(`
+            SELECT id, display_name, filename, status, doc_type, county, confidence, 
+                   page_range_start, page_range_end, created_at
+            FROM documents 
+            WHERE parent_document_id = ?
+              AND deleted_at IS NULL
+            ORDER BY page_range_start ASC
+          `).bind(docId).all();
+          
+          children = childrenResult.results || [];
+          child_count = children.length;
+        } catch (childError) {
+          console.error('Error fetching child documents:', childError);
+          // Continue without children data if query fails
+        }
 
         // Add children to response
         const documentWithChildren = {
           ...doc,
-          children: childrenResult.results || [],
-          child_count: childrenResult.results?.length || 0
+          children,
+          child_count
         };
 
         return jsonResponse({ document: documentWithChildren }, 200, env);
