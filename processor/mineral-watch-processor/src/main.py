@@ -128,6 +128,7 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         }
         
         # 8. Update database
+        logger.info(f"Sending result to documents-worker: {json.dumps(result, indent=2)[:500]}...")
         await client.complete_document(doc_id, result)
         
         logger.info(f"Completed document {doc_id}: {display_name} ({status})")
