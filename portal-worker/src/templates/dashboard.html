@@ -2184,17 +2184,23 @@
                 </div>
                 <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                     <span class="details-label" style="margin-bottom: 8px;">Notes</span>
-                    <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this property..."></textarea>
+                    <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this property..." onkeyup="toggleSaveButton('property')"></textarea>
                 </div>
             </div>
             
             <input type="hidden" id="propertyDetailsId">
+            <input type="hidden" id="propertyDetailsOriginalNotes">
+            <input type="hidden" id="propertyDetailsOriginalRIAcres">
+            <input type="hidden" id="propertyDetailsOriginalWIAcres">
+            </div>
             
-            <!-- Footer Actions -->
-            <div class="card-footer">
-                <a href="#" target="_blank" class="action-btn primary" id="propertyDetailsMapLink">OCC Map ↗</a>
-                <button class="action-btn secondary" onclick="closePropertyDetailsModal()">Close</button>
-                <button class="action-btn outline" id="savePropertyBtn" onclick="savePropertyAndClose()">Save & Close</button>
+            <!-- Footer Actions (fixed at bottom) -->
+            <div class="card-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; background: white;">
+                <a href="#" target="_blank" class="action-btn primary" id="propertyDetailsMapLink" style="background: var(--red-dirt);">OCC Map ↗</a>
+                <div style="display: flex; gap: 10px;">
+                    <button class="action-btn outline" onclick="closePropertyDetailsModal()">Close</button>
+                    <button class="action-btn primary" id="savePropertyBtn" onclick="savePropertyAndClose()" style="background: var(--red-dirt); display: none;">Save & Close</button>
+                </div>
             </div>
         </div>
     </div>
