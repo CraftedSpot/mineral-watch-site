@@ -5424,13 +5424,14 @@
                 document.getElementById('propertyDetailsWIAcres').readOnly = true;
                 document.getElementById('propertyDetailsWIAcres').style.backgroundColor = '#f5f5f5';
             } else {
-                document.getElementById('savePropertyBtn').style.display = 'inline-block';
                 document.getElementById('propertyDetailsNotes').readOnly = false;
                 document.getElementById('propertyDetailsNotes').style.backgroundColor = 'white';
                 document.getElementById('propertyDetailsRIAcres').readOnly = false;
                 document.getElementById('propertyDetailsRIAcres').style.backgroundColor = 'white';
                 document.getElementById('propertyDetailsWIAcres').readOnly = false;
                 document.getElementById('propertyDetailsWIAcres').style.backgroundColor = 'white';
+                // Save button will be shown by toggleSaveButton when values change
+                toggleSaveButton('property');
             }
         }
         
