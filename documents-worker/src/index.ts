@@ -776,8 +776,9 @@ export default {
       // Ensure all processing columns exist
       await ensureProcessingColumns(env);
 
+      let data: any;
       try {
-        const data = await request.json();
+        data = await request.json();
         const { 
           status,
           extracted_data,
