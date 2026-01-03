@@ -5374,6 +5374,11 @@
             document.getElementById('propertyDetailsWIAcres').value = wiAcres;
             document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
             
+            // Store original values for change detection
+            document.getElementById('propertyDetailsOriginalNotes').value = f['Notes'] || '';
+            document.getElementById('propertyDetailsOriginalRIAcres').value = riAcres;
+            document.getElementById('propertyDetailsOriginalWIAcres').value = wiAcres;
+            
             // Update total acres display in form
             updateTotalAcres();
             
