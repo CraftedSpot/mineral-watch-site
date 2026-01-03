@@ -6353,15 +6353,7 @@
 <div class="modal-overlay" id="documentViewModal" style="display: none;">
     <div class="modal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
-            <div style="display: flex; align-items: center; gap: 12px;">
-                <button id="backToDetailsBtn" onclick="closeDocumentViewer()" style="display: none; background: none; border: 1px solid var(--border); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 14px; color: var(--oil-navy); display: flex; align-items: center; gap: 6px;">
-                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
-                    </svg>
-                    Back to Details
-                </button>
-                <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
-            </div>
+            <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
             <div style="display: flex; gap: 12px; align-items: center;">
                 <button onclick="downloadCurrentDocument()" class="btn-secondary-action" style="padding: 8px 16px;">
                     <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
