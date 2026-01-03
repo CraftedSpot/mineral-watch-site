@@ -385,7 +385,7 @@ export default {
         try {
           const childrenResult = await env.WELLS_DB.prepare(`
             SELECT id, display_name, filename, status, doc_type, county, confidence, 
-                   page_range_start, page_range_end, created_at
+                   page_range_start, page_range_end
             FROM documents 
             WHERE parent_document_id = ?
               AND deleted_at IS NULL
