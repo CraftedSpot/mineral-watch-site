@@ -4128,10 +4128,12 @@
         }
 
         async function openDocumentDetail(docId) {
-            console.log('Opening document details for:', docId);
+            console.log('=== OPENING DOCUMENT DETAILS ===');
+            console.log('Document ID:', docId);
             
             // Fetch fresh document data to get children if any
             try {
+                console.log('Fetching document from API...');
                 const response = await fetch(`/api/documents/${docId}`);
                 if (!response.ok) throw new Error('Failed to fetch document details');
                 
@@ -4177,6 +4179,7 @@
             
             // Check if this is a parent document with children
             if (doc.children && doc.children.length > 0) {
+                console.log('PARENT DOCUMENT DETECTED with', doc.children.length, 'children');
                 // Parent document - show split info
                 content += '<div class="doc-detail-grid">';
                 

@@ -381,6 +381,7 @@ export default {
         let children = [];
         let child_count = 0;
         
+        console.log('Checking for children of document:', docId);
         try {
           const childrenResult = await env.WELLS_DB.prepare(`
             SELECT id, display_name, filename, status, doc_type, county, confidence, 
@@ -393,6 +394,7 @@ export default {
           
           children = childrenResult.results || [];
           child_count = children.length;
+          console.log('Found', child_count, 'children for document', docId);
         } catch (childError) {
           console.error('Error fetching child documents:', childError);
           // Continue without children data if query fails
