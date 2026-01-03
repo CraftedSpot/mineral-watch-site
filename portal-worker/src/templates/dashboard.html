@@ -4671,10 +4671,16 @@
                     .confidence-indicator {
                         margin-left: 0.5rem;
                         font-size: 1rem;
+                        display: none; /* Hidden by default */
                     }
                     .confidence-indicator.high { color: #10b981; }
                     .confidence-indicator.medium { color: #f59e0b; }
                     .confidence-indicator.low { color: #ef4444; }
+                    
+                    /* Show confidence indicators when details are expanded */
+                    .confidence-visible .confidence-indicator {
+                        display: inline;
+                    }
                     
                     /* Confidence section styles */
                     .confidence-section {
