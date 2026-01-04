@@ -4315,33 +4315,34 @@
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'heirs' && value.some(h => typeof h === 'object')) {
                                 // Special handling for heirs array
-                                content += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
                                 value.forEach(heir => {
                                     if (typeof heir === 'object') {
-                                        content += `<div style="padding: 8px; background: #F9FAFB; border-radius: 4px;">`;
-                                        content += `<strong>${escapeHtml(heir.name || 'Unknown')}</strong>`;
-                                        if (heir.relationship) content += ` - ${escapeHtml(heir.relationship)}`;
-                                        if (heir.share) content += ` (${escapeHtml(heir.share)})`;
-                                        content += `</div>`;
+                                        sectionContent += `<div style="padding: 8px; background: #F9FAFB; border-radius: 4px;">`;
+                                        sectionContent += `<strong>${escapeHtml(heir.name || 'Unknown')}</strong>`;
+                                        if (heir.relationship) sectionContent += ` - ${escapeHtml(heir.relationship)}`;
+                                        if (heir.share) sectionContent += ` (${escapeHtml(heir.share)})`;
+                                        sectionContent += `</div>`;
                                     } else {
-                                        content += `<div>${escapeHtml(String(heir))}</div>`;
+                                        sectionContent += `<div>${escapeHtml(String(heir))}</div>`;
                                     }
                                 });
-                                content += `</div>`;
+                                sectionContent += `</div>`;
                             } else {
                                 // Regular array
-                                content += `<ul style="margin: 8px 0; padding-left: 20px;">`;
+                                sectionContent += `<ul style="margin: 8px 0; padding-left: 20px;">`;
                                 value.forEach(item => {
-                                    content += `<li style="margin-bottom: 4px;">${escapeHtml(String(item))}</li>`;
+                                    sectionContent += `<li style="margin-bottom: 4px;">${escapeHtml(String(item))}</li>`;
                                 });
-                                content += `</ul>`;
+                                sectionContent += `</ul>`;
                             }
                             sectionContent += getConfidenceIndicator(fieldName, fieldScores);
                             sectionContent += `</div>`;
                         }
                     } else if (typeof value === 'boolean') {
                         // Handle boolean values
-                        content += `
+                        hasVisibleFields = true;
+                        sectionContent += `
                             <div class="doc-field">
                                 <label>${formatFieldName(fieldName)}</label>
                                 <div class="doc-value">${value ? 'Yes' : 'No'}${getConfidenceIndicator(fieldName, fieldScores)}</div>
@@ -4350,7 +4351,8 @@
                         // Handle nested objects (like grantor/grantee)
                         for (const [subField, subValue] of Object.entries(value)) {
                             if (subValue !== null && subValue !== undefined && subValue !== '') {
-                                content += `
+                                hasVisibleFields = true;
+                                sectionContent += `
                                     <div class="doc-field">
                                         <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
                                         <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
@@ -4359,7 +4361,8 @@
                         }
                     } else {
                         // Regular field
-                        content += `
+                        hasVisibleFields = true;
+                        sectionContent += `
                             <div class="doc-field">
                                 <label>${formatFieldName(fieldName)}</label>
                                 <div class="doc-value">${escapeHtml(String(value))}${getConfidenceIndicator(fieldName, fieldScores)}</div>
@@ -4367,7 +4370,14 @@
                     }
                 }
                 
-                content += `</div></div>`;
+                // Only add section if it has visible fields
+                if (hasVisibleFields) {
+                    content += `<div class="detail-section">`;
+                    content += `<h4 class="detail-section-title">${sectionName}</h4>`;
+                    content += `<div class="doc-detail-grid">`;
+                    content += sectionContent;
+                    content += `</div></div>`;
+                }
             }
             
             return content;
