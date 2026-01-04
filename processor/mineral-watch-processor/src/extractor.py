@@ -338,7 +338,7 @@ For each document (there may be multiple documents in this PDF), identify:
     - recording_info: Book/page if recorded
     - revocation_provisions: How POA can be revoked
 
-13. **Per-Field Confidence Scoring**:
+18. **Per-Field Confidence Scoring**:
     For EACH extracted field, provide a confidence score from 0.0 to 1.0:
     
     - 0.9-1.0: Text is clear, unambiguous, fully visible
@@ -348,11 +348,11 @@ For each document (there may be multiple documents in this PDF), identify:
     
     Be honest about uncertainty. Users can review and correct low-confidence fields.
 
-14. **Multi-Document Detection**:
+19. **Multi-Document Detection**:
     If this PDF contains multiple separate legal documents, identify the page boundaries.
     Set is_multi_document: true and provide document_boundaries array.
 
-15. **Important Extraction Notes**:
+20. **Important Extraction Notes**:
     - Extract ALL fields listed under Universal Fields for EVERY document
     - Only include type-specific fields when the document matches that type
     - Include any unusual terms, clauses, or observations in the "notes" field
