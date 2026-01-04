@@ -187,6 +187,14 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.OPERATOR) ||
                    getValue(extractedFields.applicant); // Sometimes operator is listed as applicant
   
+  // Log well information for debugging
+  if (wellInfoObj && typeof wellInfoObj === 'object') {
+    console.log(`[LinkDocuments] Well information object found:`, JSON.stringify(wellInfoObj));
+  }
+  if (rawWellName || apiNumber || operator) {
+    console.log(`[LinkDocuments] Well data - Name: '${rawWellName}', API: '${apiNumber}', Operator: '${operator}'`);
+  }
+  
   // Priority 1: API Number (exact match)
   if (apiNumber) {
     try {
