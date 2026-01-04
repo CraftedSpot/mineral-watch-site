@@ -13,6 +13,65 @@ logger = logging.getLogger(__name__)
 # Initialize Anthropic client
 client = anthropic.Anthropic(api_key=CONFIG.ANTHROPIC_API_KEY)
 
+DETECTION_PROMPT = """You are analyzing a PDF that may contain one or more mineral rights documents.
+
+Your task is to quickly identify:
+1. How many separate legal documents are in this PDF
+2. The page boundaries for each document
+3. The document type for each
+
+Look for clear indicators of separate documents:
+- New cover pages or title headers
+- Recording stamps/information changing
+- Different parties/properties
+- Signature pages followed by new documents
+
+Return ONLY valid JSON in this format:
+
+For single document:
+{
+  "is_multi_document": false,
+  "document_count": 1,
+  "documents": [
+    {
+      "type": "mineral_deed",
+      "start_page": 1,
+      "end_page": 4,
+      "confidence": 0.95
+    }
+  ]
+}
+
+For multiple documents:
+{
+  "is_multi_document": true,
+  "document_count": 3,
+  "documents": [
+    {
+      "type": "mineral_deed",
+      "start_page": 1,
+      "end_page": 4,
+      "confidence": 0.90
+    },
+    {
+      "type": "division_order",
+      "start_page": 5,
+      "end_page": 6,
+      "confidence": 0.85
+    },
+    {
+      "type": "lease",
+      "start_page": 7,
+      "end_page": 12,
+      "confidence": 0.95
+    }
+  ]
+}
+
+Document types: mineral_deed, royalty_deed, division_order, lease, assignment, lease_assignment, pooling_order, spacing_order, ratification, affidavit_of_heirship, probate_document, right_of_way, release_of_lease, lease_amendment, lease_extension, divorce_decree, death_certificate, power_of_attorney, other
+
+Return ONLY the JSON, no other text."""
+
 EXTRACTION_PROMPT = """You are analyzing scanned mineral rights documents from Oklahoma.
 Extract structured data from these document images.
 
