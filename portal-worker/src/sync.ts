@@ -270,7 +270,7 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
       const fields = record.fields || {};
       
       return env.WELLS_DB.prepare(`
-        INSERT INTO wells (
+        INSERT INTO airtable_wells (
           id, airtable_record_id, api_number, well_name, operator, status, 
           well_status, well_type, county, section, township, range, 
           formation_name, spud_date, completion_date, first_production_date,
