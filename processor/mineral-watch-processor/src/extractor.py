@@ -782,8 +782,28 @@ async def extract_document_data(image_paths: list[str]) -> dict:
         result = json.loads(json_str)
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse Claude response as JSON: {e}")
-        logger.error(f"Response was: {response_text}")
-        raise ValueError(f"Invalid JSON response from Claude: {e}")
+        logger.error(f"Response was: {response_text[:1000]}...")  # Log first 1000 chars
+        
+        # Try to find JSON in the response using regex
+        import re
+        json_match = re.search(r'(\{[\s\S]*\})', response_text)
+        if json_match:
+            try:
+                logger.info("Attempting to extract JSON using regex...")
+                result = json.loads(json_match.group(1))
+                logger.info("Successfully extracted JSON from malformed response")
+            except json.JSONDecodeError:
+                # If still fails, try to fix common issues
+                cleaned = json_match.group(1)
+                # Fix unescaped quotes in strings (common issue)
+                cleaned = re.sub(r'(?<!\\)"(?=[^"]*":)', r'\"', cleaned)
+                try:
+                    result = json.loads(cleaned)
+                    logger.info("Successfully parsed after cleaning JSON")
+                except:
+                    raise ValueError(f"Invalid JSON response from Claude: {e}")
+        else:
+            raise ValueError(f"Invalid JSON response from Claude: {e}")
     
     # Add calculated fields if not multi-document
     if not result.get("is_multi_document", False):
