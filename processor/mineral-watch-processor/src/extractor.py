@@ -192,7 +192,7 @@ For each document (there may be multiple documents in this PDF), identify:
    - signature_deadline: Date to return signed
    - signature_warranty: What signing certifies
 
-4. **Pooling Order Specific Fields** (only when doc_type is pooling_order):
+7. **Pooling Order Specific Fields** (only when doc_type is pooling_order):
    - cd_number: The CD/Cause Docket number (e.g., "201500614-T" → extract "201500614")
    - order_number: The Order number (e.g., "639589")
    - applicant: Company that filed the application
@@ -213,19 +213,90 @@ For each document (there may be multiple documents in this PDF), identify:
      - description: Brief description of the option
    - order_date: When the order was issued
 
-5. **Per-Field Confidence Scoring**:
-   For EACH extracted field, provide a confidence score from 0.0 to 1.0:
+8. **Ratification Specific Fields** (only when doc_type is ratification):
    
-   - 0.9-1.0: Text is clear, unambiguous, fully visible
-   - 0.6-0.89: Readable but some uncertainty (faded, unusual formatting, partially obscured)
-   - 0.0-0.59: Very difficult to read, guessing, or field not found
-   - null: Field not present in document (different from "couldn't read")
+   Parties:
+   - ratifying_party: Who is ratifying
+   - ratifying_party_capacity: "heir", "successor trustee", "personal representative"
+   - original_party: Who they're ratifying for (deceased, prior trustee, etc.)
    
-   Be honest about uncertainty. Users can review and correct low-confidence fields.
+   What's Being Ratified:
+   - original_document_type: "lease", "deed", "assignment"
+   - original_document_date: Date of document being ratified
+   - original_document_reference: Book/page or recording info
+   - original_parties: Parties to original document
+   
+   Ratification Terms:
+   - effective_date: When ratification takes effect
+   - interest_covered: What interest is being ratified
+   - consideration: Any additional consideration paid
+   - modifications: Any changes to original terms
 
-6. **Multi-Document Detection**:
-   If this PDF contains multiple separate legal documents, identify the page boundaries.
-   Set is_multi_document: true and provide document_boundaries array.
+9. **Right of Way / Easement Specific Fields** (only when doc_type is right_of_way):
+   - grantor_name: Person/entity granting right of way
+   - grantee_name: Person/entity receiving (usually pipeline company)
+   - purpose: "pipeline", "road", "power line"
+   - width: Width of easement
+   - length: Length or "across property"
+   - term: Perpetual or limited term
+   - consideration_amount: Dollar amount paid
+   - surface_damages: Any surface damage payment
+
+10. **Release of Lease Specific Fields** (only when doc_type is release_of_lease):
+    - releasor: Company releasing lease
+    - original_lease_date: Date of lease being released
+    - original_lease_reference: Book/page of original lease
+    - original_lessor: Who leased originally
+    - release_type: "full release", "partial release"
+    - lands_released: Legal description of released lands
+    - lands_retained: If partial, what's retained
+    - effective_date: When release takes effect
+
+11. **Affidavit of Heirship Specific Fields** (only when doc_type is affidavit_of_heirship):
+    - decedent_name: Person who died
+    - decedent_death_date: Date of death
+    - decedent_death_place: Place of death
+    - decedent_residence: Where they lived
+    - marital_history: Marriages listed
+    - heirs: Array of heirs with:
+      - name: Heir's full name
+      - relationship: Relationship to decedent
+      - share: Their fractional share
+    - property_description: What property is covered
+    - affiant_name: Who signed affidavit
+    - affiant_relationship: How affiant knew decedent
+
+12. **Probate / Letters Testamentary Specific Fields** (only when doc_type is probate_document):
+    - decedent_name: Person who died
+    - case_number: Court case number
+    - court_name: Name of court
+    - executor_name: Named executor/administrator
+    - executor_type: "executor", "administrator", "personal representative"
+    - date_appointed: When executor was appointed
+    - bond_amount: If bond required
+
+13. **Per-Field Confidence Scoring**:
+    For EACH extracted field, provide a confidence score from 0.0 to 1.0:
+    
+    - 0.9-1.0: Text is clear, unambiguous, fully visible
+    - 0.6-0.89: Readable but some uncertainty (faded, unusual formatting, partially obscured)
+    - 0.0-0.59: Very difficult to read, guessing, or field not found
+    - null: Field not present in document (different from "couldn't read")
+    
+    Be honest about uncertainty. Users can review and correct low-confidence fields.
+
+14. **Multi-Document Detection**:
+    If this PDF contains multiple separate legal documents, identify the page boundaries.
+    Set is_multi_document: true and provide document_boundaries array.
+
+15. **Important Extraction Notes**:
+    - Extract ALL fields listed under Universal Fields for EVERY document
+    - Only include type-specific fields when the document matches that type
+    - Include any unusual terms, clauses, or observations in the "notes" field
+    - If legal description is complex (metes and bounds, multiple tracts), include full text
+    - For dates, use ISO format (YYYY-MM-DD) when possible
+    - For amounts, extract numeric values without $ or commas
+    - For Yes/No fields, use boolean true/false or null if not mentioned
 
 Return ONLY valid JSON (no markdown, no explanation) in this exact format:
 
