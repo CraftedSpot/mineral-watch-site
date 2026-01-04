@@ -407,11 +407,7 @@ Identify the following information:
     
     Be honest about uncertainty. Users can review and correct low-confidence fields.
 
-19. **Multi-Document Detection**:
-    If this PDF contains multiple separate legal documents, identify the page boundaries.
-    Set is_multi_document: true and provide document_boundaries array.
-
-20. **Important Extraction Notes**:
+19. **Important Extraction Notes**:
     - Extract ALL fields listed under Universal Fields for EVERY document
     - Only include type-specific fields when the document matches that type
     - Include any unusual terms, clauses, or observations in the "notes" field
@@ -423,7 +419,6 @@ Identify the following information:
 Return ONLY valid JSON (no markdown, no explanation) in this exact format:
 
 {
-  "is_multi_document": false,
   "doc_type": "mineral_deed",
   
   // Universal Fields - Recording Information
