@@ -4280,11 +4280,12 @@
                             }
                             
                             if (subValue !== null && subValue !== undefined && subValue !== '') {
-                                content += `
+                                sectionContent += `
                                     <div class="doc-field">
                                         <label>${formatFieldName(subField)}</label>
                                         <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores)}</div>
                                     </div>`;
+                                hasVisibleFields = true;
                             }
                         }
                     } else if (Array.isArray(value)) {
