@@ -560,22 +560,6 @@ Return ONLY valid JSON (no markdown, no explanation) in this exact format:
   "notes": "Document appears to be in good condition. All parties clearly identified."
 }
 
-
-For multi-document PDFs:
-{
-  "is_multi_document": true,
-  "document_boundaries": [
-    {"start_page": 1, "end_page": 4, "doc_type": "mineral_deed"},
-    {"start_page": 5, "end_page": 8, "doc_type": "mineral_deed"},
-    {"start_page": 9, "end_page": 12, "doc_type": "other", "notes": "Correspondence letter"}
-  ],
-  "documents": [
-    { /* full extraction for doc 1 with all confidence scores */ },
-    { /* full extraction for doc 2 with all confidence scores */ },
-    { /* minimal info for "other" doc */ }
-  ]
-}
-
 Remember: Return ONLY the JSON object, no other text."""
 
 
