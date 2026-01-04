@@ -147,16 +147,26 @@ def generate_display_name(extraction: dict) -> str:
     
     elif doc_type == 'pooling_order':
         # "Pooling Order - CD {Number} - {County} - {Year}"
-        # Look for cause/docket number
-        cd_number = extraction.get('cause_number', '')
+        cd_number = None
+        cause_number = extraction.get('cause_number', '') or ''
+        
+        # Try to extract CD number from cause_number (e.g., "CD 201500614-T" -> "201500614")
+        if cause_number:
+            cd_match = re.search(r'CD\s*(\d+)', str(cause_number), re.IGNORECASE)
+            if cd_match:
+                cd_number = cd_match.group(1)
+        
+        # Fallback to other fields
         if not cd_number:
-            cd_number = extraction.get('docket_number', '')
+            cd_number = extraction.get('cd_number') or extraction.get('order_number') or extraction.get('docket_number')
+            if cd_number:
+                # Extract numeric part if present
+                nums = re.findall(r'\d+', str(cd_number))
+                if nums:
+                    cd_number = nums[0]
         
         if cd_number:
-            # Clean CD number - extract just the numeric part if possible
-            nums = re.findall(r'\d+', str(cd_number))
-            if nums:
-                parts.append(f"CD {nums[0]}")
+            parts.append(f"CD {cd_number}")
         
         if county:
             parts.append(county)
