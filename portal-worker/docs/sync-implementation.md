@@ -45,23 +45,18 @@ async function fetchAirtableRecords(
 
 ### Wells Sync
 - Fetches from Client Wells table
-- Maps fields:
-  - API Number → api_number
-  - Well Name → well_name
-  - Operator → operator
-  - Status → status
-  - Well Status → well_status
-  - County → county
-  - Section → section
-  - Township → township
-  - Range → range
-  - Formation Name → formation_name
-  - Spud Date → spud_date
-  - Completion Date → completion_date
-  - First Production Date → first_production_date
-  - Data Last Updated → data_last_updated
-  - Last RBDMS Sync → last_rbdms_sync
-- Uses UPSERT logic with api_number as secondary key
+- **Preserves OCC data** by matching on API number
+- Update existing wells with:
+  - airtable_record_id → Links to Airtable record
+  - status → User tracking status
+  - synced_at → Last sync timestamp
+- Only creates new wells if API number not found in OCC data
+- For new wells, inserts minimal data:
+  - API Number (required)
+  - Well Name
+  - Operator
+  - Location (County, Section, Township, Range)
+  - Status tracking fields
 
 ## Features
 
