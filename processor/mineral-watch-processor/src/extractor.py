@@ -31,30 +31,30 @@ For each document (there may be multiple documents in this PDF), identify:
    - probate_document
    - other (with explanation in notes)
 
-2. **Parties**:
+2. **General Fields** (for all document types):
    - Grantor(s): name(s) and address if shown
    - Grantee(s): name(s) and address if shown
+   - Interest Conveyed: The fractional interest (e.g., "1/8", "1/4", "all")
+   - Legal Description: Section, Township, Range, County, Quarter calls, Acres
+   - Recording Information: Book, Page, Recording date
+   - Execution Date: When the document was signed
+   - Consideration: Dollar amount or description
 
-3. **Interest Conveyed**: The fractional interest (e.g., "1/8", "1/4", "all")
+3. **Division Order Specific Fields** (only when doc_type is division_order):
+   - well_name: Full well name (e.g., "LASSITER 1-20-29XH", "SMITH 1-15H")
+   - api_number: API well number if shown (e.g., "35-019-12345")
+   - owner_number: The operator's account/owner number for this interest holder
+   - decimal_interest: The decimal ownership interest (e.g., "0.00123456", "0.000875")
+   - interest_type: Type of interest (e.g., "royalty", "working interest", "overriding royalty", "mineral interest")
+   - operator: Company name of the operator/payor
+   - effective_date: When the division order takes effect
+   - product_type: What the division order covers ("oil", "gas", "oil and gas", "condensate")
 
-4. **Legal Description**:
-   - Section number
-   - Township (e.g., "6N")
-   - Range (e.g., "27E")
-   - County
-   - Quarter calls if present (e.g., "NW/4 of SE/4")
-   - Acres if stated
+4. **Pooling Order Specific Fields** (only when doc_type is pooling_order):
+   - cause_number: Full cause number (e.g., "CD 201500614-T", "CD No. 2015-1234")
+   - order_number: Alternative number if cause_number not found
 
-5. **Recording Information**:
-   - Book number
-   - Page number
-   - Recording date
-
-6. **Execution Date**: When the document was signed
-
-7. **Consideration**: Dollar amount or description
-
-8. **Per-Field Confidence Scoring**:
+5. **Per-Field Confidence Scoring**:
    For EACH extracted field, provide a confidence score from 0.0 to 1.0:
    
    - 0.9-1.0: Text is clear, unambiguous, fully visible
@@ -64,7 +64,7 @@ For each document (there may be multiple documents in this PDF), identify:
    
    Be honest about uncertainty. Users can review and correct low-confidence fields.
 
-9. **Multi-Document Detection**:
+6. **Multi-Document Detection**:
    If this PDF contains multiple separate legal documents, identify the page boundaries.
    Set is_multi_document: true and provide document_boundaries array.
 
