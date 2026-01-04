@@ -23,6 +23,7 @@ DOC_TYPE_NAMES = {
     'divorce_decree': 'Divorce Decree',
     'death_certificate': 'Death Certificate',
     'power_of_attorney': 'Power of Attorney',
+    'multi_document': 'Multi-Document PDF',
     'other': 'Document'
 }
 
