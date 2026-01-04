@@ -48,8 +48,9 @@ export async function linkDocumentToEntities(
           AND township = ? 
           AND range = ? 
           AND LOWER(county) = LOWER(?)
+          AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
         LIMIT 1
-      `).bind(section, township, range, county).first();
+      `).bind(section, township, range, county, meridian, meridian).first();
       
       if (property) {
         propertyId = property.id as string;
