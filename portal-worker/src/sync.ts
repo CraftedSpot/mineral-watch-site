@@ -150,87 +150,89 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
   }
 }
 
-async function syncProperties(env: any, baseId: string): Promise<SyncResult['properties']> {
+async function syncProperties(env: any): Promise<SyncResult['properties']> {
   const result: SyncResult['properties'] = { synced: 0, created: 0, updated: 0, errors: [] };
+  let offset: string | undefined;
   
   try {
-    // Sync from Client Properties table (simpler structure)
-    // Fields: COUNTY, SEC, TWN, RNG, ACRES, NET ACRES, Notes, User
-    const response = { records: [] };
-    console.log('Note: Airtable MCP integration needs to be configured');
-    
-    // TODO: Replace with actual MCP Airtable call
-    // Example: const response = await mcp__airtable__list_records({
-    //   baseId: baseId,
-    //   tableId: 'tblbexFvBkow2ErYm', // Client Properties table
-    //   maxRecords: 1000
-    // });
+    // Paginate through all records
+    do {
+      const response = await fetchAirtableRecords(
+        env.MINERAL_AIRTABLE_API_KEY,
+        AIRTABLE_BASE_ID,
+        PROPERTIES_TABLE_ID,
+        offset
+      );
 
-    if (!response.records) {
-      throw new Error('No records returned from Airtable');
-    }
+      console.log(`Fetched ${response.records.length} properties${offset ? ' (continued)' : ''}`);
 
-    // Process each property
-    for (const record of response.records) {
-      try {
-        const fields = record.fields || {};
-        
-        // Check if record exists
-        const existing = await env.WELLS_DB.prepare(
-          'SELECT id FROM properties WHERE airtable_record_id = ?'
-        ).bind(record.id).first();
+      // Process each property
+      for (const record of response.records) {
+        try {
+          const fields = record.fields || {};
+          
+          // Check if record exists
+          const existing = await env.WELLS_DB.prepare(
+            'SELECT id FROM properties WHERE airtable_record_id = ?'
+          ).bind(record.id).first();
 
-        const data = {
-          airtable_record_id: record.id,
-          county: fields.COUNTY || null,
-          section: fields.SEC || null,
-          township: fields.TWN || null,
-          range: fields.RNG || null,
-          acres: parseNumber(fields.ACRES),
-          net_acres: parseNumber(fields['NET ACRES']),
-          notes: fields.Notes || null,
-          owner: fields['User']?.[0] || null, // Linked field with null check
-          synced_at: new Date().toISOString()
-        };
+          const data = {
+            airtable_record_id: record.id,
+            county: fields.COUNTY || null,
+            section: fields.SEC || null,
+            township: fields.TWN || null,
+            range: fields.RNG || null,
+            acres: parseNumber(fields.ACRES),
+            net_acres: parseNumber(fields['NET ACRES']),
+            notes: fields.Notes || null,
+            owner: fields['User']?.[0] || null, // Linked field with null check
+            synced_at: new Date().toISOString()
+          };
 
-        if (existing) {
-          // Update existing record
-          const updateFields = Object.entries(data)
-            .filter(([key]) => key !== 'airtable_record_id')
-            .map(([key]) => `${key} = ?`);
+          if (existing) {
+            // Update existing record
+            const updateFields = Object.entries(data)
+              .filter(([key]) => key !== 'airtable_record_id')
+              .map(([key]) => `${key} = ?`);
+            
+            const updateValues = Object.entries(data)
+              .filter(([key]) => key !== 'airtable_record_id')
+              .map(([, value]) => value);
+            
+            await env.WELLS_DB.prepare(
+              `UPDATE properties SET ${updateFields.join(', ')} WHERE airtable_record_id = ?`
+            ).bind(...updateValues, record.id).run();
+            
+            result.updated++;
+          } else {
+            // Insert new record
+            const id = generateId();
+            const columns = ['id', ...Object.keys(data)];
+            const placeholders = columns.map(() => '?').join(', ');
+            const values = [id, ...Object.values(data)];
+            
+            await env.WELLS_DB.prepare(
+              `INSERT INTO properties (${columns.join(', ')}) VALUES (${placeholders})`
+            ).bind(...values).run();
+            
+            result.created++;
+          }
           
-          const updateValues = Object.entries(data)
-            .filter(([key]) => key !== 'airtable_record_id')
-            .map(([, value]) => value);
-          
-          await env.WELLS_DB.prepare(
-            `UPDATE properties SET ${updateFields.join(', ')} WHERE airtable_record_id = ?`
-          ).bind(...updateValues, record.id).run();
-          
-          result.updated++;
-        } else {
-          // Insert new record
-          const id = generateId();
-          const columns = ['id', ...Object.keys(data)];
-          const placeholders = columns.map(() => '?').join(', ');
-          const values = [id, ...Object.values(data)];
-          
-          await env.WELLS_DB.prepare(
-            `INSERT INTO properties (${columns.join(', ')}) VALUES (${placeholders})`
-          ).bind(...values).run();
-          
-          result.created++;
+          result.synced++;
+        } catch (error) {
+          result.errors.push(`Property ${record.id}: ${error.message}`);
+          console.error(`Error syncing property ${record.id}:`, error);
         }
-        
-        result.synced++;
-      } catch (error) {
-        result.errors.push(`Property ${record.id}: ${error.message}`);
-        console.error(`Error syncing property ${record.id}:`, error);
       }
-    }
+
+      // Set offset for next page
+      offset = response.offset;
+    } while (offset);
+    
   } catch (error) {
     result.errors.push(`Properties sync failed: ${error.message}`);
-    throw error;
+    console.error('Properties sync error:', error);
+    // Don't throw - let wells sync continue
   }
   
   return result;
