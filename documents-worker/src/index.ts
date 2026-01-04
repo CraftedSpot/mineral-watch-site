@@ -1,3 +1,5 @@
+import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
+
 interface Env {
   WELLS_DB: D1Database;
   UPLOADS_BUCKET: R2Bucket;
@@ -905,6 +907,17 @@ export default {
               fields_needing_review ? JSON.stringify(fields_needing_review) : null,
               docId
             ).run();
+            
+            // After successful update, attempt to link document to properties/wells
+            if (extracted_data && status !== 'failed') {
+              console.log('Attempting to link document to entities...');
+              const linkResult = await linkDocumentToEntities(
+                env.WELLS_DB,
+                docId,
+                extracted_data
+              );
+              console.log('Link result:', linkResult);
+            }
           } catch (dbError) {
             console.error('Database update failed:', dbError);
             console.error('Failed update for document:', docId);
