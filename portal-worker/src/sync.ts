@@ -152,10 +152,11 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
 
 async function syncProperties(env: any): Promise<SyncResult['properties']> {
   const result: SyncResult['properties'] = { synced: 0, created: 0, updated: 0, errors: [] };
+  let allRecords: AirtableRecord[] = [];
   let offset: string | undefined;
   
   try {
-    // Paginate through all records
+    // First, fetch ALL records from Airtable (just a few API calls)
     do {
       const response = await fetchAirtableRecords(
         env.MINERAL_AIRTABLE_API_KEY,
@@ -165,69 +166,58 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
       );
 
       console.log(`Fetched ${response.records.length} properties${offset ? ' (continued)' : ''}`);
-
-      // Process each property
-      for (const record of response.records) {
-        try {
-          const fields = record.fields || {};
-          
-          // Check if record exists
-          const existing = await env.WELLS_DB.prepare(
-            'SELECT id FROM properties WHERE airtable_record_id = ?'
-          ).bind(record.id).first();
-
-          const data = {
-            airtable_record_id: record.id,
-            county: fields.COUNTY || null,
-            section: fields.SEC || null,
-            township: fields.TWN || null,
-            range: fields.RNG || null,
-            acres: parseNumber(fields.ACRES),
-            net_acres: parseNumber(fields['NET ACRES']),
-            notes: fields.Notes || null,
-            owner: fields['User']?.[0] || null, // Linked field with null check
-            synced_at: new Date().toISOString()
-          };
-
-          if (existing) {
-            // Update existing record
-            const updateFields = Object.entries(data)
-              .filter(([key]) => key !== 'airtable_record_id')
-              .map(([key]) => `${key} = ?`);
-            
-            const updateValues = Object.entries(data)
-              .filter(([key]) => key !== 'airtable_record_id')
-              .map(([, value]) => value);
-            
-            await env.WELLS_DB.prepare(
-              `UPDATE properties SET ${updateFields.join(', ')} WHERE airtable_record_id = ?`
-            ).bind(...updateValues, record.id).run();
-            
-            result.updated++;
-          } else {
-            // Insert new record
-            const id = generateId();
-            const columns = ['id', ...Object.keys(data)];
-            const placeholders = columns.map(() => '?').join(', ');
-            const values = [id, ...Object.values(data)];
-            
-            await env.WELLS_DB.prepare(
-              `INSERT INTO properties (${columns.join(', ')}) VALUES (${placeholders})`
-            ).bind(...values).run();
-            
-            result.created++;
-          }
-          
-          result.synced++;
-        } catch (error) {
-          result.errors.push(`Property ${record.id}: ${error.message}`);
-          console.error(`Error syncing property ${record.id}:`, error);
-        }
-      }
-
-      // Set offset for next page
+      allRecords = allRecords.concat(response.records);
       offset = response.offset;
     } while (offset);
+
+    console.log(`Total properties to sync: ${allRecords.length}`);
+
+    if (allRecords.length === 0) {
+      return result;
+    }
+
+    // Prepare batch statements
+    const statements = allRecords.map(record => {
+      const id = `prop_${record.id}`;
+      const fields = record.fields || {};
+      
+      return env.WELLS_DB.prepare(`
+        INSERT INTO properties (id, airtable_record_id, county, section, township, range, acres, net_acres, notes, owner, synced_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(airtable_record_id) DO UPDATE SET
+          county = excluded.county,
+          section = excluded.section,
+          township = excluded.township,
+          range = excluded.range,
+          acres = excluded.acres,
+          net_acres = excluded.net_acres,
+          notes = excluded.notes,
+          owner = excluded.owner,
+          synced_at = CURRENT_TIMESTAMP
+      `).bind(
+        id,
+        record.id,
+        fields.COUNTY || null,
+        fields.SEC || null,
+        fields.TWN || null,
+        fields.RNG || null,
+        parseNumber(fields.ACRES),
+        parseNumber(fields['NET ACRES']),
+        fields.Notes || null,
+        fields['User']?.[0] || null
+      );
+    });
+
+    // Execute all statements in one batch
+    console.log(`Executing batch insert/update for ${statements.length} properties...`);
+    const batchResults = await env.WELLS_DB.batch(statements);
+    
+    // Count results
+    result.synced = allRecords.length;
+    // Since we're using UPSERT, we can't easily distinguish creates vs updates
+    // Just report total synced
+    result.created = 0;
+    result.updated = result.synced;
     
   } catch (error) {
     result.errors.push(`Properties sync failed: ${error.message}`);
