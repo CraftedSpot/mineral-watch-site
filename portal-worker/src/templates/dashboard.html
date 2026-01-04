@@ -4257,7 +4257,7 @@
                                 content += `
                                     <div class="doc-field">
                                         <label>${formatFieldName(subField)}</label>
-                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores)}</div>
+                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores, showConfidencePercentages)}</div>
                                     </div>`;
                             }
                         }
@@ -4308,7 +4308,7 @@
                                 });
                                 content += `</ul>`;
                             }
-                            content += getConfidenceIndicator(fieldName, fieldScores);
+                            content += getConfidenceIndicator(fieldName, fieldScores, showConfidencePercentages);
                             content += `</div>`;
                         }
                     } else if (typeof value === 'boolean') {
@@ -4316,7 +4316,7 @@
                         content += `
                             <div class="doc-field">
                                 <label>${formatFieldName(fieldName)}</label>
-                                <div class="doc-value">${value ? 'Yes' : 'No'}${getConfidenceIndicator(fieldName, fieldScores)}</div>
+                                <div class="doc-value">${value ? 'Yes' : 'No'}${getConfidenceIndicator(fieldName, fieldScores, showConfidencePercentages)}</div>
                             </div>`;
                     } else if (typeof value === 'object' && value !== null) {
                         // Handle nested objects (like grantor/grantee)
@@ -4325,7 +4325,7 @@
                                 content += `
                                     <div class="doc-field">
                                         <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
-                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
+                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores, showConfidencePercentages)}</div>
                                     </div>`;
                             }
                         }
@@ -4334,7 +4334,7 @@
                         content += `
                             <div class="doc-field">
                                 <label>${formatFieldName(fieldName)}</label>
-                                <div class="doc-value">${escapeHtml(String(value))}${getConfidenceIndicator(fieldName, fieldScores)}</div>
+                                <div class="doc-value">${escapeHtml(String(value))}${getConfidenceIndicator(fieldName, fieldScores, showConfidencePercentages)}</div>
                             </div>`;
                     }
                 }
