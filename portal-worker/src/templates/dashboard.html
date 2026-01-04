@@ -4379,7 +4379,16 @@
                             'recording_book': 'Recording Book',
                             'recording_page': 'Recording Page',
                             'recording_date': 'Recording Date',
-                            'consideration': 'Consideration'
+                            'consideration': 'Consideration',
+                            // Division Order fields
+                            'well_name': 'Well Name',
+                            'api_number': 'API Number',
+                            'owner_number': 'Owner Number',
+                            'decimal_interest': 'Decimal Interest',
+                            'interest_type': 'Interest Type',
+                            'operator': 'Operator',
+                            'effective_date': 'Effective Date',
+                            'product_type': 'Product Type'
                         };
                         
                         // Sort fields by score (lowest first) for easier review
@@ -4535,6 +4544,79 @@
                                 <label>Amount/Terms</label>
                                 <div class="doc-value">${escapeHtml(data.consideration)}${getConfidenceIndicator('consideration', fieldScores)}</div>
                             </div>`;
+                        content += '</div></div>';
+                    }
+                    
+                    // Division Order Specific Fields
+                    if (doc.doc_type === 'division_order') {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Division Order Information</h4>';
+                        content += '<div class="doc-detail-grid">';
+                        
+                        if (data.well_name) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Well Name</label>
+                                    <div class="doc-value">${escapeHtml(data.well_name)}${getConfidenceIndicator('well_name', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.api_number) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>API Number</label>
+                                    <div class="doc-value">${escapeHtml(data.api_number)}${getConfidenceIndicator('api_number', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.owner_number) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Owner Number</label>
+                                    <div class="doc-value">${escapeHtml(data.owner_number)}${getConfidenceIndicator('owner_number', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.decimal_interest) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Decimal Interest</label>
+                                    <div class="doc-value">${escapeHtml(data.decimal_interest)}${getConfidenceIndicator('decimal_interest', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.interest_type) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Interest Type</label>
+                                    <div class="doc-value">${escapeHtml(data.interest_type)}${getConfidenceIndicator('interest_type', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.operator) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Operator</label>
+                                    <div class="doc-value">${escapeHtml(data.operator)}${getConfidenceIndicator('operator', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.effective_date) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Effective Date</label>
+                                    <div class="doc-value">${escapeHtml(data.effective_date)}${getConfidenceIndicator('effective_date', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.product_type) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Product Type</label>
+                                    <div class="doc-value">${escapeHtml(data.product_type)}${getConfidenceIndicator('product_type', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
                         content += '</div></div>';
                     }
                     
