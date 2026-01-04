@@ -958,135 +958,72 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     Returns:
         Extracted data dictionary with confidence scores
     """
-    logger.info(f"Extracting data from {len(image_paths)} pages")
+    logger.info(f"Starting document extraction from {len(image_paths)} pages")
     
-    # Build content array with images
-    content = []
-    
-    for i, image_path in enumerate(image_paths):
-        with open(image_path, 'rb') as f:
-            image_bytes = f.read()
-        
-        # Import PIL for image processing
-        from PIL import Image
-        import io
-        
-        # Open image to check dimensions and size
-        img = Image.open(io.BytesIO(image_bytes))
-        width, height = img.size
-        needs_processing = False
-        
-        # Check if image is over 5MB (Claude's limit)
-        if len(image_bytes) > 5 * 1024 * 1024:
-            logger.warning(f"Page {i+1} exceeds 5MB ({len(image_bytes)} bytes), will compress...")
-            needs_processing = True
-            
-        # Check if dimensions exceed 2000px (Claude's multi-image limit)
-        if width > 2000 or height > 2000:
-            logger.warning(f"Page {i+1} dimensions {width}x{height} exceed 2000px limit, will resize...")
-            needs_processing = True
-            
-        if needs_processing:
-            # Resize if needed to fit within 2000x2000
-            if width > 2000 or height > 2000:
-                # Calculate new size maintaining aspect ratio
-                ratio = min(2000/width, 2000/height)
-                new_width = int(width * ratio)
-                new_height = int(height * ratio)
-                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
-                logger.info(f"Resized to {new_width}x{new_height}")
-            
-            # Re-save with compression
-            output = io.BytesIO()
-            img.save(output, format='JPEG', quality=85, optimize=True)
-            image_bytes = output.getvalue()
-            logger.info(f"Final size: {len(image_bytes)} bytes")
-        
-        image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
-        
-        content.append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": image_data
-            }
-        })
-        content.append({
-            "type": "text",
-            "text": f"Page {i + 1} of {len(image_paths)}"
-        })
-    
-    content.append({
-        "type": "text",
-        "text": EXTRACTION_PROMPT
-    })
-    
-    # Call Claude
-    logger.info(f"Calling Claude API ({CONFIG.CLAUDE_MODEL})")
-    response = client.messages.create(
-        model=CONFIG.CLAUDE_MODEL,
-        max_tokens=4096,
-        messages=[
-            {"role": "user", "content": content}
-        ]
-    )
-    
-    # Parse response
-    response_text = response.content[0].text
-    logger.debug(f"Claude response: {response_text[:500]}...")
-    
-    # Extract JSON from response (handle markdown code blocks if present)
-    json_str = response_text.strip()
-    if json_str.startswith("```json"):
-        json_str = json_str[7:]
-    if json_str.startswith("```"):
-        json_str = json_str[3:]
-    if json_str.endswith("```"):
-        json_str = json_str[:-3]
-    json_str = json_str.strip()
-    
+    # Step 1: Detect if multi-document
     try:
-        result = json.loads(json_str)
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse Claude response as JSON: {e}")
-        logger.error(f"Response was: {response_text[:1000]}...")  # Log first 1000 chars
-        
-        # Try to find JSON in the response using regex
-        import re
-        json_match = re.search(r'(\{[\s\S]*\})', response_text)
-        if json_match:
-            try:
-                logger.info("Attempting to extract JSON using regex...")
-                result = json.loads(json_match.group(1))
-                logger.info("Successfully extracted JSON from malformed response")
-            except json.JSONDecodeError:
-                # If still fails, try to fix common issues
-                cleaned = json_match.group(1)
-                # Fix unescaped quotes in strings (common issue)
-                cleaned = re.sub(r'(?<!\\)"(?=[^"]*":)', r'\"', cleaned)
-                try:
-                    result = json.loads(cleaned)
-                    logger.info("Successfully parsed after cleaning JSON")
-                except:
-                    raise ValueError(f"Invalid JSON response from Claude: {e}")
-        else:
-            raise ValueError(f"Invalid JSON response from Claude: {e}")
+        detection_result = await detect_documents(image_paths)
+    except Exception as e:
+        logger.error(f"Detection failed, assuming single document: {e}")
+        detection_result = {
+            "is_multi_document": False,
+            "document_count": 1,
+            "documents": [{"type": "unknown", "start_page": 1, "end_page": len(image_paths)}]
+        }
     
-    # Add calculated fields if not multi-document
-    if not result.get("is_multi_document", False):
-        field_scores = result.get("field_scores", {})
-        doc_type = result.get("doc_type")
-        result["document_confidence"] = calculate_document_confidence(field_scores, doc_type)
-        result["fields_needing_review"] = get_fields_needing_review(field_scores)
+    # Step 2: Extract based on detection
+    if not detection_result.get("is_multi_document", False):
+        # Single document - extract normally
+        logger.info("Processing as single document")
+        return await extract_single_document(image_paths)
     else:
-        # Process each document in multi-doc
-        for doc in result.get("documents", []):
-            field_scores = doc.get("field_scores", {})
-            doc_type = doc.get("doc_type")
-            doc["document_confidence"] = calculate_document_confidence(field_scores, doc_type)
-            doc["fields_needing_review"] = get_fields_needing_review(field_scores)
-    
-    logger.info(f"Extraction complete. Doc type: {result.get('doc_type')}, Confidence: {result.get('document_confidence')}")
-    
-    return result
+        # Multi-document - extract each separately
+        logger.info(f"Processing as multi-document with {detection_result.get('document_count', 0)} documents")
+        
+        documents = []
+        boundaries = []
+        
+        for doc_info in detection_result.get("documents", []):
+            start_page = doc_info.get("start_page", 1)
+            end_page = doc_info.get("end_page", len(image_paths))
+            doc_type = doc_info.get("type", "unknown")
+            
+            logger.info(f"Extracting {doc_type} from pages {start_page}-{end_page}")
+            
+            try:
+                # Extract this document
+                doc_data = await extract_single_document(image_paths, start_page, end_page)
+                
+                # Override doc_type if detection was more accurate
+                if doc_type != "unknown" and doc_data.get("doc_type") == "other":
+                    doc_data["doc_type"] = doc_type
+                
+                documents.append(doc_data)
+                boundaries.append({
+                    "start_page": start_page,
+                    "end_page": end_page,
+                    "doc_type": doc_data.get("doc_type", doc_type)
+                })
+            except Exception as e:
+                logger.error(f"Failed to extract document {start_page}-{end_page}: {e}")
+                # Add a failed extraction
+                documents.append({
+                    "doc_type": doc_type,
+                    "extraction_error": str(e),
+                    "document_confidence": "low",
+                    "field_scores": {},
+                    "fields_needing_review": []
+                })
+                boundaries.append({
+                    "start_page": start_page,
+                    "end_page": end_page,
+                    "doc_type": doc_type
+                })
+        
+        # Return multi-document format
+        return {
+            "is_multi_document": True,
+            "document_count": len(documents),
+            "document_boundaries": boundaries,
+            "documents": documents
+        }
