@@ -55,10 +55,8 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
       return errorResponse('Unauthorized', 401);
     }
     
-    // Check if Airtable is configured
-    if (!env.AIRTABLE) {
-      return errorResponse('Airtable MCP not configured', 503);
-    }
+    // Note: Airtable MCP integration check removed
+    // The sync function will handle the MCP integration
     
     console.log('Starting Airtable sync...');
     
