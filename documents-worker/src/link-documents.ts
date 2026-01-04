@@ -158,21 +158,31 @@ export async function linkDocumentToEntities(
     }
   }
   
+  // Check for nested well information objects
+  const wellInfoObj = getValue(extractedFields.well_information) || 
+                      getValue(extractedFields.well_info) ||
+                      getValue(extractedFields.well_details);
+  
   // Match well by API number or name using cascading search strategy
-  const apiNumber = getValue(extractedFields.api_number) || 
+  const apiNumber = getValue(wellInfoObj?.api_number) ||
+                    getValue(wellInfoObj?.api) ||
+                    getValue(extractedFields.api_number) || 
                     getValue(extractedFields.api) ||
                     getValue(extractedFields.API) ||
                     getValue(extractedFields['API Number']) ||
                     getValue(extractedFields.api_no);
                     
-  const rawWellName = getValue(extractedFields.well_name) || 
+  const rawWellName = getValue(wellInfoObj?.well_name) ||
+                      getValue(wellInfoObj?.name) ||
+                      getValue(extractedFields.well_name) || 
                       getValue(extractedFields.well) ||
                       getValue(extractedFields['Well Name']) ||
                       getValue(extractedFields.WELL) ||
                       getValue(extractedFields.well_number);
   
   // Extract operator for better matching
-  const operator = getValue(extractedFields.operator) ||
+  const operator = getValue(wellInfoObj?.operator) ||
+                   getValue(extractedFields.operator) ||
                    getValue(extractedFields.Operator) ||
                    getValue(extractedFields.OPERATOR) ||
                    getValue(extractedFields.applicant); // Sometimes operator is listed as applicant
