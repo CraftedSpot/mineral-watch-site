@@ -26,6 +26,15 @@ Look for clear indicators of separate documents:
 - Different parties/properties
 - Signature pages followed by new documents
 
+IMPORTANT: Each document with a unique recording reference should be identified 
+as a SEPARATE document. This includes:
+- Different book/page numbers (e.g., Book 350 Page 57 vs Book 350 Page 56)
+- Different instrument/document numbers
+- Different recording dates
+
+Even if parties, property, and execution dates are similar, separate recorded 
+instruments must be tracked as separate documents for title chain purposes.
+
 Return ONLY valid JSON in this format:
 
 For single document:

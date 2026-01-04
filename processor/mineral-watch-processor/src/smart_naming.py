@@ -118,7 +118,12 @@ def generate_display_name(extraction: dict) -> str:
             county = f"{county} County"
     
     # Build name based on document type
-    if doc_type == 'lease':
+    if doc_type == 'multi_document':
+        # For multi-document PDFs, just use the type name
+        # The actual filename will be preserved in the parent record
+        return formatted_type
+    
+    elif doc_type == 'lease':
         # "Lease - {County} - {Legal} - {Lessor} - {Year}"
         if county:
             parts.append(county)
