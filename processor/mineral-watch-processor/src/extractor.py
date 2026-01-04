@@ -72,10 +72,10 @@ Document types: mineral_deed, royalty_deed, division_order, lease, assignment, l
 
 Return ONLY the JSON, no other text."""
 
-EXTRACTION_PROMPT = """You are analyzing scanned mineral rights documents from Oklahoma.
-Extract structured data from these document images.
+EXTRACTION_PROMPT = """You are analyzing a scanned mineral rights document from Oklahoma.
+Extract structured data from this single document.
 
-For each document (there may be multiple documents in this PDF), identify:
+Identify the following information:
 
 1. **Document Type**: One of:
    - mineral_deed
