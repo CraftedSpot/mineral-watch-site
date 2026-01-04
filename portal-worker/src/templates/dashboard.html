@@ -4271,6 +4271,14 @@
                     if (fieldName === 'legal_description' && typeof value === 'object') {
                         // Handle legal description object
                         for (const [subField, subValue] of Object.entries(value)) {
+                            // Skip confidence fields within legal description
+                            const subFieldLower = subField.toLowerCase();
+                            if (subFieldLower.endsWith('_confidence') || 
+                                subFieldLower.endsWith(' confidence') ||
+                                subFieldLower.includes('confidence_')) {
+                                continue;
+                            }
+                            
                             if (subValue !== null && subValue !== undefined && subValue !== '') {
                                 content += `
                                     <div class="doc-field">
