@@ -125,7 +125,7 @@ async function syncProperties(env: any, baseId: string): Promise<SyncResult['pro
     // TODO: Replace with actual MCP Airtable call
     // Example: const response = await mcp__airtable__list_records({
     //   baseId: baseId,
-    //   tableId: 'tblKKJes2zDIqcGrO',
+    //   tableId: 'tblbexFvBkow2ErYm', // Client Properties table
     //   maxRecords: 1000
     // });
 
@@ -145,29 +145,14 @@ async function syncProperties(env: any, baseId: string): Promise<SyncResult['pro
 
         const data = {
           airtable_record_id: record.id,
-          file_number: fields.FILE || null,
-          group_name: fields.GROUP || null,
-          legal_description: fields.LEGAL || null,
+          county: fields.COUNTY || null,
           section: fields.SEC || null,
           township: fields.TWN || null,
           range: fields.RNG || null,
-          county: fields.COUNTY || null,
-          meridian: fields.MERIDIAN || null,
-          quarter: fields.QUARTER || null,
           acres: parseNumber(fields.ACRES),
-          acres_open: parseNumber(fields['ACRES OPEN']),
-          leased: parseNumber(fields.LEASED),
-          lease_expiration: formatDate(fields['L-EXP']),
-          production_ri: parseNumber(fields['Prod RI']),
-          production_wi: parseNumber(fields['Prod WI']),
-          net_mineral_acres: null, // Calculate if needed
-          owner: fields['User (Owner)'] ? fields['User (Owner)'][0] : null, // Linked field
-          operator: fields.Operator || null,
+          net_acres: parseNumber(fields['NET ACRES']),
           notes: fields.Notes || null,
-          fraction: fields.FRACTION || null,
-          depth_clause: parseBoolean(fields['DEPTH CLAUSE']),
-          decimal_interest: fields['Decimal Interest'] || null,
-          geometry_data: fields.Geometry_Data || null,
+          owner: fields['User']?.[0] || null, // Linked field with null check
           synced_at: new Date().toISOString()
         };
 
