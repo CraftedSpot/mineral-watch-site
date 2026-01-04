@@ -363,13 +363,15 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     # Add calculated fields if not multi-document
     if not result.get("is_multi_document", False):
         field_scores = result.get("field_scores", {})
-        result["document_confidence"] = calculate_document_confidence(field_scores)
+        doc_type = result.get("doc_type")
+        result["document_confidence"] = calculate_document_confidence(field_scores, doc_type)
         result["fields_needing_review"] = get_fields_needing_review(field_scores)
     else:
         # Process each document in multi-doc
         for doc in result.get("documents", []):
             field_scores = doc.get("field_scores", {})
-            doc["document_confidence"] = calculate_document_confidence(field_scores)
+            doc_type = doc.get("doc_type")
+            doc["document_confidence"] = calculate_document_confidence(field_scores, doc_type)
             doc["fields_needing_review"] = get_fields_needing_review(field_scores)
     
     logger.info(f"Extraction complete. Doc type: {result.get('doc_type')}, Confidence: {result.get('document_confidence')}")
