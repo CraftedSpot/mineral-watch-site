@@ -707,6 +707,11 @@ var index_default = {
         return handleMatchPropertyWells(request, env);
       }
       
+      // Admin sync endpoint
+      if (path === "/api/admin/sync" && request.method === "POST") {
+        return handleAirtableSync(request, env);
+      }
+      
       // Debug endpoint
       if (path === "/api/debug-airtable" && request.method === "GET") {
         return handleDebugAirtable(request, env);
