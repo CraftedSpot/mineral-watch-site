@@ -712,7 +712,7 @@ export default {
 
         // Get document info
         const doc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename 
+          SELECT r2_key, filename, display_name 
           FROM documents 
           WHERE id = ? AND deleted_at IS NULL
         `).bind(docId).first();
@@ -726,9 +726,13 @@ export default {
         // In production, you might want to use R2's presigned URLs
         const downloadUrl = `https://${new URL(request.url).hostname}/api/processing/direct-download/${docId}`;
 
+        // Use display_name if available
+        const downloadName = doc.display_name || doc.filename;
+        const finalName = downloadName.endsWith('.pdf') ? downloadName : `${downloadName}.pdf`;
+
         return jsonResponse({
           url: downloadUrl,
-          filename: doc.filename,
+          filename: finalName,
           r2_key: doc.r2_key
         }, 200, env);
       } catch (error) {
