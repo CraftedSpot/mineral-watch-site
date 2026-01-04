@@ -4297,13 +4297,13 @@
                             
                             if (fieldName === 'election_options') {
                                 // Special handling for election options
-                                content += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
                                 value.forEach((option, index) => {
                                     const optionBgColor = option.type === 'participate' ? '#F0F9FF' : 
                                                          option.type === 'cash_plus_royalty' ? '#FEF3C7' : '#FEE2E2';
                                     const optionBorderColor = option.type === 'participate' ? '#3B82F6' : 
                                                             option.type === 'cash_plus_royalty' ? '#F59E0B' : '#EF4444';
-                                    content += `
+                                    sectionContent += `
                                         <div style="background: ${optionBgColor}; border: 1px solid ${optionBorderColor}; border-radius: 8px; padding: 12px;">
                                             <div style="font-weight: 600; color: ${optionBorderColor};">Option ${option.option_number || index + 1}</div>
                                             ${option.cash_bonus_per_acre ? `<div>Cash Bonus: $${option.cash_bonus_per_acre}/acre</div>` : ''}
@@ -4312,7 +4312,7 @@
                                             ${option.description ? `<div style="margin-top: 4px; font-size: 13px;">${escapeHtml(option.description)}</div>` : ''}
                                         </div>`;
                                 });
-                                content += `</div>`;
+                                sectionContent += `</div>`;
                             } else if (fieldName === 'heirs' && value.some(h => typeof h === 'object')) {
                                 // Special handling for heirs array
                                 content += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
