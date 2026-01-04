@@ -443,7 +443,7 @@ export default {
         }
 
         const query = `
-          SELECT r2_key, filename FROM documents 
+          SELECT r2_key, filename, display_name FROM documents 
           WHERE id = ? 
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
@@ -462,11 +462,16 @@ export default {
           return errorResponse('File not found in storage', 404, env);
         }
 
+        // Use display_name if available, otherwise fallback to filename
+        const downloadName = doc.display_name || doc.filename;
+        // Ensure .pdf extension
+        const finalName = downloadName.endsWith('.pdf') ? downloadName : `${downloadName}.pdf`;
+        
         // Return the PDF with appropriate headers
         return new Response(object.body, {
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${doc.filename}"`,
+            'Content-Disposition': `attachment; filename="${finalName}"`,
             ...corsHeaders(env),
           },
         });
@@ -496,7 +501,7 @@ export default {
         }
 
         const query = `
-          SELECT r2_key, filename FROM documents 
+          SELECT r2_key, filename, display_name FROM documents 
           WHERE id = ? 
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
