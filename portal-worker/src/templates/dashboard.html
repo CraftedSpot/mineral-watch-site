@@ -4132,12 +4132,22 @@
             ).join(' ');
         }
         
-        function getConfidenceIndicator(fieldName, fieldScores) {
+        function getConfidenceIndicator(fieldName, fieldScores, showPercentage = false) {
             const score = fieldScores?.[fieldName];
             if (score === null || score === undefined) return '';
-            if (score >= 0.9) return '<span class="confidence-indicator confidence-high" title="High confidence">✓</span>';
-            if (score >= 0.6) return '<span class="confidence-indicator confidence-medium" title="Medium confidence - may need review">⚠</span>';
-            return '<span class="confidence-indicator confidence-low" title="Low confidence - needs review">✕</span>';
+            
+            const percentage = Math.round(score * 100);
+            const symbol = score >= 0.9 ? '✓' : score >= 0.6 ? '⚠' : '✕';
+            const className = score >= 0.9 ? 'confidence-high' : score >= 0.6 ? 'confidence-medium' : 'confidence-low';
+            const title = score >= 0.9 ? 'High confidence' : score >= 0.6 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
+            
+            let html = `<span class="confidence-indicator ${className}" title="${title}">${symbol}</span>`;
+            
+            if (showPercentage) {
+                html += ` <span class="confidence-percentage ${className}" style="font-style: italic; font-size: 0.85em;">(${percentage}%)</span>`;
+            }
+            
+            return html;
         }
         
         // Helper function to format field names for display
@@ -4228,7 +4238,7 @@
         }
         
         // Render all fields dynamically
-        function renderExtractedData(data, fieldScores) {
+        function renderExtractedData(data, fieldScores, showConfidencePercentages = false) {
             let content = '';
             const groupedFields = groupFieldsBySection(data);
             
