@@ -98,17 +98,19 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
   const syncLogId = syncLogResult?.id;
 
   try {
-    // Get Airtable base ID - hardcoded for now, could be moved to env vars
-    const baseId = 'appRBoI9wCy4eOhzd'; // From the Airtable analysis
+    // Check if API key is available
+    if (!env.MINERAL_AIRTABLE_API_KEY) {
+      throw new Error('MINERAL_AIRTABLE_API_KEY not configured');
+    }
 
     // Sync Properties
     console.log('Starting properties sync...');
-    const propertiesResult = await syncProperties(env, baseId);
+    const propertiesResult = await syncProperties(env);
     result.properties = propertiesResult;
 
     // Sync Wells
     console.log('Starting wells sync...');
-    const wellsResult = await syncWells(env, baseId);
+    const wellsResult = await syncWells(env);
     result.wells = wellsResult;
 
     // Calculate duration
