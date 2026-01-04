@@ -127,15 +127,12 @@ export async function linkDocumentToEntities(
   const township = normalizeTownship(rawTownship);
   const range = normalizeRange(rawRange);
   
-  // Check if legal description might be in a single field
-  const legalDesc = getValue(extractedFields.legal_description) || getValue(extractedFields.legal);
-  
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
-  console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}'`);
-  console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
-  if (legalDesc) {
-    console.log(`[LinkDocuments] Legal description field found: "${legalDesc}"`);
+  if (legalDescObj && typeof legalDescObj === 'object') {
+    console.log(`[LinkDocuments] Legal description object found:`, JSON.stringify(legalDescObj));
   }
+  console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}', County '${county}'`);
+  console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
   
   // Match property by legal description
   if (section && township && range && county) {
