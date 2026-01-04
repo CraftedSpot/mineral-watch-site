@@ -4262,9 +4262,9 @@
             
             // Render each section
             for (const [sectionName, fields] of Object.entries(groupedFields)) {
-                content += `<div class="detail-section">`;
-                content += `<h4 class="detail-section-title">${sectionName}</h4>`;
-                content += `<div class="doc-detail-grid">`;
+                // Build section content first to check if it's empty
+                let sectionContent = '';
+                let hasVisibleFields = false;
                 
                 for (const [fieldName, value] of Object.entries(fields)) {
                     // Special handling for nested objects
