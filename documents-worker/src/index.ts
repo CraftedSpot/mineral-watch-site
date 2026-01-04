@@ -912,13 +912,23 @@ export default {
             
             // After successful update, attempt to link document to properties/wells
             if (extracted_data && status !== 'failed') {
-              console.log('Attempting to link document to entities...');
-              const linkResult = await linkDocumentToEntities(
-                env.WELLS_DB,
-                docId,
-                extracted_data
-              );
-              console.log('Link result:', linkResult);
+              console.log('[Documents] Starting auto-link for document:', docId);
+              console.log('[Documents] Extracted data keys:', Object.keys(extracted_data));
+              console.log('[Documents] DB binding available:', !!env.WELLS_DB);
+              
+              try {
+                const linkResult = await linkDocumentToEntities(
+                  env.WELLS_DB,
+                  docId,
+                  extracted_data
+                );
+                console.log('[Documents] Link result:', linkResult);
+                console.log('[Documents] Successfully linked - Property:', linkResult.propertyId, 'Well:', linkResult.wellId);
+              } catch (linkError) {
+                console.error('[Documents] Error during auto-link:', linkError);
+              }
+            } else {
+              console.log('[Documents] Skipping auto-link - Status:', status, 'Has extracted data:', !!extracted_data);
             }
           } catch (dbError) {
             console.error('Database update failed:', dbError);
