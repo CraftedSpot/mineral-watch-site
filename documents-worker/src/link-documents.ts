@@ -118,9 +118,15 @@ export async function linkDocumentToEntities(
   const township = normalizeTownship(rawTownship);
   const range = normalizeRange(rawRange);
   
+  // Check if legal description might be in a single field
+  const legalDesc = getValue(extractedFields.legal_description) || getValue(extractedFields.legal);
+  
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
   console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}'`);
   console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
+  if (legalDesc) {
+    console.log(`[LinkDocuments] Legal description field found: "${legalDesc}"`);
+  }
   
   // Match property by legal description
   if (section && township && range && county) {
