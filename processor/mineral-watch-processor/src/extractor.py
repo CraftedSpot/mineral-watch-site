@@ -950,6 +950,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
 async def extract_document_data(image_paths: list[str]) -> dict:
     """
     Extract document data using Claude Vision.
+    First detects if multi-document, then extracts accordingly.
     
     Args:
         image_paths: List of paths to page images
