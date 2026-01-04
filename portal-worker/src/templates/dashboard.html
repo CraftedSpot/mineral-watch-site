@@ -4140,6 +4140,201 @@
             return '<span class="confidence-indicator confidence-low" title="Low confidence - needs review">✕</span>';
         }
         
+        // Helper function to format field names for display
+        function formatFieldName(fieldName) {
+            // Special cases
+            const nameMap = {
+                'cd_number': 'CD Number',
+                'api_number': 'API Number',
+                'nri': 'Net Revenue Interest',
+                'orri': 'Overriding Royalty Interest',
+                'poa_type': 'Power of Attorney Type'
+            };
+            
+            if (nameMap[fieldName]) return nameMap[fieldName];
+            
+            // Convert snake_case to Title Case
+            return fieldName.split('_').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+        }
+        
+        // Helper to group fields into logical sections
+        function groupFieldsBySection(data) {
+            const groups = {
+                'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county'],
+                'Execution Details': ['execution_date', 'effective_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state'],
+                'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'quarter', 'lot_block', 'acres'],
+                'Parties': ['grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_address', 'grantee_address', 
+                          'grantor_marital_status', 'lessor_name', 'lessee_name', 'lessor_address', 'lessee_address',
+                          'assignor_name', 'assignee_name', 'assignor_address', 'assignee_address',
+                          'releasor', 'ratifying_party', 'original_party', 'principal_name', 'agent_name',
+                          'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name'],
+                'Interest & Consideration': ['interest_conveyed', 'interest_type', 'interest_assigned', 'consideration', 
+                                           'consideration_amount', 'consideration_description', 'bonus_amount'],
+                'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions'],
+                'Well Information': ['well_name', 'api_number', 'well_location', 'operator', 'purchaser', 'owner_number',
+                                   'decimal_interest', 'net_revenue_interest', 'unit_name'],
+                'Order Details': ['cd_number', 'order_number', 'cause_number', 'applicant', 'well_cost', 'unit_size_acres',
+                               'unit_shape', 'formations', 'election_options', 'election_deadline_days'],
+                'Document References': ['related_documents', 'exhibits', 'prior_instruments', 'original_lease_reference',
+                                      'original_document_reference', 'original_lease_date', 'original_document_date'],
+                'Title & Warranties': ['warranty_type', 'source_of_title', 'warranty_of_title', 'warranty_scope'],
+                'Restrictions & Provisions': ['reservations', 'exceptions', 'subject_to', 'depth_limitations', 
+                                            'formation_limitations', 'mineral_types', 'pooling_authorization', 
+                                            'surface_restrictions', 'no_surface_clause', 'pugh_clause', 'vertical_pugh_clause'],
+                'Other Information': []  // Catch-all for fields not in other groups
+            };
+            
+            const grouped = {};
+            const processedFields = new Set();
+            
+            // First pass: assign fields to their designated groups
+            for (const [section, fields] of Object.entries(groups)) {
+                const sectionData = {};
+                for (const field of fields) {
+                    if (data[field] !== null && data[field] !== undefined && data[field] !== '') {
+                        sectionData[field] = data[field];
+                        processedFields.add(field);
+                    }
+                }
+                if (Object.keys(sectionData).length > 0) {
+                    grouped[section] = sectionData;
+                }
+            }
+            
+            // Second pass: add any remaining fields to "Other Information"
+            const otherFields = {};
+            for (const [field, value] of Object.entries(data)) {
+                if (!processedFields.has(field) && 
+                    !field.endsWith('_confidence') && 
+                    field !== 'field_scores' && 
+                    field !== 'document_confidence' &&
+                    field !== 'fields_needing_review' &&
+                    field !== 'notes' &&
+                    field !== 'doc_type' &&
+                    value !== null && 
+                    value !== undefined && 
+                    value !== '') {
+                    otherFields[field] = value;
+                }
+            }
+            
+            if (Object.keys(otherFields).length > 0) {
+                grouped['Other Information'] = otherFields;
+            }
+            
+            return grouped;
+        }
+        
+        // Render all fields dynamically
+        function renderExtractedData(data, fieldScores) {
+            let content = '';
+            const groupedFields = groupFieldsBySection(data);
+            
+            // Render each section
+            for (const [sectionName, fields] of Object.entries(groupedFields)) {
+                content += `<div class="detail-section">`;
+                content += `<h4 class="detail-section-title">${sectionName}</h4>`;
+                content += `<div class="doc-detail-grid">`;
+                
+                for (const [fieldName, value] of Object.entries(fields)) {
+                    // Special handling for nested objects
+                    if (fieldName === 'legal_description' && typeof value === 'object') {
+                        // Handle legal description object
+                        for (const [subField, subValue] of Object.entries(value)) {
+                            if (subValue !== null && subValue !== undefined && subValue !== '') {
+                                content += `
+                                    <div class="doc-field">
+                                        <label>${formatFieldName(subField)}</label>
+                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores)}</div>
+                                    </div>`;
+                            }
+                        }
+                    } else if (Array.isArray(value)) {
+                        // Handle arrays
+                        if (value.length > 0) {
+                            content += `<div class="doc-field">`;
+                            content += `<label>${formatFieldName(fieldName)}</label>`;
+                            
+                            if (fieldName === 'election_options') {
+                                // Special handling for election options
+                                content += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach((option, index) => {
+                                    const optionBgColor = option.type === 'participate' ? '#F0F9FF' : 
+                                                         option.type === 'cash_plus_royalty' ? '#FEF3C7' : '#FEE2E2';
+                                    const optionBorderColor = option.type === 'participate' ? '#3B82F6' : 
+                                                            option.type === 'cash_plus_royalty' ? '#F59E0B' : '#EF4444';
+                                    content += `
+                                        <div style="background: ${optionBgColor}; border: 1px solid ${optionBorderColor}; border-radius: 8px; padding: 12px;">
+                                            <div style="font-weight: 600; color: ${optionBorderColor};">Option ${option.option_number || index + 1}</div>
+                                            ${option.cash_bonus_per_acre ? `<div>Cash Bonus: $${option.cash_bonus_per_acre}/acre</div>` : ''}
+                                            ${option.royalty_rate ? `<div>Royalty: ${option.royalty_rate}</div>` : ''}
+                                            ${option.net_revenue_interest ? `<div>NRI: ${option.net_revenue_interest}</div>` : ''}
+                                            ${option.description ? `<div style="margin-top: 4px; font-size: 13px;">${escapeHtml(option.description)}</div>` : ''}
+                                        </div>`;
+                                });
+                                content += `</div>`;
+                            } else if (fieldName === 'heirs' && value.some(h => typeof h === 'object')) {
+                                // Special handling for heirs array
+                                content += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(heir => {
+                                    if (typeof heir === 'object') {
+                                        content += `<div style="padding: 8px; background: #F9FAFB; border-radius: 4px;">`;
+                                        content += `<strong>${escapeHtml(heir.name || 'Unknown')}</strong>`;
+                                        if (heir.relationship) content += ` - ${escapeHtml(heir.relationship)}`;
+                                        if (heir.share) content += ` (${escapeHtml(heir.share)})`;
+                                        content += `</div>`;
+                                    } else {
+                                        content += `<div>${escapeHtml(String(heir))}</div>`;
+                                    }
+                                });
+                                content += `</div>`;
+                            } else {
+                                // Regular array
+                                content += `<ul style="margin: 8px 0; padding-left: 20px;">`;
+                                value.forEach(item => {
+                                    content += `<li style="margin-bottom: 4px;">${escapeHtml(String(item))}</li>`;
+                                });
+                                content += `</ul>`;
+                            }
+                            content += getConfidenceIndicator(fieldName, fieldScores);
+                            content += `</div>`;
+                        }
+                    } else if (typeof value === 'boolean') {
+                        // Handle boolean values
+                        content += `
+                            <div class="doc-field">
+                                <label>${formatFieldName(fieldName)}</label>
+                                <div class="doc-value">${value ? 'Yes' : 'No'}${getConfidenceIndicator(fieldName, fieldScores)}</div>
+                            </div>`;
+                    } else if (typeof value === 'object' && value !== null) {
+                        // Handle nested objects (like grantor/grantee)
+                        for (const [subField, subValue] of Object.entries(value)) {
+                            if (subValue !== null && subValue !== undefined && subValue !== '') {
+                                content += `
+                                    <div class="doc-field">
+                                        <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
+                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
+                                    </div>`;
+                            }
+                        }
+                    } else {
+                        // Regular field
+                        content += `
+                            <div class="doc-field">
+                                <label>${formatFieldName(fieldName)}</label>
+                                <div class="doc-value">${escapeHtml(String(value))}${getConfidenceIndicator(fieldName, fieldScores)}</div>
+                            </div>`;
+                    }
+                }
+                
+                content += `</div></div>`;
+            }
+            
+            return content;
+        }
+        
         function toggleConfidenceDetails(btn) {
             const details = btn.closest('.confidence-section').querySelector('.confidence-details');
             const modal = btn.closest('.modal');
