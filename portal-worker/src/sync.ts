@@ -305,7 +305,7 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
         fields['Well Status'] || null,
         null, // well_type - Not in Client Wells table
         fields.County || null,
-        fields.Section ? parseInt(fields.Section, 10) : null, // Convert to INTEGER
+        fields.Section || null,
         fields.Township || null,
         fields.Range || null,
         fields['Formation Name'] || null,
