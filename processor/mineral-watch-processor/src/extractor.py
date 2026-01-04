@@ -304,23 +304,41 @@ Return ONLY valid JSON (no markdown, no explanation) in this exact format:
   "is_multi_document": false,
   "doc_type": "mineral_deed",
   
-  "grantor": {
-    "name": "Full name(s) as shown",
-    "name_confidence": 0.95,
-    "address": "If provided, else empty string",
-    "address_confidence": 0.70
-  },
+  // Universal Fields - Recording Information
+  "recording_book": "123",
+  "recording_book_confidence": 0.90,
+  "recording_page": "456", 
+  "recording_page_confidence": 0.90,
+  "document_number": "2023-001234",
+  "document_number_confidence": 0.95,
+  "recording_date": "2023-01-15",
+  "recording_date_confidence": 0.98,
+  "recording_county": "Beaver",
+  "recording_county_confidence": 0.95,
   
-  "grantee": {
-    "name": "Full name(s) as shown",
-    "name_confidence": 0.98,
-    "address": "",
-    "address_confidence": null
-  },
+  // Universal Fields - Execution
+  "execution_date": "2023-01-03",
+  "execution_date_confidence": 0.95,
+  "effective_date": "2023-01-03",
+  "effective_date_confidence": 0.90,
+  "prepared_by": "Smith & Associates Law Firm",
+  "prepared_by_confidence": 0.85,
+  "notary_date": "2023-01-03",
+  "notary_date_confidence": 0.95,
+  "notary_county": "Oklahoma",
+  "notary_county_confidence": 0.90,
+  "notary_state": "Oklahoma",
+  "notary_state_confidence": 0.95,
   
-  "interest_conveyed": "1/8",
-  "interest_confidence": 0.85,
+  // Universal Fields - References
+  "related_documents": ["Book 100 Page 200", "Document #2020-5678"],
+  "related_documents_confidence": 0.80,
+  "exhibits": ["Exhibit A", "Exhibit B"],
+  "exhibits_confidence": 0.90,
+  "prior_instruments": ["Mineral Deed recorded in Book 80 Page 100"],
+  "prior_instruments_confidence": 0.75,
   
+  // Universal Fields - Legal Description
   "legal_description": {
     "section": 11,
     "section_confidence": 0.99,
@@ -332,24 +350,54 @@ Return ONLY valid JSON (no markdown, no explanation) in this exact format:
     "county_confidence": 0.95,
     "quarter": "SW/4",
     "quarter_confidence": 0.80,
+    "lot_block": null,
+    "lot_block_confidence": null,
     "acres": "160",
-    "acres_confidence": 0.60
+    "acres_confidence": 0.90,
+    "full_text": null,
+    "full_text_confidence": null
   },
   
-  "recording_info": {
-    "book": "123",
-    "book_confidence": 0.90,
-    "page": "456",
-    "page_confidence": 0.90,
-    "recording_date": "1980-08-15",
-    "recording_date_confidence": 0.75
-  },
+  // Type-Specific Fields for Mineral Deed
+  "grantor_name": "John Smith and Jane Smith",
+  "grantor_name_confidence": 0.95,
+  "grantor_address": "123 Main St, Tulsa, OK 74101",
+  "grantor_address_confidence": 0.85,
+  "grantor_marital_status": "married",
+  "grantor_marital_status_confidence": 0.90,
   
-  "execution_date": "1980-07-03",
-  "execution_date_confidence": 0.95,
+  "grantee_name": "ABC Oil Company, LLC",
+  "grantee_name_confidence": 0.98,
+  "grantee_address": "",
+  "grantee_address_confidence": null,
   
-  "consideration": "$10.00 and other valuable consideration",
-  "consideration_confidence": 0.88,
+  "interest_conveyed": "undivided 1/8",
+  "interest_conveyed_confidence": 0.95,
+  "interest_type": "mineral",
+  "interest_type_confidence": 0.98,
+  "depth_limitations": "all depths",
+  "depth_limitations_confidence": 0.90,
+  "formation_limitations": null,
+  "formation_limitations_confidence": null,
+  "mineral_types": "oil, gas, and other minerals",
+  "mineral_types_confidence": 0.95,
+  
+  "consideration_amount": "10.00",
+  "consideration_amount_confidence": 0.90,
+  "consideration_description": "Ten dollars and other good and valuable consideration",
+  "consideration_description_confidence": 0.95,
+  
+  "reservations": [],
+  "reservations_confidence": 0.90,
+  "exceptions": ["All oil and gas leases of record"],
+  "exceptions_confidence": 0.85,
+  "subject_to": ["Existing oil and gas lease to XYZ Company"],
+  "subject_to_confidence": 0.80,
+  
+  "warranty_type": "general warranty",
+  "warranty_type_confidence": 0.95,
+  "source_of_title": "Inherited from father John Smith Sr.",
+  "source_of_title_confidence": 0.85,
   
   "field_scores": {
     "grantor_name": 0.95,
