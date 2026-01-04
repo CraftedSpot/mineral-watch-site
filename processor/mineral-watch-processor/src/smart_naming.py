@@ -129,17 +129,18 @@ def generate_display_name(extraction: dict) -> str:
     
     elif doc_type == 'division_order':
         # "Division Order - {Well Name} - {Year}"
-        # Try to find well name in the document
-        well_name = extraction.get('well_name', '')
-        if not well_name:
-            # Look in other possible locations
-            property_info = extraction.get('property_info', {})
-            well_name = property_info.get('well_name', '')
+        well_name = extraction.get('well_name')
+        operator = extraction.get('operator')
+        year = get_year_from_dates(extraction)
         
         if well_name:
-            parts.append(well_name.strip())
+            # Clean up well name if needed (remove extra spaces, etc.)
+            well_name = ' '.join(str(well_name).split())
+            parts.append(well_name)
+        elif operator:
+            parts.append(operator)
         elif county:
-            # Fallback to county if no well name
+            # Fallback to county if no well name or operator
             parts.append(county)
         
         if year:
