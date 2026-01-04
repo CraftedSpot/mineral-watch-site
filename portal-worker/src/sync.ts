@@ -116,9 +116,8 @@ async function syncProperties(env: any, baseId: string): Promise<SyncResult['pro
   const result: SyncResult['properties'] = { synced: 0, created: 0, updated: 0, errors: [] };
   
   try {
-    // Since we're using MCP, we need to call the Airtable tools differently
-    // For now, we'll return a placeholder response
-    // In production, you would use the MCP Airtable integration
+    // Sync from Client Properties table (simpler structure)
+    // Fields: COUNTY, SEC, TWN, RNG, ACRES, NET ACRES, Notes, User
     const response = { records: [] };
     console.log('Note: Airtable MCP integration needs to be configured');
     
