@@ -657,6 +657,7 @@ export default {
 
       // Ensure processing columns exist
       await ensureProcessingColumns(env);
+      await ensureLinkColumns(env.WELLS_DB);
 
       try {
         // Get documents with status='pending' that haven't exceeded retry limit
