@@ -1,5 +1,5 @@
 // Airtable configuration
-const AIRTABLE_BASE_ID = 'appRBoI9wCy4eOhzd'; // Mineral Watch base
+const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
 const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // 📍 Client Properties
 const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // 🛢️ Client Wells
 
