@@ -998,11 +998,13 @@ export default {
           ).run();
         }
 
-        // Mark parent as processed
+        // Mark parent as processed and set doc_type to 'multi_document'
         await env.WELLS_DB.prepare(`
           UPDATE documents 
           SET status = 'complete',
-              extraction_completed_at = datetime('now')
+              extraction_completed_at = datetime('now'),
+              doc_type = 'multi_document',
+              category = 'multi_document'
           WHERE id = ?
         `).bind(parentDocId).run();
 
