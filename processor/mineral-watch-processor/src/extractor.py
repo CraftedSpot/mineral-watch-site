@@ -51,8 +51,25 @@ For each document (there may be multiple documents in this PDF), identify:
    - product_type: What the division order covers ("oil", "gas", "oil and gas", "condensate")
 
 4. **Pooling Order Specific Fields** (only when doc_type is pooling_order):
-   - cause_number: Full cause number (e.g., "CD 201500614-T", "CD No. 2015-1234")
-   - order_number: Alternative number if cause_number not found
+   - cd_number: The CD/Cause Docket number (e.g., "201500614-T" → extract "201500614")
+   - order_number: The Order number (e.g., "639589")
+   - applicant: Company that filed the application
+   - operator: Designated operator (may be same as or subsidiary of applicant)
+   - well_name: Proposed well name (e.g., "Hockett #1-3")
+   - well_cost: Total estimated cost/AFE (e.g., "$886,600.00")
+   - unit_size_acres: Size of the drilling/spacing unit (e.g., "160", "640")
+   - formations: Array of formation/common source of supply names being pooled
+   - election_deadline_days: Number of days to make election (usually 20 or 25)
+   - election_mailing_address: Where to send election response
+   - election_options: Array of election options offered (CRITICAL - extract all):
+     Each option should include:
+     - option_number: 1, 2, or 3
+     - type: "participate" | "cash_plus_royalty" | "royalty_only"
+     - cash_bonus_per_acre: Dollar amount or null
+     - royalty_rate: The royalty percentage/fraction
+     - net_revenue_interest: NRI percentage if stated
+     - description: Brief description of the option
+   - order_date: When the order was issued
 
 5. **Per-Field Confidence Scoring**:
    For EACH extracted field, provide a confidence score from 0.0 to 1.0:
