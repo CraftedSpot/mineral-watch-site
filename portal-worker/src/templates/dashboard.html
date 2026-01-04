@@ -4494,7 +4494,7 @@
                     const data = JSON.parse(doc.extracted_data);
                     const fieldScores = data.field_scores || {};
                     
-                    // Basic Information
+                    // Add status info at the top
                     content += '<div class="doc-detail-grid">';
                     
                     // Status field
@@ -4514,27 +4514,6 @@
                             <div class="doc-field">
                                 <label>Document Type</label>
                                 <div class="doc-value">${formatDocType(data.doc_type || doc.doc_type)}</div>
-                            </div>`;
-                    }
-                    
-                    // Execution Date
-                    if (data.execution_date) {
-                        const date = new Date(data.execution_date);
-                        content += `
-                            <div class="doc-field">
-                                <label>Execution Date</label>
-                                <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('execution_date', fieldScores)}</div>
-                            </div>`;
-                    }
-                    
-                    // Recording Info
-                    if (data.recording_info && (data.recording_info.book || data.recording_info.page)) {
-                        const bookIndicator = data.recording_info.book ? getConfidenceIndicator('recording_book', fieldScores) : '';
-                        const pageIndicator = data.recording_info.page ? getConfidenceIndicator('recording_page', fieldScores) : '';
-                        content += `
-                            <div class="doc-field">
-                                <label>Recording</label>
-                                <div class="doc-value">Book ${data.recording_info.book || '—'}${bookIndicator}, Page ${data.recording_info.page || '—'}${pageIndicator}</div>
                             </div>`;
                     }
                     
@@ -4629,48 +4608,8 @@
                         content += '</div>';
                     }
                     
-                    // Parties Section
-                    if ((data.grantor && data.grantor.name) || (data.grantee && data.grantee.name)) {
-                        content += '<div class="detail-section">';
-                        content += '<h4 class="detail-section-title">Parties</h4>';
-                        content += '<div class="doc-detail-grid">';
-                        
-                        if (data.grantor && data.grantor.name) {
-                            content += `
-                                <div class="doc-field">
-                                    <label>Grantor</label>
-                                    <div class="doc-value">${escapeHtml(data.grantor.name)}${getConfidenceIndicator('grantor_name', fieldScores)}</div>
-                                </div>`;
-                            if (data.grantor.address) {
-                                content += `
-                                    <div class="doc-field">
-                                        <label>Grantor Address</label>
-                                        <div class="doc-value">${escapeHtml(data.grantor.address)}${getConfidenceIndicator('grantor_address', fieldScores)}</div>
-                                    </div>`;
-                            }
-                        }
-                        
-                        if (data.grantee && data.grantee.name) {
-                            content += `
-                                <div class="doc-field">
-                                    <label>Grantee</label>
-                                    <div class="doc-value">${escapeHtml(data.grantee.name)}${getConfidenceIndicator('grantee_name', fieldScores)}</div>
-                                </div>`;
-                            if (data.grantee.address) {
-                                content += `
-                                    <div class="doc-field">
-                                        <label>Grantee Address</label>
-                                        <div class="doc-value">${escapeHtml(data.grantee.address)}${getConfidenceIndicator('grantee_address', fieldScores)}</div>
-                                    </div>`;
-                            }
-                        }
-                        
-                        content += '</div></div>';
-                    }
-                    
-                    // Property Information
-                    if (data.interest_conveyed || data.legal_description) {
-                        content += '<div class="detail-section">';
+                    // Render all extracted fields dynamically
+                    content += renderExtractedData(data, fieldScores);
                         content += '<h4 class="detail-section-title">Property Details</h4>';
                         content += '<div class="doc-detail-grid">';
                         
