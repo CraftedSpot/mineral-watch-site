@@ -111,6 +111,17 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         
         # 7. Build result payload
         legal = extraction_result.get('legal_description', {})
+        
+        # Extract recording info for database columns
+        recording_book = extraction_result.get('recording_book')
+        recording_page = extraction_result.get('recording_page')
+        
+        # Try old format as fallback for backwards compatibility
+        if not recording_book or not recording_page:
+            recording_info = extraction_result.get('recording_info', {})
+            recording_book = recording_book or recording_info.get('book')
+            recording_page = recording_page or recording_info.get('page')
+        
         result = {
             'status': status,
             'category': extraction_result.get('doc_type', 'other'),
@@ -121,6 +132,8 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             'section': str(legal.get('section')) if legal.get('section') is not None else None,
             'township': legal.get('township'),
             'range': legal.get('range'),
+            'recording_book': recording_book,
+            'recording_page': recording_page,
             'extracted_data': extraction_result,
             'page_count': page_count,
             'needs_review': status == 'manual_review',
