@@ -5759,6 +5759,434 @@
                                 content += '</div></div>';
                             }
                             break;
+                            
+                        case 'spacing_order':
+                            if (data.cd_number || data.order_number || data.unit_size_acres || data.formations) {
+                                content += '<div class="detail-section">';
+                                content += '<h4 class="detail-section-title">Spacing Order Details</h4>';
+                                content += '<div class="doc-detail-grid">';
+                                
+                                if (data.cd_number) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>CD Number</label>
+                                            <div class="doc-value">CD ${escapeHtml(data.cd_number)}${getConfidenceIndicator('cd_number', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.cause_number) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Cause Number</label>
+                                            <div class="doc-value">${escapeHtml(data.cause_number)}${getConfidenceIndicator('cause_number', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.order_number) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Order Number</label>
+                                            <div class="doc-value">${escapeHtml(data.order_number)}${getConfidenceIndicator('order_number', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.applicant) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Applicant</label>
+                                            <div class="doc-value">${escapeHtml(data.applicant)}${getConfidenceIndicator('applicant', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.operator) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Operator</label>
+                                            <div class="doc-value">${escapeHtml(data.operator)}${getConfidenceIndicator('operator', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.unit_size_acres) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Unit Size</label>
+                                            <div class="doc-value">${escapeHtml(data.unit_size_acres)} acres${getConfidenceIndicator('unit_size_acres', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.unit_shape) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Unit Shape</label>
+                                            <div class="doc-value">${escapeHtml(data.unit_shape)}${getConfidenceIndicator('unit_shape', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.well_type) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Well Type</label>
+                                            <div class="doc-value">${escapeHtml(data.well_type)}${getConfidenceIndicator('well_type', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.formations && Array.isArray(data.formations) && data.formations.length > 0) {
+                                    content += '<div class="doc-field">';
+                                    content += '<label>Formations</label>';
+                                    content += '<ul style="margin: 8px 0; padding-left: 20px;">';
+                                    data.formations.forEach(formation => {
+                                        content += `<li style="margin-bottom: 4px;">${escapeHtml(formation)}</li>`;
+                                    });
+                                    content += '</ul>';
+                                    content += `${getConfidenceIndicator('formations', fieldScores)}`;
+                                    content += '</div>';
+                                }
+                                
+                                if (data.order_date) {
+                                    const date = new Date(data.order_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Order Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('order_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                content += '</div></div>';
+                            }
+                            break;
+                            
+                        case 'lease_amendment':
+                        case 'lease_extension':
+                            if (data.amendment_type || data.original_lease_reference || data.changes_made || data.new_expiration_date) {
+                                content += '<div class="detail-section">';
+                                content += '<h4 class="detail-section-title">Lease Amendment Details</h4>';
+                                content += '<div class="doc-detail-grid">';
+                                
+                                if (data.amendment_type) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Amendment Type</label>
+                                            <div class="doc-value">${escapeHtml(data.amendment_type)}${getConfidenceIndicator('amendment_type', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.original_lease_date) {
+                                    const date = new Date(data.original_lease_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Original Lease Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('original_lease_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.original_lease_reference) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Original Lease Reference</label>
+                                            <div class="doc-value">${escapeHtml(data.original_lease_reference)}${getConfidenceIndicator('original_lease_reference', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.original_lessor) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Original Lessor</label>
+                                            <div class="doc-value">${escapeHtml(data.original_lessor)}${getConfidenceIndicator('original_lessor', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.original_lessee) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Original Lessee</label>
+                                            <div class="doc-value">${escapeHtml(data.original_lessee)}${getConfidenceIndicator('original_lessee', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.current_lessee) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Current Lessee</label>
+                                            <div class="doc-value">${escapeHtml(data.current_lessee)}${getConfidenceIndicator('current_lessee', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.changes_made) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Changes Made</label>
+                                            <div class="doc-value">${escapeHtml(data.changes_made)}${getConfidenceIndicator('changes_made', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.new_expiration_date) {
+                                    const date = new Date(data.new_expiration_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>New Expiration Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('new_expiration_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.additional_bonus) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Additional Bonus</label>
+                                            <div class="doc-value">$${escapeHtml(data.additional_bonus)}${getConfidenceIndicator('additional_bonus', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.additional_terms) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Additional Terms</label>
+                                            <div class="doc-value">${escapeHtml(data.additional_terms)}${getConfidenceIndicator('additional_terms', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                content += '</div></div>';
+                            }
+                            break;
+                            
+                        case 'divorce_decree':
+                            if (data.case_number || data.petitioner_name || data.respondent_name || data.mineral_provisions) {
+                                content += '<div class="detail-section">';
+                                content += '<h4 class="detail-section-title">Divorce Decree Details</h4>';
+                                content += '<div class="doc-detail-grid">';
+                                
+                                if (data.case_number) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Case Number</label>
+                                            <div class="doc-value">${escapeHtml(data.case_number)}${getConfidenceIndicator('case_number', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.court_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Court</label>
+                                            <div class="doc-value">${escapeHtml(data.court_name)}${getConfidenceIndicator('court_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.petitioner_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Petitioner</label>
+                                            <div class="doc-value">${escapeHtml(data.petitioner_name)}${getConfidenceIndicator('petitioner_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.respondent_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Respondent</label>
+                                            <div class="doc-value">${escapeHtml(data.respondent_name)}${getConfidenceIndicator('respondent_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.decree_date) {
+                                    const date = new Date(data.decree_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Decree Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('decree_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.mineral_provisions) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Mineral Provisions</label>
+                                            <div class="doc-value">${escapeHtml(data.mineral_provisions)}${getConfidenceIndicator('mineral_provisions', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.property_awarded_to) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Property Awarded To</label>
+                                            <div class="doc-value">${escapeHtml(data.property_awarded_to)}${getConfidenceIndicator('property_awarded_to', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.legal_descriptions && Array.isArray(data.legal_descriptions) && data.legal_descriptions.length > 0) {
+                                    content += '<div class="doc-field">';
+                                    content += '<label>Affected Properties</label>';
+                                    content += '<ul style="margin: 8px 0; padding-left: 20px;">';
+                                    data.legal_descriptions.forEach(desc => {
+                                        content += `<li style="margin-bottom: 4px;">${escapeHtml(desc)}</li>`;
+                                    });
+                                    content += '</ul>';
+                                    content += `${getConfidenceIndicator('legal_descriptions', fieldScores)}`;
+                                    content += '</div>';
+                                }
+                                
+                                content += '</div></div>';
+                            }
+                            break;
+                            
+                        case 'death_certificate':
+                            if (data.decedent_name || data.date_of_death || data.certificate_number) {
+                                content += '<div class="detail-section">';
+                                content += '<h4 class="detail-section-title">Death Certificate Information</h4>';
+                                content += '<div class="doc-detail-grid">';
+                                
+                                if (data.decedent_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Decedent Name</label>
+                                            <div class="doc-value">${escapeHtml(data.decedent_name)}${getConfidenceIndicator('decedent_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.date_of_death) {
+                                    const date = new Date(data.date_of_death);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Date of Death</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('date_of_death', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.place_of_death) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Place of Death</label>
+                                            <div class="doc-value">${escapeHtml(data.place_of_death)}${getConfidenceIndicator('place_of_death', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.date_of_birth) {
+                                    const date = new Date(data.date_of_birth);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Date of Birth</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('date_of_birth', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.residence_at_death) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Residence at Death</label>
+                                            <div class="doc-value">${escapeHtml(data.residence_at_death)}${getConfidenceIndicator('residence_at_death', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.marital_status) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Marital Status</label>
+                                            <div class="doc-value">${escapeHtml(data.marital_status)}${getConfidenceIndicator('marital_status', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.spouse_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Spouse Name</label>
+                                            <div class="doc-value">${escapeHtml(data.spouse_name)}${getConfidenceIndicator('spouse_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.certificate_number) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Certificate Number</label>
+                                            <div class="doc-value">${escapeHtml(data.certificate_number)}${getConfidenceIndicator('certificate_number', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.filing_date) {
+                                    const date = new Date(data.filing_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Filing Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('filing_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                content += '</div></div>';
+                            }
+                            break;
+                            
+                        case 'power_of_attorney':
+                            if (data.principal_name || data.agent_name || data.poa_type || data.powers_granted) {
+                                content += '<div class="detail-section">';
+                                content += '<h4 class="detail-section-title">Power of Attorney Details</h4>';
+                                content += '<div class="doc-detail-grid">';
+                                
+                                if (data.principal_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Principal</label>
+                                            <div class="doc-value">${escapeHtml(data.principal_name)}${getConfidenceIndicator('principal_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.agent_name) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Agent (Attorney-in-Fact)</label>
+                                            <div class="doc-value">${escapeHtml(data.agent_name)}${getConfidenceIndicator('agent_name', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.poa_type) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>POA Type</label>
+                                            <div class="doc-value">${escapeHtml(data.poa_type)}${getConfidenceIndicator('poa_type', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.powers_granted) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Powers Granted</label>
+                                            <div class="doc-value">${escapeHtml(data.powers_granted)}${getConfidenceIndicator('powers_granted', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.effective_date) {
+                                    const date = new Date(data.effective_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Effective Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('effective_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.expiration_date) {
+                                    const date = new Date(data.expiration_date);
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Expiration Date</label>
+                                            <div class="doc-value">${date.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' })}${getConfidenceIndicator('expiration_date', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.property_covered) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Property Covered</label>
+                                            <div class="doc-value">${escapeHtml(data.property_covered)}${getConfidenceIndicator('property_covered', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                if (data.revocation_provisions) {
+                                    content += `
+                                        <div class="doc-field">
+                                            <label>Revocation Provisions</label>
+                                            <div class="doc-value">${escapeHtml(data.revocation_provisions)}${getConfidenceIndicator('revocation_provisions', fieldScores)}</div>
+                                        </div>`;
+                                }
+                                
+                                content += '</div></div>';
+                            }
+                            break;
                     }
                     
                     // Enhanced Division Order fields (add to existing section)
