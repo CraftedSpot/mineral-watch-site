@@ -520,11 +520,16 @@ export default {
           return errorResponse('File not found in storage', 404, env);
         }
 
+        // Use display_name if available, otherwise fallback to filename
+        const viewName = doc.display_name || doc.filename;
+        // Ensure .pdf extension
+        const finalName = viewName.endsWith('.pdf') ? viewName : `${viewName}.pdf`;
+        
         // Return the PDF for inline viewing
         return new Response(object.body, {
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `inline; filename="${doc.filename}"`,
+            'Content-Disposition': `inline; filename="${finalName}"`,
             ...corsHeaders(env),
           },
         });
