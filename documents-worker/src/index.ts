@@ -753,7 +753,7 @@ export default {
 
       try {
         const doc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename 
+          SELECT r2_key, filename, display_name 
           FROM documents 
           WHERE id = ? AND deleted_at IS NULL
         `).bind(docId).first();
@@ -767,10 +767,14 @@ export default {
           return errorResponse('File not found in storage', 404, env);
         }
 
+        // Use display_name if available
+        const downloadName = doc.display_name || doc.filename;
+        const finalName = downloadName.endsWith('.pdf') ? downloadName : `${downloadName}.pdf`;
+
         return new Response(object.body, {
           headers: {
             'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${doc.filename}"`,
+            'Content-Disposition': `attachment; filename="${finalName}"`,
             ...corsHeaders(env),
           },
         });
