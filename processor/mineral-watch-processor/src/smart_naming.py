@@ -18,6 +18,12 @@ DOC_TYPE_NAMES = {
     'probate_document': 'Probate Document',
     'right_of_way': 'Right of Way',
     'release_of_lease': 'Release of Lease',
+    'spacing_order': 'Spacing Order',
+    'lease_amendment': 'Lease Amendment',
+    'lease_extension': 'Lease Extension',
+    'divorce_decree': 'Divorce Decree',
+    'death_certificate': 'Death Certificate',
+    'power_of_attorney': 'Power of Attorney',
     'other': 'Document'
 }
 

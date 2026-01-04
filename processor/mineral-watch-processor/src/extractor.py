@@ -612,6 +612,37 @@ def calculate_document_confidence(field_scores: dict, doc_type: str = None) -> s
             'case_number',
             'court_name',
             'executor_name'
+        ],
+        'spacing_order': [
+            'cd_number',
+            'order_number',
+            'unit_size_acres',
+            'formations',
+            'order_date'
+        ],
+        'lease_amendment': [
+            'amendment_type',
+            'original_lease_reference',
+            'changes_made',
+            'effective_date'
+        ],
+        'divorce_decree': [
+            'case_number',
+            'petitioner_name',
+            'respondent_name',
+            'mineral_provisions',
+            'property_awarded_to'
+        ],
+        'death_certificate': [
+            'decedent_name',
+            'date_of_death',
+            'certificate_number'
+        ],
+        'power_of_attorney': [
+            'principal_name',
+            'agent_name',
+            'poa_type',
+            'powers_granted'
         ]
     }
     
