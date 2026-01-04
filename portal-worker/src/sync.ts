@@ -3,6 +3,9 @@ const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
 const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // 📍 Client Properties
 const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // 🛢️ Client Wells
 
+// D1 batch configuration
+const BATCH_SIZE = 500; // Max statements per batch to stay within limits
+
 interface AirtableRecord {
   id: string;
   fields: Record<string, any>;
@@ -208,9 +211,16 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
       );
     });
 
-    // Execute all statements in one batch
+    // Execute statements in chunks
     console.log(`Executing batch insert/update for ${statements.length} properties...`);
-    const batchResults = await env.WELLS_DB.batch(statements);
+    
+    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+      const chunk = statements.slice(i, i + BATCH_SIZE);
+      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+      console.log(`Processing properties ${i + 1}-${chunkEnd} of ${statements.length}`);
+      
+      await env.WELLS_DB.batch(chunk);
+    }
     
     // Count results
     result.synced = allRecords.length;
@@ -307,9 +317,16 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
       );
     });
 
-    // Execute all statements in one batch
+    // Execute statements in chunks
     console.log(`Executing batch insert/update for ${statements.length} wells...`);
-    const batchResults = await env.WELLS_DB.batch(statements);
+    
+    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+      const chunk = statements.slice(i, i + BATCH_SIZE);
+      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+      console.log(`Processing wells ${i + 1}-${chunkEnd} of ${statements.length}`);
+      
+      await env.WELLS_DB.batch(chunk);
+    }
     
     // Count results
     result.synced = allRecords.length;
