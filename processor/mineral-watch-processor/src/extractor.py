@@ -465,34 +465,95 @@ Remember: Return ONLY the JSON object, no other text."""
 def calculate_document_confidence(field_scores: dict, doc_type: str = None) -> str:
     """Roll up per-field scores to document-level high/medium/low."""
     
-    # Critical fields vary by document type
-    if doc_type == 'division_order':
-        critical_fields = [
+    # Universal critical fields for all documents
+    universal_critical = [
+        'recording_date',
+        'execution_date',
+        'legal_section',
+        'legal_township',
+        'legal_range',
+        'legal_county'
+    ]
+    
+    # Type-specific critical fields
+    type_critical = {
+        'mineral_deed': [
+            'grantor_name',
+            'grantee_name',
+            'interest_conveyed',
+            'interest_type',
+            'warranty_type'
+        ],
+        'royalty_deed': [
+            'grantor_name',
+            'grantee_name',
+            'interest_conveyed',
+            'interest_type',
+            'warranty_type'
+        ],
+        'lease': [
+            'lessor_name',
+            'lessee_name',
+            'primary_term',
+            'royalty_rate',
+            'bonus_amount'
+        ],
+        'assignment': [
+            'assignor_name',
+            'assignee_name',
+            'interest_assigned',
+            'interest_type',
+            'original_lease_reference'
+        ],
+        'division_order': [
             'well_name',
             'owner_number',
             'decimal_interest',
             'operator',
             'effective_date'
-        ]
-    elif doc_type == 'pooling_order':
-        critical_fields = [
+        ],
+        'pooling_order': [
             'cd_number',
             'well_name',
             'well_cost',
             'election_options',
             'election_deadline_days',
             'unit_size_acres'
-        ]
-    else:
-        critical_fields = [
+        ],
+        'ratification': [
+            'ratifying_party',
+            'original_document_type',
+            'original_document_reference'
+        ],
+        'right_of_way': [
             'grantor_name',
             'grantee_name',
-            'interest_conveyed',
-            'legal_section',
-            'legal_township',
-            'legal_range',
-            'legal_county'
+            'purpose',
+            'width',
+            'consideration_amount'
+        ],
+        'release_of_lease': [
+            'releasor',
+            'original_lease_reference',
+            'release_type',
+            'lands_released'
+        ],
+        'affidavit_of_heirship': [
+            'decedent_name',
+            'decedent_death_date',
+            'heirs',
+            'affiant_name'
+        ],
+        'probate_document': [
+            'decedent_name',
+            'case_number',
+            'court_name',
+            'executor_name'
         ]
+    }
+    
+    # Get critical fields for this document type
+    critical_fields = universal_critical + type_critical.get(doc_type, [])
     
     scores = []
     for field in critical_fields:

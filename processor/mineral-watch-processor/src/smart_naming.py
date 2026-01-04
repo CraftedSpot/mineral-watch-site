@@ -16,6 +16,8 @@ DOC_TYPE_NAMES = {
     'ratification': 'Ratification',
     'affidavit_of_heirship': 'Affidavit of Heirship',
     'probate_document': 'Probate Document',
+    'right_of_way': 'Right of Way',
+    'release_of_lease': 'Release of Lease',
     'other': 'Document'
 }
 
