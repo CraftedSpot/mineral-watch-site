@@ -400,154 +400,49 @@ Return ONLY valid JSON (no markdown, no explanation) in this exact format:
   "source_of_title_confidence": 0.85,
   
   "field_scores": {
-    "grantor_name": 0.95,
-    "grantor_address": 0.70,
-    "grantee_name": 0.98,
-    "grantee_address": null,
-    "interest_conveyed": 0.85,
+    // Universal fields
+    "recording_book": 0.90,
+    "recording_page": 0.90,
+    "document_number": 0.95,
+    "recording_date": 0.98,
+    "recording_county": 0.95,
+    "execution_date": 0.95,
+    "effective_date": 0.90,
+    "prepared_by": 0.85,
+    "notary_date": 0.95,
+    "notary_county": 0.90,
+    "notary_state": 0.95,
+    "related_documents": 0.80,
+    "exhibits": 0.90,
+    "prior_instruments": 0.75,
     "legal_section": 0.99,
     "legal_township": 0.99,
     "legal_range": 0.99,
     "legal_county": 0.95,
     "legal_quarter": 0.80,
-    "legal_acres": 0.60,
-    "recording_book": 0.90,
-    "recording_page": 0.90,
-    "recording_date": 0.75,
-    "execution_date": 0.95,
-    "consideration": 0.88
+    "legal_acres": 0.90,
+    // Type-specific fields
+    "grantor_name": 0.95,
+    "grantor_address": 0.85,
+    "grantor_marital_status": 0.90,
+    "grantee_name": 0.98,
+    "grantee_address": null,
+    "interest_conveyed": 0.95,
+    "interest_type": 0.98,
+    "depth_limitations": 0.90,
+    "mineral_types": 0.95,
+    "consideration_amount": 0.90,
+    "consideration_description": 0.95,
+    "reservations": 0.90,
+    "exceptions": 0.85,
+    "subject_to": 0.80,
+    "warranty_type": 0.95,
+    "source_of_title": 0.85
   },
   
-  "notes": "Any additional relevant information or uncertainties about the extraction"
+  "notes": "Document appears to be in good condition. All parties clearly identified."
 }
 
-For division_order documents, include these additional fields:
-{
-  "doc_type": "division_order",
-  
-  "well_name": "LASSITER 1-20-29XH",
-  "well_name_confidence": 0.98,
-  
-  "api_number": "35-019-12345",
-  "api_number_confidence": 0.95,
-  
-  "owner_number": "323615003",
-  "owner_number_confidence": 0.97,
-  
-  "decimal_interest": "0.00087500",
-  "decimal_interest_confidence": 0.99,
-  
-  "interest_type": "royalty",
-  "interest_type_confidence": 0.90,
-  
-  "operator": "Continental Resources",
-  "operator_confidence": 0.95,
-  
-  "effective_date": "2018-03-05",
-  "effective_date_confidence": 0.92,
-  
-  "product_type": "oil and gas",
-  "product_type_confidence": 0.88,
-  
-  "field_scores": {
-    "well_name": 0.98,
-    "owner_number": 0.97,
-    "decimal_interest": 0.99,
-    "operator": 0.95,
-    "effective_date": 0.92,
-    "interest_type": 0.90,
-    "product_type": 0.88,
-    "api_number": 0.95
-  }
-}
-
-For pooling_order documents, include these additional fields:
-{
-  "doc_type": "pooling_order",
-  
-  "cd_number": "201500614",
-  "cd_number_confidence": 0.95,
-  
-  "order_number": "639589",
-  "order_number_confidence": 0.98,
-  
-  "applicant": "Canyon Creek Energy Holdings LLC",
-  "applicant_confidence": 0.97,
-  
-  "operator": "Canyon Creek Energy Operating LLC", 
-  "operator_confidence": 0.95,
-  
-  "well_name": "Hockett #1-3",
-  "well_name_confidence": 0.92,
-  
-  "well_cost": "886600.00",
-  "well_cost_confidence": 0.90,
-  
-  "unit_size_acres": "160",
-  "unit_size_acres_confidence": 0.95,
-  
-  "formations": ["Cromwell", "Upper Booch", "Lower Booch", "Hartshorne", "Gilcrease"],
-  "formations_confidence": 0.88,
-  
-  "election_deadline_days": "20",
-  "election_deadline_days_confidence": 0.90,
-  
-  "election_mailing_address": "P.O. Box 123, Oklahoma City, OK 73101",
-  "election_mailing_address_confidence": 0.85,
-  
-  "election_options": [
-    {
-      "option_number": 1,
-      "type": "participate",
-      "cash_bonus_per_acre": null,
-      "royalty_rate": "1/8",
-      "net_revenue_interest": "87.5%",
-      "description": "Pay proportionate share of well costs"
-    },
-    {
-      "option_number": 2,
-      "type": "cash_plus_royalty",
-      "cash_bonus_per_acre": "350.00",
-      "royalty_rate": "1/16",
-      "net_revenue_interest": "81.25%",
-      "description": "Cash consideration plus excess royalty"
-    },
-    {
-      "option_number": 3,
-      "type": "royalty_only",
-      "cash_bonus_per_acre": "0.00",
-      "royalty_rate": "1/8",
-      "net_revenue_interest": "75%",
-      "description": "No cash, excess royalty only"
-    }
-  ],
-  "election_options_confidence": 0.85,
-  
-  "legal_description": {
-    "section": "3",
-    "township": "1N",
-    "range": "8E",
-    "county": "Coal",
-    "quarter": "SE/4"
-  },
-  
-  "order_date": "2015-04-20",
-  "order_date_confidence": 0.95,
-  
-  "field_scores": {
-    "cd_number": 0.95,
-    "order_number": 0.98,
-    "applicant": 0.97,
-    "operator": 0.95,
-    "well_name": 0.92,
-    "well_cost": 0.90,
-    "unit_size_acres": 0.95,
-    "formations": 0.88,
-    "election_deadline_days": 0.90,
-    "election_options": 0.85,
-    "order_date": 0.95
-  }
-}
 
 For multi-document PDFs:
 {
