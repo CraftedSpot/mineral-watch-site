@@ -1021,6 +1021,21 @@ export default {
             child.field_scores ? JSON.stringify(child.field_scores) : null,
             child.fields_needing_review ? JSON.stringify(child.fields_needing_review) : null
           ).run();
+          
+          // Attempt to link child document to properties/wells
+          if (child.extracted_data && child.status !== 'failed') {
+            console.log('[Documents] Starting auto-link for child document:', childId);
+            try {
+              const linkResult = await linkDocumentToEntities(
+                env.WELLS_DB,
+                childId,
+                child.extracted_data
+              );
+              console.log('[Documents] Child link result:', linkResult);
+            } catch (linkError) {
+              console.error('[Documents] Error linking child document:', linkError);
+            }
+          }
         }
 
         // Mark parent as processed and set doc_type to 'multi_document'
