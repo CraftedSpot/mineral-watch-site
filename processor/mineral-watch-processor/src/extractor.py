@@ -318,6 +318,15 @@ def calculate_document_confidence(field_scores: dict, doc_type: str = None) -> s
             'operator',
             'effective_date'
         ]
+    elif doc_type == 'pooling_order':
+        critical_fields = [
+            'cd_number',
+            'well_name',
+            'well_cost',
+            'election_options',
+            'election_deadline_days',
+            'unit_size_acres'
+        ]
     else:
         critical_fields = [
             'grantor_name',
