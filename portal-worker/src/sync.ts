@@ -238,96 +238,97 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
   return result;
 }
 
-async function syncWells(env: any, baseId: string): Promise<SyncResult['wells']> {
+async function syncWells(env: any): Promise<SyncResult['wells']> {
   const result: SyncResult['wells'] = { synced: 0, created: 0, updated: 0, errors: [] };
+  let offset: string | undefined;
   
   try {
-    // Since we're using MCP, we need to call the Airtable tools differently
-    // For now, we'll return a placeholder response
-    // In production, you would use the MCP Airtable integration
-    const response = { records: [] };
-    console.log('Note: Airtable MCP integration needs to be configured');
-    
-    // TODO: Replace with actual MCP Airtable call
-    // Example: const response = await mcp__airtable__list_records({
-    //   baseId: baseId,
-    //   tableId: 'tblqWp3rb7rT3p9SA',
-    //   maxRecords: 1000
-    // });
+    // Paginate through all records
+    do {
+      const response = await fetchAirtableRecords(
+        env.MINERAL_AIRTABLE_API_KEY,
+        AIRTABLE_BASE_ID,
+        WELLS_TABLE_ID,
+        offset
+      );
 
-    if (!response.records) {
-      throw new Error('No records returned from Airtable');
-    }
+      console.log(`Fetched ${response.records.length} wells${offset ? ' (continued)' : ''}`);
 
-    // Process each well
-    for (const record of response.records) {
-      try {
-        const fields = record.fields || {};
-        
-        // Check if record exists
-        const existing = await env.WELLS_DB.prepare(
-          'SELECT id FROM wells WHERE airtable_record_id = ? OR api_number = ?'
-        ).bind(record.id, fields['API Number']).first();
+      // Process each well
+      for (const record of response.records) {
+        try {
+          const fields = record.fields || {};
+          
+          // Check if record exists
+          const existing = await env.WELLS_DB.prepare(
+            'SELECT id FROM wells WHERE airtable_record_id = ? OR api_number = ?'
+          ).bind(record.id, fields['API Number']).first();
 
-        const data = {
-          airtable_record_id: record.id,
-          api_number: fields['API Number'] || null,
-          well_name: fields['Well Name'] || null,
-          operator: fields.Operator || null,
-          status: fields.Status || null,
-          well_status: fields['Well Status'] || null,
-          well_type: null, // Not in Client Wells table
-          county: fields.County || null,
-          section: fields.Section || null,
-          township: fields.Township || null,
-          range: fields.Range || null,
-          formation_name: fields['Formation Name'] || null,
-          spud_date: formatDate(fields['Spud Date']),
-          completion_date: formatDate(fields['Completion Date']),
-          first_production_date: formatDate(fields['First Production Date']),
-          data_last_updated: fields['Data Last Updated'] || null,
-          last_rbdms_sync: fields['Last RBDMS Sync'] || null,
-          synced_at: new Date().toISOString()
-        };
+          const data = {
+            airtable_record_id: record.id,
+            api_number: fields['API Number'] || null,
+            well_name: fields['Well Name'] || null,
+            operator: fields.Operator || null,
+            status: fields.Status || null,
+            well_status: fields['Well Status'] || null,
+            well_type: null, // Not in Client Wells table
+            county: fields.County || null,
+            section: fields.Section || null,
+            township: fields.Township || null,
+            range: fields.Range || null,
+            formation_name: fields['Formation Name'] || null,
+            spud_date: formatDate(fields['Spud Date']),
+            completion_date: formatDate(fields['Completion Date']),
+            first_production_date: formatDate(fields['First Production Date']),
+            data_last_updated: fields['Data Last Updated'] || null,
+            last_rbdms_sync: fields['Last RBDMS Sync'] || null,
+            synced_at: new Date().toISOString()
+          };
 
-        if (existing) {
-          // Update existing record
-          const updateFields = Object.entries(data)
-            .filter(([key]) => key !== 'airtable_record_id')
-            .map(([key]) => `${key} = ?`);
+          if (existing) {
+            // Update existing record
+            const updateFields = Object.entries(data)
+              .filter(([key]) => key !== 'airtable_record_id')
+              .map(([key]) => `${key} = ?`);
+            
+            const updateValues = Object.entries(data)
+              .filter(([key]) => key !== 'airtable_record_id')
+              .map(([, value]) => value);
+            
+            await env.WELLS_DB.prepare(
+              `UPDATE wells SET ${updateFields.join(', ')} WHERE airtable_record_id = ? OR api_number = ?`
+            ).bind(...updateValues, record.id, fields['API Number']).run();
+            
+            result.updated++;
+          } else {
+            // Insert new record
+            const id = generateId();
+            const columns = ['id', ...Object.keys(data)];
+            const placeholders = columns.map(() => '?').join(', ');
+            const values = [id, ...Object.values(data)];
+            
+            await env.WELLS_DB.prepare(
+              `INSERT INTO wells (${columns.join(', ')}) VALUES (${placeholders})`
+            ).bind(...values).run();
+            
+            result.created++;
+          }
           
-          const updateValues = Object.entries(data)
-            .filter(([key]) => key !== 'airtable_record_id')
-            .map(([, value]) => value);
-          
-          await env.WELLS_DB.prepare(
-            `UPDATE wells SET ${updateFields.join(', ')} WHERE airtable_record_id = ? OR api_number = ?`
-          ).bind(...updateValues, record.id, fields['API Number']).run();
-          
-          result.updated++;
-        } else {
-          // Insert new record
-          const id = generateId();
-          const columns = ['id', ...Object.keys(data)];
-          const placeholders = columns.map(() => '?').join(', ');
-          const values = [id, ...Object.values(data)];
-          
-          await env.WELLS_DB.prepare(
-            `INSERT INTO wells (${columns.join(', ')}) VALUES (${placeholders})`
-          ).bind(...values).run();
-          
-          result.created++;
+          result.synced++;
+        } catch (error) {
+          result.errors.push(`Well ${record.id}: ${error.message}`);
+          console.error(`Error syncing well ${record.id}:`, error);
         }
-        
-        result.synced++;
-      } catch (error) {
-        result.errors.push(`Well ${record.id}: ${error.message}`);
-        console.error(`Error syncing well ${record.id}:`, error);
       }
-    }
+
+      // Set offset for next page
+      offset = response.offset;
+    } while (offset);
+    
   } catch (error) {
     result.errors.push(`Wells sync failed: ${error.message}`);
-    throw error;
+    console.error('Wells sync error:', error);
+    // Don't throw - let properties results be returned
   }
   
   return result;
