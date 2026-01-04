@@ -128,7 +128,9 @@ import {
   handleUnlinkPropertyWell,
   // Single item matching handlers
   handleMatchSingleProperty,
-  handleMatchSingleWell
+  handleMatchSingleWell,
+  // Sync handler
+  handleAirtableSync
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
