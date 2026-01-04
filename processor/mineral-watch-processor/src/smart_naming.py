@@ -177,7 +177,104 @@ def generate_display_name(extraction: dict) -> str:
         if year:
             parts.append(year)
     
-    elif doc_type in ['mineral_deed', 'royalty_deed', 'assignment', 'ratification']:
+    elif doc_type == 'assignment':
+        # "Assignment - {County} - {Legal} - {Assignor to Assignee} - {Year}"
+        if county:
+            parts.append(county)
+        if legal_desc:
+            parts.append(legal_desc)
+        
+        # Try to show assignor to assignee
+        assignor = extraction.get('assignor_name', '')
+        assignee = extraction.get('assignee_name', '')
+        if assignor and assignee:
+            assignor_last = get_last_name(assignor)
+            assignee_last = get_last_name(assignee) 
+            if assignor_last and assignee_last:
+                parts.append(f"{assignor_last} to {assignee_last}")
+        
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'ratification':
+        # "Ratification - {County} - {Legal} - {Ratifying Party} - {Year}"
+        if county:
+            parts.append(county)
+        if legal_desc:
+            parts.append(legal_desc)
+        
+        # Show who is ratifying
+        ratifying_party = extraction.get('ratifying_party', '')
+        if ratifying_party:
+            last_name = get_last_name(ratifying_party)
+            if last_name:
+                parts.append(last_name)
+        
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'right_of_way':
+        # "Right of Way - {Purpose} - {County} - {Grantee} - {Year}"
+        purpose = extraction.get('purpose', '')
+        grantee = extraction.get('grantee_name', '')
+        
+        if purpose:
+            parts.append(purpose.title())
+        if county:
+            parts.append(county)
+        if grantee:
+            last_name = get_last_name(grantee)
+            if last_name:
+                parts.append(last_name)
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'release_of_lease':
+        # "Release of Lease - {County} - {Legal} - {Releasor} - {Year}"
+        if county:
+            parts.append(county)
+        if legal_desc:
+            parts.append(legal_desc)
+        
+        releasor = extraction.get('releasor', '')
+        if releasor:
+            last_name = get_last_name(releasor)
+            if last_name:
+                parts.append(last_name)
+        
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'affidavit_of_heirship':
+        # "Affidavit of Heirship - {Decedent} - {County} - {Year}"
+        decedent = extraction.get('decedent_name', '')
+        
+        if decedent:
+            last_name = get_last_name(decedent)
+            if last_name:
+                parts.append(f"Estate of {last_name}")
+        if county:
+            parts.append(county)
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'probate_document':
+        # "Probate - {Decedent} - {County} - {Case #} - {Year}"
+        decedent = extraction.get('decedent_name', '')
+        case_number = extraction.get('case_number', '')
+        
+        if decedent:
+            last_name = get_last_name(decedent)
+            if last_name:
+                parts.append(f"Estate of {last_name}")
+        if county:
+            parts.append(county)
+        if case_number:
+            parts.append(f"Case {case_number}")
+        if year:
+            parts.append(year)
+    
+    elif doc_type in ['mineral_deed', 'royalty_deed']:
         # Standard format: "{Type} - {County} - {Legal} - {Year}"
         if county:
             parts.append(county)
