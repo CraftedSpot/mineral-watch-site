@@ -4291,8 +4291,9 @@
                     } else if (Array.isArray(value)) {
                         // Handle arrays
                         if (value.length > 0) {
-                            content += `<div class="doc-field">`;
-                            content += `<label>${formatFieldName(fieldName)}</label>`;
+                            hasVisibleFields = true;
+                            sectionContent += `<div class="doc-field">`;
+                            sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
                             
                             if (fieldName === 'election_options') {
                                 // Special handling for election options
@@ -4335,8 +4336,8 @@
                                 });
                                 content += `</ul>`;
                             }
-                            content += getConfidenceIndicator(fieldName, fieldScores);
-                            content += `</div>`;
+                            sectionContent += getConfidenceIndicator(fieldName, fieldScores);
+                            sectionContent += `</div>`;
                         }
                     } else if (typeof value === 'boolean') {
                         // Handle boolean values
