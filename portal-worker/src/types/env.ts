@@ -16,9 +16,13 @@ export interface Env {
 
   // Service Bindings
   AUTH_WORKER: Fetcher;
+  DOCUMENTS_WORKER?: Fetcher;
 
   // D1 Database
   WELLS_DB?: D1Database;
+  
+  // MCP Services
+  AIRTABLE?: any; // MCP Airtable service
 
   // Environment Variables (secrets)
   MINERAL_AIRTABLE_API_KEY: string;
