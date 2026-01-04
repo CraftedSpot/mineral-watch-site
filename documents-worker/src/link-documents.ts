@@ -81,8 +81,8 @@ export async function linkDocumentToEntities(
       const property = await db.prepare(`
         SELECT id FROM properties 
         WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER) 
-          AND township = ? 
-          AND range = ? 
+          AND UPPER(township) = UPPER(?) 
+          AND UPPER(range) = UPPER(?) 
           AND LOWER(county) = LOWER(?)
           AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
         LIMIT 1
