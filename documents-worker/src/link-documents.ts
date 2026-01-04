@@ -170,7 +170,9 @@ export async function linkDocumentToEntities(
   const firstWell = Array.isArray(wellsList) ? wellsList[0] : null;
   
   // Match well by API number or name using cascading search strategy
-  const apiNumber = getValue(wellInfoObj?.api_number) ||
+  const apiNumber = getValue(firstWell?.api_number) ||
+                    getValue(firstWell?.api) ||
+                    getValue(wellInfoObj?.api_number) ||
                     getValue(wellInfoObj?.api) ||
                     getValue(extractedFields.api_number) || 
                     getValue(extractedFields.api) ||
@@ -178,7 +180,9 @@ export async function linkDocumentToEntities(
                     getValue(extractedFields['API Number']) ||
                     getValue(extractedFields.api_no);
                     
-  const rawWellName = getValue(wellInfoObj?.well_name) ||
+  const rawWellName = getValue(firstWell?.well_name) ||
+                      getValue(firstWell?.name) ||
+                      getValue(wellInfoObj?.well_name) ||
                       getValue(wellInfoObj?.name) ||
                       getValue(extractedFields.well_name) || 
                       getValue(extractedFields.well) ||
@@ -187,14 +191,21 @@ export async function linkDocumentToEntities(
                       getValue(extractedFields.well_number);
   
   // Extract operator for better matching
-  const operator = getValue(wellInfoObj?.operator) ||
+  const operator = getValue(firstWell?.operator) ||
+                   getValue(wellInfoObj?.operator) ||
                    getValue(extractedFields.operator) ||
                    getValue(extractedFields.Operator) ||
                    getValue(extractedFields.OPERATOR) ||
                    getValue(extractedFields.applicant); // Sometimes operator is listed as applicant
   
   // Log well information for debugging
-  if (wellInfoObj && typeof wellInfoObj === 'object') {
+  if (wellsList && Array.isArray(wellsList)) {
+    console.log(`[LinkDocuments] Wells array found with ${wellsList.length} wells`);
+    if (firstWell) {
+      console.log(`[LinkDocuments] First well in array:`, JSON.stringify(firstWell));
+    }
+  }
+  if (wellInfoObj && typeof wellInfoObj === 'object' && !Array.isArray(wellInfoObj)) {
     console.log(`[LinkDocuments] Well information object found:`, JSON.stringify(wellInfoObj));
   }
   if (rawWellName || apiNumber || operator) {
