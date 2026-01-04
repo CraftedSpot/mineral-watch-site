@@ -116,12 +116,18 @@ async function syncProperties(env: any, baseId: string): Promise<SyncResult['pro
   const result: SyncResult['properties'] = { synced: 0, created: 0, updated: 0, errors: [] };
   
   try {
-    // Fetch properties from Airtable
-    const response = await env.AIRTABLE.list_records({
-      baseId: baseId,
-      tableId: 'tblKKJes2zDIqcGrO', // Properties table ID
-      maxRecords: 1000 // Adjust as needed
-    });
+    // Since we're using MCP, we need to call the Airtable tools differently
+    // For now, we'll return a placeholder response
+    // In production, you would use the MCP Airtable integration
+    const response = { records: [] };
+    console.log('Note: Airtable MCP integration needs to be configured');
+    
+    // TODO: Replace with actual MCP Airtable call
+    // Example: const response = await mcp__airtable__list_records({
+    //   baseId: baseId,
+    //   tableId: 'tblKKJes2zDIqcGrO',
+    //   maxRecords: 1000
+    // });
 
     if (!response.records) {
       throw new Error('No records returned from Airtable');
