@@ -65,6 +65,17 @@ async function fetchAirtableRecords(
 
 ## Features
 
+### Batch Processing
+D1 batch operations are chunked to stay within limits:
+```typescript
+const BATCH_SIZE = 500;
+for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+  const chunk = statements.slice(i, i + BATCH_SIZE);
+  await env.WELLS_DB.batch(chunk);
+}
+```
+This handles up to ~25,000 records per table (50 batches × 500).
+
 ### Pagination
 Both sync functions handle Airtable's pagination:
 ```typescript
