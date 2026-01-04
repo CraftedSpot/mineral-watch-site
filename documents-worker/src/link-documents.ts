@@ -30,6 +30,11 @@ export async function linkDocumentToEntities(
   const county = extractedFields.county?.value || 
                  extractedFields.County?.value ||
                  extractedFields.COUNTY?.value;
+                 
+  const meridian = extractedFields.meridian?.value || 
+                   extractedFields.Meridian?.value ||
+                   extractedFields.MERIDIAN?.value ||
+                   extractedFields.MER?.value;
   
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
   console.log(`[LinkDocuments] Legal description: Section ${section}, Township ${township}, Range ${range}, County ${county}`);
