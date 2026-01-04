@@ -718,6 +718,235 @@ def get_fields_needing_review(field_scores: dict, threshold: float = 0.9) -> lis
     ]
 
 
+async def detect_documents(image_paths: list[str]) -> dict:
+    """
+    Detect if PDF contains multiple documents and identify boundaries.
+    
+    Args:
+        image_paths: List of paths to page images
+    
+    Returns:
+        Detection result with document boundaries
+    """
+    logger.info(f"Detecting documents in {len(image_paths)} pages")
+    
+    # Build content array with images
+    content = []
+    
+    for i, image_path in enumerate(image_paths):
+        with open(image_path, 'rb') as f:
+            image_bytes = f.read()
+        
+        # Import PIL for image processing
+        from PIL import Image
+        import io
+        
+        # Open image to check dimensions and size
+        img = Image.open(io.BytesIO(image_bytes))
+        width, height = img.size
+        needs_processing = False
+        
+        # Check if image is over 5MB or dimensions exceed 2000px
+        if len(image_bytes) > 5 * 1024 * 1024:
+            needs_processing = True
+            
+        if width > 2000 or height > 2000:
+            needs_processing = True
+            
+        if needs_processing:
+            # Resize if needed
+            if width > 2000 or height > 2000:
+                ratio = min(2000/width, 2000/height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            # Re-save with compression
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            image_bytes = output.getvalue()
+        
+        image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
+        
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": image_data
+            }
+        })
+        content.append({
+            "type": "text",
+            "text": f"Page {i + 1} of {len(image_paths)}"
+        })
+    
+    content.append({
+        "type": "text",
+        "text": DETECTION_PROMPT
+    })
+    
+    # Call Claude for detection only
+    logger.info(f"Calling Claude API for document detection")
+    response = client.messages.create(
+        model=CONFIG.CLAUDE_MODEL,
+        max_tokens=1024,  # Small response expected
+        messages=[
+            {"role": "user", "content": content}
+        ]
+    )
+    
+    # Parse response
+    response_text = response.content[0].text
+    logger.debug(f"Detection response: {response_text}")
+    
+    try:
+        result = json.loads(response_text.strip())
+        logger.info(f"Detected {result.get('document_count', 1)} documents")
+        return result
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse detection response: {e}")
+        # Default to single document
+        return {
+            "is_multi_document": False,
+            "document_count": 1,
+            "documents": [{"type": "unknown", "start_page": 1, "end_page": len(image_paths), "confidence": 0.5}]
+        }
+
+
+async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None) -> dict:
+    """
+    Extract data from a single document.
+    
+    Args:
+        image_paths: List of ALL page images from the PDF
+        start_page: First page of this document (1-based)
+        end_page: Last page of this document (1-based, inclusive)
+    
+    Returns:
+        Extracted data dictionary with confidence scores
+    """
+    if end_page is None:
+        end_page = len(image_paths)
+        
+    logger.info(f"Extracting single document from pages {start_page} to {end_page}")
+    
+    # Build content array with only the relevant pages
+    content = []
+    
+    for i in range(start_page - 1, end_page):
+        if i >= len(image_paths):
+            break
+            
+        image_path = image_paths[i]
+        with open(image_path, 'rb') as f:
+            image_bytes = f.read()
+        
+        # Import PIL for image processing
+        from PIL import Image
+        import io
+        
+        # Open image to check dimensions and size
+        img = Image.open(io.BytesIO(image_bytes))
+        width, height = img.size
+        needs_processing = False
+        
+        if len(image_bytes) > 5 * 1024 * 1024 or width > 2000 or height > 2000:
+            needs_processing = True
+            
+        if needs_processing:
+            if width > 2000 or height > 2000:
+                ratio = min(2000/width, 2000/height)
+                new_width = int(width * ratio)
+                new_height = int(height * ratio)
+                img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+            
+            output = io.BytesIO()
+            img.save(output, format='JPEG', quality=85, optimize=True)
+            image_bytes = output.getvalue()
+        
+        image_data = base64.standard_b64encode(image_bytes).decode('utf-8')
+        
+        content.append({
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": image_data
+            }
+        })
+        content.append({
+            "type": "text",
+            "text": f"Page {i - start_page + 2} of {end_page - start_page + 1}"
+        })
+    
+    content.append({
+        "type": "text",
+        "text": EXTRACTION_PROMPT
+    })
+    
+    # Call Claude for extraction
+    logger.info(f"Calling Claude API for extraction ({CONFIG.CLAUDE_MODEL})")
+    response = client.messages.create(
+        model=CONFIG.CLAUDE_MODEL,
+        max_tokens=4096,
+        messages=[
+            {"role": "user", "content": content}
+        ]
+    )
+    
+    # Parse response with improved error handling
+    response_text = response.content[0].text
+    logger.debug(f"Claude response: {response_text[:500]}...")
+    
+    # Extract JSON from response (handle markdown code blocks if present)
+    json_str = response_text.strip()
+    if json_str.startswith("```json"):
+        json_str = json_str[7:]
+    if json_str.startswith("```"):
+        json_str = json_str[3:]
+    if json_str.endswith("```"):
+        json_str = json_str[:-3]
+    json_str = json_str.strip()
+    
+    try:
+        result = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse Claude response as JSON: {e}")
+        logger.error(f"Response was: {response_text[:1000]}...")  # Log first 1000 chars
+        
+        # Try to find JSON in the response using regex
+        import re
+        json_match = re.search(r'(\{[\s\S]*\})', response_text)
+        if json_match:
+            try:
+                logger.info("Attempting to extract JSON using regex...")
+                result = json.loads(json_match.group(1))
+                logger.info("Successfully extracted JSON from malformed response")
+            except json.JSONDecodeError:
+                # If still fails, try to fix common issues
+                cleaned = json_match.group(1)
+                # Fix unescaped quotes in strings (common issue)
+                cleaned = re.sub(r'(?<!\\)"(?=[^"]*":)', r'\"', cleaned)
+                try:
+                    result = json.loads(cleaned)
+                    logger.info("Successfully parsed after cleaning JSON")
+                except:
+                    raise ValueError(f"Invalid JSON response from Claude: {e}")
+        else:
+            raise ValueError(f"Invalid JSON response from Claude: {e}")
+    
+    # Add calculated fields
+    field_scores = result.get("field_scores", {})
+    doc_type = result.get("doc_type")
+    result["document_confidence"] = calculate_document_confidence(field_scores, doc_type)
+    result["fields_needing_review"] = get_fields_needing_review(field_scores)
+    
+    logger.info(f"Extraction complete. Doc type: {doc_type}, Confidence: {result.get('document_confidence')}")
+    
+    return result
+
+
 async def extract_document_data(image_paths: list[str]) -> dict:
     """
     Extract document data using Claude Vision.
