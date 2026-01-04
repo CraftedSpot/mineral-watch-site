@@ -65,15 +65,132 @@ For each document (there may be multiple documents in this PDF), identify:
    - legal_description.acres
    - legal_description.full_text (verbatim legal if complex)
 
-3. **Division Order Specific Fields** (only when doc_type is division_order):
-   - well_name: Full well name (e.g., "LASSITER 1-20-29XH", "SMITH 1-15H")
-   - api_number: API well number if shown (e.g., "35-019-12345")
-   - owner_number: The operator's account/owner number for this interest holder
-   - decimal_interest: The decimal ownership interest (e.g., "0.00123456", "0.000875")
-   - interest_type: Type of interest (e.g., "royalty", "working interest", "overriding royalty", "mineral interest")
-   - operator: Company name of the operator/payor
-   - effective_date: When the division order takes effect
-   - product_type: What the division order covers ("oil", "gas", "oil and gas", "condensate")
+3. **Mineral Deed / Royalty Deed Specific Fields** (only when doc_type is mineral_deed or royalty_deed):
+   
+   Parties:
+   - grantor_name: Person/entity conveying interest
+   - grantor_address: Address if shown
+   - grantor_marital_status: Single, married, widow/widower
+   - grantee_name: Person/entity receiving interest  
+   - grantee_address: Address if shown
+   
+   Interest:
+   - interest_conveyed: Fraction or percentage (e.g., "1/2", "undivided 1/8")
+   - interest_type: "mineral", "royalty", "overriding royalty", "executive rights"
+   - depth_limitations: Any depth restrictions ("surface to 100'", "all depths")
+   - formation_limitations: Specific formations included/excluded
+   - mineral_types: "oil and gas", "oil, gas, and other minerals", "coal", etc.
+   
+   Consideration:
+   - consideration_amount: Dollar amount if stated
+   - consideration_description: "Ten dollars and other good and valuable consideration"
+   
+   Reservations & Exceptions:
+   - reservations: Array of interests retained by grantor
+   - exceptions: Array of prior conveyances excepted
+   - subject_to: Existing leases, encumbrances mentioned
+   
+   Title Information:
+   - warranty_type: "general warranty", "special warranty", "quitclaim", "bargain and sale"
+   - source_of_title: How grantor acquired (inheritance, deed from X, etc.)
+
+4. **Lease Specific Fields** (only when doc_type is lease):
+   
+   Parties:
+   - lessor_name: Mineral owner(s) granting lease
+   - lessor_address: Address if shown
+   - lessee_name: Company/person taking lease
+   - lessee_address: Address if shown
+   
+   Lease Terms:
+   - primary_term: Length of primary term ("3 years", "5 years")
+   - royalty_rate: Lessor's royalty ("1/8", "3/16", "1/5")
+   - bonus_amount: Bonus paid for signing
+   - delay_rental: Annual rental during primary term
+   - shut_in_royalty: Payment if well shut in
+   
+   Depth & Formations:
+   - depth_from: Starting depth if limited
+   - depth_to: Ending depth if limited  
+   - formations_included: Specific formations leased
+   - formations_excluded: Specific formations excepted
+   - pugh_clause: Yes/No - horizontal Pugh clause present
+   - vertical_pugh_clause: Yes/No - vertical/depth Pugh clause
+   
+   Special Provisions:
+   - pooling_authorization: Can lessee pool the lease?
+   - pooling_limitations: Acreage limits on pooling
+   - surface_restrictions: Limitations on surface use
+   - no_surface_clause: Yes/No - drilling from offsite only
+   - attorney_approval_clause: Yes/No
+   - extension_provisions: How lease can be extended
+   - top_lease_prohibition: Yes/No
+   
+   Assignments:
+   - assignable: Can lease be assigned?
+   - assignment_restrictions: Any limitations
+
+5. **Assignment Specific Fields** (only when doc_type is assignment or lease_assignment):
+   
+   Parties:
+   - assignor_name: Party assigning interest
+   - assignor_address: Address if shown
+   - assignee_name: Party receiving assignment
+   - assignee_address: Address if shown
+   
+   What's Being Assigned:
+   - interest_assigned: Fraction/percentage being assigned
+   - interest_type: "working interest", "overriding royalty", "net profits", "lease"
+   - original_lease_reference: Book/page or doc number of underlying lease
+   - original_lease_date: Date of underlying lease
+   - original_lessor: Lessor on underlying lease
+   - original_lessee: Lessee on underlying lease
+   
+   Assignment Terms:
+   - consideration_amount: Dollar amount if stated
+   - effective_date: When assignment takes effect
+   - proportionate_reduction: Is interest subject to proportionate reduction?
+   - retained_overriding: ORRI retained by assignor
+   - back_in_after_payout: Any reversionary interest
+   
+   Warranties:
+   - warranty_of_title: Does assignor warrant title?
+   - warranty_scope: What's warranted (by, through, under assignor only?)
+
+6. **Division Order Specific Fields** (only when doc_type is division_order):
+   
+   Well Information:
+   - well_name: Full well name
+   - api_number: API well number
+   - well_location: Legal description of well location
+   - operator: Operating company
+   - purchaser: Who purchases production (if different)
+   
+   Owner Information:
+   - owner_name: Interest owner name (usually the user)
+   - owner_number: Operator's account number for owner
+   - owner_address: Address on file
+   
+   Interest Details:
+   - decimal_interest: Decimal ownership (e.g., "0.00087500")
+   - interest_type: "royalty", "working interest", "ORRI", "mineral"
+   - net_revenue_interest: NRI if working interest
+   
+   Product & Payment:
+   - product_type: "oil", "gas", "oil and gas", "condensate", "NGLs"
+   - effective_date: When division order takes effect
+   - payment_frequency: Monthly, etc.
+   - minimum_payment: Minimum check amount before holding
+   
+   Property Coverage:
+   - unit_name: Name of drilling/spacing unit
+   - formations: Formations covered
+   - depths: Depth intervals if specified
+   
+   Certification:
+   - requires_signature: Yes/No
+   - signature_deadline: Date to return signed
+   - signature_warranty: What signing certifies
 
 4. **Pooling Order Specific Fields** (only when doc_type is pooling_order):
    - cd_number: The CD/Cause Docket number (e.g., "201500614-T" → extract "201500614")
