@@ -4132,7 +4132,7 @@
             ).join(' ');
         }
         
-        function getConfidenceIndicator(fieldName, fieldScores, showPercentage = false) {
+        function getConfidenceIndicator(fieldName, fieldScores) {
             const score = fieldScores?.[fieldName];
             if (score === null || score === undefined) return '';
             
@@ -4141,11 +4141,10 @@
             const className = score >= 0.9 ? 'confidence-high' : score >= 0.6 ? 'confidence-medium' : 'confidence-low';
             const title = score >= 0.9 ? 'High confidence' : score >= 0.6 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
             
-            let html = `<span class="confidence-indicator ${className}" title="${title}">${symbol}</span>`;
-            
-            if (showPercentage) {
-                html += ` <span class="confidence-percentage ${className}" style="font-style: italic; font-size: 0.85em;">(${percentage}%)</span>`;
-            }
+            // Always include both symbol and percentage, use CSS to control visibility
+            let html = `<span class="confidence-indicator ${className}" title="${title}">${symbol}`;
+            html += ` <span class="confidence-percentage" style="font-style: italic; font-size: 0.85em;">(${percentage}%)</span>`;
+            html += `</span>`;
             
             return html;
         }
