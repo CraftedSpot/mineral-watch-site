@@ -147,22 +147,23 @@ export async function linkDocumentToEntities(
   }
   
   // Match well by API number or name using cascading search strategy
-  const apiNumber = extractedFields.api_number?.value || 
-                    extractedFields.api?.value ||
-                    extractedFields.API?.value ||
-                    extractedFields['API Number']?.value ||
-                    extractedFields.api_no?.value;
+  const apiNumber = getValue(extractedFields.api_number) || 
+                    getValue(extractedFields.api) ||
+                    getValue(extractedFields.API) ||
+                    getValue(extractedFields['API Number']) ||
+                    getValue(extractedFields.api_no);
                     
-  const rawWellName = extractedFields.well_name?.value || 
-                      extractedFields.well?.value ||
-                      extractedFields['Well Name']?.value ||
-                      extractedFields.WELL?.value ||
-                      extractedFields.well_number?.value;
+  const rawWellName = getValue(extractedFields.well_name) || 
+                      getValue(extractedFields.well) ||
+                      getValue(extractedFields['Well Name']) ||
+                      getValue(extractedFields.WELL) ||
+                      getValue(extractedFields.well_number);
   
   // Extract operator for better matching
-  const operator = extractedFields.operator?.value ||
-                   extractedFields.Operator?.value ||
-                   extractedFields.OPERATOR?.value;
+  const operator = getValue(extractedFields.operator) ||
+                   getValue(extractedFields.Operator) ||
+                   getValue(extractedFields.OPERATOR) ||
+                   getValue(extractedFields.applicant); // Sometimes operator is listed as applicant
   
   // Priority 1: API Number (exact match)
   if (apiNumber) {
