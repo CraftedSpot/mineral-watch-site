@@ -39,7 +39,7 @@ export async function linkDocumentToEntities(
     try {
       const property = await db.prepare(`
         SELECT id FROM properties 
-        WHERE section = ? 
+        WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER) 
           AND township = ? 
           AND range = ? 
           AND LOWER(county) = LOWER(?)
