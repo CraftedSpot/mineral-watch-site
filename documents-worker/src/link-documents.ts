@@ -79,31 +79,39 @@ export async function linkDocumentToEntities(
   let wellId: string | null = null;
   
   // Extract legal description from document
-  // Handle various field naming conventions
-  const rawSection = extractedFields.section?.value || 
-                     extractedFields.legal_section?.value || 
-                     extractedFields.Section?.value ||
-                     extractedFields.SEC?.value;
+  // Handle both nested (with .value) and flat structures
+  const getValue = (field: any): any => {
+    return field?.value !== undefined ? field.value : field;
+  };
+  
+  const rawSection = getValue(extractedFields.section) || 
+                     getValue(extractedFields.legal_section) || 
+                     getValue(extractedFields.Section) ||
+                     getValue(extractedFields.SEC) ||
+                     getValue(extractedFields.sec);
                   
-  const rawTownship = extractedFields.township?.value || 
-                      extractedFields.legal_township?.value || 
-                      extractedFields.Township?.value ||
-                      extractedFields.TWN?.value ||
-                      extractedFields.TWP?.value;
+  const rawTownship = getValue(extractedFields.township) || 
+                      getValue(extractedFields.legal_township) || 
+                      getValue(extractedFields.Township) ||
+                      getValue(extractedFields.TWN) ||
+                      getValue(extractedFields.twn) ||
+                      getValue(extractedFields.TWP);
                    
-  const rawRange = extractedFields.range?.value || 
-                   extractedFields.legal_range?.value || 
-                   extractedFields.Range?.value ||
-                   extractedFields.RNG?.value;
+  const rawRange = getValue(extractedFields.range) || 
+                   getValue(extractedFields.legal_range) || 
+                   getValue(extractedFields.Range) ||
+                   getValue(extractedFields.RNG) ||
+                   getValue(extractedFields.rng);
                 
-  const county = extractedFields.county?.value || 
-                 extractedFields.County?.value ||
-                 extractedFields.COUNTY?.value;
+  const county = getValue(extractedFields.county) || 
+                 getValue(extractedFields.County) ||
+                 getValue(extractedFields.COUNTY) ||
+                 getValue(extractedFields.recording_county);
                  
-  const meridian = extractedFields.meridian?.value || 
-                   extractedFields.Meridian?.value ||
-                   extractedFields.MERIDIAN?.value ||
-                   extractedFields.MER?.value;
+  const meridian = getValue(extractedFields.meridian) || 
+                   getValue(extractedFields.Meridian) ||
+                   getValue(extractedFields.MERIDIAN) ||
+                   getValue(extractedFields.MER);
   
   // Normalize the values
   const section = normalizeSection(rawSection);
