@@ -143,6 +143,46 @@ Return ONLY valid JSON (no markdown, no explanation) in this exact format:
   "notes": "Any additional relevant information or uncertainties about the extraction"
 }
 
+For division_order documents, include these additional fields:
+{
+  "doc_type": "division_order",
+  
+  "well_name": "LASSITER 1-20-29XH",
+  "well_name_confidence": 0.98,
+  
+  "api_number": "35-019-12345",
+  "api_number_confidence": 0.95,
+  
+  "owner_number": "323615003",
+  "owner_number_confidence": 0.97,
+  
+  "decimal_interest": "0.00087500",
+  "decimal_interest_confidence": 0.99,
+  
+  "interest_type": "royalty",
+  "interest_type_confidence": 0.90,
+  
+  "operator": "Continental Resources",
+  "operator_confidence": 0.95,
+  
+  "effective_date": "2018-03-05",
+  "effective_date_confidence": 0.92,
+  
+  "product_type": "oil and gas",
+  "product_type_confidence": 0.88,
+  
+  "field_scores": {
+    "well_name": 0.98,
+    "owner_number": 0.97,
+    "decimal_interest": 0.99,
+    "operator": 0.95,
+    "effective_date": 0.92,
+    "interest_type": 0.90,
+    "product_type": 0.88,
+    "api_number": 0.95
+  }
+}
+
 For multi-document PDFs:
 {
   "is_multi_document": true,
