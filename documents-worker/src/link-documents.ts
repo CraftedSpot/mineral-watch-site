@@ -84,31 +84,40 @@ export async function linkDocumentToEntities(
     return field?.value !== undefined ? field.value : field;
   };
   
-  const rawSection = getValue(extractedFields.section) || 
+  // Check if legal description is nested in an object
+  const legalDescObj = getValue(extractedFields.legal_description);
+  
+  // Extract from nested legal_description object first, then fallback to top-level fields
+  const rawSection = getValue(legalDescObj?.section) ||
+                     getValue(extractedFields.section) || 
                      getValue(extractedFields.legal_section) || 
                      getValue(extractedFields.Section) ||
                      getValue(extractedFields.SEC) ||
                      getValue(extractedFields.sec);
                   
-  const rawTownship = getValue(extractedFields.township) || 
+  const rawTownship = getValue(legalDescObj?.township) ||
+                      getValue(extractedFields.township) || 
                       getValue(extractedFields.legal_township) || 
                       getValue(extractedFields.Township) ||
                       getValue(extractedFields.TWN) ||
                       getValue(extractedFields.twn) ||
                       getValue(extractedFields.TWP);
                    
-  const rawRange = getValue(extractedFields.range) || 
+  const rawRange = getValue(legalDescObj?.range) ||
+                   getValue(extractedFields.range) || 
                    getValue(extractedFields.legal_range) || 
                    getValue(extractedFields.Range) ||
                    getValue(extractedFields.RNG) ||
                    getValue(extractedFields.rng);
                 
-  const county = getValue(extractedFields.county) || 
+  const county = getValue(legalDescObj?.county) ||
+                 getValue(extractedFields.county) || 
                  getValue(extractedFields.County) ||
                  getValue(extractedFields.COUNTY) ||
                  getValue(extractedFields.recording_county);
                  
-  const meridian = getValue(extractedFields.meridian) || 
+  const meridian = getValue(legalDescObj?.meridian) ||
+                   getValue(extractedFields.meridian) || 
                    getValue(extractedFields.Meridian) ||
                    getValue(extractedFields.MERIDIAN) ||
                    getValue(extractedFields.MER);
