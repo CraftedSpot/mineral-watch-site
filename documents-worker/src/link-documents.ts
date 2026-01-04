@@ -1,5 +1,35 @@
 import type { D1Database } from '@cloudflare/workers-types';
 
+// Normalize section (strip leading zeros)
+const normalizeSection = (s: string | null | undefined): string | null => {
+  if (!s) return null;
+  const parsed = parseInt(s, 10);
+  return isNaN(parsed) ? null : String(parsed);
+};
+
+// Normalize township/range (ensure suffix, handle missing)
+const normalizeTownship = (t: string | null | undefined): string | null => {
+  if (!t) return null;
+  // Remove all non-digits to get the number part
+  const num = t.replace(/[^\d]/g, '');
+  if (!num) return null;
+  
+  // Look for direction (N/S), default to N if missing
+  const dir = t.match(/[NSns]/)?.[0]?.toUpperCase() || 'N';
+  return `${num}${dir}`;
+};
+
+const normalizeRange = (r: string | null | undefined): string | null => {
+  if (!r) return null;
+  // Remove all non-digits to get the number part
+  const num = r.replace(/[^\d]/g, '');
+  if (!num) return null;
+  
+  // Look for direction (E/W), default to W if missing
+  const dir = r.match(/[EWew]/)?.[0]?.toUpperCase() || 'W';
+  return `${num}${dir}`;
+};
+
 // Function to link documents to properties and wells
 export async function linkDocumentToEntities(
   db: D1Database,
