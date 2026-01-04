@@ -18,7 +18,6 @@ DOC_TYPE_NAMES = {
     'probate_document': 'Probate Document',
     'right_of_way': 'Right of Way',
     'release_of_lease': 'Release of Lease',
-    'spacing_order': 'Spacing Order',
     'lease_amendment': 'Lease Amendment',
     'lease_extension': 'Lease Extension',
     'divorce_decree': 'Divorce Decree',
@@ -286,6 +285,72 @@ def generate_display_name(extraction: dict) -> str:
             parts.append(county)
         if legal_desc:
             parts.append(legal_desc)
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'spacing_order':
+        # "Spacing Order - {County} - S{Section}-T{Township}-R{Range} - {Year}"
+        if county:
+            parts.append(county)
+        if legal_desc:
+            parts.append(legal_desc)
+        if year:
+            parts.append(year)
+    
+    elif doc_type in ['lease_amendment', 'lease_extension']:
+        # "Lease Amendment - {County} - {Legal} - {Year}"
+        if county:
+            parts.append(county)
+        if legal_desc:
+            parts.append(legal_desc)
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'divorce_decree':
+        # "Divorce Decree - {Petitioner} v {Respondent} - {Year}"
+        petitioner = extraction.get('petitioner_name', '')
+        respondent = extraction.get('respondent_name', '')
+        
+        if petitioner and respondent:
+            petitioner_last = get_last_name(petitioner)
+            respondent_last = get_last_name(respondent)
+            if petitioner_last and respondent_last:
+                parts.append(f"{petitioner_last} v {respondent_last}")
+        elif petitioner:
+            last_name = get_last_name(petitioner)
+            if last_name:
+                parts.append(f"{last_name} v [Unknown]")
+        
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'death_certificate':
+        # "Death Certificate - {Decedent Name} - {Year}"
+        decedent = extraction.get('decedent_name', '')
+        
+        if decedent:
+            last_name = get_last_name(decedent)
+            if last_name:
+                parts.append(last_name)
+        
+        if year:
+            parts.append(year)
+    
+    elif doc_type == 'power_of_attorney':
+        # "POA - {Principal} to {Agent} - {Year}"
+        principal = extraction.get('principal_name', '')
+        agent = extraction.get('agent_name', '')
+        
+        if principal and agent:
+            principal_last = get_last_name(principal)
+            agent_last = get_last_name(agent)
+            if principal_last and agent_last:
+                parts.append(f"{principal_last} to {agent_last}")
+        elif principal:
+            last_name = get_last_name(principal)
+            if last_name:
+                parts.append(f"{last_name} to [Agent]")
+        
         if year:
             parts.append(year)
     
