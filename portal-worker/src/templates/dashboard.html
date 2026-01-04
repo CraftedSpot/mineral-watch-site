@@ -4202,6 +4202,15 @@
             for (const [section, fields] of Object.entries(groups)) {
                 const sectionData = {};
                 for (const field of fields) {
+                    // Skip confidence fields even if they're in predefined groups
+                    const fieldLower = field.toLowerCase();
+                    if (fieldLower.endsWith('_confidence') || 
+                        fieldLower.endsWith(' confidence') ||
+                        fieldLower.includes('confidence_')) {
+                        processedFields.add(field); // Mark as processed so it's not added to "Other"
+                        continue;
+                    }
+                    
                     if (data[field] !== null && data[field] !== undefined && data[field] !== '') {
                         sectionData[field] = data[field];
                         processedFields.add(field);
@@ -4215,18 +4224,28 @@
             // Second pass: add any remaining fields to "Other Information"
             const otherFields = {};
             for (const [field, value] of Object.entries(data)) {
-                if (!processedFields.has(field) && 
-                    !field.endsWith('_confidence') && 
-                    field !== 'field_scores' && 
-                    field !== 'document_confidence' &&
-                    field !== 'fields_needing_review' &&
-                    field !== 'notes' &&
-                    field !== 'doc_type' &&
-                    value !== null && 
-                    value !== undefined && 
-                    value !== '') {
-                    otherFields[field] = value;
+                // Skip if already processed
+                if (processedFields.has(field)) continue;
+                
+                // Skip confidence-related fields (various patterns)
+                const fieldLower = field.toLowerCase();
+                if (fieldLower.endsWith('_confidence') || 
+                    fieldLower.endsWith(' confidence') ||
+                    fieldLower.includes('confidence_') ||
+                    field === 'field_scores' || 
+                    field === 'document_confidence' ||
+                    field === 'fields_needing_review' ||
+                    field === 'notes' ||
+                    field === 'doc_type') {
+                    continue;
                 }
+                
+                // Skip null/undefined/empty values
+                if (value === null || value === undefined || value === '') {
+                    continue;
+                }
+                
+                otherFields[field] = value;
             }
             
             if (Object.keys(otherFields).length > 0) {
