@@ -4112,19 +4112,24 @@
         
         // Document detail functions
         function formatDocType(docType) {
+            if (!docType) return 'Unknown';
+            
+            // First check for special cases that need specific formatting
             const typeMap = {
-                'mineral_deed': 'Mineral Deed',
-                'division_order': 'Division Order',
                 'oil_gas_lease': 'Oil & Gas Lease',
-                'assignment': 'Assignment',
-                'royalty_deed': 'Royalty Deed',
-                'warranty_deed': 'Warranty Deed',
-                'quitclaim_deed': 'Quitclaim Deed',
-                'probate': 'Probate Document',
-                'affidavit': 'Affidavit',
+                'multi_document': 'Multi-Document PDF',
                 'other': 'Other Document'
             };
-            return typeMap[docType] || docType;
+            
+            // If it's in the special map, return that
+            if (typeMap[docType]) {
+                return typeMap[docType];
+            }
+            
+            // Otherwise, convert snake_case to Title Case
+            return docType.split('_').map(word => 
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
         }
         
         function getConfidenceIndicator(fieldName, fieldScores) {
