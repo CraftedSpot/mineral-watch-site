@@ -4,7 +4,7 @@
 This document describes the field mappings between Airtable and D1 database for the sync functionality.
 
 ## Base Configuration
-- **Base ID**: `appRBoI9wCy4eOhzd`
+- **Base ID**: `app3j3X29Uvp5stza` (Mineral Watch Oklahoma)
 - **Sync Endpoint**: `POST /api/admin/sync`
 
 ## Properties Table
