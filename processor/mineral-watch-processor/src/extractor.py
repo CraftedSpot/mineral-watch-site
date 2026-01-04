@@ -31,6 +31,10 @@ For each document (there may be multiple documents in this PDF), identify:
    - probate_document
    - right_of_way
    - release_of_lease
+   - lease_amendment (or lease_extension)
+   - divorce_decree
+   - death_certificate
+   - power_of_attorney
    - other (with explanation in notes)
 
 2. **Universal Fields** (extract for ALL document types):
@@ -274,6 +278,65 @@ For each document (there may be multiple documents in this PDF), identify:
     - executor_type: "executor", "administrator", "personal representative"
     - date_appointed: When executor was appointed
     - bond_amount: If bond required
+
+13. **Spacing Order Specific Fields** (only when doc_type is spacing_order):
+    - cd_number: The CD/Cause Docket number
+    - cause_number: Alternative to cd_number
+    - order_number: The Order number
+    - applicant: Company that filed the application
+    - operator: Designated operator
+    - unit_size_acres: Unit size (40, 80, 160, 320, 640, etc.)
+    - unit_shape: "square", "rectangular", or other
+    - formations: Array of formations covered
+    - legal_description: Full legal with section, township, range, county
+    - order_date: When the order was issued
+    - well_type: "vertical", "horizontal", or other
+
+14. **Lease Amendment/Extension Specific Fields** (only when doc_type is lease_amendment):
+    - amendment_type: "extension", "amendment", "ratification"
+    - original_lease_date: Date of lease being amended
+    - original_lease_reference: Book/page of original lease
+    - original_lessor: Lessor on original lease
+    - original_lessee: Original lessee
+    - current_lessee: Current lessee if assigned
+    - changes_made: What's being modified
+    - new_expiration_date: If extended
+    - additional_bonus: Any additional bonus paid
+    - additional_terms: New provisions added
+    - effective_date: When amendment takes effect
+
+15. **Divorce Decree Specific Fields** (only when doc_type is divorce_decree):
+    - case_number: Court case number
+    - court_name: Name of court
+    - petitioner_name: Person who filed for divorce
+    - respondent_name: Other party
+    - decree_date: Date of final decree
+    - mineral_provisions: Description of how minerals divided
+    - property_awarded_to: Who gets the mineral interests
+    - legal_descriptions: Array of properties affected
+    - recording_info: If recorded at county
+
+16. **Death Certificate Specific Fields** (only when doc_type is death_certificate):
+    - decedent_name: Full name of deceased
+    - date_of_death: Date person died
+    - place_of_death: City/County/State
+    - date_of_birth: Birth date
+    - residence_at_death: Where they lived
+    - marital_status: Single, married, widowed, divorced
+    - spouse_name: If married or widowed
+    - certificate_number: Official certificate number
+    - filing_date: When filed with state
+
+17. **Power of Attorney Specific Fields** (only when doc_type is power_of_attorney):
+    - principal_name: Person granting POA
+    - agent_name: Person receiving authority (attorney-in-fact)
+    - poa_type: "general", "limited", "durable", "mineral specific"
+    - powers_granted: What agent can do (array or description)
+    - effective_date: When POA takes effect
+    - expiration_date: If limited term
+    - property_covered: Specific properties or "all"
+    - recording_info: Book/page if recorded
+    - revocation_provisions: How POA can be revoked
 
 13. **Per-Field Confidence Scoring**:
     For EACH extracted field, provide a confidence score from 0.0 to 1.0:
