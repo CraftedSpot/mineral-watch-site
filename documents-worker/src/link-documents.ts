@@ -37,7 +37,7 @@ export async function linkDocumentToEntities(
                    extractedFields.MER?.value;
   
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
-  console.log(`[LinkDocuments] Legal description: Section ${section}, Township ${township}, Range ${range}, County ${county}`);
+  console.log(`[LinkDocuments] Legal description: Section ${section}, Township ${township}, Range ${range}, County ${county}, Meridian ${meridian}`);
   
   // Match property by legal description
   if (section && township && range && county) {
