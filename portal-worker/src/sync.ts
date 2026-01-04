@@ -58,6 +58,31 @@ function parseBoolean(value: any): number {
   return value ? 1 : 0;
 }
 
+// Fetch records from Airtable API
+async function fetchAirtableRecords(
+  apiKey: string,
+  baseId: string,
+  tableId: string,
+  offset?: string
+): Promise<AirtableResponse> {
+  const url = new URL(`https://api.airtable.com/v0/${baseId}/${tableId}`);
+  if (offset) url.searchParams.set('offset', offset);
+  
+  const response = await fetch(url.toString(), {
+    headers: {
+      'Authorization': `Bearer ${apiKey}`,
+      'Content-Type': 'application/json'
+    }
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Airtable API error: ${response.status} - ${errorText}`);
+  }
+  
+  return response.json();
+}
+
 export async function syncAirtableData(env: any): Promise<SyncResult> {
   const startTime = Date.now();
   const result: SyncResult = {
