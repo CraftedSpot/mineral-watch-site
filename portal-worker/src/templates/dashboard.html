@@ -4388,7 +4388,18 @@
                             'interest_type': 'Interest Type',
                             'operator': 'Operator',
                             'effective_date': 'Effective Date',
-                            'product_type': 'Product Type'
+                            'product_type': 'Product Type',
+                            // Pooling Order fields
+                            'cd_number': 'CD Number',
+                            'order_number': 'Order Number',
+                            'applicant': 'Applicant',
+                            'well_cost': 'Well Cost',
+                            'unit_size_acres': 'Unit Size',
+                            'formations': 'Formations',
+                            'election_deadline_days': 'Election Deadline',
+                            'election_options': 'Election Options',
+                            'order_date': 'Order Date',
+                            'election_mailing_address': 'Election Address'
                         };
                         
                         // Sort fields by score (lowest first) for easier review
@@ -4618,6 +4629,159 @@
                         }
                         
                         content += '</div></div>';
+                    }
+                    
+                    // Pooling Order Specific Fields
+                    if (doc.doc_type === 'pooling_order') {
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Pooling Order Information</h4>';
+                        content += '<div class="doc-detail-grid">';
+                        
+                        // Identifiers
+                        if (data.cd_number) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>CD Number</label>
+                                    <div class="doc-value">CD ${escapeHtml(data.cd_number)}${getConfidenceIndicator('cd_number', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.order_number) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Order Number</label>
+                                    <div class="doc-value">${escapeHtml(data.order_number)}${getConfidenceIndicator('order_number', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        // Parties
+                        if (data.applicant) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Applicant</label>
+                                    <div class="doc-value">${escapeHtml(data.applicant)}${getConfidenceIndicator('applicant', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.operator) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Operator</label>
+                                    <div class="doc-value">${escapeHtml(data.operator)}${getConfidenceIndicator('operator', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        // Well Information
+                        if (data.well_name) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Well Name</label>
+                                    <div class="doc-value">${escapeHtml(data.well_name)}${getConfidenceIndicator('well_name', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.well_cost) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Well Cost (AFE)</label>
+                                    <div class="doc-value">$${escapeHtml(data.well_cost)}${getConfidenceIndicator('well_cost', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        // Unit Information
+                        if (data.unit_size_acres) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Unit Size</label>
+                                    <div class="doc-value">${escapeHtml(data.unit_size_acres)} acres${getConfidenceIndicator('unit_size_acres', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.formations && Array.isArray(data.formations)) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Formations</label>
+                                    <div class="doc-value">${data.formations.map(f => escapeHtml(f)).join(', ')}${getConfidenceIndicator('formations', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        // Election Information
+                        if (data.election_deadline_days) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Election Deadline</label>
+                                    <div class="doc-value">${escapeHtml(data.election_deadline_days)} days${getConfidenceIndicator('election_deadline_days', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        if (data.order_date) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Order Date</label>
+                                    <div class="doc-value">${escapeHtml(data.order_date)}${getConfidenceIndicator('order_date', fieldScores)}</div>
+                                </div>`;
+                        }
+                        
+                        content += '</div></div>';
+                        
+                        // Election Options - CRITICAL SECTION
+                        if (data.election_options && Array.isArray(data.election_options) && data.election_options.length > 0) {
+                            content += '<div class="detail-section">';
+                            content += '<h4 class="detail-section-title" style="color: var(--error); font-weight: 700;">⚠️ Election Options (Time Sensitive)</h4>';
+                            
+                            data.election_options.forEach((option, index) => {
+                                const optionBgColor = option.type === 'participate' ? '#F0F9FF' : 
+                                                     option.type === 'cash_plus_royalty' ? '#FEF3C7' : '#FEE2E2';
+                                const optionBorderColor = option.type === 'participate' ? '#3B82F6' : 
+                                                         option.type === 'cash_plus_royalty' ? '#F59E0B' : '#EF4444';
+                                
+                                content += `
+                                    <div style="background: ${optionBgColor}; border: 1px solid ${optionBorderColor}; border-radius: 8px; padding: 16px; margin-bottom: 12px;">
+                                        <h5 style="margin: 0 0 8px 0; color: var(--oil-navy); font-size: 16px; font-weight: 600;">
+                                            Option ${option.option_number || (index + 1)}: ${escapeHtml(option.description || option.type)}
+                                        </h5>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">`;
+                                
+                                if (option.cash_bonus_per_acre !== null && option.cash_bonus_per_acre !== undefined) {
+                                    content += `
+                                        <div>
+                                            <span style="font-size: 13px; color: #6B7280;">Cash Bonus</span><br>
+                                            <span style="font-weight: 600;">$${escapeHtml(option.cash_bonus_per_acre)} per acre</span>
+                                        </div>`;
+                                }
+                                
+                                if (option.royalty_rate) {
+                                    content += `
+                                        <div>
+                                            <span style="font-size: 13px; color: #6B7280;">Royalty Rate</span><br>
+                                            <span style="font-weight: 600;">${escapeHtml(option.royalty_rate)}</span>
+                                        </div>`;
+                                }
+                                
+                                if (option.net_revenue_interest) {
+                                    content += `
+                                        <div>
+                                            <span style="font-size: 13px; color: #6B7280;">Net Revenue Interest</span><br>
+                                            <span style="font-weight: 600;">${escapeHtml(option.net_revenue_interest)}</span>
+                                        </div>`;
+                                }
+                                
+                                content += `
+                                        </div>
+                                    </div>`;
+                            });
+                            
+                            if (data.election_mailing_address) {
+                                content += `
+                                    <div style="background: #FFF3CD; border: 1px solid #FFC107; border-radius: 6px; padding: 12px; margin-top: 16px;">
+                                        <strong>Mail Election To:</strong><br>
+                                        ${escapeHtml(data.election_mailing_address)}
+                                    </div>`;
+                            }
+                            
+                            content += `${getConfidenceIndicator('election_options', fieldScores)}`;
+                            content += '</div>';
+                        }
                     }
                     
                     // AI Observations

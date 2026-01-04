@@ -23,22 +23,47 @@ For each document (there may be multiple documents in this PDF), identify:
    - royalty_deed  
    - division_order
    - lease
-   - lease_assignment
+   - assignment (or lease_assignment)
    - pooling_order
    - spacing_order
    - ratification
    - affidavit_of_heirship
    - probate_document
+   - right_of_way
+   - release_of_lease
    - other (with explanation in notes)
 
-2. **General Fields** (for all document types):
-   - Grantor(s): name(s) and address if shown
-   - Grantee(s): name(s) and address if shown
-   - Interest Conveyed: The fractional interest (e.g., "1/8", "1/4", "all")
-   - Legal Description: Section, Township, Range, County, Quarter calls, Acres
-   - Recording Information: Book, Page, Recording date
-   - Execution Date: When the document was signed
-   - Consideration: Dollar amount or description
+2. **Universal Fields** (extract for ALL document types):
+   
+   Recording Information:
+   - recording_book: Book number
+   - recording_page: Page number  
+   - document_number: Instrument/document number if shown
+   - recording_date: Date recorded at county clerk
+   - recording_county: County where recorded
+   
+   Execution:
+   - execution_date: Date document was signed
+   - effective_date: Date document takes effect (if different)
+   - prepared_by: Attorney, title company, or preparer name
+   - notary_date: Date of notarization
+   - notary_county: County of notarization
+   - notary_state: State of notarization
+   
+   References:
+   - related_documents: Array of referenced recordings (book/page, document numbers)
+   - exhibits: Array of exhibits mentioned (Exhibit A, B, etc.)
+   - prior_instruments: References to prior deeds, leases, etc.
+   
+   Legal Description:
+   - legal_description.section
+   - legal_description.township  
+   - legal_description.range
+   - legal_description.county
+   - legal_description.quarter (NE/4, SW/4 NW/4, etc.)
+   - legal_description.lot_block (if platted land)
+   - legal_description.acres
+   - legal_description.full_text (verbatim legal if complex)
 
 3. **Division Order Specific Fields** (only when doc_type is division_order):
    - well_name: Full well name (e.g., "LASSITER 1-20-29XH", "SMITH 1-15H")
