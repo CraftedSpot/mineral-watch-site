@@ -45,6 +45,11 @@ export {
   handleRegister
 } from './auth.js';
 
+// Sync handler
+export {
+  handleAirtableSync
+} from './sync.js';
+
 // Billing handlers
 export {
   handleBillingPortal,
