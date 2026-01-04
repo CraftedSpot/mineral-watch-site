@@ -41,21 +41,21 @@ export async function linkDocumentToEntities(
   
   // Extract legal description from document
   // Handle various field naming conventions
-  const section = extractedFields.section?.value || 
-                  extractedFields.legal_section?.value || 
-                  extractedFields.Section?.value ||
-                  extractedFields.SEC?.value;
+  const rawSection = extractedFields.section?.value || 
+                     extractedFields.legal_section?.value || 
+                     extractedFields.Section?.value ||
+                     extractedFields.SEC?.value;
                   
-  const township = extractedFields.township?.value || 
-                   extractedFields.legal_township?.value || 
-                   extractedFields.Township?.value ||
-                   extractedFields.TWN?.value ||
-                   extractedFields.TWP?.value;
+  const rawTownship = extractedFields.township?.value || 
+                      extractedFields.legal_township?.value || 
+                      extractedFields.Township?.value ||
+                      extractedFields.TWN?.value ||
+                      extractedFields.TWP?.value;
                    
-  const range = extractedFields.range?.value || 
-                extractedFields.legal_range?.value || 
-                extractedFields.Range?.value ||
-                extractedFields.RNG?.value;
+  const rawRange = extractedFields.range?.value || 
+                   extractedFields.legal_range?.value || 
+                   extractedFields.Range?.value ||
+                   extractedFields.RNG?.value;
                 
   const county = extractedFields.county?.value || 
                  extractedFields.County?.value ||
@@ -66,8 +66,14 @@ export async function linkDocumentToEntities(
                    extractedFields.MERIDIAN?.value ||
                    extractedFields.MER?.value;
   
+  // Normalize the values
+  const section = normalizeSection(rawSection);
+  const township = normalizeTownship(rawTownship);
+  const range = normalizeRange(rawRange);
+  
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
-  console.log(`[LinkDocuments] Legal description: Section ${section}, Township ${township}, Range ${range}, County ${county}, Meridian ${meridian}`);
+  console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}'`);
+  console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
   
   // Match property by legal description
   if (section && township && range && county) {
