@@ -40,3 +40,6 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 # AUTH_SECRET = "your-auth-secret"
 # STRIPE_SECRET_KEY = "your-stripe-secret-key"
 # SYNC_API_KEY = "your-sync-api-key"
+
+[triggers]
+crons = ["*/15 * * * *"]  # Every 15 minutes
