@@ -158,10 +158,16 @@ export async function linkDocumentToEntities(
     }
   }
   
-  // Check for nested well information objects
+  // Check for nested well information objects or arrays
   const wellInfoObj = getValue(extractedFields.well_information) || 
                       getValue(extractedFields.well_info) ||
-                      getValue(extractedFields.well_details);
+                      getValue(extractedFields.well_details) ||
+                      getValue(extractedFields.well);
+  
+  // Handle if wells are in an array (for documents with multiple wells)
+  const wellsList = getValue(extractedFields.wells) || 
+                    getValue(extractedFields.well_list);
+  const firstWell = Array.isArray(wellsList) ? wellsList[0] : null;
   
   // Match well by API number or name using cascading search strategy
   const apiNumber = getValue(wellInfoObj?.api_number) ||
