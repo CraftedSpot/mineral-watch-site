@@ -185,13 +185,14 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
       const fields = record.fields || {};
       
       return env.WELLS_DB.prepare(`
-        INSERT INTO properties (id, airtable_record_id, county, section, township, range, acres, net_acres, notes, owner, synced_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO properties (id, airtable_record_id, county, section, township, range, meridian, acres, net_acres, notes, owner, synced_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(airtable_record_id) DO UPDATE SET
           county = excluded.county,
           section = excluded.section,
           township = excluded.township,
           range = excluded.range,
+          meridian = excluded.meridian,
           acres = excluded.acres,
           net_acres = excluded.net_acres,
           notes = excluded.notes,
@@ -204,6 +205,7 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
         fields.SEC || null,
         fields.TWN || null,
         fields.RNG || null,
+        fields.MERIDIAN || null,
         parseNumber(fields.ACRES),
         parseNumber(fields['NET ACRES']),
         fields.Notes || null,
