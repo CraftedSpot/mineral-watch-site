@@ -134,12 +134,23 @@ import {
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
+import { syncAirtableData } from './sync.js';
 
 
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
 var index_default = {
+  async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    console.log('Cron triggered: Starting Airtable sync');
+    try {
+      const result = await syncAirtableData(env);
+      console.log('Sync completed:', result);
+    } catch (error) {
+      console.error('Scheduled sync failed:', error);
+    }
+  },
+  
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const path = url.pathname;
