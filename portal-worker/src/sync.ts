@@ -264,76 +264,72 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
       return result;
     }
 
-    // Prepare batch statements
-    const statements = allRecords.map(record => {
-      const id = `well_${record.id}`;
-      const fields = record.fields || {};
-      
-      return env.WELLS_DB.prepare(`
-        INSERT INTO airtable_wells (
-          id, airtable_record_id, api_number, well_name, operator, status, 
-          well_status, well_type, county, section, township, range, 
-          formation_name, spud_date, completion_date, first_production_date,
-          data_last_updated, last_rbdms_sync, synced_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(airtable_record_id) DO UPDATE SET
-          api_number = excluded.api_number,
-          well_name = excluded.well_name,
-          operator = excluded.operator,
-          status = excluded.status,
-          well_status = excluded.well_status,
-          well_type = excluded.well_type,
-          county = excluded.county,
-          section = excluded.section,
-          township = excluded.township,
-          range = excluded.range,
-          formation_name = excluded.formation_name,
-          spud_date = excluded.spud_date,
-          completion_date = excluded.completion_date,
-          first_production_date = excluded.first_production_date,
-          data_last_updated = excluded.data_last_updated,
-          last_rbdms_sync = excluded.last_rbdms_sync,
-          synced_at = CURRENT_TIMESTAMP
-      `).bind(
-        id,
-        record.id,
-        fields['API Number'] || null,
-        fields['Well Name'] || null,
-        fields.Operator || null,
-        fields.Status || null,
-        fields['Well Status'] || null,
-        null, // well_type - Not in Client Wells table
-        fields.County || null,
-        fields.Section || null,
-        fields.Township || null,
-        fields.Range || null,
-        fields['Formation Name'] || null,
-        formatDate(fields['Spud Date']),
-        formatDate(fields['Completion Date']),
-        formatDate(fields['First Production Date']),
-        fields['Data Last Updated'] || null,
-        fields['Last RBDMS Sync'] || null
-      );
-    });
+    // Process each well individually to handle update vs insert logic
+    for (const record of allRecords) {
+      try {
+        const fields = record.fields || {};
+        const apiNumber = fields['API Number'];
+        
+        if (!apiNumber) {
+          result.errors.push(`Well ${record.id}: Missing API number`);
+          continue;
+        }
 
-    // Execute statements in chunks
-    console.log(`Executing batch insert/update for ${statements.length} wells...`);
-    
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-      const chunk = statements.slice(i, i + BATCH_SIZE);
-      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
-      console.log(`Processing wells ${i + 1}-${chunkEnd} of ${statements.length}`);
-      
-      await env.WELLS_DB.batch(chunk);
+        // Extract user tracking fields
+        const userId = fields['User']?.[0] || null;
+        const orgId = fields['Organization']?.[0] || null;
+        const status = fields['Status']?.name || fields['Status'] || null;
+
+        // First, check if we need to add the missing columns to the wells table
+        // Try to update existing well with user tracking info
+        const updateResult = await env.WELLS_DB.prepare(`
+          UPDATE wells SET
+            airtable_record_id = ?,
+            status = ?,
+            synced_at = CURRENT_TIMESTAMP
+          WHERE api_number = ?
+        `).bind(
+          record.id,
+          status,
+          apiNumber
+        ).run();
+
+        if (updateResult.meta.changes > 0) {
+          result.updated++;
+        } else {
+          // Well not in OCC data yet, insert minimal row
+          // Only insert if we have basic required fields
+          const id = generateId();
+          await env.WELLS_DB.prepare(`
+            INSERT INTO wells (
+              id, api_number, airtable_record_id, well_name, operator, 
+              county, section, township, range, meridian,
+              status, well_status, created_at, synced_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+          `).bind(
+            id,
+            apiNumber,
+            record.id,
+            fields['Well Name'] || null,
+            fields.Operator || null,
+            fields.County || null,
+            fields.Section ? parseInt(fields.Section, 10) : null,
+            fields.Township || null,
+            fields.Range || null,
+            status,
+            fields['Well Status'] || null
+          ).run();
+          
+          result.created++;
+        }
+        
+        result.synced++;
+      } catch (error) {
+        result.errors.push(`Well ${record.id}: ${error.message}`);
+        console.error(`Error syncing well ${record.id}:`, error);
+      }
     }
-    
-    // Count results
-    result.synced = allRecords.length;
-    // Since we're using UPSERT, we can't easily distinguish creates vs updates
-    // Just report total synced
-    result.created = 0;
-    result.updated = result.synced;
     
   } catch (error) {
     result.errors.push(`Wells sync failed: ${error.message}`);
