@@ -1,6 +1,17 @@
-interface AirtableConfig {
-  baseId: string;
-  apiKey?: string;
+// Airtable configuration
+const AIRTABLE_BASE_ID = 'appRBoI9wCy4eOhzd'; // Mineral Watch base
+const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // 📍 Client Properties
+const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // 🛢️ Client Wells
+
+interface AirtableRecord {
+  id: string;
+  fields: Record<string, any>;
+  createdTime: string;
+}
+
+interface AirtableResponse {
+  records: AirtableRecord[];
+  offset?: string;
 }
 
 interface SyncResult {
