@@ -201,19 +201,28 @@ For multi-document PDFs:
 Remember: Return ONLY the JSON object, no other text."""
 
 
-def calculate_document_confidence(field_scores: dict) -> str:
+def calculate_document_confidence(field_scores: dict, doc_type: str = None) -> str:
     """Roll up per-field scores to document-level high/medium/low."""
     
-    # Critical fields that drive review decisions
-    critical_fields = [
-        'grantor_name',
-        'grantee_name',
-        'interest_conveyed',
-        'legal_section',
-        'legal_township',
-        'legal_range',
-        'legal_county'
-    ]
+    # Critical fields vary by document type
+    if doc_type == 'division_order':
+        critical_fields = [
+            'well_name',
+            'owner_number',
+            'decimal_interest',
+            'operator',
+            'effective_date'
+        ]
+    else:
+        critical_fields = [
+            'grantor_name',
+            'grantee_name',
+            'interest_conveyed',
+            'legal_section',
+            'legal_township',
+            'legal_range',
+            'legal_county'
+        ]
     
     scores = []
     for field in critical_fields:
