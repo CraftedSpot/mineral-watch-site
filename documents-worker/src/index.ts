@@ -799,6 +799,7 @@ export default {
       // Ensure all processing columns exist
       try {
         await ensureProcessingColumns(env);
+        await ensureLinkColumns(env.WELLS_DB);
       } catch (columnError) {
         console.error('Failed to ensure processing columns:', columnError);
         return errorResponse('Database column check failed: ' + (columnError instanceof Error ? columnError.message : String(columnError)), 500, env);
