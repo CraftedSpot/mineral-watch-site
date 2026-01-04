@@ -4763,12 +4763,22 @@
                         font-size: 1rem;
                         display: none; /* Hidden by default */
                     }
-                    .confidence-indicator.high { color: #10b981; }
-                    .confidence-indicator.medium { color: #f59e0b; }
-                    .confidence-indicator.low { color: #ef4444; }
+                    .confidence-indicator.confidence-high { color: #10b981; }
+                    .confidence-indicator.confidence-medium { color: #f59e0b; }
+                    .confidence-indicator.confidence-low { color: #ef4444; }
+                    
+                    /* Hide percentages by default */
+                    .confidence-percentage {
+                        display: none;
+                    }
                     
                     /* Show confidence indicators when details are expanded */
                     .document-detail-modal.confidence-visible .confidence-indicator {
+                        display: inline;
+                    }
+                    
+                    /* Show percentages when details are expanded */
+                    .document-detail-modal.confidence-visible .confidence-percentage {
                         display: inline;
                     }
                     
