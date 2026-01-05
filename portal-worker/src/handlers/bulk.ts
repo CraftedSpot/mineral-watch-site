@@ -1309,7 +1309,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           
           // Always use OCC/completion data for well name, never the user's input
           // OCC data should have the authoritative well name
-          const wellName = completion.wellName || occ.wellName || well.wellName || "";
+          const wellName = completion.wellName || occ.wellName || "";
           const operator = completion.operator || occ.operator || "";
           const county = completion.county || occ.county || "";
           const section = completion.surfaceSection || (occ.section ? String(occ.section) : "");
