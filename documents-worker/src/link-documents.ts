@@ -307,8 +307,10 @@ export async function linkDocumentToEntities(
             OR UPPER(well_name) LIKE UPPER(?)
             OR (well_name || ' ' || COALESCE(well_number, '')) LIKE ?
           )
-          AND UPPER(township) = UPPER(?)
-          AND UPPER(range) = UPPER(?)
+          AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
+          AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
+          AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
+          AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
           ${meridian ? 'AND (meridian = ? OR meridian IS NULL)' : ''}
           ${operator ? 'AND UPPER(operator) LIKE UPPER(?)' : ''}
           ORDER BY ${section ? 'CAST(section AS INTEGER) = CAST(? AS INTEGER) DESC,' : ''} well_status = 'AC' DESC
