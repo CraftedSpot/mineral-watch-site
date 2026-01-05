@@ -146,12 +146,14 @@ export async function linkDocumentToEntities(
       const property = await db.prepare(`
         SELECT id FROM properties 
         WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER) 
-          AND UPPER(township) = UPPER(?) 
-          AND UPPER(range) = UPPER(?) 
+          AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
+          AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
+          AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
+          AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
           AND LOWER(county) = LOWER(?)
           AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
         LIMIT 1
-      `).bind(section, township, range, county, meridian, meridian).first();
+      `).bind(section, township, township, range, range, county, meridian, meridian).first();
       
       if (property) {
         propertyId = property.id as string;
@@ -263,8 +265,10 @@ export async function linkDocumentToEntities(
             OR (well_name || ' ' || COALESCE(well_number, '')) LIKE ?
           )
           AND CAST(section AS INTEGER) = CAST(? AS INTEGER)
-          AND UPPER(township) = UPPER(?)
-          AND UPPER(range) = UPPER(?)
+          AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
+          AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
+          AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
+          AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
           ${meridian ? 'AND (meridian = ? OR meridian IS NULL)' : ''}
           ${operator ? 'AND UPPER(operator) LIKE UPPER(?)' : ''}
           ORDER BY well_status = 'AC' DESC
@@ -277,6 +281,8 @@ export async function linkDocumentToEntities(
           `%${wellName}%`,
           section,
           township,
+          township,
+          range,
           range
         ];
         if (meridian) params1.push(meridian);
