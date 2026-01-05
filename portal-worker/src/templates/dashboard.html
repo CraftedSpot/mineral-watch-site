@@ -5752,7 +5752,9 @@
             
             // Show linked properties count immediately from well data
             const linkedPropertiesCount = f['Linked Properties']?.length || 0;
-            document.getElementById('linked-properties-count').textContent = linkedPropertiesCount;
+            const propsCountEl = document.getElementById('linked-properties-count');
+            propsCountEl.textContent = ''; // Clear first to avoid visual artifacts
+            propsCountEl.textContent = linkedPropertiesCount;
             
             // Show loading state if there are properties
             if (linkedPropertiesCount > 0) {
@@ -5961,7 +5963,9 @@
             
             // Show linked wells count immediately from property data
             const linkedWellsCount = f['Linked Wells']?.length || 0;
-            document.getElementById('linked-wells-count').textContent = linkedWellsCount;
+            const wellsCountEl = document.getElementById('linked-wells-count');
+            wellsCountEl.textContent = ''; // Clear first to avoid visual artifacts
+            wellsCountEl.textContent = linkedWellsCount;
             
             // Show loading state if there are wells
             if (linkedWellsCount > 0) {
@@ -6064,6 +6068,7 @@
                 const data = await response.json();
                 console.log('[LinkedWells] API Response data:', data);
                 
+                countEl.textContent = ''; // Clear first to avoid visual artifacts
                 countEl.textContent = data.wells ? data.wells.length : 0;
                 
                 if (!data.wells || data.wells.length === 0) {
@@ -6197,6 +6202,7 @@
                 const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
                 const data = await response.json();
                 
+                countEl.textContent = ''; // Clear first to avoid visual artifacts
                 countEl.textContent = data.properties?.length || 0;
                 
                 if (!data.properties || data.properties.length === 0) {
