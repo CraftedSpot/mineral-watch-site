@@ -1307,10 +1307,9 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           const operatorInfo = well.operatorInfo || {};
           const mapLink = occ.lat && occ.lon ? generateMapLink(occ.lat, occ.lon, occ.wellName) : '#';
           
-          // Merge data with completion taking precedence
-          const wellName = (well.wellName && well.wellName.includes('#')) 
-            ? well.wellName 
-            : (completion.wellName || occ.wellName || well.wellName || "");
+          // Always use OCC/completion data for well name, never the user's input
+          // OCC data should have the authoritative well name
+          const wellName = completion.wellName || occ.wellName || well.wellName || "";
           const operator = completion.operator || occ.operator || "";
           const county = completion.county || occ.county || "";
           const section = completion.surfaceSection || (occ.section ? String(occ.section) : "");
