@@ -144,7 +144,7 @@ export async function linkDocumentToEntities(
   // Match property by legal description
   if (section && township && range && county) {
     try {
-      const property = await db.prepare(`
+      const propertyQuery = `
         SELECT id FROM properties 
         WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER) 
           AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
@@ -154,7 +154,13 @@ export async function linkDocumentToEntities(
           AND LOWER(county) = LOWER(?)
           AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
         LIMIT 1
-      `).bind(section, township, township, range, range, county, meridian, meridian).first();
+      `;
+      const propertyParams = [section, township, township, range, range, county, meridian, meridian];
+      
+      console.log(`[LinkDocuments] Property matching SQL query:\n${propertyQuery}`);
+      console.log(`[LinkDocuments] Property query parameters:`, propertyParams);
+      
+      const property = await db.prepare(propertyQuery).bind(...propertyParams).first();
       
       if (property) {
         propertyId = property.id as string;
