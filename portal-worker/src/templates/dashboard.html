@@ -3587,7 +3587,10 @@
             
             displayWells.forEach(w => {
                 const f = w.fields;
-                const wellName = f['Well Name'] ? escapeHtml(f['Well Name']) : '<em style="color: #A0AEC0;">Unknown</em>';
+                const wellBaseName = f['Well Name'] || '';
+                const wellNumber = f['Well Number'] || '';
+                const wellFullName = wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName;
+                const wellName = wellFullName ? escapeHtml(wellFullName) : '<em style="color: #A0AEC0;">Unknown</em>';
                 const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
                 const operatorPhone = f['Operator Phone'] || '';
                 const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
