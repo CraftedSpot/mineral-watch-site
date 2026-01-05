@@ -322,6 +322,8 @@ export async function linkDocumentToEntities(
           `%${baseName || wellName}%`,
           `%${wellName}%`,
           township,
+          township,
+          range,
           range
         ];
         if (meridian) params2.push(meridian);
