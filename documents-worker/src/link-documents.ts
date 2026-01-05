@@ -7,19 +7,19 @@ const normalizeSection = (s: string | null | undefined): string | null => {
   return isNaN(parsed) ? null : String(parsed);
 };
 
-// Normalize township/range (ensure suffix, handle missing, pad with zeros)
+// Normalize township/range (ensure suffix, handle missing, no padding)
 const normalizeTownship = (t: string | null | undefined): string | null => {
   if (!t) return null;
   // Remove all non-digits to get the number part
   const num = t.replace(/[^\d]/g, '');
   if (!num) return null;
   
-  // Pad number to 2 digits with leading zero
-  const paddedNum = num.padStart(2, '0');
+  // Convert to integer to remove leading zeros, then back to string
+  const cleanNum = String(parseInt(num, 10));
   
   // Look for direction (N/S), default to N if missing
   const dir = t.match(/[NSns]/)?.[0]?.toUpperCase() || 'N';
-  return `${paddedNum}${dir}`;
+  return `${cleanNum}${dir}`;
 };
 
 const normalizeRange = (r: string | null | undefined): string | null => {
