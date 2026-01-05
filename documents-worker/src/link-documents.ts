@@ -296,6 +296,9 @@ export async function linkDocumentToEntities(
         if (meridian) params1.push(meridian);
         if (operator) params1.push(`%${operator}%`);
         
+        console.log(`[LinkDocuments] Well Strategy 1 SQL query:\n${query1}`);
+        console.log(`[LinkDocuments] Well Strategy 1 parameters:`, params1);
+        
         const well = await db.prepare(query1).bind(...params1).first();
         if (well) {
           wellId = well.id as string;
