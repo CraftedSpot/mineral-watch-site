@@ -41,5 +41,8 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 # STRIPE_SECRET_KEY = "your-stripe-secret-key"
 # SYNC_API_KEY = "your-sync-api-key"
 
+[vars]
+PROCESSING_API_KEY = "mmw-proc-2024-secure-key"
+
 [triggers]
 crons = ["*/15 * * * *"]  # Every 15 minutes

@@ -31,6 +31,7 @@ export interface Env {
   STRIPE_SECRET_KEY: string;
   TRACK_WELL_SECRET: string;
   SYNC_API_KEY?: string;
+  PROCESSING_API_KEY?: string;
 }
 
 /**

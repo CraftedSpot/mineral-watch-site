@@ -148,7 +148,7 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
           new Request('https://documents-worker/api/processing/relink-all', {
             method: 'POST',
             headers: {
-              'X-API-Key': env.SYNC_API_KEY || '',
+              'X-API-Key': env.PROCESSING_API_KEY || 'mmw-proc-2024-secure-key',
               'Content-Type': 'application/json'
             }
           })
@@ -347,7 +347,7 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
                 status, well_status, well_type, spud_date, completion_date, 
                 created_at, synced_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+              VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), CURRENT_TIMESTAMP)
             `).bind(
               id,
               apiNumber,
@@ -400,7 +400,7 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
                 county, section, township, range, meridian,
                 status, well_status, created_at, synced_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+              VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
             `).bind(
               id,
               apiNumber,
