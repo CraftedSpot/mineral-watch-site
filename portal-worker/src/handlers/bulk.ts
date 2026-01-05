@@ -1330,7 +1330,19 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           
           // Always use OCC/completion data for well name, never the user's input
           // OCC data should have the authoritative well name
-          const wellName = completion.wellName || occ.wellName || "";
+          // Prefer OCC data if completion data doesn't have a well number (# symbol)
+          let wellName = "";
+          if (completion.wellName && completion.wellName.includes('#')) {
+            // Completion data has a complete well name with number
+            wellName = completion.wellName;
+          } else if (occ.wellName) {
+            // Use OCC data which should have the complete name
+            wellName = occ.wellName;
+          } else if (completion.wellName) {
+            // Fall back to incomplete completion data if that's all we have
+            wellName = completion.wellName;
+          }
+          
           const operator = completion.operator || occ.operator || "";
           const county = completion.county || occ.county || "";
           const section = completion.surfaceSection || (occ.section ? String(occ.section) : "");
@@ -1339,7 +1351,17 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           
           // Log 3: Final well name being written to database
           console.log(`[BulkUpload] Writing to DB - API: ${well.apiNumber}, Final name: "${wellName}"`);
-          console.log(`  - Source: ${completion.wellName ? 'Completion data' : (occ.wellName ? 'OCC/D1 data' : 'EMPTY')}`);
+          let source = 'EMPTY';
+          if (completion.wellName && completion.wellName.includes('#')) {
+            source = 'Completion data (complete)';
+          } else if (occ.wellName && (!completion.wellName || !completion.wellName.includes('#'))) {
+            source = 'OCC/D1 data (completion incomplete)';
+          } else if (completion.wellName) {
+            source = 'Completion data (incomplete - no #)';
+          } else if (occ.wellName) {
+            source = 'OCC/D1 data';
+          }
+          console.log(`  - Source: ${source}`);
           if (well.wellName !== wellName) {
             console.log(`  - Name changed from client: "${well.wellName}" → "${wellName}"`);
           }
