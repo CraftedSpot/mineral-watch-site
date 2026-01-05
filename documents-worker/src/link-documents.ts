@@ -126,7 +126,8 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.meridian) || 
                    getValue(extractedFields.Meridian) ||
                    getValue(extractedFields.MERIDIAN) ||
-                   getValue(extractedFields.MER);
+                   getValue(extractedFields.MER) ||
+                   null;
   
   // Normalize the values
   const section = normalizeSection(rawSection);
@@ -204,7 +205,8 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.operator) ||
                    getValue(extractedFields.Operator) ||
                    getValue(extractedFields.OPERATOR) ||
-                   getValue(extractedFields.applicant); // Sometimes operator is listed as applicant
+                   getValue(extractedFields.applicant) || // Sometimes operator is listed as applicant
+                   null;
   
   // Log well information for debugging
   if (wellsList && Array.isArray(wellsList)) {
