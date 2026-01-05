@@ -283,8 +283,9 @@ export async function linkDocumentToEntities(
       console.log(`[LinkDocuments] Base name: "${baseName}", Variations:`, nameVariations);
       
       // Strategy 1: Name + Full Location (most specific)
+      // Operator matching removed - well name + location is sufficient for confident match
       if (section && township && range) {
-        console.log(`[LinkDocuments] Strategy 1: Name + Section + T-R`);
+        console.log(`[LinkDocuments] Strategy 1: Name + Section + T-R (operator-agnostic)`);
         
         // Build query with name variations
         const placeholders = nameVariations.map((_, i) => `?`).join(',');
@@ -302,7 +303,6 @@ export async function linkDocumentToEntities(
           AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
           AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
           ${meridian ? 'AND (meridian = ? OR meridian IS NULL)' : ''}
-          ${operator ? 'AND UPPER(operator) LIKE UPPER(?)' : ''}
           ORDER BY well_status = 'AC' DESC
           LIMIT 1
         `;
@@ -318,7 +318,6 @@ export async function linkDocumentToEntities(
           range
         ];
         if (meridian) params1.push(meridian);
-        if (operator) params1.push(`%${operator}%`);
         
         console.log(`[LinkDocuments] Well Strategy 1 SQL query:\n${query1}`);
         console.log(`[LinkDocuments] Well Strategy 1 parameters:`, params1);
