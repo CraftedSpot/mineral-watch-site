@@ -952,12 +952,22 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         warnings.push("Duplicate in this file");
       }
       
+      // Combine well name and number for preview
+      const wellNameField = well.WELL_NAME || well['Well_Name'] || well['Well Name'] || 
+                           well.well_name || well.WellName || well.wellName || '';
+      const wellNumberField = well.WELL_NUM || well['Well_Num'] || well['WELL_NUMBER'] || 
+                             well['Well Number'] || well['well_number'] || well.WellNumber || 
+                             well.wellNumber || well.well_num || '';
+      const combinedWellName = wellNameField && wellNumberField 
+        ? `${wellNameField.trim()} ${wellNumberField.trim()}` 
+        : wellNameField || '';
+      
       return {
         row: index + 1,
         original: well,
         normalized: {
           apiNumber: cleanApi,
-          wellName: fullWellName || well['Well Name'] || well.well_name || well.WELL_NAME || well.WellName || well.wellName || well.Name || well.name || '',
+          wellName: combinedWellName,
           notes: well.Notes || well.notes || ''
         },
         matchStatus,
