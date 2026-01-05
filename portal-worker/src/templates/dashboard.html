@@ -4776,6 +4776,7 @@
                 const style = document.createElement('style');
                 style.id = 'documentDetailStyles';
                 style.textContent = `
+                    /* Document details styles v2 */
                     .doc-detail-grid {
                         display: grid;
                         gap: 16px;
@@ -5227,6 +5228,8 @@
         window.enableSaveButton = enableSaveButton;
         window.toggleObservations = toggleObservations;
         window.saveAndCloseDocumentNotes = saveAndCloseDocumentNotes;
+        window.toggleSection = toggleSection;
+        window.toggleConfidenceDetails = toggleConfidenceDetails;
         
         // Load Documents
         async function loadDocuments() {
