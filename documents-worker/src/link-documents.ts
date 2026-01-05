@@ -7,16 +7,19 @@ const normalizeSection = (s: string | null | undefined): string | null => {
   return isNaN(parsed) ? null : String(parsed);
 };
 
-// Normalize township/range (ensure suffix, handle missing)
+// Normalize township/range (ensure suffix, handle missing, pad with zeros)
 const normalizeTownship = (t: string | null | undefined): string | null => {
   if (!t) return null;
   // Remove all non-digits to get the number part
   const num = t.replace(/[^\d]/g, '');
   if (!num) return null;
   
+  // Pad number to 2 digits with leading zero
+  const paddedNum = num.padStart(2, '0');
+  
   // Look for direction (N/S), default to N if missing
   const dir = t.match(/[NSns]/)?.[0]?.toUpperCase() || 'N';
-  return `${num}${dir}`;
+  return `${paddedNum}${dir}`;
 };
 
 const normalizeRange = (r: string | null | undefined): string | null => {
@@ -25,9 +28,12 @@ const normalizeRange = (r: string | null | undefined): string | null => {
   const num = r.replace(/[^\d]/g, '');
   if (!num) return null;
   
+  // Pad number to 2 digits with leading zero
+  const paddedNum = num.padStart(2, '0');
+  
   // Look for direction (E/W), default to W if missing
   const dir = r.match(/[EWew]/)?.[0]?.toUpperCase() || 'W';
-  return `${num}${dir}`;
+  return `${paddedNum}${dir}`;
 };
 
 // Well name normalization functions
