@@ -4724,28 +4724,8 @@
                         content += '</div>';
                     }
                     
-                    // Render all extracted fields dynamically
+                    // Render all extracted fields dynamically (includes Observations at top)
                     content += renderExtractedData(data, fieldScores);
-                    // AI Observations
-                    if (data.notes) {
-                        content += '<div class="detail-section">';
-                        content += '<h4 class="detail-section-title">📋 Observations</h4>';
-                        content += '<div id="observationsContainer" style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.5; color: #6B7280;">';
-                        
-                        const observations = escapeHtml(data.notes);
-                        const isLong = observations.length > 200;
-                        
-                        if (isLong) {
-                            const truncated = observations.substring(0, 200) + '...';
-                            content += `<div id="observationsText" data-full="${observations.replace(/"/g, '&quot;')}" data-truncated="${truncated.replace(/"/g, '&quot;')}">${truncated}</div>`;
-                            content += `<button type="button" onclick="toggleObservations()" id="observationsToggle" style="background: none; border: none; color: #1D6F5C; cursor: pointer; font-size: 13px; margin-top: 8px; padding: 0;">Show more ▼</button>`;
-                        } else {
-                            content += observations;
-                        }
-                        
-                        content += '</div>';
-                        content += '</div>';
-                    }
                     
                     // User Notes
                     content += '<div class="detail-section">';
