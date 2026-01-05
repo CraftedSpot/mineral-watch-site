@@ -137,6 +137,32 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
       ).run();
     }
 
+    // After sync completes, trigger document re-linking
+    if (env.DOCUMENTS_WORKER && (result.properties.synced > 0 || result.wells.synced > 0)) {
+      console.log('[Sync] Triggering document re-linking after successful sync');
+      try {
+        const relinkResponse = await env.DOCUMENTS_WORKER.fetch(
+          new Request('https://documents-worker/api/processing/relink-all', {
+            method: 'POST',
+            headers: {
+              'X-API-Key': env.SYNC_API_KEY || '',
+              'Content-Type': 'application/json'
+            }
+          })
+        );
+
+        if (relinkResponse.ok) {
+          const relinkResult = await relinkResponse.json();
+          console.log(`[Sync] Document re-linking complete: ${relinkResult.linked} documents linked`);
+        } else {
+          console.error('[Sync] Document re-linking failed:', await relinkResponse.text());
+        }
+      } catch (error) {
+        console.error('[Sync] Error triggering document re-linking:', error);
+        // Don't throw - sync was successful even if re-linking failed
+      }
+    }
+
     return result;
   } catch (error) {
     // Update sync log with error

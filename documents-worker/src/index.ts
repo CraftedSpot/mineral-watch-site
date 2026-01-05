@@ -7,6 +7,7 @@ interface Env {
   AUTH_WORKER: { fetch: (request: Request) => Promise<Response> };
   ALLOWED_ORIGIN: string;
   PROCESSING_API_KEY: string;
+  SYNC_API_KEY?: string;
 }
 
 // Helper to ensure CORS headers
@@ -1161,6 +1162,70 @@ export default {
             email_on_complete: true
           }
         }, 200, env);
+      }
+    }
+
+    // Route: POST /api/processing/relink-all - Re-link all documents to properties/wells
+    if (path === '/api/processing/relink-all' && request.method === 'POST') {
+      // Verify API key - accept either PROCESSING_API_KEY or SYNC_API_KEY
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || (apiKey !== env.PROCESSING_API_KEY && apiKey !== env.SYNC_API_KEY)) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      console.log('[Documents] Starting re-linking of all documents');
+
+      try {
+        // Get all documents that have extracted data
+        const documents = await env.WELLS_DB.prepare(`
+          SELECT id, extracted_data 
+          FROM documents 
+          WHERE deleted_at IS NULL 
+          AND extracted_data IS NOT NULL
+          AND status != 'failed'
+        `).all();
+
+        let linked = 0;
+        let failed = 0;
+
+        // Process each document
+        for (const doc of documents.results) {
+          try {
+            if (!doc.extracted_data) continue;
+
+            // Parse extracted data if it's a string
+            const extractedData = typeof doc.extracted_data === 'string' 
+              ? JSON.parse(doc.extracted_data) 
+              : doc.extracted_data;
+
+            console.log(`[Documents] Re-linking document ${doc.id}`);
+            const linkResult = await linkDocumentToEntities(
+              env.WELLS_DB,
+              doc.id,
+              extractedData
+            );
+            
+            if (linkResult.propertyId || linkResult.wellId) {
+              linked++;
+              console.log(`[Documents] Successfully linked ${doc.id} - Property: ${linkResult.propertyId}, Well: ${linkResult.wellId}`);
+            }
+          } catch (error) {
+            console.error(`[Documents] Failed to re-link document ${doc.id}:`, error);
+            failed++;
+          }
+        }
+
+        console.log(`[Documents] Re-linking complete - Linked: ${linked}, Failed: ${failed}, Total: ${documents.results.length}`);
+
+        return jsonResponse({
+          success: true,
+          total: documents.results.length,
+          linked,
+          failed
+        }, 200, env);
+      } catch (error) {
+        console.error('[Documents] Re-linking error:', error);
+        return errorResponse('Failed to re-link documents', 500, env);
       }
     }
 
