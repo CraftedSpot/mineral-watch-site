@@ -4260,8 +4260,28 @@
             let content = '';
             const groupedFields = groupFieldsBySection(data);
             
-            // Render each section
-            for (const [sectionName, fields] of Object.entries(groupedFields)) {
+            // Define section order with Observations first
+            const sectionOrder = [
+                '📋 Observations',
+                'Observations',
+                'Recording Information',
+                'Execution Details', 
+                'Legal Description',
+                'Parties',
+                'Interest & Consideration',
+                'Lease Terms',
+                'Well Information',
+                'Order Details',
+                'Document References',
+                'Title & Warranties',
+                'Restrictions & Provisions',
+                'Other Information'
+            ];
+            
+            // Render sections in defined order
+            for (const sectionName of sectionOrder) {
+                const fields = groupedFields[sectionName];
+                if (!fields) continue;
                 // Build section content first to check if it's empty
                 let sectionContent = '';
                 let hasVisibleFields = false;
