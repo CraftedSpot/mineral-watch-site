@@ -28,12 +28,12 @@ const normalizeRange = (r: string | null | undefined): string | null => {
   const num = r.replace(/[^\d]/g, '');
   if (!num) return null;
   
-  // Pad number to 2 digits with leading zero
-  const paddedNum = num.padStart(2, '0');
+  // Convert to integer to remove leading zeros, then back to string
+  const cleanNum = String(parseInt(num, 10));
   
   // Look for direction (E/W), default to W if missing
   const dir = r.match(/[EWew]/)?.[0]?.toUpperCase() || 'W';
-  return `${paddedNum}${dir}`;
+  return `${cleanNum}${dir}`;
 };
 
 // Well name normalization functions
