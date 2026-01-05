@@ -957,7 +957,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         original: well,
         normalized: {
           apiNumber: cleanApi,
-          wellName: well['Well Name'] || well.well_name || well.WELL_NAME || well.WellName || well.wellName || well.Name || well.name || '',
+          wellName: fullWellName || well['Well Name'] || well.well_name || well.WELL_NAME || well.WellName || well.wellName || well.Name || well.name || '',
           notes: well.Notes || well.notes || ''
         },
         matchStatus,
