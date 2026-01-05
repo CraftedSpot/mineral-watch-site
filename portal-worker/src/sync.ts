@@ -361,20 +361,44 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
               well_status: occData.wellStatus || fields['Well Status'] || null,
               well_type: occData.wellType || null,
               spud_date: occData.spudDate || null,
-              completion_date: occData.completionDate || null
+              completion_date: occData.completionDate || null,
+              // Additional numeric fields
+              bh_latitude: occData.bhLat || null,
+              bh_longitude: occData.bhLon || null,
+              lateral_length: occData.lateralLength || null,
+              formation_name: occData.formationName || null,
+              formation_depth: occData.formationDepth || null,
+              true_vertical_depth: occData.tvd || null,
+              measured_total_depth: occData.md || null,
+              ip_oil_bbl: occData.ipOil || null,
+              ip_gas_mcf: occData.ipGas || null,
+              ip_water_bbl: occData.ipWater || null
             };
             
             console.log(`[Sync] INSERT values for well ${apiNumber}:`, JSON.stringify(insertValues, null, 2));
+            console.log(`[Sync] Type check - section: ${typeof insertValues.section}, lat: ${typeof insertValues.latitude}, formation_depth: ${typeof insertValues.formation_depth}`);
             
             // Insert with OCC data
             await env.WELLS_DB.prepare(`
               INSERT INTO wells (
                 id, api_number, airtable_record_id, well_name, well_number, operator, 
                 county, section, township, range, meridian, latitude, longitude,
-                status, well_status, well_type, spud_date, completion_date, 
+                status, well_status, well_type, spud_date, completion_date,
+                bh_latitude, bh_longitude, lateral_length, 
+                formation_name, formation_depth, true_vertical_depth, measured_total_depth,
+                ip_oil_bbl, ip_gas_mcf, ip_water_bbl,
                 created_at, synced_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+              VALUES (
+                ?, ?, ?, ?, ?, ?, ?, 
+                CAST(? AS INTEGER), ?, ?, ?, 
+                CAST(? AS REAL), CAST(? AS REAL), 
+                ?, ?, ?, ?, ?, 
+                CAST(? AS REAL), CAST(? AS REAL), CAST(? AS INTEGER),
+                ?, CAST(? AS INTEGER), CAST(? AS INTEGER), CAST(? AS INTEGER),
+                CAST(? AS REAL), CAST(? AS REAL), CAST(? AS REAL),
+                datetime('now'), CURRENT_TIMESTAMP
+              )
             `).bind(
               insertValues.id,
               insertValues.api_number,
@@ -393,7 +417,17 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
               insertValues.well_status,
               insertValues.well_type,
               insertValues.spud_date,
-              insertValues.completion_date
+              insertValues.completion_date,
+              insertValues.bh_latitude,
+              insertValues.bh_longitude,
+              insertValues.lateral_length,
+              insertValues.formation_name,
+              insertValues.formation_depth,
+              insertValues.true_vertical_depth,
+              insertValues.measured_total_depth,
+              insertValues.ip_oil_bbl,
+              insertValues.ip_gas_mcf,
+              insertValues.ip_water_bbl
             ).run();
             
             console.log(`[Sync] Inserted well ${apiNumber} with OCC data`);
