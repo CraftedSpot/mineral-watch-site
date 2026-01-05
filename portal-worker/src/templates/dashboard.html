@@ -4390,6 +4390,22 @@
             return content;
         }
         
+        function toggleSection(sectionId) {
+            const section = document.getElementById(sectionId);
+            const header = document.querySelector(`[data-section="${sectionId}"]`);
+            const chevron = header.querySelector('.section-chevron');
+            
+            if (section.style.display === 'none' || section.style.display === '') {
+                section.style.display = 'grid';
+                chevron.textContent = '▼';
+                header.classList.add('expanded');
+            } else {
+                section.style.display = 'none';
+                chevron.textContent = '▶';
+                header.classList.remove('expanded');
+            }
+        }
+        
         function toggleConfidenceDetails(btn) {
             const details = btn.closest('.confidence-section').querySelector('.confidence-details');
             const modal = btn.closest('.modal');
