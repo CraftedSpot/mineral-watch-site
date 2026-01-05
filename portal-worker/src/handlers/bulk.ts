@@ -1345,9 +1345,18 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           
           const operator = completion.operator || occ.operator || "";
           const county = completion.county || occ.county || "";
-          const section = completion.surfaceSection || (occ.section ? String(occ.section) : "");
+          // Prefer OCC data for location fields if completion data is missing them
+          const section = (completion.surfaceSection || occ.section) ? String(completion.surfaceSection || occ.section) : "";
           const township = completion.surfaceTownship || occ.township || "";
           const range = completion.surfaceRange || occ.range || "";
+          
+          // Log location data for debugging
+          if (!section || !township || !range) {
+            console.log(`[BulkUpload] WARNING - Missing location data for ${well.apiNumber}:`);
+            console.log(`  - Section: "${section}" (completion: "${completion.surfaceSection}", occ: "${occ.section}")`);
+            console.log(`  - Township: "${township}" (completion: "${completion.surfaceTownship}", occ: "${occ.township}")`);
+            console.log(`  - Range: "${range}" (completion: "${completion.surfaceRange}", occ: "${occ.range}")`);
+          }
           
           // Log 3: Final well name being written to database
           console.log(`[BulkUpload] Writing to DB - API: ${well.apiNumber}, Final name: "${wellName}"`);
