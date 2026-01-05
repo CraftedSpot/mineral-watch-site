@@ -4303,7 +4303,7 @@
                         if (isLong) {
                             const truncated = observations.substring(0, 200) + '...';
                             sectionContent += `<div id="observationsText" data-full="${observations.replace(/"/g, '&quot;')}" data-truncated="${truncated.replace(/"/g, '&quot;')}">${truncated}</div>`;
-                            sectionContent += `<button type="button" onclick="toggleObservations()" id="observationsToggle" style="background: none; border: none; color: #1D6F5C; cursor: pointer; font-size: 13px; margin-top: 8px; padding: 0;">Show more ▼</button>`;
+                            sectionContent += `<button type="button" onclick="toggleObservations()" id="observationsToggle" style="background: none; border: none; color: #1D6F5C; cursor: pointer; font-size: 13px; margin-top: 8px; padding: 0;">Show more ▶</button>`;
                         } else {
                             sectionContent += observations;
                         }
@@ -4457,7 +4457,7 @@
             const isHidden = details.style.display === 'none';
             
             details.style.display = isHidden ? 'block' : 'none';
-            btn.textContent = isHidden ? 'Hide Details ▴' : 'Show Details ▾';
+            btn.textContent = isHidden ? 'Hide Details ▼' : 'Show Details ▶';
             
             // Toggle confidence-visible class on modal to show/hide inline indicators
             if (isHidden) {
