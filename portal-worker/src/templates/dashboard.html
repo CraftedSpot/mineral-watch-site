@@ -4293,6 +4293,25 @@
                 let hasVisibleFields = false;
                 
                 for (const [fieldName, value] of Object.entries(fields)) {
+                    // Special handling for observations
+                    if (fieldName === 'observations' && sectionName.includes('Observations')) {
+                        const observations = escapeHtml(String(value));
+                        const isLong = observations.length > 200;
+                        
+                        sectionContent += '<div id="observationsContainer" style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; font-size: 13px; line-height: 1.5; color: #6B7280; width: 100%; grid-column: 1 / -1;">';
+                        
+                        if (isLong) {
+                            const truncated = observations.substring(0, 200) + '...';
+                            sectionContent += `<div id="observationsText" data-full="${observations.replace(/"/g, '&quot;')}" data-truncated="${truncated.replace(/"/g, '&quot;')}">${truncated}</div>`;
+                            sectionContent += `<button type="button" onclick="toggleObservations()" id="observationsToggle" style="background: none; border: none; color: #1D6F5C; cursor: pointer; font-size: 13px; margin-top: 8px; padding: 0;">Show more ▼</button>`;
+                        } else {
+                            sectionContent += observations;
+                        }
+                        
+                        sectionContent += '</div>';
+                        hasVisibleFields = true;
+                        continue;
+                    }
                     // Special handling for nested objects
                     if (fieldName === 'legal_description' && typeof value === 'object') {
                         // Handle legal description object
