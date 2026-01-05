@@ -54,6 +54,30 @@ const extractBaseName = (wellName: string): string => {
   return wellNameParts ? wellNameParts[1].trim() : wellName;
 };
 
+// Extract well name and number components
+const extractWellComponents = (fullName: string): { name: string; number: string | null } => {
+  if (!fullName) return { name: '', number: null };
+  
+  // Try to match patterns like "PENN MUTUAL LIFE #1" or "SMITH 1" or "JONES #2-H"
+  const patterns = [
+    /^(.+?)\s+#(\d+(?:-?\w+)?)$/,  // "PENN MUTUAL LIFE #1" or "SMITH #2-H"
+    /^(.+?)\s+(\d+(?:-?\w+)?)$/,    // "SMITH 1" or "JONES 2-H"
+  ];
+  
+  for (const pattern of patterns) {
+    const match = fullName.match(pattern);
+    if (match) {
+      return { 
+        name: match[1].trim(), 
+        number: match[2].includes('#') ? match[2] : `#${match[2]}`
+      };
+    }
+  }
+  
+  // No number found, return full name
+  return { name: fullName, number: null };
+};
+
 // Create name variations for matching
 const createNameVariations = (wellName: string): string[] => {
   if (!wellName) return [];
