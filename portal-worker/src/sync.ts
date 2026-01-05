@@ -1,3 +1,6 @@
+import { fetchWellDetailsFromOCC } from './handlers/wells.js';
+import { generateId } from './utils/id.js';
+
 // Airtable configuration
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
 const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // 📍 Client Properties
@@ -325,52 +328,97 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
         if (updateResult.meta.changes > 0) {
           result.updated++;
         } else {
-          // Well not in OCC data yet, insert minimal row
-          // Only insert if we have basic required fields
+          // Well not in D1 yet - fetch from OCC API before inserting
+          console.log(`[Sync] Well ${apiNumber} not in D1, fetching from OCC...`);
+          
           const id = generateId();
           
-          // Extract well name and number from the combined field
-          const fullWellName = fields['Well Name'] || '';
-          let wellName = fullWellName;
-          let wellNumber = null;
+          // Try to fetch well details from OCC
+          const occData = await fetchWellDetailsFromOCC(apiNumber, env);
           
-          // Try to extract well number from patterns like "PENN MUTUAL LIFE #1"
-          const wellMatch = fullWellName.match(/^(.+?)\s+(#\d+(?:-?\w+)?)$/);
-          if (wellMatch) {
-            wellName = wellMatch[1].trim();
-            wellNumber = wellMatch[2];
+          if (occData) {
+            console.log(`[Sync] Found well ${apiNumber} in OCC: ${occData.wellName}`);
+            
+            // Insert with OCC data
+            await env.WELLS_DB.prepare(`
+              INSERT INTO wells (
+                id, api_number, airtable_record_id, well_name, well_number, operator, 
+                county, section, township, range, meridian, latitude, longitude,
+                status, well_status, well_type, spud_date, completion_date, 
+                created_at, synced_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+            `).bind(
+              id,
+              apiNumber,
+              record.id,
+              occData.wellName || fields['Well Name'] || null,
+              null, // well_number is already included in wellName from OCC
+              occData.operator || fields.Operator || null,
+              occData.county || fields.County || null,
+              occData.section ? parseInt(String(occData.section), 10) : null,
+              occData.township || fields.Township || null,
+              occData.range || fields.Range || null,
+              occData.meridian || 'IM',
+              occData.lat || null,
+              occData.lon || null,
+              status,
+              occData.wellStatus || fields['Well Status'] || null,
+              occData.wellType || null,
+              occData.spudDate || null,
+              occData.completionDate || null
+            ).run();
+            
+            console.log(`[Sync] Inserted well ${apiNumber} with OCC data`);
+            result.created++;
           } else {
-            // Try without # prefix: "SMITH 1"
-            const noHashMatch = fullWellName.match(/^(.+?)\s+(\d+(?:-?\w+)?)$/);
-            if (noHashMatch) {
-              wellName = noHashMatch[1].trim();
-              wellNumber = `#${noHashMatch[2]}`;
+            console.log(`[Sync] Well ${apiNumber} not found in OCC, inserting with Airtable data only`);
+            
+            // Extract well name and number from the combined field
+            const fullWellName = fields['Well Name'] || '';
+            let wellName = fullWellName;
+            let wellNumber = null;
+            
+            // Try to extract well number from patterns like "PENN MUTUAL LIFE #1"
+            const wellMatch = fullWellName.match(/^(.+?)\s+(#\d+(?:-?\w+)?)$/);
+            if (wellMatch) {
+              wellName = wellMatch[1].trim();
+              wellNumber = wellMatch[2];
+            } else {
+              // Try without # prefix: "SMITH 1"
+              const noHashMatch = fullWellName.match(/^(.+?)\s+(\d+(?:-?\w+)?)$/);
+              if (noHashMatch) {
+                wellName = noHashMatch[1].trim();
+                wellNumber = `#${noHashMatch[2]}`;
+              }
             }
+            
+            // Fall back to minimal insert with Airtable data
+            await env.WELLS_DB.prepare(`
+              INSERT INTO wells (
+                id, api_number, airtable_record_id, well_name, well_number, operator, 
+                county, section, township, range, meridian,
+                status, well_status, created_at, synced_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+            `).bind(
+              id,
+              apiNumber,
+              record.id,
+              wellName,
+              wellNumber,
+              fields.Operator || null,
+              fields.County || null,
+              fields.Section ? parseInt(fields.Section, 10) : null,
+              fields.Township || null,
+              fields.Range || null,
+              status,
+              fields['Well Status'] || null
+            ).run();
+            
+            console.log(`[Sync] Inserted well ${apiNumber} with Airtable data only`);
+            result.created++;
           }
-          
-          await env.WELLS_DB.prepare(`
-            INSERT INTO wells (
-              id, api_number, airtable_record_id, well_name, well_number, operator, 
-              county, section, township, range, meridian,
-              status, well_status, created_at, synced_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
-          `).bind(
-            id,
-            apiNumber,
-            record.id,
-            wellName,
-            wellNumber,
-            fields.Operator || null,
-            fields.County || null,
-            fields.Section ? parseInt(fields.Section, 10) : null,
-            fields.Township || null,
-            fields.Range || null,
-            status,
-            fields['Well Status'] || null
-          ).run();
-          
-          result.created++;
         }
         
         result.synced++;
