@@ -142,58 +142,67 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
       `).bind(apiNumber).first();
       
       if (d1Result) {
-        console.log(`D1 hit: ${apiNumber} - using local database`);
+        console.log(`D1 hit: ${apiNumber} - checking data completeness`);
         
-        // Format the response similar to OCC API format
-        const wellName = d1Result.well_number 
-          ? `${d1Result.well_name} ${d1Result.well_number.startsWith('#') ? d1Result.well_number : '#' + d1Result.well_number}`
-          : d1Result.well_name;
+        // Check if D1 has incomplete well_number data
+        if (!d1Result.well_number || d1Result.well_number === '') {
+          console.log(`D1 has incomplete data for ${apiNumber} (missing well_number) - falling back to OCC API`);
+          // Don't return here - fall through to OCC API below
+        } else {
+          // D1 has complete data, use it
+          console.log(`D1 has complete data for ${apiNumber} - using local database`);
           
-        const wellDetails = {
-          api: d1Result.api_number,
-          wellName: wellName,
-          operator: d1Result.operator,
-          county: d1Result.county,
-          section: d1Result.section,
-          township: d1Result.township,
-          range: d1Result.range,
-          meridian: d1Result.meridian,
-          lat: d1Result.latitude,
-          lon: d1Result.longitude,
-          wellType: d1Result.well_type,
-          wellStatus: d1Result.well_status,
-          spudDate: d1Result.spud_date,
-          completionDate: d1Result.completion_date,
-          // Bottom hole data for lateral drawing
-          bhLat: d1Result.bh_latitude,
-          bhLon: d1Result.bh_longitude,
-          lateralLength: d1Result.lateral_length,
-          // Additional completion data
-          formationName: d1Result.formation_name,
-          formationDepth: d1Result.formation_depth,
-          tvd: d1Result.true_vertical_depth,
-          md: d1Result.measured_total_depth,
-          ipOil: d1Result.ip_oil_bbl,
-          ipGas: d1Result.ip_gas_mcf,
-          ipWater: d1Result.ip_water_bbl,
-          cachedAt: Date.now()
-        };
-        
-        // Cache the D1 result in KV for consistency with other systems
-        if (env?.OCC_CACHE) {
-          try {
-            await env.OCC_CACHE.put(
-              `well_${apiNumber}`, 
-              JSON.stringify(wellDetails), 
-              { expirationTtl: OCC_CACHE_TTL }
-            );
-            console.log(`D1 result cached in KV: ${apiNumber}`);
-          } catch (e) {
-            console.warn('KV cache write error for D1 result:', e);
+          // Format the response similar to OCC API format
+          const wellName = d1Result.well_number 
+            ? `${d1Result.well_name} ${d1Result.well_number.startsWith('#') ? d1Result.well_number : '#' + d1Result.well_number}`
+            : d1Result.well_name;
+            
+          const wellDetails = {
+            api: d1Result.api_number,
+            wellName: wellName,
+            operator: d1Result.operator,
+            county: d1Result.county,
+            section: d1Result.section,
+            township: d1Result.township,
+            range: d1Result.range,
+            meridian: d1Result.meridian,
+            lat: d1Result.latitude,
+            lon: d1Result.longitude,
+            wellType: d1Result.well_type,
+            wellStatus: d1Result.well_status,
+            spudDate: d1Result.spud_date,
+            completionDate: d1Result.completion_date,
+            // Bottom hole data for lateral drawing
+            bhLat: d1Result.bh_latitude,
+            bhLon: d1Result.bh_longitude,
+            lateralLength: d1Result.lateral_length,
+            // Additional completion data
+            formationName: d1Result.formation_name,
+            formationDepth: d1Result.formation_depth,
+            tvd: d1Result.true_vertical_depth,
+            md: d1Result.measured_total_depth,
+            ipOil: d1Result.ip_oil_bbl,
+            ipGas: d1Result.ip_gas_mcf,
+            ipWater: d1Result.ip_water_bbl,
+            cachedAt: Date.now()
+          };
+          
+          // Cache the D1 result in KV for consistency with other systems
+          if (env?.OCC_CACHE) {
+            try {
+              await env.OCC_CACHE.put(
+                `well_${apiNumber}`, 
+                JSON.stringify(wellDetails), 
+                { expirationTtl: OCC_CACHE_TTL }
+              );
+              console.log(`D1 result cached in KV: ${apiNumber}`);
+            } catch (e) {
+              console.warn('KV cache write error for D1 result:', e);
+            }
           }
+          
+          return wellDetails;
         }
-        
-        return wellDetails;
       }
     } catch (e) {
       console.warn('D1 query error:', e);
