@@ -4221,6 +4221,12 @@
                 }
             }
             
+            // Add Observations if notes exist
+            if (data.notes) {
+                grouped['📋 Observations'] = { observations: data.notes };
+                processedFields.add('notes');
+            }
+            
             // Second pass: add any remaining fields to "Other Information"
             const otherFields = {};
             for (const [field, value] of Object.entries(data)) {
