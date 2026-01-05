@@ -310,6 +310,9 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
         const userId = fields['User']?.[0] || null;
         const orgId = fields['Organization']?.[0] || null;
         const status = fields['Status']?.name || fields['Status'] || null;
+        
+        // Log raw Airtable fields for debugging
+        console.log(`[Sync] Raw Airtable fields for ${apiNumber}:`, JSON.stringify(fields, null, 2));
 
         // First, check if we need to add the missing columns to the wells table
         // Try to update existing well with user tracking info
@@ -339,6 +342,30 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
           if (occData) {
             console.log(`[Sync] Found well ${apiNumber} in OCC: ${occData.wellName}`);
             
+            // Log all values before insert
+            const insertValues = {
+              id: id,
+              api_number: apiNumber,
+              airtable_record_id: record.id,
+              well_name: occData.wellName || fields['Well Name'] || null,
+              well_number: null,
+              operator: occData.operator || fields.Operator || null,
+              county: occData.county || fields.County || null,
+              section: occData.section ? parseInt(String(occData.section), 10) : null,
+              township: occData.township || fields.Township || null,
+              range: occData.range || fields.Range || null,
+              meridian: occData.meridian || 'IM',
+              latitude: occData.lat || null,
+              longitude: occData.lon || null,
+              status: status,
+              well_status: occData.wellStatus || fields['Well Status'] || null,
+              well_type: occData.wellType || null,
+              spud_date: occData.spudDate || null,
+              completion_date: occData.completionDate || null
+            };
+            
+            console.log(`[Sync] INSERT values for well ${apiNumber}:`, JSON.stringify(insertValues, null, 2));
+            
             // Insert with OCC data
             await env.WELLS_DB.prepare(`
               INSERT INTO wells (
@@ -349,24 +376,24 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
               )
               VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), CURRENT_TIMESTAMP)
             `).bind(
-              id,
-              apiNumber,
-              record.id,
-              occData.wellName || fields['Well Name'] || null,
-              null, // well_number is already included in wellName from OCC
-              occData.operator || fields.Operator || null,
-              occData.county || fields.County || null,
-              occData.section ? parseInt(String(occData.section), 10) : null,
-              occData.township || fields.Township || null,
-              occData.range || fields.Range || null,
-              occData.meridian || 'IM',
-              occData.lat || null,
-              occData.lon || null,
-              status,
-              occData.wellStatus || fields['Well Status'] || null,
-              occData.wellType || null,
-              occData.spudDate || null,
-              occData.completionDate || null
+              insertValues.id,
+              insertValues.api_number,
+              insertValues.airtable_record_id,
+              insertValues.well_name,
+              insertValues.well_number,
+              insertValues.operator,
+              insertValues.county,
+              insertValues.section,
+              insertValues.township,
+              insertValues.range,
+              insertValues.meridian,
+              insertValues.latitude,
+              insertValues.longitude,
+              insertValues.status,
+              insertValues.well_status,
+              insertValues.well_type,
+              insertValues.spud_date,
+              insertValues.completion_date
             ).run();
             
             console.log(`[Sync] Inserted well ${apiNumber} with OCC data`);
@@ -393,6 +420,24 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
               }
             }
             
+            // Log values before fallback insert
+            const fallbackInsertValues = {
+              id: id,
+              api_number: apiNumber,
+              airtable_record_id: record.id,
+              well_name: wellName,
+              well_number: wellNumber,
+              operator: fields.Operator || null,
+              county: fields.County || null,
+              section: fields.Section ? parseInt(fields.Section, 10) : null,
+              township: fields.Township || null,
+              range: fields.Range || null,
+              status: status,
+              well_status: fields['Well Status'] || null
+            };
+            
+            console.log(`[Sync] Fallback INSERT values for well ${apiNumber}:`, JSON.stringify(fallbackInsertValues, null, 2));
+            
             // Fall back to minimal insert with Airtable data
             await env.WELLS_DB.prepare(`
               INSERT INTO wells (
@@ -402,18 +447,19 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
               )
               VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
             `).bind(
-              id,
-              apiNumber,
-              record.id,
-              wellName,
-              wellNumber,
-              fields.Operator || null,
-              fields.County || null,
-              fields.Section ? parseInt(fields.Section, 10) : null,
-              fields.Township || null,
-              fields.Range || null,
-              status,
-              fields['Well Status'] || null
+              fallbackInsertValues.id,
+              fallbackInsertValues.api_number,
+              fallbackInsertValues.airtable_record_id,
+              fallbackInsertValues.well_name,
+              fallbackInsertValues.well_number,
+              fallbackInsertValues.operator,
+              fallbackInsertValues.county,
+              fallbackInsertValues.section,
+              fallbackInsertValues.township,
+              fallbackInsertValues.range,
+              'IM', // meridian - hardcoded in SQL
+              fallbackInsertValues.status,
+              fallbackInsertValues.well_status
             ).run();
             
             console.log(`[Sync] Inserted well ${apiNumber} with Airtable data only`);
