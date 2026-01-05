@@ -364,6 +364,9 @@ export async function linkDocumentToEntities(
         if (operator) params2.push(`%${operator}%`);
         if (section) params2.push(section);
         
+        console.log(`[LinkDocuments] Well Strategy 2 SQL query:\n${query2}`);
+        console.log(`[LinkDocuments] Well Strategy 2 parameters:`, params2);
+        
         const well = await db.prepare(query2).bind(...params2).first();
         if (well) {
           wellId = well.id as string;
@@ -394,6 +397,9 @@ export async function linkDocumentToEntities(
           `%${wellName}%`
         ];
         if (operator) params3.push(`%${operator}%`);
+        
+        console.log(`[LinkDocuments] Well Strategy 3 SQL query:\n${query3}`);
+        console.log(`[LinkDocuments] Well Strategy 3 parameters:`, params3);
         
         const well = await db.prepare(query3).bind(...params3).first();
         if (well) {
