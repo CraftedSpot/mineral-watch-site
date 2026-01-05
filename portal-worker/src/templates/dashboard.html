@@ -3447,7 +3447,10 @@
             };
             
             // Prepare data
-            const wellName = f['Well Name'] || 'Unknown Well';
+            const wellBaseName = f['Well Name'] || '';
+            const wellNumber = f['Well Number'] || '';
+            const wellFullName = wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName;
+            const wellName = wellFullName || 'Unknown Well';
             const apiNumber = f['API Number'] || '';
             const operator = f['Operator'] || '—';
             const operatorPhone = f['Operator Phone'] || '';
