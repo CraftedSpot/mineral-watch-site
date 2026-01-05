@@ -1,5 +1,4 @@
 import { fetchWellDetailsFromOCC } from './handlers/wells.js';
-import { generateId } from './utils/id.js';
 
 // Airtable configuration
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
@@ -36,10 +35,6 @@ interface SyncResult {
   duration: number;
 }
 
-// Generate a UUID for new records
-function generateId(): string {
-  return crypto.randomUUID();
-}
 
 // Convert Airtable date to SQL date
 function formatDate(dateString: string | null): string | null {
@@ -334,8 +329,6 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
           // Well not in D1 yet - fetch from OCC API before inserting
           console.log(`[Sync] Well ${apiNumber} not in D1, fetching from OCC...`);
           
-          const id = generateId();
-          
           // Try to fetch well details from OCC
           const occData = await fetchWellDetailsFromOCC(apiNumber, env);
           
@@ -344,7 +337,6 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
             
             // Log all values before insert
             const insertValues = {
-              id: id,
               api_number: apiNumber,
               airtable_record_id: record.id,
               well_name: occData.wellName || fields['Well Name'] || null,
@@ -381,7 +373,7 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
             // Insert with OCC data
             await env.WELLS_DB.prepare(`
               INSERT INTO wells (
-                id, api_number, airtable_record_id, well_name, well_number, operator, 
+                api_number, airtable_record_id, well_name, well_number, operator, 
                 county, section, township, range, meridian, latitude, longitude,
                 status, well_status, well_type, spud_date, completion_date,
                 bh_latitude, bh_longitude, lateral_length, 
@@ -390,7 +382,7 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
                 created_at, synced_at
               )
               VALUES (
-                ?, ?, ?, ?, ?, ?, ?, 
+                ?, ?, ?, ?, ?, ?, 
                 CAST(? AS INTEGER), ?, ?, ?, 
                 CAST(? AS REAL), CAST(? AS REAL), 
                 ?, ?, ?, ?, ?, 
@@ -400,7 +392,6 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
                 datetime('now'), CURRENT_TIMESTAMP
               )
             `).bind(
-              insertValues.id,
               insertValues.api_number,
               insertValues.airtable_record_id,
               insertValues.well_name,
@@ -456,7 +447,6 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
             
             // Log values before fallback insert
             const fallbackInsertValues = {
-              id: id,
               api_number: apiNumber,
               airtable_record_id: record.id,
               well_name: wellName,
@@ -475,13 +465,12 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
             // Fall back to minimal insert with Airtable data
             await env.WELLS_DB.prepare(`
               INSERT INTO wells (
-                id, api_number, airtable_record_id, well_name, well_number, operator, 
+                api_number, airtable_record_id, well_name, well_number, operator, 
                 county, section, township, range, meridian,
                 status, well_status, created_at, synced_at
               )
-              VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+              VALUES (?, ?, ?, ?, ?, ?, CAST(? AS INTEGER), ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
             `).bind(
-              fallbackInsertValues.id,
               fallbackInsertValues.api_number,
               fallbackInsertValues.airtable_record_id,
               fallbackInsertValues.well_name,
@@ -491,7 +480,6 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
               fallbackInsertValues.section,
               fallbackInsertValues.township,
               fallbackInsertValues.range,
-              'IM', // meridian - hardcoded in SQL
               fallbackInsertValues.status,
               fallbackInsertValues.well_status
             ).run();
