@@ -302,18 +302,39 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
           // Well not in OCC data yet, insert minimal row
           // Only insert if we have basic required fields
           const id = generateId();
+          
+          // Extract well name and number from the combined field
+          const fullWellName = fields['Well Name'] || '';
+          let wellName = fullWellName;
+          let wellNumber = null;
+          
+          // Try to extract well number from patterns like "PENN MUTUAL LIFE #1"
+          const wellMatch = fullWellName.match(/^(.+?)\s+(#\d+(?:-?\w+)?)$/);
+          if (wellMatch) {
+            wellName = wellMatch[1].trim();
+            wellNumber = wellMatch[2];
+          } else {
+            // Try without # prefix: "SMITH 1"
+            const noHashMatch = fullWellName.match(/^(.+?)\s+(\d+(?:-?\w+)?)$/);
+            if (noHashMatch) {
+              wellName = noHashMatch[1].trim();
+              wellNumber = `#${noHashMatch[2]}`;
+            }
+          }
+          
           await env.WELLS_DB.prepare(`
             INSERT INTO wells (
-              id, api_number, airtable_record_id, well_name, operator, 
+              id, api_number, airtable_record_id, well_name, well_number, operator, 
               county, section, township, range, meridian,
               status, well_status, created_at, synced_at
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'IM', ?, ?, datetime('now'), CURRENT_TIMESTAMP)
           `).bind(
             id,
             apiNumber,
             record.id,
-            fields['Well Name'] || null,
+            wellName,
+            wellNumber,
             fields.Operator || null,
             fields.County || null,
             fields.Section ? parseInt(fields.Section, 10) : null,
