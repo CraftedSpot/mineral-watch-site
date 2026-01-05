@@ -1259,10 +1259,21 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   for (let i = 0; i < toCreate.length; i += occBatchSize) {
     const occBatch = toCreate.slice(i, i + occBatchSize);
     const occPromises = occBatch.map(async (well: any) => {
+      // Log 1: Well name received from client
+      console.log(`[BulkUpload] Processing well ${well.apiNumber}:`);
+      console.log(`  - Client provided name: "${well.wellName}"`);
+      
       const occData = await fetchWellDetailsFromOCC(well.apiNumber, env);
+      
+      // Log 2: Well name after D1/OCC lookup
+      console.log(`  - After D1/OCC lookup: "${occData?.wellName || 'NOT FOUND'}"`);
       
       // Look up completion data from KV cache
       const completionData = await lookupCompletionData(well.apiNumber, env);
+      
+      if (completionData?.wellName) {
+        console.log(`  - Completion data name: "${completionData.wellName}"`);
+      }
       
       // Look up operator information if we have an operator
       let operatorInfo = null;
@@ -1325,6 +1336,13 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
           const section = completion.surfaceSection || (occ.section ? String(occ.section) : "");
           const township = completion.surfaceTownship || occ.township || "";
           const range = completion.surfaceRange || occ.range || "";
+          
+          // Log 3: Final well name being written to database
+          console.log(`[BulkUpload] Writing to DB - API: ${well.apiNumber}, Final name: "${wellName}"`);
+          console.log(`  - Source: ${completion.wellName ? 'Completion data' : (occ.wellName ? 'OCC/D1 data' : 'EMPTY')}`);
+          if (well.wellName !== wellName) {
+            console.log(`  - Name changed from client: "${well.wellName}" → "${wellName}"`);
+          }
           
           const fields: any = {
             User: [user.id],
