@@ -9,18 +9,18 @@ import { authenticateRequest } from '../utils/auth.js';
 import { getUserById } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
-// Document types that show on property modals
+// Document types that show on property modals (snake_case format)
 const PROPERTY_DOC_TYPES = [
-  'Mineral Deed', 'Royalty Deed', 'Assignment of Interest', 'Warranty Deed', 'Quitclaim Deed',
-  'Oil & Gas Lease', 'Extension Agreement', 'Amendment', 'Ratification', 'Release',
-  'Affidavit', 'Probate', 'Power of Attorney', 'Judgment',
-  'Division Order', 'Transfer Order', 'Revenue Statement'
+  'mineral_deed', 'royalty_deed', 'assignment_of_interest', 'warranty_deed', 'quitclaim_deed',
+  'oil_gas_lease', 'extension_agreement', 'amendment', 'ratification', 'release',
+  'affidavit', 'probate', 'power_of_attorney', 'judgment',
+  'division_order', 'transfer_order', 'revenue_statement'
 ];
 
-// Document types that show on well modals
+// Document types that show on well modals (snake_case format)
 const WELL_DOC_TYPES = [
-  'Drilling Permit', 'Completion Report', 'Well Log', 'Plugging Report',
-  'Division Order', 'Transfer Order', 'Revenue Statement'
+  'drilling_permit', 'completion_report', 'well_log', 'plugging_report',
+  'division_order', 'transfer_order', 'revenue_statement'
 ];
 
 /**
