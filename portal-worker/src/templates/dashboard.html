@@ -2450,6 +2450,10 @@
         let currentTab = 'properties';
         let currentUser = null; // Store user data globally
         
+        // Modal stacking management
+        const modalStack = [];
+        const MAX_MODAL_DEPTH = 4; // Maximum number of stacked modals
+        
         // Bulk Selection State
         let selectedProperties = new Set();
         let selectedWells = new Set();
@@ -4682,6 +4686,44 @@
                     
                     content += '</div>';
                     
+                    // Add linked property/well section
+                    if (doc.property_id || doc.well_id) {
+                        content += '<div class="detail-section" style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin: 16px 0;">';
+                        content += '<h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">🔗 Linked To</h4>';
+                        content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                        
+                        if (doc.property_name) {
+                            content += `
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="color: #6B7280; font-size: 14px;">Property:</span>
+                                        <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.property_name)}</strong>
+                                    </div>
+                                    <button onclick="openPropertyFromDocument('${doc.property_id}')" 
+                                            style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
+                                        View Property →
+                                    </button>
+                                </div>`;
+                        }
+                        
+                        if (doc.well_name) {
+                            content += `
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="color: #6B7280; font-size: 14px;">Well:</span>
+                                        <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.well_name)}</strong>
+                                        ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
+                                    </div>
+                                    <button onclick="openWellFromDocument('${doc.well_id}')" 
+                                            style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
+                                        View Well →
+                                    </button>
+                                </div>`;
+                        }
+                        
+                        content += '</div></div>';
+                    }
+                    
                     // Confidence Section with collapsible details
                     if (fieldScores && Object.keys(fieldScores).length > 0) {
                         const overallScore = calculateOverallScore(fieldScores);
@@ -4802,6 +4844,44 @@
                     </div>`;
                 
                 content += '</div>';
+                
+                // Add linked property/well section (same as above)
+                if (doc.property_id || doc.well_id) {
+                    content += '<div class="detail-section" style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin: 16px 0;">';
+                    content += '<h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">🔗 Linked To</h4>';
+                    content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                    
+                    if (doc.property_name) {
+                        content += `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="color: #6B7280; font-size: 14px;">Property:</span>
+                                    <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.property_name)}</strong>
+                                </div>
+                                <button onclick="openPropertyFromDocument('${doc.property_id}')" 
+                                        style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
+                                    View Property →
+                                </button>
+                            </div>`;
+                    }
+                    
+                    if (doc.well_name) {
+                        content += `
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <span style="color: #6B7280; font-size: 14px;">Well:</span>
+                                    <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.well_name)}</strong>
+                                    ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
+                                </div>
+                                <button onclick="openWellFromDocument('${doc.well_id}')" 
+                                        style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
+                                    View Well →
+                                </button>
+                            </div>`;
+                    }
+                    
+                    content += '</div></div>';
+                }
                 
                 content += '<div class="detail-section" style="text-align: center; padding: 40px 20px; background: #F9FAFB; border-radius: 8px; margin: 20px 0;">';
                 content += '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.3;">';
@@ -5131,7 +5211,13 @@
             
             // Update modal content and show
             document.getElementById('documentDetailContent').innerHTML = content;
-            document.getElementById('documentDetailModal').style.display = 'flex';
+            const detailModal = document.getElementById('documentDetailModal');
+            detailModal.style.display = 'flex';
+            
+            // Add to modal stack if not already there
+            if (!modalStack.find(m => m.element === detailModal)) {
+                modalStack.push({ type: 'document', id: docId, element: detailModal });
+            }
             
             // Initialize notes tracking after modal is shown
             originalNotes = doc.user_notes || '';
@@ -5147,8 +5233,15 @@
         }
 
         function closeDocumentDetailModal() {
-            document.getElementById('documentDetailModal').style.display = 'none';
+            const modal = document.getElementById('documentDetailModal');
+            modal.style.display = 'none';
             currentDocumentId = null;
+            
+            // Remove from modal stack
+            const index = modalStack.findIndex(m => m.element === modal);
+            if (index > -1) {
+                modalStack.splice(index, 1);
+            }
         }
 
         function viewDocumentPDF() {
@@ -5262,6 +5355,56 @@
         }
 
 
+        // Open property from document modal - stack on top
+        function openPropertyFromDocument(propertyId) {
+            // Check if we've hit max depth
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                return;
+            }
+            
+            // Don't close the document modal - open property on top
+            setTimeout(() => {
+                openPropertyDetails(propertyId);
+                // After opening, increase z-index to stack above document modal
+                const propModal = document.getElementById('propertyDetailsModal');
+                if (propModal) {
+                    // Calculate z-index based on stack depth
+                    const baseZIndex = 999999;
+                    const newZIndex = baseZIndex + (modalStack.length * 10);
+                    propModal.style.zIndex = String(newZIndex);
+                    
+                    // Track in modal stack
+                    modalStack.push({ type: 'property', id: propertyId, element: propModal });
+                }
+            }, 50);
+        }
+        
+        // Open well from document modal - stack on top
+        function openWellFromDocument(wellId) {
+            // Check if we've hit max depth
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                return;
+            }
+            
+            // Don't close the document modal - open well on top
+            setTimeout(() => {
+                openWellDetailsModal(wellId);
+                // After opening, increase z-index to stack above document modal
+                const wellModal = document.getElementById('wellDetailsModal');
+                if (wellModal) {
+                    // Calculate z-index based on stack depth
+                    const baseZIndex = 999999;
+                    const newZIndex = baseZIndex + (modalStack.length * 10);
+                    wellModal.style.zIndex = String(newZIndex);
+                    
+                    // Track in modal stack
+                    modalStack.push({ type: 'well', id: wellId, element: wellModal });
+                }
+            }, 50);
+        }
+        
         // Make functions available globally
         window.viewDocumentInModal = viewDocumentInModal;
         window.closeDocumentViewer = closeDocumentViewer;
@@ -5277,6 +5420,8 @@
         window.saveAndCloseDocumentNotes = saveAndCloseDocumentNotes;
         window.toggleSection = toggleSection;
         window.toggleConfidenceDetails = toggleConfidenceDetails;
+        window.openPropertyFromDocument = openPropertyFromDocument;
+        window.openWellFromDocument = openWellFromDocument;
         
         // Load Documents
         async function loadDocuments() {
@@ -5823,6 +5968,11 @@
             
             wellModal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999999 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
             
+            // Add to modal stack if not already there (initial opening)
+            if (!modalStack.find(m => m.element === wellModal)) {
+                modalStack.push({ type: 'well', id: wellId, element: wellModal });
+            }
+            
             // Load linked properties after modal is shown
             setTimeout(() => {
                 loadLinkedProperties(wellId);
@@ -5946,6 +6096,12 @@
             modal.style = '';
             // Reset z-index for next time
             modal.style.zIndex = '';
+            
+            // Remove from modal stack
+            const index = modalStack.findIndex(m => m.element === modal);
+            if (index > -1) {
+                modalStack.splice(index, 1);
+            }
         }
         
         document.getElementById('wellDetailsModal').addEventListener('click', e => {
@@ -6044,6 +6200,11 @@
             }
             
             propModal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 999999 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;';
+            
+            // Add to modal stack if not already there (initial opening)
+            if (!modalStack.find(m => m.element === propModal)) {
+                modalStack.push({ type: 'property', id: propId, element: propModal });
+            }
             
             // Load linked wells after modal is shown to avoid race condition
             console.log('[PropertyDetails] Opening property:', propId);
@@ -6201,6 +6362,12 @@
         
         // Open well from property modal - stack on top
         function openWellFromProperty(wellId) {
+            // Check if we've hit max depth
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                return;
+            }
+            
             // Don't close the property modal - open well on top
             // Set a higher z-index for the well modal
             setTimeout(() => {
@@ -6208,7 +6375,13 @@
                 // After opening, increase z-index to stack above property modal
                 const wellModal = document.getElementById('wellDetailsModal');
                 if (wellModal) {
-                    wellModal.style.zIndex = '1000010';  // Higher than property modal
+                    // Calculate z-index based on stack depth
+                    const baseZIndex = 999999;
+                    const newZIndex = baseZIndex + (modalStack.length * 10);
+                    wellModal.style.zIndex = String(newZIndex);
+                    
+                    // Track in modal stack
+                    modalStack.push({ type: 'well', id: wellId, element: wellModal });
                 }
             }, 50);
         }
@@ -6302,6 +6475,12 @@
         }
         
         function openPropertyFromWell(propertyId) {
+            // Check if we've hit max depth
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                return;
+            }
+            
             // Don't close the well modal - open property on top
             // Set a higher z-index for the property modal
             setTimeout(() => {
@@ -6309,7 +6488,13 @@
                 // After opening, increase z-index to stack above well modal
                 const propModal = document.getElementById('propertyDetailsModal');
                 if (propModal) {
-                    propModal.style.zIndex = '1000010';  // Higher than well modal
+                    // Calculate z-index based on stack depth
+                    const baseZIndex = 999999;
+                    const newZIndex = baseZIndex + (modalStack.length * 10);
+                    propModal.style.zIndex = String(newZIndex);
+                    
+                    // Track in modal stack
+                    modalStack.push({ type: 'property', id: propertyId, element: propModal });
                 }
             }, 50);
         }
@@ -6492,6 +6677,12 @@
             modal.style = '';
             // Reset z-index for next time
             modal.style.zIndex = '';
+            
+            // Remove from modal stack
+            const index = modalStack.findIndex(m => m.element === modal);
+            if (index > -1) {
+                modalStack.splice(index, 1);
+            }
         }
         
         document.getElementById('propertyDetailsModal').addEventListener('click', e => {
