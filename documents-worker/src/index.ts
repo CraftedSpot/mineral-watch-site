@@ -365,10 +365,20 @@ export default {
         }
 
         const query = `
-          SELECT * FROM documents 
-          WHERE id = ? 
-            AND (${conditions.join(' OR ')})
-            AND deleted_at IS NULL
+          SELECT 
+            d.*,
+            p.county as property_county,
+            p.section as property_section,
+            p.township as property_township,
+            p.range as property_range,
+            w.well_name,
+            w.api_number as well_api_number
+          FROM documents d
+          LEFT JOIN properties p ON d.property_id = p.id
+          LEFT JOIN wells w ON CAST(REPLACE(d.well_id, '.0', '') AS INTEGER) = w.id
+          WHERE d.id = ? 
+            AND (d.${conditions.join(' OR d.')})
+            AND d.deleted_at IS NULL
         `;
 
         console.log('Fetching document with query:', query);
@@ -406,17 +416,39 @@ export default {
           // Continue without children data if query fails
         }
 
-        // Add children to response
+        // Format property name if we have property data
+        let property_name = null;
+        if (doc.property_county && doc.property_section && doc.property_township && doc.property_range) {
+          property_name = `S${doc.property_section}-T${doc.property_township}-R${doc.property_range} (${doc.property_county} County)`;
+        }
+        
+        // Add children and linked data to response
         const documentWithChildren = {
           ...doc,
           children,
-          child_count
+          child_count,
+          // Add formatted property name if we have property data
+          property_name: property_name,
+          // Add well name and API number if we have well data
+          well_name: doc.well_name || null,
+          well_api_number: doc.well_api_number || null
         };
         
-        console.log('Returning document with children:', {
+        // Remove the raw property fields we joined (they're not part of the document schema)
+        delete documentWithChildren.property_county;
+        delete documentWithChildren.property_section;
+        delete documentWithChildren.property_township;
+        delete documentWithChildren.property_range;
+        
+        console.log('Returning document with children and linked data:', {
           doc_id: documentWithChildren.id,
           children_count: documentWithChildren.child_count,
-          has_children: documentWithChildren.children.length > 0
+          has_children: documentWithChildren.children.length > 0,
+          property_id: documentWithChildren.property_id,
+          property_name: documentWithChildren.property_name,
+          well_id: documentWithChildren.well_id,
+          well_name: documentWithChildren.well_name,
+          well_api_number: documentWithChildren.well_api_number
         });
 
         return jsonResponse({ document: documentWithChildren }, 200, env);
