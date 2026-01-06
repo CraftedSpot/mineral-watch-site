@@ -5387,16 +5387,16 @@
                 // Close the document modal to make room
                 closeDocumentDetailModal();
                 // Give it time to close before opening property
-                setTimeout(() => {
-                    openPropertyDetails(propertyId);
+                setTimeout(async () => {
+                    await openPropertyDetails(propertyId);
                 }, 100);
                 return;
             }
             
             // Don't close the document modal - open property on top
             console.log('[openPropertyFromDocument] Opening property modal on top of document modal');
-            setTimeout(() => {
-                openPropertyDetails(propertyId);
+            setTimeout(async () => {
+                await openPropertyDetails(propertyId);
                 // After opening, increase z-index to stack above document modal
                 const propModal = document.getElementById('propertyDetailsModal');
                 if (propModal) {
@@ -5814,7 +5814,7 @@
         let loadedWells = [];
         
         // Expandable Row Functions
-        function openWellDetailsModal(wellId) {
+        async function openWellDetailsModal(wellId) {
             console.log('[openWellDetailsModal] Called with wellId:', wellId);
             
             // Reset linked counts and lists immediately to prevent concatenation issues
@@ -5830,8 +5830,36 @@
                 propsListEl.style.display = 'none';
             }
             
-            const well = loadedWells.find(w => w.id === wellId);
-            if (!well) return;
+            let well = loadedWells.find(w => w.id === wellId);
+            
+            // If not in loaded wells, fetch from API
+            if (!well) {
+                console.log('[openWellDetailsModal] Well not found in loadedWells:', wellId);
+                console.log('[openWellDetailsModal] Fetching from API...');
+                
+                try {
+                    // Fetch all wells and find the one we need
+                    const res = await fetch('/api/wells');
+                    if (!res.ok) throw new Error('Failed to fetch wells');
+                    
+                    const allWells = await res.json();
+                    well = allWells.find(w => w.id === wellId);
+                    
+                    if (!well) {
+                        console.error('[openWellDetailsModal] Well not found in API response');
+                        alert('Well not found');
+                        return;
+                    }
+                    
+                    // Add to loaded wells for future use
+                    loadedWells.push(well);
+                    console.log('[openWellDetailsModal] Well fetched and added to cache');
+                } catch (error) {
+                    console.error('[openWellDetailsModal] Error fetching well:', error);
+                    alert('Error loading well details');
+                    return;
+                }
+            }
             
             const f = well.fields;
             
@@ -6160,7 +6188,7 @@
         // Removed obsolete hover handlers for old modal structure
         
         // Property Details Modal Functions
-        function openPropertyDetails(propId) {
+        async function openPropertyDetails(propId) {
             console.log('[openPropertyDetails] Called with propId:', propId);
             
             // Reset linked counts and lists immediately to prevent concatenation issues
@@ -6176,14 +6204,35 @@
                 wellsListEl.style.display = 'none';
             }
             
-            const prop = loadedProperties.find(p => p.id === propId);
+            let prop = loadedProperties.find(p => p.id === propId);
+            
+            // If not in loaded properties, fetch from API
             if (!prop) {
                 console.log('[openPropertyDetails] Property not found in loadedProperties:', propId);
-                console.log('[openPropertyDetails] LoadedProperties has', loadedProperties.length, 'items');
-                // TODO: We need to fetch the property data from the API
-                // For now, just show an error
-                alert('Property details not available. Please load the Properties tab first.');
-                return;
+                console.log('[openPropertyDetails] Fetching from API...');
+                
+                try {
+                    // Fetch all properties and find the one we need
+                    const res = await fetch('/api/properties');
+                    if (!res.ok) throw new Error('Failed to fetch properties');
+                    
+                    const allProperties = await res.json();
+                    prop = allProperties.find(p => p.id === propId);
+                    
+                    if (!prop) {
+                        console.error('[openPropertyDetails] Property not found in API response');
+                        alert('Property not found');
+                        return;
+                    }
+                    
+                    // Add to loaded properties for future use
+                    loadedProperties.push(prop);
+                    console.log('[openPropertyDetails] Property fetched and added to cache');
+                } catch (error) {
+                    console.error('[openPropertyDetails] Error fetching property:', error);
+                    alert('Error loading property details');
+                    return;
+                }
             }
             
             const f = prop.fields;
