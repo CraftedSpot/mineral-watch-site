@@ -5826,7 +5826,7 @@
             // Load linked properties after modal is shown
             setTimeout(() => {
                 loadLinkedProperties(wellId);
-                loadLinkedDocuments(wellId, 'well');
+                loadLinkedDocuments(wellId, 'well', f['API Number']);
             }, 100);
             
             // Handle viewer permissions
@@ -6338,8 +6338,8 @@
             }
         }
         
-        async function loadLinkedDocuments(id, type) {
-            console.log(`[LinkedDocuments] Loading linked documents for ${type}:`, id);
+        async function loadLinkedDocuments(id, type, apiNumber = null) {
+            console.log(`[LinkedDocuments] Loading linked documents for ${type}:`, id, apiNumber ? `(API: ${apiNumber})` : '');
             
             const countEl = document.getElementById(type === 'property' ? 'property-linked-documents-count' : 'well-linked-documents-count');
             const listEl = document.getElementById(type === 'property' ? 'linked-documents-list' : 'linked-documents-list-well');
@@ -6352,7 +6352,13 @@
             emptyEl.style.display = 'none';
             
             try {
-                const response = await fetch(`/api/${type}/${id}/linked-documents`, { credentials: 'include' });
+                // Build URL with api_number parameter for wells
+                let url = `/api/${type}/${id}/linked-documents`;
+                if (type === 'well' && apiNumber) {
+                    url += `?api_number=${encodeURIComponent(apiNumber)}`;
+                }
+                
+                const response = await fetch(url, { credentials: 'include' });
                 const data = await response.json();
                 
                 const docCount = data.documents?.length || 0;

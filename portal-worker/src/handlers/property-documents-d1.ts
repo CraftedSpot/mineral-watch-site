@@ -121,9 +121,9 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
 }
 
 /**
- * Get linked documents for a well using D1
+ * Get linked documents for a well using D1 (by API number)
  */
-export async function handleGetWellLinkedDocuments(wellId: string, request: Request, env: Env) {
+export async function handleGetWellLinkedDocuments(apiNumber: string, request: Request, env: Env) {
   const start = Date.now();
   
   try {
@@ -136,64 +136,29 @@ export async function handleGetWellLinkedDocuments(wellId: string, request: Requ
     
     const userOrgId = userRecord.fields.Organization?.[0];
     
-    console.log(`[GetWellDocuments-D1] Attempting D1 query for well ${wellId}`);
+    console.log(`[GetWellDocuments-D1] Attempting D1 query for API number ${apiNumber}`);
     
     try {
-      // First, get the API number from airtable_wells using the Airtable record ID
-      const airtableWellResult = await env.WELLS_DB.prepare(`
-        SELECT api_number FROM airtable_wells WHERE airtable_record_id = ?
-      `).bind(wellId).first();
-      
-      if (!airtableWellResult) {
-        console.log(`[GetWellDocuments-D1] Well not found in airtable_wells for Airtable ID: ${wellId}`);
-        return jsonResponse({
-          success: true,
-          documents: [],
-          source: 'D1',
-          queryTime: Date.now() - start
-        });
-      }
-      
-      const apiNumber = airtableWellResult.api_number;
-      console.log(`[GetWellDocuments-D1] Found API number: ${apiNumber} for Airtable ID: ${wellId}`);
-      
-      // Next, get the well integer ID from the wells table
-      const wellResult = await env.WELLS_DB.prepare(`
-        SELECT id FROM wells WHERE api_number = ?
-      `).bind(apiNumber).first();
-      
-      if (!wellResult) {
-        console.log(`[GetWellDocuments-D1] Well not found in wells table for API: ${apiNumber}`);
-        return jsonResponse({
-          success: true,
-          documents: [],
-          source: 'D1',
-          queryTime: Date.now() - start
-        });
-      }
-      
-      // Convert the integer ID to string format as stored in documents.well_id (like "455498.0")
-      const wellIdString = `${wellResult.id}.0`;
-      console.log(`[GetWellDocuments-D1] Using well_id string: ${wellIdString} for integer ID: ${wellResult.id}`);
-      
-      // Query linked documents from D1 with security filtering
+      // Simplified query: Join documents with wells directly by API number
+      // Convert documents.well_id (format "12345.0") back to integer for JOIN
       const docTypeList = WELL_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
       
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT 
-          id,
-          display_name,
-          filename,
-          doc_type,
-          upload_date,
-          r2_key
-        FROM documents 
-        WHERE well_id = ? 
-          AND (deleted_at IS NULL OR deleted_at = '')
-          AND doc_type IN (${docTypeList})
-          AND (user_id = ? OR organization_id = ?)
-        ORDER BY upload_date DESC
-      `).bind(wellIdString, authUser.id, userOrgId).all();
+          d.id,
+          d.display_name,
+          d.filename,
+          d.doc_type,
+          d.upload_date,
+          d.r2_key
+        FROM documents d
+        JOIN wells w ON CAST(REPLACE(d.well_id, '.0', '') AS INTEGER) = w.id
+        WHERE w.api_number = ?
+          AND (d.deleted_at IS NULL OR d.deleted_at = '')
+          AND d.doc_type IN (${docTypeList})
+          AND (d.user_id = ? OR d.organization_id = ?)
+        ORDER BY d.upload_date DESC
+      `).bind(apiNumber, authUser.id, userOrgId).all();
       
       console.log(`[GetWellDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       

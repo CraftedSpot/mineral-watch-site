@@ -754,12 +754,25 @@ var index_default = {
         return handleGetPropertyLinkedDocuments(propertyLinkedDocumentsMatch[1], request, env);
       }
       
-      // Well linked documents endpoint (using D1)
+      // Well linked documents endpoint (using D1 with API number)
       const wellLinkedDocumentsMatch = path.match(/^\/api\/well\/([a-zA-Z0-9-]+)\/linked-documents$/);
       if (wellLinkedDocumentsMatch && request.method === "GET") {
-        // Import and use D1 handler
-        const { handleGetWellLinkedDocuments } = await import('./handlers/property-documents-d1.js');
-        return handleGetWellLinkedDocuments(wellLinkedDocumentsMatch[1], request, env);
+        // Check if api_number query parameter is provided
+        const url = new URL(request.url);
+        const apiNumber = url.searchParams.get('api_number');
+        
+        if (apiNumber) {
+          // Use API number for lookup (preferred)
+          const { handleGetWellLinkedDocuments } = await import('./handlers/property-documents-d1.js');
+          return handleGetWellLinkedDocuments(apiNumber, request, env);
+        } else {
+          // Legacy fallback: still support Airtable ID (though it may not work due to stale data)
+          console.log(`[WellDocuments] No api_number provided, trying legacy Airtable ID lookup for ${wellLinkedDocumentsMatch[1]}`);
+          return jsonResponse({ 
+            error: "API number required", 
+            message: "Please provide api_number query parameter for well documents lookup" 
+          }, 400);
+        }
       }
       
       // Unlink property-well endpoint
