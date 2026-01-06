@@ -1,4 +1,5 @@
 import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
+import { migrateDocumentIds } from './migrate-document-ids';
 
 interface Env {
   WELLS_DB: D1Database;
@@ -138,6 +139,28 @@ export default {
     // Ensure user_notes column exists on first request
     if (path.includes('/documents')) {
       await ensureUserNotesColumn(env);
+    }
+    
+    // Route: POST /api/documents/migrate-ids - One-time migration of document IDs
+    if (path === '/api/documents/migrate-ids' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+      
+      // Only allow James to run migration
+      if (user.fields?.Email !== 'james@jfp.one') {
+        return errorResponse('Forbidden', 403, env);
+      }
+      
+      try {
+        await migrateDocumentIds(env.WELLS_DB);
+        return new Response(JSON.stringify({ success: true, message: 'Migration completed' }), {
+          status: 200,
+          headers: corsHeaders(env, 'application/json')
+        });
+      } catch (error) {
+        console.error('Migration error:', error);
+        return errorResponse('Migration failed', 500, env);
+      }
     }
 
     // Route: GET /api/documents - List documents
