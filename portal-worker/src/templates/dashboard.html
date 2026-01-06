@@ -5404,19 +5404,6 @@
             console.log('[openPropertyFromDocument] Opening property modal on top of document modal');
             setTimeout(async () => {
                 await openPropertyDetails(propertyId);
-                // After opening, increase z-index to stack above document modal
-                const propModal = document.getElementById('propertyDetailsModal');
-                if (propModal) {
-                    // Calculate z-index based on stack depth
-                    const baseZIndex = 999999;
-                    const newZIndex = baseZIndex + (modalStack.length * 10);
-                    propModal.style.zIndex = String(newZIndex);
-                    
-                    // Track in modal stack (only if not already there)
-                    if (!modalStack.find(m => m.element === propModal)) {
-                        modalStack.push({ type: 'property', id: propertyId, element: propModal });
-                    }
-                }
             }, 50);
         }
         
@@ -5442,19 +5429,6 @@
             console.log('[openWellFromDocument] Opening well modal on top of document modal');
             setTimeout(async () => {
                 await openWellDetailsModal(wellId);
-                // After opening, increase z-index to stack above document modal
-                const wellModal = document.getElementById('wellDetailsModal');
-                if (wellModal) {
-                    // Calculate z-index based on stack depth
-                    const baseZIndex = 999999;
-                    const newZIndex = baseZIndex + (modalStack.length * 10);
-                    wellModal.style.zIndex = String(newZIndex);
-                    
-                    // Track in modal stack (only if not already there)
-                    if (!modalStack.find(m => m.element === wellModal)) {
-                        modalStack.push({ type: 'well', id: wellId, element: wellModal });
-                    }
-                }
             }, 50);
         }
         
