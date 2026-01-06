@@ -5475,6 +5475,8 @@
         window.toggleConfidenceDetails = toggleConfidenceDetails;
         window.openPropertyFromDocument = openPropertyFromDocument;
         window.openWellFromDocument = openWellFromDocument;
+        window.openWellFromProperty = openWellFromProperty;
+        window.openPropertyFromWell = openPropertyFromWell;
         
         // Load Documents
         async function loadDocuments() {
@@ -6591,22 +6593,8 @@
             }
             
             // Don't close the well modal - open property on top
-            // Set a higher z-index for the property modal
-            setTimeout(() => {
-                openPropertyDetails(propertyId);
-                // After opening, increase z-index to stack above well modal
-                const propModal = document.getElementById('propertyDetailsModal');
-                if (propModal) {
-                    // Calculate z-index based on stack depth
-                    const baseZIndex = 999999;
-                    const newZIndex = baseZIndex + (modalStack.length * 10);
-                    propModal.style.zIndex = String(newZIndex);
-                    
-                    // Track in modal stack (only if not already there)
-                    if (!modalStack.find(m => m.element === propModal)) {
-                        modalStack.push({ type: 'property', id: propertyId, element: propModal });
-                    }
-                }
+            setTimeout(async () => {
+                await openPropertyDetails(propertyId);
             }, 50);
         }
         
