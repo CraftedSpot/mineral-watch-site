@@ -6049,14 +6049,22 @@
             }
         }
         
+        // Debounce mechanism for loadLinkedWells
+        let linkedWellsTimeout;
+        
         async function loadLinkedWells(propertyId) {
-            console.log('[LinkedWells] Loading linked wells for property:', propertyId);
+            // Clear any pending calls
+            clearTimeout(linkedWellsTimeout);
             
-            const countEl = document.getElementById('property-linked-wells-count');
-            const listEl = document.getElementById('linked-wells-list');
-            const emptyEl = document.getElementById('linked-wells-empty');
-            
-            console.log('[LinkedWells] Count element before update:', countEl, 'textContent:', countEl?.textContent);
+            // Debounce to prevent rapid successive calls
+            linkedWellsTimeout = setTimeout(async () => {
+                console.log('[LinkedWells] Loading linked wells for property:', propertyId);
+                
+                const countEl = document.getElementById('property-linked-wells-count');
+                const listEl = document.getElementById('linked-wells-list');
+                const emptyEl = document.getElementById('linked-wells-empty');
+                
+                console.log('[LinkedWells] Count element before update:', countEl, 'textContent:', countEl?.textContent);
             
             // Don't reset count - it's already set from property data
             // Just ensure loading state is shown if count > 0
@@ -6105,6 +6113,7 @@
                 document.getElementById('linked-wells-list').style.display = 'none';
                 document.getElementById('linked-wells-empty').style.display = 'block';
             }
+            }, 50); // Small debounce delay
         }
         
         function getMatchReasonStyle(reason) {
