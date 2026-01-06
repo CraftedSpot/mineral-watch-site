@@ -6490,22 +6490,8 @@
             }
             
             // Don't close the property modal - open well on top
-            // Set a higher z-index for the well modal
-            setTimeout(() => {
-                openWellDetail(wellId);
-                // After opening, increase z-index to stack above property modal
-                const wellModal = document.getElementById('wellDetailsModal');
-                if (wellModal) {
-                    // Calculate z-index based on stack depth
-                    const baseZIndex = 999999;
-                    const newZIndex = baseZIndex + (modalStack.length * 10);
-                    wellModal.style.zIndex = String(newZIndex);
-                    
-                    // Track in modal stack (only if not already there)
-                    if (!modalStack.find(m => m.element === wellModal)) {
-                        modalStack.push({ type: 'well', id: wellId, element: wellModal });
-                    }
-                }
+            setTimeout(async () => {
+                await openWellDetailsModal(wellId);
             }, 50);
         }
         
