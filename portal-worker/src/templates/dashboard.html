@@ -5753,8 +5753,10 @@
             // Show linked properties count immediately from well data
             const linkedPropertiesCount = f['Linked Properties']?.length || 0;
             const propsCountEl = document.getElementById('well-linked-properties-count');
-            propsCountEl.textContent = ''; // Clear first to avoid visual artifacts
-            propsCountEl.textContent = linkedPropertiesCount;
+            // Replace entire element to avoid any concatenation issues
+            const newPropsCountEl = propsCountEl.cloneNode(false);
+            newPropsCountEl.textContent = String(linkedPropertiesCount);
+            propsCountEl.parentNode.replaceChild(newPropsCountEl, propsCountEl);
             
             // Show loading state if there are properties
             if (linkedPropertiesCount > 0) {
@@ -5964,8 +5966,10 @@
             // Show linked wells count immediately from property data
             const linkedWellsCount = f['Linked Wells']?.length || 0;
             const wellsCountEl = document.getElementById('property-linked-wells-count');
-            wellsCountEl.textContent = ''; // Clear first to avoid visual artifacts
-            wellsCountEl.textContent = linkedWellsCount;
+            // Replace entire element to avoid any concatenation issues
+            const newCountEl = wellsCountEl.cloneNode(false);
+            newCountEl.textContent = String(linkedWellsCount);
+            wellsCountEl.parentNode.replaceChild(newCountEl, wellsCountEl);
             
             // Show loading state if there are wells
             if (linkedWellsCount > 0) {
@@ -6070,10 +6074,17 @@
                 const data = await response.json();
                 console.log('[LinkedWells] API Response data:', data);
                 
-                countEl.textContent = ''; // Clear first to avoid visual artifacts
+                // Aggressive fix for concatenation issue
                 const wellCount = data.wells ? data.wells.length : 0;
+                console.log('[LinkedWells] Current textContent before clear:', countEl.textContent);
                 console.log('[LinkedWells] Setting count to:', wellCount, 'type:', typeof wellCount);
+                
+                // Force complete reset
+                countEl.style.display = 'none';
+                countEl.textContent = '';
+                countEl.offsetHeight; // Force reflow
                 countEl.textContent = String(wellCount);
+                countEl.style.display = '';
                 
                 if (!data.wells || data.wells.length === 0) {
                     console.log('[LinkedWells] No wells found, showing empty state');
@@ -6206,8 +6217,17 @@
                 const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
                 const data = await response.json();
                 
-                countEl.textContent = ''; // Clear first to avoid visual artifacts
-                countEl.textContent = data.properties?.length || 0;
+                // Aggressive fix for concatenation issue
+                const propCount = data.properties?.length || 0;
+                console.log('[LinkedProperties] Current textContent before clear:', countEl.textContent);
+                console.log('[LinkedProperties] Setting count to:', propCount);
+                
+                // Force complete reset
+                countEl.style.display = 'none';
+                countEl.textContent = '';
+                countEl.offsetHeight; // Force reflow
+                countEl.textContent = String(propCount);
+                countEl.style.display = '';
                 
                 if (!data.properties || data.properties.length === 0) {
                     listEl.style.display = 'none';
