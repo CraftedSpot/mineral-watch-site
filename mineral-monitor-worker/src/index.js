@@ -365,7 +365,24 @@ export default {
           return jsonResponse({ error: `Failed to fetch RBDMS CSV: ${response.status}` }, 500);
         }
         
-        const text = await response.text();
+        // Only read the first chunk to get headers (file is very large)
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let text = '';
+        let done = false;
+        
+        // Read chunks until we have at least one complete line
+        while (!done && !text.includes('\n')) {
+          const { value, done: readerDone } = await reader.read();
+          done = readerDone;
+          if (value) {
+            text += decoder.decode(value, { stream: !done });
+          }
+        }
+        
+        // Cancel the rest of the stream
+        reader.cancel();
+        
         const firstLine = text.split('\n')[0];
         const headers = firstLine.split(',').map(h => h.trim());
         
@@ -382,7 +399,7 @@ export default {
           totalHeaders: headers.length,
           headers: headers,
           punRelatedHeaders: punRelatedHeaders,
-          firstFewRows: text.split('\n').slice(0, 3).map(line => line.substring(0, 200) + (line.length > 200 ? '...' : ''))
+          note: "Only downloaded headers to avoid timeout on large file"
         });
       } catch (error) {
         return jsonResponse({ error: error.message }, 500);
