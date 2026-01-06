@@ -4565,8 +4565,14 @@
                     filename: doc.display_name || doc.filename,
                     has_children: !!doc.children,
                     child_count: doc.child_count,
-                    children: doc.children
+                    children: doc.children,
+                    property_id: doc.property_id,
+                    property_name: doc.property_name,
+                    well_id: doc.well_id,
+                    well_name: doc.well_name,
+                    well_api_number: doc.well_api_number
                 });
+                console.log('Full document object:', doc);
                 
                 currentDocumentId = docId;
             
@@ -4686,38 +4692,45 @@
                     
                     content += '</div>';
                     
-                    // Add linked property/well section
+                    // Add linked property/well section as collapsible
                     if (doc.property_id || doc.well_id) {
-                        content += '<div class="detail-section" style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin: 16px 0;">';
-                        content += '<h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">🔗 Linked To</h4>';
-                        content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                        const sectionId = 'linked-items';
+                        const isExpanded = true; // Show expanded by default for linked items
                         
-                        if (doc.property_name) {
+                        content += '<div class="detail-section">';
+                        content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
+                        content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> 🔗 Linked Items`;
+                        content += '</h4>';
+                        content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
+                        
+                        if (doc.property_name && doc.property_id) {
                             content += `
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <span style="color: #6B7280; font-size: 14px;">Property:</span>
-                                        <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.property_name)}</strong>
+                                <div class="doc-field">
+                                    <label>Property</label>
+                                    <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.property_name)}</span>
+                                        <button onclick="openPropertyFromDocument('${doc.property_id}')" 
+                                                style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
+                                            View →
+                                        </button>
                                     </div>
-                                    <button onclick="openPropertyFromDocument('${doc.property_id}')" 
-                                            style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
-                                        View Property →
-                                    </button>
                                 </div>`;
                         }
                         
-                        if (doc.well_name) {
+                        if (doc.well_name && doc.well_id) {
                             content += `
-                                <div style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <span style="color: #6B7280; font-size: 14px;">Well:</span>
-                                        <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.well_name)}</strong>
-                                        ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
+                                <div class="doc-field">
+                                    <label>Well</label>
+                                    <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
+                                        <div>
+                                            <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
+                                            ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
+                                        </div>
+                                        <button onclick="openWellFromDocument('${doc.well_id}')" 
+                                                style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
+                                            View →
+                                        </button>
                                     </div>
-                                    <button onclick="openWellFromDocument('${doc.well_id}')" 
-                                            style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
-                                        View Well →
-                                    </button>
                                 </div>`;
                         }
                         
@@ -4845,38 +4858,45 @@
                 
                 content += '</div>';
                 
-                // Add linked property/well section (same as above)
+                // Add linked property/well section as collapsible (same as above)
                 if (doc.property_id || doc.well_id) {
-                    content += '<div class="detail-section" style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin: 16px 0;">';
-                    content += '<h4 style="margin: 0 0 12px 0; font-size: 16px; font-weight: 600;">🔗 Linked To</h4>';
-                    content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+                    const sectionId = 'linked-items-no-data';
+                    const isExpanded = true; // Show expanded by default for linked items
                     
-                    if (doc.property_name) {
+                    content += '<div class="detail-section">';
+                    content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
+                    content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> 🔗 Linked Items`;
+                    content += '</h4>';
+                    content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
+                    
+                    if (doc.property_name && doc.property_id) {
                         content += `
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <span style="color: #6B7280; font-size: 14px;">Property:</span>
-                                    <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.property_name)}</strong>
+                            <div class="doc-field">
+                                <label>Property</label>
+                                <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.property_name)}</span>
+                                    <button onclick="openPropertyFromDocument('${doc.property_id}')" 
+                                            style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
+                                        View →
+                                    </button>
                                 </div>
-                                <button onclick="openPropertyFromDocument('${doc.property_id}')" 
-                                        style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
-                                    View Property →
-                                </button>
                             </div>`;
                     }
                     
-                    if (doc.well_name) {
+                    if (doc.well_name && doc.well_id) {
                         content += `
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <span style="color: #6B7280; font-size: 14px;">Well:</span>
-                                    <strong style="color: #1E40AF; margin-left: 8px;">${escapeHtml(doc.well_name)}</strong>
-                                    ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
+                            <div class="doc-field">
+                                <label>Well</label>
+                                <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
+                                        ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
+                                    </div>
+                                    <button onclick="openWellFromDocument('${doc.well_id}')" 
+                                            style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
+                                        View →
+                                    </button>
                                 </div>
-                                <button onclick="openWellFromDocument('${doc.well_id}')" 
-                                        style="background: #1D6F5C; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer;">
-                                    View Well →
-                                </button>
                             </div>`;
                     }
                     
