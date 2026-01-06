@@ -42,6 +42,24 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
     console.log(`[GetPropertyDocuments-D1] Attempting D1 query for property ${propertyId}`);
     
     try {
+      // First, get the property UUID from the Airtable record ID
+      const propertyResult = await env.WELLS_DB.prepare(`
+        SELECT id FROM properties WHERE airtable_record_id = ?
+      `).bind(propertyId).first();
+      
+      if (!propertyResult) {
+        console.log(`[GetPropertyDocuments-D1] Property not found in D1 for Airtable ID: ${propertyId}`);
+        return jsonResponse({
+          success: true,
+          documents: [],
+          source: 'D1',
+          queryTime: Date.now() - start
+        });
+      }
+      
+      const propertyUuid = propertyResult.id;
+      console.log(`[GetPropertyDocuments-D1] Found property UUID: ${propertyUuid} for Airtable ID: ${propertyId}`);
+      
       // Query linked documents from D1 with security filtering
       const docTypeList = PROPERTY_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
       
@@ -59,7 +77,7 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
           AND doc_type IN (${docTypeList})
           AND (user_id = ? OR organization_id = ?)
         ORDER BY upload_date DESC
-      `).bind(propertyId, authUser.id, userOrgId).all();
+      `).bind(propertyUuid, authUser.id, userOrgId).all();
       
       console.log(`[GetPropertyDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       
@@ -121,6 +139,43 @@ export async function handleGetWellLinkedDocuments(wellId: string, request: Requ
     console.log(`[GetWellDocuments-D1] Attempting D1 query for well ${wellId}`);
     
     try {
+      // First, get the API number from airtable_wells using the Airtable record ID
+      const airtableWellResult = await env.WELLS_DB.prepare(`
+        SELECT api_number FROM airtable_wells WHERE airtable_record_id = ?
+      `).bind(wellId).first();
+      
+      if (!airtableWellResult) {
+        console.log(`[GetWellDocuments-D1] Well not found in airtable_wells for Airtable ID: ${wellId}`);
+        return jsonResponse({
+          success: true,
+          documents: [],
+          source: 'D1',
+          queryTime: Date.now() - start
+        });
+      }
+      
+      const apiNumber = airtableWellResult.api_number;
+      console.log(`[GetWellDocuments-D1] Found API number: ${apiNumber} for Airtable ID: ${wellId}`);
+      
+      // Next, get the well integer ID from the wells table
+      const wellResult = await env.WELLS_DB.prepare(`
+        SELECT id FROM wells WHERE api_number = ?
+      `).bind(apiNumber).first();
+      
+      if (!wellResult) {
+        console.log(`[GetWellDocuments-D1] Well not found in wells table for API: ${apiNumber}`);
+        return jsonResponse({
+          success: true,
+          documents: [],
+          source: 'D1',
+          queryTime: Date.now() - start
+        });
+      }
+      
+      // Convert the integer ID to string format as stored in documents.well_id (like "455498.0")
+      const wellIdString = `${wellResult.id}.0`;
+      console.log(`[GetWellDocuments-D1] Using well_id string: ${wellIdString} for integer ID: ${wellResult.id}`);
+      
       // Query linked documents from D1 with security filtering
       const docTypeList = WELL_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
       
@@ -138,7 +193,7 @@ export async function handleGetWellLinkedDocuments(wellId: string, request: Requ
           AND doc_type IN (${docTypeList})
           AND (user_id = ? OR organization_id = ?)
         ORDER BY upload_date DESC
-      `).bind(wellId, authUser.id, userOrgId).all();
+      `).bind(wellIdString, authUser.id, userOrgId).all();
       
       console.log(`[GetWellDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       
