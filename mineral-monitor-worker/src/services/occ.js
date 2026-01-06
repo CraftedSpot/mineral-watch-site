@@ -84,8 +84,8 @@ export async function fetchOCCFile(fileType, env) {
     }
   }
   
-  // Filter to only new records (last 7 days for ITD/completions)
-  // The file already contains "Last 7 Days" but we can add extra filtering if needed
+  // No filtering needed - OCC files are already 7-day rolling windows
+  // Rely on the "already processed" cache for deduplication
   const filteredRecords = filterRecentRecords(records, fileType);
   
   // Sanity check: warn if zero records (could indicate OCC file format change)
@@ -126,62 +126,34 @@ function parseExcelDate(excelDate) {
  * @returns {Array} - Filtered records
  */
 function filterRecentRecords(records, fileType) {
-  // The OCC "Last 7 Days" files should already be filtered,
-  // but we add a safety check to avoid processing stale data
+  // The OCC "Last 7 Days" files are already filtered to a rolling 7-day window
+  // We rely on the "already processed" cache for deduplication instead of date filtering
+  // This ensures we don't miss valid records that have older filing dates
   
-  const tenDaysAgo = new Date();
-  tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+  console.log(`[OCC] No date filtering applied - OCC files are already 7-day rolling windows`);
+  console.log(`[OCC] Returning all ${records.length} records from ${fileType} file`);
   
-  console.log(`[OCC] Date filtering: Looking for records after ${tenDaysAgo.toISOString()}`);
-  
-  let filteredCount = 0;
-  const filtered = records.filter(record => {
-    // Different files have different date fields
-    let dateField;
-    switch (fileType) {
-      case 'itd':
-        dateField = record.Approval_Date || record.Submit_Date || record.Create_Date;
-        break;
-      case 'completions':
-        dateField = record.Create_Date || record.Created_Date || record.DATE_CREATED;
-        break;
-      case 'transfers':
-        dateField = record.EventDate;
-        break;
-      default:
-        return true;
-    }
-    
-    if (!dateField) {
-      console.log(`[OCC] Record with no date field - including: API ${record.API_Number || record['API Number'] || 'unknown'}`);
-      return true; // Include if no date to filter on
-    }
-    
-    try {
-      const recordDate = parseExcelDate(dateField);
-      
-      // Validate the parsed date
-      if (isNaN(recordDate.getTime())) {
-        console.log(`[OCC] Invalid date for '${dateField}' (type: ${typeof dateField}) - including record`);
-        return true; // Include if date is invalid
+  // Log some sample dates for monitoring
+  if (records.length > 0) {
+    console.log(`[OCC] Sample dates from first 5 records:`);
+    for (let i = 0; i < Math.min(5, records.length); i++) {
+      let dateField;
+      switch (fileType) {
+        case 'itd':
+          dateField = records[i].Approval_Date || records[i].Submit_Date || records[i].Create_Date;
+          break;
+        case 'completions':
+          dateField = records[i].Create_Date || records[i].Created_Date || records[i].DATE_CREATED;
+          break;
+        case 'transfers':
+          dateField = records[i].EventDate;
+          break;
       }
-      
-      const isRecent = recordDate >= tenDaysAgo;
-      if (!isRecent) {
-        filteredCount++;
-        if (filteredCount <= 3) { // Log first 3 filtered records
-          console.log(`[OCC] Filtering out old record: ${recordDate.toISOString()} from ${dateField} (API ${record.API_Number || record['API Number'] || 'unknown'})`);
-        }
-      }
-      return isRecent;
-    } catch (err) {
-      console.log(`[OCC] Date parsing failed for '${dateField}' - ${err.message} - including record`);
-      return true; // Include if date parsing fails
+      console.log(`  Record ${i+1}: ${dateField || 'no date'}`);
     }
-  });
+  }
   
-  console.log(`[OCC] Date filter results: ${filtered.length} recent, ${filteredCount} filtered out`);
-  return filtered;
+  return records;
 }
 
 /**
