@@ -16,9 +16,11 @@ const OCC_FILE_URLS = {
  * Fetch and parse an OCC Excel file
  * @param {string} fileType - 'itd', 'completions', or 'transfers'
  * @param {Object} env - Worker environment bindings
+ * @param {Object} options - Optional settings
+ * @param {boolean} options.skipCache - Skip cache and fetch fresh data
  * @returns {Array} - Parsed records from the Excel file
  */
-export async function fetchOCCFile(fileType, env) {
+export async function fetchOCCFile(fileType, env, options = {}) {
   const url = OCC_FILE_URLS[fileType];
   if (!url) {
     throw new Error(`Unknown OCC file type: ${fileType}`);
@@ -28,10 +30,15 @@ export async function fetchOCCFile(fileType, env) {
   
   // Check cache first (files update daily, cache for 4 hours)
   const cacheKey = `occ-file:${fileType}:${new Date().toISOString().split('T')[0]}`;
-  const cached = await env.MINERAL_CACHE.get(cacheKey, { type: 'json' });
-  if (cached) {
-    console.log(`[OCC] Using cached ${fileType} file (${cached.length} records)`);
-    return cached;
+  
+  if (!options.skipCache) {
+    const cached = await env.MINERAL_CACHE.get(cacheKey, { type: 'json' });
+    if (cached) {
+      console.log(`[OCC] Using cached ${fileType} file (${cached.length} records)`);
+      return cached;
+    }
+  } else {
+    console.log(`[OCC] Skipping cache for ${fileType} file (skipCache option enabled)`);
   }
   
   // Fetch fresh file
@@ -171,4 +178,27 @@ export function validateRecord(record, fileType) {
   
   const required = requiredFields[fileType] || [];
   return required.every(field => record[field] != null && record[field] !== '');
+}
+
+/**
+ * Clear the OCC file cache for a specific file type
+ * @param {string} fileType - 'itd', 'completions', or 'transfers'
+ * @param {Object} env - Worker environment bindings
+ * @param {string} date - Optional date in YYYY-MM-DD format (defaults to today)
+ * @returns {Promise<boolean>} - True if cache was cleared
+ */
+export async function clearOCCFileCache(fileType, env, date = null) {
+  const dateStr = date || new Date().toISOString().split('T')[0];
+  const cacheKey = `occ-file:${fileType}:${dateStr}`;
+  
+  console.log(`[OCC] Clearing cache for key: ${cacheKey}`);
+  
+  try {
+    await env.MINERAL_CACHE.delete(cacheKey);
+    console.log(`[OCC] Cache cleared successfully for ${fileType} file (${dateStr})`);
+    return true;
+  } catch (error) {
+    console.error(`[OCC] Failed to clear cache:`, error);
+    return false;
+  }
 }
