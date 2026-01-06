@@ -271,6 +271,7 @@ export async function checkAllWellStatuses(env, options = {}) {
           
           const user = userQuery[0];
           const userName = user.fields.Name || user.fields.Email;
+          const userOrganizations = user.fields.Organization || [];
           
           // Try to get coordinates and map link
           let mapLink = null;
@@ -310,7 +311,7 @@ export async function checkAllWellStatuses(env, options = {}) {
           }
           
           // Create activity log
-          const activityResult = await createActivityLog(env, {
+          const activityData = {
             userId: userIds[0],  // Use the user record ID, not email
             apiNumber: api,
             activityType: 'Status Change',
@@ -324,7 +325,14 @@ export async function checkAllWellStatuses(env, options = {}) {
             county: currentData.county || wellRecord.County || 'Unknown',
             notes: `RBDMS status mismatch detected. Airtable showed ${getStatusDescription(airtableStatus)}, but RBDMS (source of truth) shows ${getStatusDescription(rbdmsStatus)}. Updating Airtable to match RBDMS.`,
             mapLink: mapLink || ""
-          });
+          };
+          
+          // Add organization if user belongs to one
+          if (userOrganizations.length > 0) {
+            activityData.organizationId = userOrganizations[0];
+          }
+          
+          const activityResult = await createActivityLog(env, activityData);
           
           if (!activityResult.success) {
             console.error(`[RBDMS] Failed to create activity log: ${activityResult.error}`);
