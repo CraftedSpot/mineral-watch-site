@@ -5991,10 +5991,10 @@
             
             // Show linked wells count immediately from property data
             const linkedWellsCount = f['Linked Wells']?.length || 0;
-            const wellsCountEl = document.getElementById('property-linked-wells-count');
+            const wellsCountElement = document.getElementById('property-linked-wells-count');
             // Clear and set count directly without replacement
             console.log('[PropertyDetails] Setting initial linked wells count:', linkedWellsCount);
-            wellsCountEl.textContent = String(linkedWellsCount);
+            wellsCountElement.textContent = String(linkedWellsCount);
             
             // Show loading state if there are wells
             if (linkedWellsCount > 0) {
