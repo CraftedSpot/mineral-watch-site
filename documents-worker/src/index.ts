@@ -730,6 +730,13 @@ export default {
       // Ensure processing columns exist
       await ensureProcessingColumns(env);
       await ensureLinkColumns(env.WELLS_DB);
+      
+      // Run migration on first processing call
+      try {
+        await migrateDocumentIds(env.WELLS_DB);
+      } catch (migrationError) {
+        console.error('Migration error (non-fatal):', migrationError);
+      }
 
       try {
         // Get documents with status='pending' that haven't exceeded retry limit
