@@ -7017,7 +7017,7 @@
 </div>
 
 <!-- DOCUMENT VIEW MODAL -->
-<div class="modal-overlay" id="documentViewModal" style="display: none;">
+<div class="modal-overlay" id="documentViewModal" style="display: none; z-index: 1000001;">
     <div class="modal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
         <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
             <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
@@ -7040,7 +7040,7 @@
 </div>
 
 <!-- DOCUMENT DETAIL MODAL -->
-<div class="modal-overlay" id="documentDetailModal" style="display: none; overflow-y: auto;">
+<div class="modal-overlay" id="documentDetailModal" style="display: none; overflow-y: auto; z-index: 1000000;">
     <div class="modal detail-modal document-detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
         <!-- Modal Header with green background (full bleed) -->
         <div class="modal-header detail-modal-header" style="background: #1D6F5C; color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
