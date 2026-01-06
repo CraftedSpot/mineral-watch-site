@@ -5966,10 +5966,9 @@
             // Show linked wells count immediately from property data
             const linkedWellsCount = f['Linked Wells']?.length || 0;
             const wellsCountEl = document.getElementById('property-linked-wells-count');
-            // Replace entire element to avoid any concatenation issues
-            const newCountEl = wellsCountEl.cloneNode(false);
-            newCountEl.textContent = String(linkedWellsCount);
-            wellsCountEl.parentNode.replaceChild(newCountEl, wellsCountEl);
+            // Clear and set count directly without replacement
+            console.log('[PropertyDetails] Setting initial linked wells count:', linkedWellsCount);
+            wellsCountEl.textContent = String(linkedWellsCount);
             
             // Show loading state if there are wells
             if (linkedWellsCount > 0) {
@@ -6074,17 +6073,9 @@
                 const data = await response.json();
                 console.log('[LinkedWells] API Response data:', data);
                 
-                // Aggressive fix for concatenation issue
                 const wellCount = data.wells ? data.wells.length : 0;
-                console.log('[LinkedWells] Current textContent before clear:', countEl.textContent);
-                console.log('[LinkedWells] Setting count to:', wellCount, 'type:', typeof wellCount);
-                
-                // Force complete reset
-                countEl.style.display = 'none';
-                countEl.textContent = '';
-                countEl.offsetHeight; // Force reflow
+                console.log('[LinkedWells] Setting API count to:', wellCount, 'type:', typeof wellCount);
                 countEl.textContent = String(wellCount);
-                countEl.style.display = '';
                 
                 if (!data.wells || data.wells.length === 0) {
                     console.log('[LinkedWells] No wells found, showing empty state');
@@ -6217,17 +6208,9 @@
                 const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
                 const data = await response.json();
                 
-                // Aggressive fix for concatenation issue
                 const propCount = data.properties?.length || 0;
-                console.log('[LinkedProperties] Current textContent before clear:', countEl.textContent);
-                console.log('[LinkedProperties] Setting count to:', propCount);
-                
-                // Force complete reset
-                countEl.style.display = 'none';
-                countEl.textContent = '';
-                countEl.offsetHeight; // Force reflow
+                console.log('[LinkedProperties] Setting API count to:', propCount);
                 countEl.textContent = String(propCount);
-                countEl.style.display = '';
                 
                 if (!data.properties || data.properties.length === 0) {
                     listEl.style.display = 'none';
