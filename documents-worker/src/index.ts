@@ -377,11 +377,8 @@ export default {
             w.well_name,
             w.api_number as well_api_number
           FROM documents d
-          LEFT JOIN properties p ON d.property_id = p.id
-          LEFT JOIN wells w ON (
-            d.well_id = CAST(w.id AS TEXT) 
-            OR CAST(REPLACE(d.well_id, '.0', '') AS INTEGER) = w.id
-          )
+          LEFT JOIN properties p ON d.property_id = p.airtable_record_id
+          LEFT JOIN wells w ON d.well_id = w.airtable_record_id
           WHERE d.id = ? 
             AND (d.${conditions.join(' OR d.')})
             AND d.deleted_at IS NULL

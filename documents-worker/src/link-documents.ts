@@ -169,7 +169,7 @@ export async function linkDocumentToEntities(
   if (section && township && range && county) {
     try {
       const propertyQuery = `
-        SELECT id FROM properties 
+        SELECT airtable_record_id as id FROM properties 
         WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER) 
           AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
           AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
@@ -257,7 +257,7 @@ export async function linkDocumentToEntities(
     try {
       console.log(`[LinkDocuments] Searching for well by API: ${apiNumber}`);
       const well = await db.prepare(`
-        SELECT id FROM wells WHERE api_number = ? LIMIT 1
+        SELECT airtable_record_id as id FROM wells WHERE api_number = ? LIMIT 1
       `).bind(apiNumber).first();
       
       if (well) {
@@ -290,7 +290,7 @@ export async function linkDocumentToEntities(
         // Build query with name variations
         const placeholders = nameVariations.map((_, i) => `?`).join(',');
         const query1 = `
-          SELECT id, well_name, operator, section, township, range
+          SELECT airtable_record_id as id, well_name, operator, section, township, range
           FROM wells 
           WHERE (
             UPPER(well_name) IN (${nameVariations.map(() => 'UPPER(?)').join(',')})
@@ -334,7 +334,7 @@ export async function linkDocumentToEntities(
         console.log(`[LinkDocuments] Strategy 2: Name + T-R (no section)`);
         
         const query2 = `
-          SELECT id, well_name, operator, section, township, range
+          SELECT airtable_record_id as id, well_name, operator, section, township, range
           FROM wells 
           WHERE (
             UPPER(well_name) IN (${nameVariations.map(() => 'UPPER(?)').join(',')})
@@ -379,7 +379,7 @@ export async function linkDocumentToEntities(
         console.log(`[LinkDocuments] Strategy 3: Name only`);
         
         const query3 = `
-          SELECT id, well_name, operator, section, township, range
+          SELECT airtable_record_id as id, well_name, operator, section, township, range
           FROM wells 
           WHERE (
             UPPER(well_name) IN (${nameVariations.map(() => 'UPPER(?)').join(',')})
