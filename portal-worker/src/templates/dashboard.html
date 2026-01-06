@@ -3063,7 +3063,6 @@
 
         // Render the properties table (extracted from loadProperties)
         function renderPropertiesTable() {
-            console.log('[Render] renderPropertiesTable called');
             const hasSearch = currentUser?.plan !== 'Free';
             
             // Apply filter and sort
@@ -5764,23 +5763,14 @@
             // Store well ID for saving
             document.getElementById('wellDetailsId').value = wellId;
             
-            // Show linked properties count immediately from well data
-            const linkedPropertiesCount = f['Linked Properties']?.length || 0;
+            // Don't try to show count from well data - just show loading state
             const propsCountElement = document.getElementById('well-linked-properties-count');
-            // Replace entire element to avoid any concatenation issues
-            const newPropsCountEl = propsCountElement.cloneNode(false);
-            newPropsCountEl.textContent = String(linkedPropertiesCount);
-            propsCountElement.parentNode.replaceChild(newPropsCountEl, propsCountElement);
+            // Already reset to '—' at the start of this function
             
-            // Show loading state if there are properties
-            if (linkedPropertiesCount > 0) {
-                document.getElementById('linked-properties-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading properties...</div>';
-                document.getElementById('linked-properties-list').style.display = 'block';
-                document.getElementById('linked-properties-empty').style.display = 'none';
-            } else {
-                document.getElementById('linked-properties-list').style.display = 'none';
-                document.getElementById('linked-properties-empty').style.display = 'block';
-            }
+            // Always show loading state initially - the API will update with real data
+            document.getElementById('linked-properties-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading properties...</div>';
+            document.getElementById('linked-properties-list').style.display = 'block';
+            document.getElementById('linked-properties-empty').style.display = 'none';
             
             // Show modal with forced high z-index like bulk modals
             const wellModal = document.getElementById('wellDetailsModal');
@@ -5922,8 +5912,6 @@
         
         // Property Details Modal Functions
         function openPropertyDetails(propId) {
-            console.log('[PropertyDetails] openPropertyDetails called for:', propId, 'Stack:', new Error().stack);
-            
             // Reset linked counts and lists immediately to prevent concatenation issues
             const wellsCountEl = document.getElementById('property-linked-wells-count');
             if (wellsCountEl) {
@@ -5992,22 +5980,15 @@
             // Update total acres display in form
             updateTotalAcres();
             
-            // Show linked wells count immediately from property data
-            const linkedWellsCount = f['Linked Wells']?.length || 0;
+            // Don't try to show count from property data - just show loading state
             const wellsCountElement = document.getElementById('property-linked-wells-count');
-            // Clear and set count directly without replacement
-            console.log('[PropertyDetails] Setting initial linked wells count:', linkedWellsCount);
-            wellsCountElement.textContent = String(linkedWellsCount);
+            // Already reset to '—' at the start of this function
+            console.log('[PropertyDetails] Initial count placeholder set to loading state');
             
-            // Show loading state if there are wells
-            if (linkedWellsCount > 0) {
-                document.getElementById('linked-wells-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading wells...</div>';
-                document.getElementById('linked-wells-list').style.display = 'block';
-                document.getElementById('linked-wells-empty').style.display = 'none';
-            } else {
-                document.getElementById('linked-wells-list').style.display = 'none';
-                document.getElementById('linked-wells-empty').style.display = 'block';
-            }
+            // Always show loading state initially - the API will update with real data
+            document.getElementById('linked-wells-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading wells...</div>';
+            document.getElementById('linked-wells-list').style.display = 'block';
+            document.getElementById('linked-wells-empty').style.display = 'none';
             
             // Show modal with forced high z-index like bulk modals
             const propModal = document.getElementById('propertyDetailsModal');
@@ -6080,7 +6061,6 @@
         
         async function loadLinkedWells(propertyId) {
             console.log('[LinkedWells] Loading linked wells for property:', propertyId);
-            console.log('[LinkedWells] Stack trace:', new Error().stack);
             
             const countEl = document.getElementById('property-linked-wells-count');
             const listEl = document.getElementById('linked-wells-list');
