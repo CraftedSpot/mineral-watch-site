@@ -351,6 +351,44 @@ export default {
       }
     }
     
+    // Test endpoint to check RBDMS CSV headers
+    if (url.pathname === '/test/rbdms-headers') {
+      try {
+        console.log('[Test] Fetching RBDMS headers...');
+        const response = await fetch('https://oklahoma.gov/content/dam/ok/en/occ/documents/og/ogdatafiles/rbdms-wells.csv', {
+          headers: {
+            'User-Agent': 'MineralWatch/2.0 (header inspection)'
+          }
+        });
+        
+        if (!response.ok) {
+          return jsonResponse({ error: `Failed to fetch RBDMS CSV: ${response.status}` }, 500);
+        }
+        
+        const text = await response.text();
+        const firstLine = text.split('\n')[0];
+        const headers = firstLine.split(',').map(h => h.trim());
+        
+        // Check for pooling unit related columns
+        const punRelatedHeaders = headers.filter(h => 
+          h.toLowerCase().includes('pun') || 
+          h.toLowerCase().includes('pool') || 
+          h.toLowerCase().includes('unit') ||
+          h.toLowerCase().includes('spacing') ||
+          h.toLowerCase().includes('section')
+        );
+        
+        return jsonResponse({
+          totalHeaders: headers.length,
+          headers: headers,
+          punRelatedHeaders: punRelatedHeaders,
+          firstFewRows: text.split('\n').slice(0, 3).map(line => line.substring(0, 200) + (line.length > 200 ? '...' : ''))
+        });
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+    
     // Test permit/completion simulation endpoint
     if (url.pathname === '/test/daily') {
       const testPermitApi = url.searchParams.get('permitApi');

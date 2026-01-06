@@ -67,11 +67,31 @@ async function downloadRBDMSData(env) {
     const lines = text.split('\n');
     const csvHeaders = lines[0].split(',').map(h => h.trim());
     
+    // Log all available CSV headers
+    console.log(`[RBDMS] CSV Headers (${csvHeaders.length} columns):`);
+    csvHeaders.forEach((header, index) => {
+      console.log(`[RBDMS]   Column ${index}: "${header}"`);
+    });
+    
+    // Check for pooling unit related columns
+    const punRelatedHeaders = csvHeaders.filter(h => 
+      h.toLowerCase().includes('pun') || 
+      h.toLowerCase().includes('pool') || 
+      h.toLowerCase().includes('unit') ||
+      h.toLowerCase().includes('spacing')
+    );
+    if (punRelatedHeaders.length > 0) {
+      console.log(`[RBDMS] Found potential pooling unit related columns: ${punRelatedHeaders.join(', ')}`);
+    } else {
+      console.log(`[RBDMS] No pooling unit related columns found`);
+    }
+    
     // Find important column indices
     const apiIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('api'));
     const statusIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('wellstatus') || h.toLowerCase() === 'status');
     const operatorIndex = csvHeaders.findIndex(h => h.toLowerCase().includes('operator'));
     
+    console.log(`[RBDMS] Key column indices: API=${apiIndex}, Status=${statusIndex}, Operator=${operatorIndex}`);
     console.log(`[RBDMS] Parsing ${lines.length - 1} wells...`);
     
     for (let i = 1; i < lines.length; i++) {
