@@ -6373,7 +6373,7 @@
                         const uploadDate = doc.uploadDate ? new Date(doc.uploadDate).toLocaleDateString() : 'Unknown';
                         return `
                             <div class="linked-document-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
-                                <div style="flex: 1; cursor: pointer;" onclick="viewDocument('${doc.id}', '${doc.r2Key}')">
+                                <div style="flex: 1; cursor: pointer;" onclick="openDocumentDetail('${doc.id}')">
                                     <div style="font-weight: 500; color: #2563eb;">${escapeHtml(doc.displayName)}</div>
                                     <div style="font-size: 12px; color: #6b7280;">${escapeHtml(doc.docType)} • ${uploadDate}</div>
                                 </div>
@@ -6391,15 +6391,8 @@
             }
         }
         
-        function viewDocument(docId, r2Key) {
-            // Open document in new tab - same pattern as existing document viewing
-            const viewUrl = `/api/documents/${docId}/view`;
-            window.open(viewUrl, '_blank');
-        }
-        
         // Expose functions globally for onclick handlers
         window.toggleLinkedDocuments = toggleLinkedDocuments;
-        window.viewDocument = viewDocument;
         
         async function savePropertyDetails() {
             const propId = document.getElementById('propertyDetailsId').value;
