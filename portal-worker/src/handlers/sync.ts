@@ -51,6 +51,15 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
       }
     }
     
+    // Also check X-API-Key header
+    if (!isAuthenticated) {
+      const apiKey = request.headers.get('X-API-Key');
+      const expectedToken = env.SYNC_API_KEY || 'default-sync-key-2024';
+      if (apiKey === expectedToken) {
+        isAuthenticated = true;
+      }
+    }
+    
     if (!isAuthenticated) {
       return errorResponse('Unauthorized', 401);
     }
@@ -63,6 +72,7 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
     console.log('Sync completed:', {
       properties: result.properties.synced,
       wells: result.wells.synced,
+      links: result.links?.synced || 0,
       duration: result.duration
     });
     
@@ -83,10 +93,17 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
           updated: result.wells.updated,
           errors: result.wells.errors.length
         },
+        links: result.links ? {
+          total: result.links.synced,
+          created: result.links.created,
+          updated: result.links.updated,
+          errors: result.links.errors.length
+        } : undefined,
         duration_ms: result.duration,
         errors: [
           ...result.properties.errors.slice(0, 5), // First 5 property errors
-          ...result.wells.errors.slice(0, 5) // First 5 well errors
+          ...result.wells.errors.slice(0, 5), // First 5 well errors
+          ...(result.links?.errors.slice(0, 5) || []) // First 5 link errors
         ]
       }
     });

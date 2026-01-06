@@ -122,9 +122,9 @@ import {
   handleMatchPropertyWells,
   // Debug handler
   handleDebugAirtable,
-  // Property-Wells handlers
-  handleGetPropertyLinkedWells,
-  handleGetWellLinkedProperties,
+  // Property-Wells handlers (now using D1 handlers with dynamic imports)
+  // handleGetPropertyLinkedWells, // Removed - using D1 handler
+  // handleGetWellLinkedProperties, // Removed - using D1 handler
   handleUnlinkPropertyWell,
   // Single item matching handlers
   handleMatchSingleProperty,
@@ -730,15 +730,19 @@ var index_default = {
         return handleDebugAirtable(request, env);
       }
       
-      // Property linked wells endpoint
+      // Property linked wells endpoint (using D1 with fallback)
       const propertyLinkedWellsMatch = path.match(/^\/api\/property\/([a-zA-Z0-9]+)\/linked-wells$/);
       if (propertyLinkedWellsMatch && request.method === "GET") {
+        // Import and use D1 handler
+        const { handleGetPropertyLinkedWells } = await import('./handlers/property-wells-d1.js');
         return handleGetPropertyLinkedWells(propertyLinkedWellsMatch[1], request, env);
       }
       
-      // Well linked properties endpoint
+      // Well linked properties endpoint (using D1 with fallback)
       const wellLinkedPropertiesMatch = path.match(/^\/api\/well\/([a-zA-Z0-9]+)\/linked-properties$/);
       if (wellLinkedPropertiesMatch && request.method === "GET") {
+        // Import and use D1 handler
+        const { handleGetWellLinkedProperties } = await import('./handlers/property-wells-d1.js');
         return handleGetWellLinkedProperties(wellLinkedPropertiesMatch[1], request, env);
       }
       
