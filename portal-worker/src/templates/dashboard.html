@@ -5232,7 +5232,13 @@
             // Update modal content and show
             document.getElementById('documentDetailContent').innerHTML = content;
             const detailModal = document.getElementById('documentDetailModal');
+            
+            // Calculate z-index based on stack depth BEFORE adding to stack
+            const baseZIndex = 999999;
+            const newZIndex = baseZIndex + (modalStack.length * 10);
+            
             detailModal.style.display = 'flex';
+            detailModal.style.zIndex = String(newZIndex);
             
             // Add to modal stack if not already there
             if (!modalStack.find(m => m.element === detailModal)) {
@@ -5255,6 +5261,7 @@
         function closeDocumentDetailModal() {
             const modal = document.getElementById('documentDetailModal');
             modal.style.display = 'none';
+            modal.style.zIndex = '';  // Reset z-index
             currentDocumentId = null;
             
             // Remove from modal stack
