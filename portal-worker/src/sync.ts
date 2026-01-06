@@ -4,7 +4,7 @@ import { fetchWellDetailsFromOCC } from './handlers/wells.js';
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
 const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // 📍 Client Properties
 const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // 🛢️ Client Wells
-const LINKS_TABLE_ID = 'tblXv6QDHXN3sRFcu'; // 🔗 Property-Well Links
+const LINKS_TABLE_ID = 'tblcLilnMgeXvxXKT'; // 🔗 Property-Well Links
 
 // D1 batch configuration
 const BATCH_SIZE = 500; // Max statements per batch to stay within limits
