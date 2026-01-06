@@ -139,8 +139,11 @@ export async function cleanupOldStatewideRecords(env, daysToKeep = 90) {
   cutoffDate.setDate(cutoffDate.getDate() - daysToKeep);
   
   // Find records older than cutoff
-  const formula = `DATETIME_DIFF(NOW(), {Created Date}, 'days') > ${daysToKeep}`;
+  // Try different possible field names for creation date
+  const formula = `DATETIME_DIFF(NOW(), CREATED_TIME(), 'days') > ${daysToKeep}`;
   const url = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_STATEWIDE_ACTIVITY_TABLE}?filterByFormula=${encodeURIComponent(formula)}&fields[]=id`;
+  
+  console.log(`[Cleanup] Fetching records older than ${daysToKeep} days with formula: ${formula}`);
   
   try {
     const response = await fetch(url, {
@@ -151,7 +154,9 @@ export async function cleanupOldStatewideRecords(env, daysToKeep = 90) {
     });
     
     if (!response.ok) {
-      return { success: false, error: 'Failed to fetch old records' };
+      const errorText = await response.text();
+      console.error(`[Cleanup] Airtable query failed: ${response.status} - ${errorText}`);
+      return { success: false, error: `Failed to fetch old records: ${response.status} - ${errorText}` };
     }
     
     const data = await response.json();

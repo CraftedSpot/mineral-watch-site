@@ -122,7 +122,7 @@ export async function upsertWellLocation(env, wellData) {
   if (wellData.bhLatitude !== undefined && wellData.bhLatitude !== null) fields['BH Latitude'] = wellData.bhLatitude;
   if (wellData.bhLongitude !== undefined && wellData.bhLongitude !== null) fields['BH Longitude'] = wellData.bhLongitude;
   if (wellData.mapLink) fields['OCC Map Link'] = wellData.mapLink;
-  if (wellData.coordinateSource) fields['Coordinate Source'] = wellData.coordinateSource;
+  // Note: Coordinate Source field removed - not needed in Well Locations table
   
   try {
     if (existingData.records && existingData.records.length > 0) {

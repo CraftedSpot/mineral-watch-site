@@ -76,6 +76,8 @@ export async function fetchWellCoordinates(api10, env, forceRefresh = false) {
 
       if (!response.ok) {
         console.error(`[OCC GIS] API request failed for format ${i}: ${response.status}`);
+        // Consume the response body to prevent deadlock
+        response.body?.cancel();
         continue;
       }
 
