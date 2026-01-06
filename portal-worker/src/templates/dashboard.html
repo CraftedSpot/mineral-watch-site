@@ -5942,7 +5942,10 @@
         }
         
         function closeWellDetailsModal() {
-            document.getElementById('wellDetailsModal').style = '';
+            const modal = document.getElementById('wellDetailsModal');
+            modal.style = '';
+            // Reset z-index for next time
+            modal.style.zIndex = '';
         }
         
         document.getElementById('wellDetailsModal').addEventListener('click', e => {
@@ -6196,12 +6199,18 @@
             openWellDetailsModal(wellId);
         }
         
-        // Open well from property modal - close property first to avoid stacking
+        // Open well from property modal - stack on top
         function openWellFromProperty(wellId) {
-            closePropertyDetailsModal();  // Close property first
+            // Don't close the property modal - open well on top
+            // Set a higher z-index for the well modal
             setTimeout(() => {
-                openWellDetail(wellId);  // Then open well
-            }, 100);  // Small delay to let close animation finish
+                openWellDetail(wellId);
+                // After opening, increase z-index to stack above property modal
+                const wellModal = document.getElementById('wellDetailsModal');
+                if (wellModal) {
+                    wellModal.style.zIndex = '1000010';  // Higher than property modal
+                }
+            }, 50);
         }
         
         async function unlinkWell(linkId) {
@@ -6293,10 +6302,16 @@
         }
         
         function openPropertyFromWell(propertyId) {
-            closeWellDetailsModal();  // Close well modal first
+            // Don't close the well modal - open property on top
+            // Set a higher z-index for the property modal
             setTimeout(() => {
-                openPropertyDetails(propertyId);  // Then open property
-            }, 100);
+                openPropertyDetails(propertyId);
+                // After opening, increase z-index to stack above well modal
+                const propModal = document.getElementById('propertyDetailsModal');
+                if (propModal) {
+                    propModal.style.zIndex = '1000010';  // Higher than well modal
+                }
+            }, 50);
         }
         
         async function unlinkProperty(linkId) {
@@ -6473,7 +6488,10 @@
         }
         
         function closePropertyDetailsModal() {
-            document.getElementById('propertyDetailsModal').style = '';
+            const modal = document.getElementById('propertyDetailsModal');
+            modal.style = '';
+            // Reset z-index for next time
+            modal.style.zIndex = '';
         }
         
         document.getElementById('propertyDetailsModal').addEventListener('click', e => {
