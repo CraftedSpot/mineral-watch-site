@@ -5765,11 +5765,11 @@
             
             // Show linked properties count immediately from well data
             const linkedPropertiesCount = f['Linked Properties']?.length || 0;
-            const propsCountEl = document.getElementById('well-linked-properties-count');
+            const propsCountElement = document.getElementById('well-linked-properties-count');
             // Replace entire element to avoid any concatenation issues
-            const newPropsCountEl = propsCountEl.cloneNode(false);
+            const newPropsCountEl = propsCountElement.cloneNode(false);
             newPropsCountEl.textContent = String(linkedPropertiesCount);
-            propsCountEl.parentNode.replaceChild(newPropsCountEl, propsCountEl);
+            propsCountElement.parentNode.replaceChild(newPropsCountEl, propsCountElement);
             
             // Show loading state if there are properties
             if (linkedPropertiesCount > 0) {
