@@ -537,7 +537,9 @@ async function processTransfer(transfer, env, results, recentAlerts) {
       previousValue: previousOperator,
       newValue: newOperator,
       mapLink: includeMapLink ? mapLink : null,
-      userId: alert.user.id
+      userId: alert.user.id,
+      // Organization ID if alert is via organization
+      organizationId: alert.organizationId || null
     };
     
     const activityRecord = await createActivityLog(env, activityData);

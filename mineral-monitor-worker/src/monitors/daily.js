@@ -879,7 +879,9 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
                  permit.Zone_Of_Significance || permit.Formation ||
                  permit.Target || null,
       // Track coordinate source for user awareness
-      coordinateSource: coordinateSource
+      coordinateSource: coordinateSource,
+      // Organization ID if alert is via organization
+      organizationId: alert.organizationId || null
     };
     
     // Don't create activity log here - it will be created during batch email sending
@@ -1319,7 +1321,9 @@ async function processCompletion(completion, env, results, dryRun = false, prope
       // Add formation data if available (prefer enhanced data from cache)
       formation: enhancedFormation || completion.Formation_Name || null,
       // Track coordinate source for user awareness
-      coordinateSource: coordinateSource
+      coordinateSource: coordinateSource,
+      // Organization ID if alert is via organization
+      organizationId: alert.organizationId || null
     };
     
     // Don't create activity log here - it will be created during batch email sending
