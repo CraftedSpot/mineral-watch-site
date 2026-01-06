@@ -364,6 +364,8 @@ export default {
           params.push(userOrg);
         }
 
+        // Note: wells.id might be INTEGER (from schema.sql) or TEXT (from create_tables.sql)
+        // We'll use a more flexible JOIN that handles both cases
         const query = `
           SELECT 
             d.*,
@@ -371,11 +373,15 @@ export default {
             p.section as property_section,
             p.township as property_township,
             p.range as property_range,
+            p.meridian as property_meridian,
             w.well_name,
             w.api_number as well_api_number
           FROM documents d
           LEFT JOIN properties p ON d.property_id = p.id
-          LEFT JOIN wells w ON CAST(REPLACE(d.well_id, '.0', '') AS INTEGER) = w.id
+          LEFT JOIN wells w ON (
+            d.well_id = CAST(w.id AS TEXT) 
+            OR CAST(REPLACE(d.well_id, '.0', '') AS INTEGER) = w.id
+          )
           WHERE d.id = ? 
             AND (d.${conditions.join(' OR d.')})
             AND d.deleted_at IS NULL
@@ -392,6 +398,16 @@ export default {
         }
         
         console.log('Document found:', doc.id, doc.filename);
+        console.log('Document linked data:', {
+          property_id: doc.property_id,
+          property_county: doc.property_county,
+          property_section: doc.property_section,
+          property_township: doc.property_township,
+          property_range: doc.property_range,
+          well_id: doc.well_id,
+          well_name: doc.well_name,
+          well_api_number: doc.well_api_number
+        });
 
         // Check for child documents - wrap in try/catch for safety
         let children = [];
@@ -419,7 +435,9 @@ export default {
         // Format property name if we have property data
         let property_name = null;
         if (doc.property_county && doc.property_section && doc.property_township && doc.property_range) {
-          property_name = `S${doc.property_section}-T${doc.property_township}-R${doc.property_range} (${doc.property_county} County)`;
+          // Include meridian if available (IM = Indian Meridian, CM = Cimarron Meridian)
+          const meridianSuffix = doc.property_meridian ? `-${doc.property_meridian}` : '';
+          property_name = `S${doc.property_section}-T${doc.property_township}-R${doc.property_range}${meridianSuffix} (${doc.property_county} County)`;
         }
         
         // Add children and linked data to response
@@ -439,6 +457,7 @@ export default {
         delete documentWithChildren.property_section;
         delete documentWithChildren.property_township;
         delete documentWithChildren.property_range;
+        delete documentWithChildren.property_meridian;
         
         console.log('Returning document with children and linked data:', {
           doc_id: documentWithChildren.id,
