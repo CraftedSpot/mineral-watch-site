@@ -5425,16 +5425,16 @@
                 // Close the document modal to make room
                 closeDocumentDetailModal();
                 // Give it time to close before opening well
-                setTimeout(() => {
-                    openWellDetailsModal(wellId);
+                setTimeout(async () => {
+                    await openWellDetailsModal(wellId);
                 }, 100);
                 return;
             }
             
             // Don't close the document modal - open well on top
             console.log('[openWellFromDocument] Opening well modal on top of document modal');
-            setTimeout(() => {
-                openWellDetailsModal(wellId);
+            setTimeout(async () => {
+                await openWellDetailsModal(wellId);
                 // After opening, increase z-index to stack above document modal
                 const wellModal = document.getElementById('wellDetailsModal');
                 if (wellModal) {
