@@ -2066,7 +2066,7 @@
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="linked-properties-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">Linked Properties</span>
-                            <span id="linked-properties-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                            <span id="well-linked-properties-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
                         </div>
                         <button onclick="event.stopPropagation(); openManualLinkProperty()" style="font-size: 12px; color: #2563eb; background: none; border: none; cursor: pointer;">+ Link</button>
                     </div>
@@ -2169,7 +2169,7 @@
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="linked-wells-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">Linked Wells</span>
-                            <span id="linked-wells-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                            <span id="property-linked-wells-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
                         </div>
                         <button onclick="event.stopPropagation(); openManualLinkWell()" style="font-size: 12px; color: #2563eb; background: none; border: none; cursor: pointer;">+ Link</button>
                     </div>
@@ -5752,7 +5752,7 @@
             
             // Show linked properties count immediately from well data
             const linkedPropertiesCount = f['Linked Properties']?.length || 0;
-            const propsCountEl = document.getElementById('linked-properties-count');
+            const propsCountEl = document.getElementById('well-linked-properties-count');
             propsCountEl.textContent = ''; // Clear first to avoid visual artifacts
             propsCountEl.textContent = linkedPropertiesCount;
             
@@ -5963,7 +5963,7 @@
             
             // Show linked wells count immediately from property data
             const linkedWellsCount = f['Linked Wells']?.length || 0;
-            const wellsCountEl = document.getElementById('linked-wells-count');
+            const wellsCountEl = document.getElementById('property-linked-wells-count');
             wellsCountEl.textContent = ''; // Clear first to avoid visual artifacts
             wellsCountEl.textContent = linkedWellsCount;
             
@@ -6049,9 +6049,11 @@
         async function loadLinkedWells(propertyId) {
             console.log('[LinkedWells] Loading linked wells for property:', propertyId);
             
-            const countEl = document.getElementById('linked-wells-count');
+            const countEl = document.getElementById('property-linked-wells-count');
             const listEl = document.getElementById('linked-wells-list');
             const emptyEl = document.getElementById('linked-wells-empty');
+            
+            console.log('[LinkedWells] Count element before update:', countEl, 'textContent:', countEl?.textContent);
             
             // Don't reset count - it's already set from property data
             // Just ensure loading state is shown if count > 0
@@ -6069,7 +6071,9 @@
                 console.log('[LinkedWells] API Response data:', data);
                 
                 countEl.textContent = ''; // Clear first to avoid visual artifacts
-                countEl.textContent = data.wells ? data.wells.length : 0;
+                const wellCount = data.wells ? data.wells.length : 0;
+                console.log('[LinkedWells] Setting count to:', wellCount, 'type:', typeof wellCount);
+                countEl.textContent = String(wellCount);
                 
                 if (!data.wells || data.wells.length === 0) {
                     console.log('[LinkedWells] No wells found, showing empty state');
@@ -6095,7 +6099,7 @@
                 }
             } catch (error) {
                 console.error('Failed to load linked wells:', error);
-                document.getElementById('linked-wells-count').textContent = '0';
+                document.getElementById('property-linked-wells-count').textContent = '0';
                 document.getElementById('linked-wells-list').style.display = 'none';
                 document.getElementById('linked-wells-empty').style.display = 'block';
             }
@@ -6182,7 +6186,7 @@
             console.log('[LinkedProperties] Loading linked properties for well:', wellId);
             
             // Clear and show loading state
-            const countEl = document.getElementById('linked-properties-count');
+            const countEl = document.getElementById('well-linked-properties-count');
             const listEl = document.getElementById('linked-properties-list');
             const emptyEl = document.getElementById('linked-properties-empty');
             
