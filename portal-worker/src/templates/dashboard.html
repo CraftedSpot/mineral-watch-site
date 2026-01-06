@@ -3063,6 +3063,7 @@
 
         // Render the properties table (extracted from loadProperties)
         function renderPropertiesTable() {
+            console.log('[Render] renderPropertiesTable called');
             const hasSearch = currentUser?.plan !== 'Free';
             
             // Apply filter and sort
@@ -5921,6 +5922,8 @@
         
         // Property Details Modal Functions
         function openPropertyDetails(propId) {
+            console.log('[PropertyDetails] openPropertyDetails called for:', propId, 'Stack:', new Error().stack);
+            
             // Reset linked counts and lists immediately to prevent concatenation issues
             const wellsCountEl = document.getElementById('property-linked-wells-count');
             if (wellsCountEl) {
@@ -6077,6 +6080,7 @@
         
         async function loadLinkedWells(propertyId) {
             console.log('[LinkedWells] Loading linked wells for property:', propertyId);
+            console.log('[LinkedWells] Stack trace:', new Error().stack);
             
             const countEl = document.getElementById('property-linked-wells-count');
             const listEl = document.getElementById('linked-wells-list');
