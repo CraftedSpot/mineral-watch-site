@@ -5379,7 +5379,12 @@
         function openPropertyFromDocument(propertyId) {
             // Check if we've hit max depth
             if (modalStack.length >= MAX_MODAL_DEPTH) {
-                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                // Close the document modal to make room
+                closeDocumentDetailModal();
+                // Give it time to close before opening property
+                setTimeout(() => {
+                    openPropertyDetails(propertyId);
+                }, 100);
                 return;
             }
             
@@ -5394,8 +5399,10 @@
                     const newZIndex = baseZIndex + (modalStack.length * 10);
                     propModal.style.zIndex = String(newZIndex);
                     
-                    // Track in modal stack
-                    modalStack.push({ type: 'property', id: propertyId, element: propModal });
+                    // Track in modal stack (only if not already there)
+                    if (!modalStack.find(m => m.element === propModal)) {
+                        modalStack.push({ type: 'property', id: propertyId, element: propModal });
+                    }
                 }
             }, 50);
         }
@@ -5404,7 +5411,12 @@
         function openWellFromDocument(wellId) {
             // Check if we've hit max depth
             if (modalStack.length >= MAX_MODAL_DEPTH) {
-                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                // Close the document modal to make room
+                closeDocumentDetailModal();
+                // Give it time to close before opening well
+                setTimeout(() => {
+                    openWellDetailsModal(wellId);
+                }, 100);
                 return;
             }
             
@@ -5419,8 +5431,10 @@
                     const newZIndex = baseZIndex + (modalStack.length * 10);
                     wellModal.style.zIndex = String(newZIndex);
                     
-                    // Track in modal stack
-                    modalStack.push({ type: 'well', id: wellId, element: wellModal });
+                    // Track in modal stack (only if not already there)
+                    if (!modalStack.find(m => m.element === wellModal)) {
+                        modalStack.push({ type: 'well', id: wellId, element: wellModal });
+                    }
                 }
             }, 50);
         }
@@ -6400,8 +6414,10 @@
                     const newZIndex = baseZIndex + (modalStack.length * 10);
                     wellModal.style.zIndex = String(newZIndex);
                     
-                    // Track in modal stack
-                    modalStack.push({ type: 'well', id: wellId, element: wellModal });
+                    // Track in modal stack (only if not already there)
+                    if (!modalStack.find(m => m.element === wellModal)) {
+                        modalStack.push({ type: 'well', id: wellId, element: wellModal });
+                    }
                 }
             }, 50);
         }
@@ -6513,8 +6529,10 @@
                     const newZIndex = baseZIndex + (modalStack.length * 10);
                     propModal.style.zIndex = String(newZIndex);
                     
-                    // Track in modal stack
-                    modalStack.push({ type: 'property', id: propertyId, element: propModal });
+                    // Track in modal stack (only if not already there)
+                    if (!modalStack.find(m => m.element === propModal)) {
+                        modalStack.push({ type: 'property', id: propertyId, element: propModal });
+                    }
                 }
             }, 50);
         }
