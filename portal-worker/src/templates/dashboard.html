@@ -2081,6 +2081,26 @@
                     </div>
                 </div>
                 
+                <!-- Linked Documents Section (Well) -->
+                <div class="linked-documents-section-well" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="linked-documents-header-well" onclick="toggleLinkedDocuments('well')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-documents-arrow-well" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Documents</span>
+                            <span id="well-linked-documents-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    
+                    <div id="linked-documents-content-well" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-documents-list-well" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-documents-empty-well" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No documents linked to this well
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Completion Date -->
                 <div class="info-section">
                     <div class="section-label">Completion Date</div>
@@ -2183,6 +2203,27 @@
                         </div>
                     </div>
                 </div>
+                
+                <!-- Linked Documents Section -->
+                <div class="linked-documents-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="linked-documents-header" onclick="toggleLinkedDocuments('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-documents-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Documents</span>
+                            <span id="property-linked-documents-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    
+                    <div id="linked-documents-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-documents-list" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-documents-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No documents linked to this property
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                     <span class="details-label" style="margin-bottom: 8px;">Notes</span>
                     <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this property..." onkeyup="toggleSaveButton('property')"></textarea>
@@ -5785,6 +5826,7 @@
             // Load linked properties after modal is shown
             setTimeout(() => {
                 loadLinkedProperties(wellId);
+                loadLinkedDocuments(wellId, 'well');
             }, 100);
             
             // Handle viewer permissions
@@ -6004,6 +6046,7 @@
             console.log('[PropertyDetails] Opening property:', propId);
             setTimeout(() => {
                 loadLinkedWells(propId);
+                loadLinkedDocuments(propId, 'property');
             }, 100);
             
             // Handle viewer permissions
@@ -6280,6 +6323,77 @@
         function openManualLinkProperty() {
             alert('Manual property linking coming soon');
         }
+        
+        // Linked Documents Functions
+        function toggleLinkedDocuments(type) {
+            const content = document.getElementById(type === 'property' ? 'linked-documents-content' : 'linked-documents-content-well');
+            const arrow = document.getElementById(type === 'property' ? 'linked-documents-arrow' : 'linked-documents-arrow-well');
+            
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        async function loadLinkedDocuments(id, type) {
+            console.log(`[LinkedDocuments] Loading linked documents for ${type}:`, id);
+            
+            const countEl = document.getElementById(type === 'property' ? 'property-linked-documents-count' : 'well-linked-documents-count');
+            const listEl = document.getElementById(type === 'property' ? 'linked-documents-list' : 'linked-documents-list-well');
+            const emptyEl = document.getElementById(type === 'property' ? 'linked-documents-empty' : 'linked-documents-empty-well');
+            
+            // Show loading state
+            countEl.textContent = '—';
+            listEl.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading documents...</div>';
+            listEl.style.display = 'block';
+            emptyEl.style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/${type}/${id}/linked-documents`, { credentials: 'include' });
+                const data = await response.json();
+                
+                const docCount = data.documents?.length || 0;
+                console.log(`[LinkedDocuments] Setting count to:`, docCount);
+                countEl.textContent = String(docCount);
+                
+                if (!data.documents || data.documents.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                } else {
+                    listEl.innerHTML = data.documents.map(doc => {
+                        const uploadDate = doc.uploadDate ? new Date(doc.uploadDate).toLocaleDateString() : 'Unknown';
+                        return `
+                            <div class="linked-document-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                                <div style="flex: 1; cursor: pointer;" onclick="viewDocument('${doc.id}', '${doc.r2Key}')">
+                                    <div style="font-weight: 500; color: #2563eb;">${escapeHtml(doc.displayName)}</div>
+                                    <div style="font-size: 12px; color: #6b7280;">${escapeHtml(doc.docType)} • ${uploadDate}</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('');
+                    listEl.style.display = 'block';
+                    emptyEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error(`Failed to load linked documents for ${type}:`, error);
+                countEl.textContent = '0';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+        }
+        
+        function viewDocument(docId, r2Key) {
+            // Open document in new tab - same pattern as existing document viewing
+            const viewUrl = `/api/documents/${docId}/view`;
+            window.open(viewUrl, '_blank');
+        }
+        
+        // Expose functions globally for onclick handlers
+        window.toggleLinkedDocuments = toggleLinkedDocuments;
+        window.viewDocument = viewDocument;
         
         async function savePropertyDetails() {
             const propId = document.getElementById('propertyDetailsId').value;

@@ -746,6 +746,22 @@ var index_default = {
         return handleGetWellLinkedProperties(wellLinkedPropertiesMatch[1], request, env);
       }
       
+      // Property linked documents endpoint (using D1)
+      const propertyLinkedDocumentsMatch = path.match(/^\/api\/property\/([a-zA-Z0-9-]+)\/linked-documents$/);
+      if (propertyLinkedDocumentsMatch && request.method === "GET") {
+        // Import and use D1 handler
+        const { handleGetPropertyLinkedDocuments } = await import('./handlers/property-documents-d1.js');
+        return handleGetPropertyLinkedDocuments(propertyLinkedDocumentsMatch[1], request, env);
+      }
+      
+      // Well linked documents endpoint (using D1)
+      const wellLinkedDocumentsMatch = path.match(/^\/api\/well\/([a-zA-Z0-9-]+)\/linked-documents$/);
+      if (wellLinkedDocumentsMatch && request.method === "GET") {
+        // Import and use D1 handler
+        const { handleGetWellLinkedDocuments } = await import('./handlers/property-documents-d1.js');
+        return handleGetWellLinkedDocuments(wellLinkedDocumentsMatch[1], request, env);
+      }
+      
       // Unlink property-well endpoint
       const unlinkMatch = path.match(/^\/api\/property-well-link\/([a-zA-Z0-9]+)$/);
       if (unlinkMatch && request.method === "DELETE") {
