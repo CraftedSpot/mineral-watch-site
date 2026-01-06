@@ -4709,7 +4709,7 @@
                                     <label>Property</label>
                                     <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
                                         <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.property_name)}</span>
-                                        <button onclick="openPropertyFromDocument('${doc.property_id}')" 
+                                        <button onclick="console.log('Button clicked for property:', '${doc.property_id}'); openPropertyFromDocument('${doc.property_id}')" 
                                                 style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                             View →
                                         </button>
@@ -4726,7 +4726,7 @@
                                             <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
                                             ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
                                         </div>
-                                        <button onclick="openWellFromDocument('${doc.well_id}')" 
+                                        <button onclick="console.log('Button clicked for well:', '${doc.well_id}'); openWellFromDocument('${doc.well_id}')" 
                                                 style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                             View →
                                         </button>
@@ -4875,7 +4875,7 @@
                                 <label>Property</label>
                                 <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
                                     <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.property_name)}</span>
-                                    <button onclick="openPropertyFromDocument('${doc.property_id}')" 
+                                    <button onclick="console.log('Button clicked for property:', '${doc.property_id}'); openPropertyFromDocument('${doc.property_id}')" 
                                             style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                         View →
                                     </button>
@@ -5377,8 +5377,13 @@
 
         // Open property from document modal - stack on top
         function openPropertyFromDocument(propertyId) {
+            console.log('[openPropertyFromDocument] Called with propertyId:', propertyId);
+            console.log('[openPropertyFromDocument] Current modal stack length:', modalStack.length);
+            console.log('[openPropertyFromDocument] Modal stack:', modalStack.map(m => ({ type: m.type, id: m.id })));
+            
             // Check if we've hit max depth
             if (modalStack.length >= MAX_MODAL_DEPTH) {
+                console.log('[openPropertyFromDocument] Max depth reached, closing document modal first');
                 // Close the document modal to make room
                 closeDocumentDetailModal();
                 // Give it time to close before opening property
@@ -5389,6 +5394,7 @@
             }
             
             // Don't close the document modal - open property on top
+            console.log('[openPropertyFromDocument] Opening property modal on top of document modal');
             setTimeout(() => {
                 openPropertyDetails(propertyId);
                 // After opening, increase z-index to stack above document modal
@@ -5409,8 +5415,13 @@
         
         // Open well from document modal - stack on top
         function openWellFromDocument(wellId) {
+            console.log('[openWellFromDocument] Called with wellId:', wellId);
+            console.log('[openWellFromDocument] Current modal stack length:', modalStack.length);
+            console.log('[openWellFromDocument] Modal stack:', modalStack.map(m => ({ type: m.type, id: m.id })));
+            
             // Check if we've hit max depth
             if (modalStack.length >= MAX_MODAL_DEPTH) {
+                console.log('[openWellFromDocument] Max depth reached, closing document modal first');
                 // Close the document modal to make room
                 closeDocumentDetailModal();
                 // Give it time to close before opening well
@@ -5421,6 +5432,7 @@
             }
             
             // Don't close the document modal - open well on top
+            console.log('[openWellFromDocument] Opening well modal on top of document modal');
             setTimeout(() => {
                 openWellDetailsModal(wellId);
                 // After opening, increase z-index to stack above document modal
