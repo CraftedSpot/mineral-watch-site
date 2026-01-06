@@ -4,6 +4,7 @@ import { fetchWellDetailsFromOCC } from './handlers/wells.js';
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
 const PROPERTIES_TABLE_ID = 'tblbexFvBkow2ErYm'; // 📍 Client Properties
 const WELLS_TABLE_ID = 'tblqWp3rb7rT3p9SA'; // 🛢️ Client Wells
+const LINKS_TABLE_ID = 'tblXv6QDHXN3sRFcu'; // 🔗 Property-Well Links
 
 // D1 batch configuration
 const BATCH_SIZE = 500; // Max statements per batch to stay within limits
@@ -27,6 +28,12 @@ interface SyncResult {
     errors: string[];
   };
   wells: {
+    synced: number;
+    created: number;
+    updated: number;
+    errors: string[];
+  };
+  links?: {
     synced: number;
     created: number;
     updated: number;
@@ -89,6 +96,7 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
   const result: SyncResult = {
     properties: { synced: 0, created: 0, updated: 0, errors: [] },
     wells: { synced: 0, created: 0, updated: 0, errors: [] },
+    links: { synced: 0, created: 0, updated: 0, errors: [] },
     duration: 0
   };
 
@@ -114,6 +122,11 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
     const wellsResult = await syncWells(env);
     result.wells = wellsResult;
 
+    // Sync Property-Well Links
+    console.log('Starting property-well links sync...');
+    const linksResult = await syncPropertyWellLinks(env);
+    result.links = linksResult;
+
     // Calculate duration
     result.duration = Date.now() - startTime;
 
@@ -128,9 +141,9 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
              status = 'completed'
          WHERE id = ?`
       ).bind(
-        result.properties.synced + result.wells.synced,
-        result.properties.created + result.wells.created,
-        result.properties.updated + result.wells.updated,
+        result.properties.synced + result.wells.synced + (result.links?.synced || 0),
+        result.properties.created + result.wells.created + (result.links?.created || 0),
+        result.properties.updated + result.wells.updated + (result.links?.updated || 0),
         syncLogId
       ).run();
     }
@@ -500,6 +513,107 @@ async function syncWells(env: any): Promise<SyncResult['wells']> {
     result.errors.push(`Wells sync failed: ${error.message}`);
     console.error('Wells sync error:', error);
     // Don't throw - let properties results be returned
+  }
+  
+  return result;
+}
+
+async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
+  const result: SyncResult['links'] = { synced: 0, created: 0, updated: 0, errors: [] };
+  let allRecords: AirtableRecord[] = [];
+  let offset: string | undefined;
+  
+  try {
+    // Fetch ALL link records from Airtable
+    do {
+      const response = await fetchAirtableRecords(
+        env.MINERAL_AIRTABLE_API_KEY,
+        AIRTABLE_BASE_ID,
+        LINKS_TABLE_ID,
+        offset
+      );
+
+      console.log(`Fetched ${response.records.length} property-well links${offset ? ' (continued)' : ''}`);
+      allRecords = allRecords.concat(response.records);
+      offset = response.offset;
+    } while (offset);
+
+    console.log(`Total property-well links to sync: ${allRecords.length}`);
+
+    if (allRecords.length === 0) {
+      return result;
+    }
+
+    // Prepare batch statements
+    const statements = allRecords.map(record => {
+      const id = `link_${record.id}`;
+      const fields = record.fields || {};
+      
+      // Extract IDs from linked record arrays
+      const propertyId = fields['Property']?.[0] || null;
+      const wellId = fields['Well']?.[0] || null;
+      const userId = fields['User']?.[0] || null;
+      const orgId = fields['Organization']?.[0] || null;
+      
+      if (!propertyId || !wellId) {
+        console.warn(`[Sync] Link ${record.id} missing property or well ID`);
+        return null;
+      }
+      
+      return env.WELLS_DB.prepare(`
+        INSERT INTO property_well_links (
+          id, airtable_record_id, property_airtable_id, well_airtable_id,
+          match_reason, status, confidence_score,
+          user_id, organization_id,
+          created_at, rejected_date, synced_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(airtable_record_id) DO UPDATE SET
+          property_airtable_id = excluded.property_airtable_id,
+          well_airtable_id = excluded.well_airtable_id,
+          match_reason = excluded.match_reason,
+          status = excluded.status,
+          confidence_score = excluded.confidence_score,
+          user_id = excluded.user_id,
+          organization_id = excluded.organization_id,
+          rejected_date = excluded.rejected_date,
+          synced_at = CURRENT_TIMESTAMP
+      `).bind(
+        id,
+        record.id,
+        propertyId,
+        wellId,
+        fields['Match Reason'] || 'Manual',
+        fields['Status'] || 'Active',
+        parseNumber(fields['Confidence Score']),
+        userId,
+        orgId,
+        formatDate(record.createdTime),
+        fields['Status'] === 'Rejected' ? formatDate(fields['Rejected Date']) : null
+      );
+    }).filter(stmt => stmt !== null); // Remove any null statements
+
+    // Execute statements in chunks
+    console.log(`Executing batch insert/update for ${statements.length} property-well links...`);
+    
+    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+      const chunk = statements.slice(i, i + BATCH_SIZE);
+      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+      console.log(`Processing links ${i + 1}-${chunkEnd} of ${statements.length}`);
+      
+      await env.WELLS_DB.batch(chunk);
+    }
+    
+    result.synced = statements.length;
+    result.created = 0; // We're using UPSERT
+    result.updated = result.synced;
+    
+    console.log(`[Sync] Successfully synced ${result.synced} property-well links`);
+    
+  } catch (error) {
+    result.errors.push(`Links sync failed: ${error.message}`);
+    console.error('Property-well links sync error:', error);
+    // Don't throw - let other syncs complete
   }
   
   return result;
