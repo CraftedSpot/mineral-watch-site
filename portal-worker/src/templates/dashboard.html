@@ -5815,6 +5815,8 @@
         
         // Expandable Row Functions
         function openWellDetailsModal(wellId) {
+            console.log('[openWellDetailsModal] Called with wellId:', wellId);
+            
             // Reset linked counts and lists immediately to prevent concatenation issues
             const propsCountEl = document.getElementById('well-linked-properties-count');
             if (propsCountEl) {
@@ -6159,6 +6161,8 @@
         
         // Property Details Modal Functions
         function openPropertyDetails(propId) {
+            console.log('[openPropertyDetails] Called with propId:', propId);
+            
             // Reset linked counts and lists immediately to prevent concatenation issues
             const wellsCountEl = document.getElementById('property-linked-wells-count');
             if (wellsCountEl) {
@@ -6173,7 +6177,14 @@
             }
             
             const prop = loadedProperties.find(p => p.id === propId);
-            if (!prop) return;
+            if (!prop) {
+                console.log('[openPropertyDetails] Property not found in loadedProperties:', propId);
+                console.log('[openPropertyDetails] LoadedProperties has', loadedProperties.length, 'items');
+                // TODO: We need to fetch the property data from the API
+                // For now, just show an error
+                alert('Property details not available. Please load the Properties tab first.');
+                return;
+            }
             
             const f = prop.fields;
             document.getElementById('propertyDetailsId').value = propId;
