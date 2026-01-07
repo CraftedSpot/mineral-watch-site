@@ -137,3 +137,8 @@ export {
   handleGetTownships,
   handleGetCountyStats
 } from './map-data.js';
+
+// Map data version handler
+export {
+  handleGetMapDataVersion
+} from './map-data-version.js';

@@ -135,7 +135,8 @@ import {
   // Map data handlers
   handleGetCounties,
   handleGetTownships,
-  handleGetCountyStats
+  handleGetCountyStats,
+  handleGetMapDataVersion
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -716,6 +717,9 @@ var index_default = {
       }
       if (path === "/api/map/county-stats" && request.method === "GET") {
         return handleGetCountyStats(request, env);
+      }
+      if (path === "/api/map-data/version" && request.method === "GET") {
+        return handleGetMapDataVersion(request, env);
       }
       
       // Formation backfill endpoints
