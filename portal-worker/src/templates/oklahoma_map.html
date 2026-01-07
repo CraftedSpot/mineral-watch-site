@@ -4644,19 +4644,56 @@
             }
         }
         
-        // Function to load county data
+        // Function to load county data with caching
         async function loadCountyData() {
             try {
                 console.log('Loading county boundaries...');
                 updateStatus('Loading counties...');
                 
-                // Fetch from D1 via API endpoint
-                const response = await fetch('/api/map/counties', { credentials: 'include' });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                // Check cache first
+                const cached = localStorage.getItem('counties_cache');
+                let countyData;
+                
+                if (cached) {
+                    try {
+                        const { version, data } = JSON.parse(cached);
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const current = await versionResponse.json();
+                            if (version === current.counties_version) {
+                                console.log('Counties loaded from cache');
+                                countyData = data;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Cache read error:', e);
+                    }
                 }
                 
-                const countyData = await response.json();
+                // If not cached or version mismatch, fetch fresh
+                if (!countyData) {
+                    const response = await fetch('/api/map/counties', { credentials: 'include' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    countyData = await response.json();
+                    
+                    // Cache with version
+                    try {
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const version = await versionResponse.json();
+                            localStorage.setItem('counties_cache', JSON.stringify({
+                                version: version.counties_version,
+                                data: countyData
+                            }));
+                            console.log('Counties cached');
+                        }
+                    } catch (e) {
+                        console.warn('Cache write error:', e);
+                    }
+                }
                 
                 // Check if we have data
                 if (!countyData.features || countyData.features.length === 0) {
