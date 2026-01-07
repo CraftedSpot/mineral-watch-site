@@ -50,56 +50,72 @@ export async function handleBulkWellEnrichment(request: Request, env: Env): Prom
       }, 400);
     }
 
-    // D1 can handle up to 999 parameters in an IN clause, but let's be conservative
-    if (apiNumbers.length > 500) {
-      return jsonResponse({ 
-        error: 'Too many API numbers',
-        message: 'Please request enrichment for 500 or fewer wells at a time'
-      }, 400);
-    }
-
+    // D1 has a limit of 100 parameters per query
+    const MAX_CHUNK_SIZE = 100;
+    
     console.log(`[BulkWellEnrichment] Fetching enrichment data for ${apiNumbers.length} wells`);
 
-    // Build the IN clause with placeholders
-    const placeholders = apiNumbers.map((_, index) => `?${index + 1}`).join(', ');
-    
-    // Query D1 for enrichment data for all wells at once
-    const query = `
-      SELECT 
-        api_number,
-        formation_name,
-        measured_total_depth,
-        true_vertical_depth,
-        completion_date,
-        spud_date,
-        ip_oil_bbl,
-        ip_gas_mcf,
-        ip_water_bbl,
-        bh_latitude,
-        bh_longitude,
-        lateral_length,
-        -- Also include surface coords for lateral calculation
-        latitude,
-        longitude,
-        well_name,
-        well_type,
-        operator
-      FROM wells 
-      WHERE api_number IN (${placeholders})
-    `;
+    // Split API numbers into chunks of 100
+    const chunks = [];
+    for (let i = 0; i < apiNumbers.length; i += MAX_CHUNK_SIZE) {
+      chunks.push(apiNumbers.slice(i, i + MAX_CHUNK_SIZE));
+    }
 
+    console.log(`[BulkWellEnrichment] Split into ${chunks.length} chunks`);
+
+    // Query D1 for enrichment data in parallel chunks
     const startTime = Date.now();
-    const result = await env.WELLS_DB.prepare(query)
-      .bind(...apiNumbers)
-      .all();
+    const chunkResults = await Promise.all(
+      chunks.map(async (chunk, index) => {
+        // Build the IN clause with placeholders
+        const placeholders = chunk.map((_, idx) => `?${idx + 1}`).join(', ');
+        
+        const query = `
+          SELECT 
+            api_number,
+            formation_name,
+            measured_total_depth,
+            true_vertical_depth,
+            completion_date,
+            spud_date,
+            ip_oil_bbl,
+            ip_gas_mcf,
+            ip_water_bbl,
+            bh_latitude,
+            bh_longitude,
+            lateral_length,
+            -- Also include surface coords for lateral calculation
+            latitude,
+            longitude,
+            well_name,
+            well_type,
+            operator
+          FROM wells 
+          WHERE api_number IN (${placeholders})
+        `;
+
+        const chunkStartTime = Date.now();
+        const result = await env.WELLS_DB.prepare(query)
+          .bind(...chunk)
+          .all();
+        const chunkTime = Date.now() - chunkStartTime;
+        
+        console.log(`[BulkWellEnrichment] Chunk ${index + 1}/${chunks.length} completed in ${chunkTime}ms, found ${result.results.length} wells`);
+        
+        return result.results;
+      })
+    );
+
+    // Flatten all results
+    const allResults = chunkResults.flat();
     const queryTime = Date.now() - startTime;
 
-    console.log(`[BulkWellEnrichment] Query completed in ${queryTime}ms, found ${result.results.length} wells`);
+    console.log(`[BulkWellEnrichment] All queries completed in ${queryTime}ms, found ${allResults.length} wells total`);
 
     // Build response map indexed by API number
     const enrichmentMap: { [apiNumber: string]: any } = {};
 
-    for (const row of result.results) {
+    for (const row of allResults) {
       // Calculate lateral length if we have both surface and bottom hole coordinates
       let calculatedLateralLength = null;
       if (row.latitude && row.longitude && row.bh_latitude && row.bh_longitude &&
@@ -159,7 +175,7 @@ export async function handleBulkWellEnrichment(request: Request, env: Env): Prom
       data: enrichmentMap,
       stats: {
         requested: apiNumbers.length,
-        found: result.results.length,
+        found: allResults.length,
         queryTime: queryTime
       }
     };
