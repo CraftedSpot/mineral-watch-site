@@ -7,7 +7,7 @@
 import { BASE_ID, ACTIVITY_TABLE, PLAN_LIMITS } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { getUserById } from '../services/airtable.js';
+import { getUserById, getUserFromSession } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -21,7 +21,7 @@ export async function handleListActivity(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Get user record to access plan information
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   const plan = userRecord?.fields.Plan || "Free";
   const userOrganizations = userRecord?.fields.Organization || [];
   
@@ -106,7 +106,7 @@ export async function handleActivityStats(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Get user record to check for organization
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   const userOrganizations = userRecord?.fields.Organization || [];
   
   // Build formula: user's records OR organization's records

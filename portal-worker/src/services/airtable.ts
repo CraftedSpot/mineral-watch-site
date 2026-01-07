@@ -99,6 +99,23 @@ export async function getUserById(env: Env, userId: string): Promise<AirtableUse
 }
 
 /**
+ * Get user from session data or fallback to Airtable API
+ * This helper reduces redundant API calls by using the airtableUser from session when available
+ * @param env Worker environment
+ * @param sessionUser Session user data from authenticateRequest
+ * @returns Full Airtable user record
+ */
+export async function getUserFromSession(env: Env, sessionUser: any): Promise<AirtableUser | null> {
+  // If session includes the full airtableUser, use it
+  if (sessionUser.airtableUser) {
+    return sessionUser.airtableUser;
+  }
+  
+  // Otherwise, fall back to API call (for backwards compatibility)
+  return getUserById(env, sessionUser.id);
+}
+
+/**
  * Count the number of properties for a user (including organization properties)
  * @param env Worker environment
  * @param userEmail User's email address

@@ -17,6 +17,7 @@ import {
 
 import {
   getUserById,
+  getUserFromSession,
   countUserWells,
   checkDuplicateWell,
   fetchAllAirtableRecords
@@ -335,7 +336,7 @@ export async function handleListWells(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Get full user record to check for organization
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
   
   let formula: string;
@@ -381,7 +382,7 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
     
     // Get user record and check permissions
-    const userRecord = await getUserById(env, user.id);
+    const userRecord = await getUserFromSession(env, user);
     if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
       return jsonResponse({ error: "Viewers cannot add wells" }, 403);
     }
@@ -647,7 +648,7 @@ export async function handleDeleteWell(wellId: string, request: Request, env: En
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Check permissions - only Admin and Editor can delete wells
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
     return jsonResponse({ error: "Viewers cannot delete wells" }, 403);
   }
@@ -694,7 +695,7 @@ export async function handleUpdateWellNotes(wellId: string, request: Request, en
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Check permissions - only Admin and Editor can update wells
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
     return jsonResponse({ error: "Viewers cannot update wells" }, 403);
   }

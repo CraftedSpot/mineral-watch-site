@@ -16,6 +16,20 @@ export interface SessionPayload {
   email: string;
   name?: string;
   exp: number;
+  // Full Airtable user record to avoid redundant API calls
+  airtableUser?: {
+    id: string;
+    fields: {
+      Email: string;
+      Name?: string;
+      Plan?: string;
+      Organization?: string[];
+      Role?: string;
+      'Stripe Customer ID'?: string;
+      Status?: string;
+      'Created Time'?: string;
+    };
+  };
 }
 
 /**
@@ -68,11 +82,13 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
     const userData = await authResponse.json() as any;
     
     // Convert auth-worker response to SessionPayload format
+    // Now includes full airtableUser data from auth-worker
     return {
       id: userData.id,
       email: userData.email,
       name: userData.name,
-      exp: Date.now() + 30 * 24 * 60 * 60 * 1000 // Session valid for 30 days
+      exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // Session valid for 30 days
+      airtableUser: userData.airtableUser // Include the full user record
     };
   } catch (error) {
     console.error('Auth verification failed:', error);

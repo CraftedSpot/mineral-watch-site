@@ -313,6 +313,8 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     });
   }
   
+  // Return the full user record including airtableUser data
+  // This allows portal-worker to avoid making redundant Airtable calls
   return new Response(JSON.stringify({
     id: user.id,
     email: user.fields.Email,
@@ -321,7 +323,9 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     status: user.fields.Status,
     role: user.fields.Role || null,
     organizationId: user.fields.Organization ? user.fields.Organization[0] : null,
-    stripeCustomerId: user.fields["Stripe Customer ID"] || null
+    stripeCustomerId: user.fields["Stripe Customer ID"] || null,
+    // Include the full Airtable user record for portal-worker
+    airtableUser: user
   }), {
     status: 200,
     headers: { "Content-Type": "application/json", ...corsHeaders }

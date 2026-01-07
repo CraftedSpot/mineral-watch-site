@@ -16,6 +16,7 @@ import {
 
 import {
   getUserById,
+  getUserFromSession,
   countUserProperties,
   checkDuplicateProperty,
   fetchAllAirtableRecords
@@ -40,7 +41,7 @@ export async function handleListProperties(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Get full user record to check for organization
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
   
   let formula: string;
@@ -90,7 +91,7 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
       return jsonResponse({ error: `${field} is required` }, 400);
     }
   }
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   
   // Check permissions - only Admin and Editor can add properties
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
@@ -202,7 +203,7 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Check permissions - only Admin and Editor can update properties
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
     return jsonResponse({ error: "Viewers cannot update properties" }, 403);
   }
@@ -272,7 +273,7 @@ export async function handleDeleteProperty(propertyId: string, request: Request,
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Check permissions - only Admin and Editor can delete properties
-  const userRecord = await getUserById(env, user.id);
+  const userRecord = await getUserFromSession(env, user);
   if (userRecord?.fields.Organization?.[0] && userRecord.fields.Role === 'Viewer') {
     return jsonResponse({ error: "Viewers cannot delete properties" }, 403);
   }
