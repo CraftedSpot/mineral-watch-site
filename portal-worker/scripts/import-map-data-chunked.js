@@ -81,8 +81,8 @@ async function generateCountyBatches() {
       const geometry = simplifyGeometry(feature.geometry);
       const centroid = calculateCentroid(geometry);
       
-      const name = props.name || props.NAME || props.County || 'Unknown';
-      const fipsCode = props.fips_code || props.FIPS || props.GEOID || null;
+      const name = props.COUNTY_NAME || props.name || props.NAME || props.County || 'Unknown';
+      const fipsCode = props.COUNTY_FIPS_NO || props.fips_code || props.FIPS || props.GEOID || null;
       const area = props.area || props.AREA || null;
       
       const sql = `INSERT INTO counties (name, fips_code, geometry, center_lat, center_lng, area_sq_miles) VALUES (
