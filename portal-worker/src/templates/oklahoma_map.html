@@ -5893,12 +5893,35 @@
         
         // Helper function to show loading overlay on map
         function showMapLoadingOverlay(message = 'Loading nearby wells...') {
-            // No overlay needed - data loads progressively
-            console.log('Map overlay:', message);
+            // Show a lightweight loading indicator for wells
+            const btn = document.getElementById('toggle-nearby-wells');
+            if (btn) {
+                const label = btn.closest('label');
+                if (label) {
+                    label.classList.add('loading');
+                    const span = label.querySelector('span');
+                    if (span) {
+                        span.setAttribute('data-original-text', span.textContent);
+                        span.textContent = message;
+                    }
+                }
+            }
         }
         
         function hideMapLoadingOverlay() {
-            // No overlay to hide
+            // Restore button text
+            const btn = document.getElementById('toggle-nearby-wells');
+            if (btn) {
+                const label = btn.closest('label');
+                if (label) {
+                    label.classList.remove('loading');
+                    const span = label.querySelector('span');
+                    if (span && span.hasAttribute('data-original-text')) {
+                        span.textContent = span.getAttribute('data-original-text');
+                        span.removeAttribute('data-original-text');
+                    }
+                }
+            }
         }
         
         // Load wells from D1 database based on user properties (3x3 sections)
