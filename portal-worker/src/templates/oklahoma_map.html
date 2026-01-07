@@ -4650,13 +4650,27 @@
                 console.log('Loading county boundaries...');
                 updateStatus('Loading counties...');
                 
-                // Fetch from the worker's own assets (works around Pages routing issues)
-                const response = await fetch('/assets/County_Boundaries_2423125635378062927.geojson');
+                // Fetch from D1 via API endpoint
+                const response = await fetch('/api/map/counties', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const countyData = await response.json();
+                
+                // Check if we have data
+                if (!countyData.features || countyData.features.length === 0) {
+                    console.warn('No county data returned from API');
+                    // Fall back to static file if D1 is empty
+                    console.log('Falling back to static county data...');
+                    const fallbackResponse = await fetch('/assets/County_Boundaries_2423125635378062927.geojson');
+                    if (fallbackResponse.ok) {
+                        const fallbackData = await fallbackResponse.json();
+                        console.log('Static county data loaded:', fallbackData.features.length, 'counties');
+                        countyData.features = fallbackData.features;
+                    }
+                }
+                
                 console.log('County data loaded:', countyData.features.length, 'counties');
                 
                 // Create county layer with enhanced visibility
@@ -4701,12 +4715,27 @@
                 console.log('Loading PLSS township boundaries...');
                 updateStatus('Loading townships...');
                 
-                const response = await fetch('/assets/PLSS_Township_simplified.geojson');
+                // Fetch from D1 via API endpoint
+                const response = await fetch('/api/map/townships', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
                 
                 const townshipData = await response.json();
+                
+                // Check if we have data
+                if (!townshipData.features || townshipData.features.length === 0) {
+                    console.warn('No township data returned from API');
+                    // Fall back to static file if D1 is empty
+                    console.log('Falling back to static township data...');
+                    const fallbackResponse = await fetch('/assets/PLSS_Township_simplified.geojson');
+                    if (fallbackResponse.ok) {
+                        const fallbackData = await fallbackResponse.json();
+                        console.log('Static township data loaded:', fallbackData.features.length, 'townships');
+                        townshipData.features = fallbackData.features;
+                    }
+                }
+                
                 console.log('PLSS township data loaded:', townshipData.features.length, 'townships');
                 
                 // Remove any existing mathematical grid
