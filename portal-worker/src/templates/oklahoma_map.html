@@ -1907,7 +1907,12 @@
             <div class="map-container">
                 <div id="map"></div>
                 
-                <!-- Removed loading overlay for cleaner UX -->
+                <!-- Loading overlay - only shown for first-time users -->
+                <div class="map-loading" id="mapLoading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading map data...</div>
+                    <div class="loading-subtext"></div>
+                </div>
                 
                 <!-- New Map Controls Bar -->
                 <div class="map-controls-bar collapsed" id="mapControlsBar">
@@ -5888,40 +5893,12 @@
         
         // Helper function to show loading overlay on map
         function showMapLoadingOverlay(message = 'Loading nearby wells...') {
-            // Create overlay if it doesn't exist
-            let overlay = document.getElementById('map-loading-overlay');
-            if (!overlay) {
-                overlay = document.createElement('div');
-                overlay.id = 'map-loading-overlay';
-                overlay.style.cssText = `
-                    position: absolute;
-                    top: 0;
-                    left: 0;
-                    right: 0;
-                    bottom: 0;
-                    background-color: rgba(0, 0, 0, 0.5);
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    z-index: 9999;
-                `;
-                overlay.innerHTML = `
-                    <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-                        <div class="spinner" style="margin: 0 auto 10px;"></div>
-                        <div id="map-loading-message">${message}</div>
-                    </div>
-                `;
-                document.getElementById('map').appendChild(overlay);
-            }
-            overlay.style.display = 'flex';
-            document.getElementById('map-loading-message').textContent = message;
+            // No overlay needed - data loads progressively
+            console.log('Map overlay:', message);
         }
         
         function hideMapLoadingOverlay() {
-            const overlay = document.getElementById('map-loading-overlay');
-            if (overlay) {
-                overlay.style.display = 'none';
-            }
+            // No overlay to hide
         }
         
         // Load wells from D1 database based on user properties (3x3 sections)
@@ -6663,11 +6640,22 @@
             await checkAuth();
             
             try {
-                // Initialize map immediately without loading overlay
-                await loadCountyData();
-                await loadTownshipData();
+                // Only show loading screen if boundaries aren't cached
+                const hasCache = hasCachedBoundaries();
+                if (!hasCache) {
+                    showLoading('Loading map data...', 'First-time setup - this only happens once');
+                }
                 
-                hideLoading();
+                // Load boundary data
+                await Promise.all([
+                    loadCountyData(),
+                    loadTownshipData()
+                ]);
+                
+                // Hide loading if we showed it
+                if (!hasCache) {
+                    hideLoading();
+                }
                 
                 // Add layers that are checked by default (land grid combines counties + townships)
                 if (document.getElementById('toggle-land-grid').checked) {
@@ -6686,9 +6674,7 @@
                 // Note: Properties and wells layers are added automatically when loaded
                 // Section numbers will be added when sections are loaded (zoom 12+)
                 
-                updateStatus('Map ready - Loading data...');
-                
-                // Load properties after a delay to ensure map is ready
+                // Load properties after map is ready
                 setTimeout(async () => {
                     try {
                         // Load all data in parallel for better performance
@@ -6761,10 +6747,8 @@
                             tryZoomToWell();
                         }
                         
-                        updateStatus('Map ready');
                     } catch (error) {
                         console.error('Error loading properties:', error);
-                        updateStatus('Map ready (property loading failed)');
                     }
                 }, 1000);
                 
