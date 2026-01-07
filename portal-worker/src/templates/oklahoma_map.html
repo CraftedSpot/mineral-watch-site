@@ -1907,12 +1907,7 @@
             <div class="map-container">
                 <div id="map"></div>
                 
-                <!-- Loading overlay -->
-                <div class="map-loading" id="mapLoading">
-                    <div class="loading-spinner"></div>
-                    <div class="loading-text">Loading map data...</div>
-                    <div class="loading-subtext"></div>
-                </div>
+                <!-- Removed loading overlay for cleaner UX -->
                 
                 <!-- New Map Controls Bar -->
                 <div class="map-controls-bar collapsed" id="mapControlsBar">
@@ -1979,8 +1974,7 @@
                     </div>
                 </div>
                 
-                <!-- Map Status (moved from old panel) -->
-                <div class="map-status" id="mapStatus">Ready</div>
+                <!-- Map Status removed for cleaner UX -->
                 
                 <!-- Filter Toggle Button -->
                 <button class="filter-toggle-btn" id="filterToggleBtn" onclick="toggleWellsFilter()">
@@ -2392,23 +2386,17 @@
 
         // Update status
         function updateStatus(message) {
-            document.getElementById('mapStatus').textContent = message;
+            // Log to console only - no UI updates
+            console.log('Status:', message);
         }
         
         function showLoading(message = 'Loading map data...', subtext = '') {
-            document.getElementById('mapLoading').style.display = 'flex';
-            document.querySelector('.loading-text').textContent = message;
-            const subtextElement = document.querySelector('.loading-subtext');
-            if (subtext) {
-                subtextElement.textContent = subtext;
-                subtextElement.style.display = 'block';
-            } else {
-                subtextElement.style.display = 'none';
-            }
+            // No-op - progressive loading without overlay
+            console.log('Loading:', message, subtext);
         }
         
         function hideLoading() {
-            document.getElementById('mapLoading').style.display = 'none';
+            // No-op - progressive loading without overlay
         }
         
         // Location identification functions
@@ -6644,10 +6632,8 @@
             // Check authentication first
             await checkAuth();
             
-            showLoading('Initializing map...', 'Setting up your personalized view');
-            
             try {
-                // Load base map layers first
+                // Initialize map immediately without loading overlay
                 await loadCountyData();
                 await loadTownshipData();
                 
