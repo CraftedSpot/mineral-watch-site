@@ -130,3 +130,10 @@ export {
 export {
   handleMatchSingleWell
 } from './match-single-well.js';
+
+// Map data handlers
+export {
+  handleGetCounties,
+  handleGetTownships,
+  handleGetCountyStats
+} from './map-data.js';

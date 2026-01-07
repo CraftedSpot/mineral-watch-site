@@ -131,7 +131,11 @@ import {
   handleMatchSingleProperty,
   handleMatchSingleWell,
   // Sync handler
-  handleAirtableSync
+  handleAirtableSync,
+  // Map data handlers
+  handleGetCounties,
+  handleGetTownships,
+  handleGetCountyStats
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -701,6 +705,17 @@ var index_default = {
       // OCC proxy endpoint
       if (path === "/api/occ-proxy" && request.method === "GET") {
         return handleOccProxy(request, env);
+      }
+      
+      // Map data endpoints
+      if (path === "/api/map/counties" && request.method === "GET") {
+        return handleGetCounties(request, env);
+      }
+      if (path === "/api/map/townships" && request.method === "GET") {
+        return handleGetTownships(request, env);
+      }
+      if (path === "/api/map/county-stats" && request.method === "GET") {
+        return handleGetCountyStats(request, env);
       }
       
       // Formation backfill endpoints
