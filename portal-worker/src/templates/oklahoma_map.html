@@ -6557,19 +6557,35 @@
                 // Note: Properties and wells layers are added automatically when loaded
                 // Section numbers will be added when sections are loaded (zoom 12+)
                 
-                updateStatus('Map ready - Loading properties...');
+                updateStatus('Map ready - Loading data...');
                 
                 // Load properties after a delay to ensure map is ready
                 setTimeout(async () => {
                     try {
-                        await loadUserProperties();
+                        // Load all data in parallel for better performance
+                        const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
+                            loadUserProperties(),
+                            loadTrackedWells(),
+                            loadActivityData()
+                        ]);
+                        
+                        // Log any failures but don't stop the map from working
+                        if (propertiesResult.status === 'rejected') {
+                            console.error('Failed to load properties:', propertiesResult.reason);
+                        }
+                        if (wellsResult.status === 'rejected') {
+                            console.error('Failed to load wells:', wellsResult.reason);
+                        }
+                        if (activityResult.status === 'rejected') {
+                            console.error('Failed to load activity data:', activityResult.reason);
+                        }
                         
                         // Check if we need to center on a specific property from URL
                         const urlParams = new URLSearchParams(window.location.search);
                         const propertyId = urlParams.get('property');
                         const wellId = urlParams.get('well');
                         
-                        if (propertyId) {
+                        if (propertyId && propertiesResult.status === 'fulfilled') {
                             // Find the property in loaded data
                             const property = userProperties.find(p => p.id === propertyId);
                             if (property && propertyMarkers[propertyId]) {
@@ -6585,10 +6601,10 @@
                         }
                         
                         // Check if we need to center on a specific well from URL
-                        else if (wellId) {
-                            // Wait for wells to load before trying to zoom
+                        else if (wellId && wellsResult.status === 'fulfilled') {
+                            // Wells should be loaded now, but use a short retry in case of timing issues
                             let retryCount = 0;
-                            const maxRetries = 20;
+                            const maxRetries = 10; // Reduced since wells should already be loaded
                             
                             const tryZoomToWell = () => {
                                 // Find the well in loaded data
@@ -6604,22 +6620,18 @@
                                         }, 100);
                                     });
                                 } else if (retryCount < maxRetries) {
-                                    // Wells might still be loading, retry
+                                    // Retry in case of timing issues
                                     retryCount++;
-                                    setTimeout(tryZoomToWell, 200);
+                                    setTimeout(tryZoomToWell, 100);
                                 } else {
                                     console.warn(`Could not zoom to well ${wellId} after ${maxRetries} retries`);
                                 }
                             };
                             
-                            // Start trying after a short delay
-                            setTimeout(tryZoomToWell, 500);
+                            // Start trying immediately since wells should be loaded
+                            tryZoomToWell();
                         }
                         
-                        // Load tracked wells after properties
-                        await loadTrackedWells();
-                        // Load recent activity data
-                        await loadActivityData();
                         updateStatus('Map ready');
                     } catch (error) {
                         console.error('Error loading properties:', error);
