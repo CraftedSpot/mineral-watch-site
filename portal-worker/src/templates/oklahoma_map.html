@@ -4760,19 +4760,56 @@
             }
         }
         
-        // Function to load real PLSS township boundaries
+        // Function to load real PLSS township boundaries with caching
         async function loadTownshipData() {
             try {
                 console.log('Loading PLSS township boundaries...');
                 updateStatus('Loading townships...');
                 
-                // Fetch from D1 via API endpoint
-                const response = await fetch('/api/map/townships', { credentials: 'include' });
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
+                // Check cache first
+                const cached = localStorage.getItem('townships_cache');
+                let townshipData;
+                
+                if (cached) {
+                    try {
+                        const { version, data } = JSON.parse(cached);
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const current = await versionResponse.json();
+                            if (version === current.townships_version) {
+                                console.log('Townships loaded from cache');
+                                townshipData = data;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Township cache read error:', e);
+                    }
                 }
                 
-                const townshipData = await response.json();
+                // If not cached or version mismatch, fetch fresh
+                if (!townshipData) {
+                    const response = await fetch('/api/map/townships', { credentials: 'include' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    
+                    townshipData = await response.json();
+                    
+                    // Cache with version
+                    try {
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const version = await versionResponse.json();
+                            localStorage.setItem('townships_cache', JSON.stringify({
+                                version: version.townships_version,
+                                data: townshipData
+                            }));
+                            console.log('Townships cached');
+                        }
+                    } catch (e) {
+                        console.warn('Township cache write error:', e);
+                    }
+                }
                 
                 // Check if we have data
                 if (!townshipData.features || townshipData.features.length === 0) {
