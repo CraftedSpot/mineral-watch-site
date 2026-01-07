@@ -97,13 +97,12 @@ async function fetchStatewideActivitiesFromD1(env: Env, daysAgo: number, county?
     LIMIT 5000
   `;
   
-  const stmt = env.WELLS_DB.prepare(query);
+  // Prepare statement and bind parameters
+  let stmt = env.WELLS_DB.prepare(query);
   
   // Bind parameters if any
   if (bindings.length > 0) {
-    bindings.forEach((value, index) => {
-      stmt.bind(index + 1, value);
-    });
+    stmt = stmt.bind(...bindings);
   }
   
   const result = await stmt.all();
