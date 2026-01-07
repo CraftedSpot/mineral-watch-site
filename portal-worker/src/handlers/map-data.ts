@@ -144,6 +144,10 @@ export async function handleGetTownships(request: Request, env: Env): Promise<Re
           township: township.township,
           range: township.range,
           meridian: township.meridian,
+          // Map expects TWNSHPLAB format like "26N 20W"
+          TWNSHPLAB: `${township.township} ${township.range}`,
+          // Map expects PRINMER for meridian display
+          PRINMER: township.meridian === 'CM' ? 'Cimarron Meridian' : 'Indian Meridian',
           county_name: township.county_name,
           center_lat: township.center_lat,
           center_lng: township.center_lng,
