@@ -2391,12 +2391,42 @@
         }
         
         function showLoading(message = 'Loading map data...', subtext = '') {
-            // No-op - progressive loading without overlay
-            console.log('Loading:', message, subtext);
+            const loadingEl = document.getElementById('mapLoading');
+            if (loadingEl) {
+                loadingEl.style.display = 'flex';
+                const textEl = loadingEl.querySelector('.loading-text');
+                const subtextEl = loadingEl.querySelector('.loading-subtext');
+                if (textEl) textEl.textContent = message;
+                if (subtextEl) {
+                    subtextEl.textContent = subtext;
+                    subtextEl.style.display = subtext ? 'block' : 'none';
+                }
+            }
         }
         
         function hideLoading() {
-            // No-op - progressive loading without overlay
+            const loadingEl = document.getElementById('mapLoading');
+            if (loadingEl) {
+                loadingEl.style.display = 'none';
+            }
+        }
+        
+        function hasCachedBoundaries() {
+            // Check if both counties and townships are cached
+            const countiesCache = localStorage.getItem('counties_cache');
+            const townshipsCache = localStorage.getItem('townships_cache');
+            
+            if (!countiesCache || !townshipsCache) return false;
+            
+            try {
+                // Validate cache has data
+                const counties = JSON.parse(countiesCache);
+                const townships = JSON.parse(townshipsCache);
+                return counties.data && counties.data.features && counties.data.features.length > 0 &&
+                       townships.data && townships.data.features && townships.data.features.length > 0;
+            } catch (e) {
+                return false;
+            }
         }
         
         // Location identification functions
