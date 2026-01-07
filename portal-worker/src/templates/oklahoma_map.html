@@ -714,6 +714,18 @@
             border-color: var(--red-dirt);
         }
         
+        .toggle-btn.loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        
+        .toggle-btn.loading span::before {
+            content: '⟳ ';
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        
         .toggle-btn input {
             position: absolute;
             opacity: 0;
