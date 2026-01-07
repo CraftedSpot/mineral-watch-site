@@ -8,7 +8,7 @@ import { jsonResponse } from '../utils/responses.js';
 import type { Env } from '../types/env.js';
 
 // Version string - update this when map data changes
-const MAP_DATA_VERSION = '2025-01-07';
+const MAP_DATA_VERSION = '2025-01-07b';
 
 /**
  * Get current map data version
