@@ -41,7 +41,8 @@ export async function handleListActivity(request: Request, env: Env) {
   if (userOrganizations.length > 0) {
     // User is part of an organization - show both personal and org activities
     const orgId = userOrganizations[0]; // User typically belongs to one org
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+    // Also include records where User field contains other org members (temporary backward compatibility)
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization ID (from User)})) > 0)`;
   } else {
     // No organization - show only personal activities
     formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
@@ -113,7 +114,7 @@ export async function handleActivityStats(request: Request, env: Env) {
   if (userOrganizations.length > 0) {
     // User is part of an organization - count both personal and org activities
     const orgId = userOrganizations[0];
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization ID (from User)})) > 0)`;
   } else {
     // No organization - count only personal activities
     formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
