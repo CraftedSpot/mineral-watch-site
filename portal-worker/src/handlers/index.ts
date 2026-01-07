@@ -35,10 +35,14 @@ export {
   handleSurroundingWells
 } from './nearby-wells.js';
 
-// Well enrichment handler
+// Well enrichment handlers
 export {
   handleWellEnrichment
 } from './well-enrichment.js';
+
+export {
+  handleBulkWellEnrichment
+} from './well-enrichment-bulk.js';
 
 // Auth handlers - most moved to auth-worker, keeping only registration
 export {

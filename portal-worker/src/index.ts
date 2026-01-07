@@ -91,8 +91,9 @@ import {
   // Nearby wells handlers
   handleNearbyWells,
   handleSurroundingWells,
-  // Well enrichment handler
+  // Well enrichment handlers
   handleWellEnrichment,
+  handleBulkWellEnrichment,
   // Billing handlers
   handleBillingPortal,
   handleUpgrade,
@@ -626,6 +627,11 @@ var index_default = {
       if (path.startsWith("/api/well-enrichment/") && request.method === "GET") {
         const apiNumber = path.split('/').pop() || '';
         return handleWellEnrichment(request, env, apiNumber);
+      }
+      
+      // Bulk well enrichment endpoint
+      if (path === "/api/well-enrichment/bulk" && request.method === "POST") {
+        return handleBulkWellEnrichment(request, env);
       }
       
       // Activity endpoint
