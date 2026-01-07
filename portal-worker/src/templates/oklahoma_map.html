@@ -4673,6 +4673,20 @@
                 
                 console.log('County data loaded:', countyData.features.length, 'counties');
                 
+                // Load missing counties (ATOKA and BRYAN) from fallback file
+                try {
+                    const missingResponse = await fetch('/assets/missing-counties-fallback.geojson');
+                    if (missingResponse.ok) {
+                        const missingData = await missingResponse.json();
+                        console.log('Loading', missingData.features.length, 'missing counties from fallback');
+                        // Add missing counties to the main data
+                        countyData.features = countyData.features.concat(missingData.features);
+                        console.log('Total counties after adding missing:', countyData.features.length);
+                    }
+                } catch (error) {
+                    console.warn('Could not load missing counties fallback:', error);
+                }
+                
                 // Create county layer with enhanced visibility
                 countyLayer = L.geoJSON(countyData, {
                     style: {
