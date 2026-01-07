@@ -57,7 +57,9 @@ export async function handleGetCounties(request: Request, env: Env): Promise<Res
         properties: {
           id: county.id,
           name: county.name,
+          COUNTY_NAME: county.name, // Map expects COUNTY_NAME
           fips_code: county.fips_code,
+          COUNTY_FIPS_NO: county.fips_code, // Also add original format
           center_lat: county.center_lat,
           center_lng: county.center_lng,
           area_sq_miles: county.area_sq_miles
