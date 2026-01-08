@@ -5807,6 +5807,7 @@
         // Load Documents
         let documentPollInterval;
         let documentPollStartTime;
+        let uploadBatchTimer;
         const POLL_INTERVAL = 15000; // 15 seconds
         const MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
         
@@ -5900,6 +5901,19 @@
             } else {
                 stopDocumentPolling();
             }
+        }
+        
+        // Debounced polling start for bulk uploads
+        function onDocumentUploaded() {
+            // Reset timer with each upload
+            clearTimeout(uploadBatchTimer);
+            
+            // Start polling 3 seconds after the LAST upload completes
+            uploadBatchTimer = setTimeout(() => {
+                if (currentTab === 'documents') {
+                    updateDocumentPolling();
+                }
+            }, 3000);
         }
         
         function renderDocumentsList(documents) {
