@@ -4098,6 +4098,193 @@
         let currentDocumentId = null;
         let loadedDocuments = [];
         
+        // Documents Search, Filter & Sort State
+        let documentsSearchTerm = '';
+        let documentsCategory = 'all';
+        let documentsSortBy = 'date-desc';
+        
+        // Initialize Documents Controls (call this after user loads)
+        function initDocumentsControls() {
+            const hasSearch = currentUser?.plan !== 'Free';
+            
+            // Show/hide controls based on plan
+            document.getElementById('documentsControls').style.display = hasSearch ? 'flex' : 'none';
+            
+            if (!hasSearch) return;
+            
+            // Search input with debounce
+            const searchInput = document.getElementById('documentsSearch');
+            searchInput.addEventListener('input', (e) => {
+                documentsSearchTerm = e.target.value.toLowerCase();
+                debounce(() => renderDocumentsList(loadedDocuments), 300)();
+            });
+            
+            // Category filter
+            const categorySelect = document.getElementById('documentsCategory');
+            categorySelect.addEventListener('change', (e) => {
+                documentsCategory = e.target.value;
+                updateDocumentsSortOptions(); // Update sort options based on category
+                renderDocumentsList(loadedDocuments);
+            });
+            
+            // Sort select
+            const sortSelect = document.getElementById('documentsSort');
+            sortSelect.addEventListener('change', (e) => {
+                documentsSortBy = e.target.value;
+                renderDocumentsList(loadedDocuments);
+            });
+        }
+        
+        // Update sort options based on selected category
+        function updateDocumentsSortOptions() {
+            const sortSelect = document.getElementById('documentsSort');
+            const currentSort = sortSelect.value;
+            
+            // Clear existing options
+            sortSelect.innerHTML = '';
+            
+            // Base sort options (always available)
+            const baseOptions = [
+                { value: 'date-desc', text: 'Upload Date (Newest)' },
+                { value: 'date-asc', text: 'Upload Date (Oldest)' },
+                { value: 'name-asc', text: 'Name (A-Z)' },
+                { value: 'name-desc', text: 'Name (Z-A)' }
+            ];
+            
+            // Category-specific sort options
+            const categoryOptions = {
+                'mineral_deeds': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' },
+                    { value: 'recording-date', text: 'Recording Date' },
+                    { value: 'grantor', text: 'Grantor Name' },
+                    { value: 'grantee', text: 'Grantee Name' }
+                ],
+                'leases': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'lease-date', text: 'Lease Date' },
+                    { value: 'lessor', text: 'Lessor Name' },
+                    { value: 'lessee', text: 'Lessee Name' }
+                ],
+                'drilling_permits': [
+                    { value: 'permit-date', text: 'Permit Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'well-name', text: 'Well Name' }
+                ],
+                'production_reports': [
+                    { value: 'production-date', text: 'Production Date' },
+                    { value: 'oil-volume', text: 'Oil Volume' },
+                    { value: 'gas-volume', text: 'Gas Volume' }
+                ],
+                'division_orders': [
+                    { value: 'effective-date', text: 'Effective Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'interest-decimal', text: 'Interest Decimal' }
+                ]
+            };
+            
+            // Add base options
+            baseOptions.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.textContent = opt.text;
+                sortSelect.appendChild(option);
+            });
+            
+            // Add category-specific options if applicable
+            if (documentsCategory !== 'all' && categoryOptions[documentsCategory]) {
+                const separator = document.createElement('option');
+                separator.disabled = true;
+                separator.textContent = '──────────';
+                sortSelect.appendChild(separator);
+                
+                categoryOptions[documentsCategory].forEach(opt => {
+                    const option = document.createElement('option');
+                    option.value = opt.value;
+                    option.textContent = opt.text;
+                    sortSelect.appendChild(option);
+                });
+            }
+            
+            // Restore previous selection if still valid
+            if (Array.from(sortSelect.options).find(opt => opt.value === currentSort)) {
+                sortSelect.value = currentSort;
+            } else {
+                // Reset to default if previous selection is no longer valid
+                sortSelect.value = 'date-desc';
+                documentsSortBy = 'date-desc';
+            }
+        }
+        
+        // Filter documents based on search and category
+        function filterDocuments(documents) {
+            return documents.filter(doc => {
+                // Category filter
+                if (documentsCategory !== 'all') {
+                    // Map doc_type to category
+                    const docTypeToCategory = {
+                        'mineral_deed': 'mineral_deeds',
+                        'lease': 'leases',
+                        'drilling_permit': 'drilling_permits',
+                        'well_completion_report': 'well_completion_reports',
+                        'production_report': 'production_reports',
+                        'division_order': 'division_orders',
+                        'tax_record': 'tax_records',
+                        'correspondence': 'correspondence',
+                        'legal_document': 'legal_documents',
+                        'other': 'other'
+                    };
+                    
+                    const docCategory = docTypeToCategory[doc.doc_type] || 'other';
+                    if (docCategory !== documentsCategory) return false;
+                }
+                
+                // Search filter
+                if (!documentsSearchTerm) return true;
+                
+                const searchStr = documentsSearchTerm.toLowerCase();
+                return (
+                    (doc.filename || '').toLowerCase().includes(searchStr) ||
+                    (doc.display_name || '').toLowerCase().includes(searchStr) ||
+                    (doc.doc_type || '').toLowerCase().includes(searchStr) ||
+                    (doc.county || '').toLowerCase().includes(searchStr) ||
+                    (doc.description || '').toLowerCase().includes(searchStr)
+                );
+            });
+        }
+        
+        // Sort documents
+        function sortDocuments(documents) {
+            const sorted = [...documents];
+            
+            sorted.sort((a, b) => {
+                switch (documentsSortBy) {
+                    case 'date-desc':
+                        return new Date(b.upload_date) - new Date(a.upload_date);
+                    case 'date-asc':
+                        return new Date(a.upload_date) - new Date(b.upload_date);
+                    case 'name-asc':
+                        return (a.display_name || a.filename || '').localeCompare(b.display_name || b.filename || '');
+                    case 'name-desc':
+                        return (b.display_name || b.filename || '').localeCompare(a.display_name || a.filename || '');
+                    case 'type-asc':
+                        return (a.doc_type || '').localeCompare(b.doc_type || '');
+                    case 'county-asc':
+                        return (a.county || '').localeCompare(b.county || '');
+                    case 'county-trs':
+                        // Sort by county, then township, range, section
+                        const countyCompare = (a.county || '').localeCompare(b.county || '');
+                        if (countyCompare !== 0) return countyCompare;
+                        // Add TRS comparison when metadata is available
+                        return 0;
+                    default:
+                        return 0;
+                }
+            });
+            
+            return sorted;
+        }
+        
         async function viewDocumentInModal(docId, filename, fromDetailModal = false) {
             console.log('Opening document in modal:', docId, filename);
             currentDocumentId = docId;
