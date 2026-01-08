@@ -4277,14 +4277,118 @@
                         // Sort by county, then township, range, section
                         const countyCompare = (a.county || '').localeCompare(b.county || '');
                         if (countyCompare !== 0) return countyCompare;
-                        // Add TRS comparison when metadata is available
-                        return 0;
+                        const aTRS = `${a.township || ''}${a.range || ''}${a.section || ''}`;
+                        const bTRS = `${b.township || ''}${b.range || ''}${b.section || ''}`;
+                        return aTRS.localeCompare(bTRS);
+                    
+                    // Category-specific sorts using extracted data
+                    case 'execution-date':
+                    case 'recording-date':
+                    case 'lease-date':
+                    case 'permit-date':
+                    case 'production-date':
+                    case 'effective-date':
+                        const aDate = getExtractedDate(a, documentsSortBy);
+                        const bDate = getExtractedDate(b, documentsSortBy);
+                        return compareDates(aDate, bDate);
+                    
+                    case 'grantor':
+                    case 'grantee':
+                    case 'lessor':
+                    case 'lessee':
+                    case 'operator':
+                    case 'well-name':
+                        const aValue = getExtractedString(a, documentsSortBy);
+                        const bValue = getExtractedString(b, documentsSortBy);
+                        return aValue.localeCompare(bValue);
+                    
+                    case 'oil-volume':
+                    case 'gas-volume':
+                    case 'interest-decimal':
+                        const aNum = getExtractedNumber(a, documentsSortBy);
+                        const bNum = getExtractedNumber(b, documentsSortBy);
+                        return bNum - aNum; // Descending for volumes
+                    
                     default:
                         return 0;
                 }
             });
             
             return sorted;
+        }
+        
+        // Helper functions for extracting data from parsed extracted_data
+        function getExtractedDate(doc, sortType) {
+            if (!doc.parsedExtractedData) return '';
+            
+            const fieldMap = {
+                'execution-date': ['execution_date', 'executionDate'],
+                'recording-date': ['recording_date', 'recordingDate', 'recorded_date'],
+                'lease-date': ['lease_date', 'leaseDate', 'dated'],
+                'permit-date': ['permit_date', 'permitDate', 'date_issued'],
+                'production-date': ['production_date', 'productionDate', 'reporting_date'],
+                'effective-date': ['effective_date', 'effectiveDate']
+            };
+            
+            const possibleFields = fieldMap[sortType] || [];
+            for (const field of possibleFields) {
+                if (doc.parsedExtractedData[field]) {
+                    return doc.parsedExtractedData[field];
+                }
+            }
+            return '';
+        }
+        
+        function getExtractedString(doc, sortType) {
+            if (!doc.parsedExtractedData) return '';
+            
+            const fieldMap = {
+                'grantor': ['grantor', 'grantors', 'grantor_name'],
+                'grantee': ['grantee', 'grantees', 'grantee_name'],
+                'lessor': ['lessor', 'lessors', 'lessor_name'],
+                'lessee': ['lessee', 'lessees', 'lessee_name'],
+                'operator': ['operator', 'operator_name', 'company'],
+                'well-name': ['well_name', 'wellName', 'well']
+            };
+            
+            const possibleFields = fieldMap[sortType] || [];
+            for (const field of possibleFields) {
+                const value = doc.parsedExtractedData[field];
+                if (value) {
+                    // Handle arrays (multiple grantors, etc.)
+                    if (Array.isArray(value)) {
+                        return value.join(', ');
+                    }
+                    return String(value);
+                }
+            }
+            return '';
+        }
+        
+        function getExtractedNumber(doc, sortType) {
+            if (!doc.parsedExtractedData) return 0;
+            
+            const fieldMap = {
+                'oil-volume': ['oil_volume', 'oil_production', 'oil_bbls'],
+                'gas-volume': ['gas_volume', 'gas_production', 'gas_mcf'],
+                'interest-decimal': ['interest_decimal', 'decimal_interest', 'interest']
+            };
+            
+            const possibleFields = fieldMap[sortType] || [];
+            for (const field of possibleFields) {
+                const value = doc.parsedExtractedData[field];
+                if (value !== undefined && value !== null) {
+                    return parseFloat(value) || 0;
+                }
+            }
+            return 0;
+        }
+        
+        function compareDates(a, b) {
+            // Handle various date formats
+            const dateA = a ? new Date(a) : new Date(0);
+            const dateB = b ? new Date(b) : new Date(0);
+            return dateB.getTime() - dateA.getTime(); // Descending (newest first)
         }
         
         async function viewDocumentInModal(docId, filename, fromDetailModal = false) {
