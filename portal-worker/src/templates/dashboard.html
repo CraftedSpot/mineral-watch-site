@@ -9542,7 +9542,11 @@ function openUploadModal() {
     
     // Reset selected files display
     document.getElementById('selectedFilesDisplay').style.display = 'none';
-    document.getElementById('selectedFilesDisplay').innerHTML = '';
+    // Clear only the list content, not the entire container
+    const filesList = document.getElementById('selectedFilesList');
+    if (filesList) {
+        filesList.innerHTML = '';
+    }
     
     // Make sure upload button is disabled
     const uploadBtn = document.getElementById('uploadBtn');
