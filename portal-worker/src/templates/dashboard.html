@@ -9636,9 +9636,16 @@ function processSelectedFiles(files) {
 }
 
 function displaySelectedFiles() {
+    console.log('displaySelectedFiles called with', selectedFiles.length, 'files');
     const listDiv = document.getElementById('selectedFilesList');
+    console.log('selectedFilesList element:', listDiv);
+    console.log('Document ready state:', document.readyState);
+    console.log('Document body contains:', document.body.innerHTML.includes('selectedFilesList'));
+    console.log('Modal visible?', document.getElementById('documentUploadModal').style.display);
+    
     if (!listDiv) {
         console.warn('selectedFilesList element not found');
+        console.log('Trying to find parent selectedFilesDisplay:', document.getElementById('selectedFilesDisplay'));
         return;
     }
     listDiv.innerHTML = '';
