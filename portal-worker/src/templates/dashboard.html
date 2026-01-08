@@ -2885,8 +2885,25 @@
                     // Load documents data when tab is selected (lazy load)
                     if (currentTab === 'documents') {
                         loadDocuments();
+                    } else {
+                        // Stop polling when leaving documents tab
+                        stopDocumentPolling();
                     }
                 });
+            });
+            
+            // Tab Visibility API - Auto-refresh when returning to tab
+            document.addEventListener('visibilitychange', async () => {
+                if (!document.hidden && currentTab === 'documents') {
+                    // User returned to tab while on documents
+                    const hasProcessing = loadedDocuments.some(doc => 
+                        doc.status === 'processing' || doc.status === 'pending'
+                    );
+                    if (hasProcessing) {
+                        console.log('[Documents] Tab became visible with processing documents, refreshing...');
+                        await loadDocuments();
+                    }
+                }
             });
             
             // Bulk selection event listeners
@@ -5784,13 +5801,41 @@
         window.openPropertyFromWell = openPropertyFromWell;
         
         // Load Documents
+        let documentPollInterval;
+        let documentPollStartTime;
+        const POLL_INTERVAL = 15000; // 15 seconds
+        const MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
+        
         async function loadDocuments() {
             try {
                 const res = await fetch('/api/documents');
                 if (!res.ok) throw new Error('Failed to load documents');
                 
                 const data = await res.json();
+                
+                // Check if any documents changed status
+                const prevProcessing = loadedDocuments.filter(doc => 
+                    doc.status === 'processing' || doc.status === 'pending'
+                );
+                
+                const nowComplete = data.documents.filter(doc => {
+                    const wasProcessing = prevProcessing.find(p => p.id === doc.id);
+                    return wasProcessing && doc.status === 'complete';
+                });
+                
+                // Show toast if documents completed
+                if (nowComplete.length > 0) {
+                    const message = nowComplete.length === 1 
+                        ? '1 document finished processing' 
+                        : `${nowComplete.length} documents finished processing`;
+                    showToast(message, 'success');
+                }
+                
                 renderDocumentsList(data.documents);
+                
+                // Start or stop polling based on document status
+                updateDocumentPolling();
+                
             } catch (error) {
                 console.error('Error loading documents:', error);
                 document.getElementById('documentsContent').innerHTML = `
@@ -5799,6 +5844,57 @@
                         <p style="font-size: 13px; color: var(--slate-blue);">${error.message}</p>
                     </div>
                 `;
+            }
+        }
+        
+        function startDocumentPolling() {
+            if (documentPollInterval) return; // Already polling
+            
+            console.log('[Documents] Starting polling for processing documents');
+            documentPollStartTime = Date.now();
+            
+            documentPollInterval = setInterval(async () => {
+                // Check guardrails
+                const isDocumentsTabActive = currentTab === 'documents';
+                const isTabVisible = !document.hidden;
+                const hasProcessing = loadedDocuments.some(doc => 
+                    doc.status === 'processing' || doc.status === 'pending'
+                );
+                const notExpired = (Date.now() - documentPollStartTime) < MAX_POLL_DURATION;
+                
+                if (isDocumentsTabActive && isTabVisible && hasProcessing && notExpired) {
+                    console.log('[Documents] Polling for updates...');
+                    await loadDocuments();
+                } else {
+                    console.log('[Documents] Stopping poll:', {
+                        isDocumentsTabActive,
+                        isTabVisible,
+                        hasProcessing,
+                        notExpired
+                    });
+                    stopDocumentPolling();
+                }
+            }, POLL_INTERVAL);
+        }
+        
+        function stopDocumentPolling() {
+            if (documentPollInterval) {
+                console.log('[Documents] Stopping document polling');
+                clearInterval(documentPollInterval);
+                documentPollInterval = null;
+                documentPollStartTime = null;
+            }
+        }
+        
+        function updateDocumentPolling() {
+            const hasProcessing = loadedDocuments.some(doc => 
+                doc.status === 'processing' || doc.status === 'pending'
+            );
+            
+            if (hasProcessing && currentTab === 'documents' && !document.hidden) {
+                startDocumentPolling();
+            } else {
+                stopDocumentPolling();
             }
         }
         
@@ -5873,14 +5969,20 @@
                                    '#F59E0B';
                 const statusText = doc.status === 'complete' ? 'Complete' : 
                                   doc.status === 'failed' ? 'Failed' : 
+                                  doc.status === 'pending' ? 'Queued' :
                                   'Processing';
+                
+                // Add pulsing animation for processing documents
+                const statusStyle = (doc.status === 'processing' || doc.status === 'pending') 
+                    ? 'animation: pulse 1.5s ease-in-out infinite;' 
+                    : '';
                 
                 html += `<tr onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
                 html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="document-checkbox" data-id="${doc.id}"></td>`;
                 html += `<td><strong>${escapeHtml(doc.display_name || doc.filename)}</strong></td>`;
                 html += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 html += `<td>${doc.county ? escapeHtml(doc.county) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
-                html += `<td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor};">${statusText}</span></td>`;
+                html += `<td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}</span></td>`;
                 html += `<td>${uploadDate}</td>`;
                 html += `<td style="text-align: right;" onclick="event.stopPropagation()">
                     <div style="display: flex; gap: 8px; justify-content: flex-end;">
