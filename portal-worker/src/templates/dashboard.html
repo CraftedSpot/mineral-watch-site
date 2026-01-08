@@ -1744,8 +1744,6 @@
                 </div>
                 
                 <div id="documents-tab" class="tab-content">
-                    <div id="documentsBulkActionBar" class="bulk-action-bar" style="display: none;"></div>
-                    
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 0 20px;">
                         <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);">Digital Documents</h3>
                         <button class="btn-add" onclick="openUploadModal()" style="font-size: 14px;">
@@ -1755,6 +1753,34 @@
                             Upload Documents
                         </button>
                     </div>
+                    
+                    <div id="documentsControls" class="table-controls" style="display: none;">
+                        <input type="text" id="documentsSearch" class="search-input" placeholder="Search documents by name, type, county, or content...">
+                        <select id="documentsCategory" class="filter-select" style="width: 180px;">
+                            <option value="all">All Categories</option>
+                            <option value="mineral_deeds">Mineral Deeds</option>
+                            <option value="leases">Leases</option>
+                            <option value="drilling_permits">Drilling Permits</option>
+                            <option value="well_completion_reports">Well Completion Reports</option>
+                            <option value="production_reports">Production Reports</option>
+                            <option value="division_orders">Division Orders</option>
+                            <option value="tax_records">Tax Records</option>
+                            <option value="correspondence">Correspondence</option>
+                            <option value="legal_documents">Legal Documents</option>
+                            <option value="other">Other</option>
+                        </select>
+                        <select id="documentsSort" class="sort-select">
+                            <option value="date-desc" selected>Upload Date (Newest)</option>
+                            <option value="date-asc">Upload Date (Oldest)</option>
+                            <option value="name-asc">Name (A-Z)</option>
+                            <option value="name-desc">Name (Z-A)</option>
+                            <option value="type-asc">Type</option>
+                            <option value="county-asc">County</option>
+                        </select>
+                        <span id="documentsResultsCount" class="results-count"></span>
+                    </div>
+                    
+                    <div id="documentsBulkActionBar" class="bulk-action-bar" style="display: none;"></div>
                     
                     <div id="documentsContent" style="padding: 0 20px;">
                         <!-- Loading skeleton will be here initially -->
