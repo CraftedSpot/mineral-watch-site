@@ -9572,12 +9572,14 @@ function handleDocumentDragLeave(e) {
 }
 
 function handleDocumentFileDrop(e) {
+    console.log('handleDocumentFileDrop fired', e.dataTransfer.files.length, 'files');
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.style.borderColor = 'var(--border)';
     e.currentTarget.style.background = '#f8f9fa';
     
     const files = Array.from(e.dataTransfer.files);
+    console.log('Files array:', files);
     processSelectedFiles(files);
 }
 
