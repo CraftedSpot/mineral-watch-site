@@ -9534,7 +9534,7 @@ function openUploadModal() {
     dropZone.style.background = '#f8f9fa';
     
     // Reset file input
-    document.getElementById('fileInput').value = '';
+    document.getElementById('documentFileInput').value = '';
     
     // Reset selected files display
     document.getElementById('selectedFilesDisplay').style.display = 'none';
@@ -9557,21 +9557,21 @@ function closeUploadModal() {
 }
 window.closeUploadModal = closeUploadModal;
 
-function handleDragOver(e) {
+function handleDocumentDragOver(e) {
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.style.borderColor = 'var(--red-dirt)';
     e.currentTarget.style.background = '#FEF3C7';
 }
 
-function handleDragLeave(e) {
+function handleDocumentDragLeave(e) {
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.style.borderColor = 'var(--border)';
     e.currentTarget.style.background = '#f8f9fa';
 }
 
-function handleFileDrop(e) {
+function handleDocumentFileDrop(e) {
     e.preventDefault();
     e.stopPropagation();
     e.currentTarget.style.borderColor = 'var(--border)';
@@ -9581,7 +9581,7 @@ function handleFileDrop(e) {
     processSelectedFiles(files);
 }
 
-function handleFileSelect(e) {
+function handleDocumentFileSelect(e) {
     const files = Array.from(e.target.files);
     processSelectedFiles(files);
 }
@@ -9675,9 +9675,15 @@ function removeFile(index) {
 
 function clearSelectedFile() {
     selectedFiles = [];
-    document.getElementById('fileInput').value = '';
+    const fileInput = document.getElementById('documentFileInput');
+    if (fileInput) {
+        fileInput.value = '';
+    }
     document.getElementById('selectedFilesDisplay').style.display = 'none';
-    document.getElementById('uploadBtn').disabled = true;
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+    }
 }
 
 async function handleDocumentUpload(e) {
@@ -9773,10 +9779,10 @@ async function handleDocumentUpload(e) {
 }
 
 // Expose document functions to window
-window.handleFileDrop = handleFileDrop;
-window.handleDragOver = handleDragOver;
-window.handleDragLeave = handleDragLeave;
-window.handleFileSelect = handleFileSelect;
+window.handleDocumentFileDrop = handleDocumentFileDrop;
+window.handleDocumentDragOver = handleDocumentDragOver;
+window.handleDocumentDragLeave = handleDocumentDragLeave;
+window.handleDocumentFileSelect = handleDocumentFileSelect;
 window.clearSelectedFile = clearSelectedFile;
 window.handleDocumentUpload = handleDocumentUpload;
 
