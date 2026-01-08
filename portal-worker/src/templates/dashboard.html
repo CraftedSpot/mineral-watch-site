@@ -9521,6 +9521,10 @@ function finishBulkUploadWells() {
 let selectedFiles = [];
 
 function openUploadModal() {
+    console.log('openUploadModal called');
+    console.log('Modal element exists?', !!document.getElementById('documentUploadModal'));
+    console.log('selectedFilesList exists?', !!document.getElementById('selectedFilesList'));
+    
     // Reset all modal state
     clearSelectedFile();
     
@@ -9589,6 +9593,7 @@ function handleDocumentFileSelect(e) {
 }
 
 function processSelectedFiles(files) {
+    console.log('processSelectedFiles called with', files.length, 'files');
     // Filter and validate files
     const validFiles = [];
     const errors = [];
