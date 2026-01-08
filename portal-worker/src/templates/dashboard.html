@@ -9668,7 +9668,10 @@ async function handleDocumentUpload(e) {
             
             // Close modal and refresh documents list
             closeUploadModal();
-            loadDocuments();
+            await loadDocuments();
+            
+            // Trigger debounced polling
+            onDocumentUploaded();
         } catch (error) {
             alert('Upload failed: ' + error.message);
             // Reset modal
@@ -9710,7 +9713,10 @@ async function handleDocumentUpload(e) {
             
             // Close modal and refresh documents list
             closeUploadModal();
-            loadDocuments();
+            await loadDocuments();
+            
+            // Trigger debounced polling
+            onDocumentUploaded();
         } catch (error) {
             alert('Upload failed: ' + error.message);
             // Reset modal
