@@ -5687,6 +5687,23 @@
         }
         
         function renderDocumentsList(documents) {
+            // Parse extracted_data JSON for each document if it exists
+            if (documents && documents.length > 0) {
+                documents = documents.map(doc => {
+                    if (doc.extracted_data && typeof doc.extracted_data === 'string') {
+                        try {
+                            doc.parsedExtractedData = JSON.parse(doc.extracted_data);
+                        } catch (e) {
+                            console.log('Failed to parse extracted_data for doc', doc.id);
+                            doc.parsedExtractedData = {};
+                        }
+                    } else {
+                        doc.parsedExtractedData = doc.extracted_data || {};
+                    }
+                    return doc;
+                });
+            }
+            
             loadedDocuments = documents;
             const container = document.getElementById('documentsContent');
             
