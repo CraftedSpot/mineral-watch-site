@@ -4257,6 +4257,7 @@
                 const basicMatch = (
                     (doc.filename || '').toLowerCase().includes(searchStr) ||
                     (doc.display_name || '').toLowerCase().includes(searchStr) ||
+                    (doc.category || '').toLowerCase().includes(searchStr) ||
                     (doc.doc_type || '').toLowerCase().includes(searchStr) ||
                     (doc.county || '').toLowerCase().includes(searchStr) ||
                     (doc.description || '').toLowerCase().includes(searchStr)
