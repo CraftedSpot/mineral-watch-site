@@ -9635,6 +9635,10 @@ function processSelectedFiles(files) {
 
 function displaySelectedFiles() {
     const listDiv = document.getElementById('selectedFilesList');
+    if (!listDiv) {
+        console.warn('selectedFilesList element not found');
+        return;
+    }
     listDiv.innerHTML = '';
     
     selectedFiles.forEach((file, index) => {
