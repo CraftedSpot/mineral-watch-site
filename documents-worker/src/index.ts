@@ -223,8 +223,8 @@ export default {
           return errorResponse('Only PDF files are allowed', 400, env);
         }
         
-        if (file.size > 100 * 1024 * 1024) { // 100MB limit
-          return errorResponse('File too large. Maximum size is 100MB', 400, env);
+        if (file.size > 50 * 1024 * 1024) { // 50MB limit
+          return errorResponse('File too large. Maximum size is 50MB', 400, env);
         }
 
         // Generate unique document ID
@@ -291,8 +291,16 @@ export default {
         }
 
         // Limit number of files
-        if (files.length > 10) {
-          return errorResponse('Maximum 10 files can be uploaded at once', 400, env);
+        if (files.length > 500) {
+          return errorResponse('Maximum 500 files can be uploaded at once', 400, env);
+        }
+        
+        // Check total size limit (500MB)
+        const totalSize = files.reduce((sum, file) => sum + file.size, 0);
+        const maxTotalSize = 500 * 1024 * 1024; // 500MB
+        
+        if (totalSize > maxTotalSize) {
+          return errorResponse(`Total file size exceeds 500MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(1)}MB`, 400, env);
         }
 
         const results = [];
@@ -313,10 +321,10 @@ export default {
               continue;
             }
             
-            if (file.size > 100 * 1024 * 1024) { // 100MB limit
+            if (file.size > 50 * 1024 * 1024) { // 50MB limit
               errors.push({
                 filename: file.name,
-                error: 'File too large. Maximum size is 100MB'
+                error: 'File too large. Maximum size is 50MB'
               });
               continue;
             }
