@@ -7853,16 +7853,16 @@
         <form id="documentUploadForm" onsubmit="handleDocumentUpload(event)">
             <!-- File Drop Zone -->
             <div id="fileDropZone" style="border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; background: #f8f9fa; cursor: pointer; margin-bottom: 24px;" 
-                 ondrop="handleFileDrop(event)" 
-                 ondragover="handleDragOver(event)" 
-                 ondragleave="handleDragLeave(event)"
-                 onclick="document.getElementById('fileInput').click()">
+                 ondrop="handleDocumentFileDrop(event)" 
+                 ondragover="handleDocumentDragOver(event)" 
+                 ondragleave="handleDocumentDragLeave(event)"
+                 onclick="document.getElementById('documentFileInput').click()">
                 <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px; opacity: 0.4;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                 </svg>
                 <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Drop PDFs here or click to browse</p>
                 <p style="margin: 0; font-size: 13px; color: var(--slate-blue);">Maximum file size: 50MB per file, up to 500 files</p>
-                <input type="file" id="fileInput" accept=".pdf" multiple style="display: none;" onchange="handleFileSelect(event)">
+                <input type="file" id="documentFileInput" accept=".pdf" multiple style="display: none;" onchange="handleDocumentFileSelect(event)">
             </div>
             
             <!-- Selected Files Display -->
