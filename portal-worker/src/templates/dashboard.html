@@ -9715,6 +9715,11 @@ async function handleDocumentUpload(e) {
             closeUploadModal();
             await loadDocuments();
             
+            // Show bulk processing modal for 10+ documents
+            if (result.uploaded >= 10) {
+                showBulkProcessingModal(result.uploaded);
+            }
+            
             // Trigger debounced polling
             onDocumentUploaded();
         } catch (error) {
@@ -9733,6 +9738,35 @@ window.handleDragLeave = handleDragLeave;
 window.handleFileSelect = handleFileSelect;
 window.clearSelectedFile = clearSelectedFile;
 window.handleDocumentUpload = handleDocumentUpload;
+
+// Bulk processing modal functions
+function showBulkProcessingModal(count) {
+    // Check if user has opted out of seeing this message
+    const preference = localStorage.getItem('hideBulkProcessingNotification');
+    if (preference === 'true') {
+        return;
+    }
+    
+    // Update count in message
+    document.getElementById('bulkProcessingCount').textContent = count;
+    
+    // Show modal
+    document.getElementById('bulkProcessingModal').style.display = 'flex';
+}
+
+function closeBulkProcessingModal() {
+    // Check if user wants to hide this in the future
+    const dontShowAgain = document.getElementById('bulkNotificationPreference').checked;
+    if (dontShowAgain) {
+        localStorage.setItem('hideBulkProcessingNotification', 'true');
+    }
+    
+    // Hide modal
+    document.getElementById('bulkProcessingModal').style.display = 'none';
+}
+
+window.showBulkProcessingModal = showBulkProcessingModal;
+window.closeBulkProcessingModal = closeBulkProcessingModal;
 </script>
 
 <!-- Add Papa Parse library (CSV parsing) -->
@@ -9753,6 +9787,36 @@ window.handleDocumentUpload = handleDocumentUpload;
         <div class="confirm-buttons">
             <button class="confirm-btn confirm-btn-cancel" id="confirmCancel">Cancel</button>
             <button class="confirm-btn confirm-btn-confirm" id="confirmOk">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- BULK PROCESSING NOTIFICATION MODAL -->
+<div class="modal-overlay" id="bulkProcessingModal" style="display: none;">
+    <div class="modal" style="max-width: 450px;">
+        <h2 style="margin-bottom: 16px; font-family: 'Merriweather', serif; font-size: 20px;">Documents Processing</h2>
+        
+        <p style="margin-bottom: 20px; color: var(--slate-blue); line-height: 1.5;">
+            <span id="bulkProcessingCount">10</span> documents are being processed in the background. 
+            We'll notify you by email when they're ready.
+        </p>
+        
+        <div style="background: #f8f9fa; border-left: 4px solid var(--rust-orange); padding: 12px 16px; margin-bottom: 20px; border-radius: 4px;">
+            <p style="margin: 0; font-size: 14px; color: var(--oil-navy);">
+                <strong>Tip:</strong> This tab will automatically refresh when documents finish processing 
+                (as long as you keep it open).
+            </p>
+        </div>
+        
+        <div style="display: flex; gap: 8px; align-items: center; margin-top: 24px;">
+            <input type="checkbox" id="bulkNotificationPreference" style="margin: 0;">
+            <label for="bulkNotificationPreference" style="font-size: 14px; color: var(--slate-blue); cursor: pointer;">
+                Don't show this message again
+            </label>
+        </div>
+        
+        <div style="display: flex; justify-content: flex-end; margin-top: 24px;">
+            <button onclick="closeBulkProcessingModal()" class="btn btn-primary">Got it</button>
         </div>
     </div>
 </div>
