@@ -5016,7 +5016,7 @@
                         content += `
                             <div class="doc-field">
                                 <label>Document Type</label>
-                                <div class="doc-value">${formatDocType(data.doc_type || doc.doc_type)}</div>
+                                <div class="doc-value">${formatDocType(data.category || data.doc_type || doc.category || doc.doc_type)}</div>
                             </div>`;
                     }
                     
