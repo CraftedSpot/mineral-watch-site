@@ -4218,21 +4218,33 @@
             return documents.filter(doc => {
                 // Category filter
                 if (documentsCategory !== 'all') {
-                    // Map doc_type to category
-                    const docTypeToCategory = {
-                        'mineral_deed': 'mineral_deeds',
-                        'lease': 'leases',
-                        'drilling_permit': 'drilling_permits',
-                        'well_completion_report': 'well_completion_reports',
-                        'production_report': 'production_reports',
-                        'division_order': 'division_orders',
-                        'tax_record': 'tax_records',
-                        'correspondence': 'correspondence',
-                        'legal_document': 'legal_documents',
-                        'other': 'other'
-                    };
+                    // Use category field if available, fall back to doc_type mapping
+                    let docCategory;
                     
-                    const docCategory = docTypeToCategory[doc.doc_type] || 'other';
+                    if (doc.category) {
+                        // If category is already in plural form (e.g., "mineral_deeds"), use it directly
+                        // If it's singular (e.g., "mineral_deed"), convert to plural
+                        docCategory = doc.category;
+                        if (!docCategory.endsWith('s') && docCategory !== 'correspondence' && docCategory !== 'other') {
+                            docCategory = docCategory + 's';
+                        }
+                    } else {
+                        // Fallback: Map doc_type to category
+                        const docTypeToCategory = {
+                            'mineral_deed': 'mineral_deeds',
+                            'lease': 'leases',
+                            'drilling_permit': 'drilling_permits',
+                            'well_completion_report': 'well_completion_reports',
+                            'production_report': 'production_reports',
+                            'division_order': 'division_orders',
+                            'tax_record': 'tax_records',
+                            'correspondence': 'correspondence',
+                            'legal_document': 'legal_documents',
+                            'other': 'other'
+                        };
+                        docCategory = docTypeToCategory[doc.doc_type] || 'other';
+                    }
+                    
                     if (docCategory !== documentsCategory) return false;
                 }
                 
