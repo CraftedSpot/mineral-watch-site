@@ -7861,7 +7861,7 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                 </svg>
                 <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Drop PDFs here or click to browse</p>
-                <p style="margin: 0; font-size: 13px; color: var(--slate-blue);">Maximum file size: 100MB per file, up to 10 files</p>
+                <p style="margin: 0; font-size: 13px; color: var(--slate-blue);">Maximum file size: 50MB per file, up to 500 files</p>
                 <input type="file" id="fileInput" accept=".pdf" multiple style="display: none;" onchange="handleFileSelect(event)">
             </div>
             
@@ -9597,8 +9597,8 @@ function processSelectedFiles(files) {
             continue;
         }
         
-        if (file.size > 100 * 1024 * 1024) {
-            errors.push(`${file.name}: File size must be less than 100MB`);
+        if (file.size > 50 * 1024 * 1024) {
+            errors.push(`${file.name}: File size must be less than 50MB`);
             continue;
         }
         
@@ -9606,9 +9606,21 @@ function processSelectedFiles(files) {
     }
     
     // Check total file limit
-    if (validFiles.length > 10) {
-        alert('Maximum 10 files can be uploaded at once');
-        validFiles.splice(10);
+    if (validFiles.length > 500) {
+        alert('Maximum 500 files can be uploaded at once');
+        validFiles.splice(500);
+    }
+    
+    // Check total size limit (500MB)
+    const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+    const maxTotalSize = 500 * 1024 * 1024; // 500MB
+    
+    if (totalSize > maxTotalSize) {
+        alert(`Total file size exceeds 500MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(1)}MB`);
+        // Remove files from the end until we're under the limit
+        while (validFiles.length > 0 && validFiles.reduce((sum, file) => sum + file.size, 0) > maxTotalSize) {
+            validFiles.pop();
+        }
     }
     
     if (errors.length > 0) {
