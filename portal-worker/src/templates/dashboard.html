@@ -4145,11 +4145,7 @@
             // Base sort options (always available)
             const baseOptions = [
                 { value: 'date-desc', text: 'Upload Date (Newest)' },
-                { value: 'date-asc', text: 'Upload Date (Oldest)' },
-                { value: 'name-asc', text: 'Name (A-Z)' },
-                { value: 'name-desc', text: 'Name (Z-A)' },
-                { value: 'type-asc', text: 'Category (A-Z)' },
-                { value: 'county-asc', text: 'County (A-Z)' }
+                { value: 'date-asc', text: 'Upload Date (Oldest)' }
             ];
             
             // Category-specific sort options
@@ -4276,14 +4272,6 @@
                         return new Date(b.upload_date) - new Date(a.upload_date);
                     case 'date-asc':
                         return new Date(a.upload_date) - new Date(b.upload_date);
-                    case 'name-asc':
-                        return (a.display_name || a.filename || '').localeCompare(b.display_name || b.filename || '');
-                    case 'name-desc':
-                        return (b.display_name || b.filename || '').localeCompare(a.display_name || a.filename || '');
-                    case 'type-asc':
-                        return (a.doc_type || '').localeCompare(b.doc_type || '');
-                    case 'county-asc':
-                        return (a.county || '').localeCompare(b.county || '');
                     case 'county-trs':
                         // Sort by county, then township, range, section
                         const countyCompare = (a.county || '').localeCompare(b.county || '');
