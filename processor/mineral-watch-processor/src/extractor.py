@@ -1168,65 +1168,16 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     
     # Step 3: Single document - we already know it's not "other"
     result = await extract_single_document(image_paths)
-        
-        # Check if this might be a missed multi-document bundle
-        if (len(image_paths) >= 30 and 
-            result.get("doc_type") in ["other", None] and
-            result.get("document_confidence", "medium") != "high"):
-            logger.warning(f"Large PDF ({len(image_paths)} pages) detected as single document of type '{result.get('doc_type')}'. May be a multi-document bundle.")
-            result["possible_multi_document"] = True
-            result["page_count"] = len(image_paths)
-        
-        return result
     
-    # Multiple documents - extract each one
-    documents = detection.get("documents", [])
-    document_count = detection.get("document_count", len(documents))
+    # Check if this might be a missed multi-document bundle
+    if (len(image_paths) >= 30 and 
+        result.get("doc_type") in ["other", None] and
+        result.get("document_confidence", "medium") != "high"):
+        logger.warning(f"Large PDF ({len(image_paths)} pages) detected as single document of type '{result.get('doc_type')}'. May be a multi-document bundle.")
+        result["possible_multi_document"] = True
+        result["page_count"] = len(image_paths)
     
-    # Filter out any summary notes from the documents list
-    actual_documents = [doc for doc in documents if "note" not in doc and "type" in doc]
-    
-    results = {
-        "is_multi_document": True,
-        "document_count": document_count,
-        "documents": []
-    }
-    
-    # If we have too many documents detected, we'll process as a bundle
-    if document_count > 10 and len(actual_documents) < document_count:
-        logger.warning(f"Detected {document_count} documents but only {len(actual_documents)} were detailed. Processing as multi-document bundle.")
-        # For now, still return multi-document indicator so it gets flagged properly
-        results["doc_type"] = "multi_document"
-        results["needs_manual_split"] = True
-        results["estimated_document_count"] = document_count
-        return results
-    
-    for doc in actual_documents:
-        if "type" not in doc or "start_page" not in doc:
-            logger.warning(f"Skipping invalid document entry: {doc}")
-            continue
-            
-        logger.info(f"Extracting {doc['type']} from pages {doc['start_page']}-{doc['end_page']}")
-        
-        doc_data = await extract_single_document(
-            image_paths, 
-            doc["start_page"], 
-            doc["end_page"]
-        )
-        
-        # Add document boundaries to extracted data
-        doc_data["_start_page"] = doc["start_page"]
-        doc_data["_end_page"] = doc["end_page"]
-        doc_data["_detection_confidence"] = doc.get("confidence", 0.5)
-        
-        results["documents"].append(doc_data)
-        
-        # Add delay between documents to avoid rate limits
-        if doc != documents[-1]:  # Not the last document
-            logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-            await asyncio.sleep(BATCH_DELAY_SECONDS)
-    
-    return results
+    return result
 
 
 def calculate_document_confidence(field_scores: dict, doc_type: str = None, extracted_data: dict = None) -> str:
