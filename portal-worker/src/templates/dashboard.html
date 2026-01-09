@@ -4334,7 +4334,7 @@
                 // Search filter
                 if (!documentsSearchTerm) return true;
                 
-                const searchStr = documentsSearchTerm.toLowerCase();
+                const searchStr = documentsSearchTerm;  // Already lowercase from input handler
                 
                 // Basic field search
                 const basicMatch = (
