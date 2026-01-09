@@ -6052,7 +6052,7 @@
             html += '</tr></thead><tbody>';
             
             displayDocuments.forEach(doc => {
-                const uploadDate = new Date(doc.upload_date).toLocaleDateString();
+                const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
                 const statusColor = doc.status === 'complete' ? 'var(--success)' : 
                                    doc.status === 'failed' ? 'var(--error)' : 
                                    '#F59E0B';

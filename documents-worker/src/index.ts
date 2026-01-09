@@ -251,7 +251,7 @@ export default {
           INSERT INTO documents (
             id, r2_key, filename, original_filename, user_id, organization_id, 
             file_size, status, upload_date, queued_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'))
         `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size).run();
 
         console.log('Document uploaded successfully:', docId);
@@ -346,7 +346,7 @@ export default {
               INSERT INTO documents (
                 id, r2_key, filename, original_filename, user_id, organization_id, 
                 file_size, status, upload_date, queued_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now'), datetime('now'))
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'))
             `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size).run();
 
             results.push({
@@ -656,7 +656,7 @@ export default {
         // Soft delete in database
         await env.WELLS_DB.prepare(`
           UPDATE documents 
-          SET deleted_at = datetime('now') 
+          SET deleted_at = datetime('now', '-6 hours') 
           WHERE id = ?
         `).bind(docId).run();
 
@@ -766,7 +766,7 @@ export default {
           await env.WELLS_DB.prepare(`
             UPDATE documents 
             SET status = 'processing',
-                extraction_started_at = datetime('now'),
+                extraction_started_at = datetime('now', '-6 hours'),
                 processing_attempts = processing_attempts + 1
             WHERE id IN (${placeholders})
           `).bind(...docIds).run();
@@ -796,7 +796,7 @@ export default {
         // Mark as extraction started
         await env.WELLS_DB.prepare(`
           UPDATE documents 
-          SET extraction_started_at = datetime('now')
+          SET extraction_started_at = datetime('now', '-6 hours')
           WHERE id = ? AND extraction_started_at IS NULL
         `).bind(docId).run();
 
@@ -927,7 +927,7 @@ export default {
           await env.WELLS_DB.prepare(`
             UPDATE documents 
             SET status = 'failed',
-                extraction_completed_at = datetime('now'),
+                extraction_completed_at = datetime('now', '-6 hours'),
                 extraction_error = ?
             WHERE id = ?
           `).bind(
@@ -976,7 +976,7 @@ export default {
                   needs_review = ?,
                   field_scores = ?,
                   fields_needing_review = ?,
-                  extraction_completed_at = datetime('now')
+                  extraction_completed_at = datetime('now', '-6 hours')
               WHERE id = ?
             `).bind(
               status || 'complete',
@@ -1092,7 +1092,7 @@ export default {
               upload_date, extraction_completed_at
             ) VALUES (
               ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-              datetime('now'), datetime('now')
+              datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
             childId,
@@ -1138,7 +1138,7 @@ export default {
         await env.WELLS_DB.prepare(`
           UPDATE documents 
           SET status = 'complete',
-              extraction_completed_at = datetime('now'),
+              extraction_completed_at = datetime('now', '-6 hours'),
               doc_type = 'multi_document',
               category = 'multi_document'
           WHERE id = ?
