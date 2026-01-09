@@ -1094,49 +1094,80 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     Returns:
         Combined extraction results
     """
-    # Step 1: Quick classification for single documents (before any expensive API calls)
-    # For documents with <= 10 pages, assume single document and check if it's "other"
-    if len(image_paths) <= 10:
-        classification = await quick_classify_document(image_paths[:3])  # Use first 3 pages for classification
+    # Step 1: Always do quick classification first (most efficient)
+    classification = await quick_classify_document(image_paths[:3])  # Use first 3 pages
+    
+    # If it's "other", skip ALL extraction and detection
+    if classification.get("doc_type") == "other":
+        logger.info(f"Document classified as 'other', skipping all extraction and detection")
+        return {
+            "doc_type": "other",
+            "category": "other", 
+            "document_confidence": classification.get("confidence", "high"),
+            "classification_model": CONFIG.CLAUDE_MODEL,
+            "classification_scores": classification.get("scores", {}),
+            "page_count": len(image_paths),
+            "skip_extraction": True,
+            "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
+        }
+    
+    # Step 2: For larger documents (>10 pages), check if multi-document
+    # This is worth doing since we know it's a mineral rights document type
+    if len(image_paths) > 10:
+        detection = await detect_documents(image_paths)
         
-        # If it's "other", skip all extraction
-        if classification.get("doc_type") == "other":
-            logger.info(f"Document classified as 'other', skipping all extraction and detection")
-            return {
-                "doc_type": "other",
-                "category": "other", 
-                "document_confidence": classification.get("confidence", "high"),
-                "classification_model": CONFIG.CLAUDE_MODEL,
-                "classification_scores": classification.get("scores", {}),
-                "page_count": len(image_paths),
-                "skip_extraction": True,
-                "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
-            }
-    
-    # Step 2: Detect if multi-document (only if not already classified as "other")
-    detection = await detect_documents(image_paths)
-    
-    if not detection.get("is_multi_document", False):
-        # Single document - check classification again if we haven't already
-        if len(image_paths) > 10:  # We didn't check earlier
-            classification = await quick_classify_document(image_paths[:3])
+        if detection.get("is_multi_document", False):
+            # Handle multi-document flow
+            documents = detection.get("documents", [])
+            document_count = detection.get("document_count", len(documents))
             
-            # If it's "other", skip full extraction
-            if classification.get("doc_type") == "other":
-                logger.info(f"Document classified as 'other', skipping full extraction")
-                return {
-                    "doc_type": "other",
-                    "category": "other", 
-                    "document_confidence": classification.get("confidence", "high"),
-                    "classification_model": CONFIG.CLAUDE_MODEL,
-                    "classification_scores": classification.get("scores", {}),
-                    "page_count": len(image_paths),
-                    "skip_extraction": True,
-                    "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
-                }
-        
-        # Not "other" - proceed with full extraction
-        result = await extract_single_document(image_paths)
+            # Filter out any summary notes from the documents list
+            actual_documents = [doc for doc in documents if "note" not in doc and "type" in doc]
+            
+            results = {
+                "is_multi_document": True,
+                "document_count": document_count,
+                "documents": []
+            }
+            
+            # If we have too many documents detected, we'll process as a bundle
+            if document_count > 10 and len(actual_documents) < document_count:
+                logger.warning(f"Detected {document_count} documents but only {len(actual_documents)} were detailed. Processing as multi-document bundle.")
+                results["doc_type"] = "multi_document"
+                results["needs_manual_split"] = True
+                results["estimated_document_count"] = document_count
+                return results
+            
+            # Extract each document
+            for doc in actual_documents:
+                if "type" not in doc or "start_page" not in doc:
+                    logger.warning(f"Skipping invalid document entry: {doc}")
+                    continue
+                    
+                logger.info(f"Extracting {doc['type']} from pages {doc['start_page']}-{doc['end_page']}")
+                
+                doc_data = await extract_single_document(
+                    image_paths, 
+                    doc["start_page"], 
+                    doc["end_page"]
+                )
+                
+                # Add document boundaries to extracted data
+                doc_data["_start_page"] = doc["start_page"]
+                doc_data["_end_page"] = doc["end_page"]
+                doc_data["_detection_confidence"] = doc.get("confidence", 0.5)
+                
+                results["documents"].append(doc_data)
+                
+                # Add delay between documents to avoid rate limits
+                if doc != actual_documents[-1]:  # Not the last document
+                    logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+                    await asyncio.sleep(BATCH_DELAY_SECONDS)
+            
+            return results
+    
+    # Step 3: Single document - we already know it's not "other"
+    result = await extract_single_document(image_paths)
         
         # Check if this might be a missed multi-document bundle
         if (len(image_paths) >= 30 and 
