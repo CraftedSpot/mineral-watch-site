@@ -114,12 +114,12 @@ Your task is to extract key information and provide a confidence score (0.0-1.0)
 
 IMPORTANT: Structure your response as follows:
 1. FIRST: The JSON object with extracted data
-2. THEN: After the JSON, add a section labeled "OBSERVATIONS:" with ONLY:
-   - Unusual or non-standard clauses
-   - Important warnings or red flags
-   - Notable exceptions or special conditions
-   - Key business terms that don't fit in standard fields
-   - DO NOT repeat information already captured in the extracted fields
+2. THEN: After the JSON, add a section labeled "OBSERVATIONS:" with:
+   - A short paragraph (3-5 sentences) summarizing the document in plain English
+   - Focus on what makes this document significant or noteworthy
+   - Highlight key business implications or unusual aspects
+   - Write for someone who wants a quick understanding without reading the full document
+   - DO NOT list specific data already extracted (formations, book/page, dates, etc.)
 
 Document Types:
 1. Division Order - Payment distribution instructions for royalty owners
@@ -576,18 +576,17 @@ Confidence levels based on overall document quality:
 - "low": Significant uncertainty, needs manual review (avg < 0.70)
 
 REMEMBER FOR OBSERVATIONS:
-- Keep observations BRIEF and FOCUSED
-- Only mention truly unusual or important findings
-- DO NOT summarize the document or repeat extracted data
+- Write a short paragraph that helps someone quickly understand the document
+- Use plain English, avoid technical jargon
+- Focus on significance and business implications
 - Examples of good observations:
-  - "Contains non-standard depth limitation clause"
-  - "Includes unusual 90-day cure period instead of standard 30"
-  - "References prior litigation in Case No. XX-XXXX"
-  - "Contains handwritten amendments not properly initialed"
-- Examples of unnecessary observations:
-  - "This is a standard mineral deed" (too generic)
-  - "Well produced 186.9 BBL/day" (already in extracted data)
-  - "Document was recorded in 2019" (already extracted)
+  - "This completion report documents a successful horizontal well with strong initial production results. The well appears to be a high-quality producer based on the oil gravity and gas-oil ratio. The extensive fracturing treatment suggests this was a significant investment, typical of modern horizontal drilling operations in this area."
+  - "This mineral deed transfers mineral rights with the grantor retaining an overriding royalty interest, which is somewhat unusual. The deed includes depth limitations that could affect future development. This appears to be part of a larger transaction given the substantial consideration amount."
+  - "This division order establishes payment instructions for a producing gas well with complex ownership. Multiple small decimal interests suggest the minerals have been divided through inheritance or multiple sales over time. The operator will need to carefully manage these numerous small payments."
+- What to avoid:
+  - Data dumps: "The well was drilled to 20,783 feet with 13.375 inch surface casing..."
+  - Too generic: "This is a standard document"
+  - Technical lists: "Formations penetrated include Big Lime, Verdigris, Inola..."
 """
 
 
