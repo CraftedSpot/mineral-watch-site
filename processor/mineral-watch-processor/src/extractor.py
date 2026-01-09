@@ -112,7 +112,9 @@ Valid document types:
 EXTRACTION_PROMPT = """You are a specialized document processor for Oklahoma mineral rights documents.
 Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
 
-IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text before or after the JSON.
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add a section labeled "OBSERVATIONS:" with any notable findings, unusual clauses, or important details about the document
 
 Document Types:
 1. Division Order - Payment distribution instructions for royalty owners
@@ -856,6 +858,23 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         
         try:
             extracted_data = json.loads(json_str.strip())
+            
+            # Look for observations section after the JSON
+            observations = None
+            if "OBSERVATIONS:" in response_text:
+                obs_start = response_text.find("OBSERVATIONS:")
+                if obs_start != -1:
+                    observations = response_text[obs_start + 13:].strip()
+                    # Clean up any markdown formatting
+                    if observations.startswith("```"):
+                        observations = observations[3:].strip()
+                    if observations.endswith("```"):
+                        observations = observations[:-3].strip()
+                    
+                    # Add observations to the extracted data
+                    if observations:
+                        extracted_data["ai_observations"] = observations
+            
             return extracted_data
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse extraction response: {e}")
