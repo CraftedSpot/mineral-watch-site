@@ -697,17 +697,45 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     
     if not detection.get("is_multi_document", False):
         # Single document - extract it
-        return await extract_single_document(image_paths)
+        result = await extract_single_document(image_paths)
+        
+        # Check if this might be a missed multi-document bundle
+        if (len(image_paths) >= 30 and 
+            result.get("doc_type") in ["other", None] and
+            result.get("document_confidence", "medium") != "high"):
+            logger.warning(f"Large PDF ({len(image_paths)} pages) detected as single document of type '{result.get('doc_type')}'. May be a multi-document bundle.")
+            result["possible_multi_document"] = True
+            result["page_count"] = len(image_paths)
+        
+        return result
     
     # Multiple documents - extract each one
     documents = detection.get("documents", [])
+    document_count = detection.get("document_count", len(documents))
+    
+    # Filter out any summary notes from the documents list
+    actual_documents = [doc for doc in documents if "note" not in doc and "type" in doc]
+    
     results = {
         "is_multi_document": True,
-        "document_count": len(documents),
+        "document_count": document_count,
         "documents": []
     }
     
-    for doc in documents:
+    # If we have too many documents detected, we'll process as a bundle
+    if document_count > 10 and len(actual_documents) < document_count:
+        logger.warning(f"Detected {document_count} documents but only {len(actual_documents)} were detailed. Processing as multi-document bundle.")
+        # For now, still return multi-document indicator so it gets flagged properly
+        results["doc_type"] = "multi_document"
+        results["needs_manual_split"] = True
+        results["estimated_document_count"] = document_count
+        return results
+    
+    for doc in actual_documents:
+        if "type" not in doc or "start_page" not in doc:
+            logger.warning(f"Skipping invalid document entry: {doc}")
+            continue
+            
         logger.info(f"Extracting {doc['type']} from pages {doc['start_page']}-{doc['end_page']}")
         
         doc_data = await extract_single_document(
