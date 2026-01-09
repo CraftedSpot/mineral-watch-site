@@ -1082,16 +1082,37 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     return results
 
 
-def calculate_document_confidence(field_scores: dict, doc_type: str = None) -> str:
-    """Calculate overall document confidence based on field scores."""
+def calculate_document_confidence(field_scores: dict, doc_type: str = None, extracted_data: dict = None) -> str:
+    """Calculate overall document confidence based on field scores.
+    
+    Only considers fields that were actually extracted (not missing fields).
+    """
     if not field_scores:
         return "low"
     
-    scores = [v for v in field_scores.values() if isinstance(v, (int, float))]
-    if not scores:
+    # Only include scores for fields that were actually found in the document
+    relevant_scores = []
+    
+    if extracted_data:
+        # Include scores for fields that have non-null values in extracted_data
+        for field, score in field_scores.items():
+            if isinstance(score, (int, float)):
+                # Check if this field was actually extracted (not null/empty)
+                field_value = extracted_data.get(field)
+                
+                # Skip fields that are null, None, empty string, or 0 confidence
+                if field_value is not None and field_value != "" and field_value != "null":
+                    relevant_scores.append(score)
+                elif score > 0:  # Include fields with confidence > 0 even if not found
+                    relevant_scores.append(score)
+    else:
+        # Fallback: only include non-zero scores
+        relevant_scores = [v for v in field_scores.values() if isinstance(v, (int, float)) and v > 0]
+    
+    if not relevant_scores:
         return "low"
     
-    avg_score = sum(scores) / len(scores)
+    avg_score = sum(relevant_scores) / len(relevant_scores)
     
     if avg_score >= 0.85:
         return "high"
