@@ -98,49 +98,73 @@ async def process_document(client: APIClient, doc: dict) -> dict:
                 'child_count': len(extraction_result.get('documents', []))
             }
         
-        # 5. Generate smart name
-        display_name = generate_display_name(extraction_result)
-        logger.info(f"Generated display_name for {doc_id}: {display_name}")
-        
-        # 6. Determine status based on confidence
-        doc_confidence = extraction_result.get('document_confidence', 'medium')
-        if doc_confidence == 'low':
-            status = 'manual_review'
+        # Check if extraction was skipped (for "other" documents)
+        if extraction_result.get('skip_extraction'):
+            logger.info(f"Document {doc_id} classified as 'other', skipping extraction")
+            
+            # Minimal result for "other" documents
+            result = {
+                'status': 'complete',
+                'category': 'other',
+                'doc_type': 'other',
+                'display_name': original_filename,  # Use original filename
+                'confidence': extraction_result.get('document_confidence', 'high'),
+                'extracted_data': {
+                    'doc_type': 'other',
+                    'classification_model': extraction_result.get('classification_model'),
+                    'classification_scores': extraction_result.get('classification_scores', {}),
+                    'ai_observations': extraction_result.get('ai_observations'),
+                    'skip_extraction': True
+                },
+                'page_count': page_count,
+                'needs_review': False,
+                'extraction_error': None
+            }
         else:
-            status = 'complete'
-        
-        # 7. Build result payload
-        legal = extraction_result.get('legal_description', {})
-        
-        # Extract recording info for database columns
-        recording_book = extraction_result.get('recording_book')
-        recording_page = extraction_result.get('recording_page')
-        
-        # Try old format as fallback for backwards compatibility
-        if not recording_book or not recording_page:
-            recording_info = extraction_result.get('recording_info', {})
-            recording_book = recording_book or recording_info.get('book')
-            recording_page = recording_page or recording_info.get('page')
-        
-        result = {
-            'status': status,
-            'category': extraction_result.get('doc_type', 'other'),
-            'doc_type': extraction_result.get('doc_type'),
-            'display_name': display_name,
-            'confidence': doc_confidence,
-            'county': legal.get('county'),
-            'section': str(legal.get('section')) if legal.get('section') is not None else None,
-            'township': legal.get('township'),
-            'range': legal.get('range'),
-            'recording_book': recording_book,
-            'recording_page': recording_page,
-            'extracted_data': extraction_result,
-            'page_count': page_count,
-            'needs_review': status == 'manual_review',
-            'field_scores': extraction_result.get('field_scores'),
-            'fields_needing_review': extraction_result.get('fields_needing_review', []),
-            'extraction_error': None  # No error for successful extractions
-        }
+            # Normal extraction flow
+            # 5. Generate smart name
+            display_name = generate_display_name(extraction_result)
+            logger.info(f"Generated display_name for {doc_id}: {display_name}")
+            
+            # 6. Determine status based on confidence
+            doc_confidence = extraction_result.get('document_confidence', 'medium')
+            if doc_confidence == 'low':
+                status = 'manual_review'
+            else:
+                status = 'complete'
+            
+            # 7. Build result payload
+            legal = extraction_result.get('legal_description', {})
+            
+            # Extract recording info for database columns
+            recording_book = extraction_result.get('recording_book')
+            recording_page = extraction_result.get('recording_page')
+            
+            # Try old format as fallback for backwards compatibility
+            if not recording_book or not recording_page:
+                recording_info = extraction_result.get('recording_info', {})
+                recording_book = recording_book or recording_info.get('book')
+                recording_page = recording_page or recording_info.get('page')
+            
+            result = {
+                'status': status,
+                'category': extraction_result.get('doc_type', 'other'),
+                'doc_type': extraction_result.get('doc_type'),
+                'display_name': display_name,
+                'confidence': doc_confidence,
+                'county': legal.get('county'),
+                'section': str(legal.get('section')) if legal.get('section') is not None else None,
+                'township': legal.get('township'),
+                'range': legal.get('range'),
+                'recording_book': recording_book,
+                'recording_page': recording_page,
+                'extracted_data': extraction_result,
+                'page_count': page_count,
+                'needs_review': status == 'manual_review',
+                'field_scores': extraction_result.get('field_scores'),
+                'fields_needing_review': extraction_result.get('fields_needing_review', []),
+                'extraction_error': None  # No error for successful extractions
+            }
         
         # 8. Update database
         logger.info(f"Sending result to documents-worker: {json.dumps(result, indent=2)[:500]}...")
