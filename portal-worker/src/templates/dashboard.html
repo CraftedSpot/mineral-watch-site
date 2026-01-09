@@ -5092,30 +5092,102 @@
                     const data = JSON.parse(doc.extracted_data);
                     const fieldScores = data.field_scores || {};
                     
-                    // Add status info at the top
-                    content += '<div class="doc-detail-grid">';
-                    
-                    // Status field
-                    const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
-                                       doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
-                    const statusText = doc.status === 'complete' ? 'Complete' : 
-                                      doc.status === 'failed' ? 'Failed' : 'Processing';
-                    content += `
-                        <div class="doc-field">
-                            <label>Status</label>
-                            <div class="doc-value" style="color: ${statusColor}; font-weight: 600;">${statusText}</div>
-                        </div>`;
-                    
-                    // Document Type
-                    if (data.doc_type || doc.doc_type) {
+                    // Check if this is an "other" document with skip_extraction
+                    if (data.skip_extraction) {
+                        // Simplified display for "other" documents
+                        content += '<div class="doc-detail-grid">';
+                        
+                        // Status field
+                        const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
+                                           doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
+                        const statusText = doc.status === 'complete' ? 'Complete' : 
+                                          doc.status === 'failed' ? 'Failed' : 'Processing';
+                        content += `
+                            <div class="doc-field">
+                                <label>Status</label>
+                                <div class="doc-value" style="color: ${statusColor}; font-weight: 600;">${statusText}</div>
+                            </div>`;
+                        
+                        // Document Type
                         content += `
                             <div class="doc-field">
                                 <label>Document Type</label>
-                                <div class="doc-value">${formatDocType(data.category || data.doc_type || doc.category || doc.doc_type)}</div>
+                                <div class="doc-value">Other</div>
                             </div>`;
-                    }
-                    
-                    content += '</div>';
+                        
+                        // Upload date
+                        const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { 
+                            timeZone: 'America/Chicago',
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                        });
+                        content += `
+                            <div class="doc-field">
+                                <label>Uploaded</label>
+                                <div class="doc-value">${uploadDate}</div>
+                            </div>`;
+                        
+                        // Page count if available
+                        if (doc.page_count) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Page Count</label>
+                                    <div class="doc-value">${doc.page_count} page${doc.page_count > 1 ? 's' : ''}</div>
+                                </div>`;
+                        }
+                        
+                        content += '</div>';
+                        
+                        // AI Observations if available
+                        if (data.ai_observations) {
+                            content += '<div class="detail-section">';
+                            content += '<h4 class="detail-section-title">📋 Observations</h4>';
+                            const cleanedObs = data.ai_observations.trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
+                            content += `
+                                <div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                                    ${escapeHtml(cleanedObs)}
+                                </div>`;
+                            content += '</div>';
+                        }
+                        
+                        // Message about no extraction
+                        content += '<div class="detail-section" style="background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin-top: 20px;">';
+                        content += '<p style="margin: 0; color: #4B5563; font-size: 14px; line-height: 1.5;">This document was classified as "Other" and detailed field extraction was skipped. You can view the original PDF using the button below.</p>';
+                        content += '</div>';
+                        
+                        // User Notes - always show
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                        content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
+                        content += '</div>';
+                        
+                    } else {
+                        // Normal extraction flow
+                        // Add status info at the top
+                        content += '<div class="doc-detail-grid">';
+                        
+                        // Status field
+                        const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
+                                           doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
+                        const statusText = doc.status === 'complete' ? 'Complete' : 
+                                          doc.status === 'failed' ? 'Failed' : 'Processing';
+                        content += `
+                            <div class="doc-field">
+                                <label>Status</label>
+                                <div class="doc-value" style="color: ${statusColor}; font-weight: 600;">${statusText}</div>
+                            </div>`;
+                        
+                        // Document Type
+                        if (data.doc_type || doc.doc_type) {
+                            content += `
+                                <div class="doc-field">
+                                    <label>Document Type</label>
+                                    <div class="doc-value">${formatDocType(data.category || data.doc_type || doc.category || doc.doc_type)}</div>
+                                </div>`;
+                        }
+                        
+                        content += '</div>';
                     
                     // Add linked property/well section as collapsible
                     if (doc.property_id || doc.well_id) {
@@ -5259,6 +5331,7 @@
                     content += '<h4 class="detail-section-title">📝 Notes</h4>';
                     content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
                     content += '</div>';
+                    }
                     
                 } catch (e) {
                     console.error('Error parsing extracted data:', e);
