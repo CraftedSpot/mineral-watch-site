@@ -4142,7 +4142,7 @@
             const searchInput = document.getElementById('documentsSearch');
             searchInput.addEventListener('input', (e) => {
                 documentsSearchTerm = e.target.value.toLowerCase();
-                debounce(() => renderDocumentsList(loadedDocuments), 300)();
+                debounceSearch(() => renderDocumentsList(loadedDocuments), 300);
             });
             
             // Category filter
