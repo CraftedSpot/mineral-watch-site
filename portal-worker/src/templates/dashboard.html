@@ -3529,7 +3529,7 @@
                 if (!dateStr || dateStr === '—') return null;
                 try {
                     const date = new Date(dateStr);
-                    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit' });
+                    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: '2-digit', timeZone: 'America/Chicago' });
                 } catch {
                     return null;
                 }
@@ -3782,7 +3782,7 @@
                     else if (diffDays === 1) lastAlertText = 'Yesterday';
                     else if (diffDays < 7) lastAlertText = diffDays + ' days ago';
                     else if (diffDays < 30) lastAlertText = Math.floor(diffDays / 7) + ' weeks ago';
-                    else lastAlertText = date.toLocaleDateString();
+                    else lastAlertText = date.toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
                     
                     document.getElementById('statLastAlert').textContent = lastAlertText;
                 } else {
@@ -6414,7 +6414,7 @@
                 if (!dateStr) return null;
                 try {
                     const date = new Date(dateStr);
-                    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                    return date.toLocaleDateString('en-US', { year: 'numeric', month: '2-digit', day: '2-digit', timeZone: 'America/Chicago' });
                 } catch {
                     return null;
                 }
@@ -7206,7 +7206,7 @@
                     emptyEl.style.display = 'block';
                 } else {
                     listEl.innerHTML = data.documents.map(doc => {
-                        const uploadDate = doc.uploadDate ? new Date(doc.uploadDate).toLocaleDateString() : 'Unknown';
+                        const uploadDate = doc.uploadDate ? new Date(doc.uploadDate).toLocaleDateString('en-US', { timeZone: 'America/Chicago' }) : 'Unknown';
                         return `
                             <div class="linked-document-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
                                 <div style="flex: 1; cursor: pointer;" onclick="openDocumentDetail('${doc.id}')">
