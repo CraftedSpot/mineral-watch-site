@@ -1094,16 +1094,14 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     Returns:
         Combined extraction results
     """
-    # Step 1: Detect documents
-    detection = await detect_documents(image_paths)
-    
-    if not detection.get("is_multi_document", False):
-        # Single document - do quick classification first
+    # Step 1: Quick classification for single documents (before any expensive API calls)
+    # For documents with <= 10 pages, assume single document and check if it's "other"
+    if len(image_paths) <= 10:
         classification = await quick_classify_document(image_paths[:3])  # Use first 3 pages for classification
         
-        # If it's "other", skip full extraction
+        # If it's "other", skip all extraction
         if classification.get("doc_type") == "other":
-            logger.info(f"Document classified as 'other', skipping full extraction")
+            logger.info(f"Document classified as 'other', skipping all extraction and detection")
             return {
                 "doc_type": "other",
                 "category": "other", 
@@ -1114,6 +1112,28 @@ async def extract_document_data(image_paths: list[str]) -> dict:
                 "skip_extraction": True,
                 "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
             }
+    
+    # Step 2: Detect if multi-document (only if not already classified as "other")
+    detection = await detect_documents(image_paths)
+    
+    if not detection.get("is_multi_document", False):
+        # Single document - check classification again if we haven't already
+        if len(image_paths) > 10:  # We didn't check earlier
+            classification = await quick_classify_document(image_paths[:3])
+            
+            # If it's "other", skip full extraction
+            if classification.get("doc_type") == "other":
+                logger.info(f"Document classified as 'other', skipping full extraction")
+                return {
+                    "doc_type": "other",
+                    "category": "other", 
+                    "document_confidence": classification.get("confidence", "high"),
+                    "classification_model": CONFIG.CLAUDE_MODEL,
+                    "classification_scores": classification.get("scores", {}),
+                    "page_count": len(image_paths),
+                    "skip_extraction": True,
+                    "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
+                }
         
         # Not "other" - proceed with full extraction
         result = await extract_single_document(image_paths)
