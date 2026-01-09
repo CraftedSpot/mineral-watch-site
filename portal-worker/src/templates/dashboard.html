@@ -1771,6 +1771,12 @@
                             <option value="tax_records">Tax Records</option>
                             <option value="correspondence">Correspondence</option>
                             <option value="legal_documents">Legal Documents</option>
+                            <option value="check_stubs">Check Stubs / Royalty Statements</option>
+                            <option value="occ_orders">OCC Orders</option>
+                            <option value="suspense_notices">Suspense Notices</option>
+                            <option value="ownership_entity">Ownership/Entity</option>
+                            <option value="maps_plats">Maps/Plats</option>
+                            <option value="multi_document">Multi-Document PDFs</option>
                             <option value="other">Other</option>
                         </select>
                         <select id="documentsSort" class="sort-select">
@@ -4189,6 +4195,11 @@
                     { value: 'operator', text: 'Operator' },
                     { value: 'well-name', text: 'Well Name' }
                 ],
+                'well_completion_reports': [
+                    { value: 'completion-date', text: 'Completion Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'well-name', text: 'Well Name' }
+                ],
                 'production_reports': [
                     { value: 'production-date', text: 'Production Date' },
                     { value: 'oil-volume', text: 'Oil Volume' },
@@ -4198,6 +4209,35 @@
                     { value: 'effective-date', text: 'Effective Date' },
                     { value: 'operator', text: 'Operator' },
                     { value: 'interest-decimal', text: 'Interest Decimal' }
+                ],
+                'tax_records': [
+                    { value: 'tax-year', text: 'Tax Year' },
+                    { value: 'assessed-value', text: 'Assessed Value' }
+                ],
+                'check_stubs': [
+                    { value: 'payment-date', text: 'Payment Date' },
+                    { value: 'amount', text: 'Payment Amount' },
+                    { value: 'well', text: 'Well Name' }
+                ],
+                'occ_orders': [
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'order-type', text: 'Order Type' }
+                ],
+                'suspense_notices': [
+                    { value: 'notice-date', text: 'Notice Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'amount', text: 'Suspense Amount' }
+                ],
+                'ownership_entity': [
+                    { value: 'document-date', text: 'Document Date' },
+                    { value: 'entity-name', text: 'Entity Name' },
+                    { value: 'document-type', text: 'Document Type' }
+                ],
+                'maps_plats': [
+                    { value: 'map-date', text: 'Map Date' },
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'map-type', text: 'Map Type' }
                 ]
             };
             
@@ -4243,12 +4283,8 @@
                     let docCategory;
                     
                     if (doc.category) {
-                        // If category is already in plural form (e.g., "mineral_deeds"), use it directly
-                        // If it's singular (e.g., "mineral_deed"), convert to plural
+                        // Use category directly - backend should provide correct format
                         docCategory = doc.category;
-                        if (!docCategory.endsWith('s') && docCategory !== 'correspondence' && docCategory !== 'other') {
-                            docCategory = docCategory + 's';
-                        }
                     } else {
                         // Fallback: Map doc_type to category
                         const docTypeToCategory = {
@@ -4261,6 +4297,18 @@
                             'tax_record': 'tax_records',
                             'correspondence': 'correspondence',
                             'legal_document': 'legal_documents',
+                            'check_stub': 'check_stubs',
+                            'royalty_statement': 'check_stubs',
+                            'occ_order': 'occ_orders',
+                            'suspense_notice': 'suspense_notices',
+                            'ownership_entity': 'ownership_entity',
+                            'probate': 'ownership_entity',
+                            'heirship': 'ownership_entity',
+                            'trust': 'ownership_entity',
+                            'llc_docs': 'ownership_entity',
+                            'map': 'maps_plats',
+                            'plat': 'maps_plats',
+                            'multi_document': 'multi_document',
                             'other': 'other'
                         };
                         docCategory = docTypeToCategory[doc.doc_type] || 'other';

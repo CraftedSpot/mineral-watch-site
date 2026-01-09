@@ -86,15 +86,21 @@ For multiple documents:
 }
 
 Valid document types:
-- mineral_deed
+- division_order
+- mineral_deed (includes royalty deeds, assignments, quitclaims)
 - lease
 - drilling_permit
-- well_completion_report
-- production_report
-- division_order
-- tax_record
+- title_opinion
+- check_stub (royalty statements, payment stubs)
+- occ_order (pooling, spacing, increased density, location exception)
+- suspense_notice (Form 1081, escrow notices)
+- joa (Joint Operating Agreement)
+- ownership_entity (probate, heirship, trust docs, LLC docs)
+- legal_document (lawsuits, judgments, court orders)
 - correspondence
-- legal_document
+- tax_record (tax assessments, property tax records)
+- map (includes plats)
+- multi_document
 - other
 """
 
@@ -102,16 +108,22 @@ EXTRACTION_PROMPT = """You are a specialized document processor for Oklahoma min
 Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
 
 Document Types:
-1. Mineral Deed - Transfer of mineral rights ownership
-2. Lease - Grants drilling rights to operator
-3. Drilling Permit - OCC permit to drill a well
-4. Well Completion Report - Final drilling results submitted to OCC
-5. Production Report - Oil/gas production volumes and revenue
-6. Division Order - Payment distribution instructions
-7. Tax Record - Property tax assessments for minerals
-8. Correspondence - Letters, notices, or communications
-9. Legal Document - Court orders, probate, judgments
-10. Other - Any document not fitting above categories
+1. Division Order - Payment distribution instructions for royalty owners
+2. Mineral Deed - Transfer of mineral rights (includes royalty deeds, assignments, quitclaims)
+3. Lease - Oil & gas lease granting drilling rights to operator
+4. Drilling Permit - OCC drilling permits, completion reports, well permits
+5. Title Opinion - Attorney's opinion on mineral ownership
+6. Check Stub / Royalty Statement - Payment documents showing production revenue
+7. OCC Order - Oklahoma Corporation Commission orders (pooling, spacing, increased density, location exception)
+8. Suspense Notice - Form 1081, escrow notices for unlocated owners
+9. JOA - Joint Operating Agreement between working interest owners
+10. Ownership/Entity - Probate docs, heirship affidavits, trust agreements, LLC operating agreements
+11. Legal Document - Lawsuits, judgments, court orders, legal proceedings
+12. Correspondence - Letters, notices, general communications
+13. Tax Record - Tax assessments, property tax records, tax bills
+14. Map/Plat - Survey maps, plat maps, unit maps
+15. Multi-Document PDF - Multiple documents in one PDF file
+16. Other - Any document not fitting above categories
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
@@ -119,7 +131,7 @@ For EACH field you extract:
 3. For names, always check for middle initials/names
 
 CRITICAL EXTRACTION RULES:
-1. ALWAYS use the doc_type field to specify one of the 10 types above
+1. ALWAYS use the doc_type field to specify one of the types above
 2. Extract ALL names mentioned (grantor, grantee, lessor, lessee, etc.)
 3. For deeds: grantor = seller, grantee = buyer
 4. For leases: lessor = mineral owner, lessee = oil company
@@ -129,6 +141,24 @@ CRITICAL EXTRACTION RULES:
 8. Extract any API numbers for wells
 9. Look for any amendment or correction references
 10. Always format dates as "YYYY-MM-DD" if possible
+
+DOCUMENT RECOGNITION RULES:
+- Check Stubs: Look for payment amounts, decimal interest, deductions, well/property ID, pay period, "payment advice", "royalty payment"
+- OCC Orders: Look for cause numbers (CD-XXXXXX, PUD-XXXXXX), order captions, Form numbers, "Corporation Commission", "ORDER NO."
+- Drilling Permits: Look for "drilling permit", "Intent to Drill", "Form 1000", "completion report", "well permit", API numbers
+- Suspense Notices: Look for Form 1081, "escrow", "suspense", "unlocated owner", "held in suspense"
+- Ownership/Entity: Look for "trust agreement", "LLC operating agreement", "probate", "letters testamentary", "affidavit of heirship", "death certificate"
+- Legal Documents: Look for "lawsuit", "judgment", "court order", case numbers, "plaintiff", "defendant", court names
+- Title Opinion: Look for "TITLE OPINION", attorney name/signature, "examining attorney", ownership chain analysis
+- JOA: Look for "JOINT OPERATING AGREEMENT", "working interest", "operator", participation percentages
+- Tax Records: Look for "tax assessment", "property tax", "tax bill", "assessed value", tax year
+- Maps/Plats: Visual documents with survey lines, section/township/range grid, well locations, unit boundaries
+
+For Mineral Deeds, note the sub-type if identifiable:
+- Royalty Deed: Specifically mentions royalty interest
+- Mineral Assignment: Uses "assign" language
+- Quitclaim Deed: Uses "quitclaim" language
+- Warranty Deed: Includes warranty language
 
 Return your response as a JSON object with this exact structure:
 
