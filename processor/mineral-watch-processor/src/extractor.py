@@ -692,6 +692,80 @@ async def process_image_batch(images: list[tuple[int, str]], batch_description: 
     return content
 
 
+async def quick_classify_document(image_paths: list[str]) -> dict:
+    """
+    Quick classification to determine if document is "other" type.
+    Uses fewer pages and simpler prompt for efficiency.
+    
+    Args:
+        image_paths: List of paths to first few page images
+    
+    Returns:
+        Classification result with doc_type and confidence
+    """
+    logger.info(f"Quick classification using {len(image_paths)} pages")
+    
+    # Build message content
+    content = [{
+        "type": "text", 
+        "text": """Quickly classify this document. Is this an Oklahoma mineral rights-related document?
+
+Return ONLY a JSON object with:
+{
+  "doc_type": "mineral_deed|lease|division_order|... or other",
+  "confidence": "high|medium|low",
+  "reasoning": "Brief explanation"
+}
+
+If the document is NOT clearly one of these types, return "other":
+- mineral_deed, royalty_deed, lease, division_order, assignment
+- pooling_order, spacing_order, drilling_permit, title_opinion
+- check_stub, occ_order, suspense_notice, joa
+- ownership_entity, legal_document, correspondence
+- tax_record, map
+
+Examples of "other" documents:
+- General business contracts
+- Personal letters
+- Medical records
+- Financial statements (non-oil/gas)
+- Government forms (non-mineral rights)
+- Educational documents
+"""
+    }]
+    
+    # Add images
+    for path in image_paths[:3]:  # Max 3 pages for quick classification
+        try:
+            with open(path, 'rb') as img:
+                img_data = base64.b64encode(img.read()).decode()
+                content.append({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": "image/png",
+                        "data": img_data
+                    }
+                })
+        except Exception as e:
+            logger.error(f"Failed to read image {path}: {e}")
+    
+    try:
+        response = client.messages.create(
+            model=CONFIG.CLAUDE_MODEL,
+            max_tokens=512,
+            messages=[{"role": "user", "content": content}]
+        )
+        
+        result = json.loads(response.content[0].text)
+        logger.info(f"Quick classification result: {result}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Quick classification failed: {e}")
+        return {"doc_type": "other", "confidence": "low", "reasoning": "Classification failed"}
+
+
 async def detect_documents(image_paths: list[str]) -> dict:
     """
     Detect if PDF contains multiple documents and identify boundaries.
@@ -1024,7 +1098,24 @@ async def extract_document_data(image_paths: list[str]) -> dict:
     detection = await detect_documents(image_paths)
     
     if not detection.get("is_multi_document", False):
-        # Single document - extract it
+        # Single document - do quick classification first
+        classification = await quick_classify_document(image_paths[:3])  # Use first 3 pages for classification
+        
+        # If it's "other", skip full extraction
+        if classification.get("doc_type") == "other":
+            logger.info(f"Document classified as 'other', skipping full extraction")
+            return {
+                "doc_type": "other",
+                "category": "other", 
+                "document_confidence": classification.get("confidence", "high"),
+                "classification_model": CONFIG.CLAUDE_MODEL,
+                "classification_scores": classification.get("scores", {}),
+                "page_count": len(image_paths),
+                "skip_extraction": True,
+                "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
+            }
+        
+        # Not "other" - proceed with full extraction
         result = await extract_single_document(image_paths)
         
         # Check if this might be a missed multi-document bundle
