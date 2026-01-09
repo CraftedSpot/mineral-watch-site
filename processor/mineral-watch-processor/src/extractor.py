@@ -575,6 +575,11 @@ Confidence levels based on overall document quality:
 - "medium": Some uncertainty in extracted data (avg 0.70-0.85)  
 - "low": Significant uncertainty, needs manual review (avg < 0.70)
 
+IMPORTANT: Only calculate average confidence based on fields that actually exist in the document.
+Do NOT penalize confidence for missing fields (e.g., recording info on unrecorded deeds, 
+middle names that don't exist, etc.). If a field is not present in the document, 
+exclude it from the confidence calculation entirely.
+
 REMEMBER FOR OBSERVATIONS:
 - Write a short paragraph that helps someone quickly understand the document
 - Use plain English, avoid technical jargon

@@ -4947,22 +4947,19 @@
         function calculateOverallScore(fieldScores) {
             if (!fieldScores || Object.keys(fieldScores).length === 0) return null;
             
-            // Critical fields that drive the overall score
-            const criticalFields = [
-                'grantor_name', 'grantee_name', 'interest_conveyed',
-                'legal_section', 'legal_township', 'legal_range', 'legal_county'
-            ];
-            
+            // Only include fields that actually exist in the document
+            // (score > 0 means the field was found and extracted)
             const scores = [];
-            criticalFields.forEach(field => {
-                if (fieldScores[field] !== null && fieldScores[field] !== undefined) {
-                    scores.push(fieldScores[field]);
+            
+            for (const [field, score] of Object.entries(fieldScores)) {
+                if (typeof score === 'number' && score > 0) {
+                    scores.push(score);
                 }
-            });
+            }
             
             if (scores.length === 0) return null;
             
-            // Calculate average of critical fields
+            // Calculate average of only the fields that exist
             const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
             return avg;
         }
