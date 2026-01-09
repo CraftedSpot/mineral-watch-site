@@ -23,25 +23,25 @@ INITIAL_RETRY_DELAY = 60
 
 DETECTION_PROMPT = """You are analyzing a PDF that may contain one or more mineral rights documents.
 
-Your task is to quickly identify:
-1. How many separate legal documents are in this PDF
-2. The page boundaries for each document
-3. The document type for each
+Your task is to identify EVERY separate legal document in this PDF.
 
-Look for clear indicators of separate documents:
-- New cover pages or title headers
-- Recording stamps/information changing
-- Different parties/properties
-- Signature pages followed by new documents
+CRITICAL: Each recorded document is a SEPARATE document, even if they appear similar.
+Look for these indicators that signal a NEW document:
+- Recording stamps with different book/page numbers (even sequential pages like 57, 58, 59)
+- Different instrument or document numbers
+- Different recording dates or times
+- Signature pages followed by new content
+- New cover pages or headers
+- Changes in parties, even if subtle
 
-IMPORTANT: Each document with a unique recording reference should be identified 
-as a SEPARATE document. This includes:
-- Different book/page numbers (e.g., Book 350 Page 57 vs Book 350 Page 56)
-- Different instrument/document numbers
-- Different recording dates
+COMMON PATTERN: A bundle of similar mineral deeds recorded sequentially
+- Example: 40 deeds from same grantor, each recorded on different book/page
+- Each deed with its own recording info is a SEPARATE document
+- Do NOT group them as one document just because they're similar
 
-Even if parties, property, and execution dates are similar, separate recorded 
-instruments must be tracked as separate documents for title chain purposes.
+IMPORTANT: If you see many similar documents (like multiple mineral deeds),
+report them as SEPARATE documents if they have different recording references.
+This is critical for maintaining proper title chain records.
 
 Return ONLY valid JSON in this format:
 
@@ -59,31 +59,36 @@ For single document:
   ]
 }
 
-For multiple documents:
+For multiple documents (including bundles of similar documents):
 {
   "is_multi_document": true,
-  "document_count": 3,
+  "document_count": 40,
   "documents": [
     {
       "type": "mineral_deed",
       "start_page": 1,
-      "end_page": 4,
+      "end_page": 1,
       "confidence": 0.90
     },
     {
-      "type": "division_order",
-      "start_page": 5,
-      "end_page": 6,
-      "confidence": 0.85
+      "type": "mineral_deed",
+      "start_page": 2,
+      "end_page": 2,
+      "confidence": 0.90
     },
-    {
-      "type": "lease",
-      "start_page": 7,
-      "end_page": 12,
-      "confidence": 0.95
-    }
+    // ... continue for all documents ...
   ]
 }
+
+IMPORTANT: 
+- If you detect MANY similar documents (e.g., 20+ mineral deeds), still return is_multi_document: true
+- You don't need to list every single document if there are too many
+- If there are more than 10 documents, you can summarize with a note like:
+  "documents": [
+    {"type": "mineral_deed", "start_page": 1, "end_page": 1, "confidence": 0.90},
+    {"type": "mineral_deed", "start_page": 2, "end_page": 2, "confidence": 0.90},
+    {"note": "... and 38 more similar mineral_deed documents through page 40"}
+  ]
 
 Valid document types:
 - division_order
@@ -413,22 +418,49 @@ async def detect_documents(image_paths: list[str]) -> dict:
     
     # For detection, we'll sample pages if there are too many
     if len(image_paths) > 20:
-        # Sample strategy: First 5, last 5, and evenly spaced middle pages
+        # Enhanced sampling for better document boundary detection
         sample_indices = []
-        sample_indices.extend(range(5))  # First 5 pages
-        sample_indices.extend(range(len(image_paths) - 5, len(image_paths)))  # Last 5 pages
         
-        # Add evenly spaced middle pages (up to 10 more)
-        middle_start = 5
-        middle_end = len(image_paths) - 5
-        if middle_end > middle_start:
-            step = max(1, (middle_end - middle_start) // 10)
-            sample_indices.extend(range(middle_start, middle_end, step))
+        # For very large documents (30+ pages), assume possible multi-doc
+        if len(image_paths) >= 30:
+            # Sample more aggressively to catch document boundaries
+            # First 3 pages
+            sample_indices.extend(range(min(3, len(image_paths))))
+            
+            # Then every 2-3 pages to catch document boundaries
+            step = 2 if len(image_paths) < 50 else 3
+            sample_indices.extend(range(3, len(image_paths), step))
+            
+            # Ensure we don't exceed our limit
+            if len(sample_indices) > 25:
+                # Keep first, last, and evenly distributed
+                total_samples = 25
+                new_indices = [0]  # Always include first page
+                step = (len(image_paths) - 1) / (total_samples - 1)
+                for i in range(1, total_samples - 1):
+                    new_indices.append(int(i * step))
+                new_indices.append(len(image_paths) - 1)  # Always include last page
+                sample_indices = new_indices
+        else:
+            # Original strategy for smaller documents
+            sample_indices.extend(range(5))  # First 5 pages
+            sample_indices.extend(range(len(image_paths) - 5, len(image_paths)))  # Last 5 pages
+            
+            # Add evenly spaced middle pages (up to 10 more)
+            middle_start = 5
+            middle_end = len(image_paths) - 5
+            if middle_end > middle_start:
+                step = max(1, (middle_end - middle_start) // 10)
+                sample_indices.extend(range(middle_start, middle_end, step))
         
         # Remove duplicates and sort
         sample_indices = sorted(list(set(sample_indices)))
         
-        logger.info(f"Sampling {len(sample_indices)} pages for detection: {sample_indices}")
+        logger.info(f"Sampling {len(sample_indices)} pages for detection from {len(image_paths)} total pages")
+        
+        # Add warning for large documents
+        if len(image_paths) >= 30:
+            logger.warning(f"Large document with {len(image_paths)} pages - possible multi-document bundle")
         
         # Build content with sampled pages
         sampled_images = [(i + 1, image_paths[i]) for i in sample_indices]
@@ -454,6 +486,7 @@ async def detect_documents(image_paths: list[str]) -> dict:
         "type": "text",
         "text": f"NOTE: This PDF has {len(image_paths)} total pages. " + 
                 ("I'm showing you a sample of pages. " if len(image_paths) > 20 else "") +
+                (f"Large PDFs ({len(image_paths)} pages) often contain multiple documents bundled together. " if len(image_paths) >= 30 else "") +
                 "Please identify all documents and their page boundaries based on what you can see.\n\n" +
                 DETECTION_PROMPT
     })
