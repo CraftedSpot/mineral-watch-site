@@ -112,6 +112,8 @@ Valid document types:
 EXTRACTION_PROMPT = """You are a specialized document processor for Oklahoma mineral rights documents.
 Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
 
+IMPORTANT: Return ONLY the JSON object. Do not include any explanatory text before or after the JSON.
+
 Document Types:
 1. Division Order - Payment distribution instructions for royalty owners
 2. Mineral Deed - Transfer of mineral rights (includes royalty deeds, assignments, quitclaims)
@@ -836,10 +838,21 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         
         # Extract JSON from response
         json_str = response_text.strip()
-        if json_str.startswith("```json"):
-            json_str = json_str[7:]
-        if json_str.endswith("```"):
-            json_str = json_str[:-3]
+        
+        # Try to find JSON in the response
+        # First, check if it's wrapped in ```json blocks
+        if "```json" in json_str:
+            start = json_str.find("```json") + 7
+            end = json_str.find("```", start)
+            if end != -1:
+                json_str = json_str[start:end].strip()
+        # Otherwise, look for the first { and last }
+        elif "{" in json_str and "}" in json_str:
+            # Find the first { and last } to extract just the JSON
+            start = json_str.find("{")
+            end = json_str.rfind("}") + 1
+            if start != -1 and end != 0:
+                json_str = json_str[start:end]
         
         try:
             extracted_data = json.loads(json_str.strip())
@@ -905,10 +918,21 @@ If these pages don't contain significant new information, return: {{"additional_
         # Parse response
         response_text = response.content[0].text
         json_str = response_text.strip()
-        if json_str.startswith("```json"):
-            json_str = json_str[7:]
-        if json_str.endswith("```"):
-            json_str = json_str[:-3]
+        
+        # Try to find JSON in the response
+        # First, check if it's wrapped in ```json blocks
+        if "```json" in json_str:
+            start = json_str.find("```json") + 7
+            end = json_str.find("```", start)
+            if end != -1:
+                json_str = json_str[start:end].strip()
+        # Otherwise, look for the first { and last }
+        elif "{" in json_str and "}" in json_str:
+            # Find the first { and last } to extract just the JSON
+            start = json_str.find("{")
+            end = json_str.rfind("}") + 1
+            if start != -1 and end != 0:
+                json_str = json_str[start:end]
         
         try:
             batch_data = json.loads(json_str.strip())
