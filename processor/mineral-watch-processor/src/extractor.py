@@ -114,7 +114,12 @@ Your task is to extract key information and provide a confidence score (0.0-1.0)
 
 IMPORTANT: Structure your response as follows:
 1. FIRST: The JSON object with extracted data
-2. THEN: After the JSON, add a section labeled "OBSERVATIONS:" with any notable findings, unusual clauses, or important details about the document
+2. THEN: After the JSON, add a section labeled "OBSERVATIONS:" with ONLY:
+   - Unusual or non-standard clauses
+   - Important warnings or red flags
+   - Notable exceptions or special conditions
+   - Key business terms that don't fit in standard fields
+   - DO NOT repeat information already captured in the extracted fields
 
 Document Types:
 1. Division Order - Payment distribution instructions for royalty owners
@@ -569,6 +574,20 @@ Confidence levels based on overall document quality:
 - "high": Most fields extracted with high confidence (avg > 0.85)
 - "medium": Some uncertainty in extracted data (avg 0.70-0.85)  
 - "low": Significant uncertainty, needs manual review (avg < 0.70)
+
+REMEMBER FOR OBSERVATIONS:
+- Keep observations BRIEF and FOCUSED
+- Only mention truly unusual or important findings
+- DO NOT summarize the document or repeat extracted data
+- Examples of good observations:
+  - "Contains non-standard depth limitation clause"
+  - "Includes unusual 90-day cure period instead of standard 30"
+  - "References prior litigation in Case No. XX-XXXX"
+  - "Contains handwritten amendments not properly initialed"
+- Examples of unnecessary observations:
+  - "This is a standard mineral deed" (too generic)
+  - "Well produced 186.9 BBL/day" (already in extracted data)
+  - "Document was recorded in 2019" (already extracted)
 """
 
 
