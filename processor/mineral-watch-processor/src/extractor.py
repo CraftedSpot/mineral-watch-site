@@ -299,6 +299,268 @@ For DIVISION ORDERS:
   "document_confidence": "high"
 }
 
+For TITLE OPINIONS:
+{
+  "doc_type": "title_opinion",
+  "examining_attorney": "Johnson & Smith Law Firm",
+  "client_name": "XYZ Oil Company",
+  "effective_date": "2023-03-15",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "ownership_summary": "John Smith owns 50% mineral interest...",
+  "title_requirements": ["Probate of Jane Doe Estate", "Release of mortgage"],
+  "field_scores": {
+    "examining_attorney": 0.95,
+    "client_name": 0.90,
+    "effective_date": 1.0,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "ownership_summary": 0.85,
+    "title_requirements": 0.80
+  },
+  "document_confidence": "high"
+}
+
+For CHECK STUBS / ROYALTY STATEMENTS:
+{
+  "doc_type": "check_stub",
+  "owner_name": "John A. Smith",
+  "operator_name": "Continental Resources",
+  "well_name": "Smith 1-16H",
+  "check_date": "2024-01-15",
+  "production_month": "12",
+  "production_year": "2023",
+  "gross_revenue": "$2,500.00",
+  "net_revenue": "$2,125.00",
+  "decimal_interest": 0.00390625,
+  "api_number": "35-051-12345",
+  "field_scores": {
+    "owner_name": 1.0,
+    "operator_name": 1.0,
+    "well_name": 0.95,
+    "check_date": 1.0,
+    "production_month": 1.0,
+    "production_year": 1.0,
+    "gross_revenue": 1.0,
+    "net_revenue": 1.0,
+    "decimal_interest": 0.95,
+    "api_number": 0.90
+  },
+  "document_confidence": "high"
+}
+
+For OCC ORDERS (Pooling, Spacing, etc.):
+{
+  "doc_type": "occ_order",
+  "cause_number": "CD 2023-001234",
+  "order_type": "pooling",
+  "order_date": "2023-03-15",
+  "applicant": "XYZ Oil Company",
+  "legal_description": {
+    "section": "16",
+    "township": "12N", 
+    "range": "7W",
+    "county": "Grady"
+  },
+  "unit_size": "640 acres",
+  "effective_date": "2023-04-01",
+  "field_scores": {
+    "cause_number": 1.0,
+    "order_type": 0.95,
+    "order_date": 1.0,
+    "applicant": 0.95,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "unit_size": 0.95,
+    "effective_date": 0.90
+  },
+  "document_confidence": "high"
+}
+
+For SUSPENSE NOTICES:
+{
+  "doc_type": "suspense_notice",
+  "owner_name": "John A. Smith",
+  "operator_name": "Devon Energy",
+  "well_name": "Smith 1-16H",
+  "notice_date": "2023-03-15",
+  "suspense_reason": "Need updated W-9 form",
+  "amount_held": "$5,234.56",
+  "api_number": "35-051-12345",
+  "field_scores": {
+    "owner_name": 0.95,
+    "operator_name": 1.0,
+    "well_name": 0.95,
+    "notice_date": 1.0,
+    "suspense_reason": 1.0,
+    "amount_held": 0.95,
+    "api_number": 0.90
+  },
+  "document_confidence": "high"
+}
+
+For JOA (Joint Operating Agreement):
+{
+  "doc_type": "joa",
+  "operator_name": "XYZ Oil Company",
+  "non_operators": ["ABC Energy", "DEF Resources"],
+  "unit_name": "Smith Unit",
+  "effective_date": "2023-03-15",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "operator_interest": 0.75,
+  "field_scores": {
+    "operator_name": 1.0,
+    "non_operators": 0.90,
+    "unit_name": 0.95,
+    "effective_date": 1.0,
+    "legal_section": 0.95,
+    "legal_township": 0.95,
+    "legal_range": 0.95,
+    "legal_county": 1.0,
+    "operator_interest": 0.85
+  },
+  "document_confidence": "high"
+}
+
+For OWNERSHIP/ENTITY DOCUMENTS:
+{
+  "doc_type": "ownership_entity",
+  "entity_name": "Smith Family Trust",
+  "entity_type": "trust",
+  "formation_date": "2020-01-15",
+  "trustee_names": ["John A. Smith", "Mary B. Smith"],
+  "beneficiaries": ["Robert Smith", "Sarah Smith"],
+  "state": "Oklahoma",
+  "ein": "XX-XXXXXXX",
+  "field_scores": {
+    "entity_name": 1.0,
+    "entity_type": 1.0,
+    "formation_date": 0.95,
+    "trustee_names": 0.95,
+    "beneficiaries": 0.90,
+    "state": 1.0,
+    "ein": 0.85
+  },
+  "document_confidence": "high"
+}
+
+For LEGAL DOCUMENTS:
+{
+  "doc_type": "legal_document",
+  "case_number": "CJ-2023-1234",
+  "plaintiff": "John Smith",
+  "defendant": "XYZ Oil Company",
+  "court": "District Court of Grady County",
+  "filing_date": "2023-03-15",
+  "case_type": "Quiet Title Action",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "field_scores": {
+    "case_number": 1.0,
+    "plaintiff": 0.95,
+    "defendant": 0.95,
+    "court": 1.0,
+    "filing_date": 1.0,
+    "case_type": 0.90,
+    "legal_section": 0.95,
+    "legal_township": 0.95,
+    "legal_range": 0.95,
+    "legal_county": 1.0
+  },
+  "document_confidence": "high"
+}
+
+For CORRESPONDENCE:
+{
+  "doc_type": "correspondence",
+  "from": "Devon Energy Production Company",
+  "to": "John A. Smith",
+  "date": "2023-03-15",
+  "subject": "Notice of Drilling Operations",
+  "summary": "Notice of intent to drill the Smith 1-16H well...",
+  "field_scores": {
+    "from": 1.0,
+    "to": 1.0,
+    "date": 1.0,
+    "subject": 0.95,
+    "summary": 0.85
+  },
+  "document_confidence": "high"
+}
+
+For TAX RECORDS:
+{
+  "doc_type": "tax_record",
+  "owner_name": "John A. Smith",
+  "tax_year": "2023",
+  "assessed_value": "$125,000",
+  "tax_amount": "$1,250.00",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "parcel_number": "12345-67890",
+  "field_scores": {
+    "owner_name": 0.95,
+    "tax_year": 1.0,
+    "assessed_value": 1.0,
+    "tax_amount": 1.0,
+    "legal_section": 0.95,
+    "legal_township": 0.95,
+    "legal_range": 0.95,
+    "legal_county": 1.0,
+    "parcel_number": 1.0
+  },
+  "document_confidence": "high"
+}
+
+For MAPS:
+{
+  "doc_type": "map",
+  "map_type": "plat",
+  "title": "Section 16 Unit Plat",
+  "date": "2023-03-15",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "prepared_by": "Smith Surveying Inc.",
+  "scale": "1 inch = 500 feet",
+  "field_scores": {
+    "map_type": 0.95,
+    "title": 0.90,
+    "date": 1.0,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "prepared_by": 0.85,
+    "scale": 0.90
+  },
+  "document_confidence": "high"
+}
+
 Confidence levels based on overall document quality:
 - "high": Most fields extracted with high confidence (avg > 0.85)
 - "medium": Some uncertainty in extracted data (avg 0.70-0.85)  
