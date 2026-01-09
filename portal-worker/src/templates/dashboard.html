@@ -4282,37 +4282,51 @@
                     // Use category field if available, fall back to doc_type mapping
                     let docCategory;
                     
-                    if (doc.category) {
-                        // Use category directly - backend should provide correct format
-                        docCategory = doc.category;
-                    } else {
-                        // Fallback: Map doc_type to category
-                        const docTypeToCategory = {
-                            'mineral_deed': 'mineral_deeds',
-                            'lease': 'leases',
-                            'drilling_permit': 'drilling_permits',
-                            'well_completion_report': 'well_completion_reports',
-                            'production_report': 'production_reports',
-                            'division_order': 'division_orders',
-                            'tax_record': 'tax_records',
-                            'correspondence': 'correspondence',
-                            'legal_document': 'legal_documents',
-                            'check_stub': 'check_stubs',
-                            'royalty_statement': 'check_stubs',
-                            'occ_order': 'occ_orders',
-                            'suspense_notice': 'suspense_notices',
-                            'ownership_entity': 'ownership_entity',
-                            'probate': 'ownership_entity',
-                            'heirship': 'ownership_entity',
-                            'trust': 'ownership_entity',
-                            'llc_docs': 'ownership_entity',
-                            'map': 'maps_plats',
-                            'plat': 'maps_plats',
-                            'multi_document': 'multi_document',
-                            'other': 'other'
-                        };
-                        docCategory = docTypeToCategory[doc.doc_type] || 'other';
-                    }
+                    // Map database category/doc_type (singular) to filter value (plural)
+                    const categoryOrDocType = doc.category || doc.doc_type || 'other';
+                    const docTypeToFilterValue = {
+                        // Existing categories
+                        'mineral_deed': 'mineral_deeds',
+                        'royalty_deed': 'mineral_deeds',  // Group with mineral deeds
+                        'lease': 'leases',
+                        'division_order': 'division_orders',
+                        'title_opinion': 'title_opinions',
+                        'check_stub': 'check_stubs',
+                        'royalty_statement': 'check_stubs',  // Group with check stubs
+                        'occ_order': 'occ_orders',
+                        'pooling_order': 'occ_orders',  // Group with OCC orders
+                        'spacing_order': 'occ_orders',  // Group with OCC orders
+                        'suspense_notice': 'suspense_notices',
+                        'joa': 'joa',
+                        'joint_operating_agreement': 'joa',  // Alias
+                        'ownership_entity': 'ownership_entity',
+                        'probate': 'ownership_entity',  // Group with ownership
+                        'probate_document': 'ownership_entity',
+                        'affidavit_of_heirship': 'ownership_entity',
+                        'heirship': 'ownership_entity',
+                        'trust': 'ownership_entity',
+                        'llc_docs': 'ownership_entity',
+                        'estate': 'ownership_entity',
+                        'legal_document': 'legal_documents',
+                        'divorce_decree': 'legal_documents',  // Group with legal
+                        'death_certificate': 'legal_documents',
+                        'power_of_attorney': 'legal_documents',
+                        'correspondence': 'correspondence',
+                        'tax_record': 'tax_records',
+                        'map': 'maps_plats',
+                        'plat': 'maps_plats',
+                        'multi_document': 'multi_document',
+                        'drilling_permit': 'drilling_permits',
+                        // Less common but valid
+                        'assignment': 'mineral_deeds',  // Group with deeds
+                        'ratification': 'mineral_deeds',
+                        'right_of_way': 'mineral_deeds',
+                        'release_of_lease': 'leases',  // Group with leases
+                        'lease_amendment': 'leases',
+                        'lease_extension': 'leases',
+                        'other': 'other'
+                    };
+                    docCategory = docTypeToFilterValue[categoryOrDocType.toLowerCase()] || 'other';
                     
                     if (docCategory !== documentsCategory) return false;
                 }
