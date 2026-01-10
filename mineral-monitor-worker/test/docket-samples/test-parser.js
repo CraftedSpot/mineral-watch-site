@@ -182,7 +182,10 @@ function parseEntryBlock(caseNumber, blockText) {
     }
   }
 
-  const reliefMatch = blockText.match(/Relief Type:\s*([^R\n]+?)(?:\s*Relief Sought:\s*([^R\n]*?))?(?:\s*Result:|$)/i);
+  // Relief Type and Relief Sought are on same line, followed by Result
+  // Format: "Relief Type: [type] Relief Sought: [sought] Result: [result]"
+  // Or: "Relief Type: [type] Relief Sought: [sought]\nResult: [result]"
+  const reliefMatch = blockText.match(/Relief Type:\s*(.+?)\s+Relief Sought:\s*(.*?)(?:\n|\s+Result:)/i);
   let reliefType = null;
   let reliefSought = null;
   if (reliefMatch) {
