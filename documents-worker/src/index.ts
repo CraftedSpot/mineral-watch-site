@@ -1011,9 +1011,9 @@ export default {
               extraction_error ?? null,
               display_name ?? null,
               category ?? null,
-              needs_review ? 1 : 0,
-              field_scores ? JSON.stringify(field_scores) : null,
-              fields_needing_review ? JSON.stringify(fields_needing_review) : null,
+              needs_review !== undefined ? (needs_review ? 1 : 0) : 0,
+              field_scores !== undefined ? JSON.stringify(field_scores) : null,
+              fields_needing_review !== undefined ? JSON.stringify(fields_needing_review) : null,
               docId
             ).run();
             
