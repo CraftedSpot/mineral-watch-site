@@ -39,6 +39,8 @@ export async function migrateDocumentIds(db: D1Database): Promise<void> {
             console.log(`[MigrateDocumentIds] Document ${doc.id}: property_id ${doc.property_id} -> ${newPropertyId}`);
           } else {
             console.warn(`[MigrateDocumentIds] Document ${doc.id}: No property found with id ${doc.property_id}`);
+            // Clear the invalid property_id so it won't be attempted again
+            newPropertyId = '';
           }
         }
         
@@ -55,6 +57,8 @@ export async function migrateDocumentIds(db: D1Database): Promise<void> {
             console.log(`[MigrateDocumentIds] Document ${doc.id}: well_id ${doc.well_id} -> ${newWellId}`);
           } else {
             console.warn(`[MigrateDocumentIds] Document ${doc.id}: No well found with id ${doc.well_id}`);
+            // Clear the invalid well_id so it won't be attempted again
+            newWellId = '';
           }
         }
         
