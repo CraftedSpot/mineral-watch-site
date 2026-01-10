@@ -437,8 +437,12 @@ async function processDocketAlerts(env, dryRun = false) {
       county: entry.county
     };
 
+    // Use extended 5x5 grid (24 sections) for horizontal wells since they span multiple sections
+    // Standard 3x3 grid (8 adjacent) for all other relief types
+    const useExtendedGrid = entry.relief_type === 'HORIZONTAL_WELL';
+
     // Find matching properties
-    const rawMatches = await findMatchingProperties(location, env);
+    const rawMatches = await findMatchingProperties(location, env, { useExtendedGrid });
 
     if (rawMatches.length === 0) {
       processedIds.push(entry.id);

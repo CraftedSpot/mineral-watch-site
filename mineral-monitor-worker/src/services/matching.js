@@ -4,15 +4,17 @@
 
 import { queryAirtable, getUserById } from './airtable.js';
 import { normalizeSection } from '../utils/normalize.js';
-import { getAdjacentSections } from '../utils/plss.js';
+import { getAdjacentSections, getExtendedAdjacentSections } from '../utils/plss.js';
 
 /**
  * Find all properties that match a given S-T-R location
  * @param {Object} location - Section, Township, Range, Meridian, County
  * @param {Object} env - Worker environment
+ * @param {Object} options - Optional settings
+ * @param {boolean} options.useExtendedGrid - Use 5x5 grid (24 sections) instead of 3x3 (8 sections)
  * @returns {Array} - Matching properties with user info and alert level
  */
-export async function findMatchingProperties(location, env) {
+export async function findMatchingProperties(location, env, options = {}) {
   const { section, township, range, meridian, county } = location;
   const normalizedSec = normalizeSection(section);
   
@@ -110,7 +112,7 @@ export async function findMatchingProperties(location, env) {
   
   // ALWAYS check for adjacent section matches (users who own sections adjacent to this permit)
   // This runs independently of direct matches
-  const adjacentMatches = await findUsersMonitoringAdjacentTo(location, env);
+  const adjacentMatches = await findUsersMonitoringAdjacentTo(location, env, options);
   
   // Filter out users who already have a direct match to avoid duplicates
   const uniqueAdjacentMatches = adjacentMatches.filter(adjMatch => 
@@ -124,19 +126,24 @@ export async function findMatchingProperties(location, env) {
 
 /**
  * Find users who are monitoring sections adjacent to the given location
- * OPTIMIZED: Single batched query instead of 8 separate queries
+ * OPTIMIZED: Single batched query instead of multiple separate queries
  * @param {Object} location - S-T-R of the permit
  * @param {Object} env - Worker environment
+ * @param {Object} options - Optional settings
+ * @param {boolean} options.useExtendedGrid - Use 5x5 grid (24 sections) for horizontal wells
  * @returns {Array} - Users who should get ADJACENT SECTION alerts
  */
-async function findUsersMonitoringAdjacentTo(location, env) {
+async function findUsersMonitoringAdjacentTo(location, env, options = {}) {
   const { section, township, range, meridian } = location;
   const normalizedSec = parseInt(normalizeSection(section), 10);
+
+  // Get adjacent sections - use extended grid (5x5, 24 sections) for horizontal wells
+  // or standard grid (3x3, 8 sections) for other relief types
+  const adjacentSections = options.useExtendedGrid
+    ? getExtendedAdjacentSections(normalizedSec, township, range)
+    : getAdjacentSections(normalizedSec, township, range);
   
-  // Get the 8 sections adjacent to the permit location
-  const adjacentSections = getAdjacentSections(normalizedSec, township, range);
-  
-  // OPTIMIZATION: Build single OR query for all 8 adjacent sections
+  // OPTIMIZATION: Build single OR query for all adjacent sections (8 or 24)
   const sectionConditions = adjacentSections.map(adj => 
     `AND({SEC} = "${normalizeSection(adj.section)}", {TWN} = "${adj.township}", {RNG} = "${adj.range}")`
   ).join(', ');
