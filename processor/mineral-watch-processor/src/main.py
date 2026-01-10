@@ -101,13 +101,17 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         # Check if extraction was skipped (for "other" documents)
         if extraction_result.get('skip_extraction'):
             logger.info(f"Document {doc_id} classified as 'other', skipping extraction")
-            
+
+            # Set variables for logging at end of function
+            display_name = original_filename
+            status = 'complete'
+
             # Minimal result for "other" documents
             result = {
-                'status': 'complete',
+                'status': status,
                 'category': 'other',
                 'doc_type': 'other',
-                'display_name': original_filename,  # Use original filename
+                'display_name': display_name,
                 'confidence': extraction_result.get('document_confidence', 'high'),
                 'extracted_data': {
                     'doc_type': 'other',
