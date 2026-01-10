@@ -181,10 +181,10 @@ export class UsageTrackingService {
     `).bind(
       userId,
       documentId,
-      docType,
-      pageCount,
+      docType || null,  // Convert undefined to null
+      pageCount ?? null,  // Convert undefined/null to null
       isMultiDoc ? 1 : 0,
-      childCount,
+      childCount ?? 0,
       skipExtraction ? 1 : 0,
       creditsUsed,
       billingPeriod
