@@ -147,6 +147,11 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             # Try old format as fallback for backwards compatibility
             if not recording_book or not recording_page:
                 recording_info = extraction_result.get('recording_info', {})
+                # Handle case where recording_info is a list (multi-doc) - use first entry
+                if isinstance(recording_info, list) and len(recording_info) > 0:
+                    recording_info = recording_info[0] if isinstance(recording_info[0], dict) else {}
+                elif not isinstance(recording_info, dict):
+                    recording_info = {}
                 recording_book = recording_book or recording_info.get('book')
                 recording_page = recording_page or recording_info.get('page')
             
