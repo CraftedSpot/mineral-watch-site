@@ -67,30 +67,19 @@ export async function fetchDocketPdf(url, options = {}) {
 }
 
 /**
- * Extract text from PDF ArrayBuffer
- *
- * NOTE: This is a placeholder - Cloudflare Workers don't have native PDF support.
- * Options for production:
- * 1. Use pdf.js (pdfjs-dist) - works but heavy (~2MB)
- * 2. Use external service (e.g., document processor on Fly.io)
- * 3. Cache extracted text in KV after first extraction
- *
- * For now, this function expects text to be passed directly for testing.
+ * Extract text from PDF ArrayBuffer using unpdf
  *
  * @param {ArrayBuffer} pdfBuffer - PDF file as ArrayBuffer
  * @returns {Promise<string>} Extracted text
  */
 export async function extractTextFromPdf(pdfBuffer) {
-  // TODO: Implement PDF text extraction
-  // For Cloudflare Workers, consider:
-  // - Using pdf.js with web worker
-  // - Calling external extraction service
-  // - Pre-extracting and caching in KV
+  const { extractText } = await import('unpdf');
+  const result = await extractText(pdfBuffer);
 
-  throw new Error(
-    'PDF text extraction not yet implemented. ' +
-    'Use parseFromText() with pre-extracted text, or implement extraction service.'
-  );
+  // unpdf returns { text: string[], totalPages: number }
+  // text is an array of strings (one per page)
+  const textArray = result.text || [];
+  return Array.isArray(textArray) ? textArray.join('\n') : String(textArray);
 }
 
 /**
@@ -150,6 +139,7 @@ export function parseFromText(text, metadata = {}) {
 
 /**
  * Parse a single docket entry block
+ * Handles compact unpdf format where fields can be on same line
  *
  * @param {string} caseNumber - The case number (e.g., CD2025-001811)
  * @param {string} blockText - The text block for this entry
@@ -157,32 +147,46 @@ export function parseFromText(text, metadata = {}) {
  * @returns {DocketEntry|null}
  */
 function parseEntryBlock(caseNumber, blockText, metadata = {}) {
-  // Extract fields using patterns
+  // Field markers used to delimit values (fields can be on same line in unpdf format)
+  const fieldMarkers = /(?:Judge:|Parties:|Legal:|Attorney:|Courtroom:|Text:|Court Reporter:|Relief Type:|Relief Sought:|Result:)/i;
 
-  // Judge
-  const judgeMatch = blockText.match(/Judge:\s*([^\n]+)/i);
-  const judge = judgeMatch ? judgeMatch[1].trim() : null;
+  // Helper to extract field value up to next field marker or newline
+  const extractField = (pattern) => {
+    const match = blockText.match(pattern);
+    if (!match) return null;
+    let value = match[1];
+    // Trim at next field marker if present
+    const nextMarker = value.search(fieldMarkers);
+    if (nextMarker > 0) {
+      value = value.substring(0, nextMarker);
+    }
+    return value.trim() || null;
+  };
+
+  // Judge - value ends at next field marker
+  const judge = extractField(/Judge:\s*(.+?)(?=\s*(?:Parties:|Courtroom:|Legal:|$))/i);
+
+  // Courtroom - often right after Judge
+  const courtroom = extractField(/Courtroom:\s*(\S+)/i);
 
   // Parties/Applicant
-  const partiesMatch = blockText.match(/Parties:\s*([^\n]+(?:\n(?!Legal:|Attorney:|Courtroom:|Text:)[^\n]+)*)/i);
+  const partiesMatch = blockText.match(/Parties:\s*(.+?)(?=\s*Legal:)/is);
   let applicant = null;
   if (partiesMatch) {
-    // Extract applicant (usually first party, marked with "(Applicant)")
     const partiesText = partiesMatch[1].replace(/\n/g, ' ').trim();
     const applicantMatch = partiesText.match(/([^|]+)\s*\(Applicant\)/i);
     applicant = applicantMatch ? applicantMatch[1].trim() : partiesText.split('|')[0].trim();
   }
 
-  // Legal description
-  const legalMatch = blockText.match(/Legal:\s*([^\n]+)/i);
+  // Legal description - S## T##N R##E/W County
+  const legalMatch = blockText.match(/Legal:\s*(S\d{1,2}\s+T\d{1,2}[NS]\s+R\d{1,2}[EW]\s+[A-Za-z]+(?:\s*\(\*\))?)/i);
   const legalStr = legalMatch ? legalMatch[1].trim() : null;
   const legal = parseLegalDescription(legalStr);
 
   // Attorney
-  const attorneyMatch = blockText.match(/Attorney:\s*([^\n]+)/i);
-  const attorney = attorneyMatch ? attorneyMatch[1].trim() : null;
+  const attorney = extractField(/Attorney:\s*([^,\n]+(?:,\s*[^,\n]+)?)/i);
 
-  // Hearing date - try multiple formats
+  // Hearing date - "Friday, January 9, 2026 8:30 AM"
   const dateMatch = blockText.match(/(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday),\s*([A-Za-z]+)\s+(\d{1,2}),\s+(\d{4})\s+(\d{1,2}:\d{2}\s*(?:AM|PM))/i);
   let hearingDate = null;
   let hearingTime = null;
@@ -200,30 +204,27 @@ function parseEntryBlock(caseNumber, blockText, metadata = {}) {
     }
   }
 
-  // Relief Type and Relief Sought are on same line, followed by Result
-  // Format: "Relief Type: [type] Relief Sought: [sought] Result: [result]"
-  // Or: "Relief Type: [type] Relief Sought: [sought]\nResult: [result]"
-  const reliefMatch = blockText.match(/Relief Type:\s*(.+?)\s+Relief Sought:\s*(.*?)(?:\n|\s+Result:)/i);
+  // Relief Type and Relief Sought
+  // Format: "Relief Type: [type] Relief Sought: [sought]" (possibly followed by newline or Result:)
+  const reliefMatch = blockText.match(/Relief Type:\s*(.+?)\s+Relief Sought:\s*(.*?)(?=\s*(?:\n|Result:))/i);
   let reliefType = null;
   let reliefSought = null;
   if (reliefMatch) {
     reliefType = reliefMatch[1].trim();
-    reliefSought = reliefMatch[2]?.trim() || null;
+    reliefSought = reliefMatch[2]?.trim();
+    // Clean up dash-only values
+    if (reliefSought === '-' || reliefSought === '') reliefSought = null;
   }
 
-  // Result
+  // Result - everything after "Result:" until newline or end
   const resultMatch = blockText.match(/Result:\s*([^\n]+)/i);
   const resultText = resultMatch ? resultMatch[1].trim() : null;
   const status = parseResultStatus(resultText);
   const continuationDate = extractContinuationDate(resultText);
 
-  // Text/Notes field (often contains motion details)
-  const textMatch = blockText.match(/Text:\s*([^\n]+(?:\n(?!Court Reporter:|Relief Type:)[^\n]+)*)/i);
+  // Text/Notes field (motion details) - between "Text:" and "Court Reporter:" or "Relief Type:"
+  const textMatch = blockText.match(/Text:\s*(.+?)(?=\s*(?:Court Reporter:|Relief Type:))/is);
   const notes = textMatch ? textMatch[1].replace(/\n/g, ' ').trim() : null;
-
-  // Courtroom
-  const courtroomMatch = blockText.match(/Courtroom:\s*([^\n]+)/i);
-  const courtroom = courtroomMatch ? courtroomMatch[1].trim() : null;
 
   // Build entry
   const entry = {
