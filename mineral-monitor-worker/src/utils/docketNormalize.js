@@ -7,7 +7,7 @@
 /**
  * Normalize township format: "7 North" → "7N", "7N" → "7N", "07N" → "7N"
  */
-function normalizeTownship(raw) {
+export function normalizeTownship(raw) {
   if (!raw) return null;
 
   const str = raw.toString().trim().toUpperCase();
@@ -26,7 +26,7 @@ function normalizeTownship(raw) {
 /**
  * Normalize range format: "4 West" → "4W", "4W" → "4W", "04W" → "4W"
  */
-function normalizeRange(raw) {
+export function normalizeRange(raw) {
   if (!raw) return null;
 
   const str = raw.toString().trim().toUpperCase();
@@ -45,7 +45,7 @@ function normalizeRange(raw) {
 /**
  * Normalize section: "Section 14" → "14", "Sec. 14" → "14", "S14" → "14"
  */
-function normalizeSection(raw) {
+export function normalizeDocketSection(raw) {
   if (!raw) return null;
 
   const str = raw.toString().trim();
