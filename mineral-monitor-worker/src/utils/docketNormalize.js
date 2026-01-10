@@ -180,7 +180,7 @@ export function parseResultStatus(resultText) {
  * Extract continuation date from result text
  * e.g., "C - 01/16/2026 08:30 AM" → "2026-01-16"
  */
-function extractContinuationDate(resultText) {
+export function extractContinuationDate(resultText) {
   if (!resultText) return null;
 
   // Match MM/DD/YYYY format
@@ -199,7 +199,7 @@ function extractContinuationDate(resultText) {
  * Parse legal description string into components
  * e.g., "S14 T5N R4W McClain (*)" → { section: "14", township: "5N", range: "4W", county: "McClain" }
  */
-function parseLegalDescription(legalStr) {
+export function parseLegalDescription(legalStr) {
   if (!legalStr) return null;
 
   // Pattern: S## T##N/S R##E/W County
@@ -207,7 +207,7 @@ function parseLegalDescription(legalStr) {
 
   if (match) {
     return {
-      section: normalizeSection(match[1]),
+      section: normalizeDocketSection(match[1]),
       township: normalizeTownship(match[2]),
       range: normalizeRange(match[3]),
       county: normalizeCounty(match[4]),
@@ -221,7 +221,7 @@ function parseLegalDescription(legalStr) {
 /**
  * Validate a parsed docket entry
  */
-function validateEntry(entry) {
+export function validateEntry(entry) {
   const errors = [];
 
   if (!entry.case_number?.match(/^CD\d{4}-\d{6}$/)) {
