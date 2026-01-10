@@ -118,17 +118,23 @@ export class UsageTrackingService {
     
     if (!currentUsage) {
       // Create a new usage record if it doesn't exist
-      // We don't know the user's plan here, so we'll create with minimal defaults
-      await this.db.prepare(`
-        INSERT INTO document_usage (
-          user_id, 
-          billing_period_start, 
-          docs_processed,
-          credits_used,
-          bonus_pool_remaining,
-          topoff_credits
-        ) VALUES (?, ?, 0, 0, 0, 0)
-      `).bind(userId, billingPeriod).run();
+      console.log(`[Usage] Creating new usage record for user ${userId}, period ${billingPeriod}`);
+      try {
+        await this.db.prepare(`
+          INSERT INTO document_usage (
+            user_id, 
+            billing_period_start, 
+            docs_processed,
+            credits_used,
+            bonus_pool_remaining,
+            topoff_credits
+          ) VALUES (?, ?, 0, 0, 0, 0)
+        `).bind(userId, billingPeriod).run();
+      } catch (insertError) {
+        console.error('[Usage] Failed to create usage record:', insertError);
+        console.error('[Usage] Table schema issue? Missing credits_used column?');
+        throw insertError;
+      }
       
       currentUsage = {
         credits_used: 0,
