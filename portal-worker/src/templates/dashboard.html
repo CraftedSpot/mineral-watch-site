@@ -1677,6 +1677,12 @@
                     <div class="usage-item">
                         <span><strong id="wellCount">0</strong> / <strong id="wellLimit">0</strong> Wells</span>
                     </div>
+                    <div class="usage-item" id="docCountItem" style="display: none;">
+                        <span>|</span>
+                    </div>
+                    <div class="usage-item" id="docCountDisplay" style="display: none;">
+                        <span><strong id="docCount">0</strong> / <strong id="docLimit">5</strong> Documents</span>
+                    </div>
                 </div>
                 <a href="/portal/upgrade" class="upgrade-link" id="upgradeLink">Upgrade →</a>
             </div>
@@ -2952,6 +2958,11 @@
                 if (currentUser.id === 'recEpgbS88AbuzAH8' || userPlan === 'Enterprise 500') {
                     console.log('Showing documents tab for user');
                     document.getElementById('documentsTab').style.display = 'flex';
+                    // Also show document count in plan info
+                    if (document.getElementById('docCountItem')) {
+                        document.getElementById('docCountItem').style.display = 'flex';
+                        document.getElementById('docCountDisplay').style.display = 'flex';
+                    }
                 } else {
                     console.log('Not showing documents tab - user does not have access');
                     console.log('User plan is:', userPlan, 'not Enterprise 500');
@@ -6088,11 +6099,7 @@
             currentUsageStats = data;
             const { usage, plan } = data;
             
-            // Don't show for Enterprise users (unlimited)
-            if (plan === 'Enterprise' || plan === 'Enterprise 500') {
-                document.getElementById('documentUsageTracker').style.display = 'none';
-                return;
-            }
+            // Show for all users including Enterprise (they have high limits, not truly unlimited)
             
             // Show the tracker
             document.getElementById('documentUsageTracker').style.display = 'block';
@@ -6100,6 +6107,14 @@
             // Update counts - display credits_used instead of docs_processed
             document.getElementById('usageCount').textContent = usage.credits_used;
             document.getElementById('usageLimit').textContent = usage.monthly_limit;
+            
+            // Also update the document count in the plan info section
+            if (document.getElementById('docCount')) {
+                document.getElementById('docCount').textContent = usage.credits_used;
+                document.getElementById('docLimit').textContent = usage.monthly_limit;
+                document.getElementById('docCountItem').style.display = 'flex';
+                document.getElementById('docCountDisplay').style.display = 'flex';
+            }
             
             // Update progress bar based on credits
             const percentage = Math.min(100, (usage.credits_used / usage.monthly_limit) * 100);
