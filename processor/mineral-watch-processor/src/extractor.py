@@ -899,16 +899,26 @@ async def detect_documents(image_paths: list[str]) -> dict:
     logger.info(f"Calling Claude API for document detection")
     response = await retry_with_backoff(make_detection_call)
     
-    # Parse response
-    response_text = response.content[0].text
+    # Parse response - strip markdown fences if present
+    response_text = response.content[0].text.strip()
     logger.debug(f"Detection response: {response_text}")
-    
+
+    # Strip markdown code fences if Claude wrapped the JSON
+    if response_text.startswith("```"):
+        lines = response_text.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]  # Remove opening fence
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]  # Remove closing fence
+        response_text = "\n".join(lines)
+
     try:
         result = json.loads(response_text.strip())
         logger.info(f"Detected {result.get('document_count', 1)} documents")
         return result
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse detection response: {e}")
+        logger.error(f"Response text was: {response_text[:500]}")
         # Default to single document
         return {
             "is_multi_document": False,
