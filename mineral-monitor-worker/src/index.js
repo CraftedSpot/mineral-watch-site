@@ -529,12 +529,12 @@ export default {
             pages: totalPages
           },
           extraction: {
-            text_length: text.length,
+            text_length: fullText.length,
             case_numbers_found: uniqueCases.length,
             case_numbers: uniqueCases.slice(0, 10), // First 10
             sample: textSample
           },
-          verdict: text.length > 1000 && uniqueCases.length > 0
+          verdict: fullText.length > 1000 && uniqueCases.length > 0
             ? '✅ unpdf works! Text extraction successful.'
             : '⚠️ Extraction may have issues - check sample text'
         }, null, 2), {
