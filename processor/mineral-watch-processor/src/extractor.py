@@ -759,11 +759,23 @@ Examples of "other" documents:
             max_tokens=512,
             messages=[{"role": "user", "content": content}]
         )
-        
-        result = json.loads(response.content[0].text)
+
+        # Strip markdown code fences if present
+        response_text = response.content[0].text.strip()
+        if response_text.startswith("```"):
+            # Remove opening fence (```json or ```)
+            lines = response_text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            # Remove closing fence
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            response_text = "\n".join(lines)
+
+        result = json.loads(response_text)
         logger.info(f"Quick classification result: {result}")
         return result
-        
+
     except json.JSONDecodeError as e:
         logger.error(f"Quick classification failed - Invalid JSON response: {e}")
         logger.error(f"Response text was: {response.content[0].text if 'response' in locals() else 'No response'}")
