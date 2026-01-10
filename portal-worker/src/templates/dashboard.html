@@ -10426,6 +10426,13 @@ window.closeBulkProcessingModal = closeBulkProcessingModal;
 <!-- Add Papa Parse library (CSV parsing) -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
 
+<!-- PDF.js library for accurate page count detection -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+    // Set worker source for pdf.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+
 <!-- SheetJS library removed - now using server-side JSON processing -->
 
 <!-- Custom Confirm Dialog -->
