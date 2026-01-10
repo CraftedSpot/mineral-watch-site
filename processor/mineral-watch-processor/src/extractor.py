@@ -710,17 +710,30 @@ async def quick_classify_document(image_paths: list[str]) -> dict:
     
     # Build message content
     content = [{
-        "type": "text", 
-        "text": """Quickly classify this document. Is this an Oklahoma mineral rights-related document?
+        "type": "text",
+        "text": """Classify this document and detect if it contains multiple separate documents.
 
 Return ONLY a JSON object with:
 {
   "doc_type": "mineral_deed|lease|division_order|... or other",
   "confidence": "high|medium|low",
+  "is_multi_document": true or false,
+  "estimated_doc_count": number (1 if single document),
   "reasoning": "Brief explanation"
 }
 
-If the document is NOT clearly one of these types, return "other":
+MULTI-DOCUMENT DETECTION:
+Determine if this PDF contains multiple separate documents. Look for:
+- Multiple recording stamps with different book/page numbers
+- Repeated document headers (e.g., "MINERAL DEED" appearing multiple times)
+- Different document dates or execution dates
+- Different parties (grantors/grantees) in separate sections
+- Clear page breaks between distinct documents
+- Multiple check stubs or multiple division orders
+
+If you see evidence of multiple documents, set is_multi_document: true and estimate the count.
+
+DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
 - pooling_order, spacing_order, drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
@@ -728,12 +741,8 @@ If the document is NOT clearly one of these types, return "other":
 - tax_record, map
 
 Examples of "other" documents:
-- General business contracts
-- Personal letters
-- Medical records
-- Financial statements (non-oil/gas)
-- Government forms (non-mineral rights)
-- Educational documents
+- General business contracts, personal letters, medical records
+- Financial statements (non-oil/gas), government forms (non-mineral rights)
 """
     }]
     
