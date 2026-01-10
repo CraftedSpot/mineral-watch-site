@@ -761,9 +761,16 @@ Examples of "other" documents:
         logger.info(f"Quick classification result: {result}")
         return result
         
+    except json.JSONDecodeError as e:
+        logger.error(f"Quick classification failed - Invalid JSON response: {e}")
+        logger.error(f"Response text was: {response.content[0].text if 'response' in locals() else 'No response'}")
+        return {"doc_type": "other", "confidence": "low", "reasoning": "Classification failed - Invalid JSON"}
     except Exception as e:
-        logger.error(f"Quick classification failed: {e}")
-        return {"doc_type": "other", "confidence": "low", "reasoning": "Classification failed"}
+        logger.error(f"Quick classification failed: {type(e).__name__}: {str(e)}")
+        logger.error(f"Full error details: {repr(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
+        return {"doc_type": "other", "confidence": "low", "reasoning": f"Classification failed - {type(e).__name__}"}
 
 
 async def detect_documents(image_paths: list[str]) -> dict:
