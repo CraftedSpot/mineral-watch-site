@@ -606,7 +606,7 @@ export default {
     // Default response
     return new Response(JSON.stringify({
       service: 'Mineral Watch Oklahoma',
-      version: '2.0.0',
+      version: '2.1.0',
       endpoints: [
         '/health',
         '/trigger/daily',
@@ -615,6 +615,7 @@ export default {
         '/test/weekly-transfers',
         '/test/status-change',
         '/test/daily',
+        '/test/docket',
         '/test/unpdf'
       ]
     }), {

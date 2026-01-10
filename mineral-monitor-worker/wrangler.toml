@@ -27,8 +27,9 @@ cpu_ms = 300000  # 5 minutes CPU time for completion processing
 # Cron Triggers (UTC)
 # Daily at 6 AM Central = 12:00 UTC (or 11:00 UTC during DST)
 # Weekly on Sunday at 2 AM Central = 08:00 UTC Sunday
+# Docket at 8 AM Central weekdays = 14:00 UTC Mon-Fri
 [triggers]
-crons = ["0 12 * * *", "0 8 * * 7"]
+crons = ["0 12 * * *", "0 8 * * 7", "0 14 * * 1-5"]
 
 # KV Namespace for health tracking and caching
 [[kv_namespaces]]
