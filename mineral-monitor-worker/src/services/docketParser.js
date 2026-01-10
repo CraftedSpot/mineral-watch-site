@@ -95,6 +95,7 @@ export async function extractTextFromPdf(pdfBuffer) {
 
 /**
  * Parse docket text into structured entries
+ * Handles both pdftotext (newline-separated) and unpdf (compact) formats
  *
  * @param {string} text - Extracted text from docket PDF
  * @param {object} metadata - Optional metadata (date, type, url)
@@ -103,9 +104,10 @@ export async function extractTextFromPdf(pdfBuffer) {
 export function parseFromText(text, metadata = {}) {
   const entries = [];
 
-  // Split text into entry blocks by case number pattern
   // Case numbers look like: CD2025-001811
-  const casePattern = /\n(CD\d{4}-\d{6})\s*\n/g;
+  // In unpdf format, they may be followed by content on same line
+  // Pattern captures case number with word boundary (not requiring newlines)
+  const casePattern = /(CD\d{4}-\d{6})/g;
 
   // Find all case numbers and their positions
   const caseMatches = [];
@@ -118,10 +120,18 @@ export function parseFromText(text, metadata = {}) {
     });
   }
 
+  // Deduplicate case numbers (same case may appear multiple times in header/footer)
+  const seenCases = new Set();
+  const uniqueCaseMatches = caseMatches.filter(m => {
+    if (seenCases.has(m.caseNumber)) return false;
+    seenCases.add(m.caseNumber);
+    return true;
+  });
+
   // Parse each case block
-  for (let i = 0; i < caseMatches.length; i++) {
-    const current = caseMatches[i];
-    const nextStart = caseMatches[i + 1]?.startIndex || text.length;
+  for (let i = 0; i < uniqueCaseMatches.length; i++) {
+    const current = uniqueCaseMatches[i];
+    const nextStart = uniqueCaseMatches[i + 1]?.startIndex || text.length;
     const blockText = text.substring(current.endIndex, nextStart);
 
     try {
