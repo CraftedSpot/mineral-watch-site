@@ -380,6 +380,30 @@ async function createActivityLogEntries(env, alertsToLog) {
 }
 
 /**
+ * Deduplicate matches by case_number + userId, keeping highest priority
+ * Priority: YOUR PROPERTY > ADJACENT SECTION
+ */
+function deduplicateMatches(entry, matches) {
+  const matchesByUser = new Map();
+
+  for (const match of matches) {
+    const key = `${entry.case_number}|${match.user.id}`;
+    const existing = matchesByUser.get(key);
+
+    if (!existing) {
+      matchesByUser.set(key, match);
+    } else {
+      // Keep higher priority match (YOUR PROPERTY > ADJACENT)
+      if (match.alertLevel === 'YOUR PROPERTY' && existing.alertLevel !== 'YOUR PROPERTY') {
+        matchesByUser.set(key, match);
+      }
+    }
+  }
+
+  return Array.from(matchesByUser.values());
+}
+
+/**
  * Process alerts for new docket entries
  */
 async function processDocketAlerts(env, dryRun = false) {
@@ -414,18 +438,21 @@ async function processDocketAlerts(env, dryRun = false) {
     };
 
     // Find matching properties
-    const matches = await findMatchingProperties(location, env);
+    const rawMatches = await findMatchingProperties(location, env);
 
-    if (matches.length === 0) {
+    if (rawMatches.length === 0) {
       processedIds.push(entry.id);
       continue;
     }
 
-    console.log(`[Docket] ${entry.case_number}: ${matches.length} matching properties`);
+    // Deduplicate: if user matches both direct AND adjacent, keep only direct
+    const matches = deduplicateMatches(entry, rawMatches);
+
+    console.log(`[Docket] ${entry.case_number}: ${rawMatches.length} raw matches, ${matches.length} after dedupe`);
 
     for (const match of matches) {
       if (dryRun) {
-        console.log(`[Docket DRY RUN] Would alert ${match.user.email} for ${entry.case_number}`);
+        console.log(`[Docket DRY RUN] Would alert ${match.user.email} (${match.alertLevel}) for ${entry.case_number}`);
         alertCount++;
         continue;
       }
