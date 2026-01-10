@@ -122,30 +122,93 @@ async function markEntriesAlerted(db, entryIds) {
 }
 
 /**
+ * Relief type explanations for mineral owners
+ */
+const RELIEF_EXPLANATIONS = {
+  POOLING: {
+    title: 'Pooling Application',
+    emoji: '📋',
+    meaning: 'An operator is combining mineral interests into a drilling unit. If you own unleased minerals, you may receive a pooling offer.',
+    tip: 'Watch for a pooling order in the mail. You typically have 20 days to respond.'
+  },
+  INCREASED_DENSITY: {
+    title: 'Increased Density Application',
+    emoji: '📈',
+    meaning: 'Operator wants to drill additional wells in an existing unit.',
+    tip: 'More wells could mean more royalty income from your minerals.'
+  },
+  SPACING: {
+    title: 'Spacing Unit Application',
+    emoji: '📐',
+    meaning: 'Operator is establishing or modifying a drilling unit that includes your minerals.',
+    tip: 'This determines how royalties are divided among mineral owners in the unit.'
+  },
+  LOCATION_EXCEPTION: {
+    title: 'Location Exception',
+    emoji: '📍',
+    meaning: 'Operator needs permission to drill at a non-standard location.',
+    tip: 'Common for horizontal wells needing surface location flexibility.'
+  },
+  HORIZONTAL_WELL: {
+    title: 'Horizontal Well Application',
+    emoji: '↔️',
+    meaning: 'A horizontal well may cross multiple sections including yours.',
+    tip: 'Larger units mean more owners sharing royalties, but often higher total production.'
+  },
+  OPERATOR_CHANGE: {
+    title: 'Operator Change',
+    emoji: '🔄',
+    meaning: 'Well operations are transferring to a new company.',
+    tip: 'Expect royalty checks from the new operator. Watch for a new division order.'
+  },
+  WELL_TRANSFER: {
+    title: 'Well Transfer',
+    emoji: '🔄',
+    meaning: 'Ownership or operational control of wells is being transferred.',
+    tip: 'Your division order may need to be updated with the new operator.'
+  },
+  ORDER_MODIFICATION: {
+    title: 'Order Modification',
+    emoji: '📝',
+    meaning: 'An existing OCC order is being amended or modified.',
+    tip: 'Review how changes might affect your royalty payments or working interest.'
+  },
+  OTHER: {
+    title: 'OCC Filing',
+    emoji: '📋',
+    meaning: 'A legal filing has been made that may affect your mineral interests.',
+    tip: 'Review the full docket for details on how this may impact your property.'
+  }
+};
+
+/**
+ * Get relief explanation for a given type
+ */
+function getReliefExplanation(reliefType) {
+  return RELIEF_EXPLANATIONS[reliefType] || RELIEF_EXPLANATIONS.OTHER;
+}
+
+/**
  * Map docket relief types to activity descriptions
  */
 function getReliefTypeLabel(reliefType) {
-  const labels = {
-    'INCREASED_DENSITY': 'Increased Density Application',
-    'POOLING': 'Pooling Application',
-    'SPACING': 'Spacing Unit Application',
-    'LOCATION_EXCEPTION': 'Location Exception Application',
-    'OPERATOR_CHANGE': 'Operator Change Filing',
-    'HORIZONTAL_WELL': 'Horizontal Well Application',
-    'ORDER_MODIFICATION': 'Order Modification',
-    'WELL_TRANSFER': 'Well Transfer Application',
-    'OTHER': 'OCC Docket Filing'
-  };
-  return labels[reliefType] || 'OCC Docket Filing';
+  const explanation = getReliefExplanation(reliefType);
+  return explanation.title;
 }
 
 /**
  * Build docket alert email HTML
  */
 function buildDocketAlertEmail(entry, alertLevel, user) {
-  const reliefLabel = getReliefTypeLabel(entry.relief_type);
+  const explanation = getReliefExplanation(entry.relief_type);
 
-  const subject = `OCC Filing Alert: ${reliefLabel} - ${alertLevel}`;
+  const alertLevelDisplay = alertLevel === 'YOUR PROPERTY'
+    ? '🎯 YOUR PROPERTY'
+    : '📍 ADJACENT TO YOUR PROPERTY';
+
+  const alertColor = alertLevel === 'YOUR PROPERTY' ? '#dc2626' : '#2563eb';
+
+  const subject = `${explanation.emoji} ${explanation.title} - ${alertLevel} - ${entry.county} County`;
 
   const html = `
 <!DOCTYPE html>
@@ -155,72 +218,114 @@ function buildDocketAlertEmail(entry, alertLevel, user) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 </head>
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-  <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); color: white; padding: 20px; border-radius: 8px 8px 0 0;">
-    <h1 style="margin: 0; font-size: 20px;">OCC Docket Filing Alert</h1>
-    <p style="margin: 5px 0 0 0; opacity: 0.9;">${reliefLabel}</p>
+
+  <!-- Alert Level Banner -->
+  <div style="background: ${alertColor}; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; text-align: center; border-radius: 4px 4px 0 0;">
+    ${alertLevelDisplay}
   </div>
 
-  <div style="background: ${alertLevel === 'YOUR PROPERTY' ? '#fef3c7' : '#dbeafe'}; padding: 12px 20px; border-left: 4px solid ${alertLevel === 'YOUR PROPERTY' ? '#f59e0b' : '#3b82f6'};">
-    <strong>${alertLevel}</strong>
+  <!-- Relief Type Header -->
+  <div style="background: #f8fafc; padding: 20px; border: 1px solid #e2e8f0; border-top: none;">
+    <h2 style="margin: 0 0 10px 0; color: #1e293b;">${explanation.emoji} ${explanation.title}</h2>
   </div>
 
-  <div style="padding: 20px; background: #f9fafb; border: 1px solid #e5e7eb; border-top: none;">
-    <table style="width: 100%; border-collapse: collapse;">
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; width: 140px; color: #6b7280;"><strong>Case Number</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${entry.case_number}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;"><strong>Applicant</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${entry.applicant || 'Not specified'}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;"><strong>Location</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">
-          Section ${entry.section}, T${entry.township}, R${entry.range}<br>
-          <span style="color: #6b7280;">${entry.county || ''} County, Oklahoma</span>
-        </td>
-      </tr>
-      ${entry.relief_sought ? `
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;"><strong>Relief Sought</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${entry.relief_sought}</td>
-      </tr>
-      ` : ''}
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;"><strong>Hearing Date</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${entry.hearing_date || 'TBD'} ${entry.hearing_time || ''}</td>
-      </tr>
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;"><strong>Status</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${entry.status}</td>
-      </tr>
-      ${entry.judge ? `
-      <tr>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb; color: #6b7280;"><strong>Judge</strong></td>
-        <td style="padding: 8px 0; border-bottom: 1px solid #e5e7eb;">${entry.judge}</td>
-      </tr>
-      ` : ''}
-    </table>
+  <!-- Explanation Box -->
+  <div style="background: #fffbeb; border: 1px solid #fcd34d; border-radius: 4px; padding: 16px; margin: 20px 0;">
+    <p style="margin: 0 0 10px 0; color: #92400e;">
+      <strong>What this means:</strong><br>
+      ${explanation.meaning}
+    </p>
+    <p style="margin: 0; color: #92400e;">
+      <strong>💡 Tip:</strong> ${explanation.tip}
+    </p>
+  </div>
 
-    ${entry.source_url ? `
-    <div style="margin-top: 20px;">
-      <a href="${entry.source_url}" style="display: inline-block; background: #2563eb; color: white; padding: 10px 20px; text-decoration: none; border-radius: 6px; font-weight: 500;">
-        View Full Docket PDF
-      </a>
-    </div>
+  <!-- Details Table -->
+  <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc; width: 140px;"><strong>Case Number</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">${entry.case_number}</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc;"><strong>Applicant</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">${entry.applicant || 'Not specified'}</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc;"><strong>Location</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">
+        Section ${entry.section}, T${entry.township}, R${entry.range}, ${entry.county} County
+      </td>
+    </tr>
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc;"><strong>Hearing Date</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">${entry.hearing_date || 'TBD'} ${entry.hearing_time || ''}</td>
+    </tr>
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc;"><strong>Status</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">${entry.status}</td>
+    </tr>
+    ${entry.judge ? `
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc;"><strong>Judge</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">${entry.judge}</td>
+    </tr>
     ` : ''}
+    ${entry.attorney ? `
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #f8fafc;"><strong>Attorney</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0;">${entry.attorney}</td>
+    </tr>
+    ` : ''}
+    ${entry.status === 'CONTINUED' && entry.continuation_date ? `
+    <tr>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #fef3c7;"><strong>Continued To</strong></td>
+      <td style="padding: 10px; border: 1px solid #e2e8f0; background: #fef3c7;">${entry.continuation_date}</td>
+    </tr>
+    ` : ''}
+  </table>
+
+  <!-- Relief Sought -->
+  ${entry.relief_sought ? `
+  <div style="margin: 20px 0;">
+    <p style="margin: 0 0 8px 0; font-weight: bold; color: #475569;">Relief Sought:</p>
+    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; padding: 12px;">
+      ${entry.relief_sought}
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- Notes (if present) -->
+  ${entry.notes ? `
+  <div style="margin: 20px 0;">
+    <p style="margin: 0 0 8px 0; font-weight: bold; color: #475569;">Notes:</p>
+    <div style="background: #fefce8; border: 1px solid #fcd34d; border-radius: 4px; padding: 12px;">
+      ${entry.notes}
+    </div>
+  </div>
+  ` : ''}
+
+  <!-- CTA Button -->
+  ${entry.source_url ? `
+  <div style="text-align: center; margin: 30px 0;">
+    <a href="${entry.source_url}"
+       style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+      View Full Docket PDF
+    </a>
+  </div>
+  ` : ''}
+
+  <!-- Footer -->
+  <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 30px; color: #64748b; font-size: 13px;">
+    <p style="margin: 0 0 10px 0;">
+      This filing appeared in the OCC docket dated ${entry.docket_date}.
+      Docket filings typically appear <strong>2-4 weeks before</strong> official records are updated.
+    </p>
+    <p style="margin: 0;">
+      <a href="https://portal.mymineralwatch.com" style="color: #2563eb;">Mineral Watch</a> ·
+      Early warning for Oklahoma mineral owners
+    </p>
   </div>
 
-  <div style="padding: 15px 20px; background: #f3f4f6; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 8px 8px; font-size: 12px; color: #6b7280;">
-    <p style="margin: 0;">
-      This filing was found in the OCC docket dated ${entry.docket_date}.
-      Docket filings typically appear 2-4 weeks before official records are updated.
-    </p>
-    <p style="margin: 10px 0 0 0;">
-      <a href="https://mymineralwatch.com" style="color: #2563eb;">MyMineralWatch.com</a>
-    </p>
-  </div>
 </body>
 </html>
   `;
