@@ -65,7 +65,7 @@ export function normalizeDocketSection(raw) {
 /**
  * Normalize county name: trim, title case
  */
-function normalizeCounty(raw) {
+export function normalizeCounty(raw) {
   if (!raw) return null;
 
   const str = raw.toString().trim();
@@ -79,7 +79,7 @@ function normalizeCounty(raw) {
 /**
  * Categorize relief type from description text
  */
-function categorizeReliefType(reliefType, reliefSought) {
+export function categorizeReliefType(reliefType, reliefSought) {
   if (!reliefType) return 'OTHER';
 
   const text = `${reliefType} ${reliefSought || ''}`.toUpperCase();
@@ -131,7 +131,7 @@ function categorizeReliefType(reliefType, reliefSought) {
  * Common codes: C (Continued), RO (Record Opened), MOR (Motion Recommended),
  * DIS (Dismissed), DMOA (Dismissed on Motion), MOW (Motion Withdrawn)
  */
-function parseResultStatus(resultText) {
+export function parseResultStatus(resultText) {
   if (!resultText) return 'UNKNOWN';
 
   const text = resultText.toUpperCase();
