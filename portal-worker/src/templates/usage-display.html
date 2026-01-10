@@ -1,0 +1,188 @@
+<!-- Document Usage Display Component -->
+<style>
+  .usage-tracker {
+    background: linear-gradient(135deg, #F3E8FF 0%, #E9D5FF 100%);
+    border: 1px solid #D8B4FE;
+    border-radius: 12px;
+    padding: 16px 20px;
+    margin: 0 0 20px 0;
+    display: none; /* Hidden by default, shown when usage data loads */
+  }
+  
+  .usage-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+  }
+  
+  .usage-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #6B21A8;
+  }
+  
+  .usage-count {
+    font-size: 24px;
+    font-weight: 700;
+    color: #581C87;
+  }
+  
+  .usage-limit {
+    font-size: 14px;
+    color: #7C3AED;
+    font-weight: 500;
+  }
+  
+  .usage-bar {
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 4px;
+    overflow: hidden;
+    position: relative;
+  }
+  
+  .usage-bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #7C3AED 0%, #A855F7 100%);
+    transition: width 0.3s ease;
+    min-width: 1%;
+  }
+  
+  .usage-bar-fill.high-usage {
+    background: linear-gradient(90deg, #F59E0B 0%, #EF4444 100%);
+  }
+  
+  .usage-info {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 8px;
+    font-size: 12px;
+    color: #6B21A8;
+  }
+  
+  .usage-refresh {
+    background: none;
+    border: none;
+    color: #7C3AED;
+    cursor: pointer;
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: background 0.2s;
+  }
+  
+  .usage-refresh:hover {
+    background: rgba(124, 58, 237, 0.1);
+  }
+</style>
+
+<div id="documentUsageTracker" class="usage-tracker">
+  <div class="usage-header">
+    <div>
+      <div class="usage-title">Documents Processed</div>
+      <div class="usage-count">
+        <span id="usageCount">0</span>
+        <span class="usage-limit">/ <span id="usageLimit">5</span></span>
+      </div>
+    </div>
+    <button class="usage-refresh" onclick="refreshUsageStats()" title="Refresh">
+      <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+      </svg>
+    </button>
+  </div>
+  
+  <div class="usage-bar">
+    <div id="usageBarFill" class="usage-bar-fill" style="width: 0%"></div>
+  </div>
+  
+  <div class="usage-info">
+    <span id="usagePeriod">This month</span>
+    <span id="usageTopoff" style="display: none;">
+      + <span id="topoffCount">0</span> bonus credits
+    </span>
+  </div>
+</div>
+
+<script>
+  let currentUsageStats = null;
+  
+  async function loadUsageStats() {
+    try {
+      const response = await fetch('/api/documents/usage', {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      });
+      
+      if (!response.ok) throw new Error('Failed to load usage stats');
+      
+      const data = await response.json();
+      displayUsageStats(data);
+    } catch (error) {
+      console.error('Error loading usage stats:', error);
+      // Don't show the tracker if we can't load stats
+      document.getElementById('documentUsageTracker').style.display = 'none';
+    }
+  }
+  
+  function displayUsageStats(data) {
+    currentUsageStats = data;
+    const { usage, plan } = data;
+    
+    // Don't show for Enterprise users (unlimited)
+    if (plan === 'Enterprise' || plan === 'Enterprise 500') {
+      document.getElementById('documentUsageTracker').style.display = 'none';
+      return;
+    }
+    
+    // Show the tracker
+    document.getElementById('documentUsageTracker').style.display = 'block';
+    
+    // Update counts
+    document.getElementById('usageCount').textContent = usage.docs_processed;
+    document.getElementById('usageLimit').textContent = usage.monthly_limit;
+    
+    // Update progress bar
+    const percentage = Math.min(100, (usage.docs_processed / usage.monthly_limit) * 100);
+    const barFill = document.getElementById('usageBarFill');
+    barFill.style.width = percentage + '%';
+    
+    // Change color when > 80% used
+    if (percentage > 80) {
+      barFill.classList.add('high-usage');
+    } else {
+      barFill.classList.remove('high-usage');
+    }
+    
+    // Show bonus credits if any
+    if (usage.topoff_credits > 0) {
+      document.getElementById('usageTopoff').style.display = 'inline';
+      document.getElementById('topoffCount').textContent = usage.topoff_credits;
+    } else {
+      document.getElementById('usageTopoff').style.display = 'none';
+    }
+    
+    // Update period
+    const periodDate = new Date(usage.billing_period);
+    const monthName = periodDate.toLocaleDateString('en-US', { month: 'long' });
+    document.getElementById('usagePeriod').textContent = `${monthName} usage`;
+  }
+  
+  function refreshUsageStats() {
+    loadUsageStats();
+  }
+  
+  // Auto-update usage after document processing
+  function incrementLocalUsageCount() {
+    if (currentUsageStats) {
+      currentUsageStats.usage.docs_processed++;
+      displayUsageStats(currentUsageStats);
+    }
+  }
+  
+  // Load on page load (called from main dashboard script)
+  // loadUsageStats();
+</script>

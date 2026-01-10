@@ -1,5 +1,6 @@
 import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
 import { migrateDocumentIds } from './migrate-document-ids';
+import { UsageTrackingService } from './services/usage-tracking';
 
 interface Env {
   WELLS_DB: D1Database;
@@ -202,6 +203,25 @@ export default {
       } catch (error) {
         console.error('List documents error:', error);
         return errorResponse('Failed to fetch documents', 500, env);
+      }
+    }
+
+    // Route: GET /api/documents/usage - Get current usage stats
+    if (path === '/api/documents/usage' && request.method === 'GET') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const usage = await usageService.getOrCreateUsageRecord(user.id, user.plan || 'Free');
+        
+        return jsonResponse({
+          usage: usage,
+          plan: user.plan || 'Free'
+        }, 200, env);
+      } catch (error) {
+        console.error('Usage stats error:', error);
+        return errorResponse('Failed to get usage stats', 500, env);
       }
     }
 
@@ -1026,6 +1046,35 @@ export default {
                 console.log('[DEBUG] extracted_data sample:', JSON.stringify(extracted_data).substring(0, 200));
               }
             }
+            
+            // Track document usage (only for successful processing)
+            if (status !== 'failed') {
+              try {
+                // Get user info and plan from the document
+                const docInfo = await env.WELLS_DB.prepare(`
+                  SELECT user_id FROM documents WHERE id = ?
+                `).bind(docId).first();
+                
+                if (docInfo?.user_id) {
+                  // Get user plan from Airtable (would need to add this to auth worker)
+                  // For now, we'll track with a default plan assumption
+                  const usageService = new UsageTrackingService(env.WELLS_DB);
+                  await usageService.incrementDocumentCount(
+                    docInfo.user_id,
+                    docId,
+                    doc_type || 'unknown',
+                    page_count || 0,
+                    false, // isMultiDoc - handle this in split endpoint
+                    0,     // childCount - handle this in split endpoint  
+                    extracted_data?.skip_extraction || false
+                  );
+                  console.log('[Usage] Tracked document processing for user:', docInfo.user_id);
+                }
+              } catch (usageError) {
+                // Don't fail the request if usage tracking fails
+                console.error('[Usage] Failed to track usage:', usageError);
+              }
+            }
           } catch (dbError) {
             console.error('Database update failed:', dbError);
             console.error('Failed update for document:', docId);
@@ -1143,6 +1192,26 @@ export default {
               category = 'multi_document'
           WHERE id = ?
         `).bind(parentDocId).run();
+
+        // Track usage for multi-document processing
+        try {
+          if (parentDoc?.user_id) {
+            const usageService = new UsageTrackingService(env.WELLS_DB);
+            // Track the parent as a multi-doc
+            await usageService.incrementDocumentCount(
+              parentDoc.user_id,
+              parentDocId,
+              'multi_document',
+              0, // page count handled by children
+              true, // isMultiDoc
+              children.length, // childCount
+              false
+            );
+            console.log(`[Usage] Tracked multi-document processing for user ${parentDoc.user_id}: ${children.length} child documents`);
+          }
+        } catch (usageError) {
+          console.error('[Usage] Failed to track multi-doc usage:', usageError);
+        }
 
         return jsonResponse({ 
           success: true, 
