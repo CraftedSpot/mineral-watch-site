@@ -1142,11 +1142,14 @@ async def extract_document_data(image_paths: list[str]) -> dict:
             "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
         }
     
-    # Step 2: For larger documents (>10 pages), check if multi-document
-    # This is worth doing since we know it's a mineral rights document type
-    if len(image_paths) > 10:
+    # Step 2: Check if classification detected multiple documents
+    # The quick classification now includes multi-doc detection
+    if classification.get("is_multi_document", False):
+        logger.info(f"Classification detected multi-document PDF (estimated {classification.get('estimated_doc_count', 'unknown')} documents)")
+
+        # Get detailed document boundaries
         detection = await detect_documents(image_paths)
-        
+
         if detection.get("is_multi_document", False):
             # Handle multi-document flow
             documents = detection.get("documents", [])
