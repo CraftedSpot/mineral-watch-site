@@ -10203,60 +10203,85 @@ async function displaySelectedFiles() {
     console.log('Document ready state:', document.readyState);
     console.log('Document body contains:', document.body.innerHTML.includes('selectedFilesList'));
     console.log('Modal visible?', document.getElementById('documentUploadModal').style.display);
-    
+
     if (!listDiv) {
         console.warn('selectedFilesList element not found');
         console.log('Trying to find parent selectedFilesDisplay:', document.getElementById('selectedFilesDisplay'));
         return;
     }
     listDiv.innerHTML = '';
-    
-    // Calculate total pages and estimated credits
+
+    // Show loading state for credit estimation
+    document.getElementById('selectedFilesDisplay').style.display = 'block';
+    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+
+    if (selectedFiles.length > 0) {
+        document.getElementById('creditEstimation').style.display = 'block';
+        document.getElementById('totalPages').textContent = 'counting...';
+        document.getElementById('estimatedCredits').textContent = '...';
+    }
+
+    // Calculate total pages using pdf.js for accurate page counts
     let totalPages = 0;
     const pageEstimates = [];
-    
-    // For now, use a rough estimate of 1 page per 100KB for PDFs
-    // In production, you might want to use pdf.js to get exact page counts
-    selectedFiles.forEach((file, index) => {
-        // Rough estimate: 1 page ≈ 100KB
-        const estimatedPages = Math.max(1, Math.ceil(file.size / (100 * 1024)));
-        pageEstimates.push(estimatedPages);
-        totalPages += estimatedPages;
+
+    // Process each file and get actual page count
+    for (let index = 0; index < selectedFiles.length; index++) {
+        const file = selectedFiles[index];
+        let pageCount = 1; // Default fallback
+
+        // Use pdf.js to get actual page count
+        if (file.type === 'application/pdf' && typeof pdfjsLib !== 'undefined') {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                pageCount = pdf.numPages;
+                console.log(`PDF ${file.name}: ${pageCount} pages (actual)`);
+            } catch (err) {
+                console.warn(`Could not read PDF ${file.name}, using fallback estimate:`, err);
+                // Fallback: rough estimate of 1 page per 100KB
+                pageCount = Math.max(1, Math.ceil(file.size / (100 * 1024)));
+            }
+        } else {
+            // Non-PDF or pdf.js not loaded: use rough estimate
+            pageCount = Math.max(1, Math.ceil(file.size / (100 * 1024)));
+        }
+
+        pageEstimates.push(pageCount);
+        totalPages += pageCount;
+
+        // Build file display element
         const fileDiv = document.createElement('div');
         fileDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--success-bg); border: 1px solid var(--success); border-radius: 4px; margin-bottom: 8px;';
-        
+
         const fileName = document.createElement('span');
-        fileName.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(1)}MB)`;
+        fileName.textContent = `${file.name} (${pageCount} pg, ${(file.size / 1024 / 1024).toFixed(1)}MB)`;
         fileName.style.cssText = 'font-size: 14px; color: var(--oil-navy);';
-        
+
         const removeBtn = document.createElement('button');
         removeBtn.type = 'button';
         removeBtn.onclick = () => removeFile(index);
         removeBtn.style.cssText = 'background: none; border: none; color: var(--red-dirt); cursor: pointer;';
         removeBtn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
-        
+
         fileDiv.appendChild(fileName);
         fileDiv.appendChild(removeBtn);
         listDiv.appendChild(fileDiv);
-    });
-    
-    document.getElementById('selectedFilesDisplay').style.display = 'block';
-    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
-    
+    }
+
     // Calculate and display credit estimation
     if (selectedFiles.length > 0) {
         // Calculate credits: Math.ceil(pages / 30)
         const estimatedCredits = Math.ceil(totalPages / 30);
-        
-        document.getElementById('creditEstimation').style.display = 'block';
+
         document.getElementById('estimatedCredits').textContent = estimatedCredits;
         document.getElementById('totalPages').textContent = totalPages;
-        
+
         // Update available credits from current usage stats
         if (currentUsageStats) {
             const availableCredits = currentUsageStats.usage.total_available || 0;
             document.getElementById('availableCreditsInModal').textContent = availableCredits;
-            
+
             // Show warning if estimated > available
             const warning = document.getElementById('creditWarning');
             if (estimatedCredits > availableCredits) {
