@@ -704,6 +704,9 @@ async def quick_classify_document(image_paths: list[str]) -> dict:
         Classification result with doc_type and confidence
     """
     logger.info(f"Quick classification using {len(image_paths)} pages")
+    logger.info(f"Using Claude model: {CONFIG.CLAUDE_MODEL}")
+    logger.info(f"API key configured: {'Yes' if CONFIG.ANTHROPIC_API_KEY else 'No'}")
+    logger.info(f"API key length: {len(CONFIG.ANTHROPIC_API_KEY) if CONFIG.ANTHROPIC_API_KEY else 0}")
     
     # Build message content
     content = [{
