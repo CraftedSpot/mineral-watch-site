@@ -1837,7 +1837,7 @@
                         <span>|</span>
                     </div>
                     <div class="usage-item" id="docCountDisplay" style="display: none;">
-                        <span><strong id="docCount">0</strong> / <strong id="docLimit">5</strong> Documents</span>
+                        <span><strong id="docCount">0</strong> Documents</span>
                     </div>
                 </div>
                 <a href="/portal/upgrade" class="upgrade-link" id="upgradeLink">Upgrade →</a>
@@ -1991,7 +1991,7 @@
                     <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px;">
                         <div style="flex: 1;">
                             <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
-                                <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);"><span id="totalDocumentCount">0</span> Documents</h3>
+                                <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);">Digital Documents</h3>
                                 <div class="credit-display-container">
                                     <span class="credit-separator">|</span>
                                     <div class="credit-info">
@@ -6316,13 +6316,7 @@
             // Update total in tooltip
             document.getElementById('tooltipTotalAvailable').textContent = usage.total_available || 0;
             
-            // Also update the document count in the plan info section
-            if (document.getElementById('docCount')) {
-                document.getElementById('docCount').textContent = usage.credits_used;
-                document.getElementById('docLimit').textContent = usage.monthly_limit;
-                document.getElementById('docCountItem').style.display = 'flex';
-                document.getElementById('docCountDisplay').style.display = 'flex';
-            }
+            // Document count will be updated by loadDocuments() to show actual inventory
         }
         
         function refreshUsageStats() {
@@ -6344,9 +6338,11 @@
                 
                 const data = await res.json();
                 
-                // Update total document count
+                // Update total document count in the header
                 const totalDocs = data.documents.filter(doc => !doc.deleted_at).length;
-                document.getElementById('totalDocumentCount').textContent = totalDocs;
+                if (document.getElementById('docCount')) {
+                    document.getElementById('docCount').textContent = totalDocs;
+                }
                 
                 // Check if any documents changed status
                 const prevProcessing = loadedDocuments.filter(doc => 
