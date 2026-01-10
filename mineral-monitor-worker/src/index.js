@@ -459,18 +459,107 @@ export default {
       }
     }
     
+    // Test unpdf extraction for OCC docket PDFs
+    if (url.pathname === '/test/unpdf') {
+      const dateParam = url.searchParams.get('date') || '2026-01-09';
+      const typeParam = url.searchParams.get('type') || 'okc';
+
+      try {
+        const { extractText } = await import('unpdf');
+        const startTime = Date.now();
+
+        // Build URL (2026+ format doesn't have year subdirectory)
+        const year = parseInt(dateParam.substring(0, 4), 10);
+        const basePath = 'https://oklahoma.gov/content/dam/ok/en/occ/documents/ajls/jls-courts/court-clerk/docket-results';
+        const pdfUrl = year >= 2026
+          ? `${basePath}/${dateParam}-${typeParam}.pdf`
+          : `${basePath}/${year}/${dateParam}-${typeParam}.pdf`;
+
+        console.log(`[unpdf test] Fetching: ${pdfUrl}`);
+
+        // Fetch PDF
+        const fetchStart = Date.now();
+        const response = await fetch(pdfUrl);
+        const fetchTime = Date.now() - fetchStart;
+
+        if (!response.ok) {
+          return new Response(JSON.stringify({
+            success: false,
+            error: `PDF fetch failed: ${response.status}`,
+            url: pdfUrl
+          }, null, 2), {
+            status: response.status === 404 ? 404 : 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+
+        const pdfBuffer = await response.arrayBuffer();
+        const pdfSize = pdfBuffer.byteLength;
+
+        // Extract text with unpdf
+        const extractStart = Date.now();
+        const { text, totalPages } = await extractText(pdfBuffer);
+        const extractTime = Date.now() - extractStart;
+
+        // Check if text contains expected patterns
+        const caseNumberPattern = /CD\d{4}-\d{6}/g;
+        const caseNumbers = text.match(caseNumberPattern) || [];
+        const uniqueCases = [...new Set(caseNumbers)];
+
+        // Sample of extracted text (first 1000 chars)
+        const textSample = text.substring(0, 1000);
+
+        return new Response(JSON.stringify({
+          success: true,
+          url: pdfUrl,
+          timing: {
+            fetch_ms: fetchTime,
+            extract_ms: extractTime,
+            total_ms: Date.now() - startTime
+          },
+          pdf: {
+            size_bytes: pdfSize,
+            size_kb: Math.round(pdfSize / 1024),
+            pages: totalPages
+          },
+          extraction: {
+            text_length: text.length,
+            case_numbers_found: uniqueCases.length,
+            case_numbers: uniqueCases.slice(0, 10), // First 10
+            sample: textSample
+          },
+          verdict: text.length > 1000 && uniqueCases.length > 0
+            ? '✅ unpdf works! Text extraction successful.'
+            : '⚠️ Extraction may have issues - check sample text'
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Default response
     return new Response(JSON.stringify({
       service: 'Mineral Watch Oklahoma',
       version: '2.0.0',
       endpoints: [
-        '/health', 
-        '/trigger/daily', 
-        '/trigger/weekly', 
-        '/test/rbdms-status', 
-        '/test/weekly-transfers', 
+        '/health',
+        '/trigger/daily',
+        '/trigger/weekly',
+        '/test/rbdms-status',
+        '/test/weekly-transfers',
         '/test/status-change',
-        '/test/daily'
+        '/test/daily',
+        '/test/unpdf'
       ]
     }), {
       headers: { 'Content-Type': 'application/json' }
