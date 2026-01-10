@@ -218,16 +218,16 @@ async def handle_multi_document(
     parent_doc: dict
 ) -> None:
     """Handle a PDF that contains multiple logical documents."""
-    
+
     documents = extraction_result.get('documents', [])
-    boundaries = extraction_result.get('document_boundaries', [])
-    
+
     logger.info(f"Document {parent_doc_id} contains {len(documents)} logical documents")
-    
+
     children = []
-    for i, (doc_data, boundary) in enumerate(zip(documents, boundaries)):
-        page_start = boundary.get('start_page', 1)
-        page_end = boundary.get('end_page', page_start)
+    for i, doc_data in enumerate(documents):
+        # Boundaries are embedded in the document data as _start_page and _end_page
+        page_start = doc_data.get('_start_page', 1)
+        page_end = doc_data.get('_end_page', page_start)
         
         # Generate name for child
         display_name = generate_display_name_for_child(doc_data, page_start, page_end)
