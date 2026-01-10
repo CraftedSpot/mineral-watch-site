@@ -1206,15 +1206,18 @@ async def extract_document_data(image_paths: list[str]) -> dict:
                 doc_type = doc.get("type", doc.get("doc_type", "unknown"))
                 logger.info(f"Extracting {doc_type} from pages {doc['start_page']}-{doc.get('end_page', doc['start_page'])}")
                 
+                start_page = doc["start_page"]
+                end_page = doc.get("end_page", start_page)
+
                 doc_data = await extract_single_document(
-                    image_paths, 
-                    doc["start_page"], 
-                    doc["end_page"]
+                    image_paths,
+                    start_page,
+                    end_page
                 )
-                
+
                 # Add document boundaries to extracted data
-                doc_data["_start_page"] = doc["start_page"]
-                doc_data["_end_page"] = doc["end_page"]
+                doc_data["_start_page"] = start_page
+                doc_data["_end_page"] = end_page
                 doc_data["_detection_confidence"] = doc.get("confidence", 0.5)
                 
                 results["documents"].append(doc_data)
