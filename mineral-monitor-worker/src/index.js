@@ -7,6 +7,7 @@
 
 import { runDailyMonitor } from './monitors/daily.js';
 import { runWeeklyMonitor } from './monitors/weekly.js';
+import { runDocketMonitor } from './monitors/docket.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
 import { sendDailySummary, sendWeeklySummary, sendFailureAlert } from './services/adminAlerts.js';
 
@@ -23,7 +24,7 @@ export default {
     try {
       let result;
       
-      // Daily run (permits and completions)
+      // Daily run (permits and completions) - 6 AM Central (12 UTC)
       if (cronPattern === '0 12 * * *') {
         result = await runDailyMonitor(env);
         await updateHealthStatus(env, 'daily', {
@@ -33,15 +34,15 @@ export default {
           alerts_sent: result.alertsSent,
           status: 'success'
         });
-        
+
         // Send admin summary
         await sendDailySummary(env, {
           ...result,
           duration: Date.now() - startTime
         });
       }
-      
-      // Weekly run (transfers, status changes)
+
+      // Weekly run (transfers, status changes) - Sunday 2 AM Central (8 UTC)
       if (cronPattern === '0 8 * * 7') {
         result = await runWeeklyMonitor(env);
         await updateHealthStatus(env, 'weekly', {
@@ -52,11 +53,25 @@ export default {
           alerts_sent: result.alertsSent,
           status: 'success'
         });
-        
+
         // Send admin summary
         await sendWeeklySummary(env, {
           ...result,
           duration: Date.now() - startTime
+        });
+      }
+
+      // Docket monitor - 8 AM Central weekdays (14 UTC, Mon-Fri)
+      if (cronPattern === '0 14 * * 1-5') {
+        result = await runDocketMonitor(env);
+        await updateHealthStatus(env, 'docket', {
+          timestamp: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          fetched: result.fetched,
+          parsed: result.parsed,
+          stored: result.stored,
+          alerts_sent: result.alerts,
+          status: 'success'
         });
       }
       
@@ -459,6 +474,41 @@ export default {
       }
     }
     
+    // Test docket monitor endpoint
+    if (url.pathname === '/test/docket') {
+      const dateParam = url.searchParams.get('date'); // YYYY-MM-DD
+      const typeParam = url.searchParams.get('type'); // okc or tulsa
+      const dryRun = url.searchParams.get('dryRun') !== 'false'; // default true for safety
+      const skipAlerts = url.searchParams.get('skipAlerts') === 'true';
+
+      try {
+        const startTime = Date.now();
+        const results = await runDocketMonitor(env, {
+          dryRun,
+          skipAlerts,
+          // If specific date/type provided, we'd need to modify runDocketMonitor
+          // For now, it processes today and yesterday
+        });
+
+        return new Response(JSON.stringify({
+          success: true,
+          duration_ms: Date.now() - startTime,
+          results
+        }, null, 2), {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, null, 2), {
+          status: 500,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+    }
+
     // Test unpdf extraction for OCC docket PDFs
     if (url.pathname === '/test/unpdf') {
       const dateParam = url.searchParams.get('date') || '2026-01-09';
