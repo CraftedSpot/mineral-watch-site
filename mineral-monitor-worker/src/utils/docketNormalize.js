@@ -206,12 +206,17 @@ export function parseLegalDescription(legalStr) {
   const match = legalStr.match(/S(\d{1,2})\s+T(\d{1,2}[NS])\s+R(\d{1,2}[EW])\s+([A-Za-z]+)/i);
 
   if (match) {
+    const county = normalizeCounty(match[4]);
+    // Oklahoma uses Indian Meridian (IM) except panhandle counties use Cimarron Meridian (CM)
+    const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+    const meridian = panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM';
+
     return {
       section: normalizeDocketSection(match[1]),
       township: normalizeTownship(match[2]),
       range: normalizeRange(match[3]),
-      county: normalizeCounty(match[4]),
-      meridian: 'IM' // Oklahoma uses Indian Meridian
+      county,
+      meridian
     };
   }
 
