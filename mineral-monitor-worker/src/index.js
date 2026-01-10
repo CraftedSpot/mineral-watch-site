@@ -10,6 +10,15 @@ import { runWeeklyMonitor } from './monitors/weekly.js';
 import { runDocketMonitor } from './monitors/docket.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
 import { sendDailySummary, sendWeeklySummary, sendFailureAlert } from './services/adminAlerts.js';
+import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning } from './backfill/dockets.js';
+
+// Helper for JSON responses
+function jsonResponse(data, status = 200) {
+  return new Response(JSON.stringify(data, null, 2), {
+    status,
+    headers: { 'Content-Type': 'application/json' }
+  });
+}
 
 export default {
   /**
@@ -63,6 +72,17 @@ export default {
 
       // Docket monitor - 8 AM Central weekdays (14 UTC, Mon-Fri)
       if (cronPattern === '0 14 * * 1-5') {
+        // Skip if backfill is running to avoid conflicts
+        if (await isBackfillRunning(env)) {
+          console.log('[Docket] Skipping - backfill in progress');
+          await updateHealthStatus(env, 'docket', {
+            timestamp: new Date().toISOString(),
+            status: 'skipped',
+            reason: 'backfill_running'
+          });
+          return;
+        }
+
         result = await runDocketMonitor(env);
         await updateHealthStatus(env, 'docket', {
           timestamp: new Date().toISOString(),
