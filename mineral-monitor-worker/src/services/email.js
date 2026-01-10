@@ -9,6 +9,42 @@ import { getOCCWellRecordsLink, getOCCCookieNotice } from '../utils/occLink.js';
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
 
 /**
+ * Send a simple email via Postmark
+ * @param {Object} env - Worker environment
+ * @param {Object} data - Email data
+ * @param {string} data.to - Recipient email
+ * @param {string} data.subject - Email subject
+ * @param {string} data.html - Email HTML body
+ * @returns {Promise<Object>} Postmark response
+ */
+export async function sendEmail(env, { to, subject, html }) {
+  const response = await fetch(POSTMARK_API_URL, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+    },
+    body: JSON.stringify({
+      From: 'alerts@mymineralwatch.com',
+      To: to,
+      Subject: subject,
+      HtmlBody: html,
+      TextBody: html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(),
+      MessageStream: 'outbound'
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Postmark send failed: ${response.status} - ${error}`);
+  }
+
+  console.log(`[Email] Sent to ${to}: ${subject}`);
+  return await response.json();
+}
+
+/**
  * Generate a signed token for track-this-well links
  * @param {string} userId - Airtable user record ID
  * @param {string} apiNumber - Well API number
