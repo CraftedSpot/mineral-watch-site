@@ -1,14 +1,20 @@
 /**
- * Document Processing Tier Limits
+ * Credit-Based Document Processing Limits
+ * 
+ * Credit calculation:
+ * - 1-30 pages = 1 credit (most documents)
+ * - 31-60 pages = 2 credits
+ * - 61-90 pages = 3 credits, etc.
+ * - "Other" with skip_extraction = 0 credits (free classification)
  * 
  * Note: Currently for tracking only - not enforced
  */
 
 export interface TierLimit {
-  monthly: number;           // Base monthly document allowance
-  bonus: number;            // Bonus pool for annual subscriptions
+  monthly: number;           // Base monthly credit allowance
+  bonus: number;            // Bonus credits for annual subscriptions
   isLifetime?: boolean;     // Special handling for lifetime free tier
-  overage_price?: number;   // Price per document over limit (future)
+  overage_price?: number;   // Price per credit over limit (future)
 }
 
 export const TIER_LIMITS: Record<string, TierLimit> = {
@@ -22,19 +28,19 @@ export const TIER_LIMITS: Record<string, TierLimit> = {
   // Paid tiers - monthly reset
   'Starter': { 
     monthly: 25, 
-    bonus: 50,        // 50 bonus docs for annual (2 months worth)
+    bonus: 50,        // 50 bonus credits for annual (2 months worth)
     overage_price: 0.50 
   },
   
   'Standard': { 
     monthly: 100, 
-    bonus: 250,       // 250 bonus for annual (2.5 months worth)
+    bonus: 250,       // 250 bonus credits for annual (2.5 months worth)
     overage_price: 0.40 
   },
   
   'Professional': { 
     monthly: 500, 
-    bonus: 1000,      // 1000 bonus for annual (2 months worth)
+    bonus: 1000,      // 1000 bonus credits for annual (2 months worth)
     overage_price: 0.30 
   },
   

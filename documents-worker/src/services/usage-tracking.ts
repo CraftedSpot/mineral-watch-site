@@ -3,6 +3,7 @@ import { getTierLimit, getCurrentBillingPeriod } from '../config/tier-limits';
 
 export interface UsageStats {
   docs_processed: number;
+  credits_used: number;
   monthly_limit: number;
   bonus_pool_remaining: number;
   topoff_credits: number;
@@ -53,17 +54,25 @@ export class UsageTrackingService {
     
     return {
       docs_processed: usage.docs_processed as number,
+      credits_used: usage.credits_used as number || usage.docs_processed as number,
       monthly_limit: tierLimit.monthly,
       bonus_pool_remaining: usage.bonus_pool_remaining as number,
       topoff_credits: usage.topoff_credits as number,
       billing_period: billingPeriod,
-      percentage_used: Math.round((usage.docs_processed as number / tierLimit.monthly) * 100)
+      percentage_used: Math.round(((usage.credits_used as number || usage.docs_processed as number) / tierLimit.monthly) * 100)
     };
   }
 
   /**
-   * Increment document count when a document is processed
+   * Track credit usage for a single extracted document
    * Note: Currently just tracking - not enforcing limits
+   * 
+   * Credit calculation (per extracted document, not per uploaded file):
+   * - "Other" with skip_extraction: 0 credits (free classification)
+   * - Normal extracted documents: Math.ceil(pageCount / 30) credits
+   *   - 1-30 pages: 1 credit
+   *   - 31-60 pages: 2 credits
+   *   - 61-90 pages: 3 credits, etc.
    */
   async incrementDocumentCount(
     userId: string, 
@@ -76,13 +85,22 @@ export class UsageTrackingService {
   ): Promise<void> {
     const billingPeriod = getCurrentBillingPeriod();
     
+    // Calculate credits used
+    let creditsUsed: number;
+    if (docType === 'other' && skipExtraction) {
+      creditsUsed = 0; // Free classification for "Other" documents
+    } else {
+      creditsUsed = Math.ceil(pageCount / 30); // Standard credit calculation
+    }
+    
     // Increment usage counter
     await this.db.prepare(`
       UPDATE document_usage 
       SET docs_processed = docs_processed + 1,
+          credits_used = credits_used + ?,
           updated_at = datetime('now', '-6 hours')
       WHERE user_id = ? AND billing_period_start = ?
-    `).bind(userId, billingPeriod).run();
+    `).bind(creditsUsed, userId, billingPeriod).run();
     
     // Log individual document processing
     await this.db.prepare(`
@@ -94,8 +112,9 @@ export class UsageTrackingService {
         was_multi_doc,
         child_count,
         skip_extraction,
+        credits_used,
         billing_period
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
       userId,
       documentId,
@@ -104,10 +123,11 @@ export class UsageTrackingService {
       isMultiDoc ? 1 : 0,
       childCount,
       skipExtraction ? 1 : 0,
+      creditsUsed,
       billingPeriod
     ).run();
     
-    console.log(`[Usage] User ${userId} processed document ${documentId} (${docType}). Billing period: ${billingPeriod}`);
+    console.log(`[Usage] User ${userId} processed document ${documentId} (${docType}). Credits used: ${creditsUsed}. Pages: ${pageCount}. Billing period: ${billingPeriod}`);
   }
 
   /**

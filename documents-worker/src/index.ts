@@ -1197,12 +1197,12 @@ export default {
         try {
           if (parentDoc?.user_id) {
             const usageService = new UsageTrackingService(env.WELLS_DB);
-            // Track the parent as a multi-doc
+            // Track the parent as a multi-doc with 0 credits (children will have the actual credits)
             await usageService.incrementDocumentCount(
               parentDoc.user_id,
               parentDocId,
               'multi_document',
-              0, // page count handled by children
+              0, // 0 pages = 0 credits for parent
               true, // isMultiDoc
               children.length, // childCount
               false

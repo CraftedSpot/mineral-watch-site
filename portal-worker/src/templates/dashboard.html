@@ -6097,12 +6097,12 @@
             // Show the tracker
             document.getElementById('documentUsageTracker').style.display = 'block';
             
-            // Update counts
-            document.getElementById('usageCount').textContent = usage.docs_processed;
+            // Update counts - display credits_used instead of docs_processed
+            document.getElementById('usageCount').textContent = usage.credits_used;
             document.getElementById('usageLimit').textContent = usage.monthly_limit;
             
-            // Update progress bar
-            const percentage = Math.min(100, (usage.docs_processed / usage.monthly_limit) * 100);
+            // Update progress bar based on credits
+            const percentage = Math.min(100, (usage.credits_used / usage.monthly_limit) * 100);
             const barFill = document.getElementById('usageBarFill');
             barFill.style.width = percentage + '%';
             
