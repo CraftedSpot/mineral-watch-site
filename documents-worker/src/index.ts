@@ -767,6 +767,17 @@ export default {
       }
 
       try {
+        // Reset documents stuck in 'processing' for more than 10 minutes
+        // This handles cases where the processor crashes mid-processing
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET status = 'pending'
+          WHERE status = 'processing'
+            AND processing_attempts < 3
+            AND deleted_at IS NULL
+            AND extraction_started_at < datetime('now', '-6 hours', '-10 minutes')
+        `).run();
+
         // Get documents with status='pending' that haven't exceeded retry limit
         const results = await env.WELLS_DB.prepare(`
           SELECT id, r2_key, filename, original_filename, user_id, organization_id, 

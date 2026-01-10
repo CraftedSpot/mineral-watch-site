@@ -740,9 +740,10 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - ownership_entity, legal_document, correspondence
 - tax_record, map
 
-Examples of "other" documents:
-- General business contracts, personal letters, medical records
-- Financial statements (non-oil/gas), government forms (non-mineral rights)
+Examples of "other" documents (oil and gas docs that don't fit defined categories):
+- Farmout agreements, surface use agreements, pipeline agreements
+- AFEs, payout statements, salt water disposal agreements
+- Seismic permits, unitization agreements, general operator correspondence
 """
     }]
     
