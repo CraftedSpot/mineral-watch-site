@@ -1165,16 +1165,30 @@ async def extract_document_data(image_paths: list[str]) -> dict:
             # Handle multi-document flow
             documents = detection.get("documents", [])
             document_count = detection.get("document_count", len(documents))
-            
-            # Filter out any summary notes from the documents list
-            actual_documents = [doc for doc in documents if "note" not in doc and "type" in doc]
-            
+
+            logger.info(f"Detection returned {len(documents)} document entries")
+
+            # Filter out any summary notes - accept both "type" and "doc_type" as valid
+            actual_documents = []
+            for doc in documents:
+                if "note" in doc:
+                    continue  # Skip summary notes
+                if "type" in doc or "doc_type" in doc:
+                    # Normalize to use "type"
+                    if "doc_type" in doc and "type" not in doc:
+                        doc["type"] = doc["doc_type"]
+                    actual_documents.append(doc)
+                else:
+                    logger.warning(f"Document entry missing type field: {doc}")
+
+            logger.info(f"After filtering: {len(actual_documents)} valid documents")
+
             results = {
                 "is_multi_document": True,
                 "document_count": document_count,
                 "documents": []
             }
-            
+
             # If we have too many documents detected, we'll process as a bundle
             if document_count > 10 and len(actual_documents) < document_count:
                 logger.warning(f"Detected {document_count} documents but only {len(actual_documents)} were detailed. Processing as multi-document bundle.")
@@ -1182,14 +1196,15 @@ async def extract_document_data(image_paths: list[str]) -> dict:
                 results["needs_manual_split"] = True
                 results["estimated_document_count"] = document_count
                 return results
-            
+
             # Extract each document
             for doc in actual_documents:
-                if "type" not in doc or "start_page" not in doc:
-                    logger.warning(f"Skipping invalid document entry: {doc}")
+                if "start_page" not in doc:
+                    logger.warning(f"Skipping document entry without start_page: {doc}")
                     continue
-                    
-                logger.info(f"Extracting {doc['type']} from pages {doc['start_page']}-{doc['end_page']}")
+
+                doc_type = doc.get("type", doc.get("doc_type", "unknown"))
+                logger.info(f"Extracting {doc_type} from pages {doc['start_page']}-{doc.get('end_page', doc['start_page'])}")
                 
                 doc_data = await extract_single_document(
                     image_paths, 
