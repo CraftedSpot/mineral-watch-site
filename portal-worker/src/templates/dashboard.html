@@ -1614,6 +1614,162 @@
         .usage-refresh:hover {
             background: rgba(124, 58, 237, 0.1);
         }
+        
+        /* New Credit Display Styles */
+        .credit-display-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: relative;
+            font-size: 14px;
+            color: #4B5563;
+        }
+        
+        .credit-separator {
+            color: #E5E7EB;
+            font-size: 18px;
+        }
+        
+        .credit-info {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .credit-label {
+            font-weight: 500;
+            color: #6B7280;
+        }
+        
+        .credit-available {
+            font-weight: 700;
+            color: #059669;
+            font-size: 16px;
+        }
+        
+        .credit-usage {
+            color: #6B7280;
+            font-size: 13px;
+        }
+        
+        .credit-progress {
+            display: flex;
+            align-items: center;
+        }
+        
+        .credit-progress-bar {
+            width: 120px;
+            height: 8px;
+            background: #F3F4F6;
+            border-radius: 4px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .credit-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #059669 0%, #10B981 100%);
+            transition: width 0.3s ease;
+        }
+        
+        .credit-progress-fill.warning {
+            background: linear-gradient(90deg, #F59E0B 0%, #FBBF24 100%);
+        }
+        
+        .credit-progress-fill.danger {
+            background: linear-gradient(90deg, #DC2626 0%, #EF4444 100%);
+        }
+        
+        .credit-details {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #6B7280;
+        }
+        
+        .credit-reset {
+            white-space: nowrap;
+        }
+        
+        .credit-view-details {
+            color: #2563EB;
+            text-decoration: none;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+        
+        .credit-view-details:hover {
+            text-decoration: underline;
+        }
+        
+        /* Credit Tooltip (Desktop only) */
+        .credit-tooltip {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            margin-top: 8px;
+            background: white;
+            border: 1px solid #E5E7EB;
+            border-radius: 8px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+            padding: 12px 16px;
+            z-index: 100;
+            min-width: 250px;
+        }
+        
+        .credit-display-container:hover .credit-tooltip {
+            display: block;
+        }
+        
+        .tooltip-content {
+            font-size: 13px;
+        }
+        
+        .tooltip-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 4px 0;
+            color: #4B5563;
+        }
+        
+        .tooltip-divider {
+            height: 1px;
+            background: #E5E7EB;
+            margin: 8px 0;
+        }
+        
+        .tooltip-footer {
+            text-align: center;
+            color: #9CA3AF;
+            font-size: 12px;
+            margin-top: 8px;
+            font-style: italic;
+        }
+        
+        /* Mobile adjustments */
+        @media (max-width: 768px) {
+            .credit-display-container {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
+            }
+            
+            .credit-separator:first-child {
+                display: none;
+            }
+            
+            .credit-progress-bar {
+                width: 100%;
+                max-width: 200px;
+            }
+            
+            .credit-tooltip {
+                display: none !important; /* No hover on mobile */
+            }
+        }
     </style>
 </head>
 <body>
@@ -1832,45 +1988,60 @@
                 </div>
                 
                 <div id="documents-tab" class="tab-content">
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px 20px 0 20px;">
-                        <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);">Digital Documents</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                                <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);"><span id="totalDocumentCount">0</span> Documents</h3>
+                                <div class="credit-display-container">
+                                    <span class="credit-separator">|</span>
+                                    <div class="credit-info">
+                                        <span class="credit-label">Credits:</span>
+                                        <span class="credit-available" id="creditsAvailable">0</span> available
+                                        <span class="credit-usage">(<span id="creditsUsedThisMonth">0</span> used this month)</span>
+                                    </div>
+                                    <div class="credit-progress">
+                                        <div class="credit-progress-bar">
+                                            <div class="credit-progress-fill" id="creditProgressFill"></div>
+                                        </div>
+                                    </div>
+                                    <div class="credit-details">
+                                        <span class="credit-reset">Resets <span id="creditResetDate">--</span></span>
+                                        <span class="credit-separator">·</span>
+                                        <a href="/portal/account#credits" class="credit-view-details">View details</a>
+                                    </div>
+                                    <div class="credit-tooltip" id="creditTooltip">
+                                        <div class="tooltip-content">
+                                            <div class="tooltip-row">
+                                                <span>Monthly:</span>
+                                                <span><span id="tooltipMonthlyUsed">0</span>/<span id="tooltipMonthlyLimit">0</span> (resets <span id="tooltipResetDate">--</span>)</span>
+                                            </div>
+                                            <div class="tooltip-row" id="tooltipBonusRow" style="display: none;">
+                                                <span>Bonus:</span>
+                                                <span id="tooltipBonusRemaining">0</span>
+                                            </div>
+                                            <div class="tooltip-row" id="tooltipTopoffRow" style="display: none;">
+                                                <span>Top-off:</span>
+                                                <span id="tooltipTopoffRemaining">0</span>
+                                            </div>
+                                            <div class="tooltip-divider"></div>
+                                            <div class="tooltip-row">
+                                                <span><strong>Total:</strong></span>
+                                                <span><strong id="tooltipTotalAvailable">0</strong></span>
+                                            </div>
+                                            <div class="tooltip-footer">
+                                                Click for full history
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                         <button class="btn-add" onclick="openUploadModal()" style="font-size: 14px;">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                             </svg>
                             Upload Documents
                         </button>
-                    </div>
-                    
-                    <!-- Document Usage Tracker -->
-                    <div id="documentUsageContainer" style="padding: 0 20px;">
-                        <div id="documentUsageTracker" class="usage-tracker">
-                            <div class="usage-header">
-                                <div>
-                                    <div class="usage-title">Documents Processed</div>
-                                    <div class="usage-count">
-                                        <span id="usageCount">0</span>
-                                        <span class="usage-limit">/ <span id="usageLimit">5</span></span>
-                                    </div>
-                                </div>
-                                <button class="usage-refresh" onclick="refreshUsageStats()" title="Refresh">
-                                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
-                                    </svg>
-                                </button>
-                            </div>
-                            
-                            <div class="usage-bar">
-                                <div id="usageBarFill" class="usage-bar-fill" style="width: 0%"></div>
-                            </div>
-                            
-                            <div class="usage-info">
-                                <span id="usagePeriod">This month</span>
-                                <span id="usageTopoff" style="display: none;">
-                                    + <span id="topoffCount">0</span> bonus credits
-                                </span>
-                            </div>
-                        </div>
                     </div>
                     
                     <div id="documentsControls" class="table-controls" style="display: none;">
@@ -6099,14 +6270,51 @@
             currentUsageStats = data;
             const { usage, plan } = data;
             
-            // Show for all users including Enterprise (they have high limits, not truly unlimited)
+            // Update the new credit display
+            document.getElementById('creditsAvailable').textContent = usage.total_available || 0;
+            document.getElementById('creditsUsedThisMonth').textContent = usage.credits_used || 0;
             
-            // Show the tracker
-            document.getElementById('documentUsageTracker').style.display = 'block';
+            // Update progress bar
+            const percentage = Math.min(100, (usage.credits_used / usage.monthly_limit) * 100);
+            const progressFill = document.getElementById('creditProgressFill');
+            progressFill.style.width = percentage + '%';
             
-            // Update counts - display credits_used instead of docs_processed
-            document.getElementById('usageCount').textContent = usage.credits_used;
-            document.getElementById('usageLimit').textContent = usage.monthly_limit;
+            // Update progress bar color based on usage
+            progressFill.classList.remove('warning', 'danger');
+            if (percentage > 90) {
+                progressFill.classList.add('danger');
+            } else if (percentage > 70) {
+                progressFill.classList.add('warning');
+            }
+            
+            // Format reset date
+            const resetDate = new Date(usage.reset_date);
+            const resetDateStr = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            document.getElementById('creditResetDate').textContent = resetDateStr;
+            
+            // Update tooltip content
+            document.getElementById('tooltipMonthlyUsed').textContent = usage.credits_used || 0;
+            document.getElementById('tooltipMonthlyLimit').textContent = usage.monthly_limit || 0;
+            document.getElementById('tooltipResetDate').textContent = resetDateStr;
+            
+            // Show/hide bonus row
+            if (usage.bonus_pool_remaining > 0) {
+                document.getElementById('tooltipBonusRow').style.display = 'flex';
+                document.getElementById('tooltipBonusRemaining').textContent = usage.bonus_pool_remaining;
+            } else {
+                document.getElementById('tooltipBonusRow').style.display = 'none';
+            }
+            
+            // Show/hide topoff row
+            if (usage.topoff_credits > 0) {
+                document.getElementById('tooltipTopoffRow').style.display = 'flex';
+                document.getElementById('tooltipTopoffRemaining').textContent = usage.topoff_credits;
+            } else {
+                document.getElementById('tooltipTopoffRow').style.display = 'none';
+            }
+            
+            // Update total in tooltip
+            document.getElementById('tooltipTotalAvailable').textContent = usage.total_available || 0;
             
             // Also update the document count in the plan info section
             if (document.getElementById('docCount')) {
@@ -6115,31 +6323,6 @@
                 document.getElementById('docCountItem').style.display = 'flex';
                 document.getElementById('docCountDisplay').style.display = 'flex';
             }
-            
-            // Update progress bar based on credits
-            const percentage = Math.min(100, (usage.credits_used / usage.monthly_limit) * 100);
-            const barFill = document.getElementById('usageBarFill');
-            barFill.style.width = percentage + '%';
-            
-            // Change color when > 80% used
-            if (percentage > 80) {
-                barFill.classList.add('high-usage');
-            } else {
-                barFill.classList.remove('high-usage');
-            }
-            
-            // Show bonus credits if any
-            if (usage.topoff_credits > 0) {
-                document.getElementById('usageTopoff').style.display = 'inline';
-                document.getElementById('topoffCount').textContent = usage.topoff_credits;
-            } else {
-                document.getElementById('usageTopoff').style.display = 'none';
-            }
-            
-            // Update period
-            const periodDate = new Date(usage.billing_period);
-            const monthName = periodDate.toLocaleDateString('en-US', { month: 'long' });
-            document.getElementById('usagePeriod').textContent = `${monthName} usage`;
         }
         
         function refreshUsageStats() {
@@ -6160,6 +6343,10 @@
                 if (!res.ok) throw new Error('Failed to load documents');
                 
                 const data = await res.json();
+                
+                // Update total document count
+                const totalDocs = data.documents.filter(doc => !doc.deleted_at).length;
+                document.getElementById('totalDocumentCount').textContent = totalDocs;
                 
                 // Check if any documents changed status
                 const prevProcessing = loadedDocuments.filter(doc => 
@@ -8214,6 +8401,26 @@
                 <div id="selectedFilesList"></div>
             </div>
             
+            <!-- Credit Estimation -->
+            <div id="creditEstimation" style="display: none; background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 14px; font-weight: 500; color: var(--oil-navy);">Estimated credits:</span>
+                    <span style="font-size: 16px; font-weight: 700; color: var(--oil-navy);" id="estimatedCredits">0</span>
+                </div>
+                <div style="font-size: 13px; color: #6B7280; margin-bottom: 8px;">
+                    (<span id="totalPages">0</span> pages detected)
+                </div>
+                <div style="font-size: 13px; color: #6B7280;">
+                    You have <span style="font-weight: 600; color: #059669;" id="availableCreditsInModal">0</span> credits available
+                </div>
+                <div id="creditWarning" style="display: none; margin-top: 12px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;">
+                    <svg width="16" height="16" fill="none" stroke="#DC2626" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span style="color: #DC2626; font-weight: 500;">Estimated credits exceed your available balance</span>
+                </div>
+            </div>
+            
             <!-- Upload Button -->
             <div style="display: flex; gap: 12px; justify-content: flex-end;">
                 <button type="button" class="btn-secondary-action" onclick="closeUploadModal()">Cancel</button>
@@ -9880,6 +10087,12 @@ function openUploadModal() {
     dropZone.style.borderColor = 'var(--border)';
     dropZone.style.background = '#f8f9fa';
     
+    // Update available credits display if we have usage stats
+    if (currentUsageStats) {
+        const availableCredits = currentUsageStats.usage.total_available || 0;
+        document.getElementById('availableCreditsInModal').textContent = availableCredits;
+    }
+    
     // Reset file input
     document.getElementById('documentFileInput').value = '';
     
@@ -9987,7 +10200,7 @@ function processSelectedFiles(files) {
     }
 }
 
-function displaySelectedFiles() {
+async function displaySelectedFiles() {
     console.log('displaySelectedFiles called with', selectedFiles.length, 'files');
     const listDiv = document.getElementById('selectedFilesList');
     console.log('selectedFilesList element:', listDiv);
@@ -10002,7 +10215,17 @@ function displaySelectedFiles() {
     }
     listDiv.innerHTML = '';
     
+    // Calculate total pages and estimated credits
+    let totalPages = 0;
+    const pageEstimates = [];
+    
+    // For now, use a rough estimate of 1 page per 100KB for PDFs
+    // In production, you might want to use pdf.js to get exact page counts
     selectedFiles.forEach((file, index) => {
+        // Rough estimate: 1 page ≈ 100KB
+        const estimatedPages = Math.max(1, Math.ceil(file.size / (100 * 1024)));
+        pageEstimates.push(estimatedPages);
+        totalPages += estimatedPages;
         const fileDiv = document.createElement('div');
         fileDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--success-bg); border: 1px solid var(--success); border-radius: 4px; margin-bottom: 8px;';
         
@@ -10023,6 +10246,32 @@ function displaySelectedFiles() {
     
     document.getElementById('selectedFilesDisplay').style.display = 'block';
     document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+    
+    // Calculate and display credit estimation
+    if (selectedFiles.length > 0) {
+        // Calculate credits: Math.ceil(pages / 30)
+        const estimatedCredits = Math.ceil(totalPages / 30);
+        
+        document.getElementById('creditEstimation').style.display = 'block';
+        document.getElementById('estimatedCredits').textContent = estimatedCredits;
+        document.getElementById('totalPages').textContent = totalPages;
+        
+        // Update available credits from current usage stats
+        if (currentUsageStats) {
+            const availableCredits = currentUsageStats.usage.total_available || 0;
+            document.getElementById('availableCreditsInModal').textContent = availableCredits;
+            
+            // Show warning if estimated > available
+            const warning = document.getElementById('creditWarning');
+            if (estimatedCredits > availableCredits) {
+                warning.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+            }
+        }
+    } else {
+        document.getElementById('creditEstimation').style.display = 'none';
+    }
 }
 
 function removeFile(index) {
@@ -10041,6 +10290,7 @@ function clearSelectedFile() {
         fileInput.value = '';
     }
     document.getElementById('selectedFilesDisplay').style.display = 'none';
+    document.getElementById('creditEstimation').style.display = 'none';
     const uploadBtn = document.getElementById('uploadBtn');
     if (uploadBtn) {
         uploadBtn.disabled = true;

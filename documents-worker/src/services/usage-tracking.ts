@@ -5,10 +5,13 @@ export interface UsageStats {
   docs_processed: number;
   credits_used: number;
   monthly_limit: number;
+  monthly_remaining: number;
   bonus_pool_remaining: number;
   topoff_credits: number;
   billing_period: string;
   percentage_used: number;
+  total_available: number;
+  reset_date: string;
 }
 
 export class UsageTrackingService {
@@ -52,14 +55,27 @@ export class UsageTrackingService {
       };
     }
     
+    const creditsUsed = usage.credits_used as number || usage.docs_processed as number;
+    const monthlyRemaining = Math.max(0, tierLimit.monthly - creditsUsed);
+    const bonusRemaining = usage.bonus_pool_remaining as number || 0;
+    const topoffCredits = usage.topoff_credits as number || 0;
+    const totalAvailable = monthlyRemaining + bonusRemaining + topoffCredits;
+    
+    // Calculate reset date (first day of next month)
+    const resetDate = new Date(billingPeriod);
+    resetDate.setMonth(resetDate.getMonth() + 1);
+    
     return {
       docs_processed: usage.docs_processed as number,
-      credits_used: usage.credits_used as number || usage.docs_processed as number,
+      credits_used: creditsUsed,
       monthly_limit: tierLimit.monthly,
-      bonus_pool_remaining: usage.bonus_pool_remaining as number,
-      topoff_credits: usage.topoff_credits as number,
+      monthly_remaining: monthlyRemaining,
+      bonus_pool_remaining: bonusRemaining,
+      topoff_credits: topoffCredits,
       billing_period: billingPeriod,
-      percentage_used: Math.round(((usage.credits_used as number || usage.docs_processed as number) / tierLimit.monthly) * 100)
+      percentage_used: Math.round((creditsUsed / tierLimit.monthly) * 100),
+      total_available: totalAvailable,
+      reset_date: resetDate.toISOString().split('T')[0]
     };
   }
 
@@ -93,7 +109,31 @@ export class UsageTrackingService {
       creditsUsed = Math.ceil(pageCount / 30); // Standard credit calculation
     }
     
-    // Increment usage counter
+    // Get current usage to implement consumption order
+    const currentUsage = await this.db.prepare(`
+      SELECT credits_used, bonus_pool_remaining, topoff_credits 
+      FROM document_usage 
+      WHERE user_id = ? AND billing_period_start = ?
+    `).bind(userId, billingPeriod).first();
+    
+    if (!currentUsage) {
+      throw new Error(`Usage record not found for user ${userId}`);
+    }
+    
+    // Calculate how credits will be consumed (monthly first, then bonus, then topoffs)
+    let remainingToConsume = creditsUsed;
+    let bonusUsed = 0;
+    let topoffUsed = 0;
+    
+    if (remainingToConsume > 0) {
+      // bonusUsed = Math.min(remainingToConsume, currentUsage.bonus_pool_remaining as number);
+      // remainingToConsume -= bonusUsed;
+      
+      // For now, we'll just track total credits used
+      // Full consumption order will be implemented when we add the proper bucket tracking
+    }
+    
+    // Update usage counter
     await this.db.prepare(`
       UPDATE document_usage 
       SET docs_processed = docs_processed + 1,
