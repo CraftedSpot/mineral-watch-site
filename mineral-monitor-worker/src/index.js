@@ -623,10 +623,61 @@ export default {
       }
     }
 
+    // Backfill endpoints
+    if (url.pathname === '/backfill/dockets') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      const startDate = url.searchParams.get('start') || 'resume';
+      const endDate = url.searchParams.get('end') || 'yesterday';
+
+      try {
+        const startTime = Date.now();
+        const results = await backfillDateRange(env, startDate, endDate);
+
+        return jsonResponse({
+          success: !results.error,
+          duration_ms: Date.now() - startTime,
+          results
+        });
+      } catch (error) {
+        return jsonResponse({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, 500);
+      }
+    }
+
+    if (url.pathname === '/backfill/status') {
+      try {
+        const status = await getBackfillStatus(env);
+        return jsonResponse(status);
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
+    if (url.pathname === '/backfill/clear') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      try {
+        const result = await clearBackfillProgress(env);
+        return jsonResponse(result);
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
     // Default response
-    return new Response(JSON.stringify({
+    return jsonResponse({
       service: 'Mineral Watch Oklahoma',
-      version: '2.1.0',
+      version: '2.2.0',
       endpoints: [
         '/health',
         '/trigger/daily',
@@ -636,10 +687,11 @@ export default {
         '/test/status-change',
         '/test/daily',
         '/test/docket',
-        '/test/unpdf'
+        '/test/unpdf',
+        '/backfill/dockets?start=YYYY-MM-DD&end=YYYY-MM-DD',
+        '/backfill/status',
+        '/backfill/clear'
       ]
-    }), {
-      headers: { 'Content-Type': 'application/json' }
     });
   }
 };
