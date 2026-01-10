@@ -254,14 +254,4 @@ export function validateEntry(entry) {
   };
 }
 
-module.exports = {
-  normalizeTownship,
-  normalizeRange,
-  normalizeSection,
-  normalizeCounty,
-  categorizeReliefType,
-  parseResultStatus,
-  extractContinuationDate,
-  parseLegalDescription,
-  validateEntry
-};
+// ES module exports are inline above
