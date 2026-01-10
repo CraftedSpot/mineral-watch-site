@@ -110,14 +110,31 @@ export class UsageTrackingService {
     }
     
     // Get current usage to implement consumption order
-    const currentUsage = await this.db.prepare(`
+    let currentUsage = await this.db.prepare(`
       SELECT credits_used, bonus_pool_remaining, topoff_credits 
       FROM document_usage 
       WHERE user_id = ? AND billing_period_start = ?
     `).bind(userId, billingPeriod).first();
     
     if (!currentUsage) {
-      throw new Error(`Usage record not found for user ${userId}`);
+      // Create a new usage record if it doesn't exist
+      // We don't know the user's plan here, so we'll create with minimal defaults
+      await this.db.prepare(`
+        INSERT INTO document_usage (
+          user_id, 
+          billing_period_start, 
+          docs_processed,
+          credits_used,
+          bonus_pool_remaining,
+          topoff_credits
+        ) VALUES (?, ?, 0, 0, 0, 0)
+      `).bind(userId, billingPeriod).run();
+      
+      currentUsage = {
+        credits_used: 0,
+        bonus_pool_remaining: 0,
+        topoff_credits: 0
+      };
     }
     
     // Calculate how credits will be consumed (monthly first, then bonus, then topoffs)
