@@ -498,16 +498,22 @@ export default {
 
         // Extract text with unpdf
         const extractStart = Date.now();
-        const { text, totalPages } = await extractText(pdfBuffer);
+        const result = await extractText(pdfBuffer);
         const extractTime = Date.now() - extractStart;
+
+        // unpdf returns { text: string[], totalPages: number }
+        // text is an array of strings (one per page)
+        const textArray = result.text || [];
+        const totalPages = result.totalPages || 0;
+        const fullText = Array.isArray(textArray) ? textArray.join('\n') : String(textArray);
 
         // Check if text contains expected patterns
         const caseNumberPattern = /CD\d{4}-\d{6}/g;
-        const caseNumbers = text.match(caseNumberPattern) || [];
+        const caseNumbers = fullText.match(caseNumberPattern) || [];
         const uniqueCases = [...new Set(caseNumbers)];
 
         // Sample of extracted text (first 1000 chars)
-        const textSample = text.substring(0, 1000);
+        const textSample = fullText.substring(0, 1000);
 
         return new Response(JSON.stringify({
           success: true,
