@@ -134,18 +134,25 @@ export async function findMatchingProperties(location, env, options = {}) {
  * @returns {Array} - Users who should get ADJACENT SECTION alerts
  */
 async function findUsersMonitoringAdjacentTo(location, env, options = {}) {
-  const { section, township, range, meridian } = location;
+  const { section, township, range, meridian, county } = location;
   const normalizedSec = parseInt(normalizeSection(section), 10);
+
+  // Default meridian to IM if not specified (Oklahoma convention)
+  // Exception: Panhandle counties (Cimarron, Texas, Beaver) default to CM
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+  const effectiveMeridian = meridian ||
+    (panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM');
 
   // Get adjacent sections - use extended grid (5x5, 24 sections) for horizontal wells
   // or standard grid (3x3, 8 sections) for other relief types
   const adjacentSections = options.useExtendedGrid
     ? getExtendedAdjacentSections(normalizedSec, township, range)
     : getAdjacentSections(normalizedSec, township, range);
-  
+
   // OPTIMIZATION: Build single OR query for all adjacent sections (8 or 24)
-  const sectionConditions = adjacentSections.map(adj => 
-    `AND({SEC} = "${normalizeSection(adj.section)}", {TWN} = "${adj.township}", {RNG} = "${adj.range}")`
+  // Include meridian to avoid cross-meridian false positives
+  const sectionConditions = adjacentSections.map(adj =>
+    `AND({SEC} = "${normalizeSection(adj.section)}", {TWN} = "${adj.township}", {RNG} = "${adj.range}", {MERIDIAN} = "${effectiveMeridian}")`
   ).join(', ');
   
   const formula = `AND(
