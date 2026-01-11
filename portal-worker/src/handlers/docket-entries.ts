@@ -228,6 +228,7 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
     const section = url.searchParams.get('section');
     const township = url.searchParams.get('township');
     const range = url.searchParams.get('range');
+    const meridian = url.searchParams.get('meridian') || 'IM'; // Default to Indian Meridian
     const includeAdjacent = url.searchParams.get('includeAdjacent') === 'true';
 
     if (!section || !township || !range) {
@@ -241,12 +242,17 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
     const sectionNum = parseInt(section);
     const townshipNorm = township.toUpperCase();
     const rangeNorm = range.toUpperCase();
+    const meridianNorm = meridian.toUpperCase();
 
     if (isNaN(sectionNum) || sectionNum < 1 || sectionNum > 36) {
       return jsonResponse({ error: 'Invalid section number (must be 1-36)' }, 400);
     }
 
-    console.log(`[DocketEntries] Querying for S${sectionNum}-T${townshipNorm}-R${rangeNorm}, includeAdjacent=${includeAdjacent}`);
+    if (meridianNorm !== 'IM' && meridianNorm !== 'CM') {
+      return jsonResponse({ error: 'Invalid meridian (must be IM or CM)' }, 400);
+    }
+
+    console.log(`[DocketEntries] Querying for S${sectionNum}-T${townshipNorm}-R${rangeNorm} (${meridianNorm}), includeAdjacent=${includeAdjacent}`);
 
     // Query direct matches
     const directResults = await env.WELLS_DB.prepare(`
@@ -264,10 +270,10 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
         docket_date,
         order_number
       FROM occ_docket_entries
-      WHERE section = ? AND township = ? AND range = ?
+      WHERE section = ? AND township = ? AND range = ? AND meridian = ?
       ORDER BY hearing_date DESC
       LIMIT 50
-    `).bind(String(sectionNum), townshipNorm, rangeNorm).all();
+    `).bind(String(sectionNum), townshipNorm, rangeNorm, meridianNorm).all();
 
     // Format direct results
     const direct = (directResults.results || []).map((row: any) => ({
@@ -321,17 +327,21 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
             order_number
           FROM occ_docket_entries
           WHERE relief_type IN (${typesList})
+            AND meridian = ?
             AND (${locationConditions})
           ORDER BY hearing_date DESC
           LIMIT 30
         `;
 
-        // Flatten location parameters
-        const params = adjacentLocations.flatMap(loc => [
-          String(loc.section),
-          loc.township,
-          loc.range
-        ]);
+        // Flatten location parameters (meridian first, then locations)
+        const params = [
+          meridianNorm,
+          ...adjacentLocations.flatMap(loc => [
+            String(loc.section),
+            loc.township,
+            loc.range
+          ])
+        ];
 
         const adjacentResults = await env.WELLS_DB.prepare(adjacentQuery)
           .bind(...params)
