@@ -7133,10 +7133,17 @@
                 modalStack.push({ type: 'well', id: wellId, element: wellModal });
             }
             
-            // Load linked properties after modal is shown
+            // Load linked properties and OCC filings after modal is shown
             setTimeout(() => {
                 loadLinkedProperties(wellId);
                 loadLinkedDocuments(wellId, 'well', f['API Number']);
+                // Load OCC filings using section/township/range
+                const wellSection = f['Section'];
+                const wellTownship = f['Township'];
+                const wellRange = f['Range'];
+                if (wellSection && wellTownship && wellRange) {
+                    loadOccFilings(wellSection, wellTownship, wellRange, 'well');
+                }
             }, 100);
             
             // Handle viewer permissions
