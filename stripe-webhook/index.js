@@ -466,6 +466,10 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
           <li><strong>Relax</strong> – We scan daily and only email when something changes</li>
         </ol>
 
+        <p style="font-size: 14px; color: #334E68; line-height: 1.6; margin: 20px 0 0;">
+          <strong>New to Mineral Watch?</strong> Check out our video tutorials in the <a href="${BASE_URL}/learn" style="color: #C05621;">Learn section</a> for step-by-step guides on adding properties and wells.
+        </p>
+
         <p style="font-size: 14px; color: #334E68; line-height: 1.6; margin: 20px 0 0; padding: 16px; background: #FFF5F0; border-radius: 6px;">
           <strong>Have a lot to add?</strong> Use Bulk Upload to import from Excel or CSV files—just click "Bulk Upload" in your dashboard.
         </p>
@@ -531,6 +535,8 @@ Getting Started:
 1. Add your properties – Enter Section, Township, Range for each
 2. Add your wells – Enter the 10-digit API number (starts with 35)
 3. Relax – We scan daily and only email when something changes
+
+New to Mineral Watch? Check out our video tutorials in the Learn section for step-by-step guides: ${BASE_URL}/learn
 
 Have a lot to add? Use Bulk Upload to import from Excel or CSV files.
 
