@@ -107,7 +107,19 @@ export async function linkDocumentToEntities(
 ): Promise<{ propertyId: string | null; wellId: string | null }> {
   let propertyId: string | null = null;
   let wellId: string | null = null;
-  
+
+  // Get the document's user_id to filter properties by ownership
+  let documentUserId: string | null = null;
+  try {
+    const docResult = await db.prepare(`
+      SELECT user_id FROM documents WHERE id = ?
+    `).bind(documentId).first();
+    documentUserId = docResult?.user_id as string | null;
+    console.log(`[LinkDocuments] Document belongs to user: ${documentUserId}`);
+  } catch (error) {
+    console.error(`[LinkDocuments] Error fetching document user_id:`, error);
+  }
+
   // Extract legal description from document
   // Handle both nested (with .value) and flat structures
   const getValue = (field: any): any => {
@@ -165,36 +177,39 @@ export async function linkDocumentToEntities(
   console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}', County '${county}'`);
   console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
   
-  // Match property by legal description
-  if (section && township && range && county) {
+  // Match property by legal description (only if we know the document owner)
+  if (section && township && range && county && documentUserId) {
     try {
       const propertyQuery = `
-        SELECT airtable_record_id as id FROM properties 
-        WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER) 
+        SELECT airtable_record_id as id FROM properties
+        WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
           AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
           AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
           AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
           AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
           AND LOWER(county) = LOWER(?)
           AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
+          AND owner = ?
         LIMIT 1
       `;
-      const propertyParams = [section, township, township, range, range, county, meridian, meridian];
-      
+      const propertyParams = [section, township, township, range, range, county, meridian, meridian, documentUserId];
+
       console.log(`[LinkDocuments] Property matching SQL query:\n${propertyQuery}`);
       console.log(`[LinkDocuments] Property query parameters:`, propertyParams);
-      
+
       const property = await db.prepare(propertyQuery).bind(...propertyParams).first();
-      
+
       if (property) {
         propertyId = property.id as string;
         console.log(`[LinkDocuments] Found matching property: ${propertyId}`);
       } else {
-        console.log(`[LinkDocuments] No property match found for legal description`);
+        console.log(`[LinkDocuments] No property match found for legal description (or not owned by user)`);
       }
     } catch (error) {
       console.error(`[LinkDocuments] Error matching property:`, error);
     }
+  } else if (section && township && range && county && !documentUserId) {
+    console.log(`[LinkDocuments] Skipping property matching - could not determine document owner`);
   }
   
   // Check for nested well information objects or arrays
