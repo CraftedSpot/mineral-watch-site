@@ -343,10 +343,10 @@ async function handleSubscriptionDeleted(subscription, env) {
 /**
  * Send welcome email for paid signups with magic link
  */
-async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
+async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddress = null) {
   // Generate magic link token
   let magicLinkUrl = `${BASE_URL}/portal`; // Default fallback
-  
+
   try {
     if (env.AUTH_SECRET) {
       const token = await generateMagicLinkToken(email, env.AUTH_SECRET);
@@ -359,8 +359,27 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
     console.error('Failed to generate magic link:', err);
     // Continue with regular dashboard link
   }
+
   const subject = `Welcome to Mineral Watch ${plan} - You're All Set`;
-  
+
+  // Business tier gets extra features mentioned
+  const isBusinessTier = plan === 'Business';
+  const bookSection = isBusinessTier ? `
+        <!-- Free Book Section -->
+        <div style="background: #FEF3C7; border-radius: 6px; padding: 24px; margin: 30px 0; border-left: 4px solid #D97706;">
+          <h3 style="margin: 0 0 12px; color: #92400E; font-size: 16px;">📚 Your Free Book is On Its Way!</h3>
+          <p style="margin: 0; color: #78350F; line-height: 1.6;">
+            As a Business subscriber, you'll receive a complimentary copy of <strong>"The Mineral Rights Guide"</strong>.
+            We'll ship it to the address you provided within 5-7 business days.
+          </p>
+        </div>
+` : '';
+
+  const businessFeatures = isBusinessTier ? `
+            <li><strong>10 team member seats</strong> for your organization</li>
+            <li>Document storage & AI extraction</li>
+            <li>Priority support</li>` : '';
+
   const htmlBody = `
 <!DOCTYPE html>
 <html>
@@ -371,25 +390,25 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
 <body style="margin: 0; padding: 0; background-color: #f7fafc; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
   <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
     <div style="background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); overflow: hidden;">
-      
+
       <!-- Header -->
       <div style="background: #1C2B36; padding: 30px; text-align: center;">
         <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 700;">Mineral Watch</h1>
       </div>
-      
+
       <!-- Content -->
       <div style="padding: 40px 30px;">
         <p style="font-size: 18px; color: #1C2B36; margin: 0 0 20px;">Hi ${name},</p>
-        
+
         <p style="font-size: 16px; color: #334E68; line-height: 1.6; margin: 0 0 25px;">
           Thanks for subscribing to Mineral Watch <strong>${plan}</strong>! Your account is active and ready to go.
         </p>
-        
+
         <!-- CTA Button -->
         <div style="text-align: center; margin: 30px 0;">
           <a href="${magicLinkUrl}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Go to Dashboard →</a>
         </div>
-        
+        ${bookSection}
         <!-- Plan Details Box -->
         <div style="background: #F7FAFC; border-radius: 6px; padding: 24px; margin: 30px 0;">
           <h3 style="margin: 0 0 16px; color: #1C2B36; font-size: 16px;">Your ${plan} Plan Includes:</h3>
@@ -398,10 +417,10 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
             <li><strong>${limits.wells} wells</strong> by API number</li>
             <li>Daily permit scans + weekly status checks</li>
             <li>Plain English email alerts</li>
-            <li>Direct links to wells on the OCC map</li>
+            <li>Direct links to wells on the OCC map</li>${businessFeatures}
           </ul>
         </div>
-        
+
         <!-- Getting Started -->
         <h3 style="color: #1C2B36; font-size: 16px; margin: 30px 0 16px;">Getting Started</h3>
         <ol style="margin: 0; padding: 0 0 0 20px; color: #334E68; line-height: 1.8;">
@@ -409,55 +428,67 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits) {
           <li><strong>Add your wells</strong> – Enter the 10-digit API number (starts with 35)</li>
           <li><strong>Relax</strong> – We scan daily and only email when something changes</li>
         </ol>
-        
+
         <p style="font-size: 14px; color: #334E68; line-height: 1.6; margin: 20px 0 0; padding: 16px; background: #FFF5F0; border-radius: 6px;">
           <strong>Have a lot to add?</strong> Use Bulk Upload to import from Excel or CSV files—just click "Bulk Upload" in your dashboard.
         </p>
-        
+
         <!-- Divider -->
         <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
-        
+
         <p style="font-size: 14px; color: #718096; margin: 0;">
           <strong>Manage Your Subscription</strong><br>
           Update your payment method, change plans, or view invoices anytime from your Account page.
         </p>
-        
+
         <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
-        
+
         <p style="font-size: 14px; color: #718096; margin: 0;">
           <strong>Questions?</strong> Just reply to this email.
         </p>
-        
+
         <p style="font-size: 16px; color: #334E68; margin: 30px 0 0;">
           — Mineral Watch
         </p>
       </div>
-      
+
       <!-- Footer -->
       <div style="background: #F7FAFC; padding: 20px 30px; text-align: center; border-top: 1px solid #E2E8F0;">
         <p style="font-size: 12px; color: #A0AEC0; margin: 0;">
           Mineral Watch · Oklahoma Mineral Rights Monitoring
         </p>
       </div>
-      
+
     </div>
   </div>
 </body>
 </html>
   `;
-  
+
+  const bookText = isBusinessTier ? `
+YOUR FREE BOOK IS ON ITS WAY!
+As a Business subscriber, you'll receive a complimentary copy of "The Mineral Rights Guide".
+We'll ship it to the address you provided within 5-7 business days.
+
+` : '';
+
+  const businessFeaturesText = isBusinessTier ? `
+- 10 team member seats for your organization
+- Document storage & AI extraction
+- Priority support` : '';
+
   const textBody = `Hi ${name},
 
 Thanks for subscribing to Mineral Watch ${plan}! Your account is active and ready to go.
 
 Go to Dashboard: ${magicLinkUrl}
-
+${bookText}
 Your ${plan} Plan Includes:
 - ${limits.properties} properties with adjacent section monitoring
 - ${limits.wells} wells by API number
 - Daily permit scans + weekly status checks
 - Plain English email alerts
-- Direct links to wells on the OCC map
+- Direct links to wells on the OCC map${businessFeaturesText}
 
 Getting Started:
 1. Add your properties – Enter Section, Township, Range for each
