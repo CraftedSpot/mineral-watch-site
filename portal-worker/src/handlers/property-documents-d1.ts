@@ -42,42 +42,27 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
     console.log(`[GetPropertyDocuments-D1] Attempting D1 query for property ${propertyId}`);
     
     try {
-      // First, get the property UUID from the Airtable record ID
-      const propertyResult = await env.WELLS_DB.prepare(`
-        SELECT id FROM properties WHERE airtable_record_id = ?
-      `).bind(propertyId).first();
-      
-      if (!propertyResult) {
-        console.log(`[GetPropertyDocuments-D1] Property not found in D1 for Airtable ID: ${propertyId}`);
-        return jsonResponse({
-          success: true,
-          documents: [],
-          source: 'D1',
-          queryTime: Date.now() - start
-        });
-      }
-      
-      const propertyUuid = propertyResult.id;
-      console.log(`[GetPropertyDocuments-D1] Found property UUID: ${propertyUuid} for Airtable ID: ${propertyId}`);
-      
       // Query linked documents from D1 with security filtering
+      // Documents store Airtable record IDs in property_id, so query directly
       const docTypeList = PROPERTY_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
-      
+
+      console.log(`[GetPropertyDocuments-D1] Querying documents for property ${propertyId}`);
+
       const d1Results = await env.WELLS_DB.prepare(`
-        SELECT 
+        SELECT
           id,
           display_name,
           filename,
           doc_type,
           upload_date,
           r2_key
-        FROM documents 
-        WHERE property_id = ? 
+        FROM documents
+        WHERE property_id = ?
           AND (deleted_at IS NULL OR deleted_at = '')
           AND doc_type IN (${docTypeList})
           AND (user_id = ? OR organization_id = ?)
         ORDER BY upload_date DESC
-      `).bind(propertyUuid, authUser.id, userOrgId).all();
+      `).bind(propertyId, authUser.id, userOrgId).all();
       
       console.log(`[GetPropertyDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       
