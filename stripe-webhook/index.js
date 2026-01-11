@@ -97,7 +97,7 @@ export default {
           break;
           
         case 'customer.subscription.updated':
-          await handleSubscriptionUpdated(event.data.object, env);
+          await handleSubscriptionUpdated(event.data.object, env, event.data.previous_attributes);
           break;
           
         case 'customer.subscription.deleted':
@@ -225,16 +225,22 @@ async function handleCheckoutComplete(session, env) {
 /**
  * Handle subscription updates (upgrades/downgrades via Billing Portal or custom upgrade)
  */
-async function handleSubscriptionUpdated(subscription, env) {
+async function handleSubscriptionUpdated(subscription, env, previousAttributes = {}) {
   const stripeCustomerId = subscription.customer;
   const subscriptionId = subscription.id;
   const status = subscription.status;
-  
+
   // Get the current price from the subscription
   const priceId = subscription.items?.data?.[0]?.price?.id;
   const newPlan = priceId ? (PRICE_TO_PLAN[priceId] || 'Starter') : 'Starter';
-  
-  console.log(`Subscription updated: ${subscriptionId}, Status: ${status}, Plan: ${newPlan}`);
+  const isAnnualPlan = priceId && ANNUAL_PRICE_IDS.has(priceId);
+
+  // Check if price changed (for detecting monthly→annual switches)
+  const previousPriceId = previousAttributes?.items?.data?.[0]?.price?.id;
+  const wasAnnualPlan = previousPriceId && ANNUAL_PRICE_IDS.has(previousPriceId);
+  const switchedToAnnual = isAnnualPlan && !wasAnnualPlan && previousPriceId;
+
+  console.log(`Subscription updated: ${subscriptionId}, Status: ${status}, Plan: ${newPlan}, Annual: ${isAnnualPlan}, SwitchedToAnnual: ${switchedToAnnual}`);
   
   // Find user by Stripe Customer ID
   const user = await findUserByStripeCustomerId(env, stripeCustomerId);
@@ -285,9 +291,19 @@ async function handleSubscriptionUpdated(subscription, env) {
   }
   
   await updateUser(env, user.id, updateFields);
-  
+
   console.log(`Updated user ${userEmail}: Plan=${newPlan}, Status=${airtableStatus}`);
-  
+
+  // Grant annual bonus if switching to an annual plan
+  // Triggers when:
+  // 1. Plan tier changed AND new plan is annual (e.g., Starter Monthly → Professional Annual)
+  // 2. Same tier but switched from monthly to annual (e.g., Starter Monthly → Starter Annual)
+  const shouldGrantBonus = isAnnualPlan && status === 'active' && (planChanged || switchedToAnnual);
+  if (shouldGrantBonus) {
+    await grantAnnualBonusCredits(env, user.id, newPlan, userEmail);
+    console.log(`Granted annual bonus for ${userEmail} switching to ${newPlan} annual via subscription update`);
+  }
+
   // Send plan change email if plan changed
   if (planChanged && status === 'active') {
     const isUpgrade = getPlanRank(newPlan) > getPlanRank(oldPlan);
