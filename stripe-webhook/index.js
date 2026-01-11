@@ -407,13 +407,13 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
           <h3 style="margin: 0 0 12px; color: #92400E; font-size: 16px;">📚 Your Free Book is On Its Way!</h3>
           <p style="margin: 0; color: #78350F; line-height: 1.6;">
             As a Business subscriber, you'll receive a complimentary copy of <strong>"The Mineral Rights Guide"</strong>.
-            We'll ship it to the address you provided within 5-7 business days.
+            We'll ship it to the address you provided. Please allow 2-3 weeks for delivery.
           </p>
         </div>
 ` : '';
 
   const businessFeatures = isBusinessTier ? `
-            <li><strong>10 team member seats</strong> for your organization</li>
+            <li><strong>3 team member seats</strong> for your organization</li>
             <li>Document storage & AI extraction</li>
             <li>Priority support</li>` : '';
 
@@ -505,12 +505,12 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
   const bookText = isBusinessTier ? `
 YOUR FREE BOOK IS ON ITS WAY!
 As a Business subscriber, you'll receive a complimentary copy of "The Mineral Rights Guide".
-We'll ship it to the address you provided within 5-7 business days.
+We'll ship it to the address you provided. Please allow 2-3 weeks for delivery.
 
 ` : '';
 
   const businessFeaturesText = isBusinessTier ? `
-- 10 team member seats for your organization
+- 3 team member seats for your organization
 - Document storage & AI extraction
 - Priority support` : '';
 
