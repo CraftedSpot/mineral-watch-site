@@ -1791,6 +1791,69 @@
                 display: none !important; /* No hover on mobile */
             }
         }
+
+        /* Credit Warning Banner */
+        .credit-warning-banner {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 16px;
+            border-radius: 8px;
+            margin-bottom: 16px;
+            font-size: 14px;
+        }
+
+        .credit-warning-banner.warning {
+            background: #FEF3C7;
+            border: 1px solid #F59E0B;
+            color: #92400E;
+        }
+
+        .credit-warning-banner.danger {
+            background: #FEE2E2;
+            border: 1px solid #EF4444;
+            color: #991B1B;
+        }
+
+        .credit-warning-banner .warning-icon {
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .credit-warning-banner .warning-text {
+            flex: 1;
+        }
+
+        .credit-warning-banner .warning-action {
+            flex-shrink: 0;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 500;
+            text-decoration: none;
+            white-space: nowrap;
+        }
+
+        .credit-warning-banner.warning .warning-action {
+            background: #F59E0B;
+            color: white;
+        }
+
+        .credit-warning-banner.danger .warning-action {
+            background: #EF4444;
+            color: white;
+        }
+
+        .credit-warning-banner .warning-action:hover {
+            opacity: 0.9;
+        }
+
+        @media (max-width: 768px) {
+            .credit-warning-banner {
+                flex-direction: column;
+                text-align: center;
+                gap: 8px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -2065,6 +2128,9 @@
                         </button>
                     </div>
                     
+                    <!-- Low Credit Warning Banner -->
+                    <div id="lowCreditWarning" class="credit-warning-banner" style="display: none;"></div>
+
                     <div id="documentsControls" class="table-controls" style="display: none;">
                         <input type="text" id="documentsSearch" class="search-input" placeholder="Search documents by name, type, county, or content...">
                         <select id="documentsCategory" class="sort-select" style="width: 180px;">
@@ -6414,55 +6480,130 @@
         
         function displayUsageStats(data) {
             currentUsageStats = data;
-            const { usage, plan } = data;
-            
-            // Update the new credit display
+            const { usage, plan, credits } = data;
+            const isLifetimeTier = usage.is_lifetime_tier;
+
+            // Update the main credit display
             document.getElementById('creditsAvailable').textContent = usage.total_available || 0;
-            document.getElementById('creditsUsedThisMonth').textContent = usage.credits_used || 0;
-            
+
+            // Update usage text based on tier type
+            const usageText = document.getElementById('creditsUsedThisMonth');
+            if (isLifetimeTier) {
+                // Free tier: show lifetime usage
+                usageText.parentElement.innerHTML = `(<span id="creditsUsedThisMonth">${usage.credits_used || 0}</span> of ${(usage.credits_used || 0) + (usage.total_available || 0)} lifetime)`;
+            } else {
+                // Paid tier: show monthly usage
+                usageText.textContent = usage.credits_used || 0;
+            }
+
             // Update progress bar
-            const percentage = Math.min(100, (usage.credits_used / usage.monthly_limit) * 100);
+            let percentage;
+            if (isLifetimeTier) {
+                // Free tier: show lifetime usage percentage
+                const totalLifetime = (usage.credits_used || 0) + (usage.total_available || 0);
+                percentage = totalLifetime > 0 ? Math.min(100, ((usage.credits_used || 0) / totalLifetime) * 100) : 0;
+            } else {
+                // Paid tier: show monthly usage percentage
+                percentage = usage.monthly_limit > 0 ? Math.min(100, (usage.credits_used / usage.monthly_limit) * 100) : 0;
+            }
             const progressFill = document.getElementById('creditProgressFill');
             progressFill.style.width = percentage + '%';
-            
-            // Update progress bar color based on usage
+
+            // Update progress bar color based on remaining credits
             progressFill.classList.remove('warning', 'danger');
-            if (percentage > 90) {
+            const totalAvailable = usage.total_available || 0;
+            const monthlyLimit = usage.monthly_limit || 1;
+            const remainingPct = isLifetimeTier ? (totalAvailable / 10 * 100) : (totalAvailable / monthlyLimit * 100);
+
+            if (remainingPct <= 10 || totalAvailable === 0) {
                 progressFill.classList.add('danger');
-            } else if (percentage > 70) {
+            } else if (remainingPct <= 20) {
                 progressFill.classList.add('warning');
             }
-            
+
             // Format reset date
             const resetDate = new Date(usage.reset_date);
             const resetDateStr = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            document.getElementById('creditResetDate').textContent = resetDateStr;
-            
-            // Update tooltip content
-            document.getElementById('tooltipMonthlyUsed').textContent = usage.credits_used || 0;
-            document.getElementById('tooltipMonthlyLimit').textContent = usage.monthly_limit || 0;
-            document.getElementById('tooltipResetDate').textContent = resetDateStr;
-            
-            // Show/hide bonus row
-            if (usage.bonus_pool_remaining > 0) {
-                document.getElementById('tooltipBonusRow').style.display = 'flex';
-                document.getElementById('tooltipBonusRemaining').textContent = usage.bonus_pool_remaining;
+
+            // Update reset date display (hide for lifetime tier)
+            const resetElement = document.getElementById('creditResetDate');
+            if (isLifetimeTier) {
+                resetElement.parentElement.innerHTML = 'Lifetime credits';
             } else {
-                document.getElementById('tooltipBonusRow').style.display = 'none';
+                document.getElementById('creditResetDate').textContent = resetDateStr;
             }
-            
-            // Show/hide topoff row
-            if (usage.topoff_credits > 0) {
-                document.getElementById('tooltipTopoffRow').style.display = 'flex';
-                document.getElementById('tooltipTopoffRemaining').textContent = usage.topoff_credits;
+
+            // Update tooltip content
+            if (isLifetimeTier) {
+                // Free tier tooltip
+                document.getElementById('tooltipMonthlyUsed').textContent = usage.credits_used || 0;
+                document.getElementById('tooltipMonthlyLimit').textContent = (usage.credits_used || 0) + (usage.total_available || 0);
+                document.getElementById('tooltipResetDate').textContent = 'never';
+                document.getElementById('tooltipBonusRow').style.display = 'none';
+                document.getElementById('tooltipTopoffRow').style.display = 'none';
             } else {
+                // Paid tier tooltip
+                document.getElementById('tooltipMonthlyUsed').textContent = usage.monthly_remaining || 0;
+                document.getElementById('tooltipMonthlyLimit').textContent = usage.monthly_limit || 0;
+                document.getElementById('tooltipResetDate').textContent = resetDateStr;
+
+                // Show bonus/permanent credits row
+                const permanentCredits = usage.permanent_credits || 0;
+                if (permanentCredits > 0) {
+                    document.getElementById('tooltipBonusRow').style.display = 'flex';
+                    document.getElementById('tooltipBonusRemaining').textContent = permanentCredits;
+                } else {
+                    document.getElementById('tooltipBonusRow').style.display = 'none';
+                }
                 document.getElementById('tooltipTopoffRow').style.display = 'none';
             }
-            
+
             // Update total in tooltip
             document.getElementById('tooltipTotalAvailable').textContent = usage.total_available || 0;
-            
+
+            // Show low credit warning if below 20% or out of credits
+            showLowCreditWarning(usage, isLifetimeTier);
+
             // Document count will be updated by loadDocuments() to show actual inventory
+        }
+
+        function showLowCreditWarning(usage, isLifetimeTier) {
+            const warningBanner = document.getElementById('lowCreditWarning');
+            if (!warningBanner) return;
+
+            const totalAvailable = usage.total_available || 0;
+            const monthlyLimit = usage.monthly_limit || 1;
+
+            // Calculate remaining percentage
+            let remainingPct;
+            if (isLifetimeTier) {
+                const totalLifetime = (usage.credits_used || 0) + totalAvailable;
+                remainingPct = totalLifetime > 0 ? (totalAvailable / totalLifetime * 100) : 0;
+            } else {
+                remainingPct = (totalAvailable / monthlyLimit * 100);
+            }
+
+            // Show warning if out of credits
+            if (totalAvailable === 0) {
+                warningBanner.style.display = 'block';
+                warningBanner.className = 'credit-warning-banner danger';
+                warningBanner.innerHTML = `
+                    <span class="warning-icon">⚠️</span>
+                    <span class="warning-text">You're out of credits. Documents won't be processed until you have credits available.</span>
+                    <a href="/portal/account#credits" class="warning-action">Get more credits</a>
+                `;
+            } else if (remainingPct <= 20) {
+                // Show warning if below 20%
+                warningBanner.style.display = 'block';
+                warningBanner.className = 'credit-warning-banner warning';
+                warningBanner.innerHTML = `
+                    <span class="warning-icon">⚡</span>
+                    <span class="warning-text">Low credits: ${totalAvailable} remaining${isLifetimeTier ? '' : ' this month'}.</span>
+                    <a href="/portal/account#credits" class="warning-action">View options</a>
+                `;
+            } else {
+                warningBanner.style.display = 'none';
+            }
         }
         
         function refreshUsageStats() {
@@ -8674,6 +8815,55 @@
     </div>
 </div>
 
+<!-- OUT OF CREDITS MODAL -->
+<div class="modal-overlay" id="outOfCreditsModal" style="display: none;">
+    <div class="modal" style="max-width: 450px; text-align: center;">
+        <div style="margin-bottom: 24px;">
+            <div style="width: 64px; height: 64px; background: #FEE2E2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                <svg width="32" height="32" fill="none" stroke="#DC2626" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h2 style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 20px; color: var(--oil-navy);">You're Out of Credits</h2>
+            <p style="margin: 0; color: #6B7280; font-size: 14px; line-height: 1.5;" id="outOfCreditsMessage">
+                You've used all your available credits. Documents won't be processed until you have credits available.
+            </p>
+        </div>
+
+        <div style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: left;">
+            <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Get More Credits</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="/portal/account#credits" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <div style="font-weight: 500;">Buy Credit Pack</div>
+                        <div style="font-size: 12px; color: #6B7280;">One-time purchase, never expires</div>
+                    </div>
+                </a>
+                <a href="/portal/account" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+                    </svg>
+                    <div>
+                        <div style="font-weight: 500;">Upgrade Plan</div>
+                        <div style="font-size: 12px; color: #6B7280;">More monthly credits + bonus</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button onclick="closeOutOfCreditsModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">
+                Close
+            </button>
+        </div>
+
+        <p id="creditResetInfo" style="margin: 16px 0 0; font-size: 12px; color: #9CA3AF;"></p>
+    </div>
+</div>
+
 <!-- DOCUMENT UPLOAD MODAL -->
 <div class="modal-overlay" id="documentUploadModal" style="display: none;">
     <div class="modal" style="max-width: 500px;">
@@ -10381,24 +10571,34 @@ function openUploadModal() {
     // Reset all modal state
     clearSelectedFile();
     
+    // Check if user has credits available
+    if (currentUsageStats) {
+        const availableCredits = currentUsageStats.usage.total_available || 0;
+        if (availableCredits === 0) {
+            // Show out of credits modal instead
+            showOutOfCreditsModal();
+            return;
+        }
+    }
+
     // Reset form visibility (in case it was hidden during upload)
     document.getElementById('documentUploadForm').style.display = 'block';
     document.getElementById('uploadProgress').style.display = 'none';
-    
+
     // Reset drop zone to default state
     const dropZone = document.getElementById('fileDropZone');
     dropZone.style.borderColor = 'var(--border)';
     dropZone.style.background = '#f8f9fa';
-    
+
     // Update available credits display if we have usage stats
     if (currentUsageStats) {
         const availableCredits = currentUsageStats.usage.total_available || 0;
         document.getElementById('availableCreditsInModal').textContent = availableCredits;
     }
-    
+
     // Reset file input
     document.getElementById('documentFileInput').value = '';
-    
+
     // Reset selected files display
     document.getElementById('selectedFilesDisplay').style.display = 'none';
     // Clear only the list content, not the entire container
@@ -10406,17 +10606,49 @@ function openUploadModal() {
     if (filesList) {
         filesList.innerHTML = '';
     }
-    
+
     // Make sure upload button is disabled
     const uploadBtn = document.getElementById('uploadBtn');
     if (uploadBtn) {
         uploadBtn.disabled = true;
     }
-    
+
     // Show modal
     document.getElementById('documentUploadModal').style.display = 'flex';
 }
 window.openUploadModal = openUploadModal;
+
+function showOutOfCreditsModal() {
+    const usage = currentUsageStats?.usage;
+    const isLifetimeTier = usage?.is_lifetime_tier;
+
+    // Update message based on tier
+    const messageEl = document.getElementById('outOfCreditsMessage');
+    if (isLifetimeTier) {
+        messageEl.textContent = "You've used all your free trial credits. Upgrade to a paid plan to continue processing documents.";
+    } else {
+        messageEl.textContent = "You've used all your available credits this month. Purchase a credit pack or wait for your monthly reset.";
+    }
+
+    // Update reset info for paid tiers
+    const resetInfo = document.getElementById('creditResetInfo');
+    if (!isLifetimeTier && usage?.reset_date) {
+        const resetDate = new Date(usage.reset_date);
+        const resetDateStr = resetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+        resetInfo.textContent = `Your monthly credits reset on ${resetDateStr}`;
+        resetInfo.style.display = 'block';
+    } else {
+        resetInfo.style.display = 'none';
+    }
+
+    document.getElementById('outOfCreditsModal').style.display = 'flex';
+}
+window.showOutOfCreditsModal = showOutOfCreditsModal;
+
+function closeOutOfCreditsModal() {
+    document.getElementById('outOfCreditsModal').style.display = 'none';
+}
+window.closeOutOfCreditsModal = closeOutOfCreditsModal;
 
 function closeUploadModal() {
     document.getElementById('documentUploadModal').style.display = 'none';
