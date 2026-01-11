@@ -114,14 +114,17 @@ export async function handleGetOrganization(request: Request, env: Env) {
       joinedDate: record.fields['Created Time']
     }));
 
-    // Return organization with members
+    // Return organization with members and settings
     return jsonResponse({
       organization: {
         id: organization.id,
         name: organization.fields.Name,
         plan: userRecord.fields.Plan,
         createdDate: organization.fields['Created Time'],
-        members: members
+        members: members,
+        // Notification settings
+        defaultNotificationMode: organization.fields['Default Notification Mode'] || 'Instant',
+        allowUserOverride: organization.fields['Allow User Override'] !== false
       }
     });
 
@@ -610,6 +613,72 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
     console.error('❌ Error stack:', error.stack);
     console.error('❌ Error message:', error.message);
     return jsonResponse({ error: 'Verification failed' }, 500);
+  }
+}
+
+/**
+ * Update organization settings (notification preferences)
+ */
+export async function handleUpdateOrganizationSettings(request: Request, env: Env) {
+  try {
+    // Authenticate user
+    const user = await authenticateRequest(request, env);
+    if (!user) {
+      return jsonResponse({ error: "Unauthorized" }, 401);
+    }
+
+    // Get user details and check if they're an admin
+    const userRecord = await findUserByEmail(env, user.email);
+    if (!userRecord || userRecord.fields.Role !== 'Admin') {
+      return jsonResponse({ error: "Only admins can update organization settings" }, 403);
+    }
+
+    // Get organization ID
+    const organizationId = userRecord.fields.Organization?.[0];
+    if (!organizationId) {
+      return jsonResponse({ error: "No organization found" }, 400);
+    }
+
+    const { defaultNotificationMode, allowUserOverride } = await request.json() as any;
+
+    // Validate notification mode
+    const validModes = ['Instant', 'Daily Digest', 'Weekly Digest', 'Instant + Weekly', 'None'];
+    if (defaultNotificationMode && !validModes.includes(defaultNotificationMode)) {
+      return jsonResponse({ error: "Invalid notification mode" }, 400);
+    }
+
+    // Build update fields
+    const updateFields: Record<string, any> = {};
+    if (defaultNotificationMode !== undefined) {
+      updateFields['Default Notification Mode'] = defaultNotificationMode;
+    }
+    if (allowUserOverride !== undefined) {
+      updateFields['Allow User Override'] = allowUserOverride;
+    }
+
+    // Update organization in Airtable
+    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`;
+    const updateResponse = await fetch(updateUrl, {
+      method: 'PATCH',
+      headers: {
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ fields: updateFields })
+    });
+
+    if (!updateResponse.ok) {
+      const errorText = await updateResponse.text();
+      console.error('Failed to update organization settings:', errorText);
+      return jsonResponse({ error: "Failed to update settings" }, 500);
+    }
+
+    console.log(`✅ Updated organization ${organizationId} settings`);
+    return jsonResponse({ success: true });
+
+  } catch (error) {
+    console.error('Update organization settings error:', error);
+    return jsonResponse({ error: "Internal server error" }, 500);
   }
 }
 
