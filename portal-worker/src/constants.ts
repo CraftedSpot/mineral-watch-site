@@ -60,8 +60,8 @@ export const PRICE_IDS = {
   standard_annual: 'price_1SZZbu9OfJmRCDOqYZm2Hbi6',    // $278/yr
   professional_monthly: 'price_1SZZbu9OfJmRCDOqOp2YjT1N', // $99/mo
   professional_annual: 'price_1SZZbt9OfJmRCDOquMh7kSyI',  // $950/yr
-  business_monthly: 'price_PLACEHOLDER_BUSINESS_MONTHLY', // $199/mo - TODO: Create in Stripe
-  business_annual: 'price_PLACEHOLDER_BUSINESS_ANNUAL'    // $1910/yr - TODO: Create in Stripe
+  business_monthly: 'price_1SoRkO9OfJmRCDOqJHItcg9T',  // $199/mo
+  business_annual: 'price_1SoSwV9OfJmRCDOqxmuF4aBI'     // $1910/yr
 } as const;
 
 // Map price ID to plan name

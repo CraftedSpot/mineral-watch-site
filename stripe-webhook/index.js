@@ -33,17 +33,18 @@ const PRICE_TO_PLAN = {
   "price_1SZZbu9OfJmRCDOqOp2YjT1N": "Professional", // monthly $99
   "price_1SZZbt9OfJmRCDOquMh7kSyI": "Professional", // annual $950
   
-  // Business - $199/mo, $1910/yr
-  "price_PLACEHOLDER_BUSINESS_MONTHLY": "Business", // monthly $199 - TODO: Replace with actual Stripe ID
-  "price_PLACEHOLDER_BUSINESS_ANNUAL": "Business",  // annual $1910 - TODO: Replace with actual Stripe ID
+  // Business - $249/mo, $2390/yr
+  "price_1SoRkO9OfJmRCDOqJHItcg9T": "Business", // monthly $249
+  "price_1SoSwV9OfJmRCDOqxmuF4aBI": "Business",  // annual $2390
 };
 
 // Plan limits for email content
 const PLAN_LIMITS = {
-  'Free': { properties: 1, wells: 0 },
+  'Free': { properties: 1, wells: 1 },
   'Starter': { properties: 10, wells: 10 },
   'Standard': { properties: 50, wells: 50 },
-  'Professional': { properties: 500, wells: 500 },
+  'Professional': { properties: 250, wells: 250 },
+  'Business': { properties: 500, wells: 500 },
   'Enterprise': { properties: 'Unlimited', wells: 'Unlimited' }
 };
 
@@ -126,42 +127,57 @@ async function handleCheckoutComplete(session, env) {
   const customerName = session.customer_details?.name || customerEmail?.split('@')[0] || 'there';
   const stripeCustomerId = session.customer;
   const subscriptionId = session.subscription;
-  
+
   if (!customerEmail) {
     console.error('No customer email in checkout session');
     return;
   }
-  
+
   // Determine plan from the session
   const plan = await getPlanFromSession(session, env);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS['Starter'];
-  
+
   console.log(`Checkout complete: ${customerEmail}, Plan: ${plan}`);
-  
+
+  // Capture shipping address for Business tier (free book!)
+  let shippingAddress = null;
+  if (plan === 'Business' && session.shipping_details) {
+    shippingAddress = formatShippingAddress(session.shipping_details);
+    console.log(`Business tier - captured shipping address for ${customerEmail}`);
+  }
+
   // Check if user already exists
   const existingUser = await findUserByEmail(env, customerEmail);
-  
+
   if (existingUser) {
     // Update existing user (e.g., Free user upgrading)
     const oldPlan = existingUser.fields.Plan || 'Free';
     const existingHistory = existingUser.fields['Plan History'] || '';
-    const historyEntry = `${new Date().toLocaleDateString()}: Subscribed to ${plan} plan` + 
+    const historyEntry = `${new Date().toLocaleDateString()}: Subscribed to ${plan} plan` +
       (oldPlan !== 'Free' ? ` (from ${oldPlan})` : '');
     const updatedHistory = existingHistory ? `${existingHistory}\n${historyEntry}` : historyEntry;
-    
-    await updateUser(env, existingUser.id, {
+
+    const updateFields = {
       'Plan': plan,
       'Status': 'Active',
       'Stripe Customer ID': stripeCustomerId,
       'Stripe Subscription ID': subscriptionId,
       'Plan History': updatedHistory
-    });
+    };
+
+    // Add shipping address for Business tier
+    if (shippingAddress) {
+      updateFields['Shipping Address'] = shippingAddress;
+      updateFields['Book Status'] = 'Pending';
+    }
+
+    await updateUser(env, existingUser.id, updateFields);
     console.log(`Updated existing user: ${customerEmail} -> ${plan}`);
   } else {
     // Create new user
     const historyEntry = `${new Date().toLocaleDateString()}: Subscribed to ${plan} plan`;
-    
-    await createUser(env, {
+
+    const createFields = {
       'Email': customerEmail,
       'Name': customerName,
       'Plan': plan,
@@ -169,12 +185,20 @@ async function handleCheckoutComplete(session, env) {
       'Stripe Customer ID': stripeCustomerId,
       'Stripe Subscription ID': subscriptionId,
       'Plan History': historyEntry
-    });
+    };
+
+    // Add shipping address for Business tier
+    if (shippingAddress) {
+      createFields['Shipping Address'] = shippingAddress;
+      createFields['Book Status'] = 'Pending';
+    }
+
+    await createUser(env, createFields);
     console.log(`Created new user: ${customerEmail} with ${plan} plan`);
   }
-  
-  // Send paid welcome email
-  await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits);
+
+  // Send paid welcome email (includes book mention for Business tier)
+  await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits, shippingAddress);
 }
 
 /**
@@ -719,8 +743,33 @@ async function sendEmail(env, to, subject, htmlBody, textBody) {
  * Get plan rank for comparison
  */
 function getPlanRank(plan) {
-  const ranks = { 'Free': 0, 'Starter': 1, 'Standard': 2, 'Professional': 3, 'Enterprise': 4 };
+  const ranks = { 'Free': 0, 'Starter': 1, 'Standard': 2, 'Professional': 3, 'Business': 4, 'Enterprise': 5 };
   return ranks[plan] || 0;
+}
+
+/**
+ * Format shipping address from Stripe shipping_details
+ */
+function formatShippingAddress(shippingDetails) {
+  if (!shippingDetails?.address) return null;
+
+  const addr = shippingDetails.address;
+  const name = shippingDetails.name || '';
+
+  const parts = [name];
+  if (addr.line1) parts.push(addr.line1);
+  if (addr.line2) parts.push(addr.line2);
+
+  const cityStateZip = [
+    addr.city,
+    addr.state,
+    addr.postal_code
+  ].filter(Boolean).join(', ');
+
+  if (cityStateZip) parts.push(cityStateZip);
+  if (addr.country && addr.country !== 'US') parts.push(addr.country);
+
+  return parts.join('\n');
 }
 
 /**
