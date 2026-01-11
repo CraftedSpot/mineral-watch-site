@@ -97,7 +97,8 @@ Valid document types:
 - drilling_permit
 - title_opinion
 - check_stub (royalty statements, payment stubs)
-- occ_order (pooling, spacing, increased density, location exception)
+- pooling_order (forced pooling orders with election options - use this for pooling specifically)
+- occ_order (spacing, increased density, location exception - NOT pooling)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - ownership_entity (probate, heirship, trust docs, LLC docs)
@@ -364,16 +365,16 @@ For CHECK STUBS / ROYALTY STATEMENTS:
   "document_confidence": "high"
 }
 
-For OCC ORDERS (Pooling, Spacing, etc.):
+For OCC ORDERS (Spacing, Increased Density, Location Exception - NOT Pooling):
 {
   "doc_type": "occ_order",
   "cause_number": "CD 2023-001234",
-  "order_type": "pooling",
+  "order_type": "spacing",
   "order_date": "2023-03-15",
   "applicant": "XYZ Oil Company",
   "legal_description": {
     "section": "16",
-    "township": "12N", 
+    "township": "12N",
     "range": "7W",
     "county": "Grady"
   },
@@ -390,6 +391,110 @@ For OCC ORDERS (Pooling, Spacing, etc.):
     "legal_county": 1.0,
     "unit_size": 0.95,
     "effective_date": 0.90
+  },
+  "document_confidence": "high"
+}
+
+For POOLING ORDERS (Use this for forced pooling/force pooling orders specifically):
+IMPORTANT: Pooling orders have detailed election options that mineral owners must respond to.
+Extract ALL election options with their specific terms. Common option types include:
+- "participate" (working interest participation)
+- "cash_bonus" (bonus payment for leasing)
+- "overburdened" (reduced working interest with bonus)
+- "royalty_conversion" (convert to royalty interest)
+- "non_consent" (penalty for not participating)
+Use the closest matching type, or describe the option if none fit.
+
+{
+  "doc_type": "pooling_order",
+  "case_number": "CD 2024-001234",
+  "order_number": "123456",
+  "order_date": "2024-01-15",
+  "effective_date": "2024-02-01",
+  "applicant": "Continental Resources, Inc.",
+  "operator": "Continental Resources, Inc.",
+  "proposed_well_name": "Smith 1-16H",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "unit_description": "The W/2 of Section 16, Township 12 North, Range 7 West",
+  "unit_size_acres": 320,
+  "formations": [
+    {
+      "name": "Woodford",
+      "depth_from": 10500,
+      "depth_to": 10800
+    },
+    {
+      "name": "Mississippian",
+      "depth_from": 9800,
+      "depth_to": 10200
+    }
+  ],
+  "well_type": "horizontal",
+  "election_options": [
+    {
+      "option_number": 1,
+      "option_type": "participate",
+      "description": "Participate as working interest owner",
+      "bonus_per_acre": null,
+      "royalty_fraction": "3/16",
+      "working_interest_retained": true,
+      "cost_per_nma": 15000.00,
+      "penalty_percentage": null,
+      "notes": "Owner pays proportionate share of drilling costs"
+    },
+    {
+      "option_number": 2,
+      "option_type": "cash_bonus",
+      "description": "Cash bonus and royalty",
+      "bonus_per_acre": 1500.00,
+      "royalty_fraction": "3/16",
+      "working_interest_retained": false,
+      "cost_per_nma": null,
+      "penalty_percentage": null,
+      "notes": null
+    },
+    {
+      "option_number": 3,
+      "option_type": "non_consent",
+      "description": "Non-consent penalty",
+      "bonus_per_acre": null,
+      "royalty_fraction": "3/16",
+      "working_interest_retained": false,
+      "cost_per_nma": null,
+      "penalty_percentage": 200,
+      "notes": "200% penalty before sharing in production"
+    }
+  ],
+  "default_election": {
+    "option_number": 2,
+    "description": "If owner fails to respond, deemed to have elected Option 2"
+  },
+  "response_deadline": "2024-02-15",
+  "response_deadline_days": 20,
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "applicant": 1.0,
+    "operator": 1.0,
+    "proposed_well_name": 0.85,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "unit_description": 0.90,
+    "unit_size_acres": 0.95,
+    "formations": 0.85,
+    "well_type": 0.90,
+    "election_options": 0.85,
+    "default_election": 0.90,
+    "response_deadline": 0.95
   },
   "document_confidence": "high"
 }

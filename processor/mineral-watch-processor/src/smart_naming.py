@@ -402,22 +402,44 @@ def name_assignment(data: Dict[str, Any]) -> str:
 
 
 def name_pooling_order(data: Dict[str, Any]) -> str:
-    """Pooling Order - CD {Number} - {County} - {Year}"""
+    """Pooling Order - CD {Number} - {Well Name or County} - {Operator} - {Formation} - {Year}"""
     parts = ["Pooling Order"]
-    
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number'))
+
+    # Case/CD number
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
     if cd_num:
         parts.append(f"CD {cd_num}")
-    
-    if data.get('county'):
+
+    # Well name (preferred) or county as location identifier
+    well_name = data.get('proposed_well_name') or data.get('well_name')
+    if well_name:
+        parts.append(truncate_name(str(well_name), 30))
+    elif data.get('county'):
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
-    
+
+    # Operator (use short name)
+    operator = data.get('operator') or data.get('applicant')
+    if operator:
+        parts.append(extract_last_name(operator))
+
+    # Primary formation (if available)
+    formations = data.get('formations')
+    if formations and isinstance(formations, list) and len(formations) > 0:
+        first_formation = formations[0]
+        if isinstance(first_formation, dict):
+            formation_name = first_formation.get('name', '')
+        else:
+            formation_name = str(first_formation)
+        if formation_name:
+            parts.append(formation_name)
+
+    # Year
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
