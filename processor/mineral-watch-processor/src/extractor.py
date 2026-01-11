@@ -1199,10 +1199,26 @@ If these pages don't contain significant new information, return: {{"additional_
         
         try:
             batch_data = json.loads(json_str.strip())
-            
+
             if batch_num == 0:
                 # First batch becomes our base data
                 extracted_data = batch_data
+
+                # Look for observations section after the JSON (first batch only)
+                if "OBSERVATIONS:" in response_text:
+                    obs_start = response_text.find("OBSERVATIONS:")
+                    if obs_start != -1:
+                        observations = response_text[obs_start + 13:].strip()
+                        # Clean up any markdown formatting
+                        if observations.startswith("```"):
+                            observations = observations[3:].strip()
+                        if observations.endswith("```"):
+                            observations = observations[:-3].strip()
+
+                        # Add observations to the extracted data
+                        if observations:
+                            extracted_data["ai_observations"] = observations
+                            logger.info(f"Extracted observations from batch 1: {observations[:100]}...")
             else:
                 # Merge additional data if found
                 if "additional_info" not in batch_data or batch_data["additional_info"] != "none":

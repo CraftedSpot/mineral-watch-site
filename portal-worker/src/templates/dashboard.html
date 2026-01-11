@@ -5177,18 +5177,61 @@
                                 // Special handling for election options
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
                                 value.forEach((option, index) => {
-                                    const optionBgColor = option.type === 'participate' ? '#F0F9FF' : 
-                                                         option.type === 'cash_plus_royalty' ? '#FEF3C7' : '#FEE2E2';
-                                    const optionBorderColor = option.type === 'participate' ? '#3B82F6' : 
-                                                            option.type === 'cash_plus_royalty' ? '#F59E0B' : '#EF4444';
+                                    // Support both option.type and option.option_type
+                                    const optType = (option.option_type || option.type || '').toLowerCase();
+
+                                    // Color coding by option type
+                                    let optionBgColor, optionBorderColor;
+                                    if (optType === 'participate') {
+                                        optionBgColor = '#F0F9FF'; optionBorderColor = '#3B82F6'; // Blue
+                                    } else if (optType === 'cash_bonus' || optType === 'cash_plus_royalty') {
+                                        optionBgColor = '#FEF3C7'; optionBorderColor = '#F59E0B'; // Yellow/Amber
+                                    } else if (optType === 'overburdened') {
+                                        optionBgColor = '#F0FDF4'; optionBorderColor = '#22C55E'; // Green
+                                    } else if (optType === 'royalty_conversion') {
+                                        optionBgColor = '#FAF5FF'; optionBorderColor = '#A855F7'; // Purple
+                                    } else if (optType === 'non_consent') {
+                                        optionBgColor = '#FEE2E2'; optionBorderColor = '#EF4444'; // Red
+                                    } else {
+                                        optionBgColor = '#F3F4F6'; optionBorderColor = '#6B7280'; // Gray for unknown
+                                    }
+
                                     sectionContent += `
                                         <div style="background: ${optionBgColor}; border: 1px solid ${optionBorderColor}; border-radius: 8px; padding: 12px;">
-                                            <div style="font-weight: 600; color: ${optionBorderColor};">Option ${option.option_number || index + 1}</div>
+                                            <div style="font-weight: 600; color: ${optionBorderColor};">Option ${option.option_number || index + 1}${optType ? ` - ${formatFieldName(optType)}` : ''}</div>
+                                            ${option.bonus_per_acre ? `<div>Cash Bonus: $${option.bonus_per_acre}/acre</div>` : ''}
                                             ${option.cash_bonus_per_acre ? `<div>Cash Bonus: $${option.cash_bonus_per_acre}/acre</div>` : ''}
+                                            ${option.royalty_fraction ? `<div>Royalty: ${option.royalty_fraction}</div>` : ''}
                                             ${option.royalty_rate ? `<div>Royalty: ${option.royalty_rate}</div>` : ''}
+                                            ${option.cost_per_nma ? `<div>Est. Cost: $${option.cost_per_nma.toLocaleString()}/NMA</div>` : ''}
+                                            ${option.penalty_percentage ? `<div>Penalty: ${option.penalty_percentage}%</div>` : ''}
+                                            ${option.working_interest_retained ? `<div style="color: #059669;">✓ Working Interest Retained</div>` : ''}
                                             ${option.net_revenue_interest ? `<div>NRI: ${option.net_revenue_interest}</div>` : ''}
-                                            ${option.description ? `<div style="margin-top: 4px; font-size: 13px;">${escapeHtml(option.description)}</div>` : ''}
+                                            ${option.description ? `<div style="margin-top: 4px; font-size: 13px; color: #4B5563;">${escapeHtml(option.description)}</div>` : ''}
+                                            ${option.notes ? `<div style="margin-top: 4px; font-size: 12px; color: #6B7280; font-style: italic;">${escapeHtml(option.notes)}</div>` : ''}
                                         </div>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'formations') {
+                                // Special handling for formations array
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(formation => {
+                                    if (typeof formation === 'object') {
+                                        const name = formation.name || formation.formation || 'Unknown';
+                                        const depthInfo = formation.depth_from && formation.depth_to
+                                            ? ` (${formation.depth_from.toLocaleString()}' - ${formation.depth_to.toLocaleString()}')`
+                                            : '';
+                                        sectionContent += `
+                                            <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 8px 12px;">
+                                                <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(name)}</span>
+                                                ${depthInfo ? `<span style="color: #6B7280; font-size: 12px;">${depthInfo}</span>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 8px 12px;">
+                                                <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(formation))}</span>
+                                            </div>`;
+                                    }
                                 });
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'heirs' && value.some(h => typeof h === 'object')) {
