@@ -5018,7 +5018,9 @@
                 'Well Information': ['well_name', 'api_number', 'well_location', 'operator', 'purchaser', 'owner_number',
                                    'decimal_interest', 'net_revenue_interest', 'unit_name'],
                 'Order Details': ['cd_number', 'order_number', 'cause_number', 'applicant', 'well_cost', 'unit_size_acres',
-                               'unit_shape', 'formations', 'election_options', 'election_deadline_days'],
+                               'unit_shape', 'formations', 'election_options', 'election_deadline_days',
+                               'additional_wells_authorized', 'existing_wells', 'expiration_date', 'expiration_period',
+                               'amends_order', 'engineering_data', 'allowable_type', 'allowable_notes'],
                 'Document References': ['related_documents', 'exhibits', 'prior_instruments', 'original_lease_reference',
                                       'original_document_reference', 'original_lease_date', 'original_document_date'],
                 'Title & Warranties': ['warranty_type', 'source_of_title', 'warranty_of_title', 'warranty_scope'],
@@ -5230,6 +5232,30 @@
                                         sectionContent += `
                                             <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 8px 12px;">
                                                 <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(formation))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'existing_wells') {
+                                // Special handling for existing wells array (from increased density orders)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(well => {
+                                    if (typeof well === 'object') {
+                                        const wellName = well.well_name || well.name || 'Unknown Well';
+                                        const apiNumber = well.api_number || well.api || '';
+                                        const classification = well.classification || well.type || '';
+                                        sectionContent += `
+                                            <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 6px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
+                                                <div>
+                                                    <span style="font-weight: 500; color: #166534;">${escapeHtml(wellName)}</span>
+                                                    ${apiNumber ? `<span style="color: #6B7280; font-size: 12px; margin-left: 8px;">API: ${escapeHtml(apiNumber)}</span>` : ''}
+                                                </div>
+                                                ${classification ? `<span style="background: #DCFCE7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${escapeHtml(classification)}</span>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 6px; padding: 10px 12px;">
+                                                <span style="font-weight: 500; color: #166534;">${escapeHtml(String(well))}</span>
                                             </div>`;
                                     }
                                 });
