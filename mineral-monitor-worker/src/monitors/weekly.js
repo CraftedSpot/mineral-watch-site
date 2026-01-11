@@ -11,12 +11,14 @@ import { fetchOCCFile } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';
 import { findMatchingWells } from '../services/matching.js';
-import { 
-  preloadRecentAlerts, 
-  hasRecentAlertInSet, 
+import {
+  preloadRecentAlerts,
+  hasRecentAlertInSet,
   createActivityLog,
-  updateActivityLog
+  updateActivityLog,
+  queryAirtable
 } from '../services/airtable.js';
+import { getAdjacentSections } from '../utils/plss.js';
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeAPI, normalizeOperator, normalizeSection } from '../utils/normalize.js';
 import { getMapLinkFromWellData } from '../utils/mapLink.js';
