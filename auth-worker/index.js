@@ -313,6 +313,27 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     });
   }
   
+  // Get organization details if user is part of one
+  let orgDefaultNotificationMode = null;
+  let orgAllowOverride = true;
+  const organizationId = user.fields.Organization ? user.fields.Organization[0] : null;
+
+  if (organizationId) {
+    try {
+      const orgResponse = await fetch(
+        `https://api.airtable.com/v0/app3j3X29Uvp5stza/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+      );
+      if (orgResponse.ok) {
+        const org = await orgResponse.json();
+        orgDefaultNotificationMode = org.fields['Default Notification Mode'] || 'Instant';
+        orgAllowOverride = org.fields['Allow User Override'] !== false;
+      }
+    } catch (err) {
+      console.error('Error fetching organization:', err);
+    }
+  }
+
   // Return the full user record including airtableUser data
   // This allows portal-worker to avoid making redundant Airtable calls
   return new Response(JSON.stringify({
@@ -322,7 +343,7 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     plan: user.fields.Plan,
     status: user.fields.Status,
     role: user.fields.Role || null,
-    organizationId: user.fields.Organization ? user.fields.Organization[0] : null,
+    organizationId: organizationId,
     stripeCustomerId: user.fields["Stripe Customer ID"] || null,
     // Alert preferences (default to true if not set)
     alertPermits: user.fields["Alert Permits"] !== false,
@@ -331,6 +352,10 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     alertExpirations: user.fields["Alert Expirations"] !== false,
     alertOperatorTransfers: user.fields["Alert Operator Transfers"] !== false,
     expirationWarningDays: user.fields["Expiration Warning Days"] || 30,
+    // Notification mode settings
+    notificationOverride: user.fields["Notification Override"] || null,
+    orgDefaultNotificationMode: orgDefaultNotificationMode,
+    orgAllowOverride: orgAllowOverride,
     // Include the full Airtable user record for portal-worker
     airtableUser: user
   }), {

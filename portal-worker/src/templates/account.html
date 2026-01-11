@@ -1019,6 +1019,46 @@
 
             // Update expiration days visibility based on checkbox
             toggleExpirationDays();
+
+            // Set notification mode
+            const modeSelect = document.getElementById('prefNotificationMode');
+            const modeHint = document.getElementById('notificationModeHint');
+
+            // Check if user is in an organization
+            if (user.organizationId) {
+                // Show "Use Org Default" option
+                modeSelect.querySelector('option[value="Use Org Default"]').style.display = '';
+                modeSelect.value = user.notificationOverride || 'Use Org Default';
+                // Update hint based on selection
+                updateNotificationModeHint(modeSelect.value, user.orgDefaultNotificationMode);
+            } else {
+                // Hide "Use Org Default" option - not in an org
+                modeSelect.querySelector('option[value="Use Org Default"]').style.display = 'none';
+                // Set default to Instant if not set (for non-org users)
+                const currentMode = user.notificationOverride && user.notificationOverride !== 'Use Org Default'
+                    ? user.notificationOverride
+                    : 'Instant';
+                modeSelect.value = currentMode;
+                modeHint.textContent = 'Digests bundle all your alerts into a single email for easier reading.';
+            }
+
+            // Add change listener to update hint
+            modeSelect.addEventListener('change', () => {
+                updateNotificationModeHint(modeSelect.value, user.orgDefaultNotificationMode);
+            });
+        }
+
+        function updateNotificationModeHint(mode, orgDefault) {
+            const hint = document.getElementById('notificationModeHint');
+            if (mode === 'Use Org Default') {
+                hint.textContent = `Your organization default: ${orgDefault || 'Instant'}`;
+            } else if (mode === 'None') {
+                hint.textContent = 'You will not receive any alert notifications.';
+            } else if (mode === 'Instant + Weekly') {
+                hint.textContent = 'Get alerts immediately plus a weekly summary every Sunday.';
+            } else {
+                hint.textContent = 'Digests bundle all your alerts into a single email for easier reading.';
+            }
         }
 
         function toggleExpirationDays() {
@@ -1054,7 +1094,8 @@
                     alertStatusChanges: document.getElementById('prefStatusChanges').checked,
                     alertExpirations: document.getElementById('prefExpirations').checked,
                     alertOperatorTransfers: document.getElementById('prefTransfers').checked,
-                    expirationWarningDays: parseInt(document.getElementById('prefExpirationDays').value, 10)
+                    expirationWarningDays: parseInt(document.getElementById('prefExpirationDays').value, 10),
+                    notificationOverride: document.getElementById('prefNotificationMode').value
                 };
 
                 const res = await fetch('/api/user/preferences', {

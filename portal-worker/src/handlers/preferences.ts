@@ -16,6 +16,7 @@ interface PreferencesUpdate {
   alertExpirations?: boolean;
   alertOperatorTransfers?: boolean;
   expirationWarningDays?: number;
+  notificationOverride?: string;
 }
 
 /**
@@ -56,6 +57,13 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
       // Validate range (7-90 days)
       const days = Math.min(90, Math.max(7, body.expirationWarningDays));
       fields['Expiration Warning Days'] = days;
+    }
+    if (typeof body.notificationOverride === 'string') {
+      // Validate notification mode
+      const validModes = ['Use Org Default', 'Instant', 'Daily Digest', 'Weekly Digest', 'Instant + Weekly', 'None'];
+      if (validModes.includes(body.notificationOverride)) {
+        fields['Notification Override'] = body.notificationOverride;
+      }
     }
 
     if (Object.keys(fields).length === 0) {
