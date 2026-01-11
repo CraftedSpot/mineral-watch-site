@@ -51,12 +51,12 @@ const DOCUMENTS_WORKER_URL = 'https://documents-worker.photog12.workers.dev';
 
 // Plan limits for email content
 const PLAN_LIMITS = {
-  'Free': { properties: 1, wells: 1 },
-  'Starter': { properties: 10, wells: 10 },
-  'Standard': { properties: 50, wells: 50 },
-  'Professional': { properties: 250, wells: 250 },
-  'Business': { properties: 500, wells: 500 },
-  'Enterprise': { properties: 'Unlimited', wells: 'Unlimited' }
+  'Free': { properties: 1, wells: 1, docCredits: 10, docCreditsBonus: 0, isLifetime: true },
+  'Starter': { properties: 10, wells: 10, docCredits: 10, docCreditsBonus: 75 },
+  'Standard': { properties: 50, wells: 50, docCredits: 25, docCreditsBonus: 300 },
+  'Professional': { properties: 250, wells: 250, docCredits: 50, docCreditsBonus: 1000 },
+  'Business': { properties: 500, wells: 500, docCredits: 100, docCreditsBonus: 2500 },
+  'Enterprise': { properties: 'Unlimited', wells: 'Unlimited', docCredits: 250, docCreditsBonus: 10000 }
 };
 
 export default {
@@ -219,7 +219,7 @@ async function handleCheckoutComplete(session, env) {
   }
 
   // Send paid welcome email (includes book mention for Business tier)
-  await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits, shippingAddress);
+  await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits, shippingAddress, isAnnual);
 }
 
 /**
@@ -380,7 +380,7 @@ async function handleSubscriptionDeleted(subscription, env) {
 /**
  * Send welcome email for paid signups with magic link
  */
-async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddress = null) {
+async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddress = null, isAnnual = false) {
   // Generate magic link token
   let magicLinkUrl = `${BASE_URL}/portal`; // Default fallback
 
@@ -412,9 +412,16 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
         </div>
 ` : '';
 
+  // Document credits info (for all paid tiers)
+  const docCreditsLine = limits.docCredits
+    ? `<li><strong>${limits.docCredits} document credits/month</strong> with AI extraction</li>`
+    : '';
+  const bonusCreditsLine = isAnnual && limits.docCreditsBonus
+    ? `<li><strong>+ ${limits.docCreditsBonus.toLocaleString()} bonus credits</strong> included with annual plan</li>`
+    : '';
+
   const businessFeatures = isBusinessTier ? `
             <li><strong>3 team member seats</strong> for your organization</li>
-            <li>Document storage & AI extraction</li>
             <li>Priority support</li>` : '';
 
   const htmlBody = `
@@ -451,7 +458,7 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
           <h3 style="margin: 0 0 16px; color: #1C2B36; font-size: 16px;">Your ${plan} Plan Includes:</h3>
           <ul style="margin: 0; padding: 0 0 0 20px; color: #334E68; line-height: 1.8;">
             <li><strong>${limits.properties} properties</strong> with adjacent section monitoring</li>
-            <li><strong>${limits.wells} wells</strong> by API number</li>
+            <li><strong>${limits.wells} wells</strong> by API number</li>${docCreditsLine}${bonusCreditsLine}
             <li>Daily permit scans + weekly status checks</li>
             <li>Plain English email alerts</li>
             <li>Direct links to wells on the OCC map</li>${businessFeatures}
@@ -515,8 +522,15 @@ We'll ship it to the address you provided. Please allow 2-3 weeks for delivery.
 
   const businessFeaturesText = isBusinessTier ? `
 - 3 team member seats for your organization
-- Document storage & AI extraction
 - Priority support` : '';
+
+  // Document credits text (for all paid tiers)
+  const docCreditsText = limits.docCredits
+    ? `\n- ${limits.docCredits} document credits/month with AI extraction`
+    : '';
+  const bonusCreditsText = isAnnual && limits.docCreditsBonus
+    ? `\n- + ${limits.docCreditsBonus.toLocaleString()} bonus credits included with annual plan`
+    : '';
 
   const textBody = `Hi ${name},
 
@@ -526,7 +540,7 @@ Go to Dashboard: ${magicLinkUrl}
 ${bookText}
 Your ${plan} Plan Includes:
 - ${limits.properties} properties with adjacent section monitoring
-- ${limits.wells} wells by API number
+- ${limits.wells} wells by API number${docCreditsText}${bonusCreditsText}
 - Daily permit scans + weekly status checks
 - Plain English email alerts
 - Direct links to wells on the OCC map${businessFeaturesText}

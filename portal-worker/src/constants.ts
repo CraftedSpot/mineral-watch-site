@@ -23,12 +23,12 @@ export const BASE_URL = "https://portal.mymineralwatch.com";
 
 // Plan Limits Configuration
 export const PLAN_LIMITS = {
-  "Free": { properties: 1, wells: 1, activityRecords: 5 },
-  "Starter": { properties: 10, wells: 10, activityRecords: 25 },
-  "Standard": { properties: 50, wells: 50, activityRecords: 50 },
-  "Professional": { properties: 250, wells: 250, activityRecords: 100 },
-  "Business": { properties: 500, wells: 500, activityRecords: 200 },
-  "Enterprise": { properties: Infinity, wells: Infinity, activityRecords: Infinity }
+  "Free": { properties: 1, wells: 1, activityRecords: 5, seats: 1, docCreditsMonthly: 0, docCreditsBonus: 10 },
+  "Starter": { properties: 10, wells: 10, activityRecords: 25, seats: 1, docCreditsMonthly: 10, docCreditsBonus: 75 },
+  "Standard": { properties: 50, wells: 50, activityRecords: 50, seats: 1, docCreditsMonthly: 25, docCreditsBonus: 300 },
+  "Professional": { properties: 250, wells: 250, activityRecords: 100, seats: 1, docCreditsMonthly: 50, docCreditsBonus: 1000 },
+  "Business": { properties: 500, wells: 500, activityRecords: 200, seats: 3, docCreditsMonthly: 100, docCreditsBonus: 2500 },
+  "Enterprise": { properties: Infinity, wells: Infinity, activityRecords: Infinity, seats: 5, docCreditsMonthly: 250, docCreditsBonus: 10000 }
 } as const;
 
 // Cache TTL
