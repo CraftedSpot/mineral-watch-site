@@ -4,7 +4,7 @@
  * in user-tracked wells only
  */
 
-import { queryAirtable, createActivityLog } from './airtable.js';
+import { queryAirtable, createActivityLog, userWantsAlert, getUserById } from './airtable.js';
 import { sendAlertEmail } from './email.js';
 import { getStatusDescription } from './statusChange.js';
 import { normalizeAPI } from '../utils/normalize.js';
@@ -330,6 +330,23 @@ export async function checkAllWellStatuses(env, options = {}) {
             console.error(`[RBDMS] Failed to get coordinates: ${coordError.message}`);
           }
           
+          // Check user preferences before sending status change alert
+          if (!userWantsAlert(user, 'Status Change')) {
+            console.log(`[RBDMS] Skipped status change alert for ${user.fields.Email} - user disabled status change alerts`);
+            // Still update the Airtable record but don't create activity or send email
+            const updateUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent(env.AIRTABLE_WELLS_TABLE)}/${well.id}`;
+            await fetch(updateUrl, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({ fields: { 'Status': rbdmsStatus } })
+            });
+            results.alertsSkipped = (results.alertsSkipped || 0) + 1;
+            continue;
+          }
+
           // Create activity log
           const activityData = {
             userId: userIds[0],  // Use the user record ID, not email
