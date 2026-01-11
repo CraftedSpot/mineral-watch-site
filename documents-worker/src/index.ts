@@ -1461,6 +1461,36 @@ export default {
       }
     }
 
+    // Route: POST /api/credits/grant-annual-bonus - Grant annual bonus credits (called by stripe-webhook)
+    if (path === '/api/credits/grant-annual-bonus' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        const body = await request.json() as { userId: string; plan: string; email?: string };
+        const { userId, plan, email } = body;
+
+        if (!userId || !plan) {
+          return errorResponse('userId and plan are required', 400, env);
+        }
+
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        await usageService.grantAnnualBonus(userId, plan);
+
+        console.log(`[Credits] Granted annual bonus for user ${userId} (${email || 'no email'}) on ${plan} plan`);
+
+        return jsonResponse({
+          success: true,
+          message: `Annual bonus credits granted for ${plan} plan`
+        }, 200, env);
+      } catch (error) {
+        console.error('[Credits] Error granting annual bonus:', error);
+        return errorResponse('Failed to grant annual bonus', 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };

@@ -24,19 +24,30 @@ const PRICE_TO_PLAN = {
   // Starter - $9/mo, $86/yr
   "price_1SZZbv9OfJmRCDOqciJ5AIlK": "Starter",   // monthly $9
   "price_1SZZbv9OfJmRCDOqhN2HIBtc": "Starter",   // annual $86
-  
+
   // Standard - $29/mo, $278/yr
   "price_1SZZbu9OfJmRCDOquBBFk0dY": "Standard",  // monthly $29
   "price_1SZZbu9OfJmRCDOqYZm2Hbi6": "Standard",  // annual $278
-  
+
   // Professional - $99/mo, $950/yr
   "price_1SZZbu9OfJmRCDOqOp2YjT1N": "Professional", // monthly $99
   "price_1SZZbt9OfJmRCDOquMh7kSyI": "Professional", // annual $950
-  
+
   // Business - $249/mo, $2390/yr
   "price_1SoRkO9OfJmRCDOqJHItcg9T": "Business", // monthly $249
   "price_1SoSwV9OfJmRCDOqxmuF4aBI": "Business",  // annual $2390
 };
+
+// Annual price IDs for bonus credit detection
+const ANNUAL_PRICE_IDS = new Set([
+  "price_1SZZbv9OfJmRCDOqhN2HIBtc",  // Starter annual
+  "price_1SZZbu9OfJmRCDOqYZm2Hbi6",  // Standard annual
+  "price_1SZZbt9OfJmRCDOquMh7kSyI",  // Professional annual
+  "price_1SoSwV9OfJmRCDOqxmuF4aBI",  // Business annual
+]);
+
+// Documents worker URL for credit operations
+const DOCUMENTS_WORKER_URL = 'https://documents-worker.photog12.workers.dev';
 
 // Plan limits for email content
 const PLAN_LIMITS = {
@@ -134,10 +145,10 @@ async function handleCheckoutComplete(session, env) {
   }
 
   // Determine plan from the session
-  const plan = await getPlanFromSession(session, env);
+  const { plan, priceId, isAnnual } = await getPlanFromSession(session, env);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS['Starter'];
 
-  console.log(`Checkout complete: ${customerEmail}, Plan: ${plan}`);
+  console.log(`Checkout complete: ${customerEmail}, Plan: ${plan}, Annual: ${isAnnual}`);
 
   // Capture shipping address for Business tier (free book!)
   let shippingAddress = null;
@@ -173,6 +184,11 @@ async function handleCheckoutComplete(session, env) {
 
     await updateUser(env, existingUser.id, updateFields);
     console.log(`Updated existing user: ${customerEmail} -> ${plan}`);
+
+    // Grant annual bonus credits for existing users who upgraded to annual
+    if (isAnnual) {
+      await grantAnnualBonusCredits(env, existingUser.id, plan, customerEmail);
+    }
   } else {
     // Create new user
     const historyEntry = `${new Date().toLocaleDateString()}: Subscribed to ${plan} plan`;
@@ -193,8 +209,13 @@ async function handleCheckoutComplete(session, env) {
       createFields['Book Status'] = 'Pending';
     }
 
-    await createUser(env, createFields);
+    const newUser = await createUser(env, createFields);
     console.log(`Created new user: ${customerEmail} with ${plan} plan`);
+
+    // Grant annual bonus credits for new annual subscribers
+    if (isAnnual && newUser?.id) {
+      await grantAnnualBonusCredits(env, newUser.id, plan, customerEmail);
+    }
   }
 
   // Send paid welcome email (includes book mention for Business tier)
@@ -779,6 +800,36 @@ function getPlanRank(plan) {
 }
 
 /**
+ * Grant annual bonus credits via documents-worker
+ * Called when user subscribes to an annual plan
+ */
+async function grantAnnualBonusCredits(env, userId, plan, email) {
+  try {
+    const response = await fetch(`${DOCUMENTS_WORKER_URL}/api/credits/grant-annual-bonus`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': env.PROCESSING_API_KEY
+      },
+      body: JSON.stringify({ userId, plan, email })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`Failed to grant annual bonus credits: ${error}`);
+      return false;
+    }
+
+    const result = await response.json();
+    console.log(`Annual bonus credits granted for ${email}: ${result.message}`);
+    return true;
+  } catch (err) {
+    console.error('Error granting annual bonus credits:', err);
+    return false;
+  }
+}
+
+/**
  * Format shipping address from Stripe shipping_details
  */
 function formatShippingAddress(shippingDetails) {
@@ -805,6 +856,7 @@ function formatShippingAddress(shippingDetails) {
 
 /**
  * Determine plan from checkout session by fetching line items
+ * Returns { plan, priceId, isAnnual }
  */
 async function getPlanFromSession(session, env) {
   try {
@@ -816,26 +868,28 @@ async function getPlanFromSession(session, env) {
         }
       }
     );
-    
+
     if (response.ok) {
       const data = await response.json();
       const priceId = data.data?.[0]?.price?.id;
       if (priceId && PRICE_TO_PLAN[priceId]) {
-        console.log(`Resolved price ${priceId} -> ${PRICE_TO_PLAN[priceId]}`);
-        return PRICE_TO_PLAN[priceId];
+        const plan = PRICE_TO_PLAN[priceId];
+        const isAnnual = ANNUAL_PRICE_IDS.has(priceId);
+        console.log(`Resolved price ${priceId} -> ${plan} (annual: ${isAnnual})`);
+        return { plan, priceId, isAnnual };
       }
     }
   } catch (err) {
     console.error('Error fetching line items:', err);
   }
-  
+
   // Fallback: check metadata
   if (session.metadata?.plan) {
-    return session.metadata.plan;
+    return { plan: session.metadata.plan, priceId: null, isAnnual: false };
   }
-  
+
   console.log('Could not determine plan, defaulting to Starter');
-  return 'Starter';
+  return { plan: 'Starter', priceId: null, isAnnual: false };
 }
 
 /**
