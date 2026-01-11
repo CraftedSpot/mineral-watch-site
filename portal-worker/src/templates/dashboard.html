@@ -7137,12 +7137,13 @@
             setTimeout(() => {
                 loadLinkedProperties(wellId);
                 loadLinkedDocuments(wellId, 'well', f['API Number']);
-                // Load OCC filings using section/township/range
+                // Load OCC filings using section/township/range/meridian
                 const wellSection = f['Section'];
                 const wellTownship = f['Township'];
                 const wellRange = f['Range'];
+                const wellMeridian = f['Meridian'] || 'IM'; // Default to Indian Meridian
                 if (wellSection && wellTownship && wellRange) {
-                    loadOccFilings(wellSection, wellTownship, wellRange, 'well');
+                    loadOccFilings(wellSection, wellTownship, wellRange, 'well', wellMeridian);
                 }
             }, 100);
             
@@ -7787,8 +7788,8 @@
         }
         window.toggleOccFilings = toggleOccFilings;
 
-        async function loadOccFilings(section, township, range, type = 'property') {
-            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range} (${type})`);
+        async function loadOccFilings(section, township, range, type = 'property', meridian = 'IM') {
+            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range} ${meridian} (${type})`);
 
             const prefix = type === 'property' ? 'property' : 'well';
             const directContainer = document.getElementById(`${prefix}-occ-direct`);
@@ -7807,7 +7808,7 @@
 
             try {
                 const response = await fetch(
-                    `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&includeAdjacent=true`,
+                    `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
                     { credentials: 'include' }
                 );
                 const data = await response.json();
