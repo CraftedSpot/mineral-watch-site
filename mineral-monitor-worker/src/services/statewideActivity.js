@@ -32,7 +32,7 @@ export async function createStatewideActivity(env, activityData) {
         surface_section, surface_township, surface_range, surface_pm,
         bh_section, bh_township, bh_range, bh_pm,
         latitude, longitude, bh_latitude, bh_longitude,
-        permit_date, completion_date, formation, well_status,
+        permit_date, completion_date, expire_date, formation, well_status,
         is_horizontal, is_multi_section, has_permit, has_completion,
         occ_map_link, created_at
       ) VALUES (
@@ -40,9 +40,9 @@ export async function createStatewideActivity(env, activityData) {
         ?5, ?6, ?7, ?8,
         ?9, ?10, ?11, ?12,
         ?13, ?14, ?15, ?16,
-        ?17, ?18, ?19, ?20,
-        ?21, ?22, ?23, ?24,
-        ?25, datetime('now')
+        ?17, ?18, ?19, ?20, ?21,
+        ?22, ?23, ?24, ?25,
+        ?26, datetime('now')
       )
     `);
     
@@ -73,6 +73,7 @@ export async function createStatewideActivity(env, activityData) {
       activityData.bhLongitude || null,                 // bh_longitude
       activityData.permitDate || null,                  // permit_date
       activityData.completionDate || null,              // completion_date
+      activityData.expireDate || null,                  // expire_date
       activityData.formation || null,                   // formation
       activityData.wellStatus || null,                  // well_status
       activityData.isHorizontal ? 1 : 0,               // is_horizontal
