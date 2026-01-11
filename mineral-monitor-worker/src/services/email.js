@@ -901,3 +901,313 @@ https://mymineralwatch.com
 
   return text;
 }
+
+/**
+ * Send a digest email containing multiple alerts
+ * @param {Object} env - Worker environment
+ * @param {Object} digestData - Digest data
+ * @param {string} digestData.to - Recipient email
+ * @param {string} digestData.userName - Recipient name
+ * @param {string} digestData.frequency - 'daily' or 'weekly'
+ * @param {Object} digestData.alerts - Grouped alerts by type
+ * @param {Array} digestData.highlights - Priority items to highlight
+ */
+export async function sendDigestEmail(env, digestData) {
+  const {
+    to,
+    userName,
+    frequency,
+    alerts,
+    highlights
+  } = digestData;
+
+  const totalAlerts =
+    (alerts.permits?.length || 0) +
+    (alerts.completions?.length || 0) +
+    (alerts.statusChanges?.length || 0) +
+    (alerts.expirations?.length || 0) +
+    (alerts.transfers?.length || 0);
+
+  const subject = `${frequency === 'weekly' ? 'Weekly' : 'Daily'} Digest: ${totalAlerts} New Alert${totalAlerts !== 1 ? 's' : ''} | Mineral Watch`;
+
+  const htmlBody = buildDigestHtmlBody(digestData);
+  const textBody = buildDigestTextBody(digestData);
+
+  const response = await fetch(POSTMARK_API_URL, {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+    },
+    body: JSON.stringify({
+      From: 'alerts@mymineralwatch.com',
+      To: to,
+      Subject: subject,
+      HtmlBody: htmlBody,
+      TextBody: textBody,
+      MessageStream: 'outbound'
+    })
+  });
+
+  if (!response.ok) {
+    const error = await response.text();
+    throw new Error(`Postmark digest send failed: ${response.status} - ${error}`);
+  }
+
+  console.log(`[Email] Sent ${frequency} digest to ${to} with ${totalAlerts} alerts`);
+  return await response.json();
+}
+
+/**
+ * Build HTML body for digest email
+ */
+function buildDigestHtmlBody(digestData) {
+  const { userName, frequency, alerts, highlights } = digestData;
+
+  const totalAlerts =
+    (alerts.permits?.length || 0) +
+    (alerts.completions?.length || 0) +
+    (alerts.statusChanges?.length || 0) +
+    (alerts.expirations?.length || 0) +
+    (alerts.transfers?.length || 0);
+
+  const periodText = frequency === 'weekly' ? 'this week' : 'today';
+
+  // Build highlights section
+  let highlightsHtml = '';
+  if (highlights && highlights.length > 0) {
+    highlightsHtml = `
+      <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 12px; font-size: 14px; color: #92400E; font-weight: 700;">⚠️ Requires Attention</h3>
+        ${highlights.map(h => `
+          <p style="margin: 0 0 8px; font-size: 14px; color: #92400E;">• ${h.message}</p>
+        `).join('')}
+      </div>
+    `;
+  }
+
+  // Build sections for each alert type
+  const sections = [];
+
+  if (alerts.expirations && alerts.expirations.length > 0) {
+    sections.push(buildAlertSection('Permit Expirations', alerts.expirations, '#DC2626', '⏰'));
+  }
+  if (alerts.permits && alerts.permits.length > 0) {
+    sections.push(buildAlertSection('New Permits', alerts.permits, '#2563EB', '📋'));
+  }
+  if (alerts.completions && alerts.completions.length > 0) {
+    sections.push(buildAlertSection('Well Completions', alerts.completions, '#059669', '🛢️'));
+  }
+  if (alerts.transfers && alerts.transfers.length > 0) {
+    sections.push(buildAlertSection('Operator Transfers', alerts.transfers, '#7C3AED', '🔄'));
+  }
+  if (alerts.statusChanges && alerts.statusChanges.length > 0) {
+    sections.push(buildAlertSection('Status Changes', alerts.statusChanges, '#0891B2', '📊'));
+  }
+
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; background-color: #F3F4F6; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #F3F4F6; padding: 20px 0;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width: 600px; background: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
+
+          <!-- Header -->
+          <tr>
+            <td style="background: #1C2B36; padding: 20px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td>
+                    <span style="color: #ffffff; font-size: 20px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
+                  </td>
+                  <td align="right">
+                    <span style="color: #94A3B8; font-size: 12px;">${frequency === 'weekly' ? 'Weekly' : 'Daily'} Digest</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <!-- Content -->
+          <tr>
+            <td style="padding: 24px;">
+
+              <!-- Greeting -->
+              <h1 style="font-size: 20px; color: #1C2B36; margin: 0 0 8px; font-family: Georgia, serif; font-weight: 700;">
+                Your ${frequency === 'weekly' ? 'Weekly' : 'Daily'} Activity Digest
+              </h1>
+              <p style="font-size: 15px; color: #334E68; margin: 0 0 20px;">
+                Hi ${userName || 'there'}, here's a summary of ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} from ${periodText}.
+              </p>
+
+              ${highlightsHtml}
+
+              ${sections.join('')}
+
+              <!-- View in Portal Button -->
+              <div style="text-align: center; margin-top: 24px;">
+                <a href="https://portal.mymineralwatch.com/activity" style="display: inline-block; background: #1C2B36; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+                  View All Activity in Portal
+                </a>
+              </div>
+
+            </td>
+          </tr>
+
+          <!-- Footer -->
+          <tr>
+            <td style="background: #F8FAFC; padding: 16px 24px; border-top: 1px solid #E2E8F0;">
+              <p style="font-size: 12px; color: #64748B; margin: 0; text-align: center;">
+                This is your ${frequency} digest from Mineral Watch Oklahoma.<br>
+                <a href="https://portal.mymineralwatch.com/account" style="color: #2563EB; text-decoration: none;">Manage notification preferences</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
+/**
+ * Build an alert section for the digest email
+ */
+function buildAlertSection(title, alerts, color, icon) {
+  const alertItems = alerts.map(alert => `
+    <tr>
+      <td style="padding: 12px 0; border-bottom: 1px solid #F1F5F9;">
+        <table width="100%" cellpadding="0" cellspacing="0">
+          <tr>
+            <td>
+              <p style="margin: 0 0 4px; font-size: 14px; font-weight: 600; color: #1C2B36;">
+                ${alert.well_name || alert.api_number || 'Unknown Well'}
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #64748B;">
+                ${alert.operator ? `${alert.operator} • ` : ''}${alert.county ? `${alert.county} County • ` : ''}${alert.section_township_range || ''}
+              </p>
+              ${alert.days_until_expiration !== null && alert.days_until_expiration !== undefined ? `
+                <p style="margin: 4px 0 0; font-size: 12px; color: ${alert.days_until_expiration < 0 ? '#DC2626' : '#F59E0B'}; font-weight: 600;">
+                  ${alert.days_until_expiration < 0 ? 'EXPIRED' : `Expires in ${alert.days_until_expiration} days`}
+                </p>
+              ` : ''}
+              ${alert.previous_operator ? `
+                <p style="margin: 4px 0 0; font-size: 12px; color: #7C3AED;">
+                  From: ${alert.previous_operator}
+                </p>
+              ` : ''}
+              ${alert.new_status ? `
+                <p style="margin: 4px 0 0; font-size: 12px; color: #0891B2;">
+                  ${alert.previous_status} → ${alert.new_status}
+                </p>
+              ` : ''}
+            </td>
+            <td width="80" align="right" valign="top">
+              <span style="display: inline-block; background: #F1F5F9; color: #64748B; font-size: 10px; padding: 4px 8px; border-radius: 4px;">
+                ${alert.alert_level || 'ALERT'}
+              </span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  `).join('');
+
+  return `
+    <div style="margin-bottom: 24px;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;">
+        <tr>
+          <td style="background: ${color}; padding: 12px 16px;">
+            <span style="color: #ffffff; font-size: 14px; font-weight: 700;">${icon} ${title} (${alerts.length})</span>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 0 16px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              ${alertItems}
+            </table>
+          </td>
+        </tr>
+      </table>
+    </div>
+  `;
+}
+
+/**
+ * Build text body for digest email
+ */
+function buildDigestTextBody(digestData) {
+  const { userName, frequency, alerts, highlights } = digestData;
+
+  const totalAlerts =
+    (alerts.permits?.length || 0) +
+    (alerts.completions?.length || 0) +
+    (alerts.statusChanges?.length || 0) +
+    (alerts.expirations?.length || 0) +
+    (alerts.transfers?.length || 0);
+
+  const periodText = frequency === 'weekly' ? 'this week' : 'today';
+
+  let text = `
+MINERAL WATCH - ${frequency.toUpperCase()} DIGEST
+${'='.repeat(40)}
+
+Hi ${userName || 'there'},
+
+Here's a summary of ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} from ${periodText}.
+`;
+
+  if (highlights && highlights.length > 0) {
+    text += `
+⚠️ REQUIRES ATTENTION:
+${highlights.map(h => `• ${h.message}`).join('\n')}
+`;
+  }
+
+  const sections = [
+    { name: 'PERMIT EXPIRATIONS', items: alerts.expirations },
+    { name: 'NEW PERMITS', items: alerts.permits },
+    { name: 'WELL COMPLETIONS', items: alerts.completions },
+    { name: 'OPERATOR TRANSFERS', items: alerts.transfers },
+    { name: 'STATUS CHANGES', items: alerts.statusChanges }
+  ];
+
+  for (const section of sections) {
+    if (section.items && section.items.length > 0) {
+      text += `
+${section.name} (${section.items.length}):
+${'-'.repeat(30)}
+`;
+      for (const alert of section.items) {
+        text += `• ${alert.well_name || alert.api_number || 'Unknown Well'}`;
+        if (alert.operator) text += ` - ${alert.operator}`;
+        if (alert.county) text += ` - ${alert.county} County`;
+        if (alert.days_until_expiration !== null) {
+          text += alert.days_until_expiration < 0 ? ' [EXPIRED]' : ` [${alert.days_until_expiration} days]`;
+        }
+        text += '\n';
+      }
+    }
+  }
+
+  text += `
+---
+View all activity: https://portal.mymineralwatch.com/activity
+Manage preferences: https://portal.mymineralwatch.com/account
+
+Mineral Watch Oklahoma
+https://mymineralwatch.com
+`;
+
+  return text.trim();
+}
