@@ -2428,7 +2428,7 @@
                             <span id="well-linked-documents-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
                         </div>
                     </div>
-                    
+
                     <div id="linked-documents-content-well" style="display: none; padding: 0 16px 16px;">
                         <div id="linked-documents-list-well" style="max-height: 300px; overflow-y: auto;">
                             <!-- Populated dynamically -->
@@ -2438,7 +2438,36 @@
                         </div>
                     </div>
                 </div>
-                
+
+                <!-- OCC Filings Section (Well) -->
+                <div class="occ-filings-section-well" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="occ-filings-header-well" onclick="toggleOccFilings('well')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="well-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="well-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+
+                    <div id="well-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="well-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="well-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="well-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="well-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="well-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Completion Date -->
                 <div class="info-section">
                     <div class="section-label">Completion Date</div>
@@ -7371,11 +7400,15 @@
                 modalStack.push({ type: 'property', id: propId, element: propModal });
             }
             
-            // Load linked wells after modal is shown to avoid race condition
+            // Load linked wells and OCC filings after modal is shown to avoid race condition
             console.log('[PropertyDetails] Opening property:', propId);
             setTimeout(() => {
                 loadLinkedWells(propId);
                 loadLinkedDocuments(propId, 'property');
+                // Load OCC filings using section/township/range
+                if (f.SEC && f.TWN && f.RNG) {
+                    loadOccFilings(f.SEC, f.TWN, f.RNG);
+                }
             }, 100);
             
             // Handle viewer permissions
@@ -7746,15 +7779,16 @@
         }
         window.toggleOccFilings = toggleOccFilings;
 
-        async function loadOccFilings(section, township, range) {
-            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range}`);
+        async function loadOccFilings(section, township, range, type = 'property') {
+            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range} (${type})`);
 
-            const directContainer = document.getElementById('property-occ-direct');
-            const adjacentContainer = document.getElementById('property-occ-adjacent');
-            const adjacentWrapper = document.getElementById('property-occ-adjacent-wrapper');
-            const emptyMessage = document.getElementById('property-occ-empty');
-            const countBadge = document.getElementById('property-occ-count');
-            const adjacentCountBadge = document.getElementById('property-occ-adjacent-count');
+            const prefix = type === 'property' ? 'property' : 'well';
+            const directContainer = document.getElementById(`${prefix}-occ-direct`);
+            const adjacentContainer = document.getElementById(`${prefix}-occ-adjacent`);
+            const adjacentWrapper = document.getElementById(`${prefix}-occ-adjacent-wrapper`);
+            const emptyMessage = document.getElementById(`${prefix}-occ-empty`);
+            const countBadge = document.getElementById(`${prefix}-occ-count`);
+            const adjacentCountBadge = document.getElementById(`${prefix}-occ-adjacent-count`);
 
             // Reset
             directContainer.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
