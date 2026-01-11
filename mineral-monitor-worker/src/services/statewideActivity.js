@@ -189,6 +189,17 @@ export function createStatewideActivityFromPermit(permit, wellCoords = null, map
       // For permits: assume horizontal unless explicitly marked as SH (Straight Hole)
       const isConfirmedVertical = permit.Drill_Type === 'SH' || permit.Drill_Type === 'STRAIGHT HOLE';
       return !isConfirmedVertical;
+    })(),
+    expireDate: (() => {
+      const rawDate = permit.Expire_Date;
+      if (rawDate && typeof rawDate === 'string' && rawDate.trim()) {
+        const trimmed = rawDate.trim();
+        const parsed = new Date(trimmed);
+        if (!isNaN(parsed)) {
+          return parsed.toISOString().split('T')[0];
+        }
+      }
+      return null;
     })()
   };
   
@@ -392,5 +403,123 @@ async function updateStatewideActivity(env, recordId, activityData) {
   } catch (err) {
     console.error(`[Statewide] Update error for ${recordId}:`, err);
     return { success: false, error: err.message };
+  }
+}
+
+/**
+ * Find permits that are expiring soon or have recently expired
+ * Oklahoma drilling permits are valid for 1 year from approval date
+ * @param {Object} env - Worker environment
+ * @param {number} daysWarning - Days before expiration to start warning (default 30)
+ * @param {number} daysAfterExpiration - Days after expiration to still alert (default 7)
+ * @returns {Array} - List of expiring permits with location data
+ */
+export async function findExpiringPermits(env, daysWarning = 30, daysAfterExpiration = 7) {
+  if (!env.WELLS_DB) {
+    console.error('[Expiring] D1 database binding (WELLS_DB) not found');
+    return [];
+  }
+
+  try {
+    // Query for permits that:
+    // 1. Have an expire_date set
+    // 2. Have NOT been completed (no completion = hasn't been spudded/drilled)
+    // 3. Are within the warning window OR recently expired
+    const stmt = env.WELLS_DB.prepare(`
+      SELECT
+        api_number,
+        well_name,
+        operator,
+        county,
+        surface_section,
+        surface_township,
+        surface_range,
+        surface_pm,
+        permit_date,
+        expire_date,
+        latitude,
+        longitude,
+        occ_map_link,
+        JULIANDAY(expire_date) - JULIANDAY('now') as days_until_expiration
+      FROM statewide_activity
+      WHERE
+        expire_date IS NOT NULL
+        AND has_permit = 1
+        AND has_completion = 0
+        AND JULIANDAY(expire_date) - JULIANDAY('now') BETWEEN ? AND ?
+      ORDER BY days_until_expiration ASC
+    `);
+
+    // Range: from N days after expiration (negative) to warning days before (positive)
+    const result = await stmt.bind(-daysAfterExpiration, daysWarning).all();
+
+    const permits = result.results || [];
+    console.log(`[Expiring] Found ${permits.length} permits expiring within ${daysWarning} days or recently expired`);
+
+    return permits.map(p => ({
+      apiNumber: p.api_number,
+      wellName: p.well_name,
+      operator: p.operator,
+      county: p.county,
+      section: p.surface_section,
+      township: p.surface_township,
+      range: p.surface_range,
+      meridian: p.surface_pm || 'IM',
+      permitDate: p.permit_date,
+      expireDate: p.expire_date,
+      daysUntilExpiration: Math.round(p.days_until_expiration),
+      latitude: p.latitude,
+      longitude: p.longitude,
+      mapLink: p.occ_map_link,
+      // Determine status for user-friendly messaging
+      expirationStatus: p.days_until_expiration < 0
+        ? 'EXPIRED'
+        : p.days_until_expiration <= 7
+          ? 'EXPIRING_SOON'
+          : 'EXPIRING'
+    }));
+  } catch (err) {
+    console.error('[Expiring] Error querying expiring permits:', err);
+    return [];
+  }
+}
+
+/**
+ * Mark a permit as having been alerted for expiration to prevent duplicate alerts
+ * Uses KV cache with API number as key
+ * @param {Object} env - Worker environment
+ * @param {string} apiNumber - 10-digit API number
+ * @param {string} expirationStatus - Status at time of alert (EXPIRING, EXPIRING_SOON, EXPIRED)
+ */
+export async function markPermitExpirationAlerted(env, apiNumber, expirationStatus) {
+  try {
+    const key = `permit-expiration:${apiNumber}`;
+    const data = {
+      alertedAt: new Date().toISOString(),
+      status: expirationStatus
+    };
+    // Keep for 45 days (longer than warning + expiration window)
+    await env.MINERAL_CACHE.put(key, JSON.stringify(data), {
+      expirationTtl: 45 * 24 * 60 * 60
+    });
+  } catch (err) {
+    console.warn(`[Expiring] Failed to mark permit ${apiNumber} as alerted:`, err.message);
+  }
+}
+
+/**
+ * Check if a permit has already been alerted for expiration
+ * @param {Object} env - Worker environment
+ * @param {string} apiNumber - 10-digit API number
+ * @returns {Object|null} - Previous alert data or null
+ */
+export async function getPermitExpirationAlert(env, apiNumber) {
+  try {
+    const key = `permit-expiration:${apiNumber}`;
+    const data = await env.MINERAL_CACHE.get(key, { type: 'json' });
+    return data;
+  } catch (err) {
+    console.warn(`[Expiring] Failed to check permit ${apiNumber} alert status:`, err.message);
+    return null;
   }
 }
