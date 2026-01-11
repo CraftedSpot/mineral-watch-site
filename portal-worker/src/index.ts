@@ -708,6 +708,12 @@ var index_default = {
         return handleOccProxy(request, env);
       }
       
+      // Docket entries endpoint
+      if (path === "/api/docket-entries" && request.method === "GET") {
+        const { handleGetDocketEntries } = await import('./handlers/docket-entries.js');
+        return handleGetDocketEntries(request, env);
+      }
+
       // Map data endpoints
       if (path === "/api/map/counties" && request.method === "GET") {
         return handleGetCounties(request, env);
