@@ -2835,13 +2835,13 @@
             }
         }
         
-        const planConfigs = { 
-            'Free': { properties: 1, wells: 1 }, 
-            'Starter': { properties: 10, wells: 10 }, 
-            'Standard': { properties: 50, wells: 50 }, 
-            'Professional': { properties: 250, wells: 250 }, 
-            'Enterprise 500': { properties: 500, wells: 500 },
-            'Enterprise': { properties: Infinity, wells: Infinity } 
+        const planConfigs = {
+            'Free': { properties: 1, wells: 1 },
+            'Starter': { properties: 10, wells: 10 },
+            'Standard': { properties: 50, wells: 50 },
+            'Professional': { properties: 250, wells: 250 },
+            'Business': { properties: 500, wells: 500 },
+            'Enterprise': { properties: Infinity, wells: Infinity }
         };
         let currentTab = 'properties';
         let currentUser = null; // Store user data globally
@@ -3183,29 +3183,27 @@
                 document.getElementById('propLimit').textContent = limits.properties === Infinity ? '∞' : limits.properties;
                 document.getElementById('wellLimit').textContent = limits.wells === Infinity ? '∞' : limits.wells;
                 
-                // Hide upgrade link for Enterprise users
-                if (currentUser.plan === 'Enterprise' || currentUser.plan === 'Enterprise 500') {
+                // Hide upgrade link for Business/Enterprise users
+                if (currentUser.plan === 'Enterprise' || currentUser.plan === 'Business') {
                     document.getElementById('upgradeLink').style.display = 'none';
                 }
-                
-                // Show export buttons for Professional and Enterprise users
-                if (currentUser.plan === 'Professional' || currentUser.plan === 'Enterprise' || currentUser.plan === 'Enterprise 500') {
+
+                // Show export buttons for Professional+ users
+                if (currentUser.plan === 'Professional' || currentUser.plan === 'Business' || currentUser.plan === 'Enterprise') {
                     document.getElementById('exportPropertiesBtn').style.display = 'inline-flex';
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
-                
-                // Show Documents tab for James or Enterprise 500 users
+
+                // Show Documents tab for Business+ users
                 console.log('Current user:', currentUser);
                 console.log('User ID:', currentUser.id);
                 console.log('User plan:', currentUser.plan);
-                console.log('User fields:', currentUser.fields);
-                console.log('Organization:', currentUser.organizationId);
-                
+
                 // Check both plan formats
                 const userPlan = currentUser.plan || currentUser.Plan || currentUser.fields?.Plan;
                 console.log('Detected plan:', userPlan);
-                
-                if (currentUser.id === 'recEpgbS88AbuzAH8' || userPlan === 'Enterprise 500') {
+
+                if (currentUser.id === 'recEpgbS88AbuzAH8' || userPlan === 'Business' || userPlan === 'Enterprise') {
                     console.log('Showing documents tab for user');
                     document.getElementById('documentsTab').style.display = 'flex';
                     // Also show document count in plan info
@@ -3215,7 +3213,7 @@
                     }
                 } else {
                     console.log('Not showing documents tab - user does not have access');
-                    console.log('User plan is:', userPlan, 'not Enterprise 500');
+                    console.log('User plan is:', userPlan, 'not Business/Enterprise');
                 }
                 
                 // Hide add/edit/delete buttons for Viewers

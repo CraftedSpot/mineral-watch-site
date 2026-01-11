@@ -296,9 +296,9 @@ export default {
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
 
-      // Gate to James/Enterprise 500
+      // Gate to James/Business+
       const userPlan = user.fields?.Plan || user.plan || user.Plan;
-      if (user.id !== 'recEpgbS88AbuzAH8' && userPlan !== 'Enterprise 500') {
+      if (user.id !== 'recEpgbS88AbuzAH8' && userPlan !== 'Business' && userPlan !== 'Enterprise') {
         return errorResponse('Feature not available for your plan', 403, env);
       }
 

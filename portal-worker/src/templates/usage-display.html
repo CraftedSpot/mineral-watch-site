@@ -133,7 +133,7 @@
     const { usage, plan } = data;
     
     // Don't show for Enterprise users (unlimited)
-    if (plan === 'Enterprise' || plan === 'Enterprise 500') {
+    if (plan === 'Enterprise' || plan === 'Business') {
       document.getElementById('documentUsageTracker').style.display = 'none';
       return;
     }

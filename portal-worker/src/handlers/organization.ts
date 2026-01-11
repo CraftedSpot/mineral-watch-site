@@ -164,9 +164,8 @@ export async function handleInviteMember(request: Request, env: Env) {
       'Starter': 1,
       'Standard': 1,
       'Professional': 3,
-      'Enterprise': 10,
-      'Enterprise 500': 10,
-      'Enterprise 1000': 10
+      'Business': 10,
+      'Enterprise': 10
     };
     
     const maxMembers = planLimits[plan] || 1;

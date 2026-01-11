@@ -82,16 +82,13 @@ export class UsageTrackingService {
   /**
    * Track credit usage for a single extracted document
    * Note: Currently just tracking - not enforcing limits
-   * 
-   * Credit calculation (per extracted document, not per uploaded file):
-   * - "Other" with skip_extraction: 0 credits (free classification)
-   * - Normal extracted documents: Math.ceil(pageCount / 30) credits
-   *   - 1-30 pages: 1 credit
-   *   - 31-60 pages: 2 credits
-   *   - 61-90 pages: 3 credits, etc.
+   *
+   * Credit calculation:
+   * - 1 document = 1 credit (regardless of page count)
+   * - "Other" with skip_extraction: 0 credits (free classification only)
    */
   async incrementDocumentCount(
-    userId: string, 
+    userId: string,
     documentId: string,
     docType: string,
     pageCount: number,
@@ -100,13 +97,13 @@ export class UsageTrackingService {
     skipExtraction: boolean = false
   ): Promise<void> {
     const billingPeriod = getCurrentBillingPeriod();
-    
-    // Calculate credits used
+
+    // Calculate credits used: 1 document = 1 credit
     let creditsUsed: number;
     if (docType === 'other' && skipExtraction) {
       creditsUsed = 0; // Free classification for "Other" documents
     } else {
-      creditsUsed = Math.ceil(pageCount / 30); // Standard credit calculation
+      creditsUsed = 1; // Simple 1:1 credit calculation
     }
     
     // Get current usage to implement consumption order

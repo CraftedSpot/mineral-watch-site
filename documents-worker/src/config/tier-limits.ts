@@ -1,60 +1,57 @@
 /**
  * Credit-Based Document Processing Limits
- * 
+ *
  * Credit calculation:
- * - 1-30 pages = 1 credit (most documents)
- * - 31-60 pages = 2 credits
- * - 61-90 pages = 3 credits, etc.
- * - "Other" with skip_extraction = 0 credits (free classification)
- * 
- * Note: Currently for tracking only - not enforced
+ * - 1 document = 1 credit (regardless of page count)
+ * - "Other" with skip_extraction = 0 credits (free classification only)
+ *
+ * Two credit buckets:
+ * - Monthly credits: Use-or-lose, reset each billing cycle
+ * - Permanent credits: Bonus (annual) + purchased packs, never expire
+ *
+ * Consumption order: Monthly first, then permanent
  */
 
 export interface TierLimit {
-  monthly: number;           // Base monthly credit allowance
-  bonus: number;            // Bonus credits for annual subscriptions
-  isLifetime?: boolean;     // Special handling for lifetime free tier
-  overage_price?: number;   // Price per credit over limit (future)
+  monthly: number;           // Monthly credit allowance (use-or-lose)
+  bonus: number;            // Permanent bonus credits for annual subscriptions
+  isLifetime?: boolean;     // Special handling for lifetime free tier (no monthly reset)
 }
 
 export const TIER_LIMITS: Record<string, TierLimit> = {
-  // Free tier - lifetime allowance
-  'Free': { 
-    monthly: 5, 
-    bonus: 0, 
-    isLifetime: true 
+  // Free tier - 10 lifetime credits (trial, not monthly)
+  'Free': {
+    monthly: 0,       // No monthly allocation
+    bonus: 10,        // 10 lifetime credits as trial
+    isLifetime: true
   },
-  
-  // Paid tiers - monthly reset
-  'Starter': { 
-    monthly: 25, 
-    bonus: 50,        // 50 bonus credits for annual (2 months worth)
-    overage_price: 0.50 
+
+  // Paid tiers - monthly reset + bonus for annual
+  'Starter': {
+    monthly: 10,
+    bonus: 75         // 75 permanent credits for annual (~7.5 months worth)
   },
-  
-  'Standard': { 
-    monthly: 100, 
-    bonus: 250,       // 250 bonus credits for annual (2.5 months worth)
-    overage_price: 0.40 
+
+  'Standard': {
+    monthly: 25,
+    bonus: 300        // 300 permanent credits for annual (12 months worth)
   },
-  
-  'Professional': { 
-    monthly: 500, 
-    bonus: 1000,      // 1000 bonus credits for annual (2 months worth)
-    overage_price: 0.30 
+
+  'Professional': {
+    monthly: 50,
+    bonus: 1000       // 1000 permanent credits for annual (20 months worth)
   },
-  
-  // Enterprise tiers - custom limits
-  'Enterprise 500': { 
-    monthly: 2000,    // High enough to be effectively unlimited
-    bonus: 0,
-    overage_price: 0.25 
+
+  // Business tier (renamed from Enterprise 500)
+  'Business': {
+    monthly: 100,
+    bonus: 2500       // 2500 permanent credits for annual (25 months worth)
   },
-  
-  'Enterprise': { 
-    monthly: 99999,   // Effectively unlimited
-    bonus: 0,
-    overage_price: 0.20 
+
+  // Enterprise - white glove, effectively unlimited
+  'Enterprise': {
+    monthly: 250,
+    bonus: 10000      // Large bonus pool for annual enterprise
   }
 };
 
