@@ -102,7 +102,8 @@ export {
   handleGetOrganization,
   handleInviteMember,
   handleUpdateMemberRole,
-  handleRemoveMember
+  handleRemoveMember,
+  handleUpdateOrganizationSettings
 } from './organization.js';
 
 // Property-well matching handler
