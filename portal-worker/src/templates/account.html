@@ -178,6 +178,17 @@
         }
         .btn-cancel { padding: 10px 20px; border: 1px solid var(--border); background: white; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
         .btn-cancel:hover { background: var(--paper); }
+        /* Alert Preference Toggles */
+        .pref-toggle { display: flex; align-items: flex-start; gap: 12px; padding: 15px; background: white; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+        .pref-toggle:hover { border-color: var(--red-dirt); background: #FFFAF5; }
+        .pref-toggle input { display: none; }
+        .pref-slider { position: relative; width: 44px; height: 24px; background: #CBD5E1; border-radius: 12px; flex-shrink: 0; transition: background 0.2s; }
+        .pref-slider::after { content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px; background: white; border-radius: 50%; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        .pref-toggle input:checked + .pref-slider { background: var(--success); }
+        .pref-toggle input:checked + .pref-slider::after { transform: translateX(20px); }
+        .pref-content { flex: 1; }
+        .pref-title { display: block; font-weight: 600; font-size: 14px; color: var(--oil-navy); margin-bottom: 2px; }
+        .pref-desc { display: block; font-size: 12px; color: var(--slate-blue); line-height: 1.4; }
         footer { background: var(--oil-navy); color: #A0AEC0; padding: 20px 0; font-size: 13px; text-align: center; }
         @media (max-width: 768px) { 
             .cards { grid-template-columns: 1fr; } 
@@ -510,6 +521,9 @@
                 if (plan === 'Professional' || plan.startsWith('Enterprise')) {
                     await loadOrganization();
                 }
+
+                // Load alert preferences
+                loadAlertPreferences(currentUser);
             } catch { window.location.href = '/portal/login'; }
             
             // Set up manage button
@@ -931,7 +945,67 @@
                 }
             }
         });
-        
+
+        // Alert Preferences Functions
+        function loadAlertPreferences(user) {
+            // Set toggles based on user preferences (default to true if not set)
+            document.getElementById('prefPermits').checked = user.alertPermits !== false;
+            document.getElementById('prefCompletions').checked = user.alertCompletions !== false;
+            document.getElementById('prefStatusChanges').checked = user.alertStatusChanges !== false;
+            document.getElementById('prefExpirations').checked = user.alertExpirations !== false;
+            document.getElementById('prefTransfers').checked = user.alertOperatorTransfers !== false;
+
+            // Set expiration warning days (default to 30)
+            const days = user.expirationWarningDays || 30;
+            document.getElementById('prefExpirationDays').value = days;
+        }
+
+        async function savePreferences() {
+            const btn = document.getElementById('savePrefsBtn');
+            const status = document.getElementById('prefsSaveStatus');
+            const originalText = btn.textContent;
+
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+                status.style.display = 'none';
+
+                const preferences = {
+                    alertPermits: document.getElementById('prefPermits').checked,
+                    alertCompletions: document.getElementById('prefCompletions').checked,
+                    alertStatusChanges: document.getElementById('prefStatusChanges').checked,
+                    alertExpirations: document.getElementById('prefExpirations').checked,
+                    alertOperatorTransfers: document.getElementById('prefTransfers').checked,
+                    expirationWarningDays: parseInt(document.getElementById('prefExpirationDays').value, 10)
+                };
+
+                const res = await fetch('/api/user/preferences', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(preferences)
+                });
+
+                if (res.ok) {
+                    status.style.display = 'inline';
+                    setTimeout(() => { status.style.display = 'none'; }, 3000);
+                    showToast('Alert preferences saved!', 'success');
+                } else {
+                    const data = await res.json();
+                    showToast(data.error || 'Failed to save preferences', 'error');
+                }
+            } catch (error) {
+                console.error('Save preferences error:', error);
+                showToast('Failed to save preferences. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // Make savePreferences global
+        window.savePreferences = savePreferences;
+
     </script>
     
     <!-- Invite Member Modal -->

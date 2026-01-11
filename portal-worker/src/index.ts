@@ -449,7 +449,13 @@ var index_default = {
         const { handleChangeEmail } = await import('./handlers/auth.js');
         return handleChangeEmail(request, env);
       }
-      
+
+      // Handle user preferences update
+      if (path === "/api/user/preferences" && request.method === "PATCH") {
+        const { handleUpdatePreferences } = await import('./handlers/preferences.js');
+        return handleUpdatePreferences(request, env);
+      }
+
       // Proxy auth endpoints to auth-worker
       if (path.startsWith("/api/auth/")) {
         console.log(`[Portal] Proxying auth request: ${path}`);

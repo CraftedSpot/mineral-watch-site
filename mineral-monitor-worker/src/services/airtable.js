@@ -271,6 +271,51 @@ export async function updateActivityLog(env, recordId, fields) {
     const error = await response.text();
     throw new Error(`Airtable update activity failed: ${response.status} - ${error}`);
   }
-  
+
   return await response.json();
+}
+
+/**
+ * Extract user alert preferences from a user record
+ * All preferences default to true if not set
+ * @param {Object} user - Airtable user record
+ * @returns {Object} - Normalized preferences object
+ */
+export function getUserPreferences(user) {
+  const fields = user?.fields || {};
+  return {
+    alertPermits: fields['Alert Permits'] !== false,
+    alertCompletions: fields['Alert Completions'] !== false,
+    alertStatusChanges: fields['Alert Status Changes'] !== false,
+    alertExpirations: fields['Alert Expirations'] !== false,
+    alertOperatorTransfers: fields['Alert Operator Transfers'] !== false,
+    expirationWarningDays: fields['Expiration Warning Days'] || 30
+  };
+}
+
+/**
+ * Check if a user wants to receive a specific type of alert
+ * @param {Object} user - Airtable user record
+ * @param {string} activityType - Type of activity: 'New Permit', 'Well Completed', 'Status Change', 'Permit Expiring', 'Permit Expired', 'Operator Transfer'
+ * @returns {boolean} - Whether to send the alert
+ */
+export function userWantsAlert(user, activityType) {
+  const prefs = getUserPreferences(user);
+
+  switch (activityType) {
+    case 'New Permit':
+      return prefs.alertPermits;
+    case 'Well Completed':
+      return prefs.alertCompletions;
+    case 'Status Change':
+      return prefs.alertStatusChanges;
+    case 'Permit Expiring':
+    case 'Permit Expired':
+      return prefs.alertExpirations;
+    case 'Operator Transfer':
+      return prefs.alertOperatorTransfers;
+    default:
+      // Unknown types default to sending
+      return true;
+  }
 }

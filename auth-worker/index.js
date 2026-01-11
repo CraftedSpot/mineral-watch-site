@@ -324,6 +324,13 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
     role: user.fields.Role || null,
     organizationId: user.fields.Organization ? user.fields.Organization[0] : null,
     stripeCustomerId: user.fields["Stripe Customer ID"] || null,
+    // Alert preferences (default to true if not set)
+    alertPermits: user.fields["Alert Permits"] !== false,
+    alertCompletions: user.fields["Alert Completions"] !== false,
+    alertStatusChanges: user.fields["Alert Status Changes"] !== false,
+    alertExpirations: user.fields["Alert Expirations"] !== false,
+    alertOperatorTransfers: user.fields["Alert Operator Transfers"] !== false,
+    expirationWarningDays: user.fields["Expiration Warning Days"] || 30,
     // Include the full Airtable user record for portal-worker
     airtableUser: user
   }), {

@@ -9,13 +9,15 @@
 import { fetchOCCFile } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
 import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
-import { 
-  preloadRecentAlerts, 
-  hasRecentAlertInSet, 
-  createActivityLog, 
-  updateActivityLog, 
-  queryAirtable, 
-  batchGetUsers 
+import {
+  preloadRecentAlerts,
+  hasRecentAlertInSet,
+  createActivityLog,
+  updateActivityLog,
+  queryAirtable,
+  batchGetUsers,
+  userWantsAlert,
+  getUserById
 } from '../services/airtable.js';
 import { sendAlertEmail } from '../services/email.js';
 import { sendBatchedEmails } from '../services/emailBatch.js';
