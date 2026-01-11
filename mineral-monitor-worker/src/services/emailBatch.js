@@ -32,6 +32,8 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
   const results = {
     emailsSent: 0,
     alertsSent: 0,
+    alertsQueued: 0,
+    alertsSkipped: 0,
     errors: [],
     testMode: options.testMode || false,
     skippedUsers: []
@@ -39,13 +41,13 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
 
   // Test mode email filtering
   const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
-  
+
   // Process each user's alerts
   for (const [userId, userAlerts] of userAlertMap.entries()) {
     try {
       // Get user email from first alert
       const userEmail = userAlerts[0]?.user?.email;
-      
+
       // In test mode, filter to approved emails only
       if (results.testMode && userEmail) {
         if (!approvedTestEmails.includes(userEmail)) {
@@ -56,19 +58,90 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
           console.log(`[Test Mode] Sending batched email to: ${userEmail} (${userAlerts.length} alerts)`);
         }
       }
-      
-      // Send one email per user with all their alerts
-      const sent = await sendBatchedUserEmail(env, userId, userAlerts, dryRun);
-      if (sent) {
-        results.emailsSent++;
-        results.alertsSent += userAlerts.length;
+
+      // Get user's notification mode
+      const user = await getUserById(env, userId);
+      const organizationId = user?.fields?.Organization?.[0] || null;
+      const organization = organizationId ? await getOrganizationById(env, organizationId) : null;
+      const notificationMode = getEffectiveNotificationMode(user, organization);
+
+      console.log(`[EmailBatch] User ${userEmail} notification mode: ${notificationMode}`);
+
+      // Check if user wants no notifications
+      if (notificationMode === 'None') {
+        console.log(`[EmailBatch] Skipping user ${userEmail} - notifications disabled`);
+        results.alertsSkipped += userAlerts.length;
+        continue;
       }
+
+      // Determine what actions to take based on notification mode
+      const sendInstant = shouldSendInstant(notificationMode);
+      const digestFrequency = getDigestFrequency(notificationMode);
+
+      // Send instant email if appropriate
+      if (sendInstant) {
+        const sent = await sendBatchedUserEmail(env, userId, userAlerts, dryRun);
+        if (sent) {
+          results.emailsSent++;
+          results.alertsSent += userAlerts.length;
+        }
+      }
+
+      // Queue for digest if appropriate (even if we also sent instant)
+      if (digestFrequency && !dryRun) {
+        for (const alert of userAlerts) {
+          // Create activity log first if we didn't send instant (activity log was created there)
+          let activityLogId = alert.activityLogId;
+          if (!sendInstant) {
+            const activityData = {
+              wellName: alert.wellName,
+              apiNumber: alert.apiNumber,
+              activityType: alert.activityType,
+              operator: alert.operator,
+              alertLevel: alert.alertLevel,
+              sectionTownshipRange: alert.location,
+              county: alert.county,
+              occLink: alert.occLink || null,
+              mapLink: alert.mapLink || "",
+              userId: alert.user.id,
+              formation: alert.formation || null,
+              organizationId: alert.organizationId || null
+            };
+            const record = await createActivityLog(env, activityData);
+            activityLogId = record.id;
+          }
+
+          await queuePendingAlert(env, {
+            userId: userId,
+            userEmail: userEmail,
+            organizationId: organizationId,
+            activityLogId: activityLogId,
+            activityType: alert.activityType,
+            wellName: alert.wellName,
+            apiNumber: alert.apiNumber,
+            operator: alert.operator,
+            county: alert.county,
+            sectionTownshipRange: alert.location,
+            alertLevel: alert.alertLevel,
+            daysUntilExpiration: alert.daysUntilExpiration || null,
+            expireDate: alert.expireDate || null,
+            previousStatus: alert.previousStatus || null,
+            newStatus: alert.newStatus || null,
+            previousOperator: alert.previousOperator || null,
+            digestFrequency: digestFrequency
+          });
+          results.alertsQueued++;
+        }
+        console.log(`[EmailBatch] Queued ${userAlerts.length} alerts for ${digestFrequency} digest for ${userEmail}`);
+      }
+
     } catch (error) {
       console.error(`[EmailBatch] Error processing user ${userId}:`, error);
       results.errors.push({ userId, error: error.message });
     }
   }
 
+  console.log(`[EmailBatch] Summary: ${results.emailsSent} emails sent, ${results.alertsQueued} alerts queued, ${results.alertsSkipped} skipped`);
   return results;
 }
 
