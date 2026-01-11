@@ -471,6 +471,53 @@ def name_spacing_order(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_increased_density_order(data: Dict[str, Any]) -> str:
+    """Increased Density Order - CD {Number} - {Well Name or County} - {Operator} - {Formation} - {Year}"""
+    parts = ["Increased Density Order"]
+
+    # Case/CD number
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    if cd_num:
+        parts.append(f"CD {cd_num}")
+
+    # Well name (preferred) or county as location identifier
+    well_name = data.get('proposed_well_name') or data.get('well_name')
+    if well_name:
+        parts.append(truncate_name(str(well_name), 30))
+    elif data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Operator (use short name)
+    operator = data.get('operator') or data.get('applicant')
+    if operator:
+        parts.append(extract_last_name(operator))
+
+    # Primary formation (if available)
+    formations = data.get('formations')
+    if formations and isinstance(formations, list) and len(formations) > 0:
+        first_formation = formations[0]
+        if isinstance(first_formation, dict):
+            formation_name = first_formation.get('name', '')
+        else:
+            formation_name = str(first_formation)
+        if formation_name:
+            parts.append(formation_name)
+
+    # Additional wells authorized
+    additional = data.get('additional_wells_authorized')
+    if additional:
+        parts.append(f"+{additional} well{'s' if additional > 1 else ''}")
+
+    # Year
+    if data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 def name_lease_amendment(data: Dict[str, Any]) -> str:
     """Lease Amendment - {County} - {Legal} - {Operator/Lessee} - {Year}"""
     parts = ["Lease Amendment"]
@@ -1035,6 +1082,7 @@ NAMING_FUNCTIONS = {
     'division_order': name_division_order,
     'assignment': name_assignment,
     'pooling_order': name_pooling_order,
+    'increased_density_order': name_increased_density_order,
     'spacing_order': name_spacing_order,
     'ratification': name_ratification,
     'affidavit_of_heirship': name_affidavit_of_heirship,

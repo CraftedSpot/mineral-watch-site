@@ -98,7 +98,8 @@ Valid document types:
 - title_opinion
 - check_stub (royalty statements, payment stubs)
 - pooling_order (forced pooling orders with election options - use this for pooling specifically)
-- occ_order (spacing, increased density, location exception - NOT pooling)
+- increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY")
+- occ_order (spacing, location exception - NOT pooling or increased density)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - ownership_entity (probate, heirship, trust docs, LLC docs)
@@ -499,6 +500,87 @@ Use the closest matching type, or describe the option if none fit.
   "document_confidence": "high"
 }
 
+For INCREASED DENSITY ORDERS (Authorization for additional wells in existing unit):
+NOTE: These orders do NOT require owner action - they are informational only.
+Look for "INCREASED WELL DENSITY" or "INCREASED DENSITY" in the relief sought section.
+
+{
+  "doc_type": "increased_density_order",
+  "case_number": "CD2025-001682",
+  "order_number": "750759",
+  "order_date": "2025-07-17",
+  "effective_date": "2025-07-17",
+  "hearing_date": "2025-06-17",
+  "applicant": "R. Michael Lortz",
+  "operator": "Charter Oak Production Co., LLC",
+  "proposed_well_name": "Charter Oak 1-15",
+  "legal_description": {
+    "section": "15",
+    "township": "13N",
+    "range": "24W",
+    "county": "Roger Mills"
+  },
+  "unit_description": "All of Section 15, Township 13 North, Range 24 West",
+  "unit_size_acres": 640,
+  "formations": [
+    {
+      "name": "Tonkawa",
+      "depth_from": null,
+      "depth_to": null
+    }
+  ],
+  "well_type": "oil",
+  "additional_wells_authorized": 1,
+  "amends_order": "115709",
+  "existing_wells": [
+    {
+      "well_name": "Barton 1-15H",
+      "api_number": "35-129-23721",
+      "classification": "oil"
+    },
+    {
+      "well_name": "Luke 15-11",
+      "api_number": "35-129-24084",
+      "classification": "oil"
+    }
+  ],
+  "engineering_data": {
+    "recoverable_oil_stb": 1117000,
+    "recoverable_gas_mmcf": 3977,
+    "remaining_oil_stb": 990000,
+    "remaining_gas_mmcf": 3297
+  },
+  "allowable_type": "normal 80-acre plus incentive horizontal",
+  "allowable_notes": "If completed as gas well, shares single unit gas allowable",
+  "expiration_period": "one year",
+  "expiration_date": "2026-07-17",
+  "companion_cases": ["CD2025-001680", "CD2025-001681"],
+  "previous_orders": ["115709"],
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "hearing_date": 0.95,
+    "applicant": 0.95,
+    "operator": 1.0,
+    "proposed_well_name": 0.85,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "unit_description": 0.90,
+    "unit_size_acres": 0.95,
+    "formations": 0.85,
+    "well_type": 0.90,
+    "additional_wells_authorized": 0.95,
+    "existing_wells": 0.85,
+    "engineering_data": 0.80,
+    "expiration_date": 0.90
+  },
+  "document_confidence": "high"
+}
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -840,7 +922,7 @@ If you see evidence of multiple documents, set is_multi_document: true and estim
 
 DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
-- pooling_order, spacing_order, drilling_permit, title_opinion
+- pooling_order, increased_density_order, spacing_order, drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
 - ownership_entity, legal_document, correspondence
 - tax_record, map
