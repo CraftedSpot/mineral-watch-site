@@ -152,9 +152,24 @@ async function handleCheckoutComplete(session, env) {
 
   // Capture shipping address for Business tier (free book!)
   let shippingAddress = null;
-  if (plan === 'Business' && session.shipping_details) {
-    shippingAddress = formatShippingAddress(session.shipping_details);
-    console.log(`Business tier - captured shipping address for ${customerEmail}`);
+
+  // Debug logging for shipping
+  console.log(`[Shipping Debug] Plan: ${plan}, Has shipping_details: ${!!session.shipping_details}, Has shipping: ${!!session.shipping}`);
+  if (session.shipping_details) {
+    console.log(`[Shipping Debug] shipping_details:`, JSON.stringify(session.shipping_details));
+  }
+  if (session.shipping) {
+    console.log(`[Shipping Debug] shipping:`, JSON.stringify(session.shipping));
+  }
+
+  // Try both possible field names (shipping_details is standard, shipping is alternative)
+  const shippingData = session.shipping_details || session.shipping;
+
+  if (plan === 'Business' && shippingData) {
+    shippingAddress = formatShippingAddress(shippingData);
+    console.log(`[Shipping] Business tier - captured shipping address for ${customerEmail}: ${shippingAddress}`);
+  } else if (plan === 'Business') {
+    console.log(`[Shipping] Business tier but NO shipping data found for ${customerEmail}`);
   }
 
   // Check if user already exists
