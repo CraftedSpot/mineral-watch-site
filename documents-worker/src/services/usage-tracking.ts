@@ -1,167 +1,319 @@
 import { D1Database } from '@cloudflare/workers-types';
-import { getTierLimit, getCurrentBillingPeriod } from '../config/tier-limits';
+import { getTierLimit, getCurrentBillingPeriod, TierLimit } from '../config/tier-limits';
 
 export interface UsageStats {
   docs_processed: number;
   credits_used: number;
   monthly_limit: number;
   monthly_remaining: number;
-  bonus_pool_remaining: number;
-  topoff_credits: number;
+  permanent_credits: number;
   billing_period: string;
   percentage_used: number;
   total_available: number;
   reset_date: string;
+  is_lifetime_tier: boolean;
+}
+
+export interface CreditCheckResult {
+  hasCredits: boolean;
+  monthlyRemaining: number;
+  permanentRemaining: number;
+  totalAvailable: number;
+  message?: string;
 }
 
 export class UsageTrackingService {
   constructor(private db: D1Database) {}
 
   /**
-   * Get or create usage record for current billing period
+   * Check if user has credits available for document processing
+   * Returns detailed credit availability info
    */
-  async getOrCreateUsageRecord(userId: string, userPlan: string): Promise<UsageStats> {
-    const billingPeriod = getCurrentBillingPeriod();
+  async checkCreditsAvailable(userId: string, userPlan: string): Promise<CreditCheckResult> {
     const tierLimit = getTierLimit(userPlan);
-    
-    // Try to get existing record
-    let usage = await this.db.prepare(`
-      SELECT * FROM document_usage 
-      WHERE user_id = ? AND billing_period_start = ?
-    `).bind(userId, billingPeriod).first();
-    
-    if (!usage) {
-      // Create new record for this billing period
-      await this.db.prepare(`
-        INSERT INTO document_usage (
-          user_id, 
-          billing_period_start, 
-          docs_processed,
-          bonus_pool_remaining,
-          topoff_credits
-        ) VALUES (?, ?, 0, ?, 0)
-      `).bind(
-        userId, 
-        billingPeriod,
-        userPlan === 'Free' ? 0 : tierLimit.bonus // No bonus for free tier
-      ).run();
-      
-      usage = {
-        user_id: userId,
-        billing_period_start: billingPeriod,
-        docs_processed: 0,
-        bonus_pool_remaining: userPlan === 'Free' ? 0 : tierLimit.bonus,
-        topoff_credits: 0
+    const isLifetimeTier = tierLimit.isLifetime === true;
+
+    // Get permanent credit balance
+    const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
+
+    if (isLifetimeTier) {
+      // Free tier: check lifetime credits (10 total, never resets)
+      const lifetimeRemaining = creditBalance.lifetime_credits_granted - creditBalance.lifetime_credits_used;
+      return {
+        hasCredits: lifetimeRemaining > 0,
+        monthlyRemaining: 0,
+        permanentRemaining: lifetimeRemaining,
+        totalAvailable: lifetimeRemaining,
+        message: lifetimeRemaining <= 0 ? 'You have used all your free trial credits. Upgrade to continue processing documents.' : undefined
       };
     }
-    
-    const creditsUsed = usage.credits_used as number || usage.docs_processed as number;
-    const monthlyRemaining = Math.max(0, tierLimit.monthly - creditsUsed);
-    const bonusRemaining = usage.bonus_pool_remaining as number || 0;
-    const topoffCredits = usage.topoff_credits as number || 0;
-    const totalAvailable = monthlyRemaining + bonusRemaining + topoffCredits;
-    
-    // Calculate reset date (first day of next month)
-    const resetDate = new Date(billingPeriod);
-    resetDate.setMonth(resetDate.getMonth() + 1);
-    
+
+    // Paid tier: check monthly + permanent
+    const billingPeriod = getCurrentBillingPeriod();
+    const usage = await this.getOrCreateUsageRecord(userId, userPlan);
+
+    const monthlyRemaining = Math.max(0, tierLimit.monthly - usage.monthly_credits_used);
+    const permanentRemaining = creditBalance.permanent_credits;
+    const totalAvailable = monthlyRemaining + permanentRemaining;
+
     return {
-      docs_processed: usage.docs_processed as number,
-      credits_used: creditsUsed,
-      monthly_limit: tierLimit.monthly,
-      monthly_remaining: monthlyRemaining,
-      bonus_pool_remaining: bonusRemaining,
-      topoff_credits: topoffCredits,
-      billing_period: billingPeriod,
-      percentage_used: Math.round((creditsUsed / tierLimit.monthly) * 100),
-      total_available: totalAvailable,
-      reset_date: resetDate.toISOString().split('T')[0]
+      hasCredits: totalAvailable > 0,
+      monthlyRemaining,
+      permanentRemaining,
+      totalAvailable,
+      message: totalAvailable <= 0 ? 'You have no credits remaining this month. Purchase a credit pack or wait for your monthly reset.' : undefined
     };
   }
 
   /**
-   * Track credit usage for a single extracted document
-   * Note: Currently just tracking - not enforcing limits
-   *
-   * Credit calculation:
-   * - 1 document = 1 credit (regardless of page count)
-   * - "Other" with skip_extraction: 0 credits (free classification only)
+   * Get or create the permanent credit balance record for a user
    */
-  async incrementDocumentCount(
+  async getOrCreateCreditBalance(userId: string, userPlan: string): Promise<{
+    permanent_credits: number;
+    lifetime_credits_granted: number;
+    lifetime_credits_used: number;
+  }> {
+    let balance = await this.db.prepare(`
+      SELECT permanent_credits, lifetime_credits_granted, lifetime_credits_used
+      FROM user_credit_balance
+      WHERE user_id = ?
+    `).bind(userId).first();
+
+    if (!balance) {
+      const tierLimit = getTierLimit(userPlan);
+      const isLifetimeTier = tierLimit.isLifetime === true;
+
+      // Initialize credits based on tier
+      const lifetimeCredits = isLifetimeTier ? tierLimit.bonus : 0;  // Free tier gets 10 lifetime
+      const permanentCredits = isLifetimeTier ? 0 : 0;  // Paid tiers get bonus on annual signup (handled by webhook)
+
+      await this.db.prepare(`
+        INSERT INTO user_credit_balance (
+          user_id,
+          permanent_credits,
+          lifetime_credits_granted,
+          lifetime_credits_used
+        ) VALUES (?, ?, ?, 0)
+      `).bind(userId, permanentCredits, lifetimeCredits).run();
+
+      console.log(`[Credits] Initialized credit balance for user ${userId}: lifetime=${lifetimeCredits}, permanent=${permanentCredits}`);
+
+      balance = {
+        permanent_credits: permanentCredits,
+        lifetime_credits_granted: lifetimeCredits,
+        lifetime_credits_used: 0
+      };
+    }
+
+    return {
+      permanent_credits: balance.permanent_credits as number,
+      lifetime_credits_granted: balance.lifetime_credits_granted as number,
+      lifetime_credits_used: balance.lifetime_credits_used as number
+    };
+  }
+
+  /**
+   * Get or create usage record for current billing period
+   */
+  async getOrCreateUsageRecord(userId: string, userPlan: string): Promise<{
+    docs_processed: number;
+    monthly_credits_used: number;
+    billing_period: string;
+  }> {
+    const billingPeriod = getCurrentBillingPeriod();
+
+    let usage = await this.db.prepare(`
+      SELECT docs_processed, monthly_credits_used
+      FROM document_usage
+      WHERE user_id = ? AND billing_period_start = ?
+    `).bind(userId, billingPeriod).first();
+
+    if (!usage) {
+      // Create new record for this billing period
+      await this.db.prepare(`
+        INSERT INTO document_usage (
+          user_id,
+          billing_period_start,
+          docs_processed,
+          monthly_credits_used,
+          credits_used
+        ) VALUES (?, ?, 0, 0, 0)
+      `).bind(userId, billingPeriod).run();
+
+      usage = {
+        docs_processed: 0,
+        monthly_credits_used: 0
+      };
+    }
+
+    return {
+      docs_processed: usage.docs_processed as number,
+      monthly_credits_used: (usage.monthly_credits_used as number) || 0,
+      billing_period: billingPeriod
+    };
+  }
+
+  /**
+   * Get full usage statistics for display
+   */
+  async getUsageStats(userId: string, userPlan: string): Promise<UsageStats> {
+    const tierLimit = getTierLimit(userPlan);
+    const isLifetimeTier = tierLimit.isLifetime === true;
+    const billingPeriod = getCurrentBillingPeriod();
+
+    const usage = await this.getOrCreateUsageRecord(userId, userPlan);
+    const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
+
+    let monthlyRemaining: number;
+    let permanentCredits: number;
+    let totalAvailable: number;
+
+    if (isLifetimeTier) {
+      // Free tier: lifetime credits only
+      monthlyRemaining = 0;
+      permanentCredits = creditBalance.lifetime_credits_granted - creditBalance.lifetime_credits_used;
+      totalAvailable = permanentCredits;
+    } else {
+      // Paid tier: monthly + permanent
+      monthlyRemaining = Math.max(0, tierLimit.monthly - usage.monthly_credits_used);
+      permanentCredits = creditBalance.permanent_credits;
+      totalAvailable = monthlyRemaining + permanentCredits;
+    }
+
+    // Calculate reset date (first day of next month)
+    const resetDate = new Date(billingPeriod);
+    resetDate.setMonth(resetDate.getMonth() + 1);
+
+    return {
+      docs_processed: usage.docs_processed,
+      credits_used: usage.monthly_credits_used,
+      monthly_limit: tierLimit.monthly,
+      monthly_remaining: monthlyRemaining,
+      permanent_credits: permanentCredits,
+      billing_period: billingPeriod,
+      percentage_used: tierLimit.monthly > 0 ? Math.round((usage.monthly_credits_used / tierLimit.monthly) * 100) : 0,
+      total_available: totalAvailable,
+      reset_date: resetDate.toISOString().split('T')[0],
+      is_lifetime_tier: isLifetimeTier
+    };
+  }
+
+  /**
+   * Deduct a credit for document processing
+   * Deduction order: Monthly first, then Permanent
+   *
+   * Returns true if credit was successfully deducted, false if no credits available
+   */
+  async deductCredit(userId: string, userPlan: string): Promise<boolean> {
+    const tierLimit = getTierLimit(userPlan);
+    const isLifetimeTier = tierLimit.isLifetime === true;
+
+    if (isLifetimeTier) {
+      // Free tier: deduct from lifetime credits
+      const result = await this.db.prepare(`
+        UPDATE user_credit_balance
+        SET lifetime_credits_used = lifetime_credits_used + 1,
+            updated_at = datetime('now', '-6 hours')
+        WHERE user_id = ?
+          AND lifetime_credits_used < lifetime_credits_granted
+      `).bind(userId).run();
+
+      if (result.meta.changes === 0) {
+        console.log(`[Credits] User ${userId} has no lifetime credits remaining`);
+        return false;
+      }
+
+      console.log(`[Credits] Deducted 1 lifetime credit for user ${userId}`);
+      return true;
+    }
+
+    // Paid tier: try monthly first, then permanent
+    const billingPeriod = getCurrentBillingPeriod();
+    const usage = await this.getOrCreateUsageRecord(userId, userPlan);
+    const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
+
+    const monthlyRemaining = Math.max(0, tierLimit.monthly - usage.monthly_credits_used);
+
+    if (monthlyRemaining > 0) {
+      // Deduct from monthly
+      await this.db.prepare(`
+        UPDATE document_usage
+        SET monthly_credits_used = monthly_credits_used + 1,
+            credits_used = credits_used + 1,
+            updated_at = datetime('now', '-6 hours')
+        WHERE user_id = ? AND billing_period_start = ?
+      `).bind(userId, billingPeriod).run();
+
+      console.log(`[Credits] Deducted 1 monthly credit for user ${userId}. Remaining: ${monthlyRemaining - 1}`);
+      return true;
+    }
+
+    // Try permanent credits
+    if (creditBalance.permanent_credits > 0) {
+      const result = await this.db.prepare(`
+        UPDATE user_credit_balance
+        SET permanent_credits = permanent_credits - 1,
+            updated_at = datetime('now', '-6 hours')
+        WHERE user_id = ? AND permanent_credits > 0
+      `).bind(userId).run();
+
+      if (result.meta.changes > 0) {
+        // Also track in document_usage for analytics
+        await this.db.prepare(`
+          UPDATE document_usage
+          SET credits_used = credits_used + 1,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND billing_period_start = ?
+        `).bind(userId, billingPeriod).run();
+
+        console.log(`[Credits] Deducted 1 permanent credit for user ${userId}. Remaining: ${creditBalance.permanent_credits - 1}`);
+        return true;
+      }
+    }
+
+    console.log(`[Credits] User ${userId} has no credits remaining`);
+    return false;
+  }
+
+  /**
+   * Track document processing (called after successful extraction)
+   * This handles the credit deduction and logging
+   */
+  async trackDocumentProcessed(
     userId: string,
+    userPlan: string,
     documentId: string,
     docType: string,
     pageCount: number,
     isMultiDoc: boolean = false,
     childCount: number = 0,
     skipExtraction: boolean = false
-  ): Promise<void> {
+  ): Promise<{ success: boolean; creditDeducted: boolean }> {
     const billingPeriod = getCurrentBillingPeriod();
 
-    // Calculate credits used: 1 document = 1 credit
-    let creditsUsed: number;
-    if (docType === 'other' && skipExtraction) {
-      creditsUsed = 0; // Free classification for "Other" documents
-    } else {
-      creditsUsed = 1; // Simple 1:1 credit calculation
-    }
-    
-    // Get current usage to implement consumption order
-    let currentUsage = await this.db.prepare(`
-      SELECT credits_used, bonus_pool_remaining, topoff_credits 
-      FROM document_usage 
-      WHERE user_id = ? AND billing_period_start = ?
-    `).bind(userId, billingPeriod).first();
-    
-    if (!currentUsage) {
-      // Create a new usage record if it doesn't exist
-      console.log(`[Usage] Creating new usage record for user ${userId}, period ${billingPeriod}`);
-      try {
-        await this.db.prepare(`
-          INSERT INTO document_usage (
-            user_id, 
-            billing_period_start, 
-            docs_processed,
-            credits_used,
-            bonus_pool_remaining,
-            topoff_credits
-          ) VALUES (?, ?, 0, 0, 0, 0)
-        `).bind(userId, billingPeriod).run();
-      } catch (insertError) {
-        console.error('[Usage] Failed to create usage record:', insertError);
-        console.error('[Usage] Table schema issue? Missing credits_used column?');
-        throw insertError;
+    // Determine if this costs a credit
+    const costsCredit = !(docType === 'other' && skipExtraction);
+    let creditDeducted = false;
+
+    if (costsCredit) {
+      creditDeducted = await this.deductCredit(userId, userPlan);
+      if (!creditDeducted) {
+        // This shouldn't happen if we check credits before processing
+        console.error(`[Credits] Failed to deduct credit for user ${userId}, document ${documentId}`);
       }
-      
-      currentUsage = {
-        credits_used: 0,
-        bonus_pool_remaining: 0,
-        topoff_credits: 0
-      };
     }
-    
-    // Calculate how credits will be consumed (monthly first, then bonus, then topoffs)
-    let remainingToConsume = creditsUsed;
-    let bonusUsed = 0;
-    let topoffUsed = 0;
-    
-    if (remainingToConsume > 0) {
-      // bonusUsed = Math.min(remainingToConsume, currentUsage.bonus_pool_remaining as number);
-      // remainingToConsume -= bonusUsed;
-      
-      // For now, we'll just track total credits used
-      // Full consumption order will be implemented when we add the proper bucket tracking
-    }
-    
-    // Update usage counter
+
+    // Ensure usage record exists
+    await this.getOrCreateUsageRecord(userId, userPlan);
+
+    // Update docs_processed count
     await this.db.prepare(`
-      UPDATE document_usage 
+      UPDATE document_usage
       SET docs_processed = docs_processed + 1,
-          credits_used = credits_used + ?,
           updated_at = datetime('now', '-6 hours')
       WHERE user_id = ? AND billing_period_start = ?
-    `).bind(creditsUsed, userId, billingPeriod).run();
-    
+    `).bind(userId, billingPeriod).run();
+
     // Log individual document processing
     await this.db.prepare(`
       INSERT INTO document_processing_log (
@@ -178,32 +330,46 @@ export class UsageTrackingService {
     `).bind(
       userId,
       documentId,
-      docType || null,  // Convert undefined to null
-      pageCount ?? null,  // Convert undefined/null to null
+      docType || null,
+      pageCount ?? null,
       isMultiDoc ? 1 : 0,
       childCount ?? 0,
       skipExtraction ? 1 : 0,
-      creditsUsed,
+      costsCredit ? 1 : 0,
       billingPeriod
     ).run();
-    
-    console.log(`[Usage] User ${userId} processed document ${documentId} (${docType}). Credits used: ${creditsUsed}. Pages: ${pageCount}. Billing period: ${billingPeriod}`);
+
+    console.log(`[Usage] User ${userId} processed document ${documentId} (${docType}). Credit deducted: ${creditDeducted}. Pages: ${pageCount}`);
+
+    return { success: true, creditDeducted };
   }
 
   /**
-   * Add top-off credits from one-time purchase
+   * Add permanent credits (from annual bonus or token pack purchase)
    */
-  async addTopOffCredits(userId: string, credits: number): Promise<void> {
-    const billingPeriod = getCurrentBillingPeriod();
-    
+  async addPermanentCredits(userId: string, credits: number, reason: string = 'purchase'): Promise<void> {
+    // Ensure balance record exists first
+    await this.getOrCreateCreditBalance(userId, 'Starter'); // Plan doesn't matter for existing record
+
     await this.db.prepare(`
-      UPDATE document_usage 
-      SET topoff_credits = topoff_credits + ?,
+      UPDATE user_credit_balance
+      SET permanent_credits = permanent_credits + ?,
           updated_at = datetime('now', '-6 hours')
-      WHERE user_id = ? AND billing_period_start = ?
-    `).bind(credits, userId, billingPeriod).run();
-    
-    console.log(`[Usage] Added ${credits} top-off credits for user ${userId}`);
+      WHERE user_id = ?
+    `).bind(credits, userId).run();
+
+    console.log(`[Credits] Added ${credits} permanent credits for user ${userId} (reason: ${reason})`);
+  }
+
+  /**
+   * Grant annual bonus credits (called when user subscribes annually)
+   */
+  async grantAnnualBonus(userId: string, userPlan: string): Promise<void> {
+    const tierLimit = getTierLimit(userPlan);
+    if (tierLimit.bonus > 0 && !tierLimit.isLifetime) {
+      await this.addPermanentCredits(userId, tierLimit.bonus, 'annual_bonus');
+      console.log(`[Credits] Granted ${tierLimit.bonus} annual bonus credits to user ${userId} for ${userPlan} plan`);
+    }
   }
 
   /**
@@ -212,12 +378,13 @@ export class UsageTrackingService {
   async getUsageAnalytics(userId: string, months: number = 6): Promise<any> {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - months);
-    
+
     const analytics = await this.db.prepare(`
-      SELECT 
+      SELECT
         billing_period,
         COUNT(*) as total_docs,
         SUM(page_count) as total_pages,
+        SUM(credits_used) as total_credits,
         COUNT(CASE WHEN skip_extraction = 1 THEN 1 END) as other_docs,
         COUNT(CASE WHEN was_multi_doc = 1 THEN 1 END) as multi_docs,
         SUM(child_count) as total_children,
@@ -227,7 +394,49 @@ export class UsageTrackingService {
       GROUP BY billing_period
       ORDER BY billing_period DESC
     `).bind(userId, sixMonthsAgo.toISOString()).all();
-    
+
     return analytics.results;
+  }
+
+  // Legacy method for backwards compatibility
+  async incrementDocumentCount(
+    userId: string,
+    documentId: string,
+    docType: string,
+    pageCount: number,
+    isMultiDoc: boolean = false,
+    childCount: number = 0,
+    skipExtraction: boolean = false
+  ): Promise<void> {
+    // This is now just a wrapper around trackDocumentProcessed
+    // userPlan is not available here, so we can't do proper bucket tracking
+    // This method should be deprecated in favor of trackDocumentProcessed
+    const billingPeriod = getCurrentBillingPeriod();
+    const creditsUsed = (docType === 'other' && skipExtraction) ? 0 : 1;
+
+    // Ensure usage record exists
+    await this.db.prepare(`
+      INSERT OR IGNORE INTO document_usage (
+        user_id, billing_period_start, docs_processed, monthly_credits_used, credits_used
+      ) VALUES (?, ?, 0, 0, 0)
+    `).bind(userId, billingPeriod).run();
+
+    // Update counters
+    await this.db.prepare(`
+      UPDATE document_usage
+      SET docs_processed = docs_processed + 1,
+          credits_used = credits_used + ?,
+          updated_at = datetime('now', '-6 hours')
+      WHERE user_id = ? AND billing_period_start = ?
+    `).bind(creditsUsed, userId, billingPeriod).run();
+
+    // Log processing
+    await this.db.prepare(`
+      INSERT INTO document_processing_log (
+        user_id, document_id, doc_type, page_count, was_multi_doc, child_count, skip_extraction, credits_used, billing_period
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).bind(userId, documentId, docType || null, pageCount ?? null, isMultiDoc ? 1 : 0, childCount ?? 0, skipExtraction ? 1 : 0, creditsUsed, billingPeriod).run();
+
+    console.log(`[Usage] (legacy) User ${userId} processed document ${documentId}. Credits: ${creditsUsed}`);
   }
 }

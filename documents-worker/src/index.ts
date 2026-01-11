@@ -213,11 +213,19 @@ export default {
 
       try {
         const usageService = new UsageTrackingService(env.WELLS_DB);
-        const usage = await usageService.getOrCreateUsageRecord(user.id, user.plan || 'Free');
-        
+        const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
+        const usage = await usageService.getUsageStats(user.id, userPlan);
+        const creditCheck = await usageService.checkCreditsAvailable(user.id, userPlan);
+
         return jsonResponse({
           usage: usage,
-          plan: user.plan || 'Free'
+          plan: userPlan,
+          credits: {
+            hasCredits: creditCheck.hasCredits,
+            monthlyRemaining: creditCheck.monthlyRemaining,
+            permanentRemaining: creditCheck.permanentRemaining,
+            totalAvailable: creditCheck.totalAvailable
+          }
         }, 200, env);
       } catch (error) {
         console.error('Usage stats error:', error);
@@ -263,16 +271,17 @@ export default {
 
         console.log('Stored in R2, creating DB record');
 
-        // Get user's organization
+        // Get user's organization and plan
         const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+        const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
 
-        // Create record in D1
+        // Create record in D1 (include user_plan for credit checks during processing)
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
-            id, r2_key, filename, original_filename, user_id, organization_id, 
-            file_size, status, upload_date, queued_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'))
-        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size).run();
+            id, r2_key, filename, original_filename, user_id, organization_id,
+            file_size, status, upload_date, queued_at, user_plan
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?)
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan).run();
 
         console.log('Document uploaded successfully:', docId);
 
@@ -361,13 +370,13 @@ export default {
               }
             });
 
-            // Create D1 record
+            // Create D1 record (include user_plan for credit checks during processing)
             await env.WELLS_DB.prepare(`
               INSERT INTO documents (
-                id, r2_key, filename, original_filename, user_id, organization_id, 
-                file_size, status, upload_date, queued_at
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'))
-            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size).run();
+                id, r2_key, filename, original_filename, user_id, organization_id,
+                file_size, status, upload_date, queued_at, user_plan
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?)
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan || 'Free').run();
 
             results.push({
               success: true,
@@ -779,23 +788,76 @@ export default {
         `).run();
 
         // Get documents with status='pending' that haven't exceeded retry limit
+        // Include user_plan for credit checks
         const results = await env.WELLS_DB.prepare(`
-          SELECT id, r2_key, filename, original_filename, user_id, organization_id, 
-                 file_size, upload_date, page_count, processing_attempts
-          FROM documents 
+          SELECT id, r2_key, filename, original_filename, user_id, organization_id,
+                 file_size, upload_date, page_count, processing_attempts, user_plan
+          FROM documents
           WHERE status = 'pending'
             AND processing_attempts < 3
             AND deleted_at IS NULL
           ORDER BY upload_date ASC
-          LIMIT 10
+          LIMIT 20
         `).all();
 
-        // Mark documents as processing and increment attempts
-        const docIds = results.results.map(doc => doc.id);
-        if (docIds.length > 0) {
+        if (results.results.length === 0) {
+          return jsonResponse({ documents: [], count: 0 }, 200, env);
+        }
+
+        // Check credits for each user and separate documents
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const userCreditCache: Record<string, { hasCredits: boolean; creditsRemaining: number }> = {};
+        const docsToProcess: any[] = [];
+        const docsNoCredits: string[] = [];
+
+        for (const doc of results.results) {
+          const userId = doc.user_id as string;
+          const userPlan = (doc.user_plan as string) || 'Free';
+
+          // Check credit cache or fetch
+          if (!(userId in userCreditCache)) {
+            const creditCheck = await usageService.checkCreditsAvailable(userId, userPlan);
+            userCreditCache[userId] = {
+              hasCredits: creditCheck.hasCredits,
+              creditsRemaining: creditCheck.totalAvailable
+            };
+          }
+
+          const userCredits = userCreditCache[userId];
+
+          if (userCredits.hasCredits && userCredits.creditsRemaining > 0) {
+            docsToProcess.push(doc);
+            // Decrement the cached count for subsequent docs from same user
+            userCreditCache[userId].creditsRemaining--;
+            if (userCreditCache[userId].creditsRemaining <= 0) {
+              userCreditCache[userId].hasCredits = false;
+            }
+          } else {
+            docsNoCredits.push(doc.id as string);
+          }
+
+          // Limit to 10 docs that can actually be processed
+          if (docsToProcess.length >= 10) break;
+        }
+
+        // Mark documents without credits as 'unprocessed'
+        if (docsNoCredits.length > 0) {
+          const placeholders = docsNoCredits.map(() => '?').join(',');
+          await env.WELLS_DB.prepare(`
+            UPDATE documents
+            SET status = 'unprocessed',
+                updated_at = datetime('now', '-6 hours')
+            WHERE id IN (${placeholders})
+          `).bind(...docsNoCredits).run();
+          console.log(`[Queue] Marked ${docsNoCredits.length} documents as 'unprocessed' (no credits)`);
+        }
+
+        // Mark documents with credits as 'processing'
+        if (docsToProcess.length > 0) {
+          const docIds = docsToProcess.map(doc => doc.id);
           const placeholders = docIds.map(() => '?').join(',');
           await env.WELLS_DB.prepare(`
-            UPDATE documents 
+            UPDATE documents
             SET status = 'processing',
                 extraction_started_at = datetime('now', '-6 hours'),
                 processing_attempts = processing_attempts + 1
@@ -803,9 +865,10 @@ export default {
           `).bind(...docIds).run();
         }
 
-        return jsonResponse({ 
-          documents: results.results,
-          count: results.results.length 
+        return jsonResponse({
+          documents: docsToProcess,
+          count: docsToProcess.length,
+          unprocessed_count: docsNoCredits.length
         }, 200, env);
       } catch (error) {
         console.error('Queue error:', error);
@@ -1058,28 +1121,28 @@ export default {
               }
             }
             
-            // Track document usage (only for successful processing)
+            // Track document usage and deduct credit (only for successful processing)
             if (status !== 'failed') {
               try {
                 // Get user info and plan from the document
                 const docInfo = await env.WELLS_DB.prepare(`
-                  SELECT user_id FROM documents WHERE id = ?
+                  SELECT user_id, user_plan FROM documents WHERE id = ?
                 `).bind(docId).first();
-                
+
                 if (docInfo?.user_id) {
-                  // Get user plan from Airtable (would need to add this to auth worker)
-                  // For now, we'll track with a default plan assumption
                   const usageService = new UsageTrackingService(env.WELLS_DB);
-                  await usageService.incrementDocumentCount(
-                    docInfo.user_id,
+                  const userPlan = (docInfo.user_plan as string) || 'Free';
+                  await usageService.trackDocumentProcessed(
+                    docInfo.user_id as string,
+                    userPlan,
                     docId,
                     doc_type || 'unknown',
                     page_count || 0,
                     false, // isMultiDoc - handle this in split endpoint
-                    0,     // childCount - handle this in split endpoint  
+                    0,     // childCount - handle this in split endpoint
                     extracted_data?.skip_extraction || false
                   );
-                  console.log('[Usage] Tracked document processing for user:', docInfo.user_id);
+                  console.log('[Usage] Tracked document processing for user:', docInfo.user_id, 'plan:', userPlan);
                 }
               } catch (usageError) {
                 // Don't fail the request if usage tracking fails
@@ -1127,8 +1190,8 @@ export default {
 
         // Get parent document info
         const parentDoc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename, user_id, organization_id 
-          FROM documents 
+          SELECT r2_key, filename, user_id, organization_id, user_plan
+          FROM documents
           WHERE id = ? AND deleted_at IS NULL
         `).bind(parentDocId).first();
 
@@ -1144,14 +1207,14 @@ export default {
 
           await env.WELLS_DB.prepare(`
             INSERT INTO documents (
-              id, r2_key, filename, user_id, organization_id,
+              id, r2_key, filename, user_id, organization_id, user_plan,
               parent_document_id, page_range_start, page_range_end,
               status, doc_type, display_name, category, confidence,
               county, section, township, range, extracted_data,
               needs_review, field_scores, fields_needing_review,
               upload_date, extraction_completed_at
             ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
               datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
@@ -1160,6 +1223,7 @@ export default {
             parentDoc.filename,
             parentDoc.user_id,
             parentDoc.organization_id,
+            parentDoc.user_plan || 'Free', // Inherit plan from parent
             parentDocId,
             child.page_range_start,
             child.page_range_end,
@@ -1204,19 +1268,21 @@ export default {
           WHERE id = ?
         `).bind(parentDocId).run();
 
-        // Track usage for multi-document processing
+        // Track usage for multi-document processing (parent gets 0 credits, children get actual credits)
         try {
           if (parentDoc?.user_id) {
             const usageService = new UsageTrackingService(env.WELLS_DB);
-            // Track the parent as a multi-doc with 0 credits (children will have the actual credits)
-            await usageService.incrementDocumentCount(
-              parentDoc.user_id,
+            const userPlan = (parentDoc.user_plan as string) || 'Free';
+            // Parent is tracked with skip_extraction=true so no credits deducted
+            await usageService.trackDocumentProcessed(
+              parentDoc.user_id as string,
+              userPlan,
               parentDocId,
               'multi_document',
-              0, // 0 pages = 0 credits for parent
+              0, // 0 pages
               true, // isMultiDoc
               children.length, // childCount
-              false
+              true // skip_extraction = true means no credit deducted for parent
             );
             console.log(`[Usage] Tracked multi-document processing for user ${parentDoc.user_id}: ${children.length} child documents`);
           }
