@@ -6643,12 +6643,15 @@
                 
                 // Show toast if documents completed
                 if (nowComplete.length > 0) {
-                    const message = nowComplete.length === 1 
-                        ? '1 document finished processing' 
+                    const message = nowComplete.length === 1
+                        ? '1 document finished processing'
                         : `${nowComplete.length} documents finished processing`;
                     showToast(message, 'success');
+
+                    // Refresh credit display after processing completes
+                    loadUsageStats();
                 }
-                
+
                 renderDocumentsList(data.documents);
                 
                 // Start or stop polling based on document status
@@ -10887,7 +10890,10 @@ async function handleDocumentUpload(e) {
             // Close modal and refresh documents list
             closeUploadModal();
             await loadDocuments();
-            
+
+            // Refresh credit display after upload
+            loadUsageStats();
+
             // Trigger debounced polling
             onDocumentUploaded();
         } catch (error) {
@@ -10932,12 +10938,15 @@ async function handleDocumentUpload(e) {
             // Close modal and refresh documents list
             closeUploadModal();
             await loadDocuments();
-            
+
+            // Refresh credit display after upload
+            loadUsageStats();
+
             // Show bulk processing modal for 10+ documents
             if (result.uploaded >= 10) {
                 showBulkProcessingModal(result.uploaded);
             }
-            
+
             // Trigger debounced polling
             onDocumentUploaded();
         } catch (error) {
