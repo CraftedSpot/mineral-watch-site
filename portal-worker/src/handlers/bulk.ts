@@ -270,12 +270,10 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
     if (isDuplicate) {
       warnings.push("Already monitoring this property");
     }
-    
-    // Default meridian warning
-    if (!prop.MERIDIAN && !prop.MER && !prop.Meridian && !prop.M) {
-      warnings.push("Meridian defaulted to IM (Indian Meridian)");
-    }
-    
+
+    // Note: Meridian defaults intelligently based on county (CM for Panhandle, IM for others)
+    // No warning needed since the smart default is correct
+
     return {
       index,
       original: prop,
