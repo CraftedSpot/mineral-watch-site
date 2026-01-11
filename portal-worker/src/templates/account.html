@@ -310,6 +310,28 @@
                     <p style="color: var(--slate-blue); font-size: 14px; margin-bottom: 20px;">
                         Choose which types of alerts you want to receive. Changes apply to future alerts only.
                     </p>
+
+                    <!-- Notification Delivery Mode -->
+                    <div id="notificationModeSection" style="margin-bottom: 25px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+                        <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 10px; color: var(--oil-navy);">How would you like to receive alerts?</h4>
+                        <div style="display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-start;">
+                            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px; max-width: 400px;">
+                                <select id="prefNotificationMode" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
+                                    <option value="Use Org Default">Use Organization Default</option>
+                                    <option value="Instant">Instant - Get alerts immediately</option>
+                                    <option value="Daily Digest">Daily Digest - Summary at 6 PM CT</option>
+                                    <option value="Weekly Digest">Weekly Digest - Summary on Sunday</option>
+                                    <option value="Instant + Weekly">Both - Instant + Weekly Summary</option>
+                                    <option value="None">None - No notifications</option>
+                                </select>
+                                <p id="notificationModeHint" style="font-size: 12px; color: var(--slate-blue); margin-top: 6px;">
+                                    Digests bundle all your alerts into a single email for easier reading.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 style="font-size: 14px; font-weight: 600; margin-bottom: 15px; color: var(--oil-navy);">Alert Types</h4>
                     <div class="preferences-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 15px; margin-bottom: 25px;">
                         <label class="pref-toggle">
                             <input type="checkbox" id="prefPermits" checked>
