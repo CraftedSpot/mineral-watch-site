@@ -40,7 +40,10 @@ import {
   createStatewideActivity,
   createStatewideActivityFromPermit,
   createStatewideActivityFromCompletion,
-  cleanupOldStatewideRecords
+  cleanupOldStatewideRecords,
+  findExpiringPermits,
+  markPermitExpirationAlerted,
+  getPermitExpirationAlert
 } from '../services/statewideActivity.js';
 import { checkWellStatusChange } from '../services/statusChange.js';
 
@@ -576,13 +579,26 @@ export async function runDailyMonitor(env, options = {}) {
         results.errors.push(...emailResults.errors);
       }
     }
-    
+
+    // Check for expiring permits (unless in test mode or dry run)
+    if (!isTestMode && !dryRun) {
+      try {
+        const expirationResults = await checkExpiringPermits(env);
+        results.expiringPermitsChecked = expirationResults.checked;
+        results.expirationAlertsSent = expirationResults.alertsSent;
+        console.log(`[Daily] Permit expiration check: ${expirationResults.checked} permits checked, ${expirationResults.alertsSent} alerts sent`);
+      } catch (err) {
+        console.error('[Daily] Error checking expiring permits:', err.message);
+        results.errors.push({ type: 'expiration_check', error: err.message });
+      }
+    }
+
   } catch (err) {
     console.error('[Daily] Fatal error:', err);
     throw err;
   }
-  
-  console.log(`[Daily] Completed. Permits: ${results.permitsProcessed}, Completions: ${results.completionsProcessed}, Status Changes: ${results.statusChanges}, Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}`);
+
+  console.log(`[Daily] Completed. Permits: ${results.permitsProcessed}, Completions: ${results.completionsProcessed}, Status Changes: ${results.statusChanges}, Alerts: ${results.alertsSent}, Skipped: ${results.alertsSkipped}${results.expirationAlertsSent ? `, Expiration Alerts: ${results.expirationAlertsSent}` : ''}`);
   
   if (dryRun && results.matchesFound.length > 0) {
     console.log(`[Daily] DRY RUN - Matches found:`);
@@ -1430,4 +1446,154 @@ function mapApplicationType(appType) {
     'SH': 'New Permit'       // Shallow
   };
   return mapping[appType] || 'New Permit';
+}
+
+/**
+ * Check for expiring permits and alert affected users
+ * @param {Object} env - Worker environment
+ * @returns {Object} - Results of expiration checking
+ */
+async function checkExpiringPermits(env) {
+  const results = {
+    checked: 0,
+    alertsSent: 0,
+    skipped: 0,
+    errors: []
+  };
+
+  try {
+    // Find permits expiring within 30 days or expired within last 7 days
+    const expiringPermits = await findExpiringPermits(env, 30, 7);
+    results.checked = expiringPermits.length;
+
+    if (expiringPermits.length === 0) {
+      console.log('[Expiration] No expiring permits found');
+      return results;
+    }
+
+    console.log(`[Expiration] Processing ${expiringPermits.length} expiring/expired permits`);
+
+    for (const permit of expiringPermits) {
+      try {
+        // Check if we've already alerted for this permit at this status level
+        const previousAlert = await getPermitExpirationAlert(env, permit.apiNumber);
+
+        // Skip if already alerted at same or higher urgency level
+        // EXPIRED > EXPIRING_SOON > EXPIRING
+        const urgencyRank = { 'EXPIRING': 1, 'EXPIRING_SOON': 2, 'EXPIRED': 3 };
+        if (previousAlert) {
+          const prevRank = urgencyRank[previousAlert.status] || 0;
+          const currRank = urgencyRank[permit.expirationStatus] || 0;
+          if (currRank <= prevRank) {
+            console.log(`[Expiration] Skipping ${permit.apiNumber} - already alerted at ${previousAlert.status}`);
+            results.skipped++;
+            continue;
+          }
+        }
+
+        // Find users with properties at this location
+        const propertyMatches = await findMatchingProperties({
+          section: permit.section,
+          township: permit.township,
+          range: permit.range,
+          meridian: permit.meridian,
+          county: permit.county
+        }, env);
+
+        if (propertyMatches.length === 0) {
+          // No users to alert for this permit
+          continue;
+        }
+
+        // Determine activity type based on expiration status
+        const activityType = permit.expirationStatus === 'EXPIRED'
+          ? 'Permit Expired'
+          : 'Permit Expiring';
+
+        // Format expiration message
+        let expirationNote = '';
+        if (permit.daysUntilExpiration < 0) {
+          expirationNote = `Expired ${Math.abs(permit.daysUntilExpiration)} day${Math.abs(permit.daysUntilExpiration) !== 1 ? 's' : ''} ago`;
+        } else if (permit.daysUntilExpiration === 0) {
+          expirationNote = 'Expires today';
+        } else if (permit.daysUntilExpiration === 1) {
+          expirationNote = 'Expires tomorrow';
+        } else if (permit.daysUntilExpiration <= 7) {
+          expirationNote = `Expires in ${permit.daysUntilExpiration} days`;
+        } else {
+          expirationNote = `Expires in ${permit.daysUntilExpiration} days`;
+        }
+
+        const location = `S${permit.section} T${permit.township} R${permit.range}`;
+
+        // Send alerts to matched users
+        for (const match of propertyMatches) {
+          try {
+            // Create activity log
+            const activityData = {
+              wellName: permit.wellName,
+              apiNumber: permit.apiNumber,
+              activityType: activityType,
+              operator: permit.operator,
+              alertLevel: match.alertLevel,
+              sectionTownshipRange: location,
+              county: permit.county,
+              mapLink: permit.mapLink || '',
+              userId: match.user.id,
+              notes: expirationNote
+            };
+
+            const activityRecord = await createActivityLog(env, activityData);
+
+            // Send email
+            await sendAlertEmail(env, {
+              to: match.user.email,
+              userName: match.user.name,
+              alertLevel: match.alertLevel,
+              activityType: activityType,
+              wellName: permit.wellName,
+              operator: permit.operator,
+              location: location,
+              county: permit.county,
+              mapLink: permit.mapLink,
+              apiNumber: permit.apiNumber,
+              userId: match.user.id,
+              approvalDate: permit.permitDate,
+              expireDate: permit.expireDate,
+              // Include expiration details in a custom field
+              expirationDetails: {
+                daysUntilExpiration: permit.daysUntilExpiration,
+                status: permit.expirationStatus,
+                note: expirationNote
+              }
+            });
+
+            await updateActivityLog(env, activityRecord.id, { 'Email Sent': true });
+            results.alertsSent++;
+
+            console.log(`[Expiration] Alert sent to ${match.user.email} for ${permit.apiNumber} (${permit.expirationStatus})`);
+
+            // Add small delay between emails
+            await delay(100);
+          } catch (alertErr) {
+            console.error(`[Expiration] Failed to alert ${match.user.email} for ${permit.apiNumber}:`, alertErr.message);
+            results.errors.push({ api: permit.apiNumber, user: match.user.email, error: alertErr.message });
+          }
+        }
+
+        // Mark this permit as alerted at this status level
+        await markPermitExpirationAlerted(env, permit.apiNumber, permit.expirationStatus);
+
+      } catch (permitErr) {
+        console.error(`[Expiration] Error processing permit ${permit.apiNumber}:`, permitErr.message);
+        results.errors.push({ api: permit.apiNumber, error: permitErr.message });
+      }
+    }
+
+  } catch (err) {
+    console.error('[Expiration] Fatal error:', err);
+    throw err;
+  }
+
+  return results;
 }

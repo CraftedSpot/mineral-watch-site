@@ -179,9 +179,9 @@ function buildSubject(alertLevel, activityType, county, statusChange = null) {
     'TRACKED WELL': '🔵',
     'STATUS CHANGE': '🔵'
   };
-  
+
   const emoji = levelEmoji[alertLevel] || '⚡';
-  
+
   // For status changes, make the subject more specific
   if (activityType === 'Status Change' && statusChange) {
     const { current } = statusChange;
@@ -195,7 +195,15 @@ function buildSubject(alertLevel, activityType, county, statusChange = null) {
       return `${emoji} Well Shut In - ${county} County | Mineral Watch`;
     }
   }
-  
+
+  // For permit expiration, use urgent subject line
+  if (activityType === 'Permit Expired') {
+    return `⚠️ Permit Expired Without Drilling - ${county} County | Mineral Watch`;
+  }
+  if (activityType === 'Permit Expiring') {
+    return `⏰ Drilling Permit Expiring Soon - ${county} County | Mineral Watch`;
+  }
+
   return `${emoji} ${activityType} - ${county} County | Mineral Watch`;
 }
 
@@ -247,6 +255,16 @@ function getActivityStyle(activityType) {
       color: '#0369A1',
       bgColor: '#E0F2FE',
       label: 'STATUS CHANGE'
+    },
+    'Permit Expiring': {
+      color: '#B45309',
+      bgColor: '#FEF3C7',
+      label: 'PERMIT EXPIRING'
+    },
+    'Permit Expired': {
+      color: '#DC2626',
+      bgColor: '#FEF2F2',
+      label: 'PERMIT EXPIRED'
     }
   };
   return styles[activityType] || { color: '#374151', bgColor: '#F3F4F6', label: activityType.toUpperCase() };
@@ -299,6 +317,20 @@ function getExplanation(activityType, alertLevel, isMultiSection = false, isDire
       meaning: statusChange ? getStatusChangeMeaning(statusChange) : 'The well status has been updated in OCC records.',
       tip: statusChange ? getStatusChangeTip(statusChange) : 'Review the filing for details on what changed.',
       tipType: statusChange ? getStatusChangeTipType(statusChange) : 'info'
+    },
+    'Permit Expiring': {
+      meaning: alertLevel === 'YOUR PROPERTY'
+        ? 'A drilling permit on your property is approaching its expiration date. Oklahoma permits are valid for 1 year from approval. If the operator doesn\'t begin drilling (spud the well) before expiration, they\'ll need to file for a new permit.'
+        : 'A drilling permit near your property is approaching expiration. If the operator doesn\'t begin drilling before expiration, they\'ll need to file for a new permit.',
+      tip: `⏰ What to expect if a permit expires:\n• The operator may file for a new permit if still interested\n• You may receive a new lease offer or pooling notice\n• It does NOT mean your minerals are no longer leased—your lease terms still apply\n• Permits expire but leases continue under their own terms`,
+      tipType: 'warning'
+    },
+    'Permit Expired': {
+      meaning: alertLevel === 'YOUR PROPERTY'
+        ? 'A drilling permit on your property has expired without drilling. The operator did not spud (begin drilling) the well within the 1-year permit window. They would need to file a new permit to drill this well.'
+        : 'A drilling permit near your property has expired without drilling. The operator did not begin drilling within the 1-year permit window.',
+      tip: `📋 What this means for you:\n• The specific well location permit is no longer valid\n• Your lease remains in effect under its own terms\n• The operator may file a new permit or pursue different locations\n• Watch for new permit filings or lease activity in your area`,
+      tipType: 'warning'
     }
   };
   return explanations[activityType] || { meaning: 'New activity detected on this well.', tip: '', tipType: 'info' };
@@ -457,7 +489,9 @@ async function buildHtmlBody(data, env) {
     bhTownship,
     bhRange,
     // Status change data
-    statusChange
+    statusChange,
+    // Permit expiration data
+    expirationDetails
   } = data;
   
   const levelStyle = getAlertLevelStyle(alertLevel);
@@ -618,6 +652,28 @@ async function buildHtmlBody(data, env) {
                           <span style="color: #DC2626; font-weight: 600; margin-left: 8px;">${statusChange.previous}</span>
                           <span style="color: #64748B; margin: 0 8px;">→</span>
                           <span style="color: #047857; font-weight: 600;">${statusChange.current}</span>
+                        </div>
+                      </td>
+                    </tr>
+                    ` : ''}
+                    ${expirationDetails ? `
+                    <tr>
+                      <td style="padding: 8px 0; font-size: 14px;">
+                        <div style="background: ${expirationDetails.status === 'EXPIRED' ? '#FEF2F2' : '#FEF3C7'}; border-radius: 6px; padding: 12px; border-left: 4px solid ${expirationDetails.status === 'EXPIRED' ? '#DC2626' : '#F59E0B'};">
+                          <div style="font-size: 22px; font-weight: 700; color: ${expirationDetails.status === 'EXPIRED' ? '#DC2626' : '#B45309'}; margin-bottom: 4px;">
+                            ${expirationDetails.status === 'EXPIRED'
+                              ? '⚠️ PERMIT EXPIRED'
+                              : expirationDetails.daysUntilExpiration <= 7
+                                ? `⏰ ${expirationDetails.daysUntilExpiration} DAY${expirationDetails.daysUntilExpiration !== 1 ? 'S' : ''} LEFT`
+                                : `⏰ EXPIRES IN ${expirationDetails.daysUntilExpiration} DAYS`
+                            }
+                          </div>
+                          <div style="font-size: 12px; color: ${expirationDetails.status === 'EXPIRED' ? '#991B1B' : '#92400E'};">
+                            ${expirationDetails.status === 'EXPIRED'
+                              ? 'This permit expired without drilling. The operator would need to file a new permit.'
+                              : 'Drilling must begin before expiration or the operator must file a new permit.'
+                            }
+                          </div>
                         </div>
                       </td>
                     </tr>
@@ -794,11 +850,25 @@ function buildTextBody(data) {
     completionDate,
     firstProdDate,
     // Status change data
-    statusChange
+    statusChange,
+    // Permit expiration data
+    expirationDetails
   } = data;
-  
+
   const explanation = getExplanation(activityType, alertLevel, isMultiSection, false, statusChange);
-  
+
+  // Build expiration message
+  let expirationText = '';
+  if (expirationDetails) {
+    if (expirationDetails.status === 'EXPIRED') {
+      expirationText = `\n*** PERMIT EXPIRED ***\nThis permit expired without drilling. The operator would need to file a new permit.\n`;
+    } else if (expirationDetails.daysUntilExpiration <= 7) {
+      expirationText = `\n*** ${expirationDetails.daysUntilExpiration} DAY${expirationDetails.daysUntilExpiration !== 1 ? 'S' : ''} UNTIL EXPIRATION ***\nDrilling must begin before expiration or the operator must file a new permit.\n`;
+    } else {
+      expirationText = `\n*** EXPIRES IN ${expirationDetails.daysUntilExpiration} DAYS ***\nDrilling must begin before expiration or the operator must file a new permit.\n`;
+    }
+  }
+
   let text = `
 MINERAL WATCH - ${activityType.toUpperCase()}
 ${'='.repeat(40)}
@@ -811,7 +881,7 @@ We found activity that matches your monitored ${alertLevel === 'TRACKED WELL' ? 
 
 Well: ${wellName || 'Not specified'}
 ${apiNumber ? `API: ${apiNumber}\n` : ''}Operator: ${operator || 'Not specified'}
-${previousOperator ? `Previous Operator: ${previousOperator}\n` : ''}${statusChange ? `\nSTATUS CHANGED: ${statusChange.previous} → ${statusChange.current}\n\n` : ''}${isMultiSection ? 'Type: Multi-Section Horizontal\n' : ''}Location: ${bhLocation && bhLocation !== location ? `${location} → ${bhLocation}${lateralDirection ? ` (${lateralDirection})` : ''}${lateralLength ? ` · ${lateralLength.toLocaleString()} ft lateral` : ''}` : location}
+${previousOperator ? `Previous Operator: ${previousOperator}\n` : ''}${statusChange ? `\nSTATUS CHANGED: ${statusChange.previous} → ${statusChange.current}\n\n` : ''}${expirationText}${isMultiSection ? 'Type: Multi-Section Horizontal\n' : ''}Location: ${bhLocation && bhLocation !== location ? `${location} → ${bhLocation}${lateralDirection ? ` (${lateralDirection})` : ''}${lateralLength ? ` · ${lateralLength.toLocaleString()} ft lateral` : ''}` : location}
 County: ${county}
 ${formationName ? `Formation: ${formationName}${formationDepth ? ` @ ${formationDepth.toLocaleString()} ft` : ''}\n` : ''}${(ipGas || ipOil) ? `Initial Production: ${ipGas ? `Gas: ${ipGas.toLocaleString()} MCF/day` : ''}${ipGas && ipOil ? ' · ' : ''}${ipOil ? `Oil: ${ipOil.toLocaleString()} BBL/day` : ''}${pumpingFlowing ? ` (${pumpingFlowing.toLowerCase()})` : ''}\n` : ''}${(spudDate || completionDate || firstProdDate) ? `\nTimeline:\n${spudDate ? `Spud: ${spudDate}` : ''}${spudDate && completionDate ? ' · ' : ''}${completionDate ? `Completed: ${completionDate}` : ''}${(spudDate || completionDate) && firstProdDate ? ' · ' : ''}${firstProdDate ? `First Prod: ${firstProdDate}` : ''}${firstProdDate ? '\nExpected first royalty check: 60-90 days after first sales' : ''}\n` : ''}
 
@@ -828,6 +898,6 @@ Note: This alert indicates activity near your mineral interests. It does not gua
 Mineral Watch Oklahoma
 https://mymineralwatch.com
   `.trim();
-  
+
   return text;
 }
