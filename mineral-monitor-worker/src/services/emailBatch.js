@@ -1,10 +1,18 @@
 /**
  * Email Batch Service - Groups and sends batched alert emails
  * Reduces email volume by combining multiple alerts per category
+ * Supports digest mode - queues alerts for digest delivery instead of instant
  */
 
 import { sendAlertEmail } from './email.js';
-import { createActivityLog, updateActivityLog } from './airtable.js';
+import { createActivityLog, updateActivityLog, getUserById } from './airtable.js';
+import {
+  getEffectiveNotificationMode,
+  shouldSendInstant,
+  getDigestFrequency,
+  queuePendingAlert,
+  getOrganizationById
+} from './pendingAlerts.js';
 
 /**
  * Simple delay function for rate limiting

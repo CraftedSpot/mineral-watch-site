@@ -8,6 +8,7 @@
 import { runDailyMonitor } from './monitors/daily.js';
 import { runWeeklyMonitor } from './monitors/weekly.js';
 import { runDocketMonitor } from './monitors/docket.js';
+import { runDailyDigest, runWeeklyDigest } from './monitors/digest.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
 import { sendDailySummary, sendWeeklySummary, sendFailureAlert } from './services/adminAlerts.js';
 import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning } from './backfill/dockets.js';
@@ -33,8 +34,8 @@ export default {
     try {
       let result;
       
-      // Daily run (permits and completions) - 6 AM Central (12 UTC)
-      if (cronPattern === '0 12 * * *') {
+      // Daily run (permits and completions) - 8 AM Central (14 UTC)
+      if (cronPattern === '0 14 * * *') {
         result = await runDailyMonitor(env);
         await updateHealthStatus(env, 'daily', {
           timestamp: new Date().toISOString(),
@@ -51,8 +52,8 @@ export default {
         });
       }
 
-      // Weekly run (transfers, status changes) - Sunday 2 AM Central (8 UTC)
-      if (cronPattern === '0 8 * * 7') {
+      // Weekly run (transfers, status changes) - Sunday 8 AM Central (14 UTC)
+      if (cronPattern === '0 14 * * 7') {
         result = await runWeeklyMonitor(env);
         await updateHealthStatus(env, 'weekly', {
           timestamp: new Date().toISOString(),
@@ -67,6 +68,30 @@ export default {
         await sendWeeklySummary(env, {
           ...result,
           duration: Date.now() - startTime
+        });
+      }
+
+      // Daily digest - Tue-Sat 00:00 UTC = Mon-Fri 6 PM Central
+      if (cronPattern === '0 0 * * 2-6') {
+        result = await runDailyDigest(env);
+        await updateHealthStatus(env, 'daily-digest', {
+          timestamp: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          emails_sent: result.emailsSent,
+          alerts_processed: result.alertsProcessed,
+          status: result.errors.length > 0 ? 'partial' : 'success'
+        });
+      }
+
+      // Weekly digest - Monday 00:00 UTC = Sunday 6 PM Central
+      if (cronPattern === '0 0 * * 1') {
+        result = await runWeeklyDigest(env);
+        await updateHealthStatus(env, 'weekly-digest', {
+          timestamp: new Date().toISOString(),
+          duration_ms: Date.now() - startTime,
+          emails_sent: result.emailsSent,
+          alerts_processed: result.alertsProcessed,
+          status: result.errors.length > 0 ? 'partial' : 'success'
         });
       }
 

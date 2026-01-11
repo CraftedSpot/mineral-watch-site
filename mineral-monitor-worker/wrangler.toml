@@ -29,8 +29,10 @@ cpu_ms = 300000  # 5 minutes CPU time for completion processing
 # Daily monitor: Every day at 8 AM CT - permits, completions, status changes
 # Weekly monitor: Sunday at 8 AM CT - operator transfers, bulk status check
 # Docket monitor: Mon-Fri at 8 AM CT - court filings
+# Daily digest: Tue-Sat 00:00 UTC = Mon-Fri 6 PM CT - digest emails
+# Weekly digest: Mon 00:00 UTC = Sunday 6 PM CT - weekly digest emails
 [triggers]
-crons = ["0 14 * * *", "0 14 * * 7", "0 14 * * 1-5"]
+crons = ["0 14 * * *", "0 14 * * 7", "0 14 * * 1-5", "0 0 * * 2-6", "0 0 * * 1"]
 
 # KV Namespace for health tracking and caching
 [[kv_namespaces]]
