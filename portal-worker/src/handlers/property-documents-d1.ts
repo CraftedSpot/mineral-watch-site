@@ -14,7 +14,9 @@ const PROPERTY_DOC_TYPES = [
   'mineral_deed', 'royalty_deed', 'assignment_of_interest', 'warranty_deed', 'quitclaim_deed',
   'oil_gas_lease', 'extension_agreement', 'amendment', 'ratification', 'release',
   'affidavit', 'probate', 'power_of_attorney', 'judgment',
-  'division_order', 'transfer_order', 'revenue_statement'
+  'division_order', 'transfer_order', 'revenue_statement',
+  // OCC Orders
+  'pooling_order', 'spacing_order', 'occ_order', 'increased_density_order', 'location_exception_order'
 ];
 
 // Document types that show on well modals (snake_case format)
