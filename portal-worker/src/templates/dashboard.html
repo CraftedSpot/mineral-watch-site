@@ -450,6 +450,27 @@
         .result-status.active { background: #dcfce7; color: #166534; }
         .result-status.plugged { background: #fef3c7; color: #92400e; }
         .result-status.other { background: #e2e8f0; color: #475569; }
+
+        /* OCC Filings Styles */
+        .occ-filing-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .occ-filing-item:last-child { border-bottom: none; }
+        .occ-filing-main { flex: 1; }
+        .occ-filing-type { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+        .occ-filing-applicant { color: #666; font-size: 13px; margin-top: 2px; }
+        .occ-filing-details { display: flex; gap: 12px; margin-top: 4px; font-size: 12px; color: #888; flex-wrap: wrap; }
+        .occ-filing-case { font-family: monospace; }
+        .occ-filing-status { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+        .occ-filing-status.heard { background: #d4edda; color: #155724; }
+        .occ-filing-status.continued { background: #fff3cd; color: #856404; }
+        .occ-filing-status.scheduled { background: #cce5ff; color: #004085; }
+        .occ-filing-status.dismissed { background: #f8d7da; color: #721c24; }
+        .occ-filing-status.filed { background: #e2e3e5; color: #383d41; }
+        .occ-filing-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+        .occ-filing-link { color: #2563eb; text-decoration: none; font-size: 14px; margin-left: 8px; }
+        .occ-filing-link:hover { text-decoration: underline; }
+        .occ-hearing-warning { color: #dc3545; margin-right: 4px; }
+        .occ-adjacent-note { font-size: 11px; color: #888; font-style: italic; margin-left: 4px; }
+
         .result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; color: #64748b; font-size: 13px; margin-bottom: 12px; }
         .result-detail { }
         .result-detail strong { color: #374151; }
@@ -7710,10 +7731,154 @@
                 emptyEl.style.display = 'block';
             }
         }
-        
+
+        // OCC Filings Functions
+        function toggleOccFilings(type) {
+            const content = document.getElementById(type === 'property' ? 'property-occ-content' : 'well-occ-content');
+            const arrow = document.getElementById(type === 'property' ? 'property-occ-arrow' : 'well-occ-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        window.toggleOccFilings = toggleOccFilings;
+
+        async function loadOccFilings(section, township, range) {
+            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range}`);
+
+            const directContainer = document.getElementById('property-occ-direct');
+            const adjacentContainer = document.getElementById('property-occ-adjacent');
+            const adjacentWrapper = document.getElementById('property-occ-adjacent-wrapper');
+            const emptyMessage = document.getElementById('property-occ-empty');
+            const countBadge = document.getElementById('property-occ-count');
+            const adjacentCountBadge = document.getElementById('property-occ-adjacent-count');
+
+            // Reset
+            directContainer.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
+            adjacentContainer.innerHTML = '';
+            adjacentWrapper.style.display = 'none';
+            emptyMessage.style.display = 'none';
+            countBadge.textContent = '—';
+
+            try {
+                const response = await fetch(
+                    `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&includeAdjacent=true`,
+                    { credentials: 'include' }
+                );
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load filings');
+                }
+
+                const directFilings = data.direct || [];
+                const adjacentFilings = data.adjacent || [];
+
+                // Update count badge
+                const totalCount = directFilings.length + adjacentFilings.length;
+                countBadge.textContent = String(totalCount);
+
+                if (directFilings.length === 0 && adjacentFilings.length === 0) {
+                    directContainer.innerHTML = '';
+                    emptyMessage.style.display = 'block';
+                    return;
+                }
+
+                // Render direct filings
+                if (directFilings.length > 0) {
+                    directContainer.innerHTML = directFilings.map(filing => renderOccFiling(filing, false)).join('');
+                } else {
+                    directContainer.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
+                }
+
+                // Render adjacent filings
+                if (adjacentFilings.length > 0) {
+                    adjacentWrapper.style.display = 'block';
+                    adjacentCountBadge.textContent = String(adjacentFilings.length);
+                    adjacentContainer.innerHTML = adjacentFilings.map(filing => renderOccFiling(filing, true)).join('');
+                }
+
+            } catch (error) {
+                console.error('[OccFilings] Error loading filings:', error);
+                directContainer.innerHTML = '<div style="color: #dc3545; font-size: 13px; padding: 8px 0;">Error loading filings</div>';
+                countBadge.textContent = '0';
+            }
+        }
+        window.loadOccFilings = loadOccFilings;
+
+        function renderOccFiling(filing, isAdjacent = false) {
+            const statusClass = getOccStatusClass(filing.status);
+            const dateDisplay = formatOccDate(filing.hearingDate || filing.docketDate);
+            const isUpcoming = isOccHearingUpcoming(filing.hearingDate, filing.status);
+
+            let adjacentNote = '';
+            if (isAdjacent && filing.section) {
+                adjacentNote = `<span class="occ-adjacent-note">S${filing.section}-T${filing.township}-R${filing.range}</span>`;
+            }
+
+            return `
+                <div class="occ-filing-item">
+                    <div class="occ-filing-main">
+                        <div class="occ-filing-type">
+                            ${isUpcoming ? '<span class="occ-hearing-warning" title="Hearing within 30 days">⚠️</span>' : ''}
+                            ${escapeHtml(filing.reliefTypeDisplay)}
+                            ${adjacentNote}
+                        </div>
+                        <div class="occ-filing-applicant">${escapeHtml(filing.applicant) || 'Unknown Applicant'}</div>
+                        <div class="occ-filing-details">
+                            <span class="occ-filing-case">${escapeHtml(filing.caseNumber)}</span>
+                            <span class="occ-filing-status ${statusClass}">${escapeHtml(filing.statusDisplay)}</span>
+                        </div>
+                    </div>
+                    <div class="occ-filing-date">
+                        ${dateDisplay}
+                        ${filing.sourceUrl ? `<a href="${escapeHtml(filing.sourceUrl)}" target="_blank" class="occ-filing-link" title="View Docket PDF">↗</a>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        function getOccStatusClass(status) {
+            const statusMap = {
+                'HEARD': 'heard',
+                'RECOMMENDED': 'heard',
+                'CONTINUED': 'continued',
+                'SCHEDULED': 'scheduled',
+                'DISMISSED': 'dismissed',
+                'WITHDRAWN': 'dismissed'
+            };
+            return statusMap[status] || 'filed';
+        }
+
+        function formatOccDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function isOccHearingUpcoming(dateStr, status) {
+            if (status !== 'SCHEDULED') return false;
+            if (!dateStr) return false;
+            try {
+                const hearingDate = new Date(dateStr);
+                const today = new Date();
+                const daysUntil = (hearingDate - today) / (1000 * 60 * 60 * 24);
+                return daysUntil > 0 && daysUntil <= 30;
+            } catch (e) {
+                return false;
+            }
+        }
+
         // Expose functions globally for onclick handlers
         window.toggleLinkedDocuments = toggleLinkedDocuments;
-        
+
         async function savePropertyDetails() {
             const propId = document.getElementById('propertyDetailsId').value;
             const notes = document.getElementById('propertyDetailsNotes').value;
