@@ -154,17 +154,15 @@ async function handleCheckoutComplete(session, env) {
   let shippingAddress = null;
 
   // Debug logging for shipping
-  console.log(`[Shipping Debug] Plan: ${plan}, Has shipping_details: ${!!session.shipping_details}, Has shipping: ${!!session.shipping}`);
-  console.log(`[Shipping Debug] customer_details:`, JSON.stringify(session.customer_details));
-  if (session.shipping_details) {
-    console.log(`[Shipping Debug] shipping_details:`, JSON.stringify(session.shipping_details));
-  }
-  if (session.shipping) {
-    console.log(`[Shipping Debug] shipping:`, JSON.stringify(session.shipping));
-  }
+  console.log(`[Shipping Debug] Plan: ${plan}`);
+  console.log(`[Shipping Debug] shipping_details: ${!!session.shipping_details}`);
+  console.log(`[Shipping Debug] collected_information?.shipping_details: ${!!session.collected_information?.shipping_details}`);
 
   // Try multiple possible field names for shipping
-  let shippingData = session.shipping_details || session.shipping;
+  // Stripe may put it in shipping_details OR collected_information.shipping_details
+  let shippingData = session.shipping_details
+    || session.collected_information?.shipping_details
+    || session.shipping;
 
   // If no shipping in session, try fetching from Stripe Customer (for existing customers upgrading)
   if (plan === 'Business' && !shippingData && stripeCustomerId) {
