@@ -124,12 +124,14 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
     console.log(`[GetWellDocuments-D1] Attempting D1 query for API number ${apiNumber}`);
     
     try {
-      // Simplified query: Join documents with wells directly by API number
-      // Convert documents.well_id (format "12345.0") back to integer for JOIN
+      // Query documents linked to well via Airtable record ID
+      // Documents store Airtable record IDs in well_id, join through airtable_wells table
       const docTypeList = WELL_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
-      
+
+      console.log(`[GetWellDocuments-D1] Querying documents for API number ${apiNumber}`);
+
       const d1Results = await env.WELLS_DB.prepare(`
-        SELECT 
+        SELECT
           d.id,
           d.display_name,
           d.filename,
@@ -137,8 +139,8 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
           d.upload_date,
           d.r2_key
         FROM documents d
-        JOIN wells w ON CAST(REPLACE(d.well_id, '.0', '') AS INTEGER) = w.id
-        WHERE w.api_number = ?
+        JOIN airtable_wells aw ON d.well_id = aw.airtable_record_id
+        WHERE aw.api_number = ?
           AND (d.deleted_at IS NULL OR d.deleted_at = '')
           AND d.doc_type IN (${docTypeList})
           AND (d.user_id = ? OR d.organization_id = ?)
