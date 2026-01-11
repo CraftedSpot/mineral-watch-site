@@ -935,13 +935,22 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
         organizationId: alert.organizationId || null
       };
       
-      // Add alert to user's alert list
+      // Add alert to user's alert list (if user wants this alert type)
       const userId = alert.user.id;
+
+      // Check user preferences before queuing alert
+      const fullUser = await getUserById(env, userId);
+      if (fullUser && !userWantsAlert(fullUser, activityType)) {
+        console.log(`[Permit] Skipped alert for ${alert.user.email} - user disabled ${activityType} alerts`);
+        results.alertsSkipped++;
+        continue;
+      }
+
       if (!userAlertMap.has(userId)) {
         userAlertMap.set(userId, []);
       }
       userAlertMap.get(userId).push(alertData);
-      
+
       console.log(`[Permit] Queued alert for ${alert.user.email} for ${wellName}`);
     } else {
       // Fallback to immediate sending (for other monitors)
@@ -1381,13 +1390,22 @@ async function processCompletion(completion, env, results, dryRun = false, prope
         organizationId: alert.organizationId || null
       };
       
-      // Add alert to user's alert list
+      // Add alert to user's alert list (if user wants this alert type)
       const userId = alert.user.id;
+
+      // Check user preferences before queuing alert
+      const fullUser = await getUserById(env, userId);
+      if (fullUser && !userWantsAlert(fullUser, 'Well Completed')) {
+        console.log(`[Completion] Skipped alert for ${alert.user.email} - user disabled completion alerts`);
+        results.alertsSkipped++;
+        continue;
+      }
+
       if (!userAlertMap.has(userId)) {
         userAlertMap.set(userId, []);
       }
       userAlertMap.get(userId).push(alertData);
-      
+
       console.log(`[Completion] Queued alert for ${alert.user.email} for ${wellName}`);
     } else {
       // Fallback to immediate sending (for other monitors)
@@ -1531,6 +1549,13 @@ async function checkExpiringPermits(env) {
         // Send alerts to matched users
         for (const match of propertyMatches) {
           try {
+            // Check user preferences before sending alert
+            const fullUser = await getUserById(env, match.user.id);
+            if (fullUser && !userWantsAlert(fullUser, activityType)) {
+              console.log(`[Expiration] Skipped alert for ${match.user.email} - user disabled expiration alerts`);
+              continue;
+            }
+
             // Create activity log
             const activityData = {
               wellName: permit.wellName,

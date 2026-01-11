@@ -16,7 +16,9 @@ import {
   hasRecentAlertInSet,
   createActivityLog,
   updateActivityLog,
-  queryAirtable
+  queryAirtable,
+  userWantsAlert,
+  getUserById
 } from '../services/airtable.js';
 import { getAdjacentSections } from '../utils/plss.js';
 import { sendAlertEmail } from '../services/email.js';
@@ -544,8 +546,16 @@ async function processTransfer(transfer, env, results, recentAlerts) {
       organizationId: alert.organizationId || null
     };
     
+    // Check user preferences before sending alert
+    const fullUser = await getUserById(env, alert.user.id);
+    if (fullUser && !userWantsAlert(fullUser, 'Operator Transfer')) {
+      console.log(`[Weekly] Skipped alert for ${alert.user.email} - user disabled operator transfer alerts`);
+      results.alertsSkipped++;
+      continue;
+    }
+
     const activityRecord = await createActivityLog(env, activityData);
-    
+
     try {
       await sendAlertEmail(env, {
         to: alert.user.email,
