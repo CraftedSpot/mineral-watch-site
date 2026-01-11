@@ -389,6 +389,38 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Organization Notification Settings (Admin only) -->
+                    <div class="notification-settings-section" id="orgNotificationSettings" style="display: none; margin-top: 30px; padding-top: 25px; border-top: 1px solid var(--border);">
+                        <h4 style="font-size: 16px; margin-bottom: 15px; color: var(--slate-blue);">Team Notification Settings</h4>
+                        <p style="color: var(--slate-blue); font-size: 13px; margin-bottom: 20px;">
+                            Configure how team members receive alert notifications. Members can override this if allowed.
+                        </p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start;">
+                            <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
+                                <label for="orgNotificationMode" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Default Notification Mode</label>
+                                <select id="orgNotificationMode" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
+                                    <option value="Instant">Instant - Send alerts immediately</option>
+                                    <option value="Daily Digest">Daily Digest - Summary at 6 PM CT</option>
+                                    <option value="Weekly Digest">Weekly Digest - Summary on Sunday</option>
+                                    <option value="Instant + Weekly">Both - Instant + Weekly Summary</option>
+                                    <option value="None">None - No notifications</option>
+                                </select>
+                            </div>
+                            <div style="flex: 0 0 auto; padding-top: 25px;">
+                                <label class="pref-toggle" style="cursor: pointer;">
+                                    <input type="checkbox" id="orgAllowOverride" checked>
+                                    <span class="pref-slider"></span>
+                                    <div class="pref-content">
+                                        <span class="pref-title">Allow Member Override</span>
+                                        <span class="pref-desc">Let members choose their own preference</span>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
+                        <button class="btn btn-primary" id="saveOrgSettingsBtn" onclick="saveOrganizationSettings()" style="margin-top: 20px;">Save Team Settings</button>
+                        <span id="orgSettingsSaveStatus" style="margin-left: 15px; font-size: 14px; color: var(--success); display: none;"></span>
+                    </div>
                 </div>
                 <div class="card full">
                     <h2>Your Plan Features</h2>
@@ -620,10 +652,15 @@
                 document.getElementById('orgPlan').textContent = org.plan;
                 document.getElementById('memberCount').textContent = org.members.length;
                 
-                // Show invite button for admins
+                // Show invite button and notification settings for admins
                 const currentMember = org.members.find(m => m.email === currentUser.email);
                 if (currentMember && currentMember.role === 'Admin') {
                     document.getElementById('inviteMemberBtn').style.display = 'block';
+                    // Show notification settings section for admins
+                    document.getElementById('orgNotificationSettings').style.display = 'block';
+                    // Load current settings
+                    document.getElementById('orgNotificationMode').value = org.defaultNotificationMode || 'Instant';
+                    document.getElementById('orgAllowOverride').checked = org.allowUserOverride !== false;
                 }
                 
                 // Render members list
@@ -1024,6 +1061,55 @@
 
         // Make savePreferences global
         window.savePreferences = savePreferences;
+
+        // Organization settings save function
+        async function saveOrganizationSettings() {
+            const btn = document.getElementById('saveOrgSettingsBtn');
+            const status = document.getElementById('orgSettingsSaveStatus');
+            const originalText = btn.textContent;
+
+            try {
+                btn.disabled = true;
+                btn.textContent = 'Saving...';
+                status.style.display = 'none';
+
+                const settings = {
+                    defaultNotificationMode: document.getElementById('orgNotificationMode').value,
+                    allowUserOverride: document.getElementById('orgAllowOverride').checked
+                };
+
+                const res = await fetch('/api/organization/settings', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify(settings)
+                });
+
+                if (res.ok) {
+                    status.textContent = '✓ Team settings saved';
+                    status.style.display = 'inline';
+                    setTimeout(() => { status.style.display = 'none'; }, 3000);
+                    showToast('Team notification settings saved!', 'success');
+                    // Update currentOrganization
+                    if (currentOrganization) {
+                        currentOrganization.defaultNotificationMode = settings.defaultNotificationMode;
+                        currentOrganization.allowUserOverride = settings.allowUserOverride;
+                    }
+                } else {
+                    const data = await res.json();
+                    showToast(data.error || 'Failed to save team settings', 'error');
+                }
+            } catch (error) {
+                console.error('Save organization settings error:', error);
+                showToast('Failed to save team settings. Please try again.', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
+            }
+        }
+
+        // Make saveOrganizationSettings global
+        window.saveOrganizationSettings = saveOrganizationSettings;
 
     </script>
     

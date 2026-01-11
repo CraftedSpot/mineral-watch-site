@@ -676,7 +676,11 @@ var index_default = {
         const { handleRemoveMember } = await import('./handlers/organization.js');
         return handleRemoveMember(request, env, memberDeleteMatch[1]);
       }
-      
+      if (path === "/api/organization/settings" && request.method === "PATCH") {
+        const { handleUpdateOrganizationSettings } = await import('./handlers/organization.js');
+        return handleUpdateOrganizationSettings(request, env);
+      }
+
       // Statewide activity endpoint (for heatmap)
       if (path === "/api/activity/statewide" && request.method === "GET") {
         return handleStatewideActivity(request, env);
