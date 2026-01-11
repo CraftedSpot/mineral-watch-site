@@ -155,6 +155,7 @@ async function handleCheckoutComplete(session, env) {
 
   // Debug logging for shipping
   console.log(`[Shipping Debug] Plan: ${plan}, Has shipping_details: ${!!session.shipping_details}, Has shipping: ${!!session.shipping}`);
+  console.log(`[Shipping Debug] customer_details:`, JSON.stringify(session.customer_details));
   if (session.shipping_details) {
     console.log(`[Shipping Debug] shipping_details:`, JSON.stringify(session.shipping_details));
   }
@@ -162,14 +163,36 @@ async function handleCheckoutComplete(session, env) {
     console.log(`[Shipping Debug] shipping:`, JSON.stringify(session.shipping));
   }
 
-  // Try both possible field names (shipping_details is standard, shipping is alternative)
-  const shippingData = session.shipping_details || session.shipping;
+  // Try multiple possible field names for shipping
+  let shippingData = session.shipping_details || session.shipping;
+
+  // If no shipping in session, try fetching from Stripe Customer (for existing customers upgrading)
+  if (plan === 'Business' && !shippingData && stripeCustomerId) {
+    console.log(`[Shipping] No shipping in session, fetching from Stripe Customer: ${stripeCustomerId}`);
+    try {
+      const customerResponse = await fetch(
+        `https://api.stripe.com/v1/customers/${stripeCustomerId}`,
+        {
+          headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` }
+        }
+      );
+      if (customerResponse.ok) {
+        const customer = await customerResponse.json();
+        console.log(`[Shipping Debug] Customer shipping:`, JSON.stringify(customer.shipping));
+        if (customer.shipping) {
+          shippingData = customer.shipping;
+        }
+      }
+    } catch (err) {
+      console.error(`[Shipping] Error fetching customer:`, err);
+    }
+  }
 
   if (plan === 'Business' && shippingData) {
     shippingAddress = formatShippingAddress(shippingData);
     console.log(`[Shipping] Business tier - captured shipping address for ${customerEmail}: ${shippingAddress}`);
   } else if (plan === 'Business') {
-    console.log(`[Shipping] Business tier but NO shipping data found for ${customerEmail}`);
+    console.log(`[Shipping] Business tier but NO shipping data found anywhere for ${customerEmail}`);
   }
 
   // Check if user already exists
