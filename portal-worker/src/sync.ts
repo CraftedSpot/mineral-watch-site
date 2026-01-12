@@ -33,6 +33,12 @@ interface SyncResult {
     updated: number;
     errors: string[];
   };
+  clientWells?: {
+    synced: number;
+    created: number;
+    updated: number;
+    errors: string[];
+  };
   links?: {
     synced: number;
     created: number;
@@ -96,6 +102,7 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
   const result: SyncResult = {
     properties: { synced: 0, created: 0, updated: 0, errors: [] },
     wells: { synced: 0, created: 0, updated: 0, errors: [] },
+    clientWells: { synced: 0, created: 0, updated: 0, errors: [] },
     links: { synced: 0, created: 0, updated: 0, errors: [] },
     duration: 0
   };
@@ -117,10 +124,15 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
     const propertiesResult = await syncProperties(env);
     result.properties = propertiesResult;
 
-    // Sync Wells
+    // Sync Wells (OCC wells matching by API number)
     console.log('Starting wells sync...');
     const wellsResult = await syncWells(env);
     result.wells = wellsResult;
+
+    // Sync Client Wells (full mirror from Airtable)
+    console.log('Starting client wells sync...');
+    const clientWellsResult = await syncClientWells(env);
+    result.clientWells = clientWellsResult;
 
     // Sync Property-Well Links
     console.log('Starting property-well links sync...');
@@ -133,17 +145,17 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
     // Update sync log
     if (syncLogId) {
       await env.WELLS_DB.prepare(
-        `UPDATE sync_log 
-         SET completed_at = datetime('now'), 
-             records_synced = ?, 
+        `UPDATE sync_log
+         SET completed_at = datetime('now'),
+             records_synced = ?,
              records_created = ?,
              records_updated = ?,
              status = 'completed'
          WHERE id = ?`
       ).bind(
-        result.properties.synced + result.wells.synced + (result.links?.synced || 0),
-        result.properties.created + result.wells.created + (result.links?.created || 0),
-        result.properties.updated + result.wells.updated + (result.links?.updated || 0),
+        result.properties.synced + result.wells.synced + (result.clientWells?.synced || 0) + (result.links?.synced || 0),
+        result.properties.created + result.wells.created + (result.clientWells?.created || 0) + (result.links?.created || 0),
+        result.properties.updated + result.wells.updated + (result.clientWells?.updated || 0) + (result.links?.updated || 0),
         syncLogId
       ).run();
     }
@@ -274,6 +286,147 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
     // Don't throw - let wells sync continue
   }
   
+  return result;
+}
+
+/**
+ * Sync Client Wells from Airtable to D1 client_wells table
+ * This creates a full mirror of the Airtable Client Wells table
+ */
+async function syncClientWells(env: any): Promise<SyncResult['clientWells']> {
+  const result: SyncResult['clientWells'] = { synced: 0, created: 0, updated: 0, errors: [] };
+  let allRecords: AirtableRecord[] = [];
+  let offset: string | undefined;
+
+  try {
+    // Fetch ALL Client Well records from Airtable
+    do {
+      const response = await fetchAirtableRecords(
+        env.MINERAL_AIRTABLE_API_KEY,
+        AIRTABLE_BASE_ID,
+        WELLS_TABLE_ID,
+        offset
+      );
+
+      console.log(`Fetched ${response.records.length} client wells${offset ? ' (continued)' : ''}`);
+      allRecords = allRecords.concat(response.records);
+      offset = response.offset;
+    } while (offset);
+
+    console.log(`Total client wells to sync: ${allRecords.length}`);
+
+    if (allRecords.length === 0) {
+      return result;
+    }
+
+    // Prepare batch statements for UPSERT
+    const statements = allRecords.map(record => {
+      const id = `cwell_${record.id}`;
+      const fields = record.fields || {};
+
+      // Extract linked record IDs
+      const userId = fields['User']?.[0] || null;
+      const orgId = fields['Organization']?.[0] || null;
+
+      return env.WELLS_DB.prepare(`
+        INSERT INTO client_wells (
+          id, airtable_id, user_id, organization_id,
+          api_number, well_name, operator, county,
+          section, township, range_val, well_type, well_status,
+          spud_date, completion_date, first_production_date,
+          ip_oil, ip_gas, ip_water,
+          formation_name, total_depth, lateral_length, is_horizontal,
+          bh_section, bh_township, bh_range,
+          occ_map_link, notes, status, synced_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        ON CONFLICT(airtable_id) DO UPDATE SET
+          user_id = excluded.user_id,
+          organization_id = excluded.organization_id,
+          api_number = excluded.api_number,
+          well_name = excluded.well_name,
+          operator = excluded.operator,
+          county = excluded.county,
+          section = excluded.section,
+          township = excluded.township,
+          range_val = excluded.range_val,
+          well_type = excluded.well_type,
+          well_status = excluded.well_status,
+          spud_date = excluded.spud_date,
+          completion_date = excluded.completion_date,
+          first_production_date = excluded.first_production_date,
+          ip_oil = excluded.ip_oil,
+          ip_gas = excluded.ip_gas,
+          ip_water = excluded.ip_water,
+          formation_name = excluded.formation_name,
+          total_depth = excluded.total_depth,
+          lateral_length = excluded.lateral_length,
+          is_horizontal = excluded.is_horizontal,
+          bh_section = excluded.bh_section,
+          bh_township = excluded.bh_township,
+          bh_range = excluded.bh_range,
+          occ_map_link = excluded.occ_map_link,
+          notes = excluded.notes,
+          status = excluded.status,
+          updated_at = datetime('now'),
+          synced_at = CURRENT_TIMESTAMP
+      `).bind(
+        id,
+        record.id,
+        userId,
+        orgId,
+        fields['API Number'] || null,
+        fields['Well Name'] || null,
+        fields['Operator'] || null,
+        fields['County'] || null,
+        fields['Section'] || null,
+        fields['Township'] || null,
+        fields['Range'] || null,
+        fields['Well Type'] || null,
+        fields['Well Status'] || null,
+        formatDate(fields['Spud Date']),
+        formatDate(fields['Completion Date']),
+        formatDate(fields['First Production Date']),
+        parseNumber(fields['IP Oil (BBL/day)']),
+        parseNumber(fields['IP Gas (MCF/day)']),
+        parseNumber(fields['IP Water (BBL/day)']),
+        fields['Formation Name'] || null,
+        parseNumber(fields['Total Depth']),
+        parseNumber(fields['Lateral Length']),
+        parseBoolean(fields['Is Horizontal']),
+        fields['BH Section'] || null,
+        fields['BH Township'] || null,
+        fields['BH Range'] || null,
+        fields['OCC Map Link'] || null,
+        fields['Notes'] || null,
+        fields['Status'] || 'Active'
+      );
+    });
+
+    // Execute statements in chunks
+    console.log(`Executing batch insert/update for ${statements.length} client wells...`);
+
+    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+      const chunk = statements.slice(i, i + BATCH_SIZE);
+      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+      console.log(`Processing client wells ${i + 1}-${chunkEnd} of ${statements.length}`);
+
+      await env.WELLS_DB.batch(chunk);
+    }
+
+    // Count results
+    result.synced = allRecords.length;
+    result.created = 0; // Can't distinguish with UPSERT
+    result.updated = result.synced;
+
+    console.log(`[Sync] Successfully synced ${result.synced} client wells to D1`);
+
+  } catch (error) {
+    result.errors.push(`Client wells sync failed: ${error.message}`);
+    console.error('Client wells sync error:', error);
+    // Don't throw - let other syncs continue
+  }
+
   return result;
 }
 
