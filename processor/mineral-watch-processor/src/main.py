@@ -17,6 +17,7 @@ import os
 import shutil
 from aiohttp import web
 from pathlib import Path
+from PIL import Image
 
 from .config import CONFIG
 from .api_client import APIClient
