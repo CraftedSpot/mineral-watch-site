@@ -11045,7 +11045,7 @@ async function displaySelectedFiles() {
         const file = selectedFiles[index];
         let pageCount = 1; // Default fallback
 
-        // Use pdf.js to get actual page count
+        // Use pdf.js to get actual page count for PDFs, images are always 1 page
         if (file.type === 'application/pdf' && typeof pdfjsLib !== 'undefined') {
             try {
                 const arrayBuffer = await file.arrayBuffer();
@@ -11057,8 +11057,12 @@ async function displaySelectedFiles() {
                 // Fallback: rough estimate of 1 page per 100KB
                 pageCount = Math.max(1, Math.ceil(file.size / (100 * 1024)));
             }
+        } else if (file.type.startsWith('image/')) {
+            // Images are always 1 page
+            pageCount = 1;
+            console.log(`Image ${file.name}: 1 page`);
         } else {
-            // Non-PDF or pdf.js not loaded: use rough estimate
+            // Unknown type: use rough estimate
             pageCount = Math.max(1, Math.ceil(file.size / (100 * 1024)));
         }
 
