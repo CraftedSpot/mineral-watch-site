@@ -50,24 +50,24 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       
       // Ownership will be verified by filtering links by user/org in the main query below
       
-      // Query linked wells from D1 - ownership already verified at property level
+      // Query linked wells from D1 using client_wells table
       const d1Results = await env.WELLS_DB.prepare(`
-        SELECT 
+        SELECT
           pwl.id as link_id,
           pwl.match_reason,
           pwl.confidence_score,
-          w.airtable_record_id as well_id,
-          w.well_name,
-          w.well_number,
-          w.api_number,
-          w.operator,
-          w.county,
-          w.well_status
+          cw.airtable_id as well_id,
+          cw.well_name,
+          cw.api_number,
+          cw.operator,
+          cw.county,
+          cw.well_status,
+          cw.occ_map_link
         FROM property_well_links pwl
-        JOIN wells w ON w.airtable_record_id = pwl.well_airtable_id
+        JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
           AND pwl.status = 'Active'
-        ORDER BY w.well_name
+        ORDER BY cw.well_name
       `).bind(propertyId).all();
       
       console.log(`[GetLinkedWells-D1] D1 query: ${d1Results.results.length} wells in ${Date.now() - start}ms`);
@@ -76,13 +76,21 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       const wells = d1Results.results.map((row: any) => {
         // Clean county display - remove numeric prefix
         const cleanCounty = row.county ? row.county.replace(/^\d+-/, '') : 'Unknown County';
-        
-        // Combine well name and number for display
+
+        // Try to extract full well name from OCC Map Link
         let displayName = row.well_name || 'Unknown Well';
-        if (row.well_number && !displayName.includes(row.well_number)) {
-          displayName += ` ${row.well_number}`;
+        if (row.occ_map_link) {
+          try {
+            const decoded = decodeURIComponent(row.occ_map_link);
+            const titleMatch = decoded.match(/"title":"([^"]+)"/);
+            if (titleMatch && titleMatch[1]) {
+              displayName = titleMatch[1];
+            }
+          } catch (e) {
+            // Keep original well name
+          }
         }
-        
+
         return {
           linkId: row.link_id,
           wellId: row.well_id,
@@ -152,15 +160,15 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
     console.log(`[GetLinkedProperties-D1] Attempting D1 query for well ${wellId}`);
     
     try {
-      // First verify the well exists in D1
+      // First verify the well exists in D1 client_wells table
       const wellResult = await env.WELLS_DB.prepare(`
-        SELECT airtable_record_id 
-        FROM wells 
-        WHERE airtable_record_id = ?
+        SELECT airtable_id
+        FROM client_wells
+        WHERE airtable_id = ?
       `).bind(wellId).first();
-      
+
       if (!wellResult) {
-        console.log(`[GetLinkedProperties-D1] Well not found in D1, falling back to Airtable`);
+        console.log(`[GetLinkedProperties-D1] Well not found in D1 client_wells, falling back to Airtable`);
         return getLinkedPropertiesFromAirtable(wellId, request, env);
       }
       
