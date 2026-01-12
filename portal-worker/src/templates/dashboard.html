@@ -10966,12 +10966,15 @@ function processSelectedFiles(files) {
     const validFiles = [];
     const errors = [];
     
+    // Allowed file types
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff'];
+
     for (const file of files) {
-        if (file.type !== 'application/pdf') {
-            errors.push(`${file.name}: Only PDF files are allowed`);
+        if (!allowedTypes.includes(file.type)) {
+            errors.push(`${file.name}: Only PDF, JPEG, PNG, and TIFF files are allowed`);
             continue;
         }
-        
+
         if (file.size > 50 * 1024 * 1024) {
             errors.push(`${file.name}: File size must be less than 50MB`);
             continue;
