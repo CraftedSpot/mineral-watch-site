@@ -36,6 +36,22 @@ function errorResponse(message: string, status: number, env: Env) {
   return jsonResponse({ error: message }, status, env);
 }
 
+// Allowed file types for document uploads
+const ALLOWED_FILE_TYPES: Record<string, { extension: string; canViewInline: boolean }> = {
+  'application/pdf': { extension: 'pdf', canViewInline: true },
+  'image/jpeg': { extension: 'jpg', canViewInline: true },
+  'image/png': { extension: 'png', canViewInline: true },
+  'image/tiff': { extension: 'tiff', canViewInline: false }, // Download only
+};
+
+function isAllowedFileType(mimeType: string): boolean {
+  return mimeType in ALLOWED_FILE_TYPES;
+}
+
+function getFileExtension(mimeType: string): string {
+  return ALLOWED_FILE_TYPES[mimeType]?.extension || 'bin';
+}
+
 // Authenticate user via auth-worker
 async function authenticateUser(request: Request, env: Env) {
   try {
@@ -183,10 +199,10 @@ export default {
         }
 
         const query = `
-          SELECT id, filename, doc_type, county, section, township, range, 
+          SELECT id, filename, doc_type, county, section, township, range,
                  confidence, status, upload_date, page_count, file_size, extracted_data, user_notes,
-                 display_name, category, needs_review, field_scores, fields_needing_review
-          FROM documents 
+                 display_name, category, needs_review, field_scores, fields_needing_review, content_type
+          FROM documents
           WHERE (${conditions.join(' OR ')})
             AND deleted_at IS NULL
           ORDER BY upload_date DESC
@@ -318,24 +334,25 @@ export default {
         }
 
         // Validate file type
-        if (file.type !== 'application/pdf') {
-          return errorResponse('Only PDF files are allowed', 400, env);
+        if (!isAllowedFileType(file.type)) {
+          return errorResponse('Only PDF, JPEG, PNG, and TIFF files are allowed', 400, env);
         }
-        
+
         if (file.size > 50 * 1024 * 1024) { // 50MB limit
           return errorResponse('File too large. Maximum size is 50MB', 400, env);
         }
 
-        // Generate unique document ID
+        // Generate unique document ID with correct extension
         const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-        const r2Key = `${docId}.pdf`;
+        const fileExtension = getFileExtension(file.type);
+        const r2Key = `${docId}.${fileExtension}`;
 
-        console.log('Uploading to R2:', r2Key);
+        console.log('Uploading to R2:', r2Key, 'type:', file.type);
 
-        // Store in R2
+        // Store in R2 with correct content type
         await env.UPLOADS_BUCKET.put(r2Key, file.stream(), {
-          httpMetadata: { 
-            contentType: 'application/pdf',
+          httpMetadata: {
+            contentType: file.type,
             contentDisposition: `attachment; filename="${file.name}"`
           }
         });
@@ -350,9 +367,9 @@ export default {
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
             id, r2_key, filename, original_filename, user_id, organization_id,
-            file_size, status, upload_date, queued_at, user_plan
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?)
-        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan).run();
+            file_size, status, upload_date, queued_at, user_plan, content_type
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?)
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type).run();
 
         console.log('Document uploaded successfully:', docId);
 
@@ -413,14 +430,14 @@ export default {
           
           try {
             // Validate file
-            if (file.type !== 'application/pdf') {
+            if (!isAllowedFileType(file.type)) {
               errors.push({
                 filename: file.name,
-                error: 'Only PDF files are allowed'
+                error: 'Only PDF, JPEG, PNG, and TIFF files are allowed'
               });
               continue;
             }
-            
+
             if (file.size > 50 * 1024 * 1024) { // 50MB limit
               errors.push({
                 filename: file.name,
@@ -429,14 +446,15 @@ export default {
               continue;
             }
 
-            // Generate unique document ID
+            // Generate unique document ID with correct extension
             const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
-            const r2Key = `${docId}.pdf`;
+            const fileExtension = getFileExtension(file.type);
+            const r2Key = `${docId}.${fileExtension}`;
 
-            // Store in R2
+            // Store in R2 with correct content type
             await env.UPLOADS_BUCKET.put(r2Key, file.stream(), {
-              httpMetadata: { 
-                contentType: 'application/pdf',
+              httpMetadata: {
+                contentType: file.type,
                 contentDisposition: `attachment; filename="${file.name}"`
               }
             });
@@ -445,9 +463,9 @@ export default {
             await env.WELLS_DB.prepare(`
               INSERT INTO documents (
                 id, r2_key, filename, original_filename, user_id, organization_id,
-                file_size, status, upload_date, queued_at, user_plan
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?)
-            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan || 'Free').run();
+                file_size, status, upload_date, queued_at, user_plan, content_type
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?)
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan || 'Free', file.type).run();
 
             results.push({
               success: true,
@@ -625,8 +643,8 @@ export default {
         }
 
         const query = `
-          SELECT r2_key, filename, display_name FROM documents 
-          WHERE id = ? 
+          SELECT r2_key, filename, display_name, content_type FROM documents
+          WHERE id = ?
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
         `;
@@ -639,21 +657,21 @@ export default {
 
         // Get from R2
         const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
-        
+
         if (!object) {
           return errorResponse('File not found in storage', 404, env);
         }
 
         // Use display_name if available, otherwise fallback to filename
         const downloadName = doc.display_name || doc.filename;
-        // Ensure .pdf extension
-        const finalName = downloadName.endsWith('.pdf') ? downloadName : `${downloadName}.pdf`;
-        
-        // Return the PDF with appropriate headers
+        // Get the correct content type (default to pdf for legacy docs)
+        const contentType = doc.content_type || 'application/pdf';
+
+        // Return file with appropriate headers
         return new Response(object.body, {
           headers: {
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${finalName}"`,
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${downloadName}"`,
             ...corsHeaders(env),
           },
         });
@@ -683,8 +701,8 @@ export default {
         }
 
         const query = `
-          SELECT r2_key, filename, display_name FROM documents 
-          WHERE id = ? 
+          SELECT r2_key, filename, display_name, content_type FROM documents
+          WHERE id = ?
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
         `;
@@ -697,21 +715,21 @@ export default {
 
         // Get from R2
         const object = await env.UPLOADS_BUCKET.get(doc.r2_key);
-        
+
         if (!object) {
           return errorResponse('File not found in storage', 404, env);
         }
 
         // Use display_name if available, otherwise fallback to filename
         const viewName = doc.display_name || doc.filename;
-        // Ensure .pdf extension
-        const finalName = viewName.endsWith('.pdf') ? viewName : `${viewName}.pdf`;
-        
-        // Return the PDF for inline viewing
+        // Get the correct content type (default to pdf for legacy docs)
+        const contentType = doc.content_type || 'application/pdf';
+
+        // Return file for inline viewing
         return new Response(object.body, {
           headers: {
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `inline; filename="${finalName}"`,
+            'Content-Type': contentType,
+            'Content-Disposition': `inline; filename="${viewName}"`,
             ...corsHeaders(env),
           },
         });
