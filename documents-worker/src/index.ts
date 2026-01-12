@@ -971,10 +971,10 @@ export default {
         `).run();
 
         // Get documents with status='pending' that haven't exceeded retry limit
-        // Include user_plan for credit checks
+        // Include user_plan for credit checks and content_type for file type detection
         const results = await env.WELLS_DB.prepare(`
           SELECT id, r2_key, filename, original_filename, user_id, organization_id,
-                 file_size, upload_date, page_count, processing_attempts, user_plan
+                 file_size, upload_date, page_count, processing_attempts, user_plan, content_type
           FROM documents
           WHERE status = 'pending'
             AND processing_attempts < 3
