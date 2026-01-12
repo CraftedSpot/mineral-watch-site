@@ -62,29 +62,70 @@ def cleanup_temp_files(*paths):
                 logger.warning(f"Failed to cleanup {path}: {e}")
 
 
+def convert_tiff_to_png(tiff_path: str) -> str:
+    """Convert a TIFF image to PNG format for Claude Vision compatibility."""
+    png_path = str(Path(tiff_path).with_suffix('.png'))
+    try:
+        with Image.open(tiff_path) as img:
+            # Convert to RGB if necessary (TIFF can have various modes)
+            if img.mode in ('RGBA', 'LA') or (img.mode == 'P' and 'transparency' in img.info):
+                img = img.convert('RGBA')
+            elif img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.save(png_path, 'PNG')
+        logger.info(f"Converted TIFF to PNG: {png_path}")
+        return png_path
+    except Exception as e:
+        logger.error(f"Failed to convert TIFF to PNG: {e}")
+        raise
+
+
 async def process_document(client: APIClient, doc: dict) -> dict:
     """
     Process a single document through the extraction pipeline.
-    
+
     Returns dict with processing result info for notification tracking.
     """
     doc_id = doc['id']
     original_filename = doc.get('original_filename', doc.get('filename', 'document.pdf'))
     user_id = doc.get('user_id')
-    
+    content_type_hint = doc.get('content_type')  # May be provided by queue
+
     logger.info(f"Processing document {doc_id}: {original_filename}")
-    
-    pdf_path = None
+
+    file_path = None
     image_paths = []
-    
+    converted_tiff_path = None  # Track converted TIFF for cleanup
+
     try:
-        # 1. Download PDF from R2
-        pdf_path = await client.download_document(doc_id)
-        
-        # 2. Convert to images
-        image_paths = await convert_pdf_to_images(pdf_path)
-        page_count = len(image_paths)
-        logger.info(f"Converted {page_count} pages")
+        # 1. Download document from R2
+        file_path, content_type = await client.download_document(doc_id, content_type_hint)
+        logger.info(f"Downloaded file type: {content_type}")
+
+        # 2. Prepare images based on file type
+        if content_type == 'application/pdf':
+            # PDF: Convert to images using pdftoppm
+            image_paths = await convert_pdf_to_images(file_path)
+            page_count = len(image_paths)
+            logger.info(f"Converted PDF to {page_count} pages")
+        elif content_type in ('image/jpeg', 'image/png'):
+            # JPEG/PNG: Use directly
+            image_paths = [file_path]
+            page_count = 1
+            logger.info(f"Using image directly: {content_type}")
+        elif content_type == 'image/tiff':
+            # TIFF: Convert to PNG first (Claude Vision doesn't support TIFF)
+            converted_tiff_path = convert_tiff_to_png(file_path)
+            image_paths = [converted_tiff_path]
+            page_count = 1
+            logger.info(f"Converted TIFF to PNG for processing")
+        else:
+            # Unknown type - try as PDF
+            logger.warning(f"Unknown content type {content_type}, attempting PDF conversion")
+            image_paths = await convert_pdf_to_images(file_path)
+            page_count = len(image_paths)
+
+        logger.info(f"Prepared {page_count} image(s) for extraction")
         
         # 3. Extract with Claude Vision
         extraction_result = await extract_document_data(image_paths)
