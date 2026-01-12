@@ -1336,20 +1336,48 @@ If these pages don't contain significant new information, return: {{"additional_
     return extracted_data or {"error": "Failed to extract data from document"}
 
 
-async def extract_document_data(image_paths: list[str]) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False) -> dict:
     """
     Main entry point for document extraction.
     Detects multiple documents and extracts data from each.
-    
+
     Args:
         image_paths: List of paths to page images
-    
+        _rotation_attempted: Internal flag to prevent infinite rotation loops
+
     Returns:
         Combined extraction results
     """
     # Step 1: Always do quick classification first (most efficient)
     classification = await quick_classify_document(image_paths[:3])  # Use first 3 pages
-    
+
+    # Step 1.5: Check if rotation is needed (only for direct images, not PDFs)
+    # Only attempt rotation once to avoid loops
+    rotation_needed = classification.get("rotation_needed", 0)
+    if rotation_needed and rotation_needed != 0 and not _rotation_attempted:
+        logger.info(f"Document needs {rotation_needed}° rotation - applying correction")
+
+        # Import rotation function from main module
+        from .main import rotate_image
+
+        # Rotate all images
+        rotated_paths = []
+        for img_path in image_paths:
+            try:
+                rotated_path = rotate_image(img_path, rotation_needed)
+                rotated_paths.append(rotated_path)
+            except Exception as e:
+                logger.error(f"Failed to rotate image {img_path}: {e}")
+                rotated_paths.append(img_path)  # Use original on failure
+
+        # Re-run extraction with rotated images (with flag to prevent loops)
+        logger.info(f"Re-running extraction with {len(rotated_paths)} rotated image(s)")
+        result = await extract_document_data(rotated_paths, _rotation_attempted=True)
+
+        # Add rotation info to result
+        result["rotation_applied"] = rotation_needed
+        return result
+
     # If it's "other", skip ALL extraction and detection
     if classification.get("doc_type") == "other":
         logger.info(f"Document classified as 'other', skipping all extraction and detection")
