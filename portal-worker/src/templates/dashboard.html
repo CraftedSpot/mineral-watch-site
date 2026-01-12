@@ -3260,26 +3260,13 @@
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
 
-                // Show Documents tab for Business+ users
-                console.log('Current user:', currentUser);
-                console.log('User ID:', currentUser.id);
-                console.log('User plan:', currentUser.plan);
-
-                // Check both plan formats
-                const userPlan = currentUser.plan || currentUser.Plan || currentUser.fields?.Plan;
-                console.log('Detected plan:', userPlan);
-
-                if (currentUser.id === 'recEpgbS88AbuzAH8' || userPlan === 'Business' || userPlan === 'Enterprise') {
-                    console.log('Showing documents tab for user');
-                    document.getElementById('documentsTab').style.display = 'flex';
-                    // Also show document count in plan info
-                    if (document.getElementById('docCountItem')) {
-                        document.getElementById('docCountItem').style.display = 'flex';
-                        document.getElementById('docCountDisplay').style.display = 'flex';
-                    }
-                } else {
-                    console.log('Not showing documents tab - user does not have access');
-                    console.log('User plan is:', userPlan, 'not Business/Enterprise');
+                // Show Documents tab for all users
+                console.log('Showing documents tab for all users');
+                document.getElementById('documentsTab').style.display = 'flex';
+                // Also show document count in plan info
+                if (document.getElementById('docCountItem')) {
+                    document.getElementById('docCountItem').style.display = 'flex';
+                    document.getElementById('docCountDisplay').style.display = 'flex';
                 }
                 
                 // Hide add/edit/delete buttons for Viewers
