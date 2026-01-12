@@ -1180,7 +1180,7 @@ export default {
           return errorResponse('Invalid JSON in request body', 400, env);
         }
         
-        const { 
+        const {
           status,
           extracted_data,
           doc_type,
@@ -1195,7 +1195,8 @@ export default {
           category,
           needs_review,
           field_scores,
-          fields_needing_review
+          fields_needing_review,
+          rotation_applied
         } = data;
 
         // Update the document with extraction results
@@ -1238,7 +1239,7 @@ export default {
           
           try {
             await env.WELLS_DB.prepare(`
-              UPDATE documents 
+              UPDATE documents
               SET status = ?,
                   extracted_data = ?,
                   doc_type = ?,
@@ -1254,6 +1255,7 @@ export default {
                   needs_review = ?,
                   field_scores = ?,
                   fields_needing_review = ?,
+                  rotation_applied = ?,
                   extraction_completed_at = datetime('now', '-6 hours')
               WHERE id = ?
             `).bind(
@@ -1272,6 +1274,7 @@ export default {
               needs_review !== undefined ? (needs_review ? 1 : 0) : 0,
               field_scores !== undefined ? JSON.stringify(field_scores) : null,
               fields_needing_review !== undefined ? JSON.stringify(fields_needing_review) : null,
+              rotation_applied ?? 0,
               docId
             ).run();
             
