@@ -38,8 +38,13 @@ class APIClient:
             data = response.json()
             return data.get("documents", [])
     
-    async def download_document(self, doc_id: str) -> str:
-        """Download a PDF from R2 and return local file path."""
+    async def download_document(self, doc_id: str, content_type: str = None) -> tuple[str, str]:
+        """
+        Download a document from R2 and return local file path and detected content type.
+
+        Returns:
+            tuple: (file_path, content_type)
+        """
         async with httpx.AsyncClient(timeout=60) as client:
             # Get signed download URL
             response = await client.get(
@@ -48,22 +53,47 @@ class APIClient:
             )
             response.raise_for_status()
             data = response.json()
-            download_url = data.get("url")  # Changed from "download_url" to "url"
-            
+            download_url = data.get("url")
+            filename = data.get("filename", "")
+
             if not download_url:
                 raise ValueError(f"No download URL returned for document {doc_id}")
-            
-            # Download the actual PDF
-            pdf_response = await client.get(download_url, headers=self.headers)
-            pdf_response.raise_for_status()
-            
-            # Save to temp file
+
+            # Download the actual file
+            file_response = await client.get(download_url, headers=self.headers)
+            file_response.raise_for_status()
+
+            # Determine content type from response header or filename
+            detected_type = file_response.headers.get("Content-Type", "").split(";")[0].strip()
+            if not detected_type or detected_type == "application/octet-stream":
+                # Infer from filename extension
+                ext = Path(filename).suffix.lower() if filename else ""
+                ext_to_type = {
+                    ".pdf": "application/pdf",
+                    ".jpg": "image/jpeg",
+                    ".jpeg": "image/jpeg",
+                    ".png": "image/png",
+                    ".tiff": "image/tiff",
+                    ".tif": "image/tiff",
+                }
+                detected_type = ext_to_type.get(ext, content_type or "application/pdf")
+
+            # Determine file extension
+            type_to_ext = {
+                "application/pdf": ".pdf",
+                "image/jpeg": ".jpg",
+                "image/png": ".png",
+                "image/tiff": ".tiff",
+            }
+            extension = type_to_ext.get(detected_type, ".pdf")
+
+            # Save to temp file with correct extension
             temp_dir = tempfile.mkdtemp()
-            pdf_path = Path(temp_dir) / f"{doc_id}.pdf"
-            pdf_path.write_bytes(pdf_response.content)
-            
-            logger.info(f"Downloaded {doc_id} to {pdf_path} ({len(pdf_response.content)} bytes)")
-            return str(pdf_path)
+            file_path = Path(temp_dir) / f"{doc_id}{extension}"
+            file_path.write_bytes(file_response.content)
+
+            logger.info(f"Downloaded {doc_id} to {file_path} ({len(file_response.content)} bytes, type: {detected_type})")
+            return str(file_path), detected_type
     
     async def complete_document(self, doc_id: str, result: dict) -> None:
         """Update document with extraction results."""
