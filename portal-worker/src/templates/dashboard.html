@@ -1068,8 +1068,15 @@
             background: #E2E8F0;
             color: var(--oil-navy);
         }
-        
-        
+
+        /* Manual document link item hover */
+        .manual-link-doc-item:hover {
+            background: #F0F9FF !important;
+        }
+        .manual-link-doc-item:last-child {
+            border-bottom: none !important;
+        }
+
         /* Text links for Details and Prod */
         .text-link { 
             color: var(--sky-blue); 
@@ -6724,6 +6731,124 @@
         // Make relinkDocuments available globally
         window.relinkDocuments = relinkDocuments;
 
+        // Manual document linking modal functions
+        function openManualDocLinkModal(targetType, targetId) {
+            console.log('[ManualLink] Opening modal for', targetType, targetId);
+
+            // Store target info
+            document.getElementById('manualDocLinkTargetType').value = targetType;
+            document.getElementById('manualDocLinkTargetId').value = targetId;
+
+            // Update subtitle
+            const subtitle = document.getElementById('manualDocLinkSubtitle');
+            subtitle.textContent = `Select a document to link to this ${targetType}`;
+
+            // Get unlinked documents from loadedDocuments
+            const unlinkedDocs = loadedDocuments.filter(doc =>
+                !doc.deleted_at &&
+                doc.status === 'completed' &&
+                !doc.property_id &&
+                !doc.well_id
+            );
+
+            const listEl = document.getElementById('manualDocLinkList');
+            const emptyEl = document.getElementById('manualDocLinkEmpty');
+
+            if (unlinkedDocs.length === 0) {
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            } else {
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+
+                // Build list of documents
+                let html = '';
+                unlinkedDocs.forEach(doc => {
+                    const category = doc.parsedExtractedData?.documentCategory || doc.category || 'Unknown';
+                    const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
+
+                    html += `
+                        <div class="manual-link-doc-item" onclick="linkDocumentToTarget('${doc.id}')" style="padding: 12px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background 0.2s;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div style="flex: 1; min-width: 0;">
+                                    <div style="font-weight: 500; color: var(--oil-navy); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${doc.filename}</div>
+                                    <div style="font-size: 12px; color: var(--slate-blue); margin-top: 2px;">
+                                        ${category} &bull; ${uploadDate}
+                                    </div>
+                                </div>
+                                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink: 0; margin-left: 12px; color: var(--slate-blue);">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+                                </svg>
+                            </div>
+                        </div>
+                    `;
+                });
+                listEl.innerHTML = html;
+            }
+
+            // Show modal
+            const modal = document.getElementById('manualDocLinkModal');
+            modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: 1000001 !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important;';
+        }
+
+        function closeManualDocLinkModal() {
+            document.getElementById('manualDocLinkModal').style.display = 'none';
+        }
+
+        async function linkDocumentToTarget(documentId) {
+            const targetType = document.getElementById('manualDocLinkTargetType').value;
+            const targetId = document.getElementById('manualDocLinkTargetId').value;
+
+            console.log('[ManualLink] Linking document', documentId, 'to', targetType, targetId);
+
+            try {
+                const body = {};
+                if (targetType === 'property') {
+                    body.property_id = targetId;
+                } else if (targetType === 'well') {
+                    body.well_id = targetId;
+                }
+
+                const res = await fetch(`/api/documents/${documentId}/link`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+                if (!res.ok) {
+                    const err = await res.json();
+                    throw new Error(err.error || 'Failed to link document');
+                }
+
+                showToast('Document linked successfully', 'success');
+                closeManualDocLinkModal();
+
+                // Refresh documents and the linked documents list
+                await loadDocuments();
+
+                // Refresh the linked documents section in the modal
+                if (targetType === 'property') {
+                    loadLinkedDocuments(targetId, 'property');
+                } else if (targetType === 'well') {
+                    loadLinkedDocuments(targetId, 'well');
+                }
+
+            } catch (error) {
+                console.error('[ManualLink] Error:', error);
+                showToast(error.message || 'Failed to link document', 'error');
+            }
+        }
+
+        // Make manual link functions globally available
+        window.openManualDocLinkModal = openManualDocLinkModal;
+        window.closeManualDocLinkModal = closeManualDocLinkModal;
+        window.linkDocumentToTarget = linkDocumentToTarget;
+
+        // Close manual doc link modal when clicking outside
+        document.getElementById('manualDocLinkModal').addEventListener('click', e => {
+            if (e.target.id === 'manualDocLinkModal') closeManualDocLinkModal();
+        });
+
         function startDocumentPolling() {
             if (documentPollInterval) return; // Already polling
             
@@ -7829,7 +7954,12 @@
         }
         
         function openManualLinkWell() {
-            alert('Manual well linking coming soon');
+            const wellId = document.getElementById('wellDetailsId').value;
+            if (!wellId) {
+                showToast('No well selected', 'error');
+                return;
+            }
+            openManualDocLinkModal('well', wellId);
         }
         
         // Alias for openWellDetailsModal for consistency
@@ -7974,7 +8104,12 @@
         }
         
         function openManualLinkProperty() {
-            alert('Manual property linking coming soon');
+            const propertyId = document.getElementById('propertyDetailsId').value;
+            if (!propertyId) {
+                showToast('No property selected', 'error');
+                return;
+            }
+            openManualDocLinkModal('property', propertyId);
         }
         
         // Linked Documents Functions
@@ -8492,6 +8627,35 @@
     </div>
 </div>
 <!-- End of propertyDetailsModal -->
+
+<!-- Manual Document Link Modal -->
+<div class="modal-overlay" id="manualDocLinkModal" style="display: none;">
+    <div class="modal" style="max-width: 500px; width: 100%; position: relative;">
+        <button class="modal-close" onclick="closeManualDocLinkModal()" aria-label="Close">&times;</button>
+        <div style="padding: 24px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">Link Document</h3>
+            <p id="manualDocLinkSubtitle" style="margin: 0 0 20px 0; font-size: 14px; color: var(--slate-blue);">Select a document to link</p>
+
+            <div id="manualDocLinkList" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+                <!-- Documents will be populated here -->
+            </div>
+
+            <div id="manualDocLinkEmpty" style="display: none; text-align: center; padding: 40px 20px; color: var(--slate-blue);">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px; opacity: 0.4;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p style="margin: 0; font-weight: 500;">No unlinked documents</p>
+                <p style="margin: 8px 0 0 0; font-size: 13px;">All your documents are already linked to properties or wells.</p>
+            </div>
+
+            <div class="modal-buttons" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn-secondary" onclick="closeManualDocLinkModal()">Cancel</button>
+            </div>
+        </div>
+        <input type="hidden" id="manualDocLinkTargetType">
+        <input type="hidden" id="manualDocLinkTargetId">
+    </div>
+</div>
 
 <!-- BULK UPLOAD MODAL - REDESIGNED -->
 <div class="modal-overlay" id="bulk-upload-modal">

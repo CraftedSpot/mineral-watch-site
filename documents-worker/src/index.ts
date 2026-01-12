@@ -824,6 +824,99 @@ export default {
       }
     }
 
+    // Route: PUT /api/documents/:id/link - Manually link document to property/well
+    if (path.match(/^\/api\/documents\/[^\/]+\/link$/) && request.method === 'PUT') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const docId = path.split('/')[3];
+      console.log('Manually linking document:', docId);
+
+      try {
+        // Check if document exists and user has access
+        const conditions = ['user_id = ?'];
+        const params = [user.id];
+
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+        if (userOrg) {
+          conditions.push('organization_id = ?');
+          params.push(userOrg);
+        }
+
+        const query = `
+          SELECT id FROM documents
+          WHERE id = ?
+            AND (${conditions.join(' OR ')})
+            AND deleted_at IS NULL
+        `;
+
+        const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
+        if (!doc) {
+          return errorResponse('Document not found or access denied', 404, env);
+        }
+
+        // Get the link data from request body
+        const { property_id, well_id } = await request.json() as { property_id?: string; well_id?: string };
+
+        // Update the links (can set one or both, or clear by passing null)
+        const updates: string[] = [];
+        const updateParams: (string | null)[] = [];
+
+        if (property_id !== undefined) {
+          updates.push('property_id = ?');
+          updateParams.push(property_id);
+
+          // Also fetch and set property_name
+          if (property_id) {
+            const prop = await env.WELLS_DB.prepare(`
+              SELECT county, section, township, range FROM properties WHERE airtable_record_id = ?
+            `).bind(property_id).first();
+            if (prop) {
+              updates.push('property_name = ?');
+              updateParams.push(`${prop.county} ${prop.section}-${prop.township}-${prop.range}`);
+            }
+          } else {
+            updates.push('property_name = NULL');
+          }
+        }
+
+        if (well_id !== undefined) {
+          updates.push('well_id = ?');
+          updateParams.push(well_id);
+
+          // Also fetch and set well_name
+          if (well_id) {
+            const well = await env.WELLS_DB.prepare(`
+              SELECT well_name FROM wells WHERE api_number = ?
+            `).bind(well_id).first();
+            if (well) {
+              updates.push('well_name = ?');
+              updateParams.push(well.well_name as string);
+            }
+          } else {
+            updates.push('well_name = NULL');
+          }
+        }
+
+        if (updates.length === 0) {
+          return errorResponse('No link data provided', 400, env);
+        }
+
+        await env.WELLS_DB.prepare(`
+          UPDATE documents
+          SET ${updates.join(', ')}
+          WHERE id = ?
+        `).bind(...updateParams, docId).run();
+
+        console.log(`[Documents] Manually linked document ${docId} - Property: ${property_id}, Well: ${well_id}`);
+
+        return jsonResponse({ success: true, property_id, well_id }, 200, env);
+      } catch (error) {
+        console.error('Manual link error:', error);
+        return errorResponse('Failed to link document', 500, env);
+      }
+    }
+
     // ===== PROCESSING API ENDPOINTS =====
     // These endpoints are for the external processor service
 
