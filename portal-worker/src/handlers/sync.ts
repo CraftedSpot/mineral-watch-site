@@ -72,10 +72,11 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
     console.log('Sync completed:', {
       properties: result.properties.synced,
       wells: result.wells.synced,
+      clientWells: result.clientWells?.synced || 0,
       links: result.links?.synced || 0,
       duration: result.duration
     });
-    
+
     // Return detailed results
     return jsonResponse({
       success: true,
@@ -93,6 +94,12 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
           updated: result.wells.updated,
           errors: result.wells.errors.length
         },
+        clientWells: result.clientWells ? {
+          total: result.clientWells.synced,
+          created: result.clientWells.created,
+          updated: result.clientWells.updated,
+          errors: result.clientWells.errors.length
+        } : undefined,
         links: result.links ? {
           total: result.links.synced,
           created: result.links.created,
@@ -103,6 +110,7 @@ export async function handleAirtableSync(request: Request, env: Env): Promise<Re
         errors: [
           ...result.properties.errors.slice(0, 5), // First 5 property errors
           ...result.wells.errors.slice(0, 5), // First 5 well errors
+          ...(result.clientWells?.errors.slice(0, 5) || []), // First 5 client well errors
           ...(result.links?.errors.slice(0, 5) || []) // First 5 link errors
         ]
       }
