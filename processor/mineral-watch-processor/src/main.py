@@ -250,7 +250,7 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         
     finally:
         # Cleanup temp files
-        cleanup_temp_files(pdf_path, *image_paths)
+        cleanup_temp_files(file_path, converted_tiff_path, *image_paths)
 
 
 async def handle_multi_document(
