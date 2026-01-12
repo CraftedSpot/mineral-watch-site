@@ -6844,9 +6844,14 @@
         window.closeManualDocLinkModal = closeManualDocLinkModal;
         window.linkDocumentToTarget = linkDocumentToTarget;
 
-        // Close manual doc link modal when clicking outside
-        document.getElementById('manualDocLinkModal').addEventListener('click', e => {
-            if (e.target.id === 'manualDocLinkModal') closeManualDocLinkModal();
+        // Close manual doc link modal when clicking outside (deferred until DOM ready)
+        document.addEventListener('DOMContentLoaded', () => {
+            const manualDocModal = document.getElementById('manualDocLinkModal');
+            if (manualDocModal) {
+                manualDocModal.addEventListener('click', e => {
+                    if (e.target.id === 'manualDocLinkModal') closeManualDocLinkModal();
+                });
+            }
         });
 
         function startDocumentPolling() {
