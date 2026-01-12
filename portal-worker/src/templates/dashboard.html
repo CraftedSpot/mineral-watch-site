@@ -2485,9 +2485,8 @@
                             <span style="font-weight: 500;">Linked Properties</span>
                             <span id="well-linked-properties-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
                         </div>
-                        <button onclick="event.stopPropagation(); openManualLinkProperty()" style="font-size: 12px; color: #2563eb; background: none; border: none; cursor: pointer;">+ Link</button>
                     </div>
-                    
+
                     <div id="linked-properties-content" style="display: none; padding: 0 16px 16px;">
                         <div id="linked-properties-list" style="max-height: 250px; overflow-y: auto;">
                             <!-- Populated dynamically -->
@@ -2637,9 +2636,8 @@
                             <span style="font-weight: 500;">Linked Wells</span>
                             <span id="property-linked-wells-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
                         </div>
-                        <button onclick="event.stopPropagation(); openManualLinkWell()" style="font-size: 12px; color: #2563eb; background: none; border: none; cursor: pointer;">+ Link</button>
                     </div>
-                    
+
                     <div id="linked-wells-content" style="display: none; padding: 0 16px 16px;">
                         <div id="linked-wells-list" style="max-height: 300px; overflow-y: auto;">
                             <!-- Populated dynamically -->
@@ -7916,7 +7914,6 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(w.matchReason)}">${getMatchReasonLabel(w.matchReason)}</span>
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getStatusStyle(w.wellStatus)}">${w.wellStatus || 'AC'}</span>
-                                <button onclick="event.stopPropagation(); unlinkWell('${w.linkId}')" style="color: #9ca3af; background: none; border: none; cursor: pointer; padding: 4px;" title="Unlink">×</button>
                             </div>
                         </div>
                     `).join('');
@@ -8055,7 +8052,6 @@
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
-                                <button onclick="event.stopPropagation(); unlinkProperty('${p.linkId}')" style="color: #9ca3af; background: none; border: none; cursor: pointer; padding: 4px;" title="Unlink">×</button>
                             </div>
                         </div>
                     `).join('');
