@@ -17,173 +17,150 @@ const LINKS_TABLE = '🔗 Property-Well Links';
 
 /**
  * Get linked wells for a property
+ * Uses D1 database for fast queries instead of Airtable API
  */
 export async function handleGetPropertyLinkedWells(propertyId: string, request: Request, env: Env) {
   try {
     const authUser = await authenticateRequest(request, env);
     if (!authUser) return jsonResponse({ error: "Unauthorized" }, 401);
-    
+
     // Get full user record to access organization info
     const userRecord = await getUserById(env, authUser.id);
     if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
-    
+
     const userOrgId = userRecord.fields.Organization?.[0];
-    
-    console.log(`[GetLinkedWells] Fetching linked wells for property ${propertyId}`);
-    
-    // First verify the user owns this property
-    const propertyResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+
+    console.log(`[GetLinkedWells] Fetching linked wells for property ${propertyId} from D1`);
+
+    // Query D1 to verify property ownership and get linked wells in one efficient query
+    // First verify the user has access to this property
+    const propertyCheck = await env.WELLS_DB.prepare(`
+      SELECT id, airtable_record_id FROM properties
+      WHERE airtable_record_id = ?
+    `).bind(propertyId).first();
+
+    if (!propertyCheck) {
+      // Property not in D1 yet - fall back to Airtable check
+      const propertyResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`,
+        {
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        }
+      );
+
+      if (!propertyResponse.ok) {
+        if (propertyResponse.status === 404) {
+          return jsonResponse({ error: "Property not found" }, 404);
+        }
+        throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
       }
-    );
-    
-    if (!propertyResponse.ok) {
-      if (propertyResponse.status === 404) {
-        return jsonResponse({ error: "Property not found" }, 404);
+
+      const propertyData = await propertyResponse.json();
+      const propertyUserId = propertyData.fields.User?.[0];
+      const propertyOrgId = propertyData.fields.Organization?.[0];
+
+      if (propertyUserId !== authUser.id && (!userOrgId || propertyOrgId !== userOrgId)) {
+        return jsonResponse({ error: "Unauthorized" }, 403);
       }
-      throw new Error(`Failed to fetch property: ${propertyResponse.status}`);
     }
-    
-    const propertyData = await propertyResponse.json();
-    
-    // Verify ownership
-    const propertyUserId = propertyData.fields.User?.[0];
-    const propertyOrgId = propertyData.fields.Organization?.[0];
-    
-    if (propertyUserId !== authUser.id && (!userOrgId || propertyOrgId !== userOrgId)) {
-      return jsonResponse({ error: "Unauthorized" }, 403);
-    }
-    
-    // Fetch ALL active links for this user/org, then filter in JS
-    // Airtable's linked record filtering is unreliable, so we fetch all and filter locally
-    let linksFilter: string;
-    
+
+    // Query linked wells from D1 - join property_well_links with client_wells
+    // Filter by property and ensure user/org has access
+    let query: string;
+    let params: any[];
+
     if (userOrgId) {
-      // For org users, get the organization name first
-      const orgResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${userOrgId}`,
-        {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        }
-      );
-      
-      const orgData = await orgResponse.json();
-      const orgName = orgData.fields?.Name || '';
-      
-      linksFilter = `AND({Status} = 'Active', FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization})) > 0)`;
+      // For org users, filter by organization
+      query = `
+        SELECT
+          pwl.id as link_id,
+          pwl.airtable_record_id as link_airtable_id,
+          pwl.match_reason,
+          cw.airtable_id as well_id,
+          cw.well_name,
+          cw.operator,
+          cw.county,
+          cw.well_status,
+          cw.api_number,
+          cw.occ_map_link
+        FROM property_well_links pwl
+        JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
+        WHERE pwl.property_airtable_id = ?
+          AND pwl.status = 'Active'
+          AND pwl.organization_id = ?
+      `;
+      params = [propertyId, userOrgId];
     } else {
-      // For solo users, filter by user email
-      linksFilter = `AND({Status} = 'Active', FIND('${authUser.email}', ARRAYJOIN({User})) > 0)`;
+      // For solo users, filter by user
+      query = `
+        SELECT
+          pwl.id as link_id,
+          pwl.airtable_record_id as link_airtable_id,
+          pwl.match_reason,
+          cw.airtable_id as well_id,
+          cw.well_name,
+          cw.operator,
+          cw.county,
+          cw.well_status,
+          cw.api_number,
+          cw.occ_map_link
+        FROM property_well_links pwl
+        JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
+        WHERE pwl.property_airtable_id = ?
+          AND pwl.status = 'Active'
+          AND pwl.user_id = ?
+      `;
+      params = [propertyId, authUser.id];
     }
-    
-    console.log(`[GetLinkedWells] Fetching all user links with filter: ${linksFilter}`);
-    
-    // Fetch all links with pagination support
-    const allRecords: any[] = [];
-    let offset: string | undefined;
-    
-    do {
-      const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}?filterByFormula=${encodeURIComponent(linksFilter)}&pageSize=100${offset ? `&offset=${offset}` : ''}`;
-      
-      const linksResponse = await fetch(url, {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      });
-      
-      if (!linksResponse.ok) {
-        const errorText = await linksResponse.text();
-        console.error(`[GetLinkedWells] Failed to fetch links: ${linksResponse.status} - ${errorText}`);
-        throw new Error(`Failed to fetch links: ${linksResponse.status}`);
-      }
-      
-      const pageData = await linksResponse.json();
-      allRecords.push(...pageData.records);
-      offset = pageData.offset;
-      
-    } while (offset);
-    
-    console.log(`[GetLinkedWells] Found ${allRecords.length} total active links for user`);
-    
-    // Filter for this specific property in JavaScript
-    const propertyLinks = allRecords.filter((link: any) => {
-      const linkedProperties = link.fields.Property || [];
-      return linkedProperties.includes(propertyId);
-    });
-    
-    console.log(`[GetLinkedWells] Found ${propertyLinks.length} links for property ${propertyId}`);
-    const wells = [];
-    
-    // Fetch well details for each link
-    for (const link of propertyLinks) {
-      const wellId = link.fields.Well?.[0];
-      if (!wellId) continue;
-      
-      const wellResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}/${wellId}`,
-        {
-          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-        }
-      );
-      
-      if (wellResponse.ok) {
-        const wellData = await wellResponse.json();
-        const wellName = wellData.fields['Well Name'] || 'Unknown Well';
-        const apiNumber = wellData.fields['API Number'] || '';
-        const wellNumber = wellData.fields['Well Number'] || '';
-        const occMapLink = wellData.fields['OCC Map Link'] || '';
-        
-        // Try to extract full well name from OCC Map Link
-        let displayName = wellName;
-        if (occMapLink) {
-          try {
-            // First decode the URL to handle encoded characters
-            const decoded = decodeURIComponent(occMapLink);
-            // Look for the title in the JSON structure
-            const titleMatch = decoded.match(/"title":"([^"]+)"/);
-            if (titleMatch && titleMatch[1]) {
-              displayName = titleMatch[1];
-            } else if (wellNumber && !wellName.includes(wellNumber)) {
-              displayName += ` ${wellNumber}`;
-            }
-          } catch (e) {
-            // If decoding fails, try the old method
-            const titleMatch = occMapLink.match(/title%22%3A%22([^%]+)/);
-            if (titleMatch) {
-              displayName = decodeURIComponent(titleMatch[1].replace(/%20/g, ' '));
-            } else if (wellNumber && !wellName.includes(wellNumber)) {
-              displayName += ` ${wellNumber}`;
-            }
+
+    const linkedWellsResult = await env.WELLS_DB.prepare(query).bind(...params).all();
+    const linkedWells = linkedWellsResult.results || [];
+
+    console.log(`[GetLinkedWells] Found ${linkedWells.length} linked wells in D1 for property ${propertyId}`);
+
+    // Format the response
+    const wells = linkedWells.map((row: any) => {
+      const wellName = row.well_name || 'Unknown Well';
+      const occMapLink = row.occ_map_link || '';
+
+      // Try to extract full well name from OCC Map Link
+      let displayName = wellName;
+      if (occMapLink) {
+        try {
+          const decoded = decodeURIComponent(occMapLink);
+          const titleMatch = decoded.match(/"title":"([^"]+)"/);
+          if (titleMatch && titleMatch[1]) {
+            displayName = titleMatch[1];
           }
-        } else if (wellNumber && !wellName.includes(wellNumber)) {
-          displayName += ` ${wellNumber}`;
+        } catch (e) {
+          // Keep original well name
         }
-        
-        // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"
-        const county = wellData.fields.County || 'Unknown County';
-        const cleanCounty = county.replace(/^\d+-/, '');
-        
-        wells.push({
-          linkId: link.id,
-          wellId: wellData.id,
-          wellName: displayName,
-          operator: wellData.fields.Operator || 'Unknown Operator',
-          county: cleanCounty,
-          wellStatus: wellData.fields['Well Status'] || 'AC',
-          matchReason: link.fields['Match Reason'] || 'Manual',
-          apiNumber: apiNumber
-        });
       }
-    }
-    
+
+      // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"
+      const county = row.county || 'Unknown County';
+      const cleanCounty = county.replace(/^\d+-/, '');
+
+      return {
+        linkId: row.link_airtable_id,
+        wellId: row.well_id,
+        wellName: displayName,
+        operator: row.operator || 'Unknown Operator',
+        county: cleanCounty,
+        wellStatus: row.well_status || 'AC',
+        matchReason: row.match_reason || 'Manual',
+        apiNumber: row.api_number || ''
+      };
+    });
+
     return jsonResponse({
       success: true,
       wells
     });
-    
+
   } catch (error) {
     console.error('[GetLinkedWells] Error:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       error: 'Failed to fetch linked wells',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
