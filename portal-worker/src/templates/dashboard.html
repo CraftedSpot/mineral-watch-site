@@ -4549,6 +4549,7 @@
         // Document functions
         let currentDocumentId = null;
         let currentDocumentContentType = null;
+        let currentDocumentRotation = 0;
         let currentDocumentFilename = null;
         let loadedDocuments = [];
         
@@ -4917,10 +4918,11 @@
             return dateB.getTime() - dateA.getTime(); // Descending (newest first)
         }
         
-        async function viewDocumentInModal(docId, filename, fromDetailModal = false, contentType = 'application/pdf') {
-            console.log('Opening document in modal:', docId, filename, 'type:', contentType);
+        async function viewDocumentInModal(docId, filename, fromDetailModal = false, contentType = 'application/pdf', rotationApplied = 0) {
+            console.log('Opening document in modal:', docId, filename, 'type:', contentType, 'rotation:', rotationApplied);
             currentDocumentId = docId;
             window.viewingFromDetailModal = fromDetailModal;
+            window.currentDocumentRotation = rotationApplied || 0;
 
             // Update modal title
             document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
@@ -4972,9 +4974,12 @@
 
                 if (isImage) {
                     // Display image with zoom/pan capability
+                    // Apply rotation if the document was rotated during processing
+                    const rotation = window.currentDocumentRotation || 0;
+                    const rotationStyle = rotation ? `transform: rotate(${rotation}deg);` : '';
                     viewerContainer.innerHTML = `
                         <div style="width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 20px;">
-                            <img src="${objectUrl}" alt="${escapeHtml(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                            <img src="${objectUrl}" alt="${escapeHtml(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain; ${rotationStyle}"/>
                         </div>
                     `;
                 } else {
@@ -5531,6 +5536,7 @@
                 
                 currentDocumentId = docId;
                 currentDocumentContentType = doc.content_type || 'application/pdf';
+                currentDocumentRotation = doc.rotation_applied || 0;
                 currentDocumentFilename = doc.display_name || doc.filename;
 
             // Update modal header
@@ -6308,7 +6314,7 @@
 
         function viewDocumentPDF() {
             if (currentDocumentId) {
-                viewDocumentInModal(currentDocumentId, currentDocumentFilename || '', true, currentDocumentContentType || 'application/pdf');
+                viewDocumentInModal(currentDocumentId, currentDocumentFilename || '', true, currentDocumentContentType || 'application/pdf', currentDocumentRotation || 0);
                 // Don't close the detail modal - keep it in the background
             }
         }
