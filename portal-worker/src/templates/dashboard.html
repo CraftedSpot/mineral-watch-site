@@ -7959,12 +7959,8 @@
         }
         
         function openManualLinkWell() {
-            const wellId = document.getElementById('wellDetailsId').value;
-            if (!wellId) {
-                showToast('No well selected', 'error');
-                return;
-            }
-            openManualDocLinkModal('well', wellId);
+            // Manual well linking to properties - feature coming soon
+            showToast('Manual well linking coming soon', 'info');
         }
         
         // Alias for openWellDetailsModal for consistency
@@ -8109,12 +8105,8 @@
         }
         
         function openManualLinkProperty() {
-            const propertyId = document.getElementById('propertyDetailsId').value;
-            if (!propertyId) {
-                showToast('No property selected', 'error');
-                return;
-            }
-            openManualDocLinkModal('property', propertyId);
+            // Manual property linking to wells - feature coming soon
+            showToast('Manual property linking coming soon', 'info');
         }
         
         // Linked Documents Functions

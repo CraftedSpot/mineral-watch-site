@@ -348,68 +348,63 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
   try {
     const user = await authenticateRequest(request, env);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-    
+
     console.log(`[UnlinkWell] Unlinking link ${linkId}`);
-    
-    // First fetch the link to verify ownership
-    const linkResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${linkId}`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-    
-    if (!linkResponse.ok) {
-      if (linkResponse.status === 404) {
-        return jsonResponse({ error: "Link not found" }, 404);
-      }
-      throw new Error(`Failed to fetch link: ${linkResponse.status}`);
+
+    // D1 id format is "link_recXXX", Airtable id is "recXXX"
+    // Extract Airtable ID from D1 id format
+    const airtableRecordId = linkId.startsWith('link_') ? linkId.replace('link_', '') : linkId;
+
+    // First, update D1 database (primary source of truth for reads)
+    try {
+      const d1Result = await env.WELLS_DB.prepare(`
+        UPDATE property_well_links
+        SET status = 'Rejected', rejected_date = ?
+        WHERE id = ? OR airtable_record_id = ?
+      `).bind(new Date().toISOString(), linkId, airtableRecordId).run();
+
+      console.log(`[UnlinkWell] D1 update result: ${d1Result.meta.changes} rows changed`);
+    } catch (d1Error) {
+      console.error('[UnlinkWell] D1 update failed:', d1Error);
+      // Continue to try Airtable even if D1 fails
     }
-    
-    const linkData = await linkResponse.json();
-    
-    // Verify ownership via user or organization
-    const linkUserId = linkData.fields.User?.[0];
-    const linkOrgId = linkData.fields.Organization?.[0];
-    const userOrgId = user.organizationId;
-    
-    if (linkUserId !== user.id && (!userOrgId || linkOrgId !== userOrgId)) {
-      return jsonResponse({ error: "Unauthorized" }, 403);
-    }
-    
-    // Update link status to "Rejected" (soft delete)
-    const updateResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${linkId}`,
-      {
-        method: 'PATCH',
-        headers: {
-          'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          fields: {
-            Status: 'Rejected',
-            'Rejected Date': new Date().toISOString()
-          }
-        })
+
+    // Also update Airtable for consistency (using extracted Airtable ID)
+    try {
+      const updateResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${airtableRecordId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              Status: 'Rejected',
+              'Rejected Date': new Date().toISOString()
+            }
+          })
+        }
+      );
+
+      if (!updateResponse.ok) {
+        console.error(`[UnlinkWell] Airtable update failed: ${updateResponse.status}`);
+        // Don't fail if Airtable update fails - D1 is primary
       }
-    );
-    
-    if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      throw new Error(`Failed to update link: ${updateResponse.status} - ${errorText}`);
+    } catch (airtableError) {
+      console.error('[UnlinkWell] Airtable update error:', airtableError);
+      // Don't fail if Airtable update fails - D1 is primary
     }
-    
-    const updatedLink = await updateResponse.json();
-    
+
     return jsonResponse({
       success: true,
-      linkId: updatedLink.id
+      linkId
     });
-    
+
   } catch (error) {
     console.error('[UnlinkWell] Error:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       error: 'Failed to unlink well',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
