@@ -5380,12 +5380,7 @@
                                 .replace(/^\s+/gm, '') // Remove leading spaces from each line
                                 .replace(/\t/g, ' '); // Replace tabs with spaces
                             
-                            sectionContent += `
-                                <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left;">
-                                        ${escapeHtml(cleanedValue)}
-                                    </div>
-                                </div>`;
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;"><div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left;">${escapeHtml(cleanedValue)}</div></div>`;
                         } else {
                             sectionContent += `
                                 <div class="doc-field">
