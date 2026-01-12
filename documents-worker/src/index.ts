@@ -1120,8 +1120,8 @@ export default {
 
       try {
         const doc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename, display_name 
-          FROM documents 
+          SELECT r2_key, filename, display_name, content_type
+          FROM documents
           WHERE id = ? AND deleted_at IS NULL
         `).bind(docId).first();
 
@@ -1134,14 +1134,15 @@ export default {
           return errorResponse('File not found in storage', 404, env);
         }
 
-        // Use display_name if available
+        // Use display_name if available, keep original filename
         const downloadName = doc.display_name || doc.filename;
-        const finalName = downloadName.endsWith('.pdf') ? downloadName : `${downloadName}.pdf`;
+        // Use stored content_type or default to PDF for legacy documents
+        const contentType = doc.content_type || 'application/pdf';
 
         return new Response(object.body, {
           headers: {
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': `attachment; filename="${finalName}"`,
+            'Content-Type': contentType,
+            'Content-Disposition': `attachment; filename="${downloadName}"`,
             ...corsHeaders(env),
           },
         });
