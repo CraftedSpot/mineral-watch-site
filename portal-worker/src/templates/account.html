@@ -569,8 +569,8 @@
                     document.getElementById('wellItems').textContent = wells.length;
                 }
                 
-                // Check if user has organization (Professional/Enterprise plans)
-                if (plan === 'Professional' || plan.startsWith('Enterprise')) {
+                // Check if user has organization (Business/Professional/Enterprise plans)
+                if (plan === 'Business' || plan === 'Professional' || plan.startsWith('Enterprise')) {
                     await loadOrganization();
                 }
 
