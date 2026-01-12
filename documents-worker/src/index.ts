@@ -363,23 +363,16 @@ export default {
         const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
 
-        // Determine if this is an image file (doesn't need processing)
-        const isImage = file.type.startsWith('image/');
-        const status = isImage ? 'complete' : 'pending';
-        const docType = isImage ? 'image' : null;
-        const category = isImage ? 'image' : null;
-        const pageCount = isImage ? 1 : null;
-
-        // Create record in D1 (include user_plan for credit checks during processing)
+        // All files (PDF and images) go to pending status for processing
+        // The processor handles different file types appropriately
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
             id, r2_key, filename, original_filename, user_id, organization_id,
-            file_size, status, upload_date, queued_at, user_plan, content_type,
-            doc_type, category, page_count
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?, ?)
-        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, status, userPlan, file.type, docType, category, pageCount).run();
+            file_size, status, upload_date, queued_at, user_plan, content_type
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?)
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type).run();
 
-        console.log('Document uploaded successfully:', docId, 'status:', status);
+        console.log('Document uploaded successfully:', docId);
 
         return jsonResponse({
           success: true,
@@ -387,7 +380,7 @@ export default {
             id: docId,
             filename: file.name,
             size: file.size,
-            status: status
+            status: 'pending'
           }
         }, 200, env);
       } catch (error) {
