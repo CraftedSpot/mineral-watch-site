@@ -233,6 +233,77 @@ export default {
       }
     }
 
+    // Route: POST /api/documents/relink - Re-link user's unlinked documents to properties/wells
+    if (path === '/api/documents/relink' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      console.log(`[Documents] Starting re-link for user ${user.id}`);
+
+      try {
+        // Get user's documents that have extracted data but no property/well link
+        const documents = await env.WELLS_DB.prepare(`
+          SELECT id, extracted_data, filename
+          FROM documents
+          WHERE user_id = ?
+          AND deleted_at IS NULL
+          AND extracted_data IS NOT NULL
+          AND status = 'completed'
+          AND (property_id IS NULL AND well_id IS NULL)
+        `).bind(user.id).all();
+
+        console.log(`[Documents] Found ${documents.results.length} unlinked documents for user ${user.id}`);
+
+        let linked = 0;
+        let propertyLinks = 0;
+        let wellLinks = 0;
+        const linkedDocs: string[] = [];
+
+        // Process each unlinked document
+        for (const doc of documents.results) {
+          try {
+            if (!doc.extracted_data) continue;
+
+            // Parse extracted data if it's a string
+            const extractedData = typeof doc.extracted_data === 'string'
+              ? JSON.parse(doc.extracted_data as string)
+              : doc.extracted_data;
+
+            console.log(`[Documents] Re-linking document ${doc.id} (${doc.filename})`);
+            const linkResult = await linkDocumentToEntities(
+              env.WELLS_DB,
+              doc.id as string,
+              extractedData
+            );
+
+            if (linkResult.propertyId || linkResult.wellId) {
+              linked++;
+              if (linkResult.propertyId) propertyLinks++;
+              if (linkResult.wellId) wellLinks++;
+              linkedDocs.push(doc.filename as string);
+              console.log(`[Documents] Successfully linked ${doc.id} - Property: ${linkResult.propertyId}, Well: ${linkResult.wellId}`);
+            }
+          } catch (error) {
+            console.error(`[Documents] Failed to re-link document ${doc.id}:`, error);
+          }
+        }
+
+        console.log(`[Documents] Re-link complete for user ${user.id} - Linked: ${linked}/${documents.results.length}`);
+
+        return jsonResponse({
+          success: true,
+          total: documents.results.length,
+          linked,
+          propertyLinks,
+          wellLinks,
+          linkedDocuments: linkedDocs
+        }, 200, env);
+      } catch (error) {
+        console.error('[Documents] Re-link error:', error);
+        return errorResponse('Failed to re-link documents', 500, env);
+      }
+    }
+
     // Route: POST /api/documents/upload - Upload single document
     if (path === '/api/documents/upload' && request.method === 'POST') {
       const user = await authenticateUser(request, env);

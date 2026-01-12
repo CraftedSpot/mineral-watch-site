@@ -2126,6 +2126,12 @@
                             </svg>
                             Upload Documents
                         </button>
+                        <button id="relinkDocumentsBtn" class="btn-secondary" onclick="relinkDocuments()" style="font-size: 14px; display: none;" title="Re-scan unlinked documents for property/well matches">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Re-scan for Links
+                        </button>
                     </div>
                     
                     <!-- Low Credit Warning Banner -->
@@ -6654,7 +6660,70 @@
                 `;
             }
         }
-        
+
+        // Re-link unlinked documents to properties/wells
+        async function relinkDocuments() {
+            const btn = document.getElementById('relinkDocumentsBtn');
+            const originalText = btn.innerHTML;
+
+            try {
+                btn.disabled = true;
+                btn.innerHTML = `
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" class="spin">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                    </svg>
+                    Scanning...
+                `;
+
+                const res = await fetch('/api/documents/relink', { method: 'POST' });
+                if (!res.ok) throw new Error('Failed to re-link documents');
+
+                const result = await res.json();
+                console.log('[Documents] Re-link result:', result);
+
+                if (result.linked > 0) {
+                    showToast(`Linked ${result.linked} document${result.linked > 1 ? 's' : ''} to properties/wells`, 'success');
+                    // Reload documents to show updated links
+                    await loadDocuments();
+                } else if (result.total === 0) {
+                    showToast('All documents are already linked', 'info');
+                } else {
+                    showToast('No new links found - documents may not match any properties', 'info');
+                }
+
+                // Update button visibility
+                updateRelinkButtonVisibility();
+
+            } catch (error) {
+                console.error('Error re-linking documents:', error);
+                showToast('Failed to re-link documents', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+
+        // Show/hide re-link button based on unlinked document count
+        function updateRelinkButtonVisibility() {
+            const btn = document.getElementById('relinkDocumentsBtn');
+            if (!btn) return;
+
+            const unlinkedCount = loadedDocuments.filter(doc =>
+                !doc.deleted_at &&
+                doc.status === 'completed' &&
+                !doc.property_id &&
+                !doc.well_id
+            ).length;
+
+            btn.style.display = unlinkedCount > 0 ? 'inline-flex' : 'none';
+            if (unlinkedCount > 0) {
+                btn.title = `Re-scan ${unlinkedCount} unlinked document${unlinkedCount > 1 ? 's' : ''} for property/well matches`;
+            }
+        }
+
+        // Make relinkDocuments available globally
+        window.relinkDocuments = relinkDocuments;
+
         function startDocumentPolling() {
             if (documentPollInterval) return; // Already polling
             
@@ -6833,8 +6902,11 @@
                     selectAllItems('documents', e.target.checked);
                 });
             }
+
+            // Update re-link button visibility based on unlinked documents
+            updateRelinkButtonVisibility();
         }
-        
+
         async function searchWells() {
             const searchParams = {
                 well_name: document.getElementById('searchWellName').value.trim(),
@@ -9881,10 +9953,24 @@ function showError(message) {
 }
 
 // Finish and close
-function finishBulkUpload() {
+async function finishBulkUpload() {
     closeBulkUploadModal();
     // Reload properties
-    loadProperties();
+    await loadProperties();
+
+    // Auto re-link documents after property import
+    // This links any documents that were uploaded before these properties existed
+    try {
+        const res = await fetch('/api/documents/relink', { method: 'POST' });
+        if (res.ok) {
+            const result = await res.json();
+            if (result.linked > 0) {
+                showToast(`Auto-linked ${result.linked} document${result.linked > 1 ? 's' : ''} to your new properties`, 'success');
+            }
+        }
+    } catch (e) {
+        console.log('Auto-relink after property import:', e);
+    }
 }
 
 // ==========================================
@@ -10545,9 +10631,22 @@ function showWellsError(message) {
 }
 
 // Finish wells upload
-function finishBulkUploadWells() {
+async function finishBulkUploadWells() {
     closeBulkUploadWellsModal();
-    loadWells();
+    await loadWells();
+
+    // Auto re-link documents after wells import
+    try {
+        const res = await fetch('/api/documents/relink', { method: 'POST' });
+        if (res.ok) {
+            const result = await res.json();
+            if (result.linked > 0) {
+                showToast(`Auto-linked ${result.linked} document${result.linked > 1 ? 's' : ''} to your new wells`, 'success');
+            }
+        }
+    } catch (e) {
+        console.log('Auto-relink after wells import:', e);
+    }
 }
 
 // Document Upload Functions
