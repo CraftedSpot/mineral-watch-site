@@ -5632,10 +5632,12 @@
                         content += '<div class="doc-detail-grid">';
                         
                         // Status field
-                        const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
-                                           doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
-                        const statusText = doc.status === 'complete' ? 'Complete' : 
-                                          doc.status === 'failed' ? 'Failed' : 'Processing';
+                        const statusColor = doc.status === 'complete' ? '#1D6F5C' :
+                                           doc.status === 'failed' ? 'var(--error)' :
+                                           doc.status === 'manual_review' ? '#D97706' : '#F59E0B';
+                        const statusText = doc.status === 'complete' ? 'Complete' :
+                                          doc.status === 'failed' ? 'Failed' :
+                                          doc.status === 'manual_review' ? 'Needs Review' : 'Processing';
                         content += `
                             <div class="doc-field">
                                 <label>Status</label>
@@ -5699,10 +5701,12 @@
                         content += '<div class="doc-detail-grid">';
                         
                         // Status field
-                        const statusColor = doc.status === 'complete' ? '#1D6F5C' : 
-                                           doc.status === 'failed' ? 'var(--error)' : '#F59E0B';
-                        const statusText = doc.status === 'complete' ? 'Complete' : 
-                                          doc.status === 'failed' ? 'Failed' : 'Processing';
+                        const statusColor = doc.status === 'complete' ? '#1D6F5C' :
+                                           doc.status === 'failed' ? 'var(--error)' :
+                                           doc.status === 'manual_review' ? '#D97706' : '#F59E0B';
+                        const statusText = doc.status === 'complete' ? 'Complete' :
+                                          doc.status === 'failed' ? 'Failed' :
+                                          doc.status === 'manual_review' ? 'Needs Review' : 'Processing';
                         content += `
                             <div class="doc-field">
                                 <label>Status</label>
