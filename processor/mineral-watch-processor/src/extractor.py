@@ -906,8 +906,16 @@ Return ONLY a JSON object with:
   "confidence": "high|medium|low",
   "is_multi_document": true or false,
   "estimated_doc_count": number (1 if single document),
+  "rotation_needed": 0|90|180|270,
   "reasoning": "Brief explanation"
 }
+
+ROTATION DETECTION:
+Check if the document is rotated from normal reading orientation.
+- rotation_needed: 0 if text reads normally (no rotation needed)
+- rotation_needed: 90 if document needs 90° clockwise rotation to read normally
+- rotation_needed: 180 if document is upside down
+- rotation_needed: 270 if document needs 270° clockwise (or 90° counter-clockwise) rotation
 
 MULTI-DOCUMENT DETECTION:
 Determine if this PDF contains multiple separate documents. Look for:

@@ -80,6 +80,68 @@ def convert_tiff_to_png(tiff_path: str) -> str:
         raise
 
 
+def apply_exif_orientation(image_path: str) -> tuple[str, bool]:
+    """
+    Apply EXIF orientation to an image if present.
+
+    Args:
+        image_path: Path to the image file
+
+    Returns:
+        tuple: (corrected_path, was_corrected)
+        - corrected_path: Path to the corrected image (may be same as input)
+        - was_corrected: True if EXIF orientation was applied
+    """
+    from PIL import ImageOps
+
+    try:
+        with Image.open(image_path) as img:
+            # Check if image has EXIF orientation data
+            exif = img.getexif() if hasattr(img, 'getexif') else None
+            has_orientation = exif and 274 in exif  # 274 is the Orientation tag
+
+            if has_orientation:
+                # Apply EXIF transpose
+                corrected = ImageOps.exif_transpose(img)
+                if corrected is not img:
+                    # Save corrected image
+                    corrected_path = str(Path(image_path).with_suffix('.corrected.jpg'))
+                    corrected.save(corrected_path, 'JPEG', quality=95)
+                    logger.info(f"Applied EXIF orientation correction: {corrected_path}")
+                    return corrected_path, True
+
+            return image_path, False
+    except Exception as e:
+        logger.warning(f"Failed to check/apply EXIF orientation: {e}")
+        return image_path, False
+
+
+def rotate_image(image_path: str, degrees: int) -> str:
+    """
+    Rotate an image by the specified degrees clockwise.
+
+    Args:
+        image_path: Path to the image file
+        degrees: Rotation in degrees (90, 180, or 270)
+
+    Returns:
+        Path to the rotated image
+    """
+    try:
+        with Image.open(image_path) as img:
+            # PIL's rotate is counter-clockwise, so we negate
+            # Also use expand=True to adjust canvas size for 90/270 rotations
+            rotated = img.rotate(-degrees, expand=True)
+
+            rotated_path = str(Path(image_path).with_suffix(f'.rotated{degrees}.jpg'))
+            rotated.save(rotated_path, 'JPEG', quality=95)
+            logger.info(f"Rotated image {degrees}° clockwise: {rotated_path}")
+            return rotated_path
+    except Exception as e:
+        logger.error(f"Failed to rotate image: {e}")
+        raise
+
+
 async def process_document(client: APIClient, doc: dict) -> dict:
     """
     Process a single document through the extraction pipeline.
@@ -103,18 +165,26 @@ async def process_document(client: APIClient, doc: dict) -> dict:
         logger.info(f"Downloaded file type: {content_type}")
 
         # 2. Prepare images based on file type
+        is_direct_image = False  # Track if this is a directly uploaded image (not PDF)
+
         if content_type == 'application/pdf':
-            # PDF: Convert to images using pdftoppm
+            # PDF: Convert to images using pdftoppm (handles rotation internally)
             image_paths = await convert_pdf_to_images(file_path)
             page_count = len(image_paths)
             logger.info(f"Converted PDF to {page_count} pages")
         elif content_type in ('image/jpeg', 'image/png'):
-            # JPEG/PNG: Use directly
-            image_paths = [file_path]
+            # JPEG/PNG: Apply EXIF orientation if present
+            is_direct_image = True
+            corrected_path, was_corrected = apply_exif_orientation(file_path)
+            if was_corrected:
+                image_paths = [corrected_path]
+            else:
+                image_paths = [file_path]
             page_count = 1
-            logger.info(f"Using image directly: {content_type}")
+            logger.info(f"Using image directly: {content_type} (EXIF corrected: {was_corrected})")
         elif content_type == 'image/tiff':
             # TIFF: Convert to PNG first (Claude Vision doesn't support TIFF)
+            is_direct_image = True
             converted_tiff_path = convert_tiff_to_png(file_path)
             image_paths = [converted_tiff_path]
             page_count = 1
