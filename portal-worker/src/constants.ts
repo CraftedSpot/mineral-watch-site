@@ -46,7 +46,7 @@ export const CORS_HEADERS = {
 
 // Security Headers
 export const SECURITY_HEADERS = {
-  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://r2cdn.perplexity.ai; img-src 'self' data: https://*.arcgisonline.com; frame-src 'self' blob: https://player.vimeo.com; connect-src 'self' https://player.vimeo.com https://*.vimeocdn.com;",
+  "Content-Security-Policy": "default-src 'self'; script-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com https://static.cloudflareinsights.com https://player.vimeo.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdnjs.cloudflare.com; font-src 'self' https://fonts.gstatic.com https://r2cdn.perplexity.ai; img-src 'self' data: blob: https://*.arcgisonline.com; frame-src 'self' blob: https://player.vimeo.com; connect-src 'self' https://player.vimeo.com https://*.vimeocdn.com;",
   "X-Content-Type-Options": "nosniff",
   "X-Frame-Options": "DENY",
   "Referrer-Policy": "strict-origin-when-cross-origin"
