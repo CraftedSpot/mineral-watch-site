@@ -7017,11 +7017,13 @@
             
             displayDocuments.forEach(doc => {
                 const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
-                const statusColor = doc.status === 'complete' ? 'var(--success)' : 
-                                   doc.status === 'failed' ? 'var(--error)' : 
+                const statusColor = doc.status === 'complete' ? 'var(--success)' :
+                                   doc.status === 'failed' ? 'var(--error)' :
+                                   doc.status === 'manual_review' ? '#D97706' :
                                    '#F59E0B';
-                const statusText = doc.status === 'complete' ? 'Complete' : 
-                                  doc.status === 'failed' ? 'Failed' : 
+                const statusText = doc.status === 'complete' ? 'Complete' :
+                                  doc.status === 'failed' ? 'Failed' :
+                                  doc.status === 'manual_review' ? 'Needs Review' :
                                   doc.status === 'pending' ? 'Queued' :
                                   'Processing';
                 
