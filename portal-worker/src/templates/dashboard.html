@@ -508,6 +508,17 @@
             font-weight: 500;
         }
         .occ-view-doc-link:hover { text-decoration: underline; }
+        .occ-pending-text {
+            color: #9ca3af;
+            font-size: 12px;
+            font-style: italic;
+            cursor: help;
+        }
+        .occ-process-btn.complete {
+            background: #10b981;
+            cursor: pointer;
+        }
+        .occ-process-btn.complete:hover { background: #059669; }
 
         .result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; color: #64748b; font-size: 13px; margin-bottom: 12px; }
         .result-detail { }
@@ -8289,7 +8300,7 @@
                         updateCreditsDisplay(result.creditsRemaining);
                     }
                     // Show success notification
-                    showToast('Document queued for processing', 'success');
+                    showToast('Document queued for analysis', 'success');
                 } else if (result.error === 'no_credits') {
                     console.log(`[OCC Process] No credits available`);
                     occProcessingStates[stateKey] = { status: 'idle' };
@@ -8310,27 +8321,32 @@
         function updateOccButtonState(buttonEl, state, documentId = null, displayName = null) {
             if (!buttonEl) return;
 
-            // Remove all state classes
+            // Remove all state classes and old onclick
             buttonEl.classList.remove('processing', 'complete', 'error');
 
             switch (state) {
                 case 'processing':
                     buttonEl.classList.add('processing');
                     buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Processing...';
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Analyzing...';
                     break;
                 case 'complete':
                     buttonEl.classList.add('complete');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '✓ Queued';
-                    // Add view link next to button
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = 'Analyzed ✓';
+                    buttonEl.title = 'Click to view document';
+                    // Store documentId and make clickable to open document modal
                     if (documentId) {
-                        const viewLink = document.createElement('a');
-                        viewLink.href = `/documents?id=${documentId}`;
-                        viewLink.className = 'occ-view-doc-link';
-                        viewLink.textContent = 'View';
-                        viewLink.style.marginLeft = '8px';
-                        buttonEl.parentNode.appendChild(viewLink);
+                        buttonEl.dataset.documentId = documentId;
+                        buttonEl.onclick = function() {
+                            // Open document modal or navigate to document
+                            if (typeof openDocumentModal === 'function') {
+                                openDocumentModal(documentId);
+                            } else {
+                                // Fallback: scroll to documents section and highlight
+                                window.location.href = `/documents?id=${documentId}`;
+                            }
+                        };
                     }
                     break;
                 case 'error':
@@ -8340,7 +8356,8 @@
                     break;
                 default: // idle
                     buttonEl.disabled = false;
-                    buttonEl.innerHTML = 'Process & Extract';
+                    buttonEl.innerHTML = 'Analyze';
+                    buttonEl.title = 'Uses 1 document credit';
             }
         }
 
@@ -8431,8 +8448,10 @@
                 adjacentNote = `<span class="occ-adjacent-note">S${filing.section}-T${filing.township}-R${filing.range}</span>`;
             }
 
-            // Show Process & Extract button for filings with final orders (HEARD/RECOMMENDED)
+            // Show Analyze button for filings with final orders (HEARD/RECOMMENDED)
+            // Show "Pending" text for Filed/Continued/Scheduled status
             const hasFinalOrder = filing.status === 'HEARD' || filing.status === 'RECOMMENDED';
+            const isPending = filing.status === 'FILED' || filing.status === 'CONTINUED' || filing.status === 'SCHEDULED';
             const orderNumber = filing.orderNumber || '';
             const caseNumber = filing.caseNumber || '';
 
@@ -8447,8 +8466,14 @@
                             id="${buttonId}"
                             class="occ-process-btn"
                             onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
-                            title="Download and extract this order"
-                        >Process & Extract</button>
+                            title="Uses 1 document credit"
+                        >Analyze</button>
+                    </div>
+                `;
+            } else if (isPending) {
+                processButton = `
+                    <div class="occ-filing-actions">
+                        <span class="occ-pending-text" title="Final order not yet available">Pending</span>
                     </div>
                 `;
             }
