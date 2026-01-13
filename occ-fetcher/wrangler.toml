@@ -10,4 +10,9 @@ DOCUMENTS_WORKER_URL = "https://documents-worker.photog12.workers.dev"
 binding = "UPLOADS_BUCKET"
 bucket_name = "mineral-watch-uploads"
 
+# Service binding to documents-worker (avoids worker-to-worker HTTP issues)
+[[services]]
+binding = "DOCUMENTS_WORKER"
+service = "documents-worker"
+
 # Add secret via: wrangler secret put PROCESSING_API_KEY
