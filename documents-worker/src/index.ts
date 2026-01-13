@@ -254,11 +254,14 @@ export default {
 
     // Route: GET /api/documents/by-occ-cases - Check which OCC cases have been analyzed
     if (path === '/api/documents/by-occ-cases' && request.method === 'GET') {
+      console.log(`[by-occ-cases] Route matched! Full URL: ${request.url}`);
       const user = await authenticateUser(request, env);
       if (!user) return errorResponse('Unauthorized', 401, env);
 
       const casesParam = url.searchParams.get('cases');
+      console.log(`[by-occ-cases] casesParam: ${casesParam}`);
       if (!casesParam) {
+        console.log(`[by-occ-cases] No cases param, returning empty`);
         return jsonResponse({}, 200, env);
       }
 
