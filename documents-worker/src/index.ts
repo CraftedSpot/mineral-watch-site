@@ -287,14 +287,35 @@ export default {
           AND json_extract(source_metadata, '$.caseNumber') IN (${placeholders})
         `).bind(user.id, ...cleanCaseNumbers).all();
 
-        console.log(`[by-occ-cases] Found ${results.results?.length || 0} documents`);
+        console.log(`[by-occ-cases] Found ${results.results?.length || 0} documents with json_extract`);
+
+        // If no results with json_extract, try LIKE fallback
+        let finalResults = results.results || [];
+        if (finalResults.length === 0 && cleanCaseNumbers.length > 0) {
+          console.log(`[by-occ-cases] Trying LIKE fallback...`);
+          // Build LIKE conditions for each case number
+          const likeConditions = cleanCaseNumbers.map(() => `source_metadata LIKE ?`).join(' OR ');
+          const likeParams = cleanCaseNumbers.map(cn => `%"caseNumber":"${cn}"%`);
+
+          const fallbackResults = await env.WELLS_DB.prepare(`
+            SELECT id, display_name, status, source_metadata
+            FROM documents
+            WHERE user_id = ?
+            AND deleted_at IS NULL
+            AND (${likeConditions})
+          `).bind(user.id, ...likeParams).all();
+
+          console.log(`[by-occ-cases] LIKE fallback found ${fallbackResults.results?.length || 0} documents`);
+          finalResults = fallbackResults.results || [];
+        }
 
         // Build response map: { caseNumber: { documentId, displayName, status } }
         const analyzed: Record<string, { documentId: string; displayName: string; status: string }> = {};
 
-        for (const doc of results.results || []) {
+        for (const doc of finalResults) {
           try {
             const metadata = JSON.parse(doc.source_metadata as string || '{}');
+            console.log(`[by-occ-cases] Doc ${doc.id}: caseNumber=${metadata.caseNumber}, status=${doc.status}`);
             const caseNum = metadata.caseNumber;
             if (caseNum) {
               // Store with both CD prefix and without for easy lookup

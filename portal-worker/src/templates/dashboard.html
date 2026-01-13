@@ -8547,13 +8547,19 @@
                 if (analyzableFilings.length > 0) {
                     const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
                     console.log('[OccFilings] Checking analyzed status for:', caseNumbers);
+                    console.log('[OccFilings] Analyzable filings:', analyzableFilings.map(f => ({ caseNumber: f.caseNumber, orderNumber: f.orderNumber, status: f.status })));
                     try {
                         const analyzedResponse = await fetch(
                             `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
                             { credentials: 'include' }
                         );
+                        console.log('[OccFilings] Response status:', analyzedResponse.status);
+                        if (!analyzedResponse.ok) {
+                            console.error('[OccFilings] API error:', analyzedResponse.status, analyzedResponse.statusText);
+                            return;
+                        }
                         const analyzedData = await analyzedResponse.json();
-                        console.log('[OccFilings] Analyzed data:', analyzedData);
+                        console.log('[OccFilings] Analyzed data:', JSON.stringify(analyzedData, null, 2));
 
                         // Update buttons for already-analyzed filings
                         for (const filing of analyzableFilings) {
