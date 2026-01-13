@@ -8335,16 +8335,16 @@
                     buttonEl.disabled = false;
                     buttonEl.innerHTML = 'Analyzed ✓';
                     buttonEl.title = 'Click to view document';
-                    // Store documentId and make clickable to open document modal
+                    // Store documentId and make clickable to open document detail modal
                     if (documentId) {
                         buttonEl.dataset.documentId = documentId;
                         buttonEl.onclick = function() {
-                            // Open document modal or navigate to document
-                            if (typeof openDocumentModal === 'function') {
-                                openDocumentModal(documentId);
+                            // Open document detail modal
+                            if (typeof openDocumentDetail === 'function') {
+                                openDocumentDetail(documentId);
                             } else {
-                                // Fallback: scroll to documents section and highlight
-                                window.location.href = `/documents?id=${documentId}`;
+                                // Fallback: reload page with doc param to trigger document view
+                                window.location.href = `/portal?doc=${documentId}`;
                             }
                         };
                     }
@@ -8428,6 +8428,41 @@
                     adjacentWrapper.style.display = 'block';
                     adjacentCountBadge.textContent = String(adjacentFilings.length);
                     adjacentContainer.innerHTML = adjacentFilings.map(filing => renderOccFiling(filing, true)).join('');
+                }
+
+                // Check which filings have already been analyzed
+                const allFilings = [...directFilings, ...adjacentFilings];
+                const analyzableFilings = allFilings.filter(f =>
+                    (f.status === 'HEARD' || f.status === 'RECOMMENDED') && f.caseNumber
+                );
+
+                if (analyzableFilings.length > 0) {
+                    const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
+                    try {
+                        const analyzedResponse = await fetch(
+                            `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
+                            { credentials: 'include' }
+                        );
+                        const analyzedData = await analyzedResponse.json();
+
+                        // Update buttons for already-analyzed filings
+                        for (const filing of analyzableFilings) {
+                            const analyzed = analyzedData[filing.caseNumber] || analyzedData[filing.caseNumber?.replace(/^CD\s*/i, '')];
+                            if (analyzed) {
+                                const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
+                                const button = document.getElementById(buttonId);
+                                if (button) {
+                                    // Update in-memory state
+                                    const stateKey = filing.orderNumber || filing.caseNumber;
+                                    occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId };
+                                    // Update button to analyzed state
+                                    updateOccButtonState(button, 'complete', analyzed.documentId, analyzed.displayName);
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.log('[OccFilings] Could not check analyzed status:', err);
+                    }
                 }
 
             } catch (error) {
