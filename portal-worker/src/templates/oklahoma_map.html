@@ -3944,14 +3944,14 @@
             }
         }
         
-        // Expand well card - show detailed modal
-        function expandWellCard(wellId) {
+        // Expand well card - show detailed modal (Dashboard style)
+        function expandWellCard(wellId, isTracked = true) {
             const well = wellsById[wellId];
             if (!well) {
                 console.warn('Well not found:', wellId);
                 return;
             }
-            
+
             const fields = well.fields || {};
             const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
             const apiNumber = fields['API Number'] || 'Unknown';
@@ -3960,144 +3960,165 @@
             const contactName = toTitleCase(fields['Contact Name'] || fields['Operator Contact'] || '');
             const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
-            
+
             // Get formation name but filter out invalid values
             let formationRaw = fields['Formation Name'] || fields['Formation'] || '';
-            // List of invalid formation names that are actually well types or directions
             const invalidFormations = ['horizontal hole', 'horizontal', 'vertical hole', 'vertical', 'directional'];
             const formation = invalidFormations.includes(formationRaw.toLowerCase()) ? '' : toTitleCase(formationRaw);
-            
+
             const wellType = fields['Well Type'] || 'Oil Well';
             const county = toTitleCase(fields['County'] || '');
             const section = fields['Section'] || '';
             const township = fields['Township'] || '';
             const range = fields['Range'] || '';
+            const meridian = fields['Meridian'] || 'IM';
             const completionDate = fields['Completion Date'] || '';
             const totalDepth = fields['Total Depth'] || '';
             const occMapLink = fields['OCC Map Link'] || '';
-            
+
+            // Detect if horizontal based on well name pattern
+            const isHorizontal = detectHorizontalWell(wellName);
+
             // Format location string (T10N R07W 06 format)
-            const locationStr = section && township && range 
-                ? `T${township} R${range} ${section}` 
+            const locationStr = section && township && range
+                ? `T${township} R${range} ${section}`
                 : 'Location not available';
-            
-            // Status badge color
-            const statusBgColor = statusColor + '20'; // 20% opacity version
-            
-            // Set modal title with completion date badge
-            const titleHtml = `
-                <span>${wellName}</span>
-                ${completionDate ? `<span class="well-date-badge">${completionDate}</span>` : ''}
-            `;
-            document.getElementById('wellModalTitle').innerHTML = titleHtml;
+
+            // Store state in hidden fields
+            document.getElementById('wellModalWellId').value = wellId;
+            document.getElementById('wellModalApiNumber').value = apiNumber;
+            document.getElementById('wellModalIsTracked').value = isTracked ? '1' : '0';
+            document.getElementById('wellModalSection').value = section;
+            document.getElementById('wellModalTownship').value = township;
+            document.getElementById('wellModalRange').value = range;
+            document.getElementById('wellModalMeridian').value = meridian;
+
+            // Set modal title
+            document.getElementById('wellModalTitle').textContent = wellName;
             document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
-            
-            // Build modal body content with new layout
-            let bodyContent = `
-                <div class="well-detail-grid">
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Status</div>
-                        <div class="well-detail-value">
-                            <span class="well-status-badge" style="background: ${statusBgColor}; color: ${statusColor};">${wellStatus}</span>
-                        </div>
-                    </div>
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Well Type</div>
-                        <div class="well-detail-value">${wellType || 'N/A'}</div>
-                    </div>
-                </div>
-                
-                <div class="well-detail-full">
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Operator</div>
-                        <div class="well-detail-value">
-                            ${operator}
-                            ${operatorPhone || contactName ? `
-                                <div class="well-contact-info">
-                                    ${operatorPhone ? `<a href="tel:${operatorPhone.replace(/\D/g, '')}">${operatorPhone}</a>` : ''}
-                                    ${operatorPhone && contactName ? ' • ' : ''}
-                                    ${contactName || ''}
-                                </div>
-                            ` : ''}
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="well-detail-grid">
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">Location</div>
-                        <div class="well-detail-value">${locationStr}</div>
-                    </div>
-                    <div class="well-detail-section">
-                        <div class="well-detail-label">County</div>
-                        <div class="well-detail-value">${county ? `${county} County` : 'Unknown'}</div>
-                    </div>
-                </div>
-            `;
-            
-            // Add formation/depth row if either exists
-            if (formation || totalDepth) {
-                bodyContent += `
-                    <div class="well-detail-grid" style="border-bottom: none;">
-                        <div class="well-detail-section">
-                            <div class="well-detail-label">Formation</div>
-                            <div class="well-detail-value">${formation || 'N/A'}</div>
-                        </div>
-                        <div class="well-detail-section">
-                            <div class="well-detail-label">Depth</div>
-                            <div class="well-detail-value">${totalDepth ? `${totalDepth} ft` : 'N/A'}</div>
-                        </div>
-                    </div>
-                `;
+
+            // Status badge with color
+            const statusBadge = document.getElementById('wellModalStatusBadge');
+            statusBadge.textContent = wellStatus;
+            statusBadge.style.background = statusColor + '20';
+            statusBadge.style.color = statusColor;
+
+            // Well type
+            document.getElementById('wellModalType').textContent = wellType || '—';
+
+            // Direction badge
+            const directionBadge = document.getElementById('wellModalDirection');
+            if (isHorizontal) {
+                directionBadge.textContent = 'Horizontal';
+                directionBadge.className = 'status-badge horizontal';
+            } else {
+                directionBadge.textContent = 'Vertical';
+                directionBadge.className = 'status-badge vertical';
             }
-            
-            // Add placeholder for D1 enrichment data
-            bodyContent += `<div id="wellEnrichmentData"></div>`;
-            
-            document.getElementById('wellModalBody').innerHTML = bodyContent;
-            
-            // Fetch D1 enrichment data if we have a valid API number
+
+            // Operator
+            document.getElementById('wellModalOperator').textContent = operator;
+
+            // Contact info
+            const contactEl = document.getElementById('wellModalContact');
+            if (operatorPhone || contactName) {
+                let contactHtml = '';
+                if (operatorPhone) {
+                    contactHtml += `<a href="tel:${operatorPhone.replace(/\D/g, '')}">${formatPhone(operatorPhone)}</a>`;
+                }
+                if (operatorPhone && contactName) contactHtml += ' • ';
+                if (contactName) contactHtml += contactName;
+                contactEl.innerHTML = contactHtml;
+                contactEl.style.display = 'block';
+            } else {
+                contactEl.style.display = 'none';
+            }
+
+            // Location and County
+            document.getElementById('wellModalLocation').textContent = locationStr;
+            document.getElementById('wellModalCounty').textContent = county ? `${county} County` : '—';
+
+            // Hide production section initially (will be shown by D1 enrichment)
+            document.getElementById('wellModalProduction').style.display = 'none';
+            document.getElementById('wellModalDates').style.display = 'none';
+
+            // If we have basic data from Airtable, show production section
+            if (formation || totalDepth) {
+                document.getElementById('wellModalProduction').style.display = 'block';
+                document.getElementById('wellModalFormation').textContent = formation || '—';
+                document.getElementById('wellModalDepth').textContent = totalDepth ? totalDepth.toLocaleString() : '—';
+            }
+
+            // OCC Map link
+            const mapLink = document.getElementById('wellModalMapLink');
+            if (occMapLink && occMapLink !== '#') {
+                mapLink.href = occMapLink;
+                mapLink.style.display = 'flex';
+            } else {
+                mapLink.style.display = 'none';
+            }
+
+            // Well Records link
+            const recordsLink = document.getElementById('wellModalRecordsLink');
+            if (apiNumber && apiNumber !== 'Unknown') {
+                recordsLink.href = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1`;
+            }
+
+            // Track button - show only for untracked wells
+            const trackBtn = document.getElementById('wellModalTrackBtn');
+            if (!isTracked) {
+                trackBtn.style.display = 'flex';
+            } else {
+                trackBtn.style.display = 'none';
+            }
+
+            // Reset OCC filings section
+            document.getElementById('map-occ-count').textContent = '—';
+            document.getElementById('map-occ-direct').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
+            document.getElementById('map-occ-adjacent').innerHTML = '';
+            document.getElementById('map-occ-adjacent-wrapper').style.display = 'none';
+            document.getElementById('map-occ-empty').style.display = 'none';
+            document.getElementById('map-occ-content').style.display = 'none';
+            document.getElementById('map-occ-arrow').style.transform = 'rotate(0deg)';
+
+            // Show modal
+            document.getElementById('wellModal').classList.add('active');
+
+            // Close popup if open
+            map.closePopup();
+
+            // Fetch D1 enrichment data
             if (apiNumber && apiNumber !== 'Unknown') {
                 fetchWellEnrichment(apiNumber, formation, totalDepth, completionDate);
             }
-            
-            // Build modal actions
-            let actionsContent = '';
-            
-            if (occMapLink && occMapLink !== '#') {
-                actionsContent += `
-                    <a href="${occMapLink}" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
-                        OCC Map ↗
-                    </a>
-                `;
+
+            // Load OCC filings
+            if (section && township && range) {
+                loadMapOccFilings(section, township, range, meridian);
             }
-            
-            if (apiNumber) {
-                actionsContent += `
-                    <div class="occ-warning" style="position: relative; display: block;">
-                        <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
-                            <span class="occ-warning-icon" style="position: relative; display: inline-flex; margin-right: 6px;">!</span>Well Records ↗
-                        </a>
-                        <div class="occ-tooltip" style="left: 50%; transform: translateX(-50%);">
-                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
-                        </div>
-                    </div>
-                `;
+        }
+
+        // Helper function to detect horizontal wells
+        function detectHorizontalWell(wellName) {
+            if (!wellName) return false;
+            const name = wellName.toLowerCase();
+            // Check common horizontal naming patterns
+            return name.endsWith('h') ||
+                   name.endsWith('xh') ||
+                   name.includes(' h ') ||
+                   name.includes('-h-') ||
+                   /\d+h$/.test(name) ||
+                   /\d+xh$/.test(name);
+        }
+
+        // Helper function to format phone number
+        function formatPhone(phone) {
+            if (!phone) return '';
+            const digits = phone.replace(/\D/g, '');
+            if (digits.length === 10) {
+                return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
             }
-            
-            actionsContent += `
-                <button class="well-modal-btn well-modal-btn-secondary" onclick="closeWellModal()">
-                    Close
-                </button>
-            `;
-            
-            document.getElementById('wellModalActions').innerHTML = actionsContent;
-            
-            // Show modal
-            document.getElementById('wellModal').classList.add('active');
-            
-            // Close popup if open
-            map.closePopup();
+            return phone;
         }
         
         // Fetch D1 enrichment data for a well
