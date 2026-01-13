@@ -252,6 +252,67 @@ export default {
       }
     }
 
+    // Route: GET /api/documents/by-occ-cases - Check which OCC cases have been analyzed
+    if (path === '/api/documents/by-occ-cases' && request.method === 'GET') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      const casesParam = url.searchParams.get('cases');
+      if (!casesParam) {
+        return jsonResponse({}, 200, env);
+      }
+
+      // Parse comma-separated case numbers
+      const caseNumbers = casesParam.split(',').map(c => c.trim()).filter(Boolean);
+      if (caseNumbers.length === 0) {
+        return jsonResponse({}, 200, env);
+      }
+
+      try {
+        // Query documents with these case numbers in source_metadata
+        const placeholders = caseNumbers.map(() => '?').join(',');
+        const cleanCaseNumbers = caseNumbers.map(c => c.replace(/^CD\s*/i, ''));
+
+        const results = await env.WELLS_DB.prepare(`
+          SELECT
+            id,
+            display_name,
+            status,
+            source_metadata
+          FROM documents
+          WHERE user_id = ?
+          AND deleted_at IS NULL
+          AND json_extract(source_metadata, '$.caseNumber') IN (${placeholders})
+        `).bind(user.id, ...cleanCaseNumbers).all();
+
+        // Build response map: { caseNumber: { documentId, displayName, status } }
+        const analyzed: Record<string, { documentId: string; displayName: string; status: string }> = {};
+
+        for (const doc of results.results || []) {
+          try {
+            const metadata = JSON.parse(doc.source_metadata as string || '{}');
+            const caseNum = metadata.caseNumber;
+            if (caseNum) {
+              // Store with both CD prefix and without for easy lookup
+              analyzed[caseNum] = {
+                documentId: doc.id as string,
+                displayName: doc.display_name as string || '',
+                status: doc.status as string
+              };
+              analyzed[`CD${caseNum}`] = analyzed[caseNum];
+            }
+          } catch (e) {
+            // Skip invalid JSON
+          }
+        }
+
+        return jsonResponse(analyzed, 200, env);
+      } catch (error) {
+        console.error('By OCC cases error:', error);
+        return errorResponse('Failed to check analyzed cases', 500, env);
+      }
+    }
+
     // Route: POST /api/documents/relink - Re-link user's unlinked documents to properties/wells
     if (path === '/api/documents/relink' && request.method === 'POST') {
       const user = await authenticateUser(request, env);
