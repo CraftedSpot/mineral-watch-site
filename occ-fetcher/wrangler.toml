@@ -5,4 +5,9 @@ compatibility_date = "2024-01-01"
 [vars]
 DOCUMENTS_WORKER_URL = "https://documents-worker.photog12.workers.dev"
 
+# R2 bucket for direct uploads (same bucket as documents-worker)
+[[r2_buckets]]
+binding = "UPLOADS_BUCKET"
+bucket_name = "mineral-watch-uploads"
+
 # Add secret via: wrangler secret put PROCESSING_API_KEY

@@ -42,6 +42,7 @@ export default {
 interface Env {
   PROCESSING_API_KEY: string;
   DOCUMENTS_WORKER_URL: string;
+  UPLOADS_BUCKET: R2Bucket;
 }
 
 interface FetchOrderRequest {
@@ -344,7 +345,7 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     formData.append('originalUrl', order.pdfUrl);
     formData.append('filename', filename);
 
-    console.log(`[OCC Fetcher] Uploading to documents-worker as ${filename}`);
+    console.log(`[OCC Fetcher] Uploading ${pdfBlob.size} bytes to documents-worker as ${filename}`);
 
     const uploadResponse = await fetch(
       `${env.DOCUMENTS_WORKER_URL}/api/documents/upload-external`,
@@ -355,7 +356,22 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
       }
     );
 
-    const uploadResult = await uploadResponse.json() as any;
+    console.log(`[OCC Fetcher] Upload response status: ${uploadResponse.status}`);
+
+    const uploadText = await uploadResponse.text();
+    console.log(`[OCC Fetcher] Upload response: ${uploadText.substring(0, 500)}`);
+
+    let uploadResult: any;
+    try {
+      uploadResult = JSON.parse(uploadText);
+    } catch (e) {
+      return jsonResponse({
+        success: false,
+        error: 'Invalid response from documents-worker',
+        status: uploadResponse.status,
+        responseText: uploadText.substring(0, 200)
+      }, 500);
+    }
 
     if (!uploadResponse.ok) {
       console.error(`[OCC Fetcher] Upload failed:`, uploadResult);
