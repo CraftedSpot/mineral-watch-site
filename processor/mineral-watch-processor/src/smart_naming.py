@@ -518,6 +518,104 @@ def name_increased_density_order(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_change_of_operator_order(data: Dict[str, Any]) -> str:
+    """Change of Operator - CD {Number} - {County} - {Current Operator} to {New Operator} - {# Wells} - {Year}"""
+    parts = ["Change of Operator"]
+
+    # Case/CD number
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    if cd_num:
+        parts.append(f"CD {cd_num}")
+
+    # County
+    if data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Operator transfer
+    current_op = data.get('current_operator')
+    new_op = data.get('new_operator')
+    if current_op and new_op:
+        parts.append(f"{extract_last_name(current_op)} to {extract_last_name(new_op)}")
+    elif new_op:
+        parts.append(f"to {extract_last_name(new_op)}")
+
+    # Number of wells transferred
+    total_wells = data.get('total_wells_transferred')
+    if total_wells:
+        parts.append(f"{total_wells} wells")
+
+    # Year
+    if data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
+def name_multi_unit_horizontal_order(data: Dict[str, Any]) -> str:
+    """Multi-Unit Horizontal - CD {Number} - {County} - {Sections} - {Formation} - {Operator} - {Year}"""
+    parts = ["Multi-Unit Horizontal"]
+
+    # Case/CD number
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    if cd_num:
+        parts.append(f"CD {cd_num}")
+
+    # County
+    if data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Sections involved (from unit_sections array)
+    unit_sections = data.get('unit_sections')
+    if unit_sections and isinstance(unit_sections, list) and len(unit_sections) > 0:
+        # Extract section numbers and create compact format: S5,8-17N-17W
+        section_nums = []
+        first_twp = None
+        first_rng = None
+        for unit in unit_sections:
+            if isinstance(unit, dict):
+                sec = unit.get('section')
+                if sec:
+                    section_nums.append(str(sec))
+                if not first_twp:
+                    first_twp = unit.get('township')
+                if not first_rng:
+                    first_rng = unit.get('range')
+
+        if section_nums:
+            sections_str = f"S{','.join(section_nums)}"
+            if first_twp and first_rng:
+                sections_str += f"-{first_twp}-{first_rng}"
+            parts.append(sections_str)
+
+    # Primary formation (if available)
+    formations = data.get('formations')
+    if formations and isinstance(formations, list) and len(formations) > 0:
+        first_formation = formations[0]
+        if isinstance(first_formation, dict):
+            formation_name = first_formation.get('name', '')
+        else:
+            formation_name = str(first_formation)
+        if formation_name:
+            parts.append(formation_name)
+
+    # Operator (use short name)
+    operator = data.get('operator') or data.get('applicant')
+    if operator:
+        parts.append(extract_last_name(operator))
+
+    # Year
+    if data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 def name_lease_amendment(data: Dict[str, Any]) -> str:
     """Lease Amendment - {County} - {Legal} - {Operator/Lessee} - {Year}"""
     parts = ["Lease Amendment"]
@@ -1083,6 +1181,8 @@ NAMING_FUNCTIONS = {
     'assignment': name_assignment,
     'pooling_order': name_pooling_order,
     'increased_density_order': name_increased_density_order,
+    'change_of_operator_order': name_change_of_operator_order,
+    'multi_unit_horizontal_order': name_multi_unit_horizontal_order,
     'spacing_order': name_spacing_order,
     'ratification': name_ratification,
     'affidavit_of_heirship': name_affidavit_of_heirship,

@@ -99,7 +99,9 @@ Valid document types:
 - check_stub (royalty statements, payment stubs)
 - pooling_order (forced pooling orders with election options - use this for pooling specifically)
 - increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY")
-- occ_order (spacing, location exception - NOT pooling or increased density)
+- change_of_operator_order (transfer of operatorship from one company to another - look for "CHANGE OF OPERATOR")
+- multi_unit_horizontal_order (horizontal well authorization spanning multiple sections/units - look for allocation percentages)
+- occ_order (spacing, location exception - NOT pooling, increased density, change of operator, or multi-unit horizontal)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - ownership_entity (probate, heirship, trust docs, LLC docs)
@@ -581,6 +583,140 @@ Look for "INCREASED WELL DENSITY" or "INCREASED DENSITY" in the relief sought se
   "document_confidence": "high"
 }
 
+For CHANGE OF OPERATOR ORDERS (Transfer of operatorship to new company):
+NOTE: These orders transfer operational responsibility from one company to another.
+Look for "CHANGE OF OPERATOR", "TRANSFER OF OPERATOR", or similar language.
+Extract ALL affected wells with their names, API numbers, and OTC lease numbers if available.
+
+{
+  "doc_type": "change_of_operator_order",
+  "case_number": "CD2023-002361",
+  "order_number": "737686",
+  "order_date": "2023-12-14",
+  "effective_date": "2023-12-14",
+  "hearing_date": "2023-11-28",
+  "current_operator": "Panther Creek Resources, Inc.",
+  "new_operator": "Unbridled Resources, LLC",
+  "transfer_type": "Full Transfer",
+  "legal_description": {
+    "sections": ["10", "3", "4", "9"],
+    "township": "20N",
+    "range": "24W",
+    "county": "Ellis"
+  },
+  "affected_wells": [
+    {
+      "well_name": "Davis Unit 10-1",
+      "api_number": "35-045-22313",
+      "otc_lease_number": "01665",
+      "well_type": "Oil"
+    },
+    {
+      "well_name": "Davis Unit 10-2",
+      "api_number": "35-045-22314",
+      "otc_lease_number": "01666",
+      "well_type": "Oil"
+    }
+  ],
+  "total_wells_transferred": 12,
+  "bonding_requirements": "New operator must maintain proper bond coverage",
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "hearing_date": 0.95,
+    "current_operator": 1.0,
+    "new_operator": 1.0,
+    "transfer_type": 0.90,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "affected_wells": 0.85,
+    "total_wells_transferred": 0.95
+  },
+  "document_confidence": "high"
+}
+
+For MULTI-UNIT HORIZONTAL WELL ORDERS (Authorization for horizontal wells spanning multiple units):
+NOTE: These orders allow horizontal wells to cross unit boundaries with specific allocation percentages.
+Look for "MULTI-UNIT HORIZONTAL WELL", "HORIZONTAL WELL ORDER", or multiple sections being included in a single drilling unit.
+Extract allocation percentages for each section/unit.
+
+{
+  "doc_type": "multi_unit_horizontal_order",
+  "case_number": "CD2024-002379",
+  "order_number": "749719",
+  "order_date": "2025-01-02",
+  "effective_date": "2025-01-02",
+  "hearing_date": "2024-12-17",
+  "applicant": "Mewbourne Oil Company",
+  "operator": "Mewbourne Oil Company",
+  "proposed_well_name": "Simmons 0508 5-8-17-17 1MH",
+  "legal_description": {
+    "county": "Dewey"
+  },
+  "unit_sections": [
+    {
+      "section": "5",
+      "township": "17N",
+      "range": "17W",
+      "allocation_percentage": 50.00,
+      "acres": 640,
+      "spacing_order": "591429"
+    },
+    {
+      "section": "8",
+      "township": "17N",
+      "range": "17W",
+      "allocation_percentage": 50.00,
+      "acres": 640,
+      "spacing_order": "742818"
+    }
+  ],
+  "total_unit_acres": 1280,
+  "formations": [
+    {
+      "name": "Mississippian",
+      "common_source_of_supply": "Mississippian common source of supply",
+      "depth_from": 11890,
+      "depth_to": 12050
+    }
+  ],
+  "well_type": "horizontal",
+  "allocation_method": "Surface Acres",
+  "completion_interval": {
+    "top_depth": 11890,
+    "bottom_depth": 12050,
+    "length": 160
+  },
+  "referenced_spacing_orders": ["591429", "742818"],
+  "referenced_pooling_orders": [],
+  "expiration_period": "one year",
+  "expiration_date": "2026-01-02",
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "hearing_date": 0.95,
+    "applicant": 1.0,
+    "operator": 1.0,
+    "proposed_well_name": 0.85,
+    "legal_county": 1.0,
+    "unit_sections": 0.90,
+    "total_unit_acres": 0.95,
+    "formations": 0.85,
+    "well_type": 0.90,
+    "allocation_method": 0.90,
+    "completion_interval": 0.85,
+    "referenced_spacing_orders": 0.90,
+    "expiration_date": 0.90
+  },
+  "document_confidence": "high"
+}
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -930,7 +1066,8 @@ If you see evidence of multiple documents, set is_multi_document: true and estim
 
 DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
-- pooling_order, increased_density_order, spacing_order, drilling_permit, title_opinion
+- pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order
+- spacing_order, drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
 - ownership_entity, legal_document, correspondence
 - tax_record, map
