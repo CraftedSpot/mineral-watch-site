@@ -4781,6 +4781,118 @@
         // End OCC Filings Functions
         // ============================================
 
+        // ============================================
+        // Document Viewer Functions
+        // ============================================
+
+        let mapCurrentDocumentId = null;
+        let mapCurrentBlobUrl = null;
+
+        async function viewMapDocument(docId, filename, contentType = 'application/pdf') {
+            console.log('Opening document in map modal:', docId, filename, 'type:', contentType);
+            mapCurrentDocumentId = docId;
+
+            // Update modal title
+            document.getElementById('documentViewTitle').textContent = filename || 'Document Viewer';
+
+            // Show modal
+            const pdfModal = document.getElementById('documentViewModal');
+            pdfModal.style.display = 'flex';
+
+            const viewerContainer = document.getElementById('mapPdfViewerContainer');
+
+            // Determine file type
+            const isImage = contentType && (contentType.startsWith('image/jpeg') || contentType.startsWith('image/png'));
+            const isTiff = contentType && contentType.startsWith('image/tiff');
+
+            // TIFF files can't be displayed inline - show download only
+            if (isTiff) {
+                viewerContainer.innerHTML = `
+                    <div style="color: white; text-align: center; padding: 50px;">
+                        <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 20px; opacity: 0.6;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <p style="font-size: 16px; margin-bottom: 8px;">TIFF files cannot be previewed in browser</p>
+                        <p style="opacity: 0.7; margin-bottom: 20px;">Download to view in an image editor</p>
+                        <button onclick="downloadMapDocument()" style="background: #3B82F6; color: white; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px;">
+                            Download TIFF
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            // Show loading state
+            viewerContainer.innerHTML = `<div style="color: white; text-align: center; padding: 50px;">Loading ${isImage ? 'image' : 'document'}...</div>`;
+
+            try {
+                // Fetch the file as blob
+                const response = await fetch(`/api/documents/${docId}/download?view=true`);
+                if (!response.ok) throw new Error('Failed to load file');
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                if (isImage) {
+                    // Display image
+                    viewerContainer.innerHTML = `
+                        <div style="width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 20px;">
+                            <img src="${objectUrl}" alt="${escapeHtmlContent(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                        </div>
+                    `;
+                } else {
+                    // Use iframe for PDFs
+                    viewerContainer.innerHTML = `
+                        <iframe
+                            src="${objectUrl}"
+                            style="width: 100%; height: 100%; border: none;"
+                            title="${escapeHtmlContent(filename || 'Document')}"
+                        ></iframe>
+                    `;
+                }
+
+                // Store blob URL for cleanup
+                mapCurrentBlobUrl = objectUrl;
+            } catch (error) {
+                console.error('Error loading file:', error);
+                viewerContainer.innerHTML = `
+                    <div style="color: white; text-align: center; padding: 50px;">
+                        <p>Unable to display file in browser</p>
+                        <p style="margin-top: 20px;">
+                            <button onclick="downloadMapDocument()" style="background: #3B82F6; color: white; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer;">
+                                Download File
+                            </button>
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        function closeMapDocumentViewer() {
+            const pdfModal = document.getElementById('documentViewModal');
+            pdfModal.style.display = 'none';
+
+            // Clean up blob URL if exists
+            if (mapCurrentBlobUrl) {
+                URL.revokeObjectURL(mapCurrentBlobUrl);
+                mapCurrentBlobUrl = null;
+            }
+
+            // Clear the container
+            document.getElementById('mapPdfViewerContainer').innerHTML = '';
+            mapCurrentDocumentId = null;
+        }
+
+        function downloadMapDocument() {
+            if (mapCurrentDocumentId) {
+                window.location.href = `/api/documents/${mapCurrentDocumentId}/download`;
+            }
+        }
+
+        // ============================================
+        // End Document Viewer Functions
+        // ============================================
+
         // Format location for modal display (T10N R07W 06 instead of S06 T10N R07W)
         function formatLocationForModal(location) {
             if (!location) return '';
