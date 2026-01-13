@@ -1815,7 +1815,7 @@ export default {
           metadata?: Record<string, any>;
         };
 
-        const { r2Key, userId, userPlan = 'Free', organizationId, filename, fileSize, contentType, sourceType, sourceApi, originalUrl, metadata } = body;
+        const { r2Key, userId, organizationId, filename, fileSize, contentType, sourceType, sourceApi, originalUrl, metadata } = body;
 
         // Validate required fields
         if (!r2Key) {
