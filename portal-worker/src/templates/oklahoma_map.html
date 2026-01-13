@@ -5164,7 +5164,38 @@
                     </div>
                 `;
             }
-            
+
+            // Add OCC Filings section
+            bodyContent += `
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+            `;
+
             document.getElementById('wellModalBody').innerHTML = bodyContent;
             
             // Build actions with OCC Map and Well Records buttons matching Tracked Wells
@@ -5207,12 +5238,17 @@
             `;
             
             document.getElementById('wellModalActions').innerHTML = actionsContent;
-            
+
             // Show modal
             document.getElementById('wellModal').classList.add('active');
-            
+
             // Close popup if open
             map.closePopup();
+
+            // Load OCC filings
+            if (section && township && range) {
+                loadMapOccFilings(section, township, range, meridian || 'IM');
+            }
         }
 
         // Show toast notification
