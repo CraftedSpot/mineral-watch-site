@@ -3,6 +3,8 @@
  *
  * Fetches OCC pooling orders by case number, downloads the PDF,
  * and submits to documents-worker for processing.
+ *
+ * Uses OCC's Laserfiche WebLink JSON API (not the ASP.NET form).
  */
 
 export default {
@@ -50,6 +52,12 @@ interface FetchOrderRequest {
   organizationId?: string;
 }
 
+interface OCCSearchResult {
+  entryId: number;
+  name: string;
+  metadata: Array<{ keyId: number; keyName: string; value: string }>;
+}
+
 interface OCCOrder {
   entryId: string;
   orderNumber: string;
@@ -82,155 +90,76 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
   }
 
   try {
-    // 1. Search OCC for Final Order
+    // Clean case number - remove CD prefix if present
     const cleanCaseNumber = caseNumber.replace(/^CD/i, '');
 
     console.log(`[OCC Fetcher] Searching for case ${caseNumber} (clean: ${cleanCaseNumber})`);
 
-    // OCC uses ASP.NET which requires __VIEWSTATE and __EVENTVALIDATION
-    const searchUrl = 'https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=ImagedCaseDocumentsfiledafter3212022&dbid=0&repo=OCC';
+    // Step 1: Get session cookies from OCC
+    const cookies = await getOCCSessionCookies();
+    console.log(`[OCC Fetcher] Session cookies obtained: ${cookies.substring(0, 60)}...`);
 
-    // Step 1: Handle OCC's cookie check flow with manual redirect following
-    const browserHeaders: Record<string, string> = {
-      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-      'Accept-Language': 'en-US,en;q=0.5'
+    // Step 2: Build search syntax
+    // Format: ({[]:[ECF Case Number]="2022-003039"} & {[]:[ECF Document Type]="Final Order"} & ({LF:LOOKIN="\\AJLS\\Judicial & Legislative\\ECF"}) & {LF:templateid=52})
+    const searchSyntax = `({[]:[ECF Case Number]="${cleanCaseNumber}"} & {[]:[ECF Document Type]="Final Order"} & ({LF:LOOKIN="\\\\AJLS\\\\Judicial & Legislative\\\\ECF"}) & {LF:templateid=52})`;
+
+    console.log(`[OCC Fetcher] Search syntax: ${searchSyntax}`);
+
+    // Step 3: Call GetSearchListing API
+    const searchPayload = {
+      repoName: 'OCC',
+      searchSyn: searchSyntax,
+      searchUuid: '',
+      sortColumn: '',
+      startIdx: 0,
+      endIdx: 10,
+      getNewListing: true,
+      sortOrder: 2,
+      displayInGridView: false
     };
 
-    // Cookie jar to accumulate cookies across requests
-    const cookieJar: Map<string, string> = new Map();
-
-    // Helper to extract and store cookies
-    function extractCookies(response: Response) {
-      const setCookieHeader = response.headers.get('set-cookie');
-      if (setCookieHeader) {
-        // Handle multiple cookies in one header (comma-separated)
-        const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
-        for (const cookie of cookies) {
-          const match = cookie.match(/^([^=]+)=([^;]*)/);
-          if (match) {
-            cookieJar.set(match[1].trim(), match[2]);
-          }
-        }
-      }
-    }
-
-    function getCookieString(): string {
-      return Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
-    }
-
-    // Step 1a: Hit the search URL - it will redirect to CookieCheck
-    console.log(`[OCC Fetcher] Step 1: Initial request to search URL`);
-    let response = await fetch(searchUrl, {
-      method: 'GET',
-      headers: browserHeaders,
-      redirect: 'manual'
-    });
-    extractCookies(response);
-    console.log(`[OCC Fetcher] Cookies after step 1: ${cookieJar.size}`);
-
-    // Step 1b: Follow redirect to CookieCheck if needed
-    let location = response.headers.get('location');
-    if (location && response.status >= 300 && response.status < 400) {
-      if (!location.startsWith('http')) {
-        location = 'https://public.occ.ok.gov' + location;
-      }
-      console.log(`[OCC Fetcher] Step 2: Following redirect to ${location.substring(0, 80)}...`);
-
-      response = await fetch(location, {
-        method: 'GET',
-        headers: { ...browserHeaders, 'Cookie': getCookieString() },
-        redirect: 'manual'
-      });
-      extractCookies(response);
-      console.log(`[OCC Fetcher] Cookies after step 2: ${cookieJar.size}`);
-
-      // Check for another redirect
-      location = response.headers.get('location');
-      if (location && response.status >= 300 && response.status < 400) {
-        if (!location.startsWith('http')) {
-          location = 'https://public.occ.ok.gov' + location;
-        }
-        console.log(`[OCC Fetcher] Step 3: Following redirect to ${location.substring(0, 80)}...`);
-
-        response = await fetch(location, {
-          method: 'GET',
-          headers: { ...browserHeaders, 'Cookie': getCookieString() },
-          redirect: 'manual'
-        });
-        extractCookies(response);
-        console.log(`[OCC Fetcher] Cookies after step 3: ${cookieJar.size}`);
-      }
-    }
-
-    const initHtml = await response.text();
-    const cookies = getCookieString();
-
-    console.log(`[OCC Fetcher] Initial page length: ${initHtml.length}`);
-
-    // Extract ASP.NET hidden fields
-    const viewState = initHtml.match(/id="__VIEWSTATE"[^>]*value="([^"]*)"/)?.[1] || '';
-    const viewStateGenerator = initHtml.match(/id="__VIEWSTATEGENERATOR"[^>]*value="([^"]*)"/)?.[1] || '';
-    const eventValidation = initHtml.match(/id="__EVENTVALIDATION"[^>]*value="([^"]*)"/)?.[1] || '';
-
-    console.log(`[OCC Fetcher] ViewState found: ${viewState.length > 0}, EventValidation found: ${eventValidation.length > 0}`);
-
-    if (!viewState) {
-      // Try alternate regex patterns
-      const viewStateAlt = initHtml.match(/name="__VIEWSTATE"[^>]*value="([^"]*)"/)?.[1] || '';
-      console.log(`[OCC Fetcher] Alt ViewState found: ${viewStateAlt.length > 0}`);
-      console.log(`[OCC Fetcher] Page length: ${initHtml.length}`);
-      console.log(`[OCC Fetcher] Has form: ${initHtml.includes('<form')}`);
-      console.log(`[OCC Fetcher] Has Input0: ${initHtml.includes('Input0')}`);
-
-      // Find where the form fields are
-      const formIndex = initHtml.indexOf('<form');
-      const inputIndex = initHtml.indexOf('Input0');
-      console.log(`[OCC Fetcher] Form at: ${formIndex}, Input0 at: ${inputIndex}`);
-
-      if (viewStateAlt) {
-        // Use the alternate pattern
-        console.log(`[OCC Fetcher] Using alternate viewstate pattern`);
-      } else {
-        return jsonResponse({
-          success: false,
-          error: 'Could not extract form fields from OCC search page',
-          pageLength: initHtml.length,
-          hasForm: initHtml.includes('<form'),
-          debug: initHtml.substring(0, 1500)
-        }, 500);
-      }
-    }
-
-    // Step 2: POST search with hidden fields and cookies
-    const searchFormData = new URLSearchParams();
-    searchFormData.append('__VIEWSTATE', viewState);
-    searchFormData.append('__VIEWSTATEGENERATOR', viewStateGenerator);
-    searchFormData.append('__EVENTVALIDATION', eventValidation);
-    searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Input0', cleanCaseNumber);
-    searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Input3', 'Final Order'); // Try without the "39:" prefix
-    searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Submit', 'Search');
-
-    const searchResponse = await fetch(searchUrl, {
+    const searchResponse = await fetch('https://public.occ.ok.gov/WebLink/SearchService.aspx/GetSearchListing', {
       method: 'POST',
       headers: {
-        ...browserHeaders,
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookies
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Origin': 'https://public.occ.ok.gov',
+        'Referer': 'https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=ImagedCaseDocumentsfiledafter3212022&dbid=0&repo=OCC'
       },
-      body: searchFormData.toString(),
-      redirect: 'follow'
+      body: JSON.stringify(searchPayload)
     });
 
-    const html = await searchResponse.text();
+    const responseText = await searchResponse.text();
+    console.log(`[OCC Fetcher] Search response length: ${responseText.length}`);
+    console.log(`[OCC Fetcher] Response preview: ${responseText.substring(0, 500)}`);
 
-    console.log(`[OCC Fetcher] Search response length: ${html.length}`);
-    console.log(`[OCC Fetcher] Response preview: ${html.substring(0, 2000)}`);
+    if (!searchResponse.ok) {
+      return jsonResponse({
+        success: false,
+        error: `OCC API error: ${searchResponse.status}`,
+        details: responseText.substring(0, 500)
+      }, 500);
+    }
 
-    // 2. Parse results
-    const results = parseOCCSearchResults(html);
+    // Parse the JSON response
+    let searchData: any;
+    try {
+      searchData = JSON.parse(responseText);
+    } catch (e) {
+      return jsonResponse({
+        success: false,
+        error: 'Failed to parse OCC API response',
+        details: responseText.substring(0, 500)
+      }, 500);
+    }
 
-    console.log(`[OCC Fetcher] Found ${results.length} orders`);
+    // Response structure: { d: { results: [...], totalResults: N } }
+    const results: OCCSearchResult[] = searchData?.d?.results || searchData?.results || [];
+    const totalResults = searchData?.d?.totalResults || searchData?.totalResults || results.length;
+
+    console.log(`[OCC Fetcher] Found ${results.length} orders (total: ${totalResults})`);
 
     if (results.length === 0) {
       return jsonResponse({
@@ -241,13 +170,18 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
       }, 404);
     }
 
-    // 3. Select best order (most recent with Entry ID)
-    const order = selectBestOrder(results);
+    // Step 4: Parse results into OCCOrder objects
+    const orders = results.map(parseSearchResult);
+
+    console.log(`[OCC Fetcher] Parsed ${orders.length} orders`);
+
+    // Step 5: Select best order (most recent)
+    const order = selectBestOrder(orders);
 
     if (!order) {
       return jsonResponse({
         success: false,
-        error: 'Orders found but none have downloadable PDFs (missing Entry IDs)',
+        error: 'Orders found but could not determine downloadable PDF',
         caseNumber,
         resultsCount: results.length
       }, 404);
@@ -255,11 +189,26 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
 
     console.log(`[OCC Fetcher] Selected order ${order.orderNumber}, fetching PDF from ${order.pdfUrl}`);
 
-    // 4. Fetch the PDF
-    const pdfResponse = await fetch(order.pdfUrl);
-    const contentType = pdfResponse.headers.get('content-type') || '';
+    // Step 6: Fetch the PDF
+    const pdfResponse = await fetch(order.pdfUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Cookie': cookies
+      }
+    });
 
-    console.log(`[OCC Fetcher] PDF response content-type: ${contentType}`);
+    const contentType = pdfResponse.headers.get('content-type') || '';
+    console.log(`[OCC Fetcher] PDF response content-type: ${contentType}, status: ${pdfResponse.status}`);
+
+    if (!pdfResponse.ok) {
+      return jsonResponse({
+        success: false,
+        error: `Failed to fetch PDF: ${pdfResponse.status}`,
+        caseNumber,
+        orderNumber: order.orderNumber,
+        pdfUrl: order.pdfUrl
+      }, pdfResponse.status);
+    }
 
     if (contentType.includes('text/html')) {
       return jsonResponse({
@@ -273,10 +222,9 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     }
 
     const pdfBlob = await pdfResponse.blob();
-
     console.log(`[OCC Fetcher] Downloaded PDF: ${pdfBlob.size} bytes`);
 
-    // 5. Upload to documents-worker
+    // Step 7: Upload to documents-worker
     const filename = `OCC-${order.orderNumber}-${(order.reliefType || 'Order').replace(/\s+/g, '-')}.pdf`;
 
     const formData = new FormData();
@@ -313,7 +261,7 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
 
     console.log(`[OCC Fetcher] Upload successful: ${uploadResult.document?.id}`);
 
-    // 6. Return success
+    // Step 8: Return success
     const successResponse: any = {
       success: true,
       document: uploadResult.document,
@@ -331,8 +279,8 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     };
 
     // Add note if multiple orders existed
-    if (results.length > 1) {
-      successResponse.note = `This case has ${results.length} orders. Retrieved the most recent (${order.signingDate || order.orderNumber}).`;
+    if (orders.length > 1) {
+      successResponse.note = `This case has ${orders.length} orders. Retrieved the most recent (${order.signingDate || order.orderNumber}).`;
     }
 
     return jsonResponse(successResponse);
@@ -345,6 +293,96 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
+}
+
+/**
+ * Get session cookies from OCC by visiting the site
+ */
+async function getOCCSessionCookies(): Promise<string> {
+  const cookieJar: Map<string, string> = new Map();
+
+  const extractCookies = (response: Response) => {
+    const setCookieHeader = response.headers.get('set-cookie');
+    if (setCookieHeader) {
+      const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
+      for (const cookie of cookies) {
+        const match = cookie.match(/^([^=]+)=([^;]*)/);
+        if (match) {
+          cookieJar.set(match[1].trim(), match[2]);
+        }
+      }
+    }
+  };
+
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+  };
+
+  // Hit the search page to get cookies, following redirects manually
+  let response = await fetch('https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=ImagedCaseDocumentsfiledafter3212022&dbid=0&repo=OCC', {
+    method: 'GET',
+    headers: browserHeaders,
+    redirect: 'manual'
+  });
+  extractCookies(response);
+
+  // Follow redirects to accumulate cookies
+  let location = response.headers.get('location');
+  let maxRedirects = 5;
+
+  while (location && response.status >= 300 && response.status < 400 && maxRedirects > 0) {
+    if (!location.startsWith('http')) {
+      location = 'https://public.occ.ok.gov' + location;
+    }
+
+    response = await fetch(location, {
+      method: 'GET',
+      headers: {
+        ...browserHeaders,
+        'Cookie': Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ')
+      },
+      redirect: 'manual'
+    });
+    extractCookies(response);
+    location = response.headers.get('location');
+    maxRedirects--;
+  }
+
+  return Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+}
+
+/**
+ * Parse OCC search result into OCCOrder
+ */
+function parseSearchResult(result: OCCSearchResult): OCCOrder {
+  const metadata: Record<string, string> = {};
+
+  // Convert metadata array to lookup object
+  for (const item of result.metadata || []) {
+    if (item.keyName && item.value) {
+      metadata[item.keyName] = item.value;
+    }
+  }
+
+  const entryId = String(result.entryId);
+  const orderNumber = result.name || metadata['ECF Order Number'] || '';
+
+  return {
+    entryId,
+    orderNumber,
+    caseNumber: metadata['ECF Case Number'] || '',
+    applicant: metadata['Applicant'],
+    county: metadata['County'],
+    reliefType: metadata['ECF Relief Type'] || metadata['Relief Type'],
+    section: metadata['Section'],
+    township: metadata['Township'],
+    range: metadata['Range'],
+    orderStatus: metadata['Order Status'],
+    signingDate: metadata['Signing Agenda Date'],
+    orderTitle: metadata['Order Title'],
+    pdfUrl: `https://public.occ.ok.gov/WebLink/0/edoc/${entryId}/${orderNumber}.pdf`
+  };
 }
 
 /**
@@ -463,51 +501,6 @@ async function handleFetchPdf(request: Request, env: Env): Promise<Response> {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
-}
-
-function parseOCCSearchResults(html: string): OCCOrder[] {
-  // Check for no results
-  if (html.includes('No results found') || html.includes('Results 0 - 0 of 0')) {
-    return [];
-  }
-
-  // Extract result count
-  const countMatch = html.match(/Results.*?(\d+) - (\d+) of (\d+)/);
-  const totalResults = countMatch ? parseInt(countMatch[3]) : 0;
-
-  if (totalResults === 0) return [];
-
-  // Split by "Fields" to separate individual results
-  const sections = html.split('Fields');
-  const results: OCCOrder[] = [];
-
-  for (let i = 1; i < sections.length; i++) {
-    const section = sections[i];
-
-    const entryId = section.match(/Entry ID:(\d+)/)?.[1];
-    const orderNumber = section.match(/ECF Order Number:(\d+)/)?.[1];
-
-    // Only add if we have the critical Entry ID and Order Number
-    if (entryId && orderNumber) {
-      results.push({
-        entryId,
-        orderNumber,
-        caseNumber: section.match(/(?:ECF )?Case Number:(?:CD)?([\d-]+)/)?.[1] || '',
-        applicant: section.match(/Applicant:([^\s]+)/)?.[1],
-        county: section.match(/County:([^\s]+)/)?.[1],
-        reliefType: section.match(/(?:ECF )?Relief Types?:([A-Za-z\s]+?)(?=[A-Z][a-z]+:|$)/i)?.[1]?.trim(),
-        section: section.match(/Section:(\d+)/)?.[1],
-        township: section.match(/Township:(\w+)/)?.[1],
-        range: section.match(/Range:(\w+)/)?.[1],
-        orderStatus: section.match(/Order Status:(\w+)/)?.[1],
-        signingDate: section.match(/Signing Agenda Date:([\d\/]+)/)?.[1],
-        orderTitle: section.match(/Order Title:([^O]+?)(?:Order Type|$)/)?.[1]?.trim(),
-        pdfUrl: `https://public.occ.ok.gov/WebLink/0/edoc/${entryId}/${orderNumber}.pdf`
-      });
-    }
-  }
-
-  return results;
 }
 
 function selectBestOrder(results: OCCOrder[]): OCCOrder | null {
