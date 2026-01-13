@@ -757,9 +757,21 @@ export default {
         }
 
         // Use display_name if available, otherwise fallback to filename
-        const downloadName = doc.display_name || doc.filename;
+        let downloadName = doc.display_name || doc.filename;
         // Get the correct content type (default to pdf for legacy docs)
         const contentType = doc.content_type || 'application/pdf';
+
+        // Ensure filename has the correct extension based on content type
+        const extensionMap: Record<string, string> = {
+          'application/pdf': '.pdf',
+          'image/jpeg': '.jpg',
+          'image/png': '.png',
+          'image/tiff': '.tiff',
+        };
+        const expectedExt = extensionMap[contentType];
+        if (expectedExt && !downloadName.toLowerCase().endsWith(expectedExt)) {
+          downloadName = downloadName + expectedExt;
+        }
 
         // Return file with appropriate headers
         return new Response(object.body, {
