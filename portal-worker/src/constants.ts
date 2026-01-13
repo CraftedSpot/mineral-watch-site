@@ -23,6 +23,7 @@ export const WELL_LOCATIONS_TABLE = "📍 Well Locations";
 export const BASE_URL = "https://portal.mymineralwatch.com";
 
 // Plan Limits Configuration
+// Note: Additional seats can be purchased separately (TODO: implement seat purchasing)
 export const PLAN_LIMITS = {
   "Free": { properties: 1, wells: 1, activityRecords: 5, seats: 1, docCreditsMonthly: 0, docCreditsBonus: 10 },
   "Starter": { properties: 10, wells: 10, activityRecords: 25, seats: 1, docCreditsMonthly: 10, docCreditsBonus: 75 },
