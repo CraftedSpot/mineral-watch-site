@@ -3952,6 +3952,124 @@
                 return;
             }
 
+            // Restore modal body HTML structure (may have been overwritten by expandActivityCard)
+            document.getElementById('wellModalBody').innerHTML = `
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" id="wellModalStatusBadge">AC</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value" id="wellModalType">—</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge horizontal" id="wellModalDirection">—</span>
+                    </div>
+                </div>
+
+                <!-- Operator -->
+                <div class="info-section">
+                    <div class="section-label">Operator</div>
+                    <div class="section-value" id="wellModalOperator">—</div>
+                    <div class="contact-line" id="wellModalContact"></div>
+                </div>
+
+                <!-- Location / County -->
+                <div class="two-col">
+                    <div class="info-section">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellModalLocation">—</div>
+                    </div>
+                    <div class="info-section">
+                        <div class="section-label">County</div>
+                        <div class="section-value" id="wellModalCounty">—</div>
+                    </div>
+                </div>
+
+                <!-- Production Section (conditionally shown) -->
+                <div class="production-section" id="wellModalProduction" style="display: none;">
+                    <div class="production-header">
+                        <span class="production-title">Production Data</span>
+                        <span class="formation-badge" id="wellModalFormation">—</span>
+                    </div>
+                    <div class="production-grid">
+                        <div class="production-item">
+                            <div class="production-label">IP Gas</div>
+                            <div class="production-value" id="wellModalIPGas">—</div>
+                            <div class="production-unit">MCF/day</div>
+                        </div>
+                        <div class="production-item">
+                            <div class="production-label">IP Oil</div>
+                            <div class="production-value" id="wellModalIPOil">—</div>
+                            <div class="production-unit">BBL/day</div>
+                        </div>
+                        <div class="production-item">
+                            <div class="production-label">Depth</div>
+                            <div class="production-value" id="wellModalDepth">—</div>
+                            <div class="production-unit">ft</div>
+                        </div>
+                    </div>
+                    <div class="dates-row" id="wellModalDates" style="display: none;">
+                        <div class="date-item">
+                            <div class="date-label">Completed</div>
+                            <div class="date-value" id="wellModalCompleted">—</div>
+                        </div>
+                        <div class="date-item">
+                            <div class="date-label">First Prod</div>
+                            <div class="date-value" id="wellModalFirstProd">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Also restore the footer actions structure
+            document.getElementById('wellModalActions').innerHTML = `
+                <div style="display: flex; gap: 10px; flex: 1;">
+                    <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalMapLink" style="flex: 1;">OCC Map ↗</a>
+                    <div class="occ-warning" style="position: relative; flex: 1;">
+                        <a href="#" target="_blank" class="action-btn secondary" id="wellModalRecordsLink" style="width: 100%;">Well Records ↗</a>
+                        <div class="occ-tooltip" style="left: 50%; transform: translateX(-50%);">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="action-btn track-well" id="wellModalTrackBtn" onclick="trackWellFromModal()" style="display: none;">+ Track Well</button>
+                    <button class="action-btn outline" onclick="closeWellModal()">Close</button>
+                </div>
+            `;
+
             const fields = well.fields || {};
             const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
             const apiNumber = fields['API Number'] || 'Unknown';
@@ -4216,7 +4334,432 @@
                 closeWellModal();
             }
         });
-        
+
+        // ============================================
+        // OCC Filings Functions for Map Modal
+        // ============================================
+
+        // State tracking for OCC filing processing
+        const occProcessingStates = {};
+        const OCC_POLL_INTERVAL = 5000;
+        const OCC_MAX_POLL_DURATION = 5 * 60 * 1000;
+
+        // Toggle OCC filings accordion
+        function toggleMapOccFilings() {
+            const content = document.getElementById('map-occ-content');
+            const arrow = document.getElementById('map-occ-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Load OCC filings for the map modal
+        async function loadMapOccFilings(section, township, range, meridian = 'IM') {
+            console.log(`[MapOccFilings] Loading filings for S${section}-T${township}-R${range} ${meridian}`);
+
+            const directContainer = document.getElementById('map-occ-direct');
+            const adjacentContainer = document.getElementById('map-occ-adjacent');
+            const adjacentWrapper = document.getElementById('map-occ-adjacent-wrapper');
+            const emptyMessage = document.getElementById('map-occ-empty');
+            const countBadge = document.getElementById('map-occ-count');
+            const adjacentCountBadge = document.getElementById('map-occ-adjacent-count');
+
+            // Reset
+            directContainer.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
+            adjacentContainer.innerHTML = '';
+            adjacentWrapper.style.display = 'none';
+            emptyMessage.style.display = 'none';
+            countBadge.textContent = '—';
+
+            try {
+                const response = await fetch(
+                    `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
+                    { credentials: 'include' }
+                );
+                const data = await response.json();
+
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load filings');
+                }
+
+                const directFilings = data.direct || [];
+                const adjacentFilings = data.adjacent || [];
+
+                // Update count badge
+                const totalCount = directFilings.length + adjacentFilings.length;
+                countBadge.textContent = String(totalCount);
+
+                if (directFilings.length === 0 && adjacentFilings.length === 0) {
+                    directContainer.innerHTML = '';
+                    emptyMessage.style.display = 'block';
+                    return;
+                }
+
+                // Render direct filings
+                if (directFilings.length > 0) {
+                    directContainer.innerHTML = directFilings.map(filing => renderMapOccFiling(filing, false)).join('');
+                } else {
+                    directContainer.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
+                }
+
+                // Render adjacent filings
+                if (adjacentFilings.length > 0) {
+                    adjacentWrapper.style.display = 'block';
+                    adjacentCountBadge.textContent = String(adjacentFilings.length);
+                    adjacentContainer.innerHTML = adjacentFilings.map(filing => renderMapOccFiling(filing, true)).join('');
+                }
+
+                // Check which filings have already been analyzed
+                const allFilings = [...directFilings, ...adjacentFilings];
+                const analyzableFilings = allFilings.filter(f =>
+                    (f.status === 'HEARD' || f.status === 'RECOMMENDED') && f.caseNumber
+                );
+
+                if (analyzableFilings.length > 0) {
+                    const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
+                    try {
+                        const analyzedResponse = await fetch(
+                            `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
+                            { credentials: 'include' }
+                        );
+                        if (analyzedResponse.ok) {
+                            const analyzedData = await analyzedResponse.json();
+
+                            for (const filing of analyzableFilings) {
+                                const caseNum = filing.caseNumber;
+                                const caseNumClean = caseNum?.replace(/^CD\s*/i, '');
+                                const analyzed = analyzedData[caseNum] ||
+                                               analyzedData[caseNumClean] ||
+                                               analyzedData[`CD${caseNumClean}`];
+
+                                if (analyzed) {
+                                    const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
+                                    const button = document.getElementById(buttonId);
+                                    if (button) {
+                                        const stateKey = filing.orderNumber || filing.caseNumber;
+                                        occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId, buttonEl: button };
+                                        updateMapOccButtonState(button, 'complete', analyzed.documentId, analyzed.displayName);
+                                    }
+                                }
+                            }
+                        }
+                    } catch (err) {
+                        console.log('[MapOccFilings] Could not check analyzed status:', err);
+                    }
+                }
+
+            } catch (error) {
+                console.error('[MapOccFilings] Error loading filings:', error);
+                directContainer.innerHTML = '<div style="color: #dc3545; font-size: 13px; padding: 8px 0;">Error loading filings</div>';
+                countBadge.textContent = '0';
+            }
+        }
+
+        // Render a single OCC filing item
+        function renderMapOccFiling(filing, isAdjacent = false) {
+            const statusClass = getMapOccStatusClass(filing.status);
+            const dateDisplay = formatMapOccDate(filing.hearingDate || filing.docketDate);
+            const isUpcoming = isMapOccHearingUpcoming(filing.hearingDate, filing.status);
+
+            let adjacentNote = '';
+            if (isAdjacent && filing.section) {
+                adjacentNote = `<span class="occ-adjacent-note">S${filing.section}-T${filing.township}-R${filing.range}</span>`;
+            }
+
+            const hasFinalOrder = filing.status === 'HEARD' || filing.status === 'RECOMMENDED';
+            const isPending = filing.status === 'FILED' || filing.status === 'CONTINUED' || filing.status === 'SCHEDULED';
+            const orderNumber = filing.orderNumber || '';
+            const caseNumber = filing.caseNumber || '';
+            const buttonId = `occ-btn-${(orderNumber || caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
+
+            let processButton = '';
+            if (hasFinalOrder && caseNumber) {
+                processButton = `
+                    <div class="occ-filing-actions">
+                        <button
+                            id="${buttonId}"
+                            class="occ-process-btn"
+                            onclick="processMapOccFiling('${escapeHtmlAttr(caseNumber)}', '${escapeHtmlAttr(orderNumber)}', this)"
+                            title="Uses 1 document credit"
+                        >Analyze</button>
+                    </div>
+                `;
+            } else if (isPending) {
+                processButton = `
+                    <div class="occ-filing-actions">
+                        <span class="occ-pending-text" title="Final order not yet available">Pending</span>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="occ-filing-item">
+                    <div class="occ-filing-main">
+                        <div class="occ-filing-type">
+                            ${isUpcoming ? '<span class="occ-hearing-warning" title="Hearing within 30 days">⚠️</span>' : ''}
+                            ${escapeHtmlContent(filing.reliefTypeDisplay)}
+                            ${adjacentNote}
+                        </div>
+                        <div class="occ-filing-applicant">${escapeHtmlContent(filing.applicant) || 'Unknown Applicant'}</div>
+                        <div class="occ-filing-details">
+                            <span class="occ-filing-case">${escapeHtmlContent(filing.caseNumber)}</span>
+                            <span class="occ-filing-status ${statusClass}">${escapeHtmlContent(filing.statusDisplay)}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center;">
+                        ${processButton}
+                        <div class="occ-filing-date">
+                            ${dateDisplay}
+                            ${filing.sourceUrl ? `<a href="${escapeHtmlAttr(filing.sourceUrl)}" target="_blank" class="occ-filing-link" title="View on OCC">↗</a>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Helper functions for OCC filings
+        function getMapOccStatusClass(status) {
+            const statusMap = {
+                'HEARD': 'heard',
+                'RECOMMENDED': 'heard',
+                'CONTINUED': 'continued',
+                'SCHEDULED': 'scheduled',
+                'DISMISSED': 'dismissed',
+                'WITHDRAWN': 'dismissed'
+            };
+            return statusMap[status] || 'filed';
+        }
+
+        function formatMapOccDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function isMapOccHearingUpcoming(dateStr, status) {
+            if (status !== 'SCHEDULED') return false;
+            if (!dateStr) return false;
+            try {
+                const hearingDate = new Date(dateStr);
+                const today = new Date();
+                const daysUntil = (hearingDate - today) / (1000 * 60 * 60 * 24);
+                return daysUntil > 0 && daysUntil <= 30;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function escapeHtmlAttr(str) {
+            if (!str) return '';
+            return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        function escapeHtmlContent(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // Process OCC filing (Analyze button click)
+        async function processMapOccFiling(caseNumber, orderNumber, buttonEl) {
+            const stateKey = orderNumber || caseNumber;
+            console.log(`[MapOccProcess] Processing ${caseNumber} (order: ${orderNumber})`);
+
+            occProcessingStates[stateKey] = { status: 'fetching', buttonEl };
+            updateMapOccButtonState(buttonEl, 'fetching');
+
+            try {
+                const response = await fetch('/api/occ/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ caseNumber, orderNumber })
+                });
+
+                const result = await response.json();
+
+                if (result.alreadyProcessed) {
+                    console.log(`[MapOccProcess] Already processed: ${result.documentId}`);
+                    occProcessingStates[stateKey] = { status: 'complete', documentId: result.documentId, buttonEl };
+                    updateMapOccButtonState(buttonEl, 'complete', result.documentId, result.displayName);
+                } else if (result.success) {
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+                    console.log(`[MapOccProcess] Successfully queued: ${docId}, status: ${docStatus}`);
+
+                    if (docStatus === 'complete') {
+                        occProcessingStates[stateKey] = { status: 'complete', documentId: docId, buttonEl };
+                        updateMapOccButtonState(buttonEl, 'complete', docId);
+                    } else {
+                        occProcessingStates[stateKey] = {
+                            status: docStatus === 'processing' ? 'processing' : 'queued',
+                            documentId: docId,
+                            buttonEl,
+                            pollStartTime: Date.now()
+                        };
+                        updateMapOccButtonState(buttonEl, docStatus === 'processing' ? 'processing' : 'queued');
+                        startMapOccDocumentPolling(stateKey, docId, buttonEl);
+                    }
+                } else if (result.error === 'no_credits') {
+                    console.log(`[MapOccProcess] No credits available`);
+                    occProcessingStates[stateKey] = { status: 'idle', buttonEl };
+                    updateMapOccButtonState(buttonEl, 'idle');
+                    showToast('No credits available. Please upgrade or purchase credits.', 'error');
+                } else {
+                    throw new Error(result.message || result.error || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('[MapOccProcess] Error:', error);
+                occProcessingStates[stateKey] = { status: 'error', buttonEl };
+                updateMapOccButtonState(buttonEl, 'error');
+                showToast('Failed to process filing: ' + error.message, 'error');
+            }
+        }
+
+        // Poll for document status
+        function startMapOccDocumentPolling(stateKey, documentId, buttonEl) {
+            const state = occProcessingStates[stateKey];
+            if (!state || state.pollInterval) return;
+
+            console.log(`[MapOccPoll] Starting polling for ${documentId}`);
+
+            state.pollInterval = setInterval(async () => {
+                const currentState = occProcessingStates[stateKey];
+                if (!currentState) {
+                    clearInterval(state.pollInterval);
+                    return;
+                }
+
+                if (Date.now() - currentState.pollStartTime > OCC_MAX_POLL_DURATION) {
+                    console.log(`[MapOccPoll] Max duration exceeded for ${documentId}`);
+                    clearInterval(currentState.pollInterval);
+                    currentState.pollInterval = null;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${documentId}`, { credentials: 'include' });
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+                    const doc = data.document;
+                    if (!doc) return;
+
+                    console.log(`[MapOccPoll] Document ${documentId} status: ${doc.status}`);
+
+                    if (doc.status === 'complete') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'complete';
+                        updateMapOccButtonState(buttonEl, 'complete', documentId, doc.display_name);
+                        showToast('Document analysis complete!', 'success');
+                    } else if (doc.status === 'processing' && currentState.status !== 'processing') {
+                        currentState.status = 'processing';
+                        updateMapOccButtonState(buttonEl, 'processing');
+                    } else if (doc.status === 'error') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'error';
+                        updateMapOccButtonState(buttonEl, 'error');
+                        showToast('Document processing failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(`[MapOccPoll] Error polling ${documentId}:`, err);
+                }
+            }, OCC_POLL_INTERVAL);
+        }
+
+        // Update OCC button state
+        function updateMapOccButtonState(buttonEl, state, documentId = null, displayName = null) {
+            if (!buttonEl) return;
+
+            buttonEl.classList.remove('processing', 'complete', 'error', 'queued', 'fetching');
+            buttonEl.onclick = null;
+
+            switch (state) {
+                case 'fetching':
+                    buttonEl.classList.add('fetching');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Fetching...';
+                    buttonEl.title = 'Downloading from OCC';
+                    break;
+                case 'queued':
+                    buttonEl.classList.add('queued');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Queued...';
+                    buttonEl.title = 'Waiting for processing';
+                    break;
+                case 'processing':
+                    buttonEl.classList.add('processing');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Processing...';
+                    buttonEl.title = 'Extracting document data';
+                    break;
+                case 'complete':
+                    buttonEl.classList.add('complete');
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = 'Analyzed ✓';
+                    buttonEl.title = 'Click to view in Documents';
+                    if (documentId) {
+                        buttonEl.dataset.documentId = documentId;
+                        buttonEl.onclick = function() {
+                            // Navigate to documents tab with document ID
+                            window.location.href = `/portal?doc=${documentId}`;
+                        };
+                    }
+                    break;
+                case 'error':
+                    buttonEl.classList.add('error');
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = 'Retry';
+                    buttonEl.title = 'Click to retry';
+                    break;
+                default:
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = 'Analyze';
+                    buttonEl.title = 'Uses 1 document credit';
+            }
+        }
+
+        // Track well from modal
+        async function trackWellFromModal() {
+            const apiNumber = document.getElementById('wellModalApiNumber').value;
+            const wellName = document.getElementById('wellModalTitle').textContent;
+            const trackBtn = document.getElementById('wellModalTrackBtn');
+
+            if (!apiNumber || apiNumber === 'Unknown') {
+                showToast('Cannot track well: missing API number', 'error');
+                return;
+            }
+
+            trackBtn.disabled = true;
+            trackBtn.textContent = 'Adding...';
+
+            try {
+                await trackWell(apiNumber, wellName);
+                trackBtn.textContent = '✓ Tracked';
+                trackBtn.style.background = '#10b981';
+                document.getElementById('wellModalIsTracked').value = '1';
+                showToast('Well added to your tracked wells!', 'success');
+            } catch (error) {
+                console.error('Error tracking well:', error);
+                trackBtn.disabled = false;
+                trackBtn.textContent = '+ Track Well';
+                showToast('Failed to track well: ' + error.message, 'error');
+            }
+        }
+
+        // ============================================
+        // End OCC Filings Functions
+        // ============================================
+
         // Format location for modal display (T10N R07W 06 instead of S06 T10N R07W)
         function formatLocationForModal(location) {
             if (!location) return '';
