@@ -728,6 +728,126 @@ function formatLegal(order: OCCOrder): string | undefined {
   return undefined;
 }
 
+/**
+ * Debug endpoint: Search for all documents in a case (without Document Type filter)
+ */
+async function handleSearchCase(request: Request, env: Env): Promise<Response> {
+  let body: { caseNumber: string };
+
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const { caseNumber } = body;
+  if (!caseNumber) {
+    return jsonResponse({ error: 'caseNumber is required' }, 400);
+  }
+
+  try {
+    // Clean case number (remove "CD" prefix if present)
+    const cleanCaseNumber = caseNumber.replace(/^CD\s*/i, '').trim();
+    console.log(`[OCC Search] Searching for all documents in case ${caseNumber} (clean: ${cleanCaseNumber})`);
+
+    // Get session cookies
+    const cookies = await getOCCSessionCookies();
+    console.log(`[OCC Search] Session cookies obtained: ${cookies.substring(0, 80)}...`);
+
+    // Search WITHOUT the Document Type filter - get ALL documents for this case
+    const searchSyntax = `({[]:[ECF Case Number]="${cleanCaseNumber}"} & ({LF:LOOKIN="\\\\AJLS\\\\Judicial & Legislative\\\\ECF"}) & {LF:templateid=52})`;
+    console.log(`[OCC Search] Search syntax: ${searchSyntax}`);
+
+    const searchPayload = {
+      repoName: 'OCC',
+      searchSyn: searchSyntax,
+      searchUuid: '',
+      sortColumn: '',
+      sortAscending: true,
+      startRow: 0,
+      maxRows: 50
+    };
+
+    const searchResponse = await fetch('https://public.occ.ok.gov/WebLink/GetSearchListing', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: JSON.stringify(searchPayload)
+    });
+
+    const searchText = await searchResponse.text();
+    console.log(`[OCC Search] Response length: ${searchText.length}`);
+
+    if (!searchResponse.ok) {
+      return jsonResponse({
+        success: false,
+        error: 'OCC search failed',
+        status: searchResponse.status,
+        response: searchText.substring(0, 500)
+      }, 500);
+    }
+
+    let searchData: any;
+    try {
+      searchData = JSON.parse(searchText);
+    } catch (e) {
+      return jsonResponse({
+        success: false,
+        error: 'Invalid JSON from OCC',
+        response: searchText.substring(0, 500)
+      }, 500);
+    }
+
+    const results = searchData.data?.results || [];
+    console.log(`[OCC Search] Found ${results.length} documents`);
+
+    // Parse all results to see what document types exist
+    const documents = results.map((result: any) => {
+      const metadata: Record<string, string> = {};
+      for (const item of result.metadata || []) {
+        if (item.name && item.values && item.values.length > 0) {
+          metadata[item.name] = item.values[0];
+        }
+      }
+
+      return {
+        entryId: result.entryId,
+        name: result.name,
+        extension: result.extension,
+        documentType: metadata['ECF Document Type'] || 'Unknown',
+        orderNumber: metadata['ECF Order Number'],
+        caseNumber: metadata['ECF Case Number'],
+        applicant: metadata['Applicant'],
+        county: metadata['County'],
+        reliefType: metadata['ECF Relief Type'],
+        docketDate: metadata['ECF Docket Date'],
+        orderStatus: metadata['Order Status'],
+        allMetadata: metadata
+      };
+    });
+
+    return jsonResponse({
+      success: true,
+      caseNumber,
+      cleanCaseNumber,
+      totalDocuments: documents.length,
+      documents,
+      documentTypes: [...new Set(documents.map((d: any) => d.documentType))]
+    });
+
+  } catch (error) {
+    console.error(`[OCC Search] Error:`, error);
+    return jsonResponse({
+      success: false,
+      error: 'Search failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
 function jsonResponse(data: any, status = 200): Response {
   return new Response(JSON.stringify(data, null, 2), {
     status,
