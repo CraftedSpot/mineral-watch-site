@@ -511,7 +511,7 @@ var index_default = {
           // Only try invite verification if auth-worker returned 401/404 (not 400 bad request)
           if (response.status === 401 || response.status === 404) {
             console.log('Trying invite verification as fallback...');
-            return fetch('/api/auth/verify-invite?token=${token}')
+            return fetch('/api/auth/verify-invite?token=' + encodeURIComponent(fullToken))
               .then(inviteResponse => inviteResponse.json())
               .then(data => {
                 console.log('Invite verify response:', data);
