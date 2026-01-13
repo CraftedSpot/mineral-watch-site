@@ -588,11 +588,29 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
       console.error(`❌ Wrong token type: ${tokenData.type}`);
       return jsonResponse({ error: 'Invalid token type' }, 401);
     }
-    
-    // Delete the token (one-time use)
-    await env.AUTH_TOKENS.delete(tokenKey);
-    console.log(`🗑️ Token deleted from KV`);
-    
+
+    // Check if token was already used (for race condition on mobile)
+    if (tokenData.used) {
+      console.log(`⚠️ Token already used, but session was created - returning cached session info`);
+      // Token was already used but user might be retrying - generate new session
+      const { generateSessionToken } = await import('../utils/auth.js');
+      const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
+      return jsonResponse({
+        success: true,
+        sessionToken: sessionToken,
+        email: tokenData.email
+      });
+    }
+
+    // Mark token as used instead of deleting (prevents race condition on mobile)
+    // The token will expire naturally after 72 hours
+    tokenData.used = true;
+    tokenData.usedAt = new Date().toISOString();
+    await env.AUTH_TOKENS.put(tokenKey, JSON.stringify(tokenData), {
+      expirationTtl: 60 * 60 // Keep for 1 hour after use, then auto-delete
+    });
+    console.log(`✅ Token marked as used (will auto-expire in 1 hour)`);
+
     // Generate a session token for the user
     const { generateSessionToken } = await import('../utils/auth.js');
     const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
