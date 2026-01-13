@@ -1,0 +1,8 @@
+name = "occ-fetcher"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+[vars]
+DOCUMENTS_WORKER_URL = "https://documents-worker.photog12.workers.dev"
+
+# Add secret via: wrangler secret put PROCESSING_API_KEY
