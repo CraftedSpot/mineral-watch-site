@@ -643,6 +643,7 @@ For MULTI-UNIT HORIZONTAL WELL ORDERS (Authorization for horizontal wells spanni
 NOTE: These orders allow horizontal wells to cross unit boundaries with specific allocation percentages.
 Look for "MULTI-UNIT HORIZONTAL WELL", "HORIZONTAL WELL ORDER", or multiple sections being included in a single drilling unit.
 Extract allocation percentages for each section/unit.
+IMPORTANT: Include ALL section locations in legal_description.sections array for property matching.
 
 {
   "doc_type": "multi_unit_horizontal_order",
@@ -655,7 +656,11 @@ Extract allocation percentages for each section/unit.
   "operator": "Mewbourne Oil Company",
   "proposed_well_name": "Simmons 0508 5-8-17-17 1MH",
   "legal_description": {
-    "county": "Dewey"
+    "county": "Dewey",
+    "sections": [
+      {"section": "5", "township": "17N", "range": "17W"},
+      {"section": "8", "township": "17N", "range": "17W"}
+    ]
   },
   "unit_sections": [
     {

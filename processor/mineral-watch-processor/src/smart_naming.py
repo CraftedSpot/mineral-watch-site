@@ -573,7 +573,7 @@ def name_multi_unit_horizontal_order(data: Dict[str, Any]) -> str:
     # Sections involved (from unit_sections array)
     unit_sections = data.get('unit_sections')
     if unit_sections and isinstance(unit_sections, list) and len(unit_sections) > 0:
-        # Extract section numbers and create compact format: S5,8-17N-17W
+        # Extract section numbers and create clear format: S17 & S20 - 11N-12W
         section_nums = []
         first_twp = None
         first_rng = None
@@ -588,9 +588,10 @@ def name_multi_unit_horizontal_order(data: Dict[str, Any]) -> str:
                     first_rng = unit.get('range')
 
         if section_nums:
-            sections_str = f"S{','.join(section_nums)}"
+            # Use "S17 & S20" format to clearly show these are separate sections
+            sections_str = " & ".join([f"S{s}" for s in section_nums])
             if first_twp and first_rng:
-                sections_str += f"-{first_twp}-{first_rng}"
+                sections_str += f" - {first_twp}-{first_rng}"
             parts.append(sections_str)
 
     # Primary formation (if available)

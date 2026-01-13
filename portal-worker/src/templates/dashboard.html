@@ -5168,10 +5168,14 @@
                 'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions'],
                 'Well Information': ['well_name', 'api_number', 'well_location', 'operator', 'purchaser', 'owner_number',
                                    'decimal_interest', 'net_revenue_interest', 'unit_name'],
-                'Order Details': ['cd_number', 'order_number', 'cause_number', 'applicant', 'well_cost', 'unit_size_acres',
+                'Order Details': ['cd_number', 'order_number', 'cause_number', 'case_number', 'order_date', 'hearing_date',
+                               'applicant', 'well_cost', 'unit_size_acres',
                                'unit_shape', 'formations', 'election_options', 'election_deadline_days',
                                'additional_wells_authorized', 'existing_wells', 'expiration_date', 'expiration_period',
-                               'amends_order', 'engineering_data', 'allowable_type', 'allowable_notes'],
+                               'amends_order', 'engineering_data', 'allowable_type', 'allowable_notes',
+                               'unit_sections', 'total_unit_acres', 'allocation_method', 'well_type',
+                               'completion_interval', 'referenced_spacing_orders', 'referenced_pooling_orders',
+                               'proposed_well_name', 'previous_operator', 'new_operator', 'transfer_date', 'affected_wells'],
                 'Document References': ['related_documents', 'exhibits', 'prior_instruments', 'original_lease_reference',
                                       'original_document_reference', 'original_lease_date', 'original_document_date'],
                 'Title & Warranties': ['warranty_type', 'source_of_title', 'warranty_of_title', 'warranty_scope'],
@@ -5304,19 +5308,42 @@
                         for (const [subField, subValue] of Object.entries(value)) {
                             // Skip confidence fields within legal description
                             const subFieldLower = subField.toLowerCase();
-                            if (subFieldLower.endsWith('_confidence') || 
+                            if (subFieldLower.endsWith('_confidence') ||
                                 subFieldLower.endsWith(' confidence') ||
                                 subFieldLower.includes('confidence_')) {
                                 continue;
                             }
-                            
+
                             if (subValue !== null && subValue !== undefined && subValue !== '') {
-                                sectionContent += `
-                                    <div class="doc-field">
-                                        <label>${formatFieldName(subField)}</label>
-                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores)}</div>
-                                    </div>`;
-                                hasVisibleFields = true;
+                                // Special handling for sections array in legal_description
+                                if (subField === 'sections' && Array.isArray(subValue)) {
+                                    sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                    sectionContent += `<label>Locations</label>`;
+                                    sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                    subValue.forEach(loc => {
+                                        if (typeof loc === 'object') {
+                                            const section = loc.section || '';
+                                            const township = loc.township || '';
+                                            const range = loc.range || '';
+                                            const locStr = section ? `Section ${section}` + (township ? ` - ${township}` : '') + (range ? `-${range}` : '') : '';
+                                            if (locStr) {
+                                                sectionContent += `
+                                                    <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 6px 10px;">
+                                                        <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(locStr)}</span>
+                                                    </div>`;
+                                            }
+                                        }
+                                    });
+                                    sectionContent += `</div></div>`;
+                                    hasVisibleFields = true;
+                                } else {
+                                    sectionContent += `
+                                        <div class="doc-field">
+                                            <label>${formatFieldName(subField)}</label>
+                                            <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores)}</div>
+                                        </div>`;
+                                    hasVisibleFields = true;
+                                }
                             }
                         }
                     } else if (Array.isArray(value)) {
@@ -5426,6 +5453,65 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'unit_sections') {
+                                // Special handling for multi-unit horizontal well sections
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(unit => {
+                                    if (typeof unit === 'object') {
+                                        const section = unit.section || '';
+                                        const township = unit.township || '';
+                                        const range = unit.range || '';
+                                        const allocation = unit.allocation_percentage;
+                                        const acres = unit.acres;
+                                        const spacingOrder = unit.spacing_order;
+
+                                        const locationStr = section ? `Section ${section}` + (township ? ` - ${township}` : '') + (range ? `-${range}` : '') : 'Unknown Section';
+
+                                        sectionContent += `
+                                            <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px 12px;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(locationStr)}</span>
+                                                    ${allocation !== undefined ? `<span style="background: #DBEAFE; color: #1E40AF; padding: 2px 8px; border-radius: 4px; font-size: 12px;">${allocation}% Allocation</span>` : ''}
+                                                </div>
+                                                ${acres || spacingOrder ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">
+                                                    ${acres ? `${acres} acres` : ''}
+                                                    ${acres && spacingOrder ? ' • ' : ''}
+                                                    ${spacingOrder ? `Spacing Order: ${spacingOrder}` : ''}
+                                                </div>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px 12px;">
+                                                <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(unit))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'affected_wells') {
+                                // Special handling for change of operator affected wells
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(well => {
+                                    if (typeof well === 'object') {
+                                        const wellName = well.well_name || well.name || '';
+                                        const apiNumber = well.api_number || '';
+                                        const legalLoc = well.legal_location || '';
+
+                                        sectionContent += `
+                                            <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px 12px;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <span style="font-weight: 500; color: #92400E;">${escapeHtml(wellName || 'Unknown Well')}</span>
+                                                    ${apiNumber ? `<span style="color: #6B7280; font-size: 12px;">API: ${escapeHtml(apiNumber)}</span>` : ''}
+                                                </div>
+                                                ${legalLoc ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(legalLoc)}</div>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px 12px;">
+                                                <span style="font-weight: 500; color: #92400E;">${escapeHtml(String(well))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
                             } else {
                                 // Regular array
                                 sectionContent += `<ul style="margin: 8px 0; padding-left: 20px;">`;
@@ -5446,15 +5532,33 @@
                                 <div class="doc-value">${value ? 'Yes' : 'No'}${getConfidenceIndicator(fieldName, fieldScores)}</div>
                             </div>`;
                     } else if (typeof value === 'object' && value !== null) {
-                        // Handle nested objects (like grantor/grantee)
-                        for (const [subField, subValue] of Object.entries(value)) {
-                            if (subValue !== null && subValue !== undefined && subValue !== '') {
-                                hasVisibleFields = true;
-                                sectionContent += `
-                                    <div class="doc-field">
-                                        <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
-                                        <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
-                                    </div>`;
+                        // Special handling for completion_interval
+                        if (fieldName === 'completion_interval') {
+                            hasVisibleFields = true;
+                            const topDepth = value.top_depth;
+                            const bottomDepth = value.bottom_depth;
+                            const length = value.length || value.lateral_length;
+
+                            sectionContent += `
+                                <div class="doc-field">
+                                    <label>Completion Interval</label>
+                                    <div style="background: #F3E8FF; border: 1px solid #A855F7; border-radius: 6px; padding: 10px 12px;">
+                                        ${topDepth !== undefined && bottomDepth !== undefined ?
+                                            `<div style="font-weight: 500; color: #7C3AED;">${topDepth.toLocaleString()}' - ${bottomDepth.toLocaleString()}'</div>` : ''}
+                                        ${length ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Length: ${length.toLocaleString()}'</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else {
+                            // Handle other nested objects (like grantor/grantee)
+                            for (const [subField, subValue] of Object.entries(value)) {
+                                if (subValue !== null && subValue !== undefined && subValue !== '') {
+                                    hasVisibleFields = true;
+                                    sectionContent += `
+                                        <div class="doc-field">
+                                            <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
+                                            <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
+                                        </div>`;
+                                }
                             }
                         }
                     } else {
