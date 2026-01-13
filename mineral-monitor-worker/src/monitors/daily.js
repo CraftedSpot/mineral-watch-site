@@ -6,7 +6,7 @@
  *   3. Preloads recent alerts for O(1) dedup checking
  */
 
-import { fetchOCCFile } from '../services/occ.js';
+import { fetchOCCFile, checkDataFreshness } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
 import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
 import {
