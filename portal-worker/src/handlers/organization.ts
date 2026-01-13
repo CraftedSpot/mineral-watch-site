@@ -4,13 +4,13 @@
  * Manages organization data and member management for Enterprise/Professional plans
  */
 
-import { 
+import {
   BASE_ID,
   ORGANIZATION_TABLE,
   USERS_TABLE,
   CORS_HEADERS,
   BASE_URL,
-  TOKEN_EXPIRY
+  INVITE_TOKEN_EXPIRY
 } from '../constants.js';
 
 import { 
@@ -255,7 +255,7 @@ export async function handleInviteMember(request: Request, env: Env) {
         await env.AUTH_TOKENS.put(
           tokenKey,
           JSON.stringify(tokenData),
-          { expirationTtl: TOKEN_EXPIRY / 1000 }
+          { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 }
         );
         
         // Verify it was stored
@@ -334,7 +334,7 @@ export async function handleInviteMember(request: Request, env: Env) {
       await env.AUTH_TOKENS.put(
         tokenKey,
         JSON.stringify(tokenData),
-        { expirationTtl: TOKEN_EXPIRY / 1000 }
+        { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 }
       );
       
       // Verify it was stored
@@ -414,7 +414,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     await env.AUTH_TOKENS.put(
       tokenKey,
       JSON.stringify(tokenData),
-      { expirationTtl: TOKEN_EXPIRY / 1000 } // 24 hours
+      { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 } // 72 hours
     );
     
     // Verify it was stored
