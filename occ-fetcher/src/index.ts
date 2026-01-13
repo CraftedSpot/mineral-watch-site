@@ -28,6 +28,11 @@ export default {
       return handleFetchOrder(request, env);
     }
 
+    // Alternative: Direct PDF URL upload (bypasses OCC search)
+    if (url.pathname === '/fetch-pdf') {
+      return handleFetchPdf(request, env);
+    }
+
     return jsonResponse({ error: 'Not found' }, 404);
   }
 };
@@ -85,21 +90,81 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     // OCC uses ASP.NET which requires __VIEWSTATE and __EVENTVALIDATION
     const searchUrl = 'https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=ImagedCaseDocumentsfiledafter3212022&dbid=0&repo=OCC';
 
-    // Step 1: GET the search page to extract hidden fields and cookies
-    const browserHeaders = {
+    // Step 1: Handle OCC's cookie check flow with manual redirect following
+    const browserHeaders: Record<string, string> = {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
       'Accept-Language': 'en-US,en;q=0.5'
     };
 
-    const initResponse = await fetch(searchUrl, {
+    // Cookie jar to accumulate cookies across requests
+    const cookieJar: Map<string, string> = new Map();
+
+    // Helper to extract and store cookies
+    function extractCookies(response: Response) {
+      const setCookieHeader = response.headers.get('set-cookie');
+      if (setCookieHeader) {
+        // Handle multiple cookies in one header (comma-separated)
+        const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
+        for (const cookie of cookies) {
+          const match = cookie.match(/^([^=]+)=([^;]*)/);
+          if (match) {
+            cookieJar.set(match[1].trim(), match[2]);
+          }
+        }
+      }
+    }
+
+    function getCookieString(): string {
+      return Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    }
+
+    // Step 1a: Hit the search URL - it will redirect to CookieCheck
+    console.log(`[OCC Fetcher] Step 1: Initial request to search URL`);
+    let response = await fetch(searchUrl, {
       method: 'GET',
       headers: browserHeaders,
-      redirect: 'follow'
+      redirect: 'manual'
     });
+    extractCookies(response);
+    console.log(`[OCC Fetcher] Cookies after step 1: ${cookieJar.size}`);
 
-    const initHtml = await initResponse.text();
-    const cookies = initResponse.headers.get('set-cookie') || '';
+    // Step 1b: Follow redirect to CookieCheck if needed
+    let location = response.headers.get('location');
+    if (location && response.status >= 300 && response.status < 400) {
+      if (!location.startsWith('http')) {
+        location = 'https://public.occ.ok.gov' + location;
+      }
+      console.log(`[OCC Fetcher] Step 2: Following redirect to ${location.substring(0, 80)}...`);
+
+      response = await fetch(location, {
+        method: 'GET',
+        headers: { ...browserHeaders, 'Cookie': getCookieString() },
+        redirect: 'manual'
+      });
+      extractCookies(response);
+      console.log(`[OCC Fetcher] Cookies after step 2: ${cookieJar.size}`);
+
+      // Check for another redirect
+      location = response.headers.get('location');
+      if (location && response.status >= 300 && response.status < 400) {
+        if (!location.startsWith('http')) {
+          location = 'https://public.occ.ok.gov' + location;
+        }
+        console.log(`[OCC Fetcher] Step 3: Following redirect to ${location.substring(0, 80)}...`);
+
+        response = await fetch(location, {
+          method: 'GET',
+          headers: { ...browserHeaders, 'Cookie': getCookieString() },
+          redirect: 'manual'
+        });
+        extractCookies(response);
+        console.log(`[OCC Fetcher] Cookies after step 3: ${cookieJar.size}`);
+      }
+    }
+
+    const initHtml = await response.text();
+    const cookies = getCookieString();
 
     console.log(`[OCC Fetcher] Initial page length: ${initHtml.length}`);
 
@@ -111,12 +176,30 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     console.log(`[OCC Fetcher] ViewState found: ${viewState.length > 0}, EventValidation found: ${eventValidation.length > 0}`);
 
     if (!viewState) {
-      console.log(`[OCC Fetcher] Page preview: ${initHtml.substring(0, 1000)}`);
-      return jsonResponse({
-        success: false,
-        error: 'Could not extract form fields from OCC search page',
-        debug: initHtml.substring(0, 500)
-      }, 500);
+      // Try alternate regex patterns
+      const viewStateAlt = initHtml.match(/name="__VIEWSTATE"[^>]*value="([^"]*)"/)?.[1] || '';
+      console.log(`[OCC Fetcher] Alt ViewState found: ${viewStateAlt.length > 0}`);
+      console.log(`[OCC Fetcher] Page length: ${initHtml.length}`);
+      console.log(`[OCC Fetcher] Has form: ${initHtml.includes('<form')}`);
+      console.log(`[OCC Fetcher] Has Input0: ${initHtml.includes('Input0')}`);
+
+      // Find where the form fields are
+      const formIndex = initHtml.indexOf('<form');
+      const inputIndex = initHtml.indexOf('Input0');
+      console.log(`[OCC Fetcher] Form at: ${formIndex}, Input0 at: ${inputIndex}`);
+
+      if (viewStateAlt) {
+        // Use the alternate pattern
+        console.log(`[OCC Fetcher] Using alternate viewstate pattern`);
+      } else {
+        return jsonResponse({
+          success: false,
+          error: 'Could not extract form fields from OCC search page',
+          pageLength: initHtml.length,
+          hasForm: initHtml.includes('<form'),
+          debug: initHtml.substring(0, 1500)
+        }, 500);
+      }
     }
 
     // Step 2: POST search with hidden fields and cookies
@@ -128,13 +211,12 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Input3', 'Final Order'); // Try without the "39:" prefix
     searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Submit', 'Search');
 
-    const cookieHeader = cookies.split(',').map(c => c.split(';')[0]).join('; ');
-
     const searchResponse = await fetch(searchUrl, {
       method: 'POST',
       headers: {
+        ...browserHeaders,
         'Content-Type': 'application/x-www-form-urlencoded',
-        'Cookie': cookieHeader
+        'Cookie': cookies
       },
       body: searchFormData.toString(),
       redirect: 'follow'
@@ -232,7 +314,7 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     console.log(`[OCC Fetcher] Upload successful: ${uploadResult.document?.id}`);
 
     // 6. Return success
-    const response: any = {
+    const successResponse: any = {
       success: true,
       document: uploadResult.document,
       order: {
@@ -250,16 +332,134 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
 
     // Add note if multiple orders existed
     if (results.length > 1) {
-      response.note = `This case has ${results.length} orders. Retrieved the most recent (${order.signingDate || order.orderNumber}).`;
+      successResponse.note = `This case has ${results.length} orders. Retrieved the most recent (${order.signingDate || order.orderNumber}).`;
     }
 
-    return jsonResponse(response);
+    return jsonResponse(successResponse);
 
   } catch (error) {
     console.error(`[OCC Fetcher] Error:`, error);
     return jsonResponse({
       success: false,
       error: 'Failed to fetch order from OCC',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
+ * Handle direct PDF fetch - bypasses OCC search when we already have the URL
+ * Used when alerts already contain document URLs
+ */
+interface FetchPdfRequest {
+  pdfUrl: string;
+  userId: string;
+  userPlan?: string;
+  organizationId?: string;
+  wellApiNumber?: string;
+  filename?: string;
+}
+
+async function handleFetchPdf(request: Request, env: Env): Promise<Response> {
+  let body: FetchPdfRequest;
+
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const { pdfUrl, userId, userPlan, organizationId, wellApiNumber, filename } = body;
+
+  if (!pdfUrl || !userId) {
+    return jsonResponse({ error: 'pdfUrl and userId are required' }, 400);
+  }
+
+  // Validate URL is from OCC
+  if (!pdfUrl.includes('occ.ok.gov')) {
+    return jsonResponse({ error: 'URL must be from occ.ok.gov domain' }, 400);
+  }
+
+  try {
+    console.log(`[OCC Fetcher] Fetching PDF from ${pdfUrl}`);
+
+    const pdfResponse = await fetch(pdfUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      }
+    });
+
+    if (!pdfResponse.ok) {
+      return jsonResponse({
+        success: false,
+        error: `Failed to fetch PDF: ${pdfResponse.status} ${pdfResponse.statusText}`,
+        pdfUrl
+      }, pdfResponse.status);
+    }
+
+    const contentType = pdfResponse.headers.get('content-type') || '';
+    if (!contentType.includes('pdf')) {
+      return jsonResponse({
+        success: false,
+        error: 'URL did not return a PDF',
+        contentType,
+        pdfUrl
+      }, 400);
+    }
+
+    const pdfBlob = await pdfResponse.blob();
+    console.log(`[OCC Fetcher] Downloaded PDF: ${pdfBlob.size} bytes`);
+
+    // Generate filename from URL if not provided
+    const defaultFilename = pdfUrl.split('/').pop() || `occ-document-${Date.now()}.pdf`;
+    const finalFilename = filename || defaultFilename;
+
+    // Upload to documents-worker
+    const formData = new FormData();
+    formData.append('file', pdfBlob, finalFilename);
+    formData.append('userId', userId);
+    if (userPlan) formData.append('userPlan', userPlan);
+    if (organizationId) formData.append('organizationId', organizationId);
+    formData.append('sourceType', 'occ_direct');
+    if (wellApiNumber) formData.append('sourceApi', wellApiNumber);
+    formData.append('originalUrl', pdfUrl);
+    formData.append('filename', finalFilename);
+
+    console.log(`[OCC Fetcher] Uploading to documents-worker as ${finalFilename}`);
+
+    const uploadResponse = await fetch(
+      `${env.DOCUMENTS_WORKER_URL}/api/documents/upload-external`,
+      {
+        method: 'POST',
+        headers: { 'X-API-Key': env.PROCESSING_API_KEY },
+        body: formData
+      }
+    );
+
+    const uploadResult = await uploadResponse.json() as any;
+
+    if (!uploadResponse.ok) {
+      return jsonResponse({
+        success: false,
+        error: 'Failed to upload document for processing',
+        details: uploadResult
+      }, 500);
+    }
+
+    console.log(`[OCC Fetcher] Upload successful: ${uploadResult.document?.id}`);
+
+    return jsonResponse({
+      success: true,
+      document: uploadResult.document,
+      pdfUrl,
+      filename: finalFilename
+    });
+
+  } catch (error) {
+    console.error(`[OCC Fetcher] Error:`, error);
+    return jsonResponse({
+      success: false,
+      error: 'Failed to fetch PDF',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
