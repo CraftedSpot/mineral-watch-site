@@ -699,14 +699,14 @@ var index_default = {
       
       // Proxy documents endpoints to documents-worker
       if (path.startsWith("/api/documents")) {
-        console.log(`[Portal] Proxying documents request: ${path}`);
+        console.log(`[Portal] Proxying documents request: ${path}${url.search}`);
         if (!env.DOCUMENTS_WORKER) {
           return jsonResponse({ error: 'Documents service not available' }, 503);
         }
-        
+
         try {
-          // Create new request with full URL for service binding
-          const documentsUrl = new URL(path, request.url);
+          // Create new request with full URL for service binding (include query params!)
+          const documentsUrl = new URL(path + url.search, request.url);
           const documentsRequest = new Request(documentsUrl.toString(), {
             method: request.method,
             headers: request.headers,
