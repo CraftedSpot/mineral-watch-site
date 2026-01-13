@@ -2273,22 +2273,144 @@
     </main>
     <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
 
-    <!-- Well Detail Modal -->
+    <!-- Well Detail Modal - Dashboard Style -->
     <div class="well-modal-overlay" id="wellModal">
         <div class="well-modal">
+            <!-- Header with Blue Gradient -->
             <div class="well-modal-header">
-                <div>
+                <div style="flex: 1;">
                     <h3 class="well-modal-title" id="wellModalTitle">Well Name</h3>
-                    <div class="well-modal-subtitle" id="wellModalSubtitle">API Number</div>
+                    <div class="well-modal-subtitle" id="wellModalSubtitle">API: —</div>
                 </div>
                 <button class="well-modal-close" onclick="closeWellModal()">&times;</button>
             </div>
+
+            <!-- Content Body (scrollable) -->
             <div class="well-modal-body" id="wellModalBody">
-                <!-- Dynamic content inserted here -->
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" id="wellModalStatusBadge">AC</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value" id="wellModalType">—</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge horizontal" id="wellModalDirection">—</span>
+                    </div>
+                </div>
+
+                <!-- Operator -->
+                <div class="info-section">
+                    <div class="section-label">Operator</div>
+                    <div class="section-value" id="wellModalOperator">—</div>
+                    <div class="contact-line" id="wellModalContact"></div>
+                </div>
+
+                <!-- Location / County -->
+                <div class="two-col">
+                    <div class="info-section">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellModalLocation">—</div>
+                    </div>
+                    <div class="info-section">
+                        <div class="section-label">County</div>
+                        <div class="section-value" id="wellModalCounty">—</div>
+                    </div>
+                </div>
+
+                <!-- Production Section (conditionally shown) -->
+                <div class="production-section" id="wellModalProduction" style="display: none;">
+                    <div class="production-header">
+                        <span class="production-title">Production Data</span>
+                        <span class="formation-badge" id="wellModalFormation">—</span>
+                    </div>
+                    <div class="production-grid">
+                        <div class="production-item">
+                            <div class="production-label">IP Gas</div>
+                            <div class="production-value" id="wellModalIPGas">—</div>
+                            <div class="production-unit">MCF/day</div>
+                        </div>
+                        <div class="production-item">
+                            <div class="production-label">IP Oil</div>
+                            <div class="production-value" id="wellModalIPOil">—</div>
+                            <div class="production-unit">BBL/day</div>
+                        </div>
+                        <div class="production-item">
+                            <div class="production-label">Depth</div>
+                            <div class="production-value" id="wellModalDepth">—</div>
+                            <div class="production-unit">ft</div>
+                        </div>
+                    </div>
+                    <div class="dates-row" id="wellModalDates" style="display: none;">
+                        <div class="date-item">
+                            <div class="date-label">Completed</div>
+                            <div class="date-value" id="wellModalCompleted">—</div>
+                        </div>
+                        <div class="date-item">
+                            <div class="date-label">First Prod</div>
+                            <div class="date-value" id="wellModalFirstProd">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
             </div>
+
+            <!-- Footer Actions -->
             <div class="well-modal-actions" id="wellModalActions">
-                <!-- Dynamic actions inserted here -->
+                <div style="display: flex; gap: 10px; flex: 1;">
+                    <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalMapLink" style="flex: 1;">OCC Map ↗</a>
+                    <div class="occ-warning" style="position: relative; flex: 1;">
+                        <a href="#" target="_blank" class="action-btn secondary" id="wellModalRecordsLink" style="width: 100%;">Well Records ↗</a>
+                        <div class="occ-tooltip" style="left: 50%; transform: translateX(-50%);">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button class="action-btn track-well" id="wellModalTrackBtn" onclick="trackWellFromModal()" style="display: none;">+ Track Well</button>
+                    <button class="action-btn outline" onclick="closeWellModal()">Close</button>
+                </div>
             </div>
+
+            <!-- Hidden fields for state -->
+            <input type="hidden" id="wellModalWellId">
+            <input type="hidden" id="wellModalApiNumber">
+            <input type="hidden" id="wellModalIsTracked">
+            <input type="hidden" id="wellModalSection">
+            <input type="hidden" id="wellModalTownship">
+            <input type="hidden" id="wellModalRange">
+            <input type="hidden" id="wellModalMeridian">
         </div>
     </div>
 
