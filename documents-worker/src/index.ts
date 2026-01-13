@@ -1804,7 +1804,6 @@ export default {
         const body = await request.json() as {
           r2Key: string;
           userId: string;
-          userPlan?: string;
           organizationId?: string;
           filename: string;
           fileSize: number;
@@ -1833,6 +1832,16 @@ export default {
         if (!r2Object) {
           return errorResponse('File not found in R2 storage', 404, env);
         }
+
+        // Look up user's actual plan from credit balance table
+        let userPlan = 'Free';
+        const creditBalance = await env.WELLS_DB.prepare(`
+          SELECT current_plan FROM user_credit_balance WHERE user_id = ?
+        `).bind(userId).first();
+        if (creditBalance && creditBalance.current_plan) {
+          userPlan = creditBalance.current_plan as string;
+        }
+        console.log(`[External Register] User ${userId} plan: ${userPlan}`);
 
         // Generate unique document ID
         const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
