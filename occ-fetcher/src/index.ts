@@ -35,6 +35,11 @@ export default {
       return handleFetchPdf(request, env);
     }
 
+    // Debug endpoint: Search case without document type filter
+    if (url.pathname === '/search-case') {
+      return handleSearchCase(request, env);
+    }
+
     return jsonResponse({ error: 'Not found' }, 404);
   }
 };
