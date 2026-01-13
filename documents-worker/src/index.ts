@@ -273,6 +273,8 @@ export default {
         const placeholders = caseNumbers.map(() => '?').join(',');
         const cleanCaseNumbers = caseNumbers.map(c => c.replace(/^CD\s*/i, ''));
 
+        console.log(`[by-occ-cases] User: ${user.id}, searching for: ${cleanCaseNumbers.join(', ')}`);
+
         const results = await env.WELLS_DB.prepare(`
           SELECT
             id,
@@ -284,6 +286,8 @@ export default {
           AND deleted_at IS NULL
           AND json_extract(source_metadata, '$.caseNumber') IN (${placeholders})
         `).bind(user.id, ...cleanCaseNumbers).all();
+
+        console.log(`[by-occ-cases] Found ${results.results?.length || 0} documents`);
 
         // Build response map: { caseNumber: { documentId, displayName, status } }
         const analyzed: Record<string, { documentId: string; displayName: string; status: string }> = {};

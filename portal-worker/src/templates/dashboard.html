@@ -8546,23 +8546,34 @@
 
                 if (analyzableFilings.length > 0) {
                     const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
+                    console.log('[OccFilings] Checking analyzed status for:', caseNumbers);
                     try {
                         const analyzedResponse = await fetch(
                             `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
                             { credentials: 'include' }
                         );
                         const analyzedData = await analyzedResponse.json();
+                        console.log('[OccFilings] Analyzed data:', analyzedData);
 
                         // Update buttons for already-analyzed filings
                         for (const filing of analyzableFilings) {
-                            const analyzed = analyzedData[filing.caseNumber] || analyzedData[filing.caseNumber?.replace(/^CD\s*/i, '')];
+                            // Try multiple matching strategies
+                            const caseNum = filing.caseNumber;
+                            const caseNumClean = caseNum?.replace(/^CD\s*/i, '');
+                            const analyzed = analyzedData[caseNum] ||
+                                           analyzedData[caseNumClean] ||
+                                           analyzedData[`CD${caseNumClean}`];
+
+                            console.log(`[OccFilings] Filing ${caseNum}: analyzed =`, analyzed);
+
                             if (analyzed) {
                                 const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
                                 const button = document.getElementById(buttonId);
+                                console.log(`[OccFilings] Button ${buttonId}:`, button ? 'found' : 'NOT FOUND');
                                 if (button) {
                                     // Update in-memory state
                                     const stateKey = filing.orderNumber || filing.caseNumber;
-                                    occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId };
+                                    occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId, buttonEl: button };
                                     // Update button to analyzed state
                                     updateOccButtonState(button, 'complete', analyzed.documentId, analyzed.displayName);
                                 }
