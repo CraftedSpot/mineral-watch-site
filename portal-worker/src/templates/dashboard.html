@@ -487,9 +487,11 @@
         }
         .occ-process-btn:hover { background: #1d4ed8; }
         .occ-process-btn:disabled { background: #94a3b8; cursor: not-allowed; }
-        .occ-process-btn.processing { background: #6366f1; }
-        .occ-process-btn.complete { background: #10b981; }
-        .occ-process-btn.error { background: #ef4444; }
+        .occ-process-btn.fetching { background: #8b5cf6; } /* purple - fetching from OCC */
+        .occ-process-btn.queued { background: #f59e0b; } /* amber - waiting in queue */
+        .occ-process-btn.processing { background: #6366f1; } /* indigo - processing */
+        .occ-process-btn.complete { background: #10b981; } /* green - complete */
+        .occ-process-btn.error { background: #ef4444; } /* red - error */
         .occ-process-btn .spinner-sm {
             display: inline-block;
             width: 12px;
@@ -8267,15 +8269,17 @@
         // OCC Filings Functions
 
         // State tracking for OCC filing processing
-        const occProcessingStates = {}; // { caseNumber: { status: 'idle'|'processing'|'complete'|'error', documentId?: string } }
+        const occProcessingStates = {}; // { stateKey: { status, documentId, buttonEl, pollInterval } }
+        const OCC_POLL_INTERVAL = 5000; // 5 seconds
+        const OCC_MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
 
         async function processOccFiling(caseNumber, orderNumber, buttonEl) {
             const stateKey = orderNumber || caseNumber;
             console.log(`[OCC Process] Processing ${caseNumber} (order: ${orderNumber})`);
 
-            // Update button to processing state
-            occProcessingStates[stateKey] = { status: 'processing' };
-            updateOccButtonState(buttonEl, 'processing');
+            // Update button to fetching state
+            occProcessingStates[stateKey] = { status: 'fetching', buttonEl };
+            updateOccButtonState(buttonEl, 'fetching');
 
             try {
                 const response = await fetch('/api/occ/fetch', {
@@ -8289,21 +8293,36 @@
 
                 if (result.alreadyProcessed) {
                     console.log(`[OCC Process] Already processed: ${result.documentId}`);
-                    occProcessingStates[stateKey] = { status: 'complete', documentId: result.documentId };
+                    occProcessingStates[stateKey] = { status: 'complete', documentId: result.documentId, buttonEl };
                     updateOccButtonState(buttonEl, 'complete', result.documentId, result.displayName);
                 } else if (result.success) {
-                    console.log(`[OCC Process] Successfully queued: ${result.document.id}`);
-                    occProcessingStates[stateKey] = { status: 'complete', documentId: result.document.id };
-                    updateOccButtonState(buttonEl, 'complete', result.document.id);
-                    // Update credits display if we have the function
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+                    console.log(`[OCC Process] Successfully queued: ${docId}, status: ${docStatus}`);
+
+                    // Update credits display
                     if (typeof updateCreditsDisplay === 'function') {
                         updateCreditsDisplay(result.creditsRemaining);
                     }
-                    // Show success notification
-                    showToast('Document queued for analysis', 'success');
+
+                    // Check initial status and start polling if not complete
+                    if (docStatus === 'complete') {
+                        occProcessingStates[stateKey] = { status: 'complete', documentId: docId, buttonEl };
+                        updateOccButtonState(buttonEl, 'complete', docId);
+                    } else {
+                        // Start polling for document status
+                        occProcessingStates[stateKey] = {
+                            status: docStatus === 'processing' ? 'processing' : 'queued',
+                            documentId: docId,
+                            buttonEl,
+                            pollStartTime: Date.now()
+                        };
+                        updateOccButtonState(buttonEl, docStatus === 'processing' ? 'processing' : 'queued');
+                        startOccDocumentPolling(stateKey, docId, buttonEl);
+                    }
                 } else if (result.error === 'no_credits') {
                     console.log(`[OCC Process] No credits available`);
-                    occProcessingStates[stateKey] = { status: 'idle' };
+                    occProcessingStates[stateKey] = { status: 'idle', buttonEl };
                     updateOccButtonState(buttonEl, 'idle');
                     showToast('No credits available. Please upgrade or purchase credits.', 'error');
                 } else {
@@ -8311,24 +8330,112 @@
                 }
             } catch (error) {
                 console.error('[OCC Process] Error:', error);
-                occProcessingStates[stateKey] = { status: 'error' };
+                occProcessingStates[stateKey] = { status: 'error', buttonEl };
                 updateOccButtonState(buttonEl, 'error');
                 showToast('Failed to process filing: ' + error.message, 'error');
             }
         }
         window.processOccFiling = processOccFiling;
 
+        function startOccDocumentPolling(stateKey, documentId, buttonEl) {
+            const state = occProcessingStates[stateKey];
+            if (!state || state.pollInterval) return; // Already polling
+
+            console.log(`[OCC Poll] Starting polling for ${documentId}`);
+
+            state.pollInterval = setInterval(async () => {
+                const currentState = occProcessingStates[stateKey];
+                if (!currentState) {
+                    clearInterval(state.pollInterval);
+                    return;
+                }
+
+                // Check if we've exceeded max poll duration
+                if (Date.now() - currentState.pollStartTime > OCC_MAX_POLL_DURATION) {
+                    console.log(`[OCC Poll] Max duration exceeded for ${documentId}`);
+                    clearInterval(currentState.pollInterval);
+                    currentState.pollInterval = null;
+                    // Leave in current state - user can check documents tab
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${documentId}`, {
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        console.log(`[OCC Poll] Error fetching status for ${documentId}`);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    const doc = data.document;
+
+                    if (!doc) return;
+
+                    console.log(`[OCC Poll] Document ${documentId} status: ${doc.status}`);
+
+                    if (doc.status === 'complete') {
+                        // Document processing complete!
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'complete';
+                        updateOccButtonState(buttonEl, 'complete', documentId, doc.display_name);
+                        showToast('Document analysis complete!', 'success');
+                    } else if (doc.status === 'processing' && currentState.status !== 'processing') {
+                        // Transitioned to processing
+                        currentState.status = 'processing';
+                        updateOccButtonState(buttonEl, 'processing');
+                    } else if (doc.status === 'error') {
+                        // Processing failed
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'error';
+                        updateOccButtonState(buttonEl, 'error');
+                        showToast('Document processing failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(`[OCC Poll] Error polling ${documentId}:`, err);
+                }
+            }, OCC_POLL_INTERVAL);
+        }
+
+        function stopAllOccPolling() {
+            for (const key in occProcessingStates) {
+                const state = occProcessingStates[key];
+                if (state.pollInterval) {
+                    clearInterval(state.pollInterval);
+                    state.pollInterval = null;
+                }
+            }
+        }
+
         function updateOccButtonState(buttonEl, state, documentId = null, displayName = null) {
             if (!buttonEl) return;
 
-            // Remove all state classes and old onclick
-            buttonEl.classList.remove('processing', 'complete', 'error');
+            // Remove all state classes and reset onclick
+            buttonEl.classList.remove('processing', 'complete', 'error', 'queued', 'fetching');
+            buttonEl.onclick = null;
 
             switch (state) {
+                case 'fetching':
+                    buttonEl.classList.add('fetching');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Fetching...';
+                    buttonEl.title = 'Downloading from OCC';
+                    break;
+                case 'queued':
+                    buttonEl.classList.add('queued');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Queued...';
+                    buttonEl.title = 'Waiting for processing';
+                    break;
                 case 'processing':
                     buttonEl.classList.add('processing');
                     buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Analyzing...';
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Processing...';
+                    buttonEl.title = 'Extracting document data';
                     break;
                 case 'complete':
                     buttonEl.classList.add('complete');
@@ -8353,6 +8460,7 @@
                     buttonEl.classList.add('error');
                     buttonEl.disabled = false;
                     buttonEl.innerHTML = 'Retry';
+                    buttonEl.title = 'Click to retry';
                     break;
                 default: // idle
                     buttonEl.disabled = false;
