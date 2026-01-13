@@ -332,57 +332,92 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     // Update pdfUrl for the response
     order.pdfUrl = pdfUrl;
 
-    // Step 7: Upload to documents-worker
+    // Step 7: Upload directly to R2 (avoids passing large file between workers)
     const filename = `OCC-${order.orderNumber}-${(order.reliefType || 'Order').replace(/\s+/g, '-')}.pdf`;
+    const r2Key = `uploads/${userId}/${Date.now()}-${filename}`;
 
-    const formData = new FormData();
-    formData.append('file', pdfBlob, filename);
-    formData.append('userId', userId);
-    if (userPlan) formData.append('userPlan', userPlan);
-    if (organizationId) formData.append('organizationId', organizationId);
-    formData.append('sourceType', 'occ_alert');
-    if (wellApiNumber) formData.append('sourceApi', wellApiNumber);
-    formData.append('originalUrl', order.pdfUrl);
-    formData.append('filename', filename);
+    console.log(`[OCC Fetcher] Uploading ${pdfBlob.size} bytes directly to R2 as ${r2Key}`);
 
-    console.log(`[OCC Fetcher] Uploading ${pdfBlob.size} bytes to documents-worker as ${filename}`);
+    // Convert blob to ArrayBuffer for R2
+    const pdfBuffer = await pdfBlob.arrayBuffer();
 
-    const uploadResponse = await fetch(
-      `${env.DOCUMENTS_WORKER_URL}/api/documents/upload-external`,
+    await env.UPLOADS_BUCKET.put(r2Key, pdfBuffer, {
+      httpMetadata: {
+        contentType: 'application/pdf',
+        contentDisposition: `attachment; filename="${filename}"`
+      },
+      customMetadata: {
+        originalFilename: filename,
+        uploadedAt: new Date().toISOString(),
+        source: 'occ-fetcher',
+        caseNumber: order.caseNumber,
+        orderNumber: order.orderNumber
+      }
+    });
+
+    console.log(`[OCC Fetcher] R2 upload complete, registering with documents-worker`);
+
+    // Step 8: Register the document with documents-worker (lightweight JSON call)
+    const registerPayload = {
+      r2Key,
+      userId,
+      userPlan,
+      organizationId,
+      filename,
+      fileSize: pdfBlob.size,
+      contentType: 'application/pdf',
+      sourceType: 'occ_alert',
+      sourceApi: wellApiNumber,
+      originalUrl: order.pdfUrl,
+      metadata: {
+        caseNumber: order.caseNumber,
+        orderNumber: order.orderNumber,
+        applicant: order.applicant,
+        county: order.county,
+        reliefType: order.reliefType,
+        signingDate: order.signingDate
+      }
+    };
+
+    const registerResponse = await fetch(
+      `${env.DOCUMENTS_WORKER_URL}/api/documents/register-external`,
       {
         method: 'POST',
-        headers: { 'X-API-Key': env.PROCESSING_API_KEY },
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': env.PROCESSING_API_KEY
+        },
+        body: JSON.stringify(registerPayload)
       }
     );
 
-    console.log(`[OCC Fetcher] Upload response status: ${uploadResponse.status}`);
+    console.log(`[OCC Fetcher] Register response status: ${registerResponse.status}`);
 
-    const uploadText = await uploadResponse.text();
-    console.log(`[OCC Fetcher] Upload response: ${uploadText.substring(0, 500)}`);
+    const registerText = await registerResponse.text();
+    console.log(`[OCC Fetcher] Register response: ${registerText.substring(0, 500)}`);
 
     let uploadResult: any;
     try {
-      uploadResult = JSON.parse(uploadText);
+      uploadResult = JSON.parse(registerText);
     } catch (e) {
       return jsonResponse({
         success: false,
-        error: 'Invalid response from documents-worker',
-        status: uploadResponse.status,
-        responseText: uploadText.substring(0, 200)
+        error: 'Invalid response from documents-worker registration',
+        status: registerResponse.status,
+        responseText: registerText.substring(0, 200)
       }, 500);
     }
 
-    if (!uploadResponse.ok) {
-      console.error(`[OCC Fetcher] Upload failed:`, uploadResult);
+    if (!registerResponse.ok) {
+      console.error(`[OCC Fetcher] Registration failed:`, uploadResult);
       return jsonResponse({
         success: false,
-        error: 'Failed to upload document for processing',
+        error: 'Failed to register document',
         details: uploadResult
       }, 500);
     }
 
-    console.log(`[OCC Fetcher] Upload successful: ${uploadResult.document?.id}`);
+    console.log(`[OCC Fetcher] Registration successful: ${uploadResult.document?.id}`);
 
     // Step 8: Return success
     const successResponse: any = {
