@@ -1789,6 +1789,104 @@ export default {
       }
     }
 
+    // Route: POST /api/documents/register-external - Register a document already uploaded to R2
+    // Used by occ-fetcher which uploads directly to R2 to avoid large file transfers between workers
+    if (path === '/api/documents/register-external' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      // Ensure all columns exist
+      await ensureProcessingColumns(env);
+
+      try {
+        const body = await request.json() as {
+          r2Key: string;
+          userId: string;
+          userPlan?: string;
+          organizationId?: string;
+          filename: string;
+          fileSize: number;
+          contentType: string;
+          sourceType?: string;
+          sourceApi?: string;
+          originalUrl?: string;
+          metadata?: Record<string, any>;
+        };
+
+        const { r2Key, userId, userPlan = 'Free', organizationId, filename, fileSize, contentType, sourceType, sourceApi, originalUrl, metadata } = body;
+
+        // Validate required fields
+        if (!r2Key) {
+          return errorResponse('r2Key is required', 400, env);
+        }
+        if (!userId) {
+          return errorResponse('userId is required', 400, env);
+        }
+        if (!filename) {
+          return errorResponse('filename is required', 400, env);
+        }
+
+        // Verify the file exists in R2
+        const r2Object = await env.UPLOADS_BUCKET.head(r2Key);
+        if (!r2Object) {
+          return errorResponse('File not found in R2 storage', 404, env);
+        }
+
+        // Generate unique document ID
+        const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+
+        // Build source metadata JSON
+        const sourceMetadata = JSON.stringify({
+          type: sourceType || 'external',
+          api: sourceApi || null,
+          url: originalUrl || null,
+          uploadedAt: new Date().toISOString(),
+          ...metadata
+        });
+
+        console.log(`[External Register] Registering ${filename} for user ${userId}, r2Key: ${r2Key}, source: ${sourceType || 'unknown'}`);
+
+        // Insert into database with pending status
+        await env.WELLS_DB.prepare(`
+          INSERT INTO documents (
+            id, r2_key, filename, original_filename, user_id, organization_id,
+            file_size, status, upload_date, queued_at, user_plan, content_type, source_metadata
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?)
+        `).bind(
+          docId,
+          r2Key,
+          filename,
+          filename,
+          userId,
+          organizationId || null,
+          fileSize || r2Object.size,
+          userPlan,
+          contentType || 'application/pdf',
+          sourceMetadata
+        ).run();
+
+        console.log(`[External Register] Document ${docId} registered successfully. Will be processed by queue.`);
+
+        return jsonResponse({
+          success: true,
+          document: {
+            id: docId,
+            r2Key: r2Key,
+            filename: filename,
+            size: fileSize || r2Object.size,
+            status: 'pending',
+            sourceType: sourceType
+          }
+        }, 200, env);
+
+      } catch (error) {
+        console.error('[External Register] Error:', error);
+        return errorResponse('Registration failed: ' + (error as Error).message, 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
