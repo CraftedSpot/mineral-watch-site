@@ -125,8 +125,18 @@ export async function sendDailySummary(env, results) {
   
   const hasErrors = errors && errors.length > 0;
   const hasFailedEmails = failedEmails.length > 0;
-  const priority = hasErrors || hasFailedEmails ? 'warning' : 'info';
-  
+  const hasStaleData = dataFreshness && (dataFreshness.permits?.isStale || dataFreshness.completions?.isStale);
+  const priority = hasErrors || hasFailedEmails || hasStaleData ? 'warning' : 'info';
+
+  // Format data freshness info
+  let freshnessInfo = '';
+  if (dataFreshness) {
+    freshnessInfo = `
+OCC Data Freshness:
+  - Permits: newest ${dataFreshness.permits?.newestDate || 'N/A'} (${dataFreshness.permits?.daysSinceNewest ?? '?'} days ago)${dataFreshness.permits?.isStale ? ' ⚠️ STALE' : ''}
+  - Completions: newest ${dataFreshness.completions?.newestDate || 'N/A'} (${dataFreshness.completions?.daysSinceNewest ?? '?'} days ago)${dataFreshness.completions?.isStale ? ' ⚠️ STALE' : ''}`;
+  }
+
   const body = `
 Daily Monitor Run Complete
 ==========================
@@ -137,6 +147,7 @@ Status Changes Detected: ${statusChanges || 0}
 Alerts Sent: ${alertsSent || 0}
 Emails Failed: ${failedEmails.reduce((sum, f) => sum + f.totalCount, 0)}
 Duration: ${duration}ms
+${freshnessInfo}
 ${hasErrors ? `\nProcessing Errors (${errors.length}):\n${errors.map(e => `  - ${e}`).join('\n')}` : ''}
 ${hasFailedEmails ? `
 Failed Email Sends:
@@ -148,7 +159,8 @@ ACTION REQUIRED: Check Postmark logs and Activity Log for details.` : ''}
 ${!hasErrors && !hasFailedEmails ? 'No action required.' : ''}
   `.trim();
   
-  await sendAdminAlert(env, `Daily Run: ${alertsSent} alerts sent${hasFailedEmails ? ', FAILURES DETECTED' : ''}`, body, priority);
+  const staleWarning = hasStaleData ? ', OCC DATA STALE' : '';
+  await sendAdminAlert(env, `Daily Run: ${alertsSent} alerts sent${hasFailedEmails ? ', FAILURES DETECTED' : ''}${staleWarning}`, body, priority);
 }
 
 /**

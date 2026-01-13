@@ -554,6 +554,39 @@ export default {
       }
     }
 
+    // Test OCC data freshness
+    if (url.pathname === '/test/occ-freshness') {
+      try {
+        const { fetchOCCFile, checkDataFreshness } = await import('./services/occ.js');
+
+        // Fetch and check freshness of both file types
+        const permits = await fetchOCCFile('itd', env, { skipCache: true });
+        const completions = await fetchOCCFile('completions', env, { skipCache: true });
+
+        const permitFreshness = await checkDataFreshness(permits, 'itd', env, 3);
+        const completionFreshness = await checkDataFreshness(completions, 'completions', env, 3);
+
+        return jsonResponse({
+          success: true,
+          permits: {
+            recordCount: permits.length,
+            ...permitFreshness
+          },
+          completions: {
+            recordCount: completions.length,
+            ...completionFreshness
+          },
+          overallStatus: permitFreshness.isStale || completionFreshness.isStale ? 'STALE' : 'FRESH'
+        });
+      } catch (error) {
+        return jsonResponse({
+          success: false,
+          error: error.message,
+          stack: error.stack
+        }, 500);
+      }
+    }
+
     // Test unpdf extraction for OCC docket PDFs
     if (url.pathname === '/test/unpdf') {
       const dateParam = url.searchParams.get('date') || '2026-01-09';
@@ -712,6 +745,7 @@ export default {
         '/test/status-change',
         '/test/daily',
         '/test/docket',
+        '/test/occ-freshness',
         '/test/unpdf',
         '/backfill/dockets?start=YYYY-MM-DD&end=YYYY-MM-DD',
         '/backfill/status',
