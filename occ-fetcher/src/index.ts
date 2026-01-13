@@ -340,20 +340,42 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
 
     // Convert blob to ArrayBuffer for R2
     const pdfBuffer = await pdfBlob.arrayBuffer();
+    console.log(`[OCC Fetcher] ArrayBuffer size: ${pdfBuffer.byteLength}`);
 
-    await env.UPLOADS_BUCKET.put(r2Key, pdfBuffer, {
-      httpMetadata: {
-        contentType: 'application/pdf',
-        contentDisposition: `attachment; filename="${filename}"`
-      },
-      customMetadata: {
-        originalFilename: filename,
-        uploadedAt: new Date().toISOString(),
-        source: 'occ-fetcher',
-        caseNumber: order.caseNumber,
-        orderNumber: order.orderNumber
+    try {
+      const r2Result = await env.UPLOADS_BUCKET.put(r2Key, pdfBuffer, {
+        httpMetadata: {
+          contentType: 'application/pdf',
+          contentDisposition: `attachment; filename="${filename}"`
+        },
+        customMetadata: {
+          originalFilename: filename,
+          uploadedAt: new Date().toISOString(),
+          source: 'occ-fetcher',
+          caseNumber: order.caseNumber,
+          orderNumber: order.orderNumber
+        }
+      });
+      console.log(`[OCC Fetcher] R2 put result: ${JSON.stringify(r2Result ? { key: r2Result.key, size: r2Result.size } : 'null')}`);
+
+      if (!r2Result) {
+        return jsonResponse({
+          success: false,
+          error: 'R2 upload failed - no result returned',
+          caseNumber,
+          orderNumber: order.orderNumber
+        }, 500);
       }
-    });
+    } catch (r2Error) {
+      console.error(`[OCC Fetcher] R2 upload error:`, r2Error);
+      return jsonResponse({
+        success: false,
+        error: 'R2 upload failed',
+        details: r2Error instanceof Error ? r2Error.message : 'Unknown error',
+        caseNumber,
+        orderNumber: order.orderNumber
+      }, 500);
+    }
 
     console.log(`[OCC Fetcher] R2 upload complete, registering with documents-worker`);
 
