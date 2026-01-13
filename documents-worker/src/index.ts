@@ -1679,6 +1679,112 @@ export default {
       }
     }
 
+    // Route: POST /api/documents/upload-external - Upload document from external service (OCC fetcher, etc.)
+    // Used by other workers to add documents on behalf of a user
+    if (path === '/api/documents/upload-external' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        const formData = await request.formData();
+        const file = formData.get('file') as File;
+        const userId = formData.get('userId') as string;
+        const organizationId = formData.get('organizationId') as string | null;
+        const userPlan = (formData.get('userPlan') as string) || 'Free';
+        const sourceType = formData.get('sourceType') as string | null;
+        const sourceApi = formData.get('sourceApi') as string | null;
+        const originalUrl = formData.get('originalUrl') as string | null;
+        const customFilename = formData.get('filename') as string | null;
+
+        // Validate required fields
+        if (!file) {
+          return errorResponse('No file provided', 400, env);
+        }
+        if (!userId) {
+          return errorResponse('userId is required', 400, env);
+        }
+
+        // Validate file type
+        const contentType = file.type || 'application/pdf';
+        if (!isAllowedFileType(contentType)) {
+          return errorResponse('Only PDF, JPEG, PNG, and TIFF files are allowed', 400, env);
+        }
+
+        if (file.size > 50 * 1024 * 1024) {
+          return errorResponse('File too large. Maximum size is 50MB', 400, env);
+        }
+
+        // Generate unique document ID
+        const docId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+        const fileExtension = getFileExtension(contentType);
+        const r2Key = `${docId}.${fileExtension}`;
+
+        // Determine filename
+        const filename = customFilename || file.name || `occ-document-${Date.now()}.${fileExtension}`;
+
+        console.log(`[External Upload] Uploading ${filename} for user ${userId}, source: ${sourceType || 'unknown'}`);
+
+        // Store in R2
+        await env.UPLOADS_BUCKET.put(r2Key, file.stream(), {
+          httpMetadata: {
+            contentType: contentType,
+            contentDisposition: `attachment; filename="${filename}"`
+          },
+          customMetadata: {
+            sourceType: sourceType || '',
+            sourceApi: sourceApi || '',
+            originalUrl: originalUrl || ''
+          }
+        });
+
+        // Build source metadata JSON
+        const sourceMetadata = JSON.stringify({
+          type: sourceType || 'external',
+          api: sourceApi || null,
+          url: originalUrl || null,
+          uploadedAt: new Date().toISOString()
+        });
+
+        // Insert into database with pending status
+        await env.WELLS_DB.prepare(`
+          INSERT INTO documents (
+            id, r2_key, filename, original_filename, user_id, organization_id,
+            file_size, status, upload_date, queued_at, user_plan, content_type, source_metadata
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?)
+        `).bind(
+          docId,
+          r2Key,
+          filename,
+          filename,
+          userId,
+          organizationId || null,
+          file.size,
+          userPlan,
+          contentType,
+          sourceMetadata
+        ).run();
+
+        console.log(`[External Upload] Document ${docId} uploaded successfully. Will be processed by queue.`);
+
+        return jsonResponse({
+          success: true,
+          document: {
+            id: docId,
+            filename: filename,
+            size: file.size,
+            status: 'pending',
+            sourceType: sourceType
+          }
+        }, 200, env);
+
+      } catch (error) {
+        console.error('[External Upload] Error:', error);
+        return errorResponse('Upload failed: ' + (error as Error).message, 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
