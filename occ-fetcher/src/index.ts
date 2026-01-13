@@ -401,19 +401,31 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
       }
     };
 
-    const registerResponse = await fetch(
-      `${env.DOCUMENTS_WORKER_URL}/api/documents/register-external`,
-      {
+    const registerUrl = `${env.DOCUMENTS_WORKER_URL}/api/documents/register-external`;
+    console.log(`[OCC Fetcher] Calling register URL: ${registerUrl}`);
+    console.log(`[OCC Fetcher] Register payload: ${JSON.stringify(registerPayload)}`);
+
+    let registerResponse: Response;
+    try {
+      registerResponse = await fetch(registerUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'X-API-Key': env.PROCESSING_API_KEY
         },
         body: JSON.stringify(registerPayload)
-      }
-    );
+      });
+    } catch (fetchError) {
+      console.error(`[OCC Fetcher] Fetch error:`, fetchError);
+      return jsonResponse({
+        success: false,
+        error: 'Failed to call documents-worker',
+        details: fetchError instanceof Error ? fetchError.message : 'Unknown fetch error'
+      }, 500);
+    }
 
     console.log(`[OCC Fetcher] Register response status: ${registerResponse.status}`);
+    console.log(`[OCC Fetcher] Register response headers: ${JSON.stringify(Object.fromEntries(registerResponse.headers))}`);
 
     const registerText = await registerResponse.text();
     console.log(`[OCC Fetcher] Register response: ${registerText.substring(0, 500)}`);
