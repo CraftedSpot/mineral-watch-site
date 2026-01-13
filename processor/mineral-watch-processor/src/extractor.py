@@ -641,20 +641,26 @@ Extract ALL affected wells with their names, API numbers, and OTC lease numbers 
 
 For MULTI-UNIT HORIZONTAL WELL ORDERS (Authorization for horizontal wells spanning multiple units):
 NOTE: These orders allow horizontal wells to cross unit boundaries with specific allocation percentages.
-Look for "MULTI-UNIT HORIZONTAL WELL", "HORIZONTAL WELL ORDER", or multiple sections being included in a single drilling unit.
-Extract allocation percentages for each section/unit.
+Look for "MULTI-UNIT HORIZONTAL WELL", "HORIZONTAL WELL ORDER", "LOCATION EXCEPTION", or multiple sections being included in a single drilling unit.
+Extract allocation percentages for each section/unit. Capture ALL available details including protests, attorneys, and special provisions.
 IMPORTANT: Include ALL section locations in legal_description.sections array for property matching.
 
 {
   "doc_type": "multi_unit_horizontal_order",
-  "case_number": "CD2024-002379",
+  "case_number": "CD2023-001823-T",
   "order_number": "749719",
-  "order_date": "2025-01-02",
-  "effective_date": "2025-01-02",
-  "hearing_date": "2024-12-17",
+  "order_sub_type": "location_exception",
+  "order_date": "2023-07-31",
+  "effective_date": "2023-07-31",
+  "hearing_date": "2023-07-10",
+  "reopen_date": "2024-02-05",
+  "reopen_purpose": "Introduction of bottom hole survey",
   "applicant": "Mewbourne Oil Company",
   "operator": "Mewbourne Oil Company",
   "proposed_well_name": "Simmons 0508 5-8-17-17 1MH",
+  "unit_description": "640-acre horizontal units for Sections 5 and 8",
+  "unit_size_acres": 640,
+  "relief_granted": "Location exception for multiunit horizontal well",
   "legal_description": {
     "county": "Dewey",
     "sections": [
@@ -669,7 +675,13 @@ IMPORTANT: Include ALL section locations in legal_description.sections array for
       "range": "17W",
       "allocation_percentage": 50.00,
       "acres": 640,
-      "spacing_order": "591429"
+      "spacing_order": "591429",
+      "completion_interval_length_feet": 5000,
+      "south_line_feet": 0,
+      "north_line_feet": 165,
+      "east_line_feet": 330,
+      "west_line_feet": null,
+      "exceptions": ["South line: 0 feet (exception from 330 feet)", "East line: 330 feet"]
     },
     {
       "section": "8",
@@ -677,10 +689,17 @@ IMPORTANT: Include ALL section locations in legal_description.sections array for
       "range": "17W",
       "allocation_percentage": 50.00,
       "acres": 640,
-      "spacing_order": "742818"
+      "spacing_order": "742818",
+      "completion_interval_length_feet": 5000,
+      "south_line_feet": 165,
+      "north_line_feet": 0,
+      "east_line_feet": 330,
+      "west_line_feet": null,
+      "exceptions": ["North line: 0 feet (exception from 330 feet)", "East line: 330 feet"]
     }
   ],
   "total_unit_acres": 1280,
+  "total_completion_interval_feet": 10000,
   "formations": [
     {
       "name": "Mississippian",
@@ -689,6 +708,8 @@ IMPORTANT: Include ALL section locations in legal_description.sections array for
       "depth_to": 12050
     }
   ],
+  "target_reservoir": "Mississippian",
+  "adjacent_common_source": "Woodford",
   "well_type": "horizontal",
   "allocation_method": "Surface Acres",
   "completion_interval": {
@@ -698,8 +719,17 @@ IMPORTANT: Include ALL section locations in legal_description.sections array for
   },
   "referenced_spacing_orders": ["591429", "742818"],
   "referenced_pooling_orders": [],
+  "companion_cases": ["CD2023-001824-T"],
+  "protestant": "Excalibur Resources, LLC",
+  "protest_status": "resolved",
+  "special_provisions": "The entire length of the lateral will be cemented such that the perforations will be isolated from the beginning and end point of the lateral.",
+  "cost_savings": "$1,000,000",
+  "administrative_law_judge": "Tammy D. Barrett",
+  "applicant_attorney": "Ron M. Barnes, Grayson Barnes",
+  "protestant_attorney": "Benjamin J. Brown",
+  "hearing_location": "Eastern Regional Office, 201 W. 5th St., Suite 540, Tulsa, OK 74103",
   "expiration_period": "one year",
-  "expiration_date": "2026-01-02",
+  "expiration_date": "2024-07-31",
   "field_scores": {
     "case_number": 1.0,
     "order_number": 0.95,
