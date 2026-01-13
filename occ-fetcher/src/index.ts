@@ -57,7 +57,7 @@ interface FetchOrderRequest {
 interface OCCSearchResult {
   entryId: number;
   name: string;
-  metadata: Array<{ keyId: number; keyName: string; value: string }>;
+  metadata: Array<{ name: string; values: string[]; isMvfg: boolean }>;
 }
 
 interface OCCOrder {
@@ -552,17 +552,15 @@ async function getOCCSessionCookies(): Promise<string> {
 function parseSearchResult(result: OCCSearchResult): OCCOrder {
   const metadata: Record<string, string> = {};
 
-  // Log the raw metadata to debug
-  console.log(`[OCC Fetcher] Raw metadata for entry ${result.entryId}:`, JSON.stringify(result.metadata?.slice(0, 10)));
-
   // Convert metadata array to lookup object
+  // Structure: { name: "Field Name", values: ["value1"], isMvfg: false }
   for (const item of result.metadata || []) {
-    if (item.keyName && item.value) {
-      metadata[item.keyName] = item.value;
+    if (item.name && item.values && item.values.length > 0) {
+      metadata[item.name] = item.values[0];
     }
   }
 
-  console.log(`[OCC Fetcher] Parsed metadata keys:`, Object.keys(metadata).join(', '));
+  console.log(`[OCC Fetcher] Parsed metadata for entry ${result.entryId}:`, Object.keys(metadata).join(', '));
 
   const entryId = String(result.entryId);
   const orderNumber = result.name || metadata['ECF Order Number'] || '';
