@@ -194,7 +194,165 @@ var index_default = {
       if (path === "/portal/learn" || path === "/portal/learn/") {
         return servePage(learnHtml, request, env);
       }
-      
+
+      // Analyze OCC order route - handles email link clicks
+      if (path === "/analyze" || path === "/analyze/") {
+        const caseNumber = url.searchParams.get("case");
+        if (!caseNumber) {
+          return Response.redirect(`${BASE_URL}/portal?error=Missing%20case%20number`, 302);
+        }
+
+        // Serve an HTML page that handles the analyze flow
+        const analyzeHtml = `<!DOCTYPE html>
+<html>
+<head>
+  <title>Analyzing OCC Order...</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%);
+      color: #fff;
+    }
+    .container {
+      text-align: center;
+      padding: 40px;
+      max-width: 500px;
+    }
+    .spinner {
+      width: 50px;
+      height: 50px;
+      border: 4px solid rgba(255,255,255,0.3);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    h1 { font-size: 24px; margin-bottom: 10px; }
+    p { color: #94a3b8; margin: 10px 0; }
+    .case-number {
+      background: rgba(255,255,255,0.1);
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-family: monospace;
+      display: inline-block;
+      margin: 10px 0;
+    }
+    .error {
+      background: #dc2626;
+      padding: 15px 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      display: none;
+    }
+    .login-prompt {
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      display: none;
+    }
+    .login-prompt a {
+      display: inline-block;
+      background: #10b981;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 6px;
+      text-decoration: none;
+      font-weight: bold;
+      margin-top: 10px;
+    }
+    .status { margin-top: 15px; font-size: 14px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="spinner" id="spinner"></div>
+    <h1 id="title">Analyzing OCC Order</h1>
+    <div class="case-number">${caseNumber}</div>
+    <p class="status" id="status">Fetching order from OCC...</p>
+    <div class="error" id="error"></div>
+    <div class="login-prompt" id="loginPrompt">
+      <p>Please log in to analyze this order.</p>
+      <a href="${BASE_URL}/portal/login?redirect=${encodeURIComponent('/analyze?case=' + caseNumber)}">Log In</a>
+    </div>
+  </div>
+
+  <script>
+    const caseNumber = ${JSON.stringify(caseNumber)};
+
+    async function analyzeOrder() {
+      const spinner = document.getElementById('spinner');
+      const title = document.getElementById('title');
+      const status = document.getElementById('status');
+      const error = document.getElementById('error');
+      const loginPrompt = document.getElementById('loginPrompt');
+
+      try {
+        status.textContent = 'Fetching order from OCC...';
+
+        const response = await fetch('/api/occ/fetch', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ caseNumber })
+        });
+
+        const data = await response.json();
+
+        if (response.status === 401) {
+          spinner.style.display = 'none';
+          title.textContent = 'Login Required';
+          status.style.display = 'none';
+          loginPrompt.style.display = 'block';
+          return;
+        }
+
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to analyze order');
+        }
+
+        status.textContent = 'Order fetched! Redirecting...';
+
+        // Redirect to the document view
+        if (data.document && data.document.id) {
+          window.location.href = '/portal?doc=' + data.document.id;
+        } else {
+          window.location.href = '/portal';
+        }
+
+      } catch (err) {
+        spinner.style.display = 'none';
+        title.textContent = 'Error';
+        status.style.display = 'none';
+        error.style.display = 'block';
+        error.textContent = err.message || 'Something went wrong. Please try again.';
+      }
+    }
+
+    // Start analyzing
+    analyzeOrder();
+  </script>
+</body>
+</html>`;
+
+        return new Response(analyzeHtml, {
+          headers: {
+            'Content-Type': 'text/html; charset=utf-8',
+            ...CORS_HEADERS
+          }
+        });
+      }
+
       // Safari-compatible session setting endpoint - MUST come before auth proxy
       if (path === "/api/auth/set-session" && request.method === "GET") {
         const token = url.searchParams.get("token");
