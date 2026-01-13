@@ -586,7 +586,42 @@ var index_default = {
           }, 503);
         }
       }
-      
+
+      // Proxy OCC fetch endpoint to documents-worker
+      if (path.startsWith("/api/occ")) {
+        console.log(`[Portal] Proxying OCC request: ${path}`);
+        if (!env.DOCUMENTS_WORKER) {
+          return jsonResponse({ error: 'Documents service not available' }, 503);
+        }
+
+        try {
+          // Create new request with full URL for service binding
+          const occUrl = new URL(path, request.url);
+          const occRequest = new Request(occUrl.toString(), {
+            method: request.method,
+            headers: request.headers,
+            body: request.body,
+            redirect: 'manual'
+          });
+
+          const occResponse = await env.DOCUMENTS_WORKER.fetch(occRequest);
+
+          // Return the response with CORS headers
+          return new Response(await occResponse.text(), {
+            status: occResponse.status,
+            headers: {
+              ...Object.fromEntries(occResponse.headers.entries()),
+              ...CORS_HEADERS
+            }
+          });
+        } catch (error) {
+          console.error('OCC proxy error:', error);
+          return jsonResponse({
+            error: 'OCC service temporarily unavailable. Please try again later.'
+          }, 503);
+        }
+      }
+
       // Properties endpoints
       if (path === "/api/properties" && request.method === "GET") {
         return handleListProperties(request, env);
