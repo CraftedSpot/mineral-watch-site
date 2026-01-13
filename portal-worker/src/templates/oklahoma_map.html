@@ -4727,12 +4727,13 @@
                     buttonEl.classList.add('complete');
                     buttonEl.disabled = false;
                     buttonEl.innerHTML = 'Analyzed ✓';
-                    buttonEl.title = 'Click to view in Documents';
+                    buttonEl.title = 'Click to view document';
                     if (documentId) {
                         buttonEl.dataset.documentId = documentId;
+                        buttonEl.dataset.displayName = displayName || '';
                         buttonEl.onclick = function() {
-                            // Navigate to documents tab with document ID
-                            window.location.href = `/portal?doc=${documentId}`;
+                            // Open document in modal viewer
+                            viewMapDocument(documentId, displayName || 'OCC Document');
                         };
                     }
                     break;
