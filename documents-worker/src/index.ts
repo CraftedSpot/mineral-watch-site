@@ -273,7 +273,8 @@ export default {
         const placeholders = caseNumbers.map(() => '?').join(',');
         const cleanCaseNumbers = caseNumbers.map(c => c.replace(/^CD\s*/i, ''));
 
-        console.log(`[by-occ-cases] User: ${user.id}, searching for: ${cleanCaseNumbers.join(', ')}`);
+        console.log(`[by-occ-cases] User object:`, JSON.stringify(user));
+        console.log(`[by-occ-cases] User ID: ${user.id}, searching for: ${cleanCaseNumbers.join(', ')}`);
 
         const results = await env.WELLS_DB.prepare(`
           SELECT
