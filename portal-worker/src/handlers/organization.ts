@@ -10,7 +10,8 @@ import {
   USERS_TABLE,
   CORS_HEADERS,
   BASE_URL,
-  INVITE_TOKEN_EXPIRY
+  INVITE_TOKEN_EXPIRY,
+  PLAN_LIMITS
 } from '../constants.js';
 
 import { 
@@ -157,18 +158,10 @@ export async function handleInviteMember(request: Request, env: Env) {
       return jsonResponse({ error: "No organization found" }, 400);
     }
 
-    // Check member limits based on plan
+    // Check member limits based on plan (uses centralized PLAN_LIMITS from constants)
     const plan = userRecord.fields.Plan || 'Free';
-    const planLimits: Record<string, number> = {
-      'Free': 1,
-      'Starter': 1,
-      'Standard': 1,
-      'Professional': 3,
-      'Business': 10,
-      'Enterprise': 10
-    };
-    
-    const maxMembers = planLimits[plan] || 1;
+    const planConfig = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS];
+    const maxMembers = planConfig?.seats || 1;
 
     // Get organization details for the invite email
     const orgResponse = await fetch(
