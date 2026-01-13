@@ -107,8 +107,9 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     console.log(`[OCC Fetcher] Session cookies obtained: ${cookies.substring(0, 60)}...`);
 
     // Step 2: Build search syntax
-    // Format: ({[]:[ECF Case Number]="2022-003039"} & {[]:[ECF Document Type]="Final Order"} & ({LF:LOOKIN="\\AJLS\\Judicial & Legislative\\ECF"}) & {LF:templateid=52})
-    const searchSyntax = `({[]:[ECF Case Number]="${cleanCaseNumber}"} & {[]:[ECF Document Type]="Final Order"} & ({LF:LOOKIN="\\\\AJLS\\\\Judicial & Legislative\\\\ECF"}) & {LF:templateid=52})`;
+    // Search for Final Order OR Interim Order (horizontal wells use Interim Order)
+    // Format: ({[]:[ECF Case Number]="2022-003039"} & ({[]:[ECF Document Type]="Final Order"} | {[]:[ECF Document Type]="Interim Order"}) & ({LF:LOOKIN="\\AJLS\\Judicial & Legislative\\ECF"}) & {LF:templateid=52})
+    const searchSyntax = `({[]:[ECF Case Number]="${cleanCaseNumber}"} & ({[]:[ECF Document Type]="Final Order"} | {[]:[ECF Document Type]="Interim Order"}) & ({LF:LOOKIN="\\\\AJLS\\\\Judicial & Legislative\\\\ECF"}) & {LF:templateid=52})`;
 
     console.log(`[OCC Fetcher] Search syntax: ${searchSyntax}`);
 
@@ -763,17 +764,22 @@ async function handleSearchCase(request: Request, env: Env): Promise<Response> {
       searchSyn: searchSyntax,
       searchUuid: '',
       sortColumn: '',
-      sortAscending: true,
-      startRow: 0,
-      maxRows: 50
+      startIdx: 0,
+      endIdx: 50,
+      getNewListing: true,
+      sortOrder: 2,
+      displayInGridView: false
     };
 
-    const searchResponse = await fetch('https://public.occ.ok.gov/WebLink/GetSearchListing', {
+    const searchResponse = await fetch('https://public.occ.ok.gov/WebLink/SearchService.aspx/GetSearchListing', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        'Accept': 'application/json',
         'Cookie': cookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        'Origin': 'https://public.occ.ok.gov',
+        'Referer': 'https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=ImagedCaseDocumentsfiledafter3212022&dbid=0&repo=OCC'
       },
       body: JSON.stringify(searchPayload)
     });
@@ -801,7 +807,9 @@ async function handleSearchCase(request: Request, env: Env): Promise<Response> {
       }, 500);
     }
 
-    const results = searchData.data?.results || [];
+    // Response structure varies - try multiple paths
+    const data = searchData?.data || searchData?.d || searchData;
+    const results = data?.results || [];
     console.log(`[OCC Search] Found ${results.length} documents`);
 
     // Parse all results to see what document types exist
