@@ -56,7 +56,7 @@ export async function sendAdminAlert(env, subject, body, priority = 'info') {
  * Send daily run summary
  */
 export async function sendDailySummary(env, results) {
-  const { permitsProcessed, completionsProcessed, statusChanges, alertsSent, errors, duration } = results;
+  const { permitsProcessed, completionsProcessed, statusChanges, alertsSent, errors, duration, dataFreshness } = results;
   
   // Query for today's failed email sends
   let failedEmails = [];
