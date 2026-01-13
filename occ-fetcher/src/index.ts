@@ -155,11 +155,25 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
       }, 500);
     }
 
-    // Response structure: { d: { results: [...], totalResults: N } }
-    const results: OCCSearchResult[] = searchData?.d?.results || searchData?.results || [];
-    const totalResults = searchData?.d?.totalResults || searchData?.totalResults || results.length;
+    // Log the structure to understand it
+    console.log(`[OCC Fetcher] Response keys: ${Object.keys(searchData).join(', ')}`);
+    if (searchData.data) {
+      console.log(`[OCC Fetcher] data keys: ${Object.keys(searchData.data).join(', ')}`);
+    }
+    if (searchData.d) {
+      console.log(`[OCC Fetcher] d keys: ${Object.keys(searchData.d).join(', ')}`);
+    }
+
+    // Response structure varies - try multiple paths
+    // OCC uses: { data: { results: [...], totalResults: N } } or { d: { results: [...] } }
+    const data = searchData?.data || searchData?.d || searchData;
+    const results: OCCSearchResult[] = data?.results || data?.entries || [];
+    const totalResults = data?.totalResults ?? data?.TotalResults ?? results.length;
 
     console.log(`[OCC Fetcher] Found ${results.length} orders (total: ${totalResults})`);
+    if (results.length > 0) {
+      console.log(`[OCC Fetcher] First result keys: ${Object.keys(results[0]).join(', ')}`);
+    }
 
     if (results.length === 0) {
       return jsonResponse({
