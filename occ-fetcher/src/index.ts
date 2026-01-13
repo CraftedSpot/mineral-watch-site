@@ -86,8 +86,15 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     const searchUrl = 'https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=ImagedCaseDocumentsfiledafter3212022&dbid=0&repo=OCC';
 
     // Step 1: GET the search page to extract hidden fields and cookies
+    const browserHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
+      'Accept-Language': 'en-US,en;q=0.5'
+    };
+
     const initResponse = await fetch(searchUrl, {
       method: 'GET',
+      headers: browserHeaders,
       redirect: 'follow'
     });
 
@@ -113,13 +120,13 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     }
 
     // Step 2: POST search with hidden fields and cookies
-    const formData = new URLSearchParams();
-    formData.append('__VIEWSTATE', viewState);
-    formData.append('__VIEWSTATEGENERATOR', viewStateGenerator);
-    formData.append('__EVENTVALIDATION', eventValidation);
-    formData.append('ImagedCaseDocumentsfiledafter3212022_Input0', cleanCaseNumber);
-    formData.append('ImagedCaseDocumentsfiledafter3212022_Input3', 'Final Order'); // Try without the "39:" prefix
-    formData.append('ImagedCaseDocumentsfiledafter3212022_Submit', 'Search');
+    const searchFormData = new URLSearchParams();
+    searchFormData.append('__VIEWSTATE', viewState);
+    searchFormData.append('__VIEWSTATEGENERATOR', viewStateGenerator);
+    searchFormData.append('__EVENTVALIDATION', eventValidation);
+    searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Input0', cleanCaseNumber);
+    searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Input3', 'Final Order'); // Try without the "39:" prefix
+    searchFormData.append('ImagedCaseDocumentsfiledafter3212022_Submit', 'Search');
 
     const cookieHeader = cookies.split(',').map(c => c.split(';')[0]).join('; ');
 
@@ -129,7 +136,7 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
         'Content-Type': 'application/x-www-form-urlencoded',
         'Cookie': cookieHeader
       },
-      body: formData.toString(),
+      body: searchFormData.toString(),
       redirect: 'follow'
     });
 
