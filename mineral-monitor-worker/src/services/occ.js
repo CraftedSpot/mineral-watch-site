@@ -181,6 +181,72 @@ export function validateRecord(record, fileType) {
 }
 
 /**
+ * Check if OCC data is stale (no new records in X days)
+ * @param {Array} records - Parsed records
+ * @param {string} fileType - Type of file
+ * @param {Object} env - Worker environment bindings
+ * @param {number} staleDays - Number of days before data is considered stale (default 3)
+ * @returns {Object} - { isStale, newestDate, daysSinceNewest }
+ */
+export async function checkDataFreshness(records, fileType, env, staleDays = 3) {
+  if (!records || records.length === 0) {
+    return { isStale: true, newestDate: null, daysSinceNewest: null, reason: 'No records found' };
+  }
+
+  // Find the newest date in the records
+  let newestDate = null;
+
+  for (const record of records) {
+    let dateField;
+    switch (fileType) {
+      case 'itd':
+        dateField = record.Approval_Date || record.Submit_Date || record.Create_Date;
+        break;
+      case 'completions':
+        dateField = record.Create_Date || record.Created_Date || record.DATE_CREATED;
+        break;
+      case 'transfers':
+        dateField = record.EventDate;
+        break;
+    }
+
+    if (dateField) {
+      const recordDate = new Date(dateField);
+      if (!isNaN(recordDate.getTime())) {
+        if (!newestDate || recordDate > newestDate) {
+          newestDate = recordDate;
+        }
+      }
+    }
+  }
+
+  if (!newestDate) {
+    return { isStale: true, newestDate: null, daysSinceNewest: null, reason: 'No valid dates found' };
+  }
+
+  const now = new Date();
+  const daysSinceNewest = Math.floor((now - newestDate) / (1000 * 60 * 60 * 24));
+  const isStale = daysSinceNewest > staleDays;
+
+  console.log(`[OCC] Data freshness check for ${fileType}: newest date is ${newestDate.toISOString().split('T')[0]}, ${daysSinceNewest} days ago`);
+
+  // Send alert if stale
+  if (isStale) {
+    const { sendSanityWarning } = await import('./adminAlerts.js');
+    await sendSanityWarning(env, `OCC ${fileType} data appears stale`,
+      `The newest record in the OCC ${fileType} file is from ${newestDate.toISOString().split('T')[0]} (${daysSinceNewest} days ago).\n\nThis could indicate:\n- OCC hasn't published new filings (holiday period, etc.)\n- The OCC file format changed\n- A technical issue with OCC's data pipeline\n\nNo action needed if this is expected (e.g., holiday week). Otherwise, check https://oklahoma.gov/occ/divisions/oil-gas/oil-gas-data.html`
+    );
+  }
+
+  return {
+    isStale,
+    newestDate: newestDate.toISOString().split('T')[0],
+    daysSinceNewest,
+    fileType
+  };
+}
+
+/**
  * Clear the OCC file cache for a specific file type
  * @param {string} fileType - 'itd', 'completions', or 'transfers'
  * @param {Object} env - Worker environment bindings
