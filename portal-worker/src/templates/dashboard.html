@@ -5549,9 +5549,9 @@
                                 <div class="doc-field">
                                     <label>Completion Interval</label>
                                     <div style="background: #F3E8FF; border: 1px solid #A855F7; border-radius: 6px; padding: 10px 12px;">
-                                        ${topDepth !== undefined && bottomDepth !== undefined ?
-                                            `<div style="font-weight: 500; color: #7C3AED;">${topDepth.toLocaleString()}' - ${bottomDepth.toLocaleString()}'</div>` : ''}
-                                        ${length ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Length: ${length.toLocaleString()}'</div>` : ''}
+                                        ${topDepth != null && bottomDepth != null ?
+                                            `<div style="font-weight: 500; color: #7C3AED;">${Number(topDepth).toLocaleString()}' - ${Number(bottomDepth).toLocaleString()}'</div>` : ''}
+                                        ${length != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Length: ${Number(length).toLocaleString()}'</div>` : ''}
                                     </div>
                                 </div>`;
                         } else {
