@@ -304,15 +304,21 @@ function buildDocketAlertEmail(entry, alertLevel, user) {
   </div>
   ` : ''}
 
-  <!-- CTA Button -->
-  ${entry.source_url ? `
+  <!-- CTA Buttons -->
   <div style="text-align: center; margin: 30px 0;">
+    ${entry.source_url ? `
     <a href="${entry.source_url}"
-       style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+       style="background: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin: 5px;">
       View Full Docket PDF
     </a>
+    ` : ''}
+    ${(entry.status === 'HEARD' || entry.status === 'RECOMMENDED') ? `
+    <a href="https://portal.mymineralwatch.com/analyze?case=${encodeURIComponent(entry.case_number)}"
+       style="background: #059669; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block; margin: 5px;">
+      Analyze Order →
+    </a>
+    ` : ''}
   </div>
-  ` : ''}
 
   <!-- Footer -->
   <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 30px; color: #64748b; font-size: 13px;">
