@@ -439,9 +439,22 @@ export async function runDailyMonitor(env, options = {}) {
       // Normal operation: fetch from OCC
       permits = await fetchOCCFile('itd', env);
       console.log(`[Daily] Fetched ${permits.length} permits from ITD file`);
-      
+
       completions = await fetchOCCFile('completions', env);
       console.log(`[Daily] Fetched ${completions.length} completions`);
+
+      // Check data freshness and alert if stale (more than 3 days old)
+      const permitFreshness = await checkDataFreshness(permits, 'itd', env, 3);
+      const completionFreshness = await checkDataFreshness(completions, 'completions', env, 3);
+
+      results.dataFreshness = {
+        permits: permitFreshness,
+        completions: completionFreshness
+      };
+
+      if (permitFreshness.isStale || completionFreshness.isStale) {
+        console.log(`[Daily] WARNING: OCC data appears stale - permits: ${permitFreshness.newestDate} (${permitFreshness.daysSinceNewest} days), completions: ${completionFreshness.newestDate} (${completionFreshness.daysSinceNewest} days)`);
+      }
     }
     
     // Filter to only unprocessed records (skip cache check in test mode)
