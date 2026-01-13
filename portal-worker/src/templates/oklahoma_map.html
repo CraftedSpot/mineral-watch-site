@@ -1371,6 +1371,167 @@
             visibility: visible;
         }
 
+        /* Dashboard-style Well Modal Enhancements */
+        .well-modal {
+            max-width: 700px;
+            max-height: calc(100vh - 20px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .well-modal-header {
+            background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%);
+            padding: 20px 24px;
+            flex-shrink: 0;
+        }
+
+        .well-modal-title {
+            font-size: 22px;
+        }
+
+        .well-modal-body {
+            padding: 20px 24px;
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            min-height: 0;
+            max-height: none;
+        }
+
+        /* Status Row */
+        .status-row { display: flex; gap: 24px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .status-item { display: flex; flex-direction: column; gap: 6px; }
+        .status-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-blue); }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; background: var(--success-bg); color: var(--success); }
+        .status-badge.horizontal { background: #DBEAFE; color: #1E40AF; }
+        .status-badge.vertical { background: #FEF3C7; color: #92400E; }
+        .status-value { font-size: 14px; font-weight: 600; color: var(--oil-navy); }
+
+        /* Info Sections */
+        .info-section { margin-bottom: 16px; }
+        .info-section:last-child { margin-bottom: 0; }
+        .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-blue); margin-bottom: 6px; }
+        .section-value { font-size: 15px; font-weight: 500; color: var(--oil-navy); }
+        .section-value a { color: var(--red-dirt); text-decoration: none; }
+        .section-value a:hover { text-decoration: underline; }
+        .contact-line { font-size: 14px; color: var(--slate-blue); margin-top: 2px; }
+
+        /* Two Column Grid */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* Production Section */
+        .production-section { background: var(--paper); border-radius: 8px; padding: 16px; margin-top: 16px; }
+        .production-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .production-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--oil-navy); }
+        .formation-badge { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--slate-blue); white-space: nowrap; }
+        .production-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .production-item { text-align: center; }
+        .production-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 4px; }
+        .production-value { font-size: 16px; font-weight: 700; color: var(--oil-navy); }
+        .production-unit { font-size: 11px; font-weight: 500; color: var(--slate-blue); }
+
+        /* Dates Row */
+        .dates-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+        .date-item { text-align: center; }
+        .date-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px; }
+        .date-value { font-size: 12px; font-weight: 600; color: var(--oil-navy); }
+
+        /* Card Footer Actions */
+        .well-modal-actions {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: white;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .action-btn { padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; }
+        .action-btn.primary { background: var(--red-dirt); color: white; }
+        .action-btn.primary:hover { background: var(--red-dirt-dark); }
+        .action-btn.primary.well-blue { background: var(--slate-blue); }
+        .action-btn.primary.well-blue:hover { background: var(--oil-navy); }
+        .action-btn.secondary { background: white; color: var(--red-dirt); border: 1px solid var(--red-dirt); }
+        .action-btn.secondary:hover { background: #FFF5F0; }
+        .action-btn.outline { background: white; color: var(--slate-blue); border: 1px solid var(--border); }
+        .action-btn.outline:hover { border-color: var(--slate-blue); color: var(--oil-navy); }
+        .action-btn.track-well { background: var(--tracked-well); color: var(--oil-navy); border: none; }
+        .action-btn.track-well:hover { background: var(--tracked-well-dark); color: white; }
+
+        /* OCC Filings Section */
+        .occ-filings-section { margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; }
+        .occ-filings-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px; }
+        .occ-filings-header:hover { background: #f3f4f6; }
+        .occ-filing-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .occ-filing-item:last-child { border-bottom: none; }
+        .occ-filing-main { flex: 1; }
+        .occ-filing-type { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+        .occ-filing-applicant { color: #666; font-size: 13px; margin-top: 2px; }
+        .occ-filing-details { display: flex; gap: 12px; margin-top: 4px; font-size: 12px; color: #888; flex-wrap: wrap; }
+        .occ-filing-case { font-family: monospace; }
+        .occ-filing-status { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+        .occ-filing-status.heard { background: #d4edda; color: #155724; }
+        .occ-filing-status.continued { background: #fff3cd; color: #856404; }
+        .occ-filing-status.scheduled { background: #cce5ff; color: #004085; }
+        .occ-filing-status.dismissed { background: #f8d7da; color: #721c24; }
+        .occ-filing-status.filed { background: #e2e3e5; color: #383d41; }
+        .occ-filing-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+        .occ-filing-link { color: #2563eb; text-decoration: none; font-size: 14px; margin-left: 8px; }
+        .occ-filing-link:hover { text-decoration: underline; }
+        .occ-adjacent-note { font-size: 10px; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; color: #6b7280; }
+        .occ-hearing-warning { margin-right: 4px; }
+        .occ-filing-actions { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
+        .occ-process-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .occ-process-btn:hover { background: #1d4ed8; }
+        .occ-process-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .occ-process-btn.fetching { background: #8b5cf6; }
+        .occ-process-btn.queued { background: #f59e0b; }
+        .occ-process-btn.processing { background: #6366f1; }
+        .occ-process-btn.complete { background: #10b981; cursor: pointer; }
+        .occ-process-btn.complete:hover { background: #059669; }
+        .occ-process-btn.error { background: #ef4444; }
+        .occ-process-btn .spinner-sm {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .occ-pending-text {
+            font-size: 11px;
+            color: #6b7280;
+            font-style: italic;
+            padding: 6px 0;
+        }
+
+        /* Mobile responsive for modal */
+        @media (max-width: 480px) {
+            .well-modal { max-width: 100%; margin: 10px; }
+            .status-row { flex-wrap: wrap; gap: 16px; }
+            .two-col { grid-template-columns: 1fr; gap: 12px; }
+            .production-grid { grid-template-columns: repeat(2, 1fr); }
+            .dates-row { grid-template-columns: 1fr; }
+            .well-modal-actions { flex-direction: column; }
+            .well-modal-actions > div { width: 100%; }
+        }
+
         /* Legend Strip */
         .legend-strip {
             background: white;
