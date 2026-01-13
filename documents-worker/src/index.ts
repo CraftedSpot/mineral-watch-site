@@ -7,6 +7,7 @@ interface Env {
   UPLOADS_BUCKET: R2Bucket;
   LOCKER_BUCKET: R2Bucket;
   AUTH_WORKER: { fetch: (request: Request) => Promise<Response> };
+  OCC_FETCHER: { fetch: (request: Request) => Promise<Response> };
   ALLOWED_ORIGIN: string;
   PROCESSING_API_KEY: string;
   SYNC_API_KEY?: string;
@@ -1893,6 +1894,122 @@ export default {
       } catch (error) {
         console.error('[External Register] Error:', error);
         return errorResponse('Registration failed: ' + (error as Error).message, 500, env);
+      }
+    }
+
+    // Route: POST /api/occ/fetch - Fetch and process an OCC filing
+    // Called from portal UI when user clicks "Process & Extract" on an OCC filing
+    if (path === '/api/occ/fetch' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        const body = await request.json() as {
+          caseNumber: string;
+          orderNumber?: string;
+        };
+
+        const { caseNumber, orderNumber } = body;
+
+        if (!caseNumber) {
+          return errorResponse('caseNumber is required', 400, env);
+        }
+
+        console.log(`[OCC Fetch] User ${user.id} requesting case ${caseNumber}`);
+
+        // Get user's plan and organization
+        const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+
+        // Check if already processed (by case number or order number in source_metadata)
+        let existingQuery = `
+          SELECT id, display_name, status FROM documents
+          WHERE user_id = ?
+          AND deleted_at IS NULL
+          AND (
+            json_extract(source_metadata, '$.caseNumber') = ?
+        `;
+        const queryParams: any[] = [user.id, caseNumber.replace(/^CD\s*/i, '')];
+
+        if (orderNumber) {
+          existingQuery += ` OR json_extract(source_metadata, '$.orderNumber') = ?`;
+          queryParams.push(orderNumber);
+        }
+        existingQuery += `)`;
+
+        const existing = await env.WELLS_DB.prepare(existingQuery).bind(...queryParams).first();
+
+        if (existing) {
+          console.log(`[OCC Fetch] Document already exists: ${existing.id}`);
+
+          // Get current credit balance for UI
+          const usageService = new UsageTrackingService(env.WELLS_DB);
+          const creditCheck = await usageService.checkCreditsAvailable(user.id, userPlan);
+
+          return jsonResponse({
+            alreadyProcessed: true,
+            documentId: existing.id,
+            displayName: existing.display_name,
+            status: existing.status,
+            creditsRemaining: creditCheck.totalAvailable
+          }, 200, env);
+        }
+
+        // Check credits before fetching
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditCheck = await usageService.checkCreditsAvailable(user.id, userPlan);
+
+        if (!creditCheck.hasCredits) {
+          console.log(`[OCC Fetch] User ${user.id} has no credits`);
+          return jsonResponse({
+            error: 'no_credits',
+            message: creditCheck.message || 'No credits available. Please purchase a credit pack or upgrade your plan.',
+            creditsRemaining: 0
+          }, 402, env);
+        }
+
+        console.log(`[OCC Fetch] User has ${creditCheck.totalAvailable} credits, calling occ-fetcher`);
+
+        // Call occ-fetcher via service binding
+        const occResponse = await env.OCC_FETCHER.fetch(
+          new Request('https://internal/fetch-order', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': env.PROCESSING_API_KEY
+            },
+            body: JSON.stringify({
+              caseNumber,
+              userId: user.id,
+              organizationId: userOrg
+            })
+          })
+        );
+
+        const occResult = await occResponse.json() as any;
+
+        if (!occResponse.ok || !occResult.success) {
+          console.error('[OCC Fetch] occ-fetcher error:', occResult);
+          return jsonResponse({
+            error: 'fetch_failed',
+            message: occResult.error || 'Failed to fetch document from OCC',
+            creditsRemaining: creditCheck.totalAvailable
+          }, occResponse.status || 500, env);
+        }
+
+        console.log(`[OCC Fetch] Successfully fetched document ${occResult.document?.id}`);
+
+        // Return success with updated credit balance (subtract 1 for the document that will be processed)
+        return jsonResponse({
+          success: true,
+          document: occResult.document,
+          order: occResult.order,
+          creditsRemaining: creditCheck.totalAvailable - 1
+        }, 200, env);
+
+      } catch (error) {
+        console.error('[OCC Fetch] Error:', error);
+        return errorResponse('Failed to fetch OCC document: ' + (error as Error).message, 500, env);
       }
     }
 
