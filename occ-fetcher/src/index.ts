@@ -552,6 +552,9 @@ async function getOCCSessionCookies(): Promise<string> {
 function parseSearchResult(result: OCCSearchResult): OCCOrder {
   const metadata: Record<string, string> = {};
 
+  // Log the raw metadata to debug
+  console.log(`[OCC Fetcher] Raw metadata for entry ${result.entryId}:`, JSON.stringify(result.metadata?.slice(0, 10)));
+
   // Convert metadata array to lookup object
   for (const item of result.metadata || []) {
     if (item.keyName && item.value) {
@@ -559,13 +562,15 @@ function parseSearchResult(result: OCCSearchResult): OCCOrder {
     }
   }
 
+  console.log(`[OCC Fetcher] Parsed metadata keys:`, Object.keys(metadata).join(', '));
+
   const entryId = String(result.entryId);
   const orderNumber = result.name || metadata['ECF Order Number'] || '';
 
   return {
     entryId,
     orderNumber,
-    caseNumber: metadata['ECF Case Number'] || '',
+    caseNumber: metadata['ECF Case Number'] || metadata['Case Number'] || '',
     applicant: metadata['Applicant'],
     county: metadata['County'],
     reliefType: metadata['ECF Relief Type'] || metadata['Relief Type'],
