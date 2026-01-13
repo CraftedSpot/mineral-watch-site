@@ -117,7 +117,8 @@ async function ensureProcessingColumns(env: Env) {
     { name: 'page_range_end', type: 'INTEGER' },
     { name: 'extraction_started_at', type: 'TEXT' },
     { name: 'extraction_completed_at', type: 'TEXT' },
-    { name: 'extraction_error', type: 'TEXT' }
+    { name: 'extraction_error', type: 'TEXT' },
+    { name: 'source_metadata', type: 'TEXT' }  // JSON: { type, api, url, uploadedAt }
   ];
 
   for (const column of columnsToAdd) {
@@ -1686,6 +1687,9 @@ export default {
       if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
         return errorResponse('Invalid API key', 401, env);
       }
+
+      // Ensure all columns exist (including source_metadata)
+      await ensureProcessingColumns(env);
 
       try {
         const formData = await request.formData();
