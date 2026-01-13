@@ -201,13 +201,114 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
       }, 404);
     }
 
-    console.log(`[OCC Fetcher] Selected order ${order.orderNumber}, fetching PDF from ${order.pdfUrl}`);
+    console.log(`[OCC Fetcher] Selected order ${order.orderNumber}, entryId: ${order.entryId}`);
 
-    // Step 6: Fetch the PDF
-    const pdfResponse = await fetch(order.pdfUrl, {
+    // Step 6: Generate and download PDF using OCC's PDF generation flow
+    // First get document info to find page count
+    const docInfoResponse = await fetch('https://public.occ.ok.gov/WebLink/DocumentService.aspx/GetBasicDocumentInfo', {
+      method: 'POST',
       headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-        'Cookie': cookies
+        'Content-Type': 'application/json',
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+      },
+      body: JSON.stringify({ entryId: parseInt(order.entryId), repoName: 'OCC' })
+    });
+
+    const docInfo = await docInfoResponse.json() as any;
+    const pageCount = docInfo?.data?.pageCount || 12;
+    console.log(`[OCC Fetcher] Document has ${pageCount} pages`);
+
+    // Start PDF generation
+    const pageRange = `1 - ${pageCount}`;
+    const generateUrl = `https://public.occ.ok.gov/WebLink/GeneratePDF10.aspx?key=${order.entryId}&PageRange=${encodeURIComponent(pageRange)}&Watermark=0&repo=OCC`;
+
+    console.log(`[OCC Fetcher] Starting PDF generation: ${generateUrl}`);
+
+    const generateResponse = await fetch(generateUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        'Origin': 'https://public.occ.ok.gov',
+        'Referer': `https://public.occ.ok.gov/WebLink/DocView.aspx?id=${order.entryId}`
+      },
+      body: JSON.stringify({})
+    });
+
+    const generateText = await generateResponse.text();
+    console.log(`[OCC Fetcher] Generate response: ${generateText.substring(0, 200)}`);
+
+    // Extract the key from the response (first line before newline)
+    const pdfKey = generateText.split('\n')[0].replace('\r', '').trim();
+
+    if (!pdfKey || pdfKey.includes('error')) {
+      return jsonResponse({
+        success: false,
+        error: 'Failed to start PDF generation',
+        caseNumber,
+        orderNumber: order.orderNumber,
+        details: generateText.substring(0, 200)
+      }, 500);
+    }
+
+    console.log(`[OCC Fetcher] PDF generation key: ${pdfKey}`);
+
+    // Poll for PDF completion
+    let pdfReady = false;
+    let attempts = 0;
+    const maxAttempts = 30; // 30 seconds max
+
+    while (!pdfReady && attempts < maxAttempts) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      attempts++;
+
+      const progressResponse = await fetch('https://public.occ.ok.gov/WebLink/DocumentService.aspx/PDFTransition', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cookie': cookies,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        },
+        body: JSON.stringify({ pdfKey })
+      });
+
+      const progress = await progressResponse.json() as any;
+      console.log(`[OCC Fetcher] PDF progress (attempt ${attempts}): ${JSON.stringify(progress?.data || progress)}`);
+
+      if (progress?.data?.finished) {
+        if (progress.data.success) {
+          pdfReady = true;
+        } else {
+          return jsonResponse({
+            success: false,
+            error: 'PDF generation failed',
+            caseNumber,
+            orderNumber: order.orderNumber,
+            details: progress.data.errMsg
+          }, 500);
+        }
+      }
+    }
+
+    if (!pdfReady) {
+      return jsonResponse({
+        success: false,
+        error: 'PDF generation timed out',
+        caseNumber,
+        orderNumber: order.orderNumber
+      }, 504);
+    }
+
+    // Download the generated PDF
+    const pdfUrl = `https://public.occ.ok.gov/WebLink/PDF10/${pdfKey}/${order.entryId}`;
+    console.log(`[OCC Fetcher] Downloading PDF from: ${pdfUrl}`);
+
+    const pdfResponse = await fetch(pdfUrl, {
+      headers: {
+        'Cookie': cookies,
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
       }
     });
 
@@ -217,26 +318,18 @@ async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
     if (!pdfResponse.ok) {
       return jsonResponse({
         success: false,
-        error: `Failed to fetch PDF: ${pdfResponse.status}`,
+        error: `Failed to download PDF: ${pdfResponse.status}`,
         caseNumber,
         orderNumber: order.orderNumber,
-        pdfUrl: order.pdfUrl
+        pdfUrl
       }, pdfResponse.status);
-    }
-
-    if (contentType.includes('text/html')) {
-      return jsonResponse({
-        success: false,
-        error: 'PDF not yet uploaded to OCC system',
-        caseNumber,
-        orderNumber: order.orderNumber,
-        pdfUrl: order.pdfUrl,
-        suggestion: 'The order has been filed but the PDF is not yet available. Try again later.'
-      }, 202);
     }
 
     const pdfBlob = await pdfResponse.blob();
     console.log(`[OCC Fetcher] Downloaded PDF: ${pdfBlob.size} bytes`);
+
+    // Update pdfUrl for the response
+    order.pdfUrl = pdfUrl;
 
     // Step 7: Upload to documents-worker
     const filename = `OCC-${order.orderNumber}-${(order.reliefType || 'Order').replace(/\s+/g, '-')}.pdf`;
