@@ -12,6 +12,8 @@ import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 import type { Env } from '../index';
 
 const LINKS_TABLE = '🔗 Property-Well Links';
+const BATCH_SIZE_AIRTABLE = 30; // Airtable filter batch size
+const BATCH_SIZE_D1 = 30; // D1 OR condition batch size
 
 interface LinkCounts {
   [propertyId: string]: {
@@ -19,6 +21,17 @@ interface LinkCounts {
     documents: number;
     filings: number;
   };
+}
+
+/**
+ * Helper to batch an array into chunks
+ */
+function chunk<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
 }
 
 /**
@@ -60,41 +73,44 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     }
 
     const properties = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter);
-    console.log('[LinkCounts] Found', properties?.length || 0, 'properties for user', user.id, 'filter:', propertiesFilter);
+    console.log('[LinkCounts] Found', properties?.length || 0, 'properties for user', user.id);
 
     if (!properties || properties.length === 0) {
       return jsonResponse(counts);
     }
 
     // Initialize counts for all properties
+    const propertyIdSet = new Set<string>();
     for (const prop of properties) {
       counts[prop.id] = { wells: 0, documents: 0, filings: 0 };
-      console.log('[LinkCounts] Property:', prop.id, 'SEC:', prop.fields?.SEC, 'TWN:', prop.fields?.TWN, 'RNG:', prop.fields?.RNG);
+      propertyIdSet.add(prop.id);
     }
 
-    // 2. Get well counts from Property-Well Links table
-    // Query all links for these properties
+    // 2. Get well counts from Property-Well Links table (batched)
     const propertyIds = properties.map(p => p.id);
-    const linksFilter = `OR(${propertyIds.map(id => `FIND("${id}", ARRAYJOIN({Property})) > 0`).join(',')})`;
+    const propertyIdBatches = chunk(propertyIds, BATCH_SIZE_AIRTABLE);
 
-    try {
-      const links = await fetchAllAirtableRecords(env, LINKS_TABLE, linksFilter);
-      for (const link of links || []) {
-        const linkedPropertyIds = link.fields?.Property || [];
-        for (const propId of linkedPropertyIds) {
-          if (counts[propId]) {
-            counts[propId].wells++;
+    for (const batch of propertyIdBatches) {
+      try {
+        const linksFilter = `OR(${batch.map(id => `FIND("${id}", ARRAYJOIN({Property})) > 0`).join(',')})`;
+        const links = await fetchAllAirtableRecords(env, LINKS_TABLE, linksFilter);
+        for (const link of links || []) {
+          const linkedPropertyIds = link.fields?.Property || [];
+          for (const propId of linkedPropertyIds) {
+            if (counts[propId]) {
+              counts[propId].wells++;
+            }
           }
         }
+      } catch (err) {
+        console.error('[LinkCounts] Error fetching well links batch:', err);
       }
-    } catch (err) {
-      console.error('[LinkCounts] Error fetching well links:', err);
     }
 
-    // 3. Get OCC filing counts from D1 (batch query)
-    // Build a single query that counts filings by STR
-    const strConditions: string[] = [];
+    // 3. Get OCC filing counts from D1 (batched)
+    // Build STR conditions and map
     const strToPropertyMap: Map<string, string[]> = new Map();
+    const strConditions: { sec: number; twn: string; rng: string; strKey: string }[] = [];
 
     for (const prop of properties) {
       const f = prop.fields;
@@ -106,79 +122,148 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
         const strKey = `${sec}|${twn}|${rng}`;
         if (!strToPropertyMap.has(strKey)) {
           strToPropertyMap.set(strKey, []);
-          strConditions.push(`(CAST(section AS INTEGER) = ${parseInt(sec, 10)} AND UPPER(township) = '${twn}' AND UPPER(range) = '${rng}')`);
+          strConditions.push({ sec: parseInt(sec, 10), twn, rng, strKey });
         }
         strToPropertyMap.get(strKey)!.push(prop.id);
       }
     }
 
     if (strConditions.length > 0) {
-      try {
-        // Query filing counts grouped by STR
-        const filingsQuery = `
-          SELECT
-            section as sec,
-            township as twn,
-            range as rng,
-            COUNT(*) as count
-          FROM occ_docket_entries
-          WHERE (${strConditions.join(' OR ')})
-            AND relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL',
-                               'LOCATION_EXCEPTION', 'OPERATOR_CHANGE', 'WELL_TRANSFER', 'ORDER_MODIFICATION')
-          GROUP BY section, township, range
-        `;
+      // Batch D1 queries to avoid expression tree depth limit
+      const strBatches = chunk(strConditions, BATCH_SIZE_D1);
+      console.log('[LinkCounts] Processing', strConditions.length, 'unique STR locations in', strBatches.length, 'batches');
 
-        console.log('[LinkCounts] Filing query conditions:', strConditions.slice(0, 3));
-        const filingsResult = await env.WELLS_DB.prepare(filingsQuery).all();
-        console.log('[LinkCounts] Filing results:', filingsResult.results?.length || 0, 'groups found');
+      for (const batch of strBatches) {
+        try {
+          const whereConditions = batch.map(
+            ({ sec, twn, rng }) => `(CAST(section AS INTEGER) = ${sec} AND UPPER(township) = '${twn}' AND UPPER(range) = '${rng}')`
+          ).join(' OR ');
 
-        if (filingsResult.results) {
-          for (const row of filingsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
-            // Normalize the key to match how we stored it (uppercase township/range)
-            const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
-            const propertyIds = strToPropertyMap.get(strKey) || [];
-            console.log('[LinkCounts] Matching STR:', strKey, '-> properties:', propertyIds.length, 'count:', row.count);
-            for (const propId of propertyIds) {
-              if (counts[propId]) {
-                counts[propId].filings = row.count;
+          const filingsQuery = `
+            SELECT
+              section as sec,
+              township as twn,
+              range as rng,
+              COUNT(*) as count
+            FROM occ_docket_entries
+            WHERE (${whereConditions})
+              AND relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL',
+                                 'LOCATION_EXCEPTION', 'OPERATOR_CHANGE', 'WELL_TRANSFER', 'ORDER_MODIFICATION')
+            GROUP BY section, township, range
+          `;
+
+          const filingsResult = await env.WELLS_DB.prepare(filingsQuery).all();
+
+          if (filingsResult.results) {
+            for (const row of filingsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
+              const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
+              const propIds = strToPropertyMap.get(strKey) || [];
+              for (const propId of propIds) {
+                if (counts[propId]) {
+                  counts[propId].filings = row.count;
+                }
               }
             }
           }
+        } catch (err) {
+          console.error('[LinkCounts] Error querying OCC filings batch:', err);
         }
+      }
 
-        // Also check additional_sections for multi-section orders
-        // This is a secondary pass that adds to existing counts
-        for (const prop of properties) {
-          const f = prop.fields;
-          const sec = f.SEC?.toString();
-          const twn = f.TWN?.toString()?.toUpperCase();
-          const rng = f.RNG?.toString()?.toUpperCase();
+      // Check additional_sections for multi-section orders (batched)
+      // Use a single query with OR conditions for all unique STR patterns
+      const additionalBatches = chunk(strConditions, BATCH_SIZE_D1);
+      for (const batch of additionalBatches) {
+        try {
+          // Build LIKE conditions for additional_sections JSON field
+          const likeConditions = batch.map(({ sec, twn, rng }) =>
+            `additional_sections LIKE '%"section":"${sec}"%"township":"${twn}"%"range":"${rng}"%'`
+          ).join(' OR ');
 
-          if (sec && twn && rng) {
-            const jsonPattern = `%"section":"${sec}"%"township":"${twn}"%"range":"${rng}"%`;
-            const additionalQuery = `
-              SELECT COUNT(*) as count
-              FROM occ_docket_entries
-              WHERE additional_sections LIKE ?
-                AND relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL',
-                                   'LOCATION_EXCEPTION', 'OPERATOR_CHANGE', 'WELL_TRANSFER', 'ORDER_MODIFICATION')
-            `;
-            const additionalResult = await env.WELLS_DB.prepare(additionalQuery).bind(jsonPattern).first<{ count: number }>();
-            if (additionalResult && additionalResult.count > 0) {
-              counts[prop.id].filings += additionalResult.count;
+          const additionalQuery = `
+            SELECT
+              additional_sections,
+              COUNT(*) as count
+            FROM occ_docket_entries
+            WHERE (${likeConditions})
+              AND relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL',
+                                 'LOCATION_EXCEPTION', 'OPERATOR_CHANGE', 'WELL_TRANSFER', 'ORDER_MODIFICATION')
+            GROUP BY additional_sections
+          `;
+
+          const additionalResult = await env.WELLS_DB.prepare(additionalQuery).all();
+
+          if (additionalResult.results) {
+            for (const row of additionalResult.results as { additional_sections: string; count: number }[]) {
+              // Parse the additional_sections JSON and match to properties
+              try {
+                const sections = JSON.parse(row.additional_sections || '[]');
+                for (const section of sections) {
+                  const strKey = `${section.section}|${(section.township || '').toUpperCase()}|${(section.range || '').toUpperCase()}`;
+                  const propIds = strToPropertyMap.get(strKey) || [];
+                  for (const propId of propIds) {
+                    if (counts[propId]) {
+                      counts[propId].filings += row.count;
+                    }
+                  }
+                }
+              } catch {
+                // Skip malformed JSON
+              }
             }
           }
+        } catch (err) {
+          console.error('[LinkCounts] Error querying additional sections batch:', err);
         }
-      } catch (err) {
-        console.error('[LinkCounts] Error querying OCC filings:', err);
       }
     }
 
-    // 4. Document counts - check if documents table exists and query
-    // Documents are typically linked by property STR in the documents table
-    // For now, we'll leave documents at 0 and implement when document linking is confirmed
-    // TODO: Add document count query when document-property linking model is confirmed
+    // 4. Get document counts from D1 documents table (batched)
+    // Documents can be matched by section/township/range
+    if (strConditions.length > 0) {
+      const docBatches = chunk(strConditions, BATCH_SIZE_D1);
 
+      for (const batch of docBatches) {
+        try {
+          const whereConditions = batch.map(
+            ({ sec, twn, rng }) => `(CAST(section AS INTEGER) = ${sec} AND UPPER(township) = '${twn}' AND UPPER(range) = '${rng}')`
+          ).join(' OR ');
+
+          const docsQuery = `
+            SELECT
+              section as sec,
+              township as twn,
+              range as rng,
+              COUNT(*) as count
+            FROM documents
+            WHERE (${whereConditions})
+              AND deleted_at IS NULL
+            GROUP BY section, township, range
+          `;
+
+          const docsResult = await env.DOCUMENTS_DB.prepare(docsQuery).all();
+
+          if (docsResult.results) {
+            for (const row of docsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
+              const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
+              const propIds = strToPropertyMap.get(strKey) || [];
+              for (const propId of propIds) {
+                if (counts[propId]) {
+                  counts[propId].documents = row.count;
+                }
+              }
+            }
+          }
+        } catch (err) {
+          // Documents table may not have section/township/range columns
+          // This is expected if document-property linking isn't implemented yet
+          console.log('[LinkCounts] Document count query skipped (may not be implemented yet)');
+          break; // Don't retry other batches
+        }
+      }
+    }
+
+    console.log('[LinkCounts] Completed. Sample counts:', Object.entries(counts).slice(0, 3));
     return jsonResponse(counts);
 
   } catch (err) {
