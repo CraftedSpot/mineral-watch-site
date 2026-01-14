@@ -213,15 +213,36 @@ function getReliefTypeLabel(reliefType) {
 
 /**
  * Build docket alert email HTML
+ * @param {Object} entry - Docket entry
+ * @param {Object} match - Match object with alertLevel, user, and optional well info
  */
-function buildDocketAlertEmail(entry, alertLevel, user) {
+function buildDocketAlertEmail(entry, match) {
   const explanation = getReliefExplanation(entry.relief_type);
+  const { alertLevel, user, isWellMatch, matchedAPI, well } = match;
 
-  const alertLevelDisplay = alertLevel === 'YOUR PROPERTY'
-    ? '🎯 YOUR PROPERTY'
-    : '📍 ADJACENT TO YOUR PROPERTY';
+  // Determine display text and color based on match type
+  let alertLevelDisplay;
+  let alertColor;
+  let matchDescription;
 
-  const alertColor = alertLevel === 'YOUR PROPERTY' ? '#dc2626' : '#2563eb';
+  if (isWellMatch && well) {
+    // Well-based match
+    alertLevelDisplay = '🛢️ TRACKED WELL';
+    alertColor = '#7c3aed'; // Purple for well matches
+    const wellName = well.fields?.Name || well.fields?.['Well Name'] || 'Unknown Well';
+    const apiDisplay = matchedAPI || well.fields?.['API Number'] || '';
+    matchDescription = `<strong>${wellName}</strong>${apiDisplay ? ` (API: ${apiDisplay})` : ''}`;
+  } else if (alertLevel === 'YOUR PROPERTY') {
+    // Direct property match
+    alertLevelDisplay = '🎯 YOUR PROPERTY';
+    alertColor = '#dc2626'; // Red
+    matchDescription = `Section ${entry.section}, T${entry.township}, R${entry.range}`;
+  } else {
+    // Adjacent property match
+    alertLevelDisplay = '📍 ADJACENT TO YOUR PROPERTY';
+    alertColor = '#2563eb'; // Blue
+    matchDescription = `Section ${entry.section}, T${entry.township}, R${entry.range}`;
+  }
 
   const subject = `${explanation.emoji} ${explanation.title} - ${alertLevel} - ${entry.county} County`;
 
@@ -237,6 +258,11 @@ function buildDocketAlertEmail(entry, alertLevel, user) {
   <!-- Alert Level Banner -->
   <div style="background: ${alertColor}; color: white; padding: 12px 20px; font-size: 14px; font-weight: bold; text-align: center; border-radius: 4px 4px 0 0;">
     ${alertLevelDisplay}
+  </div>
+
+  <!-- Match Description -->
+  <div style="background: ${alertColor}15; padding: 10px 20px; border: 1px solid ${alertColor}40; border-top: none; text-align: center; font-size: 13px; color: #374151;">
+    ${matchDescription}
   </div>
 
   <!-- Relief Type Header -->
