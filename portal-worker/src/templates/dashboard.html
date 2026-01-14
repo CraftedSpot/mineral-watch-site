@@ -3356,7 +3356,7 @@
                 initWellsControls();
                 initPropertiesControls();
                 initDocumentsControls();
-            } catch { window.location.href = '/portal/login'; }
+            } catch (err) { console.error('Dashboard init error:', err); alert('Error: ' + err.message); window.location.href = '/portal/login'; }
 
             // Tab switching
             document.querySelectorAll('.tab').forEach(tab => {
