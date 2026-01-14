@@ -108,12 +108,25 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
       return jsonResponse(counts);
     }
 
-    // Initialize counts for all properties
+    // Initialize counts for all properties and log sample field values
     const propertyIdSet = new Set<string>();
     for (const prop of properties) {
       counts[prop.id] = { wells: 0, documents: 0, filings: 0 };
       propertyIdSet.add(prop.id);
     }
+
+    // Log sample property field values to debug STR matching
+    const sampleProps = properties.slice(0, 3);
+    console.log('[LinkCounts] Sample property fields:', sampleProps.map(p => ({
+      id: p.id,
+      SEC: p.fields?.SEC,
+      TWN: p.fields?.TWN,
+      RNG: p.fields?.RNG,
+      // Also check other possible field names
+      Section: p.fields?.Section,
+      Township: p.fields?.Township,
+      Range: p.fields?.Range,
+    })));
 
     // 2. Get well counts from Property-Well Links table (batched)
     const propertyIds = properties.map(p => p.id);
