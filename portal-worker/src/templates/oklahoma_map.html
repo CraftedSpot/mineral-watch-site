@@ -2179,10 +2179,12 @@
                             <option value="AC">Active Only</option>
                             <option value="ALL">All Statuses</option>
                         </select>
-                        <label class="toggle-btn active">
-                            <input type="checkbox" id="toggle-heatmap" checked>
-                            <span title="All drilling permits and completions statewide within 90 days">Heat Map</span>
-                        </label>
+                        <select id="heatmap-select" class="layer-select active" title="Statewide drilling activity within 90 days">
+                            <option value="off">Heat Map</option>
+                            <option value="permits">Permits Only</option>
+                            <option value="completions">Completions Only</option>
+                            <option value="both" selected>Both</option>
+                        </select>
                     </div>
                     
                     <div class="overlays-dropdown">
@@ -7005,11 +7007,17 @@
                             activityHeatmapLayer = L.layerGroup(layers);
                             console.log('🔥 Activity heatmap layer created with', layers.length, 'sublayers');
                             
-                            // Check if the toggle is already on and add the layer
-                            const heatmapToggle = document.getElementById('toggle-heatmap');
-                            if (heatmapToggle && heatmapToggle.checked) {
-                                map.addLayer(activityHeatmapLayer);
-                                console.log('📍 Heatmap added to map automatically');
+                            // Check if the heatmap select is not "off" and add appropriate layers
+                            const heatmapSelect = document.getElementById('heatmap-select');
+                            const heatmapValue = heatmapSelect ? heatmapSelect.value : 'both';
+                            if (heatmapValue !== 'off') {
+                                if ((heatmapValue === 'permits' || heatmapValue === 'both') && permitHeatmapLayer) {
+                                    map.addLayer(permitHeatmapLayer);
+                                }
+                                if ((heatmapValue === 'completions' || heatmapValue === 'both') && completionHeatmapLayer) {
+                                    map.addLayer(completionHeatmapLayer);
+                                }
+                                console.log('📍 Heatmap added to map automatically:', heatmapValue);
                                 ensureLayerOrder();
                             }
                         }
@@ -7081,12 +7089,16 @@
                 if (document.getElementById('toggle-completions').checked && !map.hasLayer(completionsLayer)) {
                     map.addLayer(completionsLayer);
                 }
-                // Check if heatmap toggle is on
-                if (document.getElementById('toggle-heatmap').checked && activityHeatmapLayer && !map.hasLayer(activityHeatmapLayer)) {
-                    map.addLayer(activityHeatmapLayer);
-                    console.log('✅ Added activity heatmap to map');
-                    console.log('Map bounds:', map.getBounds().toBBoxString());
-                    console.log('Current zoom:', map.getZoom());
+                // Check if heatmap is enabled and add appropriate layers
+                const heatmapValue = document.getElementById('heatmap-select').value;
+                if (heatmapValue !== 'off') {
+                    if ((heatmapValue === 'permits' || heatmapValue === 'both') && permitHeatmapLayer && !map.hasLayer(permitHeatmapLayer)) {
+                        map.addLayer(permitHeatmapLayer);
+                    }
+                    if ((heatmapValue === 'completions' || heatmapValue === 'both') && completionHeatmapLayer && !map.hasLayer(completionHeatmapLayer)) {
+                        map.addLayer(completionHeatmapLayer);
+                    }
+                    console.log('✅ Added heatmap layers to map:', heatmapValue);
                 }
                 // Ensure properties remain on top
                 ensureLayerOrder();
@@ -7117,45 +7129,43 @@
         
         // Toggle activity heatmap
         function toggleActivityHeatmap() {
-            const checkbox = document.getElementById('toggle-heatmap');
-            showActivityHeatmap = checkbox.checked;
-            
-            if (showActivityHeatmap) {
-                if (activityHeatmapLayer && !map.hasLayer(activityHeatmapLayer)) {
-                    map.addLayer(activityHeatmapLayer);
-                    // Ensure heatmap is below other markers
-                    ensureLayerOrder();
-                    console.log('🔍 Showing activity heatmap');
-                    
-                    // Debug: Check map bounds and zoom
-                    const bounds = map.getBounds();
-                    const zoom = map.getZoom();
-                    console.log('📍 Current map view:', {
-                        zoom: zoom,
-                        bounds: {
-                            north: bounds.getNorth(),
-                            south: bounds.getSouth(),
-                            east: bounds.getEast(),
-                            west: bounds.getWest()
-                        }
-                    });
-                    
-                    // Check if any heatmap points are in current view
-                    let pointsInView = 0;
-                    if (window.debugPermitData && window.debugPermitData.permitPoints) {
-                        window.debugPermitData.permitPoints.forEach(point => {
-                            if (bounds.contains(L.latLng(point[0], point[1]))) {
-                                pointsInView++;
-                            }
-                        });
-                    }
-                    console.log('🔥 Points in current view:', pointsInView);
-                }
+            const select = document.getElementById('heatmap-select');
+            const value = select.value;
+
+            // Update active state based on selection
+            if (value !== 'off') {
+                select.classList.add('active');
             } else {
-                if (activityHeatmapLayer && map.hasLayer(activityHeatmapLayer)) {
-                    map.removeLayer(activityHeatmapLayer);
+                select.classList.remove('active');
+            }
+
+            // Remove all heatmap layers first
+            if (permitHeatmapLayer && map.hasLayer(permitHeatmapLayer)) {
+                map.removeLayer(permitHeatmapLayer);
+            }
+            if (completionHeatmapLayer && map.hasLayer(completionHeatmapLayer)) {
+                map.removeLayer(completionHeatmapLayer);
+            }
+
+            // Add layers based on selection
+            if (value === 'permits' || value === 'both') {
+                if (permitHeatmapLayer) {
+                    map.addLayer(permitHeatmapLayer);
+                    console.log('🔥 Showing permit heatmap');
                 }
             }
+            if (value === 'completions' || value === 'both') {
+                if (completionHeatmapLayer) {
+                    map.addLayer(completionHeatmapLayer);
+                    console.log('🔥 Showing completion heatmap');
+                }
+            }
+
+            if (value !== 'off') {
+                ensureLayerOrder();
+            }
+
+            showActivityHeatmap = value !== 'off';
         }
         
         // Toggle nearby wells from D1 database
@@ -7955,7 +7965,7 @@
         document.getElementById('toggle-wells').addEventListener('change', toggleWells);
         document.getElementById('toggle-permits').addEventListener('change', togglePermits);
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
-        document.getElementById('toggle-heatmap').addEventListener('change', toggleActivityHeatmap);
+        document.getElementById('heatmap-select').addEventListener('change', toggleActivityHeatmap);
         document.getElementById('nearby-wells-select').addEventListener('change', toggleNearbyWells);
         
         // Initialize on page load
