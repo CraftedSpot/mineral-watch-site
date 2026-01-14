@@ -355,6 +355,7 @@ async function createActivityLogEntries(env, alertsToLog) {
   for (const batch of batches) {
     const records = batch.map(alert => ({
       fields: {
+        'Detected At': new Date().toISOString(),
         'Activity Type': getReliefTypeLabel(alert.entry.relief_type),
         'Alert Level': alert.alertLevel,
         'User': [alert.userId],

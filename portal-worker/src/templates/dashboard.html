@@ -54,6 +54,7 @@
         .activity-icon.transfer { background: #EDE9FE; }
         .activity-icon.status { background: #E0F2FE; }
         .activity-icon.abandoned { background: #F3F4F6; }
+        .activity-icon.occ-filing { background: #FEF3C7; }
         .activity-details { flex: 1; }
         .activity-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
         .activity-type { font-weight: 600; font-size: 14px; color: var(--oil-navy); }
@@ -4347,6 +4348,9 @@
                     else if (activityType.includes('Completed')) { icon = '✅'; iconClass = 'completed'; }
                     else if (activityType.includes('Transfer')) { icon = '🔄'; iconClass = 'transfer'; }
                     else if (activityType.includes('Abandoned') || activityType.includes('Plugged')) { icon = '⛔'; iconClass = 'abandoned'; }
+                    else if (activityType.includes('Application') || activityType.includes('Exception') ||
+                             activityType === 'OCC Filing' || activityType === 'Order Modification' ||
+                             activityType === 'Operator Change' || activityType === 'Well Transfer') { icon = '⚖️'; iconClass = 'occ-filing'; }
                     
                     // Alert level class
                     let levelClass = 'property';
@@ -4412,6 +4416,18 @@
                             actionsHtml += `<button class="activity-btn track-btn" onclick="trackWellFromActivity('${escapeHtml(apiNumber)}', '${escapeHtml(f['Well Name'] || '')}', '${escapeHtml(occLink || '')}', this)">+ Track Well</button>`;
                         }
                     }
+
+                    // Analyze Order button for OCC filing types
+                    const caseNumber = f['Case Number'];
+                    const occFilingTypes = [
+                        'Pooling Application', 'Increased Density Application',
+                        'Spacing Unit Application', 'Location Exception',
+                        'Horizontal Well Application', 'OCC Filing', 'Order Modification'
+                    ];
+                    if (occFilingTypes.includes(activityType) && caseNumber) {
+                        actionsHtml += `<button class="activity-btn occ-analyze-btn" onclick="processOccFilingFromActivity('${escapeHtml(caseNumber)}', this)">Analyze Order</button>`;
+                    }
+
                     actionsHtml += '</div>';
                     
                     html += `
