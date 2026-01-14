@@ -139,7 +139,12 @@ import {
   handleGetCountyProduction,
   handleGetMapDataVersion,
   // Docket heatmap handler
-  handleGetDocketHeatmap
+  handleGetDocketHeatmap,
+  // OTC file sync handlers
+  handleGetOtcSyncFiles,
+  handleCheckOtcFile,
+  handleCheckOtcFilesBatch,
+  handleRecordOtcFile
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -950,6 +955,20 @@ var index_default = {
       // Docket heatmap endpoint (OCC applications for map visualization)
       if (path === "/api/docket-heatmap" && request.method === "GET") {
         return handleGetDocketHeatmap(request, env);
+      }
+
+      // OTC file sync endpoints (for Fly.io automation)
+      if (path === "/api/otc-sync/files" && request.method === "GET") {
+        return handleGetOtcSyncFiles(request, env);
+      }
+      if (path === "/api/otc-sync/check" && request.method === "GET") {
+        return handleCheckOtcFile(request, env);
+      }
+      if (path === "/api/otc-sync/check-batch" && request.method === "POST") {
+        return handleCheckOtcFilesBatch(request, env);
+      }
+      if (path === "/api/otc-sync/record" && request.method === "POST") {
+        return handleRecordOtcFile(request, env);
       }
 
       // Formation backfill endpoints

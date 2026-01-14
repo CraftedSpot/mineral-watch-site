@@ -149,3 +149,11 @@ export {
 export {
   handleGetDocketHeatmap
 } from './docket-heatmap.js';
+
+// OTC file sync handlers
+export {
+  handleGetOtcSyncFiles,
+  handleCheckOtcFile,
+  handleCheckOtcFilesBatch,
+  handleRecordOtcFile
+} from './otc-file-sync.js';
