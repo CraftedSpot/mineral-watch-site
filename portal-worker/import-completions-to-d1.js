@@ -40,7 +40,9 @@ async function createCompletionsUpdateSQL() {
                     lateral_length: parseInt(row.Lateral_Length) || null,
                     ip_oil_bbl: parseFloat(row.IP_Oil_Bbls) || parseFloat(row.IP_Oil) || null,
                     ip_gas_mcf: parseFloat(row.IP_Gas_MCF) || parseFloat(row.IP_Gas) || null,
-                    ip_water_bbl: parseFloat(row.IP_Water_Bbls) || parseFloat(row.IP_Water) || null
+                    ip_water_bbl: parseFloat(row.IP_Water_Bbls) || parseFloat(row.IP_Water) || null,
+                    // OTC Production Unit Number - crosswalk to OTC production data
+                    otc_prod_unit_no: row.OTC_Prod_Unit_No?.trim() || null
                 };
                 
                 // Build UPDATE statement
@@ -88,7 +90,11 @@ async function createCompletionsUpdateSQL() {
                     updateList.push(`ip_water_bbl = ?${paramIndex++}`);
                     params.push(completionData.ip_water_bbl);
                 }
-                
+                if (completionData.otc_prod_unit_no) {
+                    updateList.push(`otc_prod_unit_no = ?${paramIndex++}`);
+                    params.push(completionData.otc_prod_unit_no);
+                }
+
                 if (updateList.length > 0) {
                     const sql = `UPDATE wells SET ${updateList.join(', ')} WHERE api_number = ?1;`;
                     // Store with parameters for batch execution
