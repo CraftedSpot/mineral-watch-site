@@ -1781,7 +1781,18 @@
         .credit-view-details:hover {
             text-decoration: underline;
         }
-        
+
+        .credit-buy-more {
+            color: #C05621;
+            text-decoration: none;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .credit-buy-more:hover {
+            text-decoration: underline;
+        }
+
         /* Credit Tooltip (Desktop only) */
         .credit-tooltip {
             display: none;
@@ -2150,6 +2161,8 @@
                                         <span class="credit-reset">Resets <span id="creditResetDate">--</span></span>
                                         <span class="credit-separator">·</span>
                                         <a href="/portal/account#credits" class="credit-view-details">View details</a>
+                                        <span class="credit-separator">·</span>
+                                        <a href="#" onclick="openCreditPackModal(); return false;" class="credit-buy-more">Buy More</a>
                                     </div>
                                     <div class="credit-tooltip" id="creditTooltip">
                                         <div class="tooltip-content">
@@ -6747,12 +6760,28 @@
                 document.getElementById('tooltipMonthlyLimit').textContent = (usage.credits_used || 0) + (usage.total_available || 0);
                 document.getElementById('tooltipResetDate').textContent = 'never';
                 document.getElementById('tooltipBonusRow').style.display = 'none';
-                document.getElementById('tooltipTopoffRow').style.display = 'none';
+                document.getElementById('tooltipPurchasedRow').style.display = 'none';
+
+                // Free tier can still have purchased credits
+                const purchasedCreditsFree = usage.purchased_credits || 0;
+                if (purchasedCreditsFree > 0) {
+                    document.getElementById('tooltipPurchasedRow').style.display = 'flex';
+                    document.getElementById('tooltipPurchasedRemaining').textContent = purchasedCreditsFree;
+                }
             } else {
                 // Paid tier tooltip
                 document.getElementById('tooltipMonthlyUsed').textContent = usage.monthly_remaining || 0;
                 document.getElementById('tooltipMonthlyLimit').textContent = usage.monthly_limit || 0;
                 document.getElementById('tooltipResetDate').textContent = resetDateStr;
+
+                // Show purchased credits row
+                const purchasedCredits = usage.purchased_credits || 0;
+                if (purchasedCredits > 0) {
+                    document.getElementById('tooltipPurchasedRow').style.display = 'flex';
+                    document.getElementById('tooltipPurchasedRemaining').textContent = purchasedCredits;
+                } else {
+                    document.getElementById('tooltipPurchasedRow').style.display = 'none';
+                }
 
                 // Show bonus/permanent credits row
                 const permanentCredits = usage.permanent_credits || 0;
@@ -6762,7 +6791,6 @@
                 } else {
                     document.getElementById('tooltipBonusRow').style.display = 'none';
                 }
-                document.getElementById('tooltipTopoffRow').style.display = 'none';
             }
 
             // Update total in tooltip
