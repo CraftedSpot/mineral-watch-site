@@ -944,6 +944,17 @@
             transform: translateY(0);
         }
 
+        .heatmap-section-divider {
+            font-size: 10px;
+            font-weight: 600;
+            color: #6B7280;
+            padding: 8px 12px 4px;
+            border-top: 1px solid #E5E7EB;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
         /* Overlays Dropdown Button */
         .overlays-dropdown {
             position: relative;
@@ -2966,6 +2977,11 @@
         let activityHeatmapLayer = null; // Will be created as heat layer
         let permitHeatmapLayer = null; // Separate heat layer for permits
         let completionHeatmapLayer = null; // Separate heat layer for completions
+        // OCC Application heatmap layers
+        let poolingHeatmapLayer = null;
+        let densityHeatmapLayer = null;
+        let spacingHeatmapLayer = null;
+        let horizontalHeatmapLayer = null;
         let countyProductionData = null; // Cached county production data for choropleth
         let currentProductionType = null; // 'oil' or 'gas'
         let showSectionNumbers = true;  // Default to showing section numbers
@@ -7254,17 +7270,150 @@
                                 max: 0.3,     // Matching max intensity
                                 minOpacity: 0.3,
                                 gradient: {
-                                    0.0: 'rgba(59, 130, 246, 0)',      
-                                    0.1: 'rgba(59, 130, 246, 0.4)',   
-                                    0.2: 'rgba(96, 165, 250, 0.6)',   
-                                    0.4: 'rgba(59, 130, 246, 0.8)',   
-                                    0.6: 'rgba(29, 78, 216, 0.9)',    
-                                    1.0: 'rgba(124, 58, 237, 1)'      
+                                    0.0: 'rgba(59, 130, 246, 0)',
+                                    0.1: 'rgba(59, 130, 246, 0.4)',
+                                    0.2: 'rgba(96, 165, 250, 0.6)',
+                                    0.4: 'rgba(59, 130, 246, 0.8)',
+                                    0.6: 'rgba(29, 78, 216, 0.9)',
+                                    1.0: 'rgba(124, 58, 237, 1)'
                                 }
                             });
                             console.log('✅ Created completion heatmap layer with', completionPoints.length, 'points');
                         }
-                        
+
+                        // Fetch and create OCC Application heatmap layers
+                        try {
+                            const docketResponse = await fetch('/api/docket-heatmap?days=90');
+                            if (docketResponse.ok) {
+                                const docketData = await docketResponse.json();
+                                console.log(`📋 Loaded ${docketData.count} OCC docket entries for heatmap`);
+
+                                const poolingPoints = [];
+                                const densityPoints = [];
+                                const spacingPoints = [];
+                                const horizontalPoints = [];
+
+                                for (const entry of docketData.entries || []) {
+                                    if (!entry.section || !entry.township || !entry.range) continue;
+
+                                    // Get coordinates for this TRS location
+                                    const cacheKey = `${entry.section}-${entry.township}-${entry.range}`;
+                                    let lat, lng;
+
+                                    if (geometryCache[cacheKey]) {
+                                        const bounds = L.geoJSON(geometryCache[cacheKey]).getBounds();
+                                        const center = bounds.getCenter();
+                                        lat = center.lat;
+                                        lng = center.lng;
+                                    } else {
+                                        // Try to fetch geometry
+                                        try {
+                                            const geom = await fetchSectionGeometry(entry.section, entry.township, entry.range, entry.county);
+                                            if (geom && geom.geometry) {
+                                                const bounds = L.geoJSON(geom).getBounds();
+                                                const center = bounds.getCenter();
+                                                lat = center.lat;
+                                                lng = center.lng;
+                                            }
+                                        } catch (err) {
+                                            // Skip if can't get geometry
+                                            continue;
+                                        }
+                                    }
+
+                                    if (!lat || !lng) continue;
+
+                                    const point = [lat, lng, 1];
+                                    switch (entry.relief_type) {
+                                        case 'POOLING': poolingPoints.push(point); break;
+                                        case 'INCREASED_DENSITY': densityPoints.push(point); break;
+                                        case 'SPACING': spacingPoints.push(point); break;
+                                        case 'HORIZONTAL_WELL': horizontalPoints.push(point); break;
+                                    }
+                                }
+
+                                console.log('📋 OCC Application points:', {
+                                    pooling: poolingPoints.length,
+                                    density: densityPoints.length,
+                                    spacing: spacingPoints.length,
+                                    horizontal: horizontalPoints.length
+                                });
+
+                                // Create heatmap layers for each OCC application type
+                                // Purple gradient for Pooling
+                                if (poolingPoints.length > 0) {
+                                    poolingHeatmapLayer = L.heatLayer(poolingPoints, {
+                                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                                        gradient: {
+                                            0.0: 'rgba(147, 51, 234, 0)',
+                                            0.3: 'rgba(147, 51, 234, 0.5)',
+                                            0.6: 'rgba(126, 34, 206, 0.8)',
+                                            1.0: 'rgba(88, 28, 135, 1)'
+                                        }
+                                    });
+                                    console.log('✅ Created pooling heatmap layer with', poolingPoints.length, 'points');
+                                }
+
+                                // Green gradient for Increased Density
+                                if (densityPoints.length > 0) {
+                                    densityHeatmapLayer = L.heatLayer(densityPoints, {
+                                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                                        gradient: {
+                                            0.0: 'rgba(34, 197, 94, 0)',
+                                            0.3: 'rgba(34, 197, 94, 0.5)',
+                                            0.6: 'rgba(22, 163, 74, 0.8)',
+                                            1.0: 'rgba(15, 118, 51, 1)'
+                                        }
+                                    });
+                                    console.log('✅ Created density heatmap layer with', densityPoints.length, 'points');
+                                }
+
+                                // Magenta gradient for Spacing Unit
+                                if (spacingPoints.length > 0) {
+                                    spacingHeatmapLayer = L.heatLayer(spacingPoints, {
+                                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                                        gradient: {
+                                            0.0: 'rgba(236, 72, 153, 0)',
+                                            0.3: 'rgba(236, 72, 153, 0.5)',
+                                            0.6: 'rgba(219, 39, 119, 0.8)',
+                                            1.0: 'rgba(190, 24, 93, 1)'
+                                        }
+                                    });
+                                    console.log('✅ Created spacing heatmap layer with', spacingPoints.length, 'points');
+                                }
+
+                                // Pink gradient for Horizontal Well
+                                if (horizontalPoints.length > 0) {
+                                    horizontalHeatmapLayer = L.heatLayer(horizontalPoints, {
+                                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                                        gradient: {
+                                            0.0: 'rgba(249, 115, 22, 0)',
+                                            0.3: 'rgba(249, 115, 22, 0.5)',
+                                            0.6: 'rgba(234, 88, 12, 0.8)',
+                                            1.0: 'rgba(194, 65, 12, 1)'
+                                        }
+                                    });
+                                    console.log('✅ Created horizontal heatmap layer with', horizontalPoints.length, 'points');
+                                }
+
+                                // Add OCC layers based on checkbox states
+                                if (document.getElementById('toggle-heatmap-pooling')?.checked && poolingHeatmapLayer) {
+                                    map.addLayer(poolingHeatmapLayer);
+                                }
+                                if (document.getElementById('toggle-heatmap-density')?.checked && densityHeatmapLayer) {
+                                    map.addLayer(densityHeatmapLayer);
+                                }
+                                if (document.getElementById('toggle-heatmap-spacing')?.checked && spacingHeatmapLayer) {
+                                    map.addLayer(spacingHeatmapLayer);
+                                }
+                                if (document.getElementById('toggle-heatmap-horizontal')?.checked && horizontalHeatmapLayer) {
+                                    map.addLayer(horizontalHeatmapLayer);
+                                }
+                            }
+                        } catch (docketErr) {
+                            console.warn('Failed to load OCC docket heatmap data:', docketErr);
+                        }
+
                         // Create combined layer group
                         const layers = [];
                         if (permitHeatmapLayer) layers.push(permitHeatmapLayer);
@@ -7399,6 +7548,10 @@
         function updateHeatmapLayers() {
             const showPermits = document.getElementById('toggle-heatmap-permits').checked;
             const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+            const showPooling = document.getElementById('toggle-heatmap-pooling')?.checked;
+            const showDensity = document.getElementById('toggle-heatmap-density')?.checked;
+            const showSpacing = document.getElementById('toggle-heatmap-spacing')?.checked;
+            const showHorizontal = document.getElementById('toggle-heatmap-horizontal')?.checked;
 
             // Update permit heatmap layer
             if (showPermits && permitHeatmapLayer) {
@@ -7420,9 +7573,51 @@
                 map.removeLayer(completionHeatmapLayer);
             }
 
-            // Update button state
+            // Update OCC Application heatmap layers
+            // Pooling layer (purple)
+            if (showPooling && poolingHeatmapLayer) {
+                if (!map.hasLayer(poolingHeatmapLayer)) {
+                    map.addLayer(poolingHeatmapLayer);
+                    console.log('📋 Showing pooling heatmap');
+                }
+            } else if (poolingHeatmapLayer && map.hasLayer(poolingHeatmapLayer)) {
+                map.removeLayer(poolingHeatmapLayer);
+            }
+
+            // Density layer (green)
+            if (showDensity && densityHeatmapLayer) {
+                if (!map.hasLayer(densityHeatmapLayer)) {
+                    map.addLayer(densityHeatmapLayer);
+                    console.log('📋 Showing density heatmap');
+                }
+            } else if (densityHeatmapLayer && map.hasLayer(densityHeatmapLayer)) {
+                map.removeLayer(densityHeatmapLayer);
+            }
+
+            // Spacing layer (magenta)
+            if (showSpacing && spacingHeatmapLayer) {
+                if (!map.hasLayer(spacingHeatmapLayer)) {
+                    map.addLayer(spacingHeatmapLayer);
+                    console.log('📋 Showing spacing heatmap');
+                }
+            } else if (spacingHeatmapLayer && map.hasLayer(spacingHeatmapLayer)) {
+                map.removeLayer(spacingHeatmapLayer);
+            }
+
+            // Horizontal layer (orange)
+            if (showHorizontal && horizontalHeatmapLayer) {
+                if (!map.hasLayer(horizontalHeatmapLayer)) {
+                    map.addLayer(horizontalHeatmapLayer);
+                    console.log('📋 Showing horizontal heatmap');
+                }
+            } else if (horizontalHeatmapLayer && map.hasLayer(horizontalHeatmapLayer)) {
+                map.removeLayer(horizontalHeatmapLayer);
+            }
+
+            // Update button state - active if any heatmap is shown
+            const anyHeatmapActive = showPermits || showCompletions || showPooling || showDensity || showSpacing || showHorizontal;
             const heatmapBtn = document.getElementById('heatmapBtn');
-            if (showPermits || showCompletions) {
+            if (anyHeatmapActive) {
                 heatmapBtn.classList.add('active');
                 heatmapBtn.classList.remove('inactive');
             } else {
@@ -7430,11 +7625,11 @@
                 heatmapBtn.classList.add('inactive');
             }
 
-            if (showPermits || showCompletions) {
+            if (anyHeatmapActive) {
                 ensureLayerOrder();
             }
 
-            showActivityHeatmap = showPermits || showCompletions;
+            showActivityHeatmap = anyHeatmapActive;
         }
 
         // Toggle production choropleth
@@ -8440,6 +8635,11 @@
         // Heatmap checkbox handlers
         document.getElementById('toggle-heatmap-permits').addEventListener('change', updateHeatmapLayers);
         document.getElementById('toggle-heatmap-completions').addEventListener('change', updateHeatmapLayers);
+        // OCC Application heatmap checkbox handlers
+        document.getElementById('toggle-heatmap-pooling')?.addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-density')?.addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-spacing')?.addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-horizontal')?.addEventListener('change', updateHeatmapLayers);
 
         // Production choropleth dropdown
         document.getElementById('production-select').addEventListener('change', toggleProductionChoropleth);
