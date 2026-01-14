@@ -233,6 +233,11 @@ function parseEntryBlock(caseNumber, blockText, metadata = {}) {
   const textMatch = blockText.match(/Text:\s*(.+?)(?=\s*(?:Court Reporter:|Relief Type:))/is);
   const notes = textMatch ? textMatch[1].replace(/\n/g, ' ').trim() : null;
 
+  // Extract API numbers from all available text fields
+  // API numbers are most commonly found in Location Exception and Change of Operator filings
+  const combinedText = [notes, reliefSought, blockText].filter(Boolean).join(' ');
+  const apiNumbers = parseAPINumbers(combinedText);
+
   // Build entry
   const entry = {
     case_number: caseNumber,
@@ -247,6 +252,8 @@ function parseEntryBlock(caseNumber, blockText, metadata = {}) {
     meridian: legal?.meridian || 'IM',
     // Additional sections for multi-section orders (stored as JSON array)
     additional_sections: additionalSections,
+    // API numbers found in the entry (for well-based matching)
+    api_numbers: apiNumbers.length > 0 ? apiNumbers : null,
     hearing_date: hearingDate,
     hearing_time: hearingTime,
     status: status,
