@@ -9578,7 +9578,7 @@
         <div style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: left;">
             <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Get More Credits</h4>
             <div style="display: flex; flex-direction: column; gap: 8px;">
-                <a href="/portal/account#credits" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
+                <a href="#" onclick="closeOutOfCreditsModal(); openCreditPackModal(); return false;" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
                     <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
                     </svg>
@@ -9608,6 +9608,91 @@
         <p id="creditResetInfo" style="margin: 16px 0 0; font-size: 12px; color: #9CA3AF;"></p>
     </div>
 </div>
+
+<!-- CREDIT PACK PURCHASE MODAL -->
+<div class="modal-overlay" id="creditPackModal" style="display: none;">
+    <div class="modal" style="max-width: 700px;">
+        <button class="close-btn" onclick="closeCreditPackModal()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h2 style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">Buy Credit Pack</h2>
+            <p style="margin: 0; color: #6B7280; font-size: 14px;">One-time purchase. Credits never expire.</p>
+        </div>
+
+        <div class="credit-pack-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
+            <!-- Starter Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpV6u9OfJmRCDOqmiQGFg2V')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Starter Pack</h3>
+                    <span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">BEST VALUE</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">100</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$49</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.49 per credit</div>
+            </div>
+
+            <!-- Working Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpVCK9OfJmRCDOq8r8NrrqJ')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Working Pack</h3>
+                    <span style="background: #D1FAE5; color: #047857; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">POPULAR</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">500</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$199</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.40 per credit</div>
+            </div>
+
+            <!-- Team Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpVCK9OfJmRCDOqhjfa5Na1')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Team Pack</h3>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">2,000</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$699</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.35 per credit</div>
+            </div>
+
+            <!-- Operations Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpVCK9OfJmRCDOqNVkGVLVQ')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Operations Pack</h3>
+                    <span style="background: #FEF3C7; color: #B45309; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">BEST RATE</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">10,000</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$2,499</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.25 per credit</div>
+            </div>
+        </div>
+
+        <div style="text-align: center; padding-top: 16px; border-top: 1px solid #E5E7EB;">
+            <p style="margin: 0; font-size: 13px; color: #9CA3AF;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="vertical-align: middle; margin-right: 4px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Purchased credits are used after your monthly credits, before bonus credits.
+            </p>
+        </div>
+    </div>
+</div>
+
+<style>
+.credit-pack-card:hover {
+    border-color: var(--copper-accent);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    transform: translateY(-2px);
+}
+</style>
 
 <!-- DOCUMENT UPLOAD MODAL -->
 <div class="modal-overlay" id="documentUploadModal" style="display: none;">
