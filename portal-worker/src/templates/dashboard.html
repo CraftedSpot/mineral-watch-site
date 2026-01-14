@@ -11507,6 +11507,62 @@ function closeOutOfCreditsModal() {
 }
 window.closeOutOfCreditsModal = closeOutOfCreditsModal;
 
+function openCreditPackModal() {
+    document.getElementById('creditPackModal').style.display = 'flex';
+}
+window.openCreditPackModal = openCreditPackModal;
+
+function closeCreditPackModal() {
+    document.getElementById('creditPackModal').style.display = 'none';
+}
+window.closeCreditPackModal = closeCreditPackModal;
+
+async function purchaseCreditPack(priceId) {
+    try {
+        // Show loading state
+        const cards = document.querySelectorAll('.credit-pack-card');
+        cards.forEach(card => {
+            card.style.pointerEvents = 'none';
+            card.style.opacity = '0.6';
+        });
+
+        const response = await fetch('/documents/api/checkout/credit-pack', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ priceId })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create checkout session');
+        }
+
+        const { url } = await response.json();
+
+        // Redirect to Stripe Checkout
+        window.location.href = url;
+    } catch (error) {
+        console.error('Error purchasing credit pack:', error);
+        showToast('Failed to start checkout: ' + error.message, 'error');
+
+        // Reset loading state
+        const cards = document.querySelectorAll('.credit-pack-card');
+        cards.forEach(card => {
+            card.style.pointerEvents = '';
+            card.style.opacity = '';
+        });
+    }
+}
+window.purchaseCreditPack = purchaseCreditPack;
+
+// Close credit pack modal when clicking outside
+document.getElementById('creditPackModal')?.addEventListener('click', e => {
+    if (e.target.id === 'creditPackModal') closeCreditPackModal();
+});
+
 function closeUploadModal() {
     document.getElementById('documentUploadModal').style.display = 'none';
     clearSelectedFile();
