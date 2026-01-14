@@ -174,19 +174,22 @@ export class UsageTrackingService {
     const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
 
     let monthlyRemaining: number;
-    let permanentCredits: number;
+    let purchasedCredits: number;
+    let permanentCredits: number;  // bonus credits
     let totalAvailable: number;
 
     if (isLifetimeTier) {
-      // Free tier: lifetime credits only
+      // Free tier: lifetime credits only (plus any purchased)
       monthlyRemaining = 0;
+      purchasedCredits = creditBalance.purchased_credits;
       permanentCredits = creditBalance.lifetime_credits_granted - creditBalance.lifetime_credits_used;
-      totalAvailable = permanentCredits;
+      totalAvailable = permanentCredits + purchasedCredits;
     } else {
-      // Paid tier: monthly + permanent
+      // Paid tier: monthly + purchased + bonus
       monthlyRemaining = Math.max(0, tierLimit.monthly - usage.monthly_credits_used);
-      permanentCredits = creditBalance.permanent_credits;
-      totalAvailable = monthlyRemaining + permanentCredits;
+      purchasedCredits = creditBalance.purchased_credits;
+      permanentCredits = creditBalance.permanent_credits;  // bonus credits
+      totalAvailable = monthlyRemaining + purchasedCredits + permanentCredits;
     }
 
     // Calculate reset date (first day of next month)
@@ -198,6 +201,7 @@ export class UsageTrackingService {
       credits_used: usage.monthly_credits_used,
       monthly_limit: tierLimit.monthly,
       monthly_remaining: monthlyRemaining,
+      purchased_credits: purchasedCredits,
       permanent_credits: permanentCredits,
       billing_period: billingPeriod,
       percentage_used: tierLimit.monthly > 0 ? Math.round((usage.monthly_credits_used / tierLimit.monthly) * 100) : 0,
@@ -209,42 +213,62 @@ export class UsageTrackingService {
 
   /**
    * Deduct a credit for document processing
-   * Deduction order: Monthly first, then Permanent
+   * Deduction order: Monthly first, then Purchased, then Bonus (permanent)
    *
    * Returns true if credit was successfully deducted, false if no credits available
    */
   async deductCredit(userId: string, userPlan: string): Promise<boolean> {
     const tierLimit = getTierLimit(userPlan);
     const isLifetimeTier = tierLimit.isLifetime === true;
+    const billingPeriod = getCurrentBillingPeriod();
 
     if (isLifetimeTier) {
-      // Free tier: deduct from lifetime credits
-      const result = await this.db.prepare(`
-        UPDATE user_credit_balance
-        SET lifetime_credits_used = lifetime_credits_used + 1,
-            updated_at = datetime('now', '-6 hours')
-        WHERE user_id = ?
-          AND lifetime_credits_used < lifetime_credits_granted
-      `).bind(userId).run();
+      // Free tier: try lifetime credits first, then purchased
+      const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
+      const lifetimeRemaining = creditBalance.lifetime_credits_granted - creditBalance.lifetime_credits_used;
 
-      if (result.meta.changes === 0) {
-        console.log(`[Credits] User ${userId} has no lifetime credits remaining`);
-        return false;
+      if (lifetimeRemaining > 0) {
+        const result = await this.db.prepare(`
+          UPDATE user_credit_balance
+          SET lifetime_credits_used = lifetime_credits_used + 1,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ?
+            AND lifetime_credits_used < lifetime_credits_granted
+        `).bind(userId).run();
+
+        if (result.meta.changes > 0) {
+          console.log(`[Credits] Deducted 1 lifetime credit for user ${userId}`);
+          return true;
+        }
       }
 
-      console.log(`[Credits] Deducted 1 lifetime credit for user ${userId}`);
-      return true;
+      // Try purchased credits for free tier
+      if (creditBalance.purchased_credits > 0) {
+        const result = await this.db.prepare(`
+          UPDATE user_credit_balance
+          SET purchased_credits = purchased_credits - 1,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND purchased_credits > 0
+        `).bind(userId).run();
+
+        if (result.meta.changes > 0) {
+          console.log(`[Credits] Deducted 1 purchased credit for free tier user ${userId}. Remaining: ${creditBalance.purchased_credits - 1}`);
+          return true;
+        }
+      }
+
+      console.log(`[Credits] User ${userId} has no lifetime or purchased credits remaining`);
+      return false;
     }
 
-    // Paid tier: try monthly first, then permanent
-    const billingPeriod = getCurrentBillingPeriod();
+    // Paid tier: try monthly first, then purchased, then bonus (permanent)
     const usage = await this.getOrCreateUsageRecord(userId, userPlan);
     const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
 
     const monthlyRemaining = Math.max(0, tierLimit.monthly - usage.monthly_credits_used);
 
+    // 1. Try monthly credits first
     if (monthlyRemaining > 0) {
-      // Deduct from monthly
       await this.db.prepare(`
         UPDATE document_usage
         SET monthly_credits_used = monthly_credits_used + 1,
@@ -257,7 +281,30 @@ export class UsageTrackingService {
       return true;
     }
 
-    // Try permanent credits
+    // 2. Try purchased credits second
+    if (creditBalance.purchased_credits > 0) {
+      const result = await this.db.prepare(`
+        UPDATE user_credit_balance
+        SET purchased_credits = purchased_credits - 1,
+            updated_at = datetime('now', '-6 hours')
+        WHERE user_id = ? AND purchased_credits > 0
+      `).bind(userId).run();
+
+      if (result.meta.changes > 0) {
+        // Also track in document_usage for analytics
+        await this.db.prepare(`
+          UPDATE document_usage
+          SET credits_used = credits_used + 1,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND billing_period_start = ?
+        `).bind(userId, billingPeriod).run();
+
+        console.log(`[Credits] Deducted 1 purchased credit for user ${userId}. Remaining: ${creditBalance.purchased_credits - 1}`);
+        return true;
+      }
+    }
+
+    // 3. Try bonus (permanent) credits last
     if (creditBalance.permanent_credits > 0) {
       const result = await this.db.prepare(`
         UPDATE user_credit_balance
@@ -275,7 +322,7 @@ export class UsageTrackingService {
           WHERE user_id = ? AND billing_period_start = ?
         `).bind(userId, billingPeriod).run();
 
-        console.log(`[Credits] Deducted 1 permanent credit for user ${userId}. Remaining: ${creditBalance.permanent_credits - 1}`);
+        console.log(`[Credits] Deducted 1 bonus credit for user ${userId}. Remaining: ${creditBalance.permanent_credits - 1}`);
         return true;
       }
     }
