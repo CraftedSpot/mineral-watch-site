@@ -3696,8 +3696,26 @@
                     const aTotal = (parseFloat(a.fields['RI Acres'] || 0) + parseFloat(a.fields['WI Acres'] || 0));
                     const bTotal = (parseFloat(b.fields['RI Acres'] || 0) + parseFloat(b.fields['WI Acres'] || 0));
                     return aTotal < bTotal ? -1 * multiplier : (aTotal > bTotal ? 1 * multiplier : 0);
+
+                } else if (field === 'wells') {
+                    // Linked Wells count
+                    const aCount = a._linkCounts?.wells || 0;
+                    const bCount = b._linkCounts?.wells || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'documents') {
+                    // Linked Documents count
+                    const aCount = a._linkCounts?.documents || 0;
+                    const bCount = b._linkCounts?.documents || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'filings') {
+                    // OCC Filings count
+                    const aCount = a._linkCounts?.filings || 0;
+                    const bCount = b._linkCounts?.filings || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
                 }
-                
+
                 return 0;
             });
         }
@@ -3736,10 +3754,15 @@
             const isViewer = currentUser?.role === 'Viewer';
             let html = '<table class="data-table"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
-            html += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-actions"></colgroup><thead><tr>';
+            html += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-links"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th>';
-            html += '<th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;"><span class="desktop-only-total">Total </span><span class="mobile-only-acres"></span>Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Actions</th></tr></thead><tbody>';
+            html += '<th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;"><span class="desktop-only-total">Total </span><span class="mobile-only-acres"></span>Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
             
+            // SVG icons for links column
+            const wellsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>';
+            const docsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+            const filingsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>';
+
             displayProperties.forEach(p => {
                 const f = p.fields;
                 const str = `T${f.TWN} R${f.RNG} ${f.SEC}`;
@@ -3750,7 +3773,13 @@
                 const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 80)) + (f.Notes.length > 80 ? '...' : '') : '';
                 const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
                 const group = f.Group ? `<span style="color: var(--oil-navy); font-size: 12px; background: #F1F5F9; padding: 2px 8px; border-radius: 12px;">${escapeHtml(f.Group)}</span>` : '<em style="color: #A0AEC0;">—</em>';
-                
+
+                // Get link counts (populated from API or default to 0)
+                const linkCounts = p._linkCounts || { wells: 0, documents: 0, filings: 0 };
+                const wellsClass = linkCounts.wells === 0 ? 'link-count zero' : 'link-count';
+                const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
+                const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
+
                 html += `<tr onclick="openPropertyDetails('${p.id}')" style="cursor: pointer;">`;
                 if (!isViewer) {
                     html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>`;
@@ -3760,8 +3789,14 @@
                     <td class="col-prop-group">${group}</td>
                     <td style="text-align: right;">${acresDisplay}</td>
                     <td title="${f.Notes ? escapeHtml(f.Notes) : ''}" class="col-prop-notes-cell">${notes}</td>
-                    <td onclick="event.stopPropagation()">
-                        <button class="btn-map-link" onclick="viewOnMap('${p.id}')" title="View on Map">📍 Map</button>
+                    <td>
+                        <div class="links-cell">
+                            <span class="${wellsClass}" title="Linked Wells">${wellsIcon}${linkCounts.wells}</span>
+                            <span class="link-separator">│</span>
+                            <span class="${docsClass}" title="Documents">${docsIcon}${linkCounts.documents}</span>
+                            <span class="link-separator">│</span>
+                            <span class="${filingsClass}" title="OCC Filings">${filingsIcon}${linkCounts.filings}</span>
+                        </div>
                     </td>
                 </tr>`;
             });
