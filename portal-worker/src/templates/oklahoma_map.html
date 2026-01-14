@@ -7587,8 +7587,11 @@
             const select = document.getElementById('nearby-wells-select');
             if (select) {
                 select.classList.add('loading');
-                select.setAttribute('data-original-text', select.options[select.selectedIndex].text);
-                // Can't change option text easily, so just add loading class
+                select.classList.add('active'); // Keep orange styling
+                // Store original option text and change to Loading...
+                const selectedOption = select.options[select.selectedIndex];
+                select.setAttribute('data-original-text', selectedOption.text);
+                selectedOption.text = 'Loading...';
             }
         }
 
@@ -7597,6 +7600,12 @@
             const select = document.getElementById('nearby-wells-select');
             if (select) {
                 select.classList.remove('loading');
+                // Restore original option text
+                const originalText = select.getAttribute('data-original-text');
+                if (originalText) {
+                    select.options[select.selectedIndex].text = originalText;
+                    select.removeAttribute('data-original-text');
+                }
             }
         }
         
