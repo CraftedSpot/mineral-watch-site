@@ -262,6 +262,32 @@ export async function handleInviteMember(request: Request, env: Env) {
       }
       
       // User exists but has no organization - add them to this one
+      // Check seat limits before adding
+      const membersFilter = `{Organization} = '${organizationName}'`;
+      const membersCountResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
+        `filterByFormula=${encodeURIComponent(membersFilter)}&view=Grid%20view`,
+        {
+          headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+        }
+      );
+
+      if (!membersCountResponse.ok) {
+        console.error('Failed to count members:', await membersCountResponse.text());
+        return jsonResponse({ error: "Failed to check member count" }, 500);
+      }
+
+      const membersData = await membersCountResponse.json() as any;
+      const currentMemberCount = membersData.records.length;
+
+      console.log(`Organization ${organizationName} has ${currentMemberCount} members, max allowed: ${maxMembers}`);
+
+      if (currentMemberCount >= maxMembers) {
+        return jsonResponse({
+          error: `Your ${plan} plan allows up to ${maxMembers} team member${maxMembers > 1 ? 's' : ''}. Please upgrade to add more members.`
+        }, 403);
+      }
+
       const updateResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${existingUser.id}`,
         {
