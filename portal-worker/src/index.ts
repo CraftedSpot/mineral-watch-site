@@ -137,7 +137,9 @@ import {
   handleGetTownships,
   handleGetCountyStats,
   handleGetCountyProduction,
-  handleGetMapDataVersion
+  handleGetMapDataVersion,
+  // Docket heatmap handler
+  handleGetDocketHeatmap
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -944,7 +946,12 @@ var index_default = {
       if (path === "/api/map-data/version" && request.method === "GET") {
         return handleGetMapDataVersion(request, env);
       }
-      
+
+      // Docket heatmap endpoint (OCC applications for map visualization)
+      if (path === "/api/docket-heatmap" && request.method === "GET") {
+        return handleGetDocketHeatmap(request, env);
+      }
+
       // Formation backfill endpoints
       if (path === "/api/backfill-formations" && request.method === "POST") {
         return handleBackfillFormations(request, env);
