@@ -9,6 +9,12 @@ import os
 INPUT_FILE = "/Users/jamesprice/mymineralwatch/OTC Bulk/files (4)/exp_gpoper20260112.dat"
 OUTPUT_DIR = "/Users/jamesprice/mymineralwatch/mineral-watch-site/portal-worker/otc-operator-batches"
 
+def format_pun_with_dashes(raw_pun):
+    """Format raw PUN (14 chars) to dashed format: XXX-XXXXX-X-XXXXX"""
+    if len(raw_pun) < 14:
+        raw_pun = raw_pun.ljust(14, '0')
+    return f"{raw_pun[0:3]}-{raw_pun[3:8]}-{raw_pun[8]}-{raw_pun[9:14]}"
+
 def parse_operator_file():
     """Parse OTC operator file and extract PUN -> operator_number mapping."""
     pun_to_operator = {}
@@ -21,13 +27,15 @@ def parse_operator_file():
             # Fixed-width format:
             # 0-14: PUN (14 chars)
             # 14-21: Operator Number (7 chars)
-            pun = line[0:14].strip()
+            raw_pun = line[0:14].strip()
             operator_number = line[14:21].strip()
 
-            if pun and operator_number:
+            if raw_pun and operator_number:
+                # Format PUN with dashes to match otc_leases table format
+                formatted_pun = format_pun_with_dashes(raw_pun)
                 # Remove leading zeros from operator number for consistency
                 operator_number = operator_number.lstrip('0') or '0'
-                pun_to_operator[pun] = operator_number
+                pun_to_operator[formatted_pun] = operator_number
 
     return pun_to_operator
 
