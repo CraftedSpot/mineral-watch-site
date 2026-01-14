@@ -137,21 +137,21 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     }
 
     // 3. Get OCC filing counts from D1 (batched)
-    // Build STR conditions and map
+    // Build STR conditions and map - use proper normalization
     const strToPropertyMap: Map<string, string[]> = new Map();
     const strConditions: { sec: number; twn: string; rng: string; strKey: string }[] = [];
 
     for (const prop of properties) {
       const f = prop.fields;
-      const sec = f.SEC?.toString();
-      const twn = f.TWN?.toString()?.toUpperCase();
-      const rng = f.RNG?.toString()?.toUpperCase();
+      const sec = normalizeSection(f.SEC);
+      const twn = normalizeTownship(f.TWN);
+      const rng = normalizeRange(f.RNG);
 
-      if (sec && twn && rng) {
+      if (sec !== null && twn && rng) {
         const strKey = `${sec}|${twn}|${rng}`;
         if (!strToPropertyMap.has(strKey)) {
           strToPropertyMap.set(strKey, []);
-          strConditions.push({ sec: parseInt(sec, 10), twn, rng, strKey });
+          strConditions.push({ sec, twn, rng, strKey });
         }
         strToPropertyMap.get(strKey)!.push(prop.id);
       }
