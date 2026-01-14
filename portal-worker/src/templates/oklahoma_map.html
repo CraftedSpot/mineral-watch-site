@@ -7093,17 +7093,17 @@
                             activityHeatmapLayer = L.layerGroup(layers);
                             console.log('🔥 Activity heatmap layer created with', layers.length, 'sublayers');
                             
-                            // Check if the heatmap select is not "off" and add appropriate layers
-                            const heatmapSelect = document.getElementById('heatmap-select');
-                            const heatmapValue = heatmapSelect ? heatmapSelect.value : 'both';
-                            if (heatmapValue !== 'off') {
-                                if ((heatmapValue === 'permits' || heatmapValue === 'both') && permitHeatmapLayer) {
-                                    map.addLayer(permitHeatmapLayer);
-                                }
-                                if ((heatmapValue === 'completions' || heatmapValue === 'both') && completionHeatmapLayer) {
-                                    map.addLayer(completionHeatmapLayer);
-                                }
-                                console.log('📍 Heatmap added to map automatically:', heatmapValue);
+                            // Check checkbox states and add appropriate layers
+                            const showPermits = document.getElementById('toggle-heatmap-permits').checked;
+                            const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+                            if (showPermits && permitHeatmapLayer) {
+                                map.addLayer(permitHeatmapLayer);
+                            }
+                            if (showCompletions && completionHeatmapLayer) {
+                                map.addLayer(completionHeatmapLayer);
+                            }
+                            if (showPermits || showCompletions) {
+                                console.log('📍 Heatmap added to map automatically');
                                 ensureLayerOrder();
                             }
                         }
@@ -7213,56 +7213,67 @@
             }
         }
         
-        // Toggle activity heatmap
-        function toggleActivityHeatmap() {
-            const select = document.getElementById('heatmap-select');
+        // Toggle activity heatmap based on checkbox states
+        function updateHeatmapLayers() {
+            const showPermits = document.getElementById('toggle-heatmap-permits').checked;
+            const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+
+            // Update permit heatmap layer
+            if (showPermits && permitHeatmapLayer) {
+                if (!map.hasLayer(permitHeatmapLayer)) {
+                    map.addLayer(permitHeatmapLayer);
+                    console.log('🔥 Showing permit heatmap');
+                }
+            } else if (permitHeatmapLayer && map.hasLayer(permitHeatmapLayer)) {
+                map.removeLayer(permitHeatmapLayer);
+            }
+
+            // Update completion heatmap layer
+            if (showCompletions && completionHeatmapLayer) {
+                if (!map.hasLayer(completionHeatmapLayer)) {
+                    map.addLayer(completionHeatmapLayer);
+                    console.log('🔥 Showing completion heatmap');
+                }
+            } else if (completionHeatmapLayer && map.hasLayer(completionHeatmapLayer)) {
+                map.removeLayer(completionHeatmapLayer);
+            }
+
+            // Update button state
+            const heatmapBtn = document.getElementById('heatmapBtn');
+            if (showPermits || showCompletions) {
+                heatmapBtn.classList.add('active');
+                heatmapBtn.classList.remove('inactive');
+            } else {
+                heatmapBtn.classList.remove('active');
+                heatmapBtn.classList.add('inactive');
+            }
+
+            if (showPermits || showCompletions) {
+                ensureLayerOrder();
+            }
+
+            showActivityHeatmap = showPermits || showCompletions;
+        }
+
+        // Toggle production choropleth
+        function toggleProductionChoropleth() {
+            const select = document.getElementById('production-select');
             const value = select.value;
 
-            // Update active state based on selection
+            // Update active state
             if (value !== 'off') {
                 select.classList.add('active');
             } else {
                 select.classList.remove('active');
             }
 
-            // Remove all point-based heatmap layers
-            if (permitHeatmapLayer && map.hasLayer(permitHeatmapLayer)) {
-                map.removeLayer(permitHeatmapLayer);
-            }
-            if (completionHeatmapLayer && map.hasLayer(completionHeatmapLayer)) {
-                map.removeLayer(completionHeatmapLayer);
-            }
-
-            // Reset county choropleth styling if switching away from production
-            if (value !== 'oil' && value !== 'gas') {
+            // Reset or apply choropleth
+            if (value === 'off') {
                 resetCountyChoropleth();
                 currentProductionType = null;
-            }
-
-            // Handle point-based heatmaps (permits/completions)
-            if (value === 'permits' || value === 'both') {
-                if (permitHeatmapLayer) {
-                    map.addLayer(permitHeatmapLayer);
-                    console.log('🔥 Showing permit heatmap');
-                }
-            }
-            if (value === 'completions' || value === 'both') {
-                if (completionHeatmapLayer) {
-                    map.addLayer(completionHeatmapLayer);
-                    console.log('🔥 Showing completion heatmap');
-                }
-            }
-
-            // Handle county production choropleth
-            if (value === 'oil' || value === 'gas') {
+            } else {
                 loadCountyProductionChoropleth(value);
             }
-
-            if (value !== 'off') {
-                ensureLayerOrder();
-            }
-
-            showActivityHeatmap = value !== 'off';
         }
 
         // Reset county layer to default styling
@@ -8171,8 +8182,33 @@
         document.getElementById('toggle-wells').addEventListener('change', toggleWells);
         document.getElementById('toggle-permits').addEventListener('change', togglePermits);
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
-        document.getElementById('heatmap-select').addEventListener('change', toggleActivityHeatmap);
         document.getElementById('nearby-wells-select').addEventListener('change', toggleNearbyWells);
+
+        // Heatmap button dropdown (similar to Overlays)
+        const heatmapBtn = document.getElementById('heatmapBtn');
+        const heatmapMenu = document.getElementById('heatmapMenu');
+        let heatmapMenuOpen = false;
+
+        heatmapBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            heatmapMenuOpen = !heatmapMenuOpen;
+            heatmapMenu.classList.toggle('show', heatmapMenuOpen);
+        });
+
+        // Close heatmap menu when clicking outside
+        document.addEventListener('click', function(event) {
+            if (heatmapMenuOpen && !heatmapMenu.contains(event.target) && event.target !== heatmapBtn) {
+                heatmapMenuOpen = false;
+                heatmapMenu.classList.remove('show');
+            }
+        });
+
+        // Heatmap checkbox handlers
+        document.getElementById('toggle-heatmap-permits').addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-completions').addEventListener('change', updateHeatmapLayers);
+
+        // Production choropleth dropdown
+        document.getElementById('production-select').addEventListener('change', toggleProductionChoropleth);
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async function() {
