@@ -638,7 +638,18 @@ setTimeout(checkAndRedirect, 100);
       const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Logging in...</title></head><body>
 <p>Completing login...</p>
-<script>setTimeout(function() { window.location.href = '/portal'; }, 100);</script>
+<script>
+var attempts = 0;
+function checkAndRedirect() {
+  attempts++;
+  if (document.cookie.indexOf('mw_session_v3=') !== -1 || attempts >= 20) {
+    window.location.replace('/portal');
+  } else {
+    setTimeout(checkAndRedirect, 100);
+  }
+}
+setTimeout(checkAndRedirect, 100);
+</script>
 </body></html>`;
       return new Response(html, {
         status: 200,
