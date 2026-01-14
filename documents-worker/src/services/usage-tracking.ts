@@ -6,7 +6,8 @@ export interface UsageStats {
   credits_used: number;
   monthly_limit: number;
   monthly_remaining: number;
-  permanent_credits: number;
+  purchased_credits: number;
+  permanent_credits: number;  // bonus credits
   billing_period: string;
   percentage_used: number;
   total_available: number;
@@ -17,7 +18,8 @@ export interface UsageStats {
 export interface CreditCheckResult {
   hasCredits: boolean;
   monthlyRemaining: number;
-  permanentRemaining: number;
+  purchasedRemaining: number;
+  permanentRemaining: number;  // bonus credits
   totalAvailable: number;
   message?: string;
 }
