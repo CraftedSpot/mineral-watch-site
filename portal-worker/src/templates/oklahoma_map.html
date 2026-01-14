@@ -6862,23 +6862,10 @@
             }
         }
         
-        // Track zoom bucket for nearby wells resizing (only re-render when crossing threshold)
-        let lastNearbyWellsZoomBucket = null;
-
         // Apply fade effects on zoom
         map.on('zoomend', function() {
             updateLayerVisibility();
             // Section labels are updated via updateSectionLines
-
-            // Re-render nearby wells if zoom crossed the size threshold
-            const currentZoom = map.getZoom();
-            const newBucket = currentZoom < 10 ? 'small' : 'large';
-            if (lastNearbyWellsZoomBucket !== null && lastNearbyWellsZoomBucket !== newBucket && allNearbyWells && allNearbyWells.length > 0) {
-                console.log(`Zoom bucket changed from ${lastNearbyWellsZoomBucket} to ${newBucket}, resizing nearby wells`);
-                const filteredWells = filterWellsData(allNearbyWells);
-                displayFilteredWells(filteredWells);
-            }
-            lastNearbyWellsZoomBucket = newBucket;
         });
         map.on('zoom', updateLayerVisibility);  // Smooth during zoom
         
