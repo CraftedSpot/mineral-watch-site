@@ -284,11 +284,16 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
 
           if (docsResult.results) {
             for (const row of docsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
-              const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
-              const propIds = strToPropertyMap.get(strKey) || [];
-              for (const propId of propIds) {
-                if (counts[propId]) {
-                  counts[propId].documents = row.count;
+              const normSec = normalizeSection(row.sec);
+              const normTwn = normalizeTownship(row.twn);
+              const normRng = normalizeRange(row.rng);
+              if (normSec !== null && normTwn && normRng) {
+                const strKey = `${normSec}|${normTwn}|${normRng}`;
+                const propIds = strToPropertyMap.get(strKey) || [];
+                for (const propId of propIds) {
+                  if (counts[propId]) {
+                    counts[propId].documents = row.count;
+                  }
                 }
               }
             }
