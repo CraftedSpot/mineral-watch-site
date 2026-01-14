@@ -1920,7 +1920,7 @@ export default {
 
         return jsonResponse({
           success: true,
-          checkoutUrl: session.url,
+          url: session.url,
           sessionId: session.id,
         }, 200, env);
       } catch (error) {
