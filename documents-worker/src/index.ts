@@ -1843,9 +1843,9 @@ export default {
       }
     }
 
-    // Route: POST /api/checkout/credit-pack - Create Stripe checkout session for credit pack purchase
+    // Route: POST /api/documents/checkout/credit-pack - Create Stripe checkout session for credit pack purchase
     // Requires authentication - user must be logged in
-    if (path === '/api/checkout/credit-pack' && request.method === 'POST') {
+    if (path === '/api/documents/checkout/credit-pack' && request.method === 'POST') {
       // Verify authentication
       const authResponse = await env.AUTH_WORKER.fetch(
         new Request(request.url, {

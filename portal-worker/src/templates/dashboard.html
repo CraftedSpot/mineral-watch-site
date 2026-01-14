@@ -11538,7 +11538,7 @@ async function purchaseCreditPack(priceId) {
             card.style.opacity = '0.6';
         });
 
-        const response = await fetch('/documents/api/checkout/credit-pack', {
+        const response = await fetch('/api/documents/checkout/credit-pack', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
