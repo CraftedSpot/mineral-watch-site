@@ -687,7 +687,57 @@
             border-color: var(--primary);
             box-shadow: 0 0 0 3px var(--oil-navy-pale);
         }
-        
+
+        /* Layer select dropdown - matches toggle-btn styling */
+        .layer-select {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--slate-blue);
+            cursor: pointer;
+            transition: all 0.2s;
+            appearance: none;
+            -webkit-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
+        }
+
+        .layer-select:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+
+        .layer-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--oil-navy-pale);
+        }
+
+        /* Active state when a layer option is selected (not "off") */
+        .layer-select.active {
+            background-color: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+        }
+
+        .layer-select.active:hover {
+            background-color: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+            color: white;
+        }
+
+        .layer-select.loading {
+            opacity: 0.8;
+            pointer-events: none;
+        }
+
         .toggle-btn {
             background: white;
             border: 1px solid var(--border);
@@ -2121,16 +2171,11 @@
                             <input type="checkbox" id="toggle-completions" checked>
                             <span title="Wells completed within 90 days near your properties">Completions</span>
                         </label>
-                        <label class="toggle-btn">
-                            <input type="checkbox" id="toggle-nearby-wells">
-                            <span title="Explore wells near your properties">Nearby Wells</span>
-                        </label>
-                        <div id="nearby-wells-filter" class="nearby-wells-filter" style="display: none;">
-                            <select id="well-status-filter" class="well-status-select">
-                                <option value="AC" selected>AC Only</option>
-                                <option value="ALL">All Wells</option>
-                            </select>
-                        </div>
+                        <select id="nearby-wells-select" class="layer-select" title="Explore wells near your properties">
+                            <option value="off">Nearby Wells</option>
+                            <option value="AC">Active Wells</option>
+                            <option value="ALL">All Wells</option>
+                        </select>
                         <label class="toggle-btn active">
                             <input type="checkbox" id="toggle-heatmap" checked>
                             <span title="All drilling permits and completions statewide within 90 days">Heat Map</span>
