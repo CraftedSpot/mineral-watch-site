@@ -778,11 +778,81 @@
             height: 0;
         }
         
+        /* Heatmap Dropdown Button - mirrors Overlays pattern */
+        .heatmap-dropdown {
+            position: relative;
+        }
+
+        .heatmap-btn {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 16px 8px 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--slate-blue);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .heatmap-btn:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+
+        .heatmap-btn.active {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+
+        .heatmap-btn.active:hover {
+            background: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+        }
+
+        .heatmap-btn.inactive {
+            color: #9CA3AF;
+        }
+
+        .heatmap-btn::after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .heatmap-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 140px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s;
+        }
+
+        .heatmap-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
         /* Overlays Dropdown Button */
         .overlays-dropdown {
             position: relative;
         }
-        
+
         .overlays-btn {
             background: white;
             border: 1px solid var(--border);
