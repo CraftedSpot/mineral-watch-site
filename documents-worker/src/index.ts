@@ -11,7 +11,16 @@ interface Env {
   ALLOWED_ORIGIN: string;
   PROCESSING_API_KEY: string;
   SYNC_API_KEY?: string;
+  STRIPE_SECRET_KEY?: string;
 }
+
+// Credit pack pricing - must match Stripe product prices (LIVE MODE)
+const CREDIT_PACK_PRICES: Record<string, { credits: number; name: string; price: number }> = {
+  'price_1SpV6u9OfJmRCDOqmiQGFg2V': { credits: 100, name: 'Starter Pack', price: 4900 },
+  'price_1SpVCK9OfJmRCDOq8r8NrrqJ': { credits: 500, name: 'Working Pack', price: 19900 },
+  'price_1SpVCK9OfJmRCDOqhjfa5Na1': { credits: 2000, name: 'Team Pack', price: 69900 },
+  'price_1SpVCK9OfJmRCDOqNVkGVLVQ': { credits: 10000, name: 'Operations Pack', price: 249900 },
+};
 
 // Helper to ensure CORS headers
 function corsHeaders(env: Env) {

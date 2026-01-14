@@ -418,6 +418,54 @@ export class UsageTrackingService {
   }
 
   /**
+   * Add purchased credits (from credit pack purchase)
+   * These never expire and are consumed after monthly, before bonus
+   */
+  async addPurchasedCredits(
+    userId: string,
+    credits: number,
+    packName: string,
+    priceId: string,
+    amountPaid: number,  // in cents
+    stripeSessionId?: string,
+    stripePaymentIntent?: string
+  ): Promise<void> {
+    // Ensure balance record exists first
+    await this.getOrCreateCreditBalance(userId, 'Starter'); // Plan doesn't matter for existing record
+
+    // Add credits to user balance
+    await this.db.prepare(`
+      UPDATE user_credit_balance
+      SET purchased_credits = purchased_credits + ?,
+          updated_at = datetime('now', '-6 hours')
+      WHERE user_id = ?
+    `).bind(credits, userId).run();
+
+    // Log the purchase for audit trail
+    await this.db.prepare(`
+      INSERT INTO credit_purchase_history (
+        user_id,
+        credits,
+        price_id,
+        pack_name,
+        amount_paid,
+        stripe_session_id,
+        stripe_payment_intent
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).bind(
+      userId,
+      credits,
+      priceId,
+      packName,
+      amountPaid,
+      stripeSessionId || null,
+      stripePaymentIntent || null
+    ).run();
+
+    console.log(`[Credits] Added ${credits} purchased credits for user ${userId} (pack: ${packName}, price: $${(amountPaid / 100).toFixed(2)})`);
+  }
+
+  /**
    * Grant annual bonus credits (called when user subscribes annually)
    */
   async grantAnnualBonus(userId: string, userPlan: string): Promise<void> {
