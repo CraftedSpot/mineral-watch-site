@@ -579,8 +579,18 @@ var index_default = {
         if (!token) {
           return Response.redirect(`${BASE_URL}/portal/login?error=Invalid%20verification%20link`, 302);
         }
-        
-        // Redirect to set-session endpoint which handles the token verification
+
+        // Check if this is a KV magic link token (64 hex chars) vs JWT
+        // KV tokens are 64 hex characters, JWTs have dots and are longer
+        const isKVToken = /^[a-f0-9]{64}$/i.test(token);
+
+        if (isKVToken) {
+          // This is a magic link (invite/login) - look up in KV and create session
+          const { handleVerifyInvite } = await import('./handlers/organization.js');
+          return handleVerifyInvite(request, env, url);
+        }
+
+        // JWT token - redirect to set-session endpoint
         return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${token}`, 302);
       }
       

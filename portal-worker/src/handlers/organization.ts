@@ -633,16 +633,14 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
     // Generate a session token for the user
     const { generateSessionToken } = await import('../utils/auth.js');
     const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-    
+
     console.log(`✅ Session token generated for ${tokenData.email}`);
     console.log(`🔐 Session token preview: ${sessionToken.substring(0, 20)}...`);
     console.log(`🔐 Session token length: ${sessionToken.length}`);
-    
-    return jsonResponse({
-      success: true,
-      sessionToken: sessionToken,
-      email: tokenData.email
-    });
+
+    // Redirect to set-session which will set the cookie and redirect to dashboard
+    // This handles Safari and mobile browsers properly
+    return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`, 302);
     
   } catch (error) {
     console.error('❌ Invite verification error:', error);
