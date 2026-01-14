@@ -733,12 +733,14 @@
 
         .layer-select.loading {
             pointer-events: none;
+            color: white;
+            border-color: var(--red-dirt);
             animation: pulse-loading 1.2s ease-in-out infinite;
         }
 
         @keyframes pulse-loading {
             0%, 100% { opacity: 1; background-color: var(--red-dirt); }
-            50% { opacity: 0.6; background-color: #d97a5a; }
+            50% { opacity: 0.7; background-color: #e08a6a; }
         }
 
         .toggle-btn {
