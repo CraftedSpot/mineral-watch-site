@@ -101,7 +101,35 @@
             padding-left: 20px !important;
         }
         .col-actions { width: 90px; }
-        
+        .col-links { width: 140px; }
+
+        /* Links column styling */
+        .links-cell {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            justify-content: flex-end;
+        }
+        .link-count {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            color: var(--oil-navy);
+        }
+        .link-count.zero {
+            color: #CBD5E1;
+        }
+        .link-count svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+        .link-separator {
+            color: #E2E8F0;
+            font-weight: 300;
+        }
+
         /* When groups are visible, show the column */
         .has-groups .col-prop-group { width: 80px; padding: 16px 16px !important; visibility: visible; }
         
@@ -2049,6 +2077,12 @@
                             <option value="legal-asc" selected>Legal Description</option>
                             <option value="acres-desc">Total Acres (High to Low)</option>
                             <option value="acres-asc">Total Acres (Low to High)</option>
+                            <option value="wells-desc">Wells (Most)</option>
+                            <option value="wells-asc">Wells (Least)</option>
+                            <option value="documents-desc">Documents (Most)</option>
+                            <option value="documents-asc">Documents (Least)</option>
+                            <option value="filings-desc">OCC Filings (Most)</option>
+                            <option value="filings-asc">OCC Filings (Least)</option>
                             <option value="date-desc">Date Added</option>
                         </select>
                         <span id="propertiesResultsCount" class="results-count"></span>
