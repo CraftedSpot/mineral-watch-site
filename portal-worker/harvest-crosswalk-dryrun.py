@@ -3,6 +3,7 @@
 Dry-run script to extract crosswalk data from documents.
 Outputs a report of what would be extracted without inserting anything.
 """
+
 import json
 import re
 import sys
