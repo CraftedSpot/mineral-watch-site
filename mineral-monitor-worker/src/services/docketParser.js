@@ -15,6 +15,7 @@
 import {
   parseLegalDescription,
   parseAllLegalDescriptions,
+  parseAPINumbers,
   categorizeReliefType,
   parseResultStatus,
   extractContinuationDate,
