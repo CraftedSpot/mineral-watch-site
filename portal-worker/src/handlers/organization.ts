@@ -606,15 +606,11 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
 
     // Check if token was already used (for race condition on mobile)
     if (tokenData.used) {
-      console.log(`⚠️ Token already used, but session was created - returning cached session info`);
+      console.log(`⚠️ Token already used, but session was created - generating new session`);
       // Token was already used but user might be retrying - generate new session
       const { generateSessionToken } = await import('../utils/auth.js');
       const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-      return jsonResponse({
-        success: true,
-        sessionToken: sessionToken,
-        email: tokenData.email
-      });
+      return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`, 302);
     }
 
     // Mark token as used instead of deleting (prevents race condition on mobile)
