@@ -1792,6 +1792,143 @@ export default {
       }
     }
 
+    // Route: POST /api/credits/add-purchased - Add purchased credits (called by stripe-webhook)
+    if (path === '/api/credits/add-purchased' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Invalid API key', 401, env);
+      }
+
+      try {
+        const body = await request.json() as {
+          userId: string;
+          priceId: string;
+          stripeSessionId?: string;
+          stripePaymentIntent?: string;
+        };
+        const { userId, priceId, stripeSessionId, stripePaymentIntent } = body;
+
+        if (!userId || !priceId) {
+          return errorResponse('userId and priceId are required', 400, env);
+        }
+
+        // Validate price ID
+        const packInfo = CREDIT_PACK_PRICES[priceId];
+        if (!packInfo) {
+          return errorResponse('Invalid price ID', 400, env);
+        }
+
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        await usageService.addPurchasedCredits(
+          userId,
+          packInfo.credits,
+          packInfo.name,
+          priceId,
+          packInfo.price,
+          stripeSessionId,
+          stripePaymentIntent
+        );
+
+        console.log(`[Credits] Added ${packInfo.credits} purchased credits for user ${userId} (${packInfo.name})`);
+
+        return jsonResponse({
+          success: true,
+          credits: packInfo.credits,
+          packName: packInfo.name,
+          message: `${packInfo.credits} credits added to your account`
+        }, 200, env);
+      } catch (error) {
+        console.error('[Credits] Error adding purchased credits:', error);
+        return errorResponse('Failed to add purchased credits', 500, env);
+      }
+    }
+
+    // Route: POST /api/checkout/credit-pack - Create Stripe checkout session for credit pack purchase
+    // Requires authentication - user must be logged in
+    if (path === '/api/checkout/credit-pack' && request.method === 'POST') {
+      // Verify authentication
+      const authResponse = await env.AUTH_WORKER.fetch(
+        new Request(request.url, {
+          method: 'GET',
+          headers: request.headers,
+        })
+      );
+
+      if (!authResponse.ok) {
+        return errorResponse('Authentication required', 401, env);
+      }
+
+      const authData = await authResponse.json() as { user?: { id: string; email: string } };
+      if (!authData.user?.id || !authData.user?.email) {
+        return errorResponse('User not found', 401, env);
+      }
+
+      const userId = authData.user.id;
+      const userEmail = authData.user.email;
+
+      // Check for Stripe secret key
+      if (!env.STRIPE_SECRET_KEY) {
+        console.error('[Checkout] STRIPE_SECRET_KEY not configured');
+        return errorResponse('Payment processing not configured', 500, env);
+      }
+
+      try {
+        const body = await request.json() as { priceId: string };
+        const { priceId } = body;
+
+        if (!priceId) {
+          return errorResponse('priceId is required', 400, env);
+        }
+
+        // Validate price ID
+        const packInfo = CREDIT_PACK_PRICES[priceId];
+        if (!packInfo) {
+          return errorResponse('Invalid price ID', 400, env);
+        }
+
+        console.log(`[Checkout] Creating checkout session for ${userEmail}, pack: ${packInfo.name}`);
+
+        // Create Stripe Checkout session
+        const checkoutResponse = await fetch('https://api.stripe.com/v1/checkout/sessions', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            'mode': 'payment',
+            'customer_email': userEmail,
+            'line_items[0][price]': priceId,
+            'line_items[0][quantity]': '1',
+            'success_url': `https://portal.mymineralwatch.com/portal/documents?purchase=success&session_id={CHECKOUT_SESSION_ID}`,
+            'cancel_url': `https://portal.mymineralwatch.com/portal/documents?purchase=cancelled`,
+            'metadata[user_id]': userId,
+            'metadata[pack_name]': packInfo.name,
+            'metadata[credits]': packInfo.credits.toString(),
+          }).toString(),
+        });
+
+        if (!checkoutResponse.ok) {
+          const errorText = await checkoutResponse.text();
+          console.error('[Checkout] Stripe error:', errorText);
+          return errorResponse('Failed to create checkout session', 500, env);
+        }
+
+        const session = await checkoutResponse.json() as { id: string; url: string };
+
+        console.log(`[Checkout] Created session ${session.id} for ${userEmail}`);
+
+        return jsonResponse({
+          success: true,
+          checkoutUrl: session.url,
+          sessionId: session.id,
+        }, 200, env);
+      } catch (error) {
+        console.error('[Checkout] Error creating checkout session:', error);
+        return errorResponse('Failed to create checkout session', 500, env);
+      }
+    }
+
     // Route: POST /api/documents/upload-external - Upload document from external service (OCC fetcher, etc.)
     // Used by other workers to add documents on behalf of a user
     if (path === '/api/documents/upload-external' && request.method === 'POST') {

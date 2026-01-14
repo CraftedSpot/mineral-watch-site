@@ -46,6 +46,14 @@ const ANNUAL_PRICE_IDS = new Set([
   "price_1SoSwV9OfJmRCDOqxmuF4aBI",  // Business annual
 ]);
 
+// Credit pack price IDs (one-time purchases)
+const CREDIT_PACK_PRICES = {
+  'price_1SpV6u9OfJmRCDOqmiQGFg2V': { credits: 100, name: 'Starter Pack', price: 4900 },
+  'price_1SpVCK9OfJmRCDOq8r8NrrqJ': { credits: 500, name: 'Working Pack', price: 19900 },
+  'price_1SpVCK9OfJmRCDOqhjfa5Na1': { credits: 2000, name: 'Team Pack', price: 69900 },
+  'price_1SpVCK9OfJmRCDOqNVkGVLVQ': { credits: 10000, name: 'Operations Pack', price: 249900 },
+};
+
 // Documents worker URL for credit operations
 const DOCUMENTS_WORKER_URL = 'https://documents-worker.photog12.workers.dev';
 
@@ -131,7 +139,7 @@ export default {
 // ============================================
 
 /**
- * Handle new checkout completion (new paid signups)
+ * Handle new checkout completion (new paid signups OR credit pack purchases)
  */
 async function handleCheckoutComplete(session, env) {
   const customerEmail = session.customer_email || session.customer_details?.email;
@@ -144,7 +152,13 @@ async function handleCheckoutComplete(session, env) {
     return;
   }
 
-  // Determine plan from the session
+  // Check if this is a credit pack purchase (one-time payment)
+  if (session.mode === 'payment') {
+    await handleCreditPackPurchase(session, env);
+    return;
+  }
+
+  // Determine plan from the session (subscription checkout)
   const { plan, priceId, isAnnual } = await getPlanFromSession(session, env);
   const limits = PLAN_LIMITS[plan] || PLAN_LIMITS['Starter'];
 
@@ -256,6 +270,85 @@ async function handleCheckoutComplete(session, env) {
 
   // Send paid welcome email (includes book mention for Business tier)
   await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits, shippingAddress, isAnnual);
+}
+
+/**
+ * Handle credit pack purchase (one-time payment)
+ * Called when session.mode === 'payment' and price is in CREDIT_PACK_PRICES
+ */
+async function handleCreditPackPurchase(session, env) {
+  const customerEmail = session.customer_email || session.customer_details?.email;
+  const userId = session.metadata?.user_id;
+  const paymentIntent = session.payment_intent;
+
+  console.log(`[CreditPack] Processing credit pack purchase for ${customerEmail}`);
+
+  if (!userId) {
+    console.error('[CreditPack] No user_id in session metadata');
+    return;
+  }
+
+  // Get price ID from the session line items
+  let priceId = null;
+  try {
+    const response = await fetch(
+      `https://api.stripe.com/v1/checkout/sessions/${session.id}/line_items`,
+      {
+        headers: {
+          'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}`
+        }
+      }
+    );
+
+    if (response.ok) {
+      const data = await response.json();
+      priceId = data.data?.[0]?.price?.id;
+    }
+  } catch (err) {
+    console.error('[CreditPack] Error fetching line items:', err);
+  }
+
+  if (!priceId) {
+    console.error('[CreditPack] Could not determine price ID');
+    return;
+  }
+
+  // Check if this is a valid credit pack price
+  const packInfo = CREDIT_PACK_PRICES[priceId];
+  if (!packInfo) {
+    console.log(`[CreditPack] Price ${priceId} is not a credit pack, skipping`);
+    return;
+  }
+
+  console.log(`[CreditPack] Adding ${packInfo.credits} credits (${packInfo.name}) for user ${userId}`);
+
+  // Call documents-worker to add purchased credits
+  try {
+    const response = await fetch(`${DOCUMENTS_WORKER_URL}/api/credits/add-purchased`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': env.PROCESSING_API_KEY
+      },
+      body: JSON.stringify({
+        userId,
+        priceId,
+        stripeSessionId: session.id,
+        stripePaymentIntent: paymentIntent
+      })
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`[CreditPack] Failed to add credits: ${error}`);
+      return;
+    }
+
+    const result = await response.json();
+    console.log(`[CreditPack] Credits added successfully: ${result.message}`);
+  } catch (err) {
+    console.error('[CreditPack] Error calling documents-worker:', err);
+  }
 }
 
 /**
