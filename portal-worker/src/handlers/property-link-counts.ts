@@ -326,7 +326,12 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
       }
     }
 
-    console.log('[LinkCounts] Completed. Sample counts:', Object.entries(counts).slice(0, 3));
+    // Log summary of properties with counts
+    const propertiesWithFilings = Object.entries(counts).filter(([_, c]) => c.filings > 0);
+    const propertiesWithWells = Object.entries(counts).filter(([_, c]) => c.wells > 0);
+    console.log('[LinkCounts] Completed. Properties with filings:', propertiesWithFilings.length,
+      'Properties with wells:', propertiesWithWells.length);
+    console.log('[LinkCounts] Sample properties WITH filings:', propertiesWithFilings.slice(0, 5));
     return jsonResponse(counts);
 
   } catch (err) {
