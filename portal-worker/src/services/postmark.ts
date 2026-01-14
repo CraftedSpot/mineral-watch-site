@@ -412,7 +412,7 @@ ${organizationName} uses Mineral Watch to monitor drilling activity on their min
 Click here to accept the invitation:
 ${magicLink}
 
-This link expires in 15 minutes.
+This link expires in 72 hours.
 
 ----
 
