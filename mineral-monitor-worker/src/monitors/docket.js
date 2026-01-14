@@ -14,7 +14,7 @@ import {
   parseFromText,
   filterRelevantEntries
 } from '../services/docketParser.js';
-import { findMatchingProperties } from '../services/matching.js';
+import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
 import { sendEmail } from '../services/email.js';
 
 /**
@@ -493,6 +493,43 @@ async function processDocketAlerts(env, dryRun = false) {
 
         const addlMatches = await findMatchingProperties(addlLocation, env, { useExtendedGrid });
         rawMatches = rawMatches.concat(addlMatches);
+      }
+    }
+
+    // API number matching for Location Exception and Change of Operator entries
+    // These relief types often reference specific wells by API
+    const wellBasedReliefTypes = ['LOCATION_EXCEPTION', 'OPERATOR_CHANGE'];
+
+    if (wellBasedReliefTypes.includes(entry.relief_type) && entry.api_numbers) {
+      // Parse API numbers from entry
+      let apiNumbers = [];
+      try {
+        apiNumbers = typeof entry.api_numbers === 'string'
+          ? JSON.parse(entry.api_numbers)
+          : entry.api_numbers;
+      } catch (e) {
+        console.error(`[Docket] Error parsing api_numbers for ${entry.case_number}:`, e.message);
+      }
+
+      if (apiNumbers.length > 0) {
+        console.log(`[Docket] ${entry.case_number}: Checking ${apiNumbers.length} API numbers for well matches`);
+
+        for (const api of apiNumbers) {
+          try {
+            const wellMatches = await findMatchingWells(api, env);
+
+            // Mark these matches as well-based (vs property-based)
+            for (const wellMatch of wellMatches) {
+              wellMatch.alertLevel = 'TRACKED WELL';
+              wellMatch.matchedAPI = api;
+              wellMatch.isWellMatch = true;
+            }
+
+            rawMatches = rawMatches.concat(wellMatches);
+          } catch (err) {
+            console.error(`[Docket] Error finding well matches for API ${api}:`, err.message);
+          }
+        }
       }
     }
 
