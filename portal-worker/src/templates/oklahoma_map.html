@@ -1777,21 +1777,36 @@
                 min-width: 100px;
             }
 
+            .heatmap-dropdown {
+                width: auto;
+            }
+
+            .heatmap-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .heatmap-menu {
+                right: auto;
+                left: 0;
+                min-width: 120px;
+            }
+
             .overlays-dropdown {
                 width: 100%;
             }
-            
+
             .overlays-btn {
                 width: 100%;
                 justify-content: space-between;
             }
-            
+
             .overlays-menu {
                 right: auto;
                 left: 0;
                 width: 100%;
             }
-            
+
             .legend-strip {
                 display: none;
             }
@@ -7175,16 +7190,17 @@
                 if (document.getElementById('toggle-completions').checked && !map.hasLayer(completionsLayer)) {
                     map.addLayer(completionsLayer);
                 }
-                // Check if heatmap is enabled and add appropriate layers
-                const heatmapValue = document.getElementById('heatmap-select').value;
-                if (heatmapValue !== 'off') {
-                    if ((heatmapValue === 'permits' || heatmapValue === 'both') && permitHeatmapLayer && !map.hasLayer(permitHeatmapLayer)) {
-                        map.addLayer(permitHeatmapLayer);
-                    }
-                    if ((heatmapValue === 'completions' || heatmapValue === 'both') && completionHeatmapLayer && !map.hasLayer(completionHeatmapLayer)) {
-                        map.addLayer(completionHeatmapLayer);
-                    }
-                    console.log('✅ Added heatmap layers to map:', heatmapValue);
+                // Check if heatmap is enabled and add appropriate layers based on checkboxes
+                const showPermits = document.getElementById('toggle-heatmap-permits').checked;
+                const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+                if (showPermits && permitHeatmapLayer && !map.hasLayer(permitHeatmapLayer)) {
+                    map.addLayer(permitHeatmapLayer);
+                }
+                if (showCompletions && completionHeatmapLayer && !map.hasLayer(completionHeatmapLayer)) {
+                    map.addLayer(completionHeatmapLayer);
+                }
+                if (showPermits || showCompletions) {
+                    console.log('✅ Added heatmap layers to map');
                 }
                 // Ensure properties remain on top
                 ensureLayerOrder();
