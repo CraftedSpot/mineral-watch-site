@@ -11,7 +11,8 @@ import {
   CORS_HEADERS,
   BASE_URL,
   INVITE_TOKEN_EXPIRY,
-  PLAN_LIMITS
+  PLAN_LIMITS,
+  COOKIE_NAME
 } from '../constants.js';
 
 import { 
@@ -584,7 +585,14 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
         await env.AUTH_TOKENS.delete(token);
         const { generateSessionToken } = await import('../utils/auth.js');
         const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-        return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`, 302);
+        // Set cookie via HTTP header (Safari ITP blocks JS-set cookies)
+        return new Response(null, {
+          status: 302,
+          headers: {
+            'Location': `${BASE_URL}/portal`,
+            'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
+          }
+        });
       }
       
       return jsonResponse({ error: 'Invalid or expired invitation link' }, 401);
@@ -610,7 +618,14 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
       // Token was already used but user might be retrying - generate new session
       const { generateSessionToken } = await import('../utils/auth.js');
       const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-      return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`, 302);
+      // Set cookie via HTTP header (Safari ITP blocks JS-set cookies)
+      return new Response(null, {
+        status: 302,
+        headers: {
+          'Location': `${BASE_URL}/portal`,
+          'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
+        }
+      });
     }
 
     // Mark token as used instead of deleting (prevents race condition on mobile)
@@ -630,9 +645,15 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
     console.log(`🔐 Session token preview: ${sessionToken.substring(0, 20)}...`);
     console.log(`🔐 Session token length: ${sessionToken.length}`);
 
-    // Redirect to set-session which will set the cookie and redirect to dashboard
-    // This handles Safari and mobile browsers properly
-    return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`, 302);
+    // Set cookie via HTTP header and redirect directly to portal
+    // This bypasses the set-session JS page which Safari ITP blocks
+    return new Response(null, {
+      status: 302,
+      headers: {
+        'Location': `${BASE_URL}/portal`,
+        'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
+      }
+    });
     
   } catch (error) {
     console.error('❌ Invite verification error:', error);
