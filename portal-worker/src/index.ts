@@ -81,6 +81,8 @@ import {
   handleAddProperty,
   handleUpdateProperty,
   handleDeleteProperty,
+  // Property link counts
+  handleGetPropertyLinkCounts,
   // Wells handlers
   handleListWells,
   handleAddWell,
@@ -801,6 +803,9 @@ var index_default = {
       // Properties endpoints
       if (path === "/api/properties" && request.method === "GET") {
         return handleListProperties(request, env);
+      }
+      if (path === "/api/properties/link-counts" && request.method === "GET") {
+        return handleGetPropertyLinkCounts(request, env);
       }
       if (path === "/api/properties" && request.method === "POST") {
         return handleAddProperty(request, env, ctx);

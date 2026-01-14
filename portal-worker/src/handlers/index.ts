@@ -19,6 +19,11 @@ export {
   handleDeleteProperty
 } from './properties.js';
 
+// Property link counts handler
+export {
+  handleGetPropertyLinkCounts
+} from './property-link-counts.js';
+
 // Wells handlers
 export {
   handleListWells,
