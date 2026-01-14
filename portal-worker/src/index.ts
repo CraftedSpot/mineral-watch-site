@@ -136,6 +136,7 @@ import {
   handleGetCounties,
   handleGetTownships,
   handleGetCountyStats,
+  handleGetCountyProduction,
   handleGetMapDataVersion
 } from './handlers/index.js';
 
@@ -936,6 +937,9 @@ var index_default = {
       }
       if (path === "/api/map/county-stats" && request.method === "GET") {
         return handleGetCountyStats(request, env);
+      }
+      if (path === "/api/map/county-production" && request.method === "GET") {
+        return handleGetCountyProduction(request, env);
       }
       if (path === "/api/map-data/version" && request.method === "GET") {
         return handleGetMapDataVersion(request, env);

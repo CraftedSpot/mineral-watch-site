@@ -136,7 +136,8 @@ export {
 export {
   handleGetCounties,
   handleGetTownships,
-  handleGetCountyStats
+  handleGetCountyStats,
+  handleGetCountyProduction
 } from './map-data.js';
 
 // Map data version handler

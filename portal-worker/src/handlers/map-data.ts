@@ -232,8 +232,103 @@ export async function handleGetCountyStats(request: Request, env: Env): Promise<
 
   } catch (error) {
     console.error('[MapData] Error fetching county stats:', error);
-    return jsonResponse({ 
+    return jsonResponse({
       error: 'Failed to fetch county statistics',
+      message: error instanceof Error ? error.message : 'Unknown error occurred'
+    }, 500);
+  }
+}
+
+/**
+ * Get county production data for choropleth heatmap
+ * GET /api/map/county-production?product=oil|gas
+ * Returns trailing 12-month production aggregates by county
+ */
+export async function handleGetCountyProduction(request: Request, env: Env): Promise<Response> {
+  try {
+    // Check if WELLS_DB is configured
+    if (!env.WELLS_DB) {
+      console.error('[MapData] WELLS_DB not configured');
+      return jsonResponse({
+        error: 'Database not configured',
+        message: 'The map data feature is not available at this time'
+      }, 503);
+    }
+
+    const url = new URL(request.url);
+    const product = url.searchParams.get('product') || 'oil';
+
+    // Product code: 1 = Oil, 5 = Gas
+    const productCode = product === 'gas' ? 5 : 1;
+    const productLabel = product === 'gas' ? 'Gas (MCF)' : 'Oil (BBL)';
+
+    console.log(`[MapData] Fetching county production for ${product} (code ${productCode})`);
+
+    // Calculate trailing 12 months from current date
+    const now = new Date();
+    const twelveMonthsAgo = new Date(now);
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    const minYearMonth = `${twelveMonthsAgo.getFullYear()}${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+    // Query production aggregates
+    const query = `
+      SELECT
+        county_number,
+        SUM(gross_volume) as total_volume,
+        SUM(gross_value) as total_value,
+        SUM(record_count) as total_records,
+        COUNT(*) as months_reported
+      FROM county_production_monthly
+      WHERE product_code = ?
+        AND year_month >= ?
+      GROUP BY county_number
+      ORDER BY total_volume DESC
+    `;
+
+    const result = await env.WELLS_DB.prepare(query)
+      .bind(productCode, minYearMonth)
+      .all();
+
+    if (!result.results || result.results.length === 0) {
+      console.warn('[MapData] No production data found');
+      return jsonResponse({
+        success: true,
+        product: productLabel,
+        productCode,
+        minYearMonth,
+        data: {}
+      });
+    }
+
+    // Find max value for scale calculation
+    const maxVolume = Math.max(...result.results.map((r: any) => r.total_volume || 0));
+
+    // Convert to map for easy lookup by county number
+    const productionMap: { [countyNo: string]: any } = {};
+    result.results.forEach((row: any) => {
+      productionMap[row.county_number] = {
+        volume: row.total_volume,
+        value: row.total_value,
+        records: row.total_records,
+        monthsReported: row.months_reported
+      };
+    });
+
+    console.log(`[MapData] Returning production for ${Object.keys(productionMap).length} counties, max volume: ${maxVolume}`);
+
+    return jsonResponse({
+      success: true,
+      product: productLabel,
+      productCode,
+      minYearMonth,
+      maxVolume,
+      data: productionMap
+    });
+
+  } catch (error) {
+    console.error('[MapData] Error fetching county production:', error);
+    return jsonResponse({
+      error: 'Failed to fetch county production',
       message: error instanceof Error ? error.message : 'Unknown error occurred'
     }, 500);
   }
