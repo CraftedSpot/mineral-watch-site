@@ -656,7 +656,7 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
     console.log(`🔐 Session token length: ${sessionToken.length}`);
 
     // Safari doesn't honor Set-Cookie on 302 redirects
-    // Return HTML page that sets cookie then redirects client-side
+    // Return HTML page that waits for cookie to be set, then redirects
     const html = `<!DOCTYPE html>
 <html><head>
 <meta charset="UTF-8">
@@ -664,7 +664,21 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
 </head><body>
 <p>Completing login...</p>
 <script>
-setTimeout(function() { window.location.href = '/portal'; }, 100);
+// Wait for cookie to be set before redirecting
+var attempts = 0;
+function checkAndRedirect() {
+  attempts++;
+  if (document.cookie.indexOf('mw_session_v3=') !== -1) {
+    console.log('Cookie found after ' + attempts + ' attempts');
+    window.location.replace('/portal');
+  } else if (attempts < 20) {
+    setTimeout(checkAndRedirect, 100);
+  } else {
+    console.error('Cookie not found after 2 seconds');
+    window.location.replace('/portal');
+  }
+}
+setTimeout(checkAndRedirect, 100);
 </script>
 </body></html>`;
 
