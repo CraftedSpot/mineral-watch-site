@@ -3561,11 +3561,36 @@
                 loadedProperties = properties; // Store for filtering/sorting
                 document.getElementById('propCount').textContent = properties.length;
                 updateTotalCount();
-                
-                
-                // Render the table (handles empty state internally)
+
+                // Render table immediately (with zero counts)
                 renderPropertiesTable();
+
+                // Fetch link counts in background and re-render when ready
+                if (properties.length > 0) {
+                    fetchPropertyLinkCounts();
+                }
             } catch { document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
+
+        // Fetch link counts and merge into loadedProperties
+        async function fetchPropertyLinkCounts() {
+            try {
+                const res = await fetch('/api/properties/link-counts');
+                if (!res.ok) return;
+                const counts = await res.json();
+
+                // Merge counts into loadedProperties
+                for (const prop of loadedProperties) {
+                    if (counts[prop.id]) {
+                        prop._linkCounts = counts[prop.id];
+                    }
+                }
+
+                // Re-render with updated counts
+                renderPropertiesTable();
+            } catch (err) {
+                console.error('Failed to load link counts:', err);
+            }
         }
         
         // Generate a map link for a property section (centers on general area)
