@@ -4061,7 +4061,7 @@
                 
                 // Initialize cluster group for tracked wells
                 wellsLayer = L.markerClusterGroup({
-                    disableClusteringAtZoom: 9,   // Expand at zoom 9 for tracked wells
+                    disableClusteringAtZoom: 7,   // Expand at zoom 7 for tracked wells (was 9)
                     maxClusterRadius: 50,          // Smaller radius for tighter clusters
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
