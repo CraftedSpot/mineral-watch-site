@@ -8510,6 +8510,13 @@
         }
         window.processOccFiling = processOccFiling;
 
+        // Wrapper for Activity Log - processes OCC filing by case number only
+        async function processOccFilingFromActivity(caseNumber, buttonEl) {
+            // Use empty order number - the OCC fetcher will find the latest order
+            await processOccFiling(caseNumber, '', buttonEl);
+        }
+        window.processOccFilingFromActivity = processOccFilingFromActivity;
+
         function startOccDocumentPolling(stateKey, documentId, buttonEl) {
             const state = occProcessingStates[stateKey];
             if (!state || state.pollInterval) return; // Already polling
