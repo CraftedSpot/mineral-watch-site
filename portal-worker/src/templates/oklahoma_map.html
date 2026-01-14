@@ -778,6 +778,80 @@
             height: 0;
         }
         
+        /* Filings Dropdown Button - mirrors Overlays pattern */
+        .filings-dropdown {
+            position: relative;
+        }
+
+        .filings-btn {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 16px 8px 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--slate-blue);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .filings-btn:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+
+        .filings-btn.active {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+
+        .filings-btn.active:hover {
+            background: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+        }
+
+        .filings-btn.inactive {
+            color: #9CA3AF;
+        }
+
+        .filings-btn::after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .filings-btn.active::after {
+            color: white;
+        }
+
+        .filings-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 140px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s;
+        }
+
+        .filings-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
         /* Heatmap Dropdown Button - mirrors Overlays pattern */
         .heatmap-dropdown {
             position: relative;
@@ -1785,6 +1859,21 @@
                 padding-right: 24px;
                 flex: 1;
                 min-width: 100px;
+            }
+
+            .filings-dropdown {
+                width: auto;
+            }
+
+            .filings-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .filings-menu {
+                right: auto;
+                left: 0;
+                min-width: 120px;
             }
 
             .heatmap-dropdown {
@@ -8208,9 +8297,50 @@
         document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
         document.getElementById('toggle-section-numbers').addEventListener('change', toggleSectionNumbers);
         document.getElementById('toggle-wells').addEventListener('change', toggleWells);
-        document.getElementById('toggle-permits').addEventListener('change', togglePermits);
-        document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
         document.getElementById('nearby-wells-select').addEventListener('change', toggleNearbyWells);
+
+        // Nearby Filings button dropdown
+        const filingsBtn = document.getElementById('filingsBtn');
+        const filingsMenu = document.getElementById('filingsMenu');
+        let filingsMenuOpen = false;
+
+        filingsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            filingsMenuOpen = !filingsMenuOpen;
+            filingsMenu.classList.toggle('show', filingsMenuOpen);
+        });
+
+        // Close filings menu when clicking outside
+        document.addEventListener('click', function(event) {
+            if (filingsMenuOpen && !filingsMenu.contains(event.target) && event.target !== filingsBtn) {
+                filingsMenuOpen = false;
+                filingsMenu.classList.remove('show');
+            }
+        });
+
+        // Update filings button state
+        function updateFilingsButton() {
+            const showPermits = document.getElementById('toggle-permits').checked;
+            const showCompletions = document.getElementById('toggle-completions').checked;
+
+            if (showPermits || showCompletions) {
+                filingsBtn.classList.add('active');
+                filingsBtn.classList.remove('inactive');
+            } else {
+                filingsBtn.classList.remove('active');
+                filingsBtn.classList.add('inactive');
+            }
+        }
+
+        // Filings checkbox handlers
+        document.getElementById('toggle-permits').addEventListener('change', function() {
+            togglePermits();
+            updateFilingsButton();
+        });
+        document.getElementById('toggle-completions').addEventListener('change', function() {
+            toggleCompletions();
+            updateFilingsButton();
+        });
 
         // Heatmap button dropdown (similar to Overlays)
         const heatmapBtn = document.getElementById('heatmapBtn');
