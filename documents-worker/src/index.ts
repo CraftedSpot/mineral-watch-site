@@ -2192,9 +2192,10 @@ export default {
         if (existing) {
           console.log(`[OCC Fetch] Document already exists: ${existing.id}`);
 
-          // Get current credit balance for UI
+          // Get current credit balance for UI (use org ID if available)
+          const creditUserId = user.organizationId || user.id;
           const usageService = new UsageTrackingService(env.WELLS_DB);
-          const creditCheck = await usageService.checkCreditsAvailable(user.id, userPlan);
+          const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
 
           return jsonResponse({
             alreadyProcessed: true,
@@ -2205,9 +2206,10 @@ export default {
           }, 200, env);
         }
 
-        // Check credits before fetching
+        // Check credits before fetching (use org ID if available)
+        const creditUserId = user.organizationId || user.id;
         const usageService = new UsageTrackingService(env.WELLS_DB);
-        const creditCheck = await usageService.checkCreditsAvailable(user.id, userPlan);
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
 
         if (!creditCheck.hasCredits) {
           console.log(`[OCC Fetch] User ${user.id} has no credits`);
