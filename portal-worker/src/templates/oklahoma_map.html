@@ -8197,12 +8197,9 @@
             // Update nearby wells count
             document.getElementById('nearbyWellCount').textContent = wells.length;
 
-            // Get current size of tracked well markers for scaling
-            // Match tracked wells: zoom < 9 = 50% size, zoom 9+ = full size
-            const currentZoom = map.getZoom();
-            const zoomScale = currentZoom < 9 ? 0.5 : 1;
-            const trackedWellSize = 24; // Base size for tracked wells (matches createTrackedWellMarker)
-            const nearbyWellSize = Math.round(trackedWellSize * 0.6 * zoomScale); // 60% of tracked size
+            // Fixed size for nearby wells - 60% of tracked well base size
+            // No zoom-dependent scaling so they're consistent regardless of when you turn them on
+            const nearbyWellSize = 14; // 60% of tracked wells (24px base)
             
             // Store wells data globally for popup access
             window.nearbyWellsData = {};
