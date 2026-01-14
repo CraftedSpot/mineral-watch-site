@@ -94,18 +94,20 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
         // Query filing counts grouped by STR
         const filingsQuery = `
           SELECT
-            CAST(section AS TEXT) as sec,
-            UPPER(township) as twn,
-            UPPER(range) as rng,
+            section as sec,
+            township as twn,
+            range as rng,
             COUNT(*) as count
           FROM occ_docket_entries
           WHERE (${strConditions.join(' OR ')})
             AND relief_type IN ('POOLING', 'INCREASED_DENSITY', 'SPACING', 'HORIZONTAL_WELL',
                                'LOCATION_EXCEPTION', 'OPERATOR_CHANGE', 'WELL_TRANSFER', 'ORDER_MODIFICATION')
-          GROUP BY CAST(section AS INTEGER), UPPER(township), UPPER(range)
+          GROUP BY section, township, range
         `;
 
+        console.log('[LinkCounts] Filing query conditions:', strConditions.slice(0, 3));
         const filingsResult = await env.WELLS_DB.prepare(filingsQuery).all();
+        console.log('[LinkCounts] Filing results:', filingsResult.results?.length || 0, 'groups found');
 
         if (filingsResult.results) {
           for (const row of filingsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
