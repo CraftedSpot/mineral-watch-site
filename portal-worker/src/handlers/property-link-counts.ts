@@ -187,14 +187,20 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
 
           if (filingsResult.results) {
             for (const row of filingsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
-              const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
-              const propIds = strToPropertyMap.get(strKey) || [];
-              if (propIds.length > 0) {
-                console.log('[LinkCounts] Match found: DB row', row.sec, row.twn, row.rng, 'count:', row.count, '-> properties:', propIds.length);
-              }
-              for (const propId of propIds) {
-                if (counts[propId]) {
-                  counts[propId].filings = row.count;
+              // Use normalized values to match our map keys
+              const normSec = normalizeSection(row.sec);
+              const normTwn = normalizeTownship(row.twn);
+              const normRng = normalizeRange(row.rng);
+              if (normSec !== null && normTwn && normRng) {
+                const strKey = `${normSec}|${normTwn}|${normRng}`;
+                const propIds = strToPropertyMap.get(strKey) || [];
+                if (propIds.length > 0) {
+                  console.log('[LinkCounts] Match found: DB row', row.sec, row.twn, row.rng, '-> normalized', strKey, 'count:', row.count, '-> properties:', propIds.length);
+                }
+                for (const propId of propIds) {
+                  if (counts[propId]) {
+                    counts[propId].filings = row.count;
+                  }
                 }
               }
             }
