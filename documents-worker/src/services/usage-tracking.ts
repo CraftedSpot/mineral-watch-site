@@ -35,7 +35,7 @@ export class UsageTrackingService {
     const tierLimit = getTierLimit(userPlan);
     const isLifetimeTier = tierLimit.isLifetime === true;
 
-    // Get permanent credit balance
+    // Get credit balance (includes purchased and bonus)
     const creditBalance = await this.getOrCreateCreditBalance(userId, userPlan);
 
     if (isLifetimeTier) {
@@ -44,23 +44,26 @@ export class UsageTrackingService {
       return {
         hasCredits: lifetimeRemaining > 0,
         monthlyRemaining: 0,
+        purchasedRemaining: creditBalance.purchased_credits,
         permanentRemaining: lifetimeRemaining,
-        totalAvailable: lifetimeRemaining,
-        message: lifetimeRemaining <= 0 ? 'You have used all your free trial credits. Upgrade to continue processing documents.' : undefined
+        totalAvailable: lifetimeRemaining + creditBalance.purchased_credits,
+        message: lifetimeRemaining <= 0 && creditBalance.purchased_credits <= 0 ? 'You have used all your free trial credits. Upgrade to continue processing documents.' : undefined
       };
     }
 
-    // Paid tier: check monthly + permanent
+    // Paid tier: check monthly + purchased + bonus
     const billingPeriod = getCurrentBillingPeriod();
     const usage = await this.getOrCreateUsageRecord(userId, userPlan);
 
     const monthlyRemaining = Math.max(0, tierLimit.monthly - usage.monthly_credits_used);
-    const permanentRemaining = creditBalance.permanent_credits;
-    const totalAvailable = monthlyRemaining + permanentRemaining;
+    const purchasedRemaining = creditBalance.purchased_credits;
+    const permanentRemaining = creditBalance.permanent_credits;  // bonus credits
+    const totalAvailable = monthlyRemaining + purchasedRemaining + permanentRemaining;
 
     return {
       hasCredits: totalAvailable > 0,
       monthlyRemaining,
+      purchasedRemaining,
       permanentRemaining,
       totalAvailable,
       message: totalAvailable <= 0 ? 'You have no credits remaining this month. Purchase a credit pack or wait for your monthly reset.' : undefined
@@ -71,12 +74,13 @@ export class UsageTrackingService {
    * Get or create the permanent credit balance record for a user
    */
   async getOrCreateCreditBalance(userId: string, userPlan: string): Promise<{
-    permanent_credits: number;
+    purchased_credits: number;
+    permanent_credits: number;  // bonus credits
     lifetime_credits_granted: number;
     lifetime_credits_used: number;
   }> {
     let balance = await this.db.prepare(`
-      SELECT permanent_credits, lifetime_credits_granted, lifetime_credits_used
+      SELECT purchased_credits, permanent_credits, lifetime_credits_granted, lifetime_credits_used
       FROM user_credit_balance
       WHERE user_id = ?
     `).bind(userId).first();
@@ -92,15 +96,17 @@ export class UsageTrackingService {
       await this.db.prepare(`
         INSERT INTO user_credit_balance (
           user_id,
+          purchased_credits,
           permanent_credits,
           lifetime_credits_granted,
           lifetime_credits_used
-        ) VALUES (?, ?, ?, 0)
+        ) VALUES (?, 0, ?, ?, 0)
       `).bind(userId, permanentCredits, lifetimeCredits).run();
 
       console.log(`[Credits] Initialized credit balance for user ${userId}: lifetime=${lifetimeCredits}, permanent=${permanentCredits}`);
 
       balance = {
+        purchased_credits: 0,
         permanent_credits: permanentCredits,
         lifetime_credits_granted: lifetimeCredits,
         lifetime_credits_used: 0
@@ -108,6 +114,7 @@ export class UsageTrackingService {
     }
 
     return {
+      purchased_credits: (balance.purchased_credits as number) || 0,
       permanent_credits: balance.permanent_credits as number,
       lifetime_credits_granted: balance.lifetime_credits_granted as number,
       lifetime_credits_used: balance.lifetime_credits_used as number
