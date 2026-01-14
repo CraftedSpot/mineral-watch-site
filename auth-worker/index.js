@@ -298,20 +298,25 @@ async function handleGetCurrentUser(request, env, corsHeaders) {
   }
   
   if (Date.now() > payload.exp) {
+    console.log('[Auth] Session expired');
     return new Response(JSON.stringify({ error: "Session expired" }), {
       status: 401,
       headers: { "Content-Type": "application/json", ...corsHeaders }
     });
   }
-  
+
   // Get fresh user data
+  console.log(`[Auth] Looking up user: ${payload.email}`);
   const user = await findUserByEmail(env, payload.email);
+  console.log(`[Auth] User lookup result: ${user ? user.id : 'NOT FOUND'}`);
   if (!user) {
+    console.log(`[Auth] User not found: ${payload.email}`);
     return new Response(JSON.stringify({ error: "User not found" }), {
       status: 401,
       headers: { "Content-Type": "application/json", ...corsHeaders }
     });
   }
+  console.log(`[Auth] Returning user data for: ${user.fields.Email}`);
   
   // Get organization details if user is part of one
   let orgDefaultNotificationMode = null;
