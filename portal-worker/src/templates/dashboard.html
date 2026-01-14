@@ -3334,18 +3334,25 @@
                 // Hide add/edit/delete buttons for Viewers
                 if (currentUser.role === 'Viewer') {
                     // Hide property add/import buttons
-                    document.getElementById('addPropertyBtn').style.display = 'none';
-                    document.getElementById('bulkUploadBtn').style.display = 'none';
-                    
+                    const addPropertyBtn = document.getElementById('addPropertyBtn');
+                    const bulkUploadBtn = document.getElementById('bulkUploadBtn');
+                    if (addPropertyBtn) addPropertyBtn.style.display = 'none';
+                    if (bulkUploadBtn) bulkUploadBtn.style.display = 'none';
+
                     // Hide well add/import buttons
-                    document.getElementById('addWellBtn').style.display = 'none';
-                    document.getElementById('bulkUploadWellsBtn').style.display = 'none';
-                    
+                    const addWellBtn = document.getElementById('addWellBtn');
+                    const bulkUploadWellsBtn = document.getElementById('bulkUploadWellsBtn');
+                    if (addWellBtn) addWellBtn.style.display = 'none';
+                    if (bulkUploadWellsBtn) bulkUploadWellsBtn.style.display = 'none';
+
                     // Hide bulk action bars (delete buttons)
-                    document.getElementById('propertiesBulkActionBar').style.display = 'none';
-                    document.getElementById('wellsBulkActionBar').style.display = 'none';
-                    document.getElementById('activityBulkActionBar').style.display = 'none';
-                    
+                    const propertiesBulkActionBar = document.getElementById('propertiesBulkActionBar');
+                    const wellsBulkActionBar = document.getElementById('wellsBulkActionBar');
+                    const activityBulkActionBar = document.getElementById('activityBulkActionBar');
+                    if (propertiesBulkActionBar) propertiesBulkActionBar.style.display = 'none';
+                    if (wellsBulkActionBar) wellsBulkActionBar.style.display = 'none';
+                    if (activityBulkActionBar) activityBulkActionBar.style.display = 'none';
+
                     // Hide the dividers between action groups when buttons are hidden
                     document.querySelectorAll('.action-divider').forEach(d => d.style.display = 'none');
                 }
@@ -3356,7 +3363,7 @@
                 initWellsControls();
                 initPropertiesControls();
                 initDocumentsControls();
-            } catch (err) { console.error('Dashboard init error:', err); alert('Error: ' + err.message); window.location.href = '/portal/login'; }
+            } catch (err) { console.error('Dashboard init error:', err); window.location.href = '/portal/login'; }
 
             // Tab switching
             document.querySelectorAll('.tab').forEach(tab => {
