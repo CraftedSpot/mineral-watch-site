@@ -7158,29 +7158,32 @@
         // Toggle nearby wells from D1 database
         function toggleNearbyWells() {
             console.log('toggleNearbyWells called');
-            const checkbox = document.getElementById('toggle-nearby-wells');
-            const filterDiv = document.getElementById('nearby-wells-filter');
+            const select = document.getElementById('nearby-wells-select');
+            const value = select.value;
             const countDiv = document.getElementById('nearbyWellsCount');
             const separatorDiv = document.getElementById('nearbyWellsSeparator');
-            
-            console.log('Checkbox checked:', checkbox.checked);
+
+            console.log('Nearby wells select value:', value);
             console.log('User properties count:', userProperties.length);
-            
-            if (checkbox.checked) {
-                filterDiv.style.display = 'block'; // Show filter dropdown
-                countDiv.style.display = 'flex'; // Show count with flex display
-                separatorDiv.style.display = 'block'; // Show separator
+
+            // Update active state based on selection
+            if (value !== 'off') {
+                select.classList.add('active');
+                if (countDiv) countDiv.style.display = 'flex';
+                if (separatorDiv) separatorDiv.style.display = 'block';
                 console.log('Calling loadNearbyWells...');
                 loadNearbyWells();
             } else {
+                select.classList.remove('active');
                 if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
                     map.removeLayer(nearbyWellsLayer);
                 }
-                filterDiv.style.display = 'none'; // Hide filter dropdown
-                countDiv.style.display = 'none'; // Hide count
-                separatorDiv.style.display = 'none'; // Hide separator
-                document.getElementById('wellsFilterPanel').style.display = 'none'; // Hide filter panel
-                document.getElementById('nearbyWellCount').textContent = '0'; // Reset count
+                if (countDiv) countDiv.style.display = 'none';
+                if (separatorDiv) separatorDiv.style.display = 'none';
+                const filterPanel = document.getElementById('wellsFilterPanel');
+                if (filterPanel) filterPanel.style.display = 'none';
+                const wellCount = document.getElementById('nearbyWellCount');
+                if (wellCount) wellCount.textContent = '0';
             }
         }
         
@@ -7206,35 +7209,21 @@
         window.clearNearbyWellsCache = clearNearbyWellsCache;
         
         // Helper function to show loading overlay on map
-        function showMapLoadingOverlay(message = 'Loading nearby wells...') {
-            // Show a lightweight loading indicator for wells
-            const btn = document.getElementById('toggle-nearby-wells');
-            if (btn) {
-                const label = btn.closest('label');
-                if (label) {
-                    label.classList.add('loading');
-                    const span = label.querySelector('span');
-                    if (span) {
-                        span.setAttribute('data-original-text', span.textContent);
-                        span.textContent = message;
-                    }
-                }
+        function showMapLoadingOverlay(message = 'Loading...') {
+            // Show a lightweight loading indicator for nearby wells select
+            const select = document.getElementById('nearby-wells-select');
+            if (select) {
+                select.classList.add('loading');
+                select.setAttribute('data-original-text', select.options[select.selectedIndex].text);
+                // Can't change option text easily, so just add loading class
             }
         }
-        
+
         function hideMapLoadingOverlay() {
-            // Restore button text
-            const btn = document.getElementById('toggle-nearby-wells');
-            if (btn) {
-                const label = btn.closest('label');
-                if (label) {
-                    label.classList.remove('loading');
-                    const span = label.querySelector('span');
-                    if (span && span.hasAttribute('data-original-text')) {
-                        span.textContent = span.getAttribute('data-original-text');
-                        span.removeAttribute('data-original-text');
-                    }
-                }
+            // Remove loading state from nearby wells select
+            const select = document.getElementById('nearby-wells-select');
+            if (select) {
+                select.classList.remove('loading');
             }
         }
         
@@ -7251,9 +7240,13 @@
             }
             
             try {
-                // Get status filter
-                const statusFilter = document.getElementById('well-status-filter').value;
+                // Get status filter from the dropdown
+                const statusFilter = document.getElementById('nearby-wells-select').value;
                 console.log('Status filter value:', statusFilter);
+                if (statusFilter === 'off') {
+                    console.log('Nearby wells is off, not loading');
+                    return;
+                }
                 const statusText = statusFilter === 'AC' ? 'active' : 'all';
                 const cacheKey = getWellsCacheKey(statusFilter);
                 
