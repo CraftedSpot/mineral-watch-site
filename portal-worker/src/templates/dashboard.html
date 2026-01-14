@@ -6837,7 +6837,7 @@
                 warningBanner.innerHTML = `
                     <span class="warning-icon">⚠️</span>
                     <span class="warning-text">You're out of credits. Documents won't be processed until you have credits available.</span>
-                    <a href="/portal/account#credits" class="warning-action">Get more credits</a>
+                    <a href="#" onclick="openCreditPackModal(); return false;" class="warning-action">Buy More Credits</a>
                 `;
             } else if (remainingPct <= 20) {
                 // Show warning if below 20%
@@ -6846,7 +6846,7 @@
                 warningBanner.innerHTML = `
                     <span class="warning-icon">⚡</span>
                     <span class="warning-text">Low credits: ${totalAvailable} remaining${isLifetimeTier ? '' : ' this month'}.</span>
-                    <a href="/portal/account#credits" class="warning-action">View options</a>
+                    <a href="#" onclick="openCreditPackModal(); return false;" class="warning-action">Buy More</a>
                 `;
             } else {
                 warningBanner.style.display = 'none';
@@ -8481,7 +8481,7 @@
                     console.log(`[OCC Process] No credits available`);
                     occProcessingStates[stateKey] = { status: 'idle', buttonEl };
                     updateOccButtonState(buttonEl, 'idle');
-                    showToast('No credits available. Please upgrade or purchase credits.', 'error');
+                    showOutOfCreditsModal();
                 } else {
                     throw new Error(result.message || result.error || 'Unknown error');
                 }
