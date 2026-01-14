@@ -884,7 +884,11 @@
             background: var(--red-dirt-dark, #b35a3a);
             border-color: var(--red-dirt-dark, #b35a3a);
         }
-        
+
+        .overlays-btn.active::after {
+            color: white;
+        }
+
         .overlays-btn.inactive {
             color: #9CA3AF;
         }
@@ -2257,14 +2261,21 @@
                             <input type="checkbox" id="toggle-wells" checked>
                             <span title="Wells you're actively monitoring">Tracked Wells</span>
                         </label>
-                        <label class="toggle-btn active">
-                            <input type="checkbox" id="toggle-permits" checked>
-                            <span title="New drilling permits within 90 days near your properties">Permits</span>
-                        </label>
-                        <label class="toggle-btn active">
-                            <input type="checkbox" id="toggle-completions" checked>
-                            <span title="Wells completed within 90 days near your properties">Completions</span>
-                        </label>
+                        <div class="filings-dropdown">
+                            <button class="filings-btn active" id="filingsBtn" title="OCC filings within 90 days near your properties">
+                                <span>Nearby Filings</span>
+                            </button>
+                            <div class="filings-menu" id="filingsMenu">
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-permits" checked>
+                                    <label for="toggle-permits">Permits</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-completions" checked>
+                                    <label for="toggle-completions">Completions</label>
+                                </div>
+                            </div>
+                        </div>
                         <select id="nearby-wells-select" class="layer-select" title="Explore wells near your properties">
                             <option value="off">Nearby Wells</option>
                             <option value="AC">Active Only</option>
