@@ -14,6 +14,7 @@
 
 import {
   parseLegalDescription,
+  parseAllLegalDescriptions,
   categorizeReliefType,
   parseResultStatus,
   extractContinuationDate,
@@ -178,10 +179,15 @@ function parseEntryBlock(caseNumber, blockText, metadata = {}) {
     applicant = applicantMatch ? applicantMatch[1].trim() : partiesText.split('|')[0].trim();
   }
 
-  // Legal description - S## T##N R##E/W County
-  const legalMatch = blockText.match(/Legal:\s*(S\d{1,2}\s+T\d{1,2}[NS]\s+R\d{1,2}[EW]\s+[A-Za-z]+(?:\s*\(\*\))?)/i);
-  const legalStr = legalMatch ? legalMatch[1].trim() : null;
-  const legal = parseLegalDescription(legalStr);
+  // Legal description - S## T##N R##E/W County (may contain multiple sections)
+  // Expanded pattern to capture multi-section legal descriptions
+  const legalMatch = blockText.match(/Legal:\s*(.+?)(?=\s*(?:Attorney:|Text:|Court Reporter:|Relief Type:|$))/is);
+  const legalStr = legalMatch ? legalMatch[1].replace(/\n/g, ' ').trim() : null;
+
+  // Parse all legal descriptions (supports multi-section orders)
+  const legalResult = parseAllLegalDescriptions(legalStr);
+  const legal = legalResult?.primary || null;
+  const additionalSections = legalResult?.additional || null;
 
   // Attorney
   const attorney = extractField(/Attorney:\s*([^,\n]+(?:,\s*[^,\n]+)?)/i);
@@ -238,6 +244,8 @@ function parseEntryBlock(caseNumber, blockText, metadata = {}) {
     township: legal?.township || null,
     range: legal?.range || null,
     meridian: legal?.meridian || 'IM',
+    // Additional sections for multi-section orders (stored as JSON array)
+    additional_sections: additionalSections,
     hearing_date: hearingDate,
     hearing_time: hearingTime,
     status: status,

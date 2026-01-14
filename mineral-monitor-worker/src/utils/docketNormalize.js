@@ -196,31 +196,143 @@ export function extractContinuationDate(resultText) {
 }
 
 /**
- * Parse legal description string into components
- * e.g., "S14 T5N R4W McClain (*)" → { section: "14", township: "5N", range: "4W", county: "McClain" }
+ * Parse ALL legal descriptions from a string (supports multi-section orders)
+ * Handles patterns like:
+ * - "S35 T13N R12E AND S2 T12N R12E McClain"
+ * - "S14 T5N R4W McClain (*)"
+ * - "N/2 of Section 35, T13N R12E and NW/4 of Section 2, T12N R12E, McClain"
+ *
+ * Returns: { primary: {...}, additional: [...], county: string, meridian: string }
  */
-export function parseLegalDescription(legalStr) {
+export function parseAllLegalDescriptions(legalStr) {
   if (!legalStr) return null;
 
-  // Pattern: S## T##N/S R##E/W County
-  const match = legalStr.match(/S(\d{1,2})\s+T(\d{1,2}[NS])\s+R(\d{1,2}[EW])\s+([A-Za-z]+)/i);
+  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+  const allLocations = [];
+  let county = null;
 
-  if (match) {
-    const county = normalizeCounty(match[4]);
-    // Oklahoma uses Indian Meridian (IM) except panhandle counties use Cimarron Meridian (CM)
-    const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
-    const meridian = panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM';
+  // Strategy 1: Find all "S## T##N/S R##E/W" patterns (docket format)
+  // Pattern matches: S14 T5N R4W, S2 T12N R12E, etc.
+  const docketPattern = /S(\d{1,2})\s+T(\d{1,2}[NS])\s+R(\d{1,2}[EW])/gi;
+  let match;
 
-    return {
-      section: normalizeDocketSection(match[1]),
-      township: normalizeTownship(match[2]),
-      range: normalizeRange(match[3]),
-      county,
-      meridian
-    };
+  while ((match = docketPattern.exec(legalStr)) !== null) {
+    const section = normalizeDocketSection(match[1]);
+    const township = normalizeTownship(match[2]);
+    const range = normalizeRange(match[3]);
+
+    if (section && township && range) {
+      // Check if this STR is already in our list (avoid duplicates)
+      const exists = allLocations.some(
+        loc => loc.section === section && loc.township === township && loc.range === range
+      );
+      if (!exists) {
+        allLocations.push({ section, township, range });
+      }
+    }
   }
 
-  return null;
+  // Strategy 2: Handle verbose format "Section ##, Township ## North, Range ## West"
+  const verbosePattern = /Section\s+(\d{1,2})[\s,]+(?:Township\s+)?(\d{1,2})\s*(North|South|N|S)[\s,]+(?:Range\s+)?(\d{1,2})\s*(East|West|E|W)/gi;
+
+  while ((match = verbosePattern.exec(legalStr)) !== null) {
+    const section = normalizeDocketSection(match[1]);
+    const township = normalizeTownship(`${match[2]}${match[3].charAt(0)}`);
+    const range = normalizeRange(`${match[4]}${match[5].charAt(0)}`);
+
+    if (section && township && range) {
+      const exists = allLocations.some(
+        loc => loc.section === section && loc.township === township && loc.range === range
+      );
+      if (!exists) {
+        allLocations.push({ section, township, range });
+      }
+    }
+  }
+
+  // Strategy 3: Handle partial STR with shared township/range
+  // e.g., "Sections 35 and 2, T13N R12E" or "S35, S2, T13N R12E"
+  const sharedTRPattern = /(?:Sections?\s+)?(\d{1,2})(?:\s*(?:,|and|&)\s*(\d{1,2}))+[\s,]+T(\d{1,2}[NS])\s+R(\d{1,2}[EW])/gi;
+
+  while ((match = sharedTRPattern.exec(legalStr)) !== null) {
+    const township = normalizeTownship(match[3]);
+    const range = normalizeRange(match[4]);
+
+    if (township && range) {
+      // Extract all section numbers from the match
+      const sectionPart = match[0].split(/T\d{1,2}[NS]/i)[0];
+      const sectionMatches = sectionPart.match(/\d{1,2}/g);
+
+      if (sectionMatches) {
+        for (const secNum of sectionMatches) {
+          const section = normalizeDocketSection(secNum);
+          if (section) {
+            const exists = allLocations.some(
+              loc => loc.section === section && loc.township === township && loc.range === range
+            );
+            if (!exists) {
+              allLocations.push({ section, township, range });
+            }
+          }
+        }
+      }
+    }
+  }
+
+  // Extract county (typically at the end)
+  const countyMatch = legalStr.match(/([A-Za-z]+)(?:\s*\(\*\))?$/);
+  if (countyMatch) {
+    const potentialCounty = countyMatch[1].trim();
+    // Validate it's not a direction (N, S, E, W) or common word
+    if (potentialCounty.length > 2 && !['AND', 'THE', 'FOR'].includes(potentialCounty.toUpperCase())) {
+      county = normalizeCounty(potentialCounty);
+    }
+  }
+
+  // Also try to extract county from middle of string (after STR patterns)
+  if (!county) {
+    const midCountyMatch = legalStr.match(/R\d{1,2}[EW]\s+([A-Za-z]{3,})/i);
+    if (midCountyMatch) {
+      county = normalizeCounty(midCountyMatch[1]);
+    }
+  }
+
+  if (allLocations.length === 0) {
+    return null;
+  }
+
+  // Determine meridian based on county
+  const meridian = panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM';
+
+  // Add county and meridian to all locations
+  for (const loc of allLocations) {
+    loc.county = county;
+    loc.meridian = meridian;
+  }
+
+  // Return primary (first) and additional (rest)
+  const [primary, ...additional] = allLocations;
+
+  return {
+    primary,
+    additional: additional.length > 0 ? additional : null,
+    county,
+    meridian
+  };
+}
+
+/**
+ * Parse legal description string into components (backward compatible)
+ * e.g., "S14 T5N R4W McClain (*)" → { section: "14", township: "5N", range: "4W", county: "McClain" }
+ *
+ * NOTE: For multi-section support, use parseAllLegalDescriptions() instead
+ */
+export function parseLegalDescription(legalStr) {
+  const result = parseAllLegalDescriptions(legalStr);
+  if (!result) return null;
+
+  // Return the primary location for backward compatibility
+  return result.primary;
 }
 
 /**

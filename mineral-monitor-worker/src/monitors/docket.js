@@ -35,19 +35,26 @@ async function storeDocketEntries(db, entries) {
   for (const entry of entries) {
     const id = generateEntryId(entry);
 
+    // Serialize additional_sections to JSON if present
+    const additionalSectionsJson = entry.additional_sections
+      ? JSON.stringify(entry.additional_sections)
+      : null;
+
     try {
       await db.prepare(`
         INSERT INTO occ_docket_entries (
           id, case_number, relief_type, relief_type_raw, relief_sought,
           applicant, county, section, township, range, meridian,
+          additional_sections,
           hearing_date, hearing_time, status, continuation_date,
           judge, attorney, courtroom, notes, result_raw,
           docket_date, docket_type, source_url, raw_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(case_number) DO UPDATE SET
           status = excluded.status,
           continuation_date = excluded.continuation_date,
           result_raw = excluded.result_raw,
+          additional_sections = COALESCE(excluded.additional_sections, additional_sections),
           updated_at = CURRENT_TIMESTAMP
       `).bind(
         id,
@@ -61,6 +68,7 @@ async function storeDocketEntries(db, entries) {
         entry.township,
         entry.range,
         entry.meridian || 'IM',
+        additionalSectionsJson,
         entry.hearing_date,
         entry.hearing_time,
         entry.status,
@@ -435,8 +443,8 @@ async function processDocketAlerts(env, dryRun = false) {
       continue;
     }
 
-    // Build location object for matching
-    const location = {
+    // Build primary location object for matching
+    const primaryLocation = {
       section: entry.section,
       township: entry.township,
       range: entry.range,
@@ -444,12 +452,42 @@ async function processDocketAlerts(env, dryRun = false) {
       county: entry.county
     };
 
+    // Parse additional sections if present (stored as JSON)
+    let additionalSections = [];
+    if (entry.additional_sections) {
+      try {
+        additionalSections = typeof entry.additional_sections === 'string'
+          ? JSON.parse(entry.additional_sections)
+          : entry.additional_sections;
+      } catch (e) {
+        console.error(`[Docket] Error parsing additional_sections for ${entry.case_number}:`, e.message);
+      }
+    }
+
     // Use extended 5x5 grid (24 sections) for horizontal wells since they span multiple sections
     // Standard 3x3 grid (8 adjacent) for all other relief types
     const useExtendedGrid = entry.relief_type === 'HORIZONTAL_WELL';
 
-    // Find matching properties
-    const rawMatches = await findMatchingProperties(location, env, { useExtendedGrid });
+    // Find matching properties for primary location
+    let rawMatches = await findMatchingProperties(primaryLocation, env, { useExtendedGrid });
+
+    // Also check additional sections (multi-section orders)
+    if (additionalSections.length > 0) {
+      console.log(`[Docket] ${entry.case_number}: Checking ${additionalSections.length} additional sections`);
+
+      for (const addlSection of additionalSections) {
+        const addlLocation = {
+          section: addlSection.section,
+          township: addlSection.township,
+          range: addlSection.range,
+          meridian: addlSection.meridian || entry.meridian || 'IM',
+          county: addlSection.county || entry.county
+        };
+
+        const addlMatches = await findMatchingProperties(addlLocation, env, { useExtendedGrid });
+        rawMatches = rawMatches.concat(addlMatches);
+      }
+    }
 
     if (rawMatches.length === 0) {
       processedIds.push(entry.id);

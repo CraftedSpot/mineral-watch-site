@@ -76,15 +76,22 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
 
     const statements = batch.map(entry => {
       const id = generateEntryId(entry);
+
+      // Serialize additional_sections to JSON if present
+      const additionalSectionsJson = entry.additional_sections
+        ? JSON.stringify(entry.additional_sections)
+        : null;
+
       return db.prepare(`
         INSERT INTO occ_docket_entries (
           id, case_number, relief_type, relief_type_raw, relief_sought,
           applicant, county, section, township, range, meridian,
+          additional_sections,
           hearing_date, hearing_time, status, continuation_date,
           judge, attorney, courtroom, notes, result_raw,
           docket_date, docket_type, source_url, raw_text,
           order_number, related_order_numbers, alerted_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(case_number) DO NOTHING
       `).bind(
         id,
@@ -98,6 +105,7 @@ async function storeEntriesBatch(db, entries, sourceUrl) {
         entry.township,
         entry.range,
         entry.meridian || 'IM',
+        additionalSectionsJson,
         entry.hearing_date,
         entry.hearing_time,
         entry.status,
