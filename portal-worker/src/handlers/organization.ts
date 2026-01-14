@@ -178,39 +178,14 @@ export async function handleInviteMember(request: Request, env: Env) {
     const organization = await orgResponse.json() as any;
     const organizationName = organization.fields.Name;
 
-    // Count current members in this organization
-    const membersFilter = `{Organization} = '${organizationName}'`;
-    const membersCountResponse = await fetch(
-      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
-      `filterByFormula=${encodeURIComponent(membersFilter)}&view=Grid%20view`,
-      {
-        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-      }
-    );
-    
-    if (!membersCountResponse.ok) {
-      console.error('Failed to count members:', await membersCountResponse.text());
-      return jsonResponse({ error: "Failed to check member count" }, 500);
-    }
-    
-    const membersData = await membersCountResponse.json() as any;
-    const currentMemberCount = membersData.records.length;
-    
-    console.log(`Organization ${organizationName} has ${currentMemberCount} members, max allowed: ${maxMembers}`);
-    
-    if (currentMemberCount >= maxMembers) {
-      return jsonResponse({ 
-        error: `Your ${plan} plan allows up to ${maxMembers} team member${maxMembers > 1 ? 's' : ''}. Please upgrade to add more members.` 
-      }, 403);
-    }
-
+    // Parse request body first to check if this is a resend
     const { email, role = 'Editor', name } = await request.json() as any;
 
     // Validate email
     if (!email || !email.includes('@')) {
       return jsonResponse({ error: "Valid email required" }, 400);
     }
-    
+
     // Validate role
     if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
       return jsonResponse({ error: "Invalid role" }, 400);
@@ -224,7 +199,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     if (existingUser) {
       // Check if they're already in THIS organization
       if (existingUser.fields.Organization && existingUser.fields.Organization.includes(organizationId)) {
-        // User is already in this organization - just resend the invite email
+        // User is already in this organization - just resend the invite email (no seat check needed)
         console.log(`User ${normalizedEmail} already in organization - resending invite email`);
         
         // Generate new magic link token
