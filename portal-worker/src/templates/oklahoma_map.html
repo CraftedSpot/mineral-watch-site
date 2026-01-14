@@ -8365,8 +8365,8 @@
             }
 
             // Set zoom bucket for resize tracking
-            const currentZoom = map.getZoom();
-            lastNearbyWellsZoomBucket = currentZoom < 10 ? 'small' : 'large';
+            const zoomForBucket = map.getZoom();
+            lastNearbyWellsZoomBucket = zoomForBucket < 10 ? 'small' : 'large';
 
             ensureLayerOrder();
         }
