@@ -1846,9 +1846,9 @@ export default {
     // Route: POST /api/documents/checkout/credit-pack - Create Stripe checkout session for credit pack purchase
     // Requires authentication - user must be logged in
     if (path === '/api/documents/checkout/credit-pack' && request.method === 'POST') {
-      // Verify authentication
+      // Verify authentication - call /api/auth/me endpoint
       const authResponse = await env.AUTH_WORKER.fetch(
-        new Request(request.url, {
+        new Request('https://auth-worker/api/auth/me', {
           method: 'GET',
           headers: request.headers,
         })
