@@ -577,7 +577,7 @@ async function processDocketAlerts(env, dryRun = false) {
       }
 
       // Build and send email
-      const { subject, html } = buildDocketAlertEmail(entry, match.alertLevel, match.user);
+      const { subject, html } = buildDocketAlertEmail(entry, match);
 
       try {
         await sendEmail(env, {
