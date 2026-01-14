@@ -1858,13 +1858,13 @@ export default {
         return errorResponse('Authentication required', 401, env);
       }
 
-      const authData = await authResponse.json() as { user?: { id: string; email: string } };
-      if (!authData.user?.id || !authData.user?.email) {
+      const authData = await authResponse.json() as { id?: string; email?: string; organizationId?: string };
+      if (!authData.id || !authData.email) {
         return errorResponse('User not found', 401, env);
       }
 
-      const userId = authData.user.id;
-      const userEmail = authData.user.email;
+      const userId = authData.organizationId || authData.id;
+      const userEmail = authData.email;
 
       // Check for Stripe secret key
       if (!env.STRIPE_SECRET_KEY) {
