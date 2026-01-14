@@ -229,15 +229,20 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
 
           if (additionalResult.results) {
             for (const row of additionalResult.results as { additional_sections: string; count: number }[]) {
-              // Parse the additional_sections JSON and match to properties
+              // Parse the additional_sections JSON and match to properties using normalized values
               try {
                 const sections = JSON.parse(row.additional_sections || '[]');
                 for (const section of sections) {
-                  const strKey = `${section.section}|${(section.township || '').toUpperCase()}|${(section.range || '').toUpperCase()}`;
-                  const propIds = strToPropertyMap.get(strKey) || [];
-                  for (const propId of propIds) {
-                    if (counts[propId]) {
-                      counts[propId].filings += row.count;
+                  const normSec = normalizeSection(section.section);
+                  const normTwn = normalizeTownship(section.township);
+                  const normRng = normalizeRange(section.range);
+                  if (normSec !== null && normTwn && normRng) {
+                    const strKey = `${normSec}|${normTwn}|${normRng}`;
+                    const propIds = strToPropertyMap.get(strKey) || [];
+                    for (const propId of propIds) {
+                      if (counts[propId]) {
+                        counts[propId].filings += row.count;
+                      }
                     }
                   }
                 }
