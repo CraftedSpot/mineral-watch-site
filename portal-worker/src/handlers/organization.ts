@@ -584,11 +584,7 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
         await env.AUTH_TOKENS.delete(token);
         const { generateSessionToken } = await import('../utils/auth.js');
         const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-        return jsonResponse({
-          success: true,
-          sessionToken: sessionToken,
-          email: tokenData.email
-        });
+        return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(sessionToken)}`, 302);
       }
       
       return jsonResponse({ error: 'Invalid or expired invitation link' }, 401);
