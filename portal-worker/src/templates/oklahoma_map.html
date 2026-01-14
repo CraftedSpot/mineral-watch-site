@@ -8351,10 +8351,6 @@
                 console.log(`Lateral lines: ${lateralStats.drawn} drawn, ${lateralStats.filteredOut} filtered out (too long), ${lateralStats.total} total with BH coords`);
             }
 
-            // Set zoom bucket for resize tracking
-            const zoomForBucket = map.getZoom();
-            lastNearbyWellsZoomBucket = zoomForBucket < 10 ? 'small' : 'large';
-
             ensureLayerOrder();
         }
         
