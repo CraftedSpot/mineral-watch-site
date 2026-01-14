@@ -40,21 +40,27 @@ async function storeDocketEntries(db, entries) {
       ? JSON.stringify(entry.additional_sections)
       : null;
 
+    // Serialize api_numbers to JSON if present
+    const apiNumbersJson = entry.api_numbers
+      ? JSON.stringify(entry.api_numbers)
+      : null;
+
     try {
       await db.prepare(`
         INSERT INTO occ_docket_entries (
           id, case_number, relief_type, relief_type_raw, relief_sought,
           applicant, county, section, township, range, meridian,
-          additional_sections,
+          additional_sections, api_numbers,
           hearing_date, hearing_time, status, continuation_date,
           judge, attorney, courtroom, notes, result_raw,
           docket_date, docket_type, source_url, raw_text
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(case_number) DO UPDATE SET
           status = excluded.status,
           continuation_date = excluded.continuation_date,
           result_raw = excluded.result_raw,
           additional_sections = COALESCE(excluded.additional_sections, additional_sections),
+          api_numbers = COALESCE(excluded.api_numbers, api_numbers),
           updated_at = CURRENT_TIMESTAMP
       `).bind(
         id,
@@ -69,6 +75,7 @@ async function storeDocketEntries(db, entries) {
         entry.range,
         entry.meridian || 'IM',
         additionalSectionsJson,
+        apiNumbersJson,
         entry.hearing_date,
         entry.hearing_time,
         entry.status,
