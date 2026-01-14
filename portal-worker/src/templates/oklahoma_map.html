@@ -7698,10 +7698,9 @@
                     },
                     body: JSON.stringify(requestBody)
                 });
-                
-                hideMapLoadingOverlay();
-                
+
                 if (!response.ok) {
+                    hideMapLoadingOverlay();
                     const errorText = await response.text();
                     console.error('Failed to load wells:', response.status, response.statusText, errorText);
                     updateStatus('Failed to load wells');
