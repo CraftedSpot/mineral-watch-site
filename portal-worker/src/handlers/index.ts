@@ -144,3 +144,8 @@ export {
 export {
   handleGetMapDataVersion
 } from './map-data-version.js';
+
+// Docket heatmap handler
+export {
+  handleGetDocketHeatmap
+} from './docket-heatmap.js';
