@@ -7747,8 +7747,8 @@
                     const feature = layer.feature;
                     if (!feature || !feature.properties) return;
 
-                    // Get county number from properties
-                    const countyNo = feature.properties.COUNTY_NO || feature.properties.id;
+                    // Get county FIPS code for matching production data (production API uses FIPS codes as keys)
+                    const countyNo = feature.properties.fips_code || feature.properties.COUNTY_FIPS_NO || feature.properties.COUNTY_NO || feature.properties.id;
                     const countyName = feature.properties.COUNTY_NAME || feature.properties.name || 'Unknown';
                     const prodData = countyProductionData[countyNo];
 
