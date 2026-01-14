@@ -357,7 +357,32 @@ export async function handleInviteMember(request: Request, env: Env) {
       }
     }
 
-    // Create new invited user
+    // Create new invited user - first check seat limits
+    const newUserMembersFilter = `{Organization} = '${organizationName}'`;
+    const newUserMembersCountResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
+      `filterByFormula=${encodeURIComponent(newUserMembersFilter)}&view=Grid%20view`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+
+    if (!newUserMembersCountResponse.ok) {
+      console.error('Failed to count members:', await newUserMembersCountResponse.text());
+      return jsonResponse({ error: "Failed to check member count" }, 500);
+    }
+
+    const newUserMembersData = await newUserMembersCountResponse.json() as any;
+    const newUserCurrentMemberCount = newUserMembersData.records.length;
+
+    console.log(`Organization ${organizationName} has ${newUserCurrentMemberCount} members, max allowed: ${maxMembers}`);
+
+    if (newUserCurrentMemberCount >= maxMembers) {
+      return jsonResponse({
+        error: `Your ${plan} plan allows up to ${maxMembers} team member${maxMembers > 1 ? 's' : ''}. Please upgrade to add more members.`
+      }, 403);
+    }
+
     console.log(`Creating invited user: ${normalizedEmail} for org: ${organizationName}`);
     const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
     const createResponse = await fetch(createUrl, {
