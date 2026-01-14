@@ -875,8 +875,14 @@
         }
         
         .overlays-btn.active {
+            background: var(--red-dirt);
+            color: white;
             border-color: var(--red-dirt);
-            background: rgba(192, 86, 33, 0.05);
+        }
+
+        .overlays-btn.active:hover {
+            background: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
         }
         
         .overlays-btn.inactive {
@@ -2307,10 +2313,6 @@
                                 <input type="checkbox" id="toggle-county-labels" checked>
                                 <label for="toggle-county-labels">County Names</label>
                             </div>
-                            <div class="overlay-option">
-                                <input type="checkbox" id="toggle-drilling">
-                                <label for="toggle-drilling">Drilling Activity</label>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -2666,25 +2668,24 @@
         
         // Update overlays button state
         function updateOverlaysButton() {
-            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling'];
-            const activeCount = overlays.filter(id => 
+            const overlays = ['land-grid', 'section-numbers', 'county-labels'];
+            const activeCount = overlays.filter(id =>
                 document.getElementById(`toggle-${id}`).checked
             ).length;
-            
+
             const btn = document.getElementById('overlaysBtn');
             const btnText = btn.querySelector('span');
-            
+
             if (activeCount === 0) {
-                btnText.textContent = 'Overlays (off)';
+                btnText.textContent = 'Overlays';
                 btn.classList.add('inactive');
-            } else if (activeCount === overlays.length) {
-                btnText.textContent = 'Overlays (all)';
-                btn.classList.remove('inactive');
+                btn.classList.remove('active');
             } else {
-                btnText.textContent = `Overlays (${activeCount})`;
+                btnText.textContent = 'Overlays';
                 btn.classList.remove('inactive');
+                btn.classList.add('active');
             }
-            
+
             // Update "All" checkbox
             const allCheckbox = document.getElementById('toggle-all-overlays');
             allCheckbox.checked = activeCount === overlays.length;
@@ -2700,7 +2701,7 @@
         
         // Handle "All Overlays" checkbox
         document.getElementById('toggle-all-overlays').addEventListener('change', function() {
-            const overlays = ['land-grid', 'section-numbers', 'county-labels', 'drilling'];
+            const overlays = ['land-grid', 'section-numbers', 'county-labels'];
             const checked = this.checked;
             
             overlays.forEach(id => {
