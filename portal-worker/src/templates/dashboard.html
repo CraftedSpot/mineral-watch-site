@@ -3315,6 +3315,18 @@
         
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                // Check for credit pack purchase success
+                const urlParams = new URLSearchParams(window.location.search);
+                if (urlParams.get('purchase') === 'success') {
+                    // Remove the query parameter from URL without reload
+                    const newUrl = window.location.pathname;
+                    window.history.replaceState({}, '', newUrl);
+                    // Show success toast after a brief delay to ensure DOM is ready
+                    setTimeout(() => {
+                        showToast('Credit pack purchased successfully! Credits have been added to your account.', 'success', 6000);
+                    }, 500);
+                }
+
                 const res = await fetch('/api/auth/me');
                 if (!res.ok) { window.location.href = '/portal/login'; return; }
                 currentUser = await res.json();
