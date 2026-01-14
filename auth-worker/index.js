@@ -1,7 +1,7 @@
 // Auth Worker - Handles magic link authentication for Mineral Watch
 // Separated from portal-worker for better code organization and bug isolation
 
-const COOKIE_NAME = "mw_session_v2";
+const COOKIE_NAME = "mw_session_v3";
 const TOKEN_EXPIRY = 15 * 60 * 1000; // 15 minutes
 const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
 
