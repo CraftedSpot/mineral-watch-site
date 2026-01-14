@@ -39,6 +39,7 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
       : `{User} = "${user.id}"`;
 
     const properties = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter);
+    console.log('[LinkCounts] Found', properties?.length || 0, 'properties for user', user.id);
 
     if (!properties || properties.length === 0) {
       return jsonResponse(counts);
@@ -47,6 +48,7 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     // Initialize counts for all properties
     for (const prop of properties) {
       counts[prop.id] = { wells: 0, documents: 0, filings: 0 };
+      console.log('[LinkCounts] Property:', prop.id, 'SEC:', prop.fields?.SEC, 'TWN:', prop.fields?.TWN, 'RNG:', prop.fields?.RNG);
     }
 
     // 2. Get well counts from Property-Well Links table
@@ -111,8 +113,10 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
 
         if (filingsResult.results) {
           for (const row of filingsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
-            const strKey = `${row.sec}|${row.twn}|${row.rng}`;
+            // Normalize the key to match how we stored it (uppercase township/range)
+            const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
             const propertyIds = strToPropertyMap.get(strKey) || [];
+            console.log('[LinkCounts] Matching STR:', strKey, '-> properties:', propertyIds.length, 'count:', row.count);
             for (const propId of propertyIds) {
               if (counts[propId]) {
                 counts[propId].filings = row.count;
