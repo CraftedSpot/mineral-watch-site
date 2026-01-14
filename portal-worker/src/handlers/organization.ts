@@ -623,11 +623,16 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
       // Token was already used but user might be retrying - generate new session
       const { generateSessionToken } = await import('../utils/auth.js');
       const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-      // Set cookie via HTTP header (Safari ITP blocks JS-set cookies)
-      return new Response(null, {
-        status: 302,
+      // Safari doesn't honor Set-Cookie on 302 redirects - use HTML page
+      const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Logging in...</title></head><body>
+<p>Completing login...</p>
+<script>setTimeout(function() { window.location.href = '/portal'; }, 100);</script>
+</body></html>`;
+      return new Response(html, {
+        status: 200,
         headers: {
-          'Location': `${BASE_URL}/portal`,
+          'Content-Type': 'text/html; charset=utf-8',
           'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
         }
       });
