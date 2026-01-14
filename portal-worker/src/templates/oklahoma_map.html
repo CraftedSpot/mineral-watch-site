@@ -2179,16 +2179,28 @@
                             <option value="AC">Active Only</option>
                             <option value="ALL">All Statuses</option>
                         </select>
-                        <select id="heatmap-select" class="layer-select active" title="Statewide drilling activity and production">
-                            <option value="off">Heat Map</option>
-                            <option value="permits">Permits Only</option>
-                            <option value="completions">Completions Only</option>
-                            <option value="both" selected>Permits/Completions</option>
-                            <option value="oil">Oil Production</option>
-                            <option value="gas">Gas Production</option>
+                        <div class="heatmap-dropdown">
+                            <button class="heatmap-btn active" id="heatmapBtn" title="Statewide drilling activity within 90 days">
+                                <span>Heat Map</span>
+                            </button>
+                            <div class="heatmap-menu" id="heatmapMenu">
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-permits" checked>
+                                    <label for="toggle-heatmap-permits">Permits</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-completions" checked>
+                                    <label for="toggle-heatmap-completions">Completions</label>
+                                </div>
+                            </div>
+                        </div>
+                        <select id="production-select" class="layer-select" title="County production (trailing 12 months)">
+                            <option value="off" selected>Production</option>
+                            <option value="oil">Oil</option>
+                            <option value="gas">Gas</option>
                         </select>
                     </div>
-                    
+
                     <div class="overlays-dropdown">
                         <button class="overlays-btn" id="overlaysBtn">
                             <span>Overlays</span>
