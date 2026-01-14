@@ -7,7 +7,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
-import { fetchAllAirtableRecords } from '../services/airtable.js';
+import { fetchAllAirtableRecords, getUserFromSession } from '../services/airtable.js';
 import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 import type { Env } from '../index';
 
@@ -33,13 +33,34 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
   const counts: LinkCounts = {};
 
   try {
-    // 1. Get all properties for this user (to get their STR locations)
-    const propertiesFilter = user.organizationId
-      ? `OR({User} = "${user.id}", FIND("${user.organizationId}", ARRAYJOIN({Organization})) > 0)`
-      : `{User} = "${user.id}"`;
+    // Get full user record to check for organization (same as handleListProperties)
+    const userRecord = await getUserFromSession(env, user);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    // Build filter matching handleListProperties logic
+    let propertiesFilter: string;
+    const organizationId = userRecord.fields.Organization?.[0];
+
+    if (organizationId) {
+      // User has organization - get org name for filter
+      const orgResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+        { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+      );
+
+      if (orgResponse.ok) {
+        const org = await orgResponse.json() as any;
+        const orgName = org.fields.Name;
+        propertiesFilter = `{Organization} = '${orgName}'`;
+      } else {
+        propertiesFilter = `FIND("${user.email}", ARRAYJOIN({User})) > 0`;
+      }
+    } else {
+      propertiesFilter = `FIND("${user.email}", ARRAYJOIN({User})) > 0`;
+    }
 
     const properties = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter);
-    console.log('[LinkCounts] Found', properties?.length || 0, 'properties for user', user.id);
+    console.log('[LinkCounts] Found', properties?.length || 0, 'properties for user', user.id, 'filter:', propertiesFilter);
 
     if (!properties || properties.length === 0) {
       return jsonResponse(counts);
