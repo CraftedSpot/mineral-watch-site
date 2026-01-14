@@ -7829,7 +7829,10 @@
                 const filteredWells = filterWellsData(uniqueWells);
                 console.log(`After filtering: ${filteredWells.length} wells to display`);
                 displayFilteredWells(filteredWells);
-                
+
+                // Hide loading indicator after wells are displayed
+                hideMapLoadingOverlay();
+
                 // Update status
                 if (filteredWells.length < uniqueWells.length) {
                     const filterCount = Object.values(wellsFilterState).filter(v => v).length;
@@ -8119,8 +8122,8 @@
             // Initialize cluster group if not already done
             if (!nearbyWellsLayer) {
                 nearbyWellsLayer = L.markerClusterGroup({
-                    // Only cluster at zoom levels below 9 (was 11)
-                    disableClusteringAtZoom: 9,
+                    // Only cluster at zoom levels below 8 (was 9)
+                    disableClusteringAtZoom: 8,
                     maxClusterRadius: 80,
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
@@ -8177,7 +8180,7 @@
             // Get current size of tracked well markers for scaling
             // Scale down at lower zoom levels (zoom 9-10 = 50% size, zoom 11+ = full size)
             const currentZoom = map.getZoom();
-            const zoomScale = currentZoom < 11 ? 0.5 : 1;
+            const zoomScale = currentZoom < 10 ? 0.5 : 1;
             const trackedWellSize = 25; // Base size for tracked wells
             const nearbyWellSize = Math.round(trackedWellSize * 0.75 * zoomScale); // 75% of tracked, scaled by zoom
             
