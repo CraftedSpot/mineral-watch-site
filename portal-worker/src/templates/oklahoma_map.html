@@ -7953,16 +7953,7 @@
         document.getElementById('toggle-permits').addEventListener('change', togglePermits);
         document.getElementById('toggle-completions').addEventListener('change', toggleCompletions);
         document.getElementById('toggle-heatmap').addEventListener('change', toggleActivityHeatmap);
-        document.getElementById('toggle-nearby-wells').addEventListener('change', toggleNearbyWells);
-        
-        // Add event listener for well status filter
-        document.getElementById('well-status-filter').addEventListener('change', function() {
-            // Reload wells if the Nearby Wells toggle is checked
-            const checkbox = document.getElementById('toggle-nearby-wells');
-            if (checkbox.checked) {
-                loadNearbyWells();
-            }
-        });
+        document.getElementById('nearby-wells-select').addEventListener('change', toggleNearbyWells);
         
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async function() {
