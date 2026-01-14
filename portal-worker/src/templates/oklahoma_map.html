@@ -2179,11 +2179,13 @@
                             <option value="AC">Active Only</option>
                             <option value="ALL">All Statuses</option>
                         </select>
-                        <select id="heatmap-select" class="layer-select active" title="Statewide drilling activity within 90 days">
+                        <select id="heatmap-select" class="layer-select active" title="Statewide drilling activity and production">
                             <option value="off">Heat Map</option>
                             <option value="permits">Permits Only</option>
                             <option value="completions">Completions Only</option>
                             <option value="both" selected>Permits/Completions</option>
+                            <option value="oil">Oil Production</option>
+                            <option value="gas">Gas Production</option>
                         </select>
                     </div>
                     
@@ -2704,6 +2706,8 @@
         let activityHeatmapLayer = null; // Will be created as heat layer
         let permitHeatmapLayer = null; // Separate heat layer for permits
         let completionHeatmapLayer = null; // Separate heat layer for completions
+        let countyProductionData = null; // Cached county production data for choropleth
+        let currentProductionType = null; // 'oil' or 'gas'
         let showSectionNumbers = true;  // Default to showing section numbers
         let showActivityHeatmap = true; // Default to on for heatmap
         let locationInfoBox;
@@ -7139,7 +7143,7 @@
                 select.classList.remove('active');
             }
 
-            // Remove all heatmap layers first
+            // Remove all point-based heatmap layers
             if (permitHeatmapLayer && map.hasLayer(permitHeatmapLayer)) {
                 map.removeLayer(permitHeatmapLayer);
             }
@@ -7147,7 +7151,13 @@
                 map.removeLayer(completionHeatmapLayer);
             }
 
-            // Add layers based on selection
+            // Reset county choropleth styling if switching away from production
+            if (value !== 'oil' && value !== 'gas') {
+                resetCountyChoropleth();
+                currentProductionType = null;
+            }
+
+            // Handle point-based heatmaps (permits/completions)
             if (value === 'permits' || value === 'both') {
                 if (permitHeatmapLayer) {
                     map.addLayer(permitHeatmapLayer);
@@ -7161,11 +7171,125 @@
                 }
             }
 
+            // Handle county production choropleth
+            if (value === 'oil' || value === 'gas') {
+                loadCountyProductionChoropleth(value);
+            }
+
             if (value !== 'off') {
                 ensureLayerOrder();
             }
 
             showActivityHeatmap = value !== 'off';
+        }
+
+        // Reset county layer to default styling
+        function resetCountyChoropleth() {
+            if (!countyLayer) return;
+
+            countyLayer.eachLayer(function(layer) {
+                layer.setStyle({
+                    fillColor: '#3498db',
+                    fillOpacity: 0.1,
+                    color: '#1C2B36',
+                    weight: 3
+                });
+                // Remove any production popup
+                layer.unbindPopup();
+            });
+            console.log('🗺️ Reset county choropleth styling');
+        }
+
+        // Load and apply county production choropleth
+        async function loadCountyProductionChoropleth(productType) {
+            if (!countyLayer) {
+                console.warn('County layer not loaded yet');
+                return;
+            }
+
+            console.log(`🗺️ Loading ${productType} production choropleth`);
+
+            try {
+                // Fetch production data
+                const response = await fetch(`/api/map/county-production?product=${productType}`);
+                const data = await response.json();
+
+                if (!data.success || !data.data) {
+                    console.error('Failed to load production data:', data);
+                    return;
+                }
+
+                countyProductionData = data.data;
+                currentProductionType = productType;
+
+                // Define color scale (logarithmic)
+                const maxVolume = data.maxVolume || 1;
+                const getColor = (volume) => {
+                    if (!volume || volume <= 0) return '#f0f0f0'; // No data - light gray
+
+                    // Logarithmic scale for better distribution
+                    const logMax = Math.log10(maxVolume);
+                    const logVal = Math.log10(volume);
+                    const ratio = logVal / logMax;
+
+                    // Color gradient: light yellow -> orange -> red -> dark red
+                    if (productType === 'oil') {
+                        // Oil: Yellow -> Orange -> Red
+                        if (ratio < 0.25) return '#ffffcc';
+                        if (ratio < 0.50) return '#ffeda0';
+                        if (ratio < 0.65) return '#feb24c';
+                        if (ratio < 0.80) return '#f03b20';
+                        return '#bd0026';
+                    } else {
+                        // Gas: Light blue -> Blue -> Purple
+                        if (ratio < 0.25) return '#deebf7';
+                        if (ratio < 0.50) return '#9ecae1';
+                        if (ratio < 0.65) return '#4292c6';
+                        if (ratio < 0.80) return '#2171b5';
+                        return '#084594';
+                    }
+                };
+
+                // Apply styling to county layer
+                countyLayer.eachLayer(function(layer) {
+                    const feature = layer.feature;
+                    if (!feature || !feature.properties) return;
+
+                    // Get county number from properties
+                    const countyNo = feature.properties.COUNTY_NO || feature.properties.id;
+                    const countyName = feature.properties.COUNTY_NAME || feature.properties.name || 'Unknown';
+                    const prodData = countyProductionData[countyNo];
+
+                    const volume = prodData ? prodData.volume : 0;
+                    const fillColor = getColor(volume);
+
+                    layer.setStyle({
+                        fillColor: fillColor,
+                        fillOpacity: 0.7,
+                        color: '#1C2B36',
+                        weight: 2
+                    });
+
+                    // Add popup with production info
+                    const volumeFormatted = volume ? volume.toLocaleString() : '0';
+                    const valueFormatted = prodData && prodData.value ? '$' + prodData.value.toLocaleString(undefined, {maximumFractionDigits: 0}) : '$0';
+                    const unit = productType === 'oil' ? 'BBL' : 'MCF';
+
+                    layer.bindPopup(`
+                        <div class="popup-title">${countyName} County</div>
+                        <div style="padding: 8px 0;">
+                            <strong>${productType === 'oil' ? 'Oil' : 'Gas'} Production (12 mo)</strong><br>
+                            Volume: ${volumeFormatted} ${unit}<br>
+                            Value: ${valueFormatted}
+                        </div>
+                    `, { className: 'high-z-popup' });
+                });
+
+                console.log(`🗺️ Applied ${productType} choropleth to ${Object.keys(countyProductionData).length} counties`);
+
+            } catch (error) {
+                console.error('Error loading county production:', error);
+            }
         }
         
         // Toggle nearby wells from D1 database
