@@ -242,8 +242,10 @@ export default {
       try {
         const usageService = new UsageTrackingService(env.WELLS_DB);
         const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
-        const usage = await usageService.getUsageStats(user.id, userPlan);
-        const creditCheck = await usageService.checkCreditsAvailable(user.id, userPlan);
+        // Use organization ID if user is part of an org, otherwise use user ID
+        const creditUserId = user.organizationId || user.id;
+        const usage = await usageService.getUsageStats(creditUserId, userPlan);
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
 
         return jsonResponse({
           usage: usage,
