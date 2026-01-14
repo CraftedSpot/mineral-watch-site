@@ -3815,10 +3815,13 @@
             const wellStatus = fields['Well Status'] || 'Unknown';
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
             const operatorColor = getOperatorColor(fields['Operator'] || '');
-            
+
             // Create pin marker for tracked wells
-            const markerSize = 24;
-            const markerHeight = 30;
+            // Scale down at lower zoom levels (zoom 7-8 = 50% size, zoom 9+ = full size)
+            const currentZoom = map.getZoom();
+            const zoomScale = currentZoom < 9 ? 0.5 : 1;
+            const markerSize = Math.round(24 * zoomScale);
+            const markerHeight = Math.round(30 * zoomScale);
             
             const icon = L.divIcon({
                 className: 'tracked-well-pin',
@@ -8101,8 +8104,8 @@
             // Initialize cluster group if not already done
             if (!nearbyWellsLayer) {
                 nearbyWellsLayer = L.markerClusterGroup({
-                    // Only cluster at zoom levels below 11
-                    disableClusteringAtZoom: 11,
+                    // Only cluster at zoom levels below 9 (was 11)
+                    disableClusteringAtZoom: 9,
                     maxClusterRadius: 80,
                     spiderfyOnMaxZoom: true,
                     showCoverageOnHover: false,
@@ -8155,10 +8158,13 @@
             
             // Update nearby wells count
             document.getElementById('nearbyWellCount').textContent = wells.length;
-            
+
             // Get current size of tracked well markers for scaling
+            // Scale down at lower zoom levels (zoom 9-10 = 50% size, zoom 11+ = full size)
+            const currentZoom = map.getZoom();
+            const zoomScale = currentZoom < 11 ? 0.5 : 1;
             const trackedWellSize = 25; // Base size for tracked wells
-            const nearbyWellSize = trackedWellSize * 0.6; // 60% of tracked well size
+            const nearbyWellSize = Math.round(trackedWellSize * 0.6 * zoomScale); // 60% of tracked, scaled by zoom
             
             // Store wells data globally for popup access
             window.nearbyWellsData = {};
