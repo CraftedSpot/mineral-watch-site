@@ -11,6 +11,35 @@ import { fetchAllAirtableRecords, getUserFromSession } from '../services/airtabl
 import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 import type { Env } from '../index';
 
+/**
+ * Normalize township format for comparison (from docket-matching.ts)
+ * "7N" -> "7N", "7 N" -> "7N", "07N" -> "7N"
+ */
+function normalizeTownship(twn: string | null): string | null {
+  if (!twn) return null;
+  const match = twn.toString().trim().toUpperCase().match(/^0*(\d{1,2})\s*([NS])$/);
+  return match ? `${parseInt(match[1], 10)}${match[2]}` : twn.toUpperCase();
+}
+
+/**
+ * Normalize range format for comparison (from docket-matching.ts)
+ * "4W" -> "4W", "4 W" -> "4W", "04W" -> "4W"
+ */
+function normalizeRange(rng: string | null): string | null {
+  if (!rng) return null;
+  const match = rng.toString().trim().toUpperCase().match(/^0*(\d{1,2})\s*([EW])$/);
+  return match ? `${parseInt(match[1], 10)}${match[2]}` : rng.toUpperCase();
+}
+
+/**
+ * Normalize section to integer (from docket-matching.ts)
+ */
+function normalizeSection(sec: string | number | null): number | null {
+  if (sec === null || sec === undefined) return null;
+  const num = parseInt(sec.toString(), 10);
+  return isNaN(num) ? null : num;
+}
+
 const LINKS_TABLE = '🔗 Property-Well Links';
 const BATCH_SIZE_AIRTABLE = 30; // Airtable filter batch size
 const BATCH_SIZE_D1 = 30; // D1 OR condition batch size
@@ -132,6 +161,7 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
       // Batch D1 queries to avoid expression tree depth limit
       const strBatches = chunk(strConditions, BATCH_SIZE_D1);
       console.log('[LinkCounts] Processing', strConditions.length, 'unique STR locations in', strBatches.length, 'batches');
+      console.log('[LinkCounts] Sample STR values:', strConditions.slice(0, 5).map(s => `${s.sec}|${s.twn}|${s.rng}`));
 
       for (const batch of strBatches) {
         try {
@@ -153,11 +183,15 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
           `;
 
           const filingsResult = await env.WELLS_DB.prepare(filingsQuery).all();
+          console.log('[LinkCounts] Batch filings query returned:', filingsResult.results?.length || 0, 'results');
 
           if (filingsResult.results) {
             for (const row of filingsResult.results as { sec: string; twn: string; rng: string; count: number }[]) {
               const strKey = `${row.sec}|${(row.twn || '').toUpperCase()}|${(row.rng || '').toUpperCase()}`;
               const propIds = strToPropertyMap.get(strKey) || [];
+              if (propIds.length > 0) {
+                console.log('[LinkCounts] Match found: DB row', row.sec, row.twn, row.rng, 'count:', row.count, '-> properties:', propIds.length);
+              }
               for (const propId of propIds) {
                 if (counts[propId]) {
                   counts[propId].filings = row.count;
