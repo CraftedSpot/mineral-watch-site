@@ -346,9 +346,9 @@ export function getInviteEmailHtml(
         <div style="text-align: center; margin: 30px 0;">
           <a href="${magicLink}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Accept Invitation →</a>
         </div>
-        
+
         <p style="text-align: center; font-size: 13px; color: #718096; margin: 0 0 30px;">
-          This link expires in 15 minutes.
+          This link expires in 72 hours.
         </p>
         
         <hr style="border: none; border-top: 1px solid #E2E8F0; margin: 30px 0;">
