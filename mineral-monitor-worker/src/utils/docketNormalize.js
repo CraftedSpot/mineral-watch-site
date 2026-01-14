@@ -336,6 +336,100 @@ export function parseLegalDescription(legalStr) {
 }
 
 /**
+ * Extract API numbers from text (docket entry, legal description, notes, etc.)
+ *
+ * Oklahoma API formats:
+ * - 5-digit: 049-24518 (county code + sequence)
+ * - With suffix: 049-24518A, 049-24518-1
+ * - Full 10-digit: 35-049-24518 (state-county-sequence)
+ * - Without dashes: 04924518
+ *
+ * Returns array of normalized API numbers (always 5-digit county-sequence format)
+ */
+export function parseAPINumbers(text) {
+  if (!text) return [];
+
+  const apiNumbers = new Set();
+
+  // Pattern 1: Full 10-digit format (35-049-24518 or 35049-24518)
+  // Oklahoma state code is 35
+  const fullPattern = /\b35[-\s]?(\d{3})[-\s]?(\d{5})[A-Z]?(?:-\d+)?\b/gi;
+  let match;
+
+  while ((match = fullPattern.exec(text)) !== null) {
+    const county = match[1];
+    const sequence = match[2];
+    apiNumbers.add(`${county}-${sequence}`);
+  }
+
+  // Pattern 2: 5-digit format with dash (049-24518, 049-24518A)
+  // County codes are 001-077 for Oklahoma
+  const shortPattern = /\b(0[0-7]\d)[-\s]?(\d{5})[A-Z]?(?:-\d+)?\b/gi;
+
+  while ((match = shortPattern.exec(text)) !== null) {
+    const county = match[1];
+    const sequence = match[2];
+    // Avoid matching dates or other numbers
+    if (parseInt(county, 10) >= 1 && parseInt(county, 10) <= 77) {
+      apiNumbers.add(`${county}-${sequence}`);
+    }
+  }
+
+  // Pattern 3: Without dashes (04924518) - 8 digits
+  // More strict - must have valid county code prefix
+  const noDashPattern = /\b(0[0-7]\d)(\d{5})\b/g;
+
+  while ((match = noDashPattern.exec(text)) !== null) {
+    const county = match[1];
+    const sequence = match[2];
+    // Only include if county code is valid (001-077)
+    if (parseInt(county, 10) >= 1 && parseInt(county, 10) <= 77) {
+      apiNumbers.add(`${county}-${sequence}`);
+    }
+  }
+
+  // Pattern 4: Explicit "API" label nearby (API: 049-24518 or API #049-24518)
+  const labeledPattern = /API[\s:#]*(\d{3})[-\s]?(\d{5})[A-Z]?/gi;
+
+  while ((match = labeledPattern.exec(text)) !== null) {
+    const county = match[1];
+    const sequence = match[2];
+    apiNumbers.add(`${county}-${sequence}`);
+  }
+
+  return Array.from(apiNumbers);
+}
+
+/**
+ * Normalize an API number to standard format
+ * Input: "35-049-24518", "04924518", "049-24518A"
+ * Output: "049-24518" (county-sequence only)
+ */
+export function normalizeAPINumber(api) {
+  if (!api) return null;
+
+  const str = api.toString().trim().replace(/[^0-9]/g, '');
+
+  // 10-digit (state-county-sequence): 3504924518
+  if (str.length === 10 && str.startsWith('35')) {
+    return `${str.substring(2, 5)}-${str.substring(5, 10)}`;
+  }
+
+  // 8-digit (county-sequence): 04924518
+  if (str.length === 8) {
+    return `${str.substring(0, 3)}-${str.substring(3, 8)}`;
+  }
+
+  // Already normalized or close
+  const match = api.match(/(\d{3})[-\s]?(\d{5})/);
+  if (match) {
+    return `${match[1]}-${match[2]}`;
+  }
+
+  return null;
+}
+
+/**
  * Validate a parsed docket entry
  */
 export function validateEntry(entry) {
