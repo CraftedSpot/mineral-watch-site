@@ -6077,10 +6077,89 @@
                         // Handle arrays
                         if (value.length > 0) {
                             hasVisibleFields = true;
-                            sectionContent += `<div class="doc-field">`;
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
                             sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
-                            
-                            if (fieldName === 'election_options') {
+
+                            if (fieldName === 'grantors' || fieldName === 'grantees') {
+                                // Special handling for grantors/grantees arrays with detailed info
+                                const partyType = fieldName === 'grantors' ? 'Grantor' : 'Grantee';
+                                const bgColor = fieldName === 'grantors' ? '#FEF3C7' : '#F0FDF4';
+                                const borderColor = fieldName === 'grantors' ? '#F59E0B' : '#22C55E';
+                                const textColor = fieldName === 'grantors' ? '#92400E' : '#166534';
+
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach((party, index) => {
+                                    if (typeof party === 'object') {
+                                        const name = party.name || 'Unknown';
+                                        const address = party.address || '';
+                                        const maritalStatus = party.marital_status || '';
+
+                                        sectionContent += `
+                                            <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
+                                                <div style="font-weight: 600; color: ${textColor};">${escapeHtml(name)}</div>
+                                                ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                                ${maritalStatus ? `<div style="font-size: 11px; color: #9CA3AF; margin-top: 2px; text-transform: capitalize;">${escapeHtml(maritalStatus)}</div>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
+                                                <span style="font-weight: 600; color: ${textColor};">${escapeHtml(String(party))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'heirs_summary') {
+                                // Special handling for heirs summary with shares
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(heir => {
+                                    if (typeof heir === 'object') {
+                                        const name = heir.name || 'Unknown';
+                                        const relationship = heir.relationship || '';
+                                        const share = heir.estimated_share || heir.share || '';
+                                        const shareDecimal = heir.share_decimal;
+
+                                        sectionContent += `
+                                            <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
+                                                <div>
+                                                    <span style="font-weight: 600; color: #1E40AF;">${escapeHtml(name)}</span>
+                                                    ${relationship ? `<span style="color: #6B7280; font-size: 12px; margin-left: 8px;">(${escapeHtml(relationship)})</span>` : ''}
+                                                </div>
+                                                ${share ? `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 4px; font-weight: 500;">${escapeHtml(share)}</span>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `<div style="padding: 8px; background: #EFF6FF; border-radius: 4px;">${escapeHtml(String(heir))}</div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'children_living' || fieldName === 'spouses') {
+                                // Special handling for children and spouses arrays
+                                const bgColor = fieldName === 'children_living' ? '#F0FDF4' : '#FAF5FF';
+                                const borderColor = fieldName === 'children_living' ? '#22C55E' : '#A855F7';
+                                const textColor = fieldName === 'children_living' ? '#166534' : '#7C3AED';
+
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(person => {
+                                    if (typeof person === 'object') {
+                                        const name = person.name || 'Unknown';
+                                        const address = person.address || '';
+                                        const spouseName = person.spouse_name || '';
+                                        const status = person.status || '';
+                                        const marriageDate = person.marriage_date || '';
+
+                                        sectionContent += `
+                                            <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
+                                                <div style="font-weight: 600; color: ${textColor};">${escapeHtml(name)}</div>
+                                                ${status ? `<div style="font-size: 11px; color: #9CA3AF; text-transform: capitalize;">${escapeHtml(status)}</div>` : ''}
+                                                ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                                ${spouseName ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Spouse: ${escapeHtml(spouseName)}</div>` : ''}
+                                                ${marriageDate ? `<div style="font-size: 11px; color: #9CA3AF;">Married: ${escapeHtml(marriageDate)}</div>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `<div style="padding: 8px; background: ${bgColor}; border-radius: 4px;">${escapeHtml(String(person))}</div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'election_options') {
                                 // Special handling for election options
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
                                 value.forEach((option, index) => {
@@ -6273,6 +6352,84 @@
                                         ${topDepth != null && bottomDepth != null ?
                                             `<div style="font-weight: 500; color: #7C3AED;">${Number(topDepth).toLocaleString()}' - ${Number(bottomDepth).toLocaleString()}'</div>` : ''}
                                         ${length != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Length: ${Number(length).toLocaleString()}'</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'interest_conveyed') {
+                            // Special handling for interest_conveyed object
+                            hasVisibleFields = true;
+                            const interestType = value.type || '';
+                            const fractionText = value.fraction_text || '';
+                            const fractionDecimal = value.fraction_decimal;
+                            const netMineralAcres = value.net_mineral_acres;
+                            const depthLimit = value.depth_limitation;
+                            const formationLimit = value.formation_limitation;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Interest Conveyed</label>
+                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 12px;">
+                                        ${interestType ? `<div style="font-weight: 600; color: #1E40AF; text-transform: capitalize; margin-bottom: 4px;">${escapeHtml(interestType)} Interest</div>` : ''}
+                                        ${fractionText ? `<div style="color: #374151;">${escapeHtml(fractionText)}</div>` : ''}
+                                        ${fractionDecimal != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Decimal: ${fractionDecimal}</div>` : ''}
+                                        ${netMineralAcres != null ? `<div style="font-size: 13px; color: #059669; font-weight: 500; margin-top: 6px;">${netMineralAcres} Net Mineral Acres</div>` : ''}
+                                        ${depthLimit ? `<div style="font-size: 12px; color: #92400E; margin-top: 4px;">Depth: ${escapeHtml(depthLimit)}</div>` : ''}
+                                        ${formationLimit ? `<div style="font-size: 12px; color: #92400E; margin-top: 2px;">Formation: ${escapeHtml(formationLimit)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'reservation') {
+                            // Special handling for reservation object
+                            if (value.has_reservation) {
+                                hasVisibleFields = true;
+                                const reservationText = value.reservation_text || '';
+                                const reservedType = value.reserved_interest_type || '';
+                                const reservedFraction = value.reserved_fraction || '';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Reservation</label>
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 12px;">
+                                            <div style="font-weight: 600; color: #92400E; margin-bottom: 4px;">Grantor Reserved Interest</div>
+                                            ${reservedType ? `<div style="color: #374151; text-transform: capitalize;">${escapeHtml(reservedType)}</div>` : ''}
+                                            ${reservedFraction ? `<div style="font-size: 13px; color: #92400E; margin-top: 4px;">Reserved: ${escapeHtml(reservedFraction)}</div>` : ''}
+                                            ${reservationText ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">"${escapeHtml(reservationText)}"</div>` : ''}
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'decedent') {
+                            // Special handling for decedent object
+                            hasVisibleFields = true;
+                            const name = value.name || 'Unknown';
+                            const deathDate = value.date_of_death || '';
+                            const birthDate = value.date_of_birth || '';
+                            const age = value.age_at_death;
+                            const placeOfDeath = value.place_of_death;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Decedent</label>
+                                    <div style="background: #F3F4F6; border: 1px solid #6B7280; border-radius: 6px; padding: 12px;">
+                                        <div style="font-weight: 600; color: #1F2937; font-size: 15px;">${escapeHtml(name)}</div>
+                                        ${deathDate ? `<div style="font-size: 13px; color: #4B5563; margin-top: 4px;">Date of Death: ${escapeHtml(deathDate)}${age ? ` (Age ${age})` : ''}</div>` : ''}
+                                        ${birthDate ? `<div style="font-size: 12px; color: #6B7280;">Born: ${escapeHtml(birthDate)}</div>` : ''}
+                                        ${placeOfDeath && placeOfDeath.county ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Place of Death: ${escapeHtml(placeOfDeath.county)} County, ${escapeHtml(placeOfDeath.state || 'OK')}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'affiant') {
+                            // Special handling for affiant object
+                            hasVisibleFields = true;
+                            const name = value.name || 'Unknown';
+                            const relationship = value.relationship_to_decedent || '';
+                            const address = value.address || '';
+                            const yearsKnown = value.years_known_decedent;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Affiant</label>
+                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 6px; padding: 12px;">
+                                        <div style="font-weight: 600; color: #166534;">${escapeHtml(name)}</div>
+                                        ${relationship ? `<div style="font-size: 13px; color: #4B5563; margin-top: 4px; text-transform: capitalize;">Relationship: ${escapeHtml(relationship)}</div>` : ''}
+                                        ${yearsKnown ? `<div style="font-size: 12px; color: #6B7280;">Knew decedent for ${yearsKnown} years</div>` : ''}
+                                        ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
                                     </div>
                                 </div>`;
                         } else {
