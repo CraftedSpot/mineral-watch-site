@@ -5825,7 +5825,8 @@
             const groups = {
                 'Detailed Analysis': ['ai_observations'],
                 'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
-                'Execution Details': ['execution_date', 'effective_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type'],
+                'Execution Details': ['execution_date', 'effective_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type',
+                                    'notary_expiration', 'commission_expiration', 'corporate_acknowledgment', 'acknowledgment_date'],
                 'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage'],
                 'Parties': ['grantors', 'grantees', 'grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_names', 'grantee_names',
                           'grantor_address', 'grantee_address',
@@ -5833,10 +5834,11 @@
                           'assignor_name', 'assignee_name', 'assignor_address', 'assignee_address',
                           'releasor', 'ratifying_party', 'original_party', 'principal_name', 'agent_name',
                           'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name',
-                          'decedent', 'affiant', 'heirs_summary', 'children_living', 'children_predeceased', 'spouses'],
+                          'decedent', 'affiant', 'heirs_summary', 'children_living', 'children_predeceased', 'spouses',
+                          'president', 'vice_president', 'secretary', 'assistant_secretary', 'treasurer', 'corporate_officer'],
                 'Interest & Consideration': ['interest_conveyed', 'interest_type', 'interest_assigned', 'consideration',
                                            'consideration_amount', 'consideration_description', 'bonus_amount',
-                                           'net_mineral_acres', 'reservation'],
+                                           'net_mineral_acres', 'reservation', 'minerals_covered', 'mineral_types_conveyed'],
                 'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions'],
                 'Well Information': ['well_name', 'api_number', 'well_location', 'operator', 'purchaser', 'owner_number',
                                    'decimal_interest', 'net_revenue_interest', 'unit_name'],
@@ -5855,7 +5857,7 @@
                                   'protestant', 'protestant_attorney', 'protest_status'],
                 'Document References': ['related_documents', 'exhibits', 'prior_instruments', 'original_lease_reference',
                                       'original_document_reference', 'original_lease_date', 'original_document_date'],
-                'Title & Warranties': ['warranty_type', 'source_of_title', 'warranty_of_title', 'warranty_scope'],
+                'Title & Warranties': ['warranty_type', 'source_of_title', 'warranty_of_title', 'warranty_scope', 'warranty_language', 'has_warranty'],
                 'Restrictions & Provisions': ['reservations', 'exceptions', 'subject_to', 'depth_limitations', 
                                             'formation_limitations', 'mineral_types', 'pooling_authorization', 
                                             'surface_restrictions', 'no_surface_clause', 'pugh_clause', 'vertical_pugh_clause'],
@@ -5941,12 +5943,17 @@
                     // Skip reservation sub-fields (handled specially in Interest section)
                     (fieldLower.startsWith('reservation_') && fieldLower !== 'reservation') ||
                     (fieldWithSpaces.startsWith('reservation ') && fieldWithSpaces !== 'reservation') ||
-                    // Skip internal metadata
+                    // Skip internal metadata (page info from multi-document splitting)
                     fieldLower === 'start_page' ||
                     fieldWithSpaces === 'start page' ||
+                    fieldLower.includes('start_page') ||
+                    fieldWithSpaces.includes('start page') ||
                     fieldLower === 'end_page' ||
                     fieldWithSpaces === 'end page' ||
+                    fieldLower.includes('end_page') ||
+                    fieldWithSpaces.includes('end page') ||
                     fieldLower === 'page_count' ||
+                    fieldLower === 'page_number' ||
                     fieldLower === 'prior_instruments' ||
                     fieldLower === 'property_acquisition' ||
                     fieldLower === 'will_and_probate' ||

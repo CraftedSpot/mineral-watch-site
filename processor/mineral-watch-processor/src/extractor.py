@@ -342,13 +342,13 @@ CHAIN OF TITLE EXTRACTION:
 - Note any reservations the grantor keeps for themselves
 - Capture references to prior instruments in the chain
 
-DEED TYPE DETECTION:
-- warranty_deed: Contains warranty language guaranteeing title ("warrant and defend")
-- special_warranty_deed: Limited warranty (only warrants against claims during grantor's ownership)
-- quitclaim_deed: No warranty - just releases whatever interest grantor has ("remise, release, quitclaim")
-- mineral_deed: Specifically conveys mineral interest
-- royalty_deed: Specifically conveys royalty interest only (not mineral)
-- assignment: Assigns existing lease or interest
+DEED TYPE DETECTION (for the "deed_type" field - this is the LEGAL type of conveyance, NOT the document category):
+- warranty_deed: Contains warranty language guaranteeing title ("warrant and defend", "general warranty")
+- special_warranty_deed: Limited warranty (only warrants against claims arising during grantor's ownership)
+- quitclaim_deed: No warranty - just releases whatever interest grantor may have ("remise, release, quitclaim")
+- grant_deed: Simple grant with implied warranties
+- bargain_and_sale_deed: Implies grantor has title but no warranties
+NOTE: Do NOT use "mineral_deed" or "royalty_deed" for deed_type - those describe WHAT is conveyed (doc_type), not the legal warranty type.
 
 {
   "doc_type": "mineral_deed",
