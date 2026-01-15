@@ -61,6 +61,121 @@ function getAdjacentSectionsInTownship(section: number): number[] {
 }
 
 /**
+ * Parse township string to get number and direction
+ * e.g., "12N" -> { num: 12, dir: 'N' }
+ */
+function parseTownship(township: string): { num: number; dir: string } | null {
+  const match = township.match(/^(\d+)([NS])$/i);
+  if (!match) return null;
+  return { num: parseInt(match[1]), dir: match[2].toUpperCase() };
+}
+
+/**
+ * Parse range string to get number and direction
+ * e.g., "8W" -> { num: 8, dir: 'W' }
+ */
+function parseRange(range: string): { num: number; dir: string } | null {
+  const match = range.match(/^(\d+)([EW])$/i);
+  if (!match) return null;
+  return { num: parseInt(match[1]), dir: match[2].toUpperCase() };
+}
+
+/**
+ * Get sections that are on edges that border adjacent townships/ranges
+ */
+function getEdgeSections(section: number): { north: boolean; south: boolean; east: boolean; west: boolean } {
+  const pos = SECTION_TO_POSITION.get(section);
+  if (!pos) return { north: false, south: false, east: false, west: false };
+
+  const [row, col] = pos;
+  return {
+    north: row === 0,
+    south: row === 5,
+    east: col === 5,
+    west: col === 0
+  };
+}
+
+/**
+ * Get adjacent locations including cross-township/range boundaries
+ * For edge sections, includes adjacent sections in neighboring townships/ranges
+ */
+function getAdjacentLocations(
+  section: number,
+  township: string,
+  range: string
+): Array<{ section: number; township: string; range: string }> {
+  const locations: Array<{ section: number; township: string; range: string }> = [];
+
+  // First, get adjacent sections within the same township
+  const adjacentInTownship = getAdjacentSectionsInTownship(section);
+  for (const adjSection of adjacentInTownship) {
+    locations.push({ section: adjSection, township, range });
+  }
+
+  // For cross-township adjacency, check if section is on an edge
+  const edges = getEdgeSections(section);
+  const pos = SECTION_TO_POSITION.get(section);
+  if (!pos) return locations;
+
+  const [row, col] = pos;
+  const twp = parseTownship(township);
+  const rng = parseRange(range);
+
+  if (!twp || !rng) return locations;
+
+  // North edge - look into township to the north
+  if (edges.north) {
+    const northTwp = twp.dir === 'N' ? `${twp.num + 1}N` : (twp.num > 1 ? `${twp.num - 1}S` : '1N');
+    const southRowSections = [31, 32, 33, 34, 35, 36];
+    for (let dc = -1; dc <= 1; dc++) {
+      const newCol = col + dc;
+      if (newCol >= 0 && newCol < 6) {
+        locations.push({ section: southRowSections[newCol], township: northTwp, range });
+      }
+    }
+  }
+
+  // South edge - look into township to the south
+  if (edges.south) {
+    const southTwp = twp.dir === 'S' ? `${twp.num + 1}S` : (twp.num > 1 ? `${twp.num - 1}N` : '1S');
+    const northRowSections = [6, 5, 4, 3, 2, 1];
+    for (let dc = -1; dc <= 1; dc++) {
+      const newCol = col + dc;
+      if (newCol >= 0 && newCol < 6) {
+        locations.push({ section: northRowSections[newCol], township: southTwp, range });
+      }
+    }
+  }
+
+  // East edge - look into range to the east
+  if (edges.east) {
+    const eastRng = rng.dir === 'E' ? `${rng.num + 1}E` : (rng.num > 1 ? `${rng.num - 1}W` : '1E');
+    const westColSections = [6, 7, 18, 19, 30, 31];
+    for (let dr = -1; dr <= 1; dr++) {
+      const newRow = row + dr;
+      if (newRow >= 0 && newRow < 6) {
+        locations.push({ section: westColSections[newRow], township, range: eastRng });
+      }
+    }
+  }
+
+  // West edge - look into range to the west
+  if (edges.west) {
+    const westRng = rng.dir === 'W' ? `${rng.num + 1}W` : (rng.num > 1 ? `${rng.num - 1}E` : '1W');
+    const eastColSections = [1, 12, 13, 24, 25, 36];
+    for (let dr = -1; dr <= 1; dr++) {
+      const newRow = row + dr;
+      if (newRow >= 0 && newRow < 6) {
+        locations.push({ section: eastColSections[newRow], township, range: westRng });
+      }
+    }
+  }
+
+  return locations;
+}
+
+/**
  * Normalize township format for comparison
  * "7N" -> "7N", "7 N" -> "7N", "07N" -> "7N"
  */
