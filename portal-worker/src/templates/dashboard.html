@@ -6305,14 +6305,18 @@
                                 });
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'unit_sections') {
-                                // Special handling for multi-unit horizontal well sections
+                                // Special handling for multi-unit horizontal well sections and Division Order allocations
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
                                 value.forEach(unit => {
                                     if (typeof unit === 'object') {
                                         const section = unit.section || '';
                                         const township = unit.township || '';
                                         const range = unit.range || '';
-                                        const allocation = unit.allocation_percentage;
+                                        // Support both allocation_percentage (OCC orders) and allocation_factor (Division Orders)
+                                        let allocation = unit.allocation_percentage;
+                                        if (allocation === undefined && unit.allocation_factor !== undefined) {
+                                            allocation = (unit.allocation_factor * 100).toFixed(2);
+                                        }
                                         const acres = unit.acres;
                                         const spacingOrder = unit.spacing_order;
 
