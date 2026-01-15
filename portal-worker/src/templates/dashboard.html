@@ -5940,10 +5940,13 @@
                     .replace(/\n{3,}/g, '\n\n'); // Collapse multiple newlines
 
                 content += `<div style="margin-bottom: 16px;">
-                    <div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 12px 16px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
-                        <strong style="display: block; margin-bottom: 6px; color: #15803d; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Key Takeaway</strong>
-                        ${escapeHtml(cleanedTakeaway)}
-                    </div>
+                    <details class="key-takeaway-block" open>
+                        <summary class="key-takeaway-trigger">
+                            <span class="details-chevron">&#9654;</span>
+                            <span class="key-takeaway-label">Key Takeaway</span>
+                        </summary>
+                        <div class="key-takeaway-content">${escapeHtml(cleanedTakeaway)}</div>
+                    </details>
                 </div>`;
             }
 
@@ -6541,12 +6544,15 @@
 
                         // Key Takeaway if available (always visible, prominent at top)
                         if (data.key_takeaway) {
-                            const cleanedTakeaway = data.key_takeaway.trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
-                            content += `<div style="margin-bottom: 20px;">
-                                <div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px 20px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
-                                    <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Key Takeaway</strong>
-                                    ${escapeHtml(cleanedTakeaway)}
-                                </div>
+                            const cleanedTakeaway = data.key_takeaway.trim().replace(/^#\s*/gm, '').replace(/^\s+/gm, '').replace(/\t/g, ' ').replace(/\n{3,}/g, '\n\n');
+                            content += `<div style="margin-bottom: 16px;">
+                                <details class="key-takeaway-block" open>
+                                    <summary class="key-takeaway-trigger">
+                                        <span class="details-chevron">&#9654;</span>
+                                        <span class="key-takeaway-label">Key Takeaway</span>
+                                    </summary>
+                                    <div class="key-takeaway-content">${escapeHtml(cleanedTakeaway)}</div>
+                                </details>
                             </div>`;
                         }
 
@@ -6918,6 +6924,50 @@
                     }
                     details[open] .details-chevron {
                         transform: rotate(90deg);
+                    }
+
+                    /* Key Takeaway styling (green, matches Detailed Analysis structure) */
+                    .key-takeaway-block {
+                        background: linear-gradient(135deg, #F0FDF4 0%, #DCFCE7 100%);
+                        border: 2px solid #22C55E;
+                        border-radius: 10px;
+                        overflow: hidden;
+                        transition: all 0.2s ease;
+                    }
+                    .key-takeaway-block:hover {
+                        border-color: #16A34A;
+                        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2);
+                    }
+                    .key-takeaway-trigger {
+                        padding: 14px 18px;
+                        cursor: pointer;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        background: transparent;
+                        user-select: none;
+                    }
+                    .key-takeaway-trigger:hover {
+                        background: rgba(34, 197, 94, 0.1);
+                    }
+                    .key-takeaway-trigger .details-chevron {
+                        font-size: 12px;
+                        color: #22C55E;
+                        transition: transform 0.2s ease;
+                    }
+                    .key-takeaway-label {
+                        font-weight: 600;
+                        color: #166534;
+                        font-size: 14px;
+                    }
+                    .key-takeaway-content {
+                        white-space: pre-wrap;
+                        line-height: 1.7;
+                        padding: 16px 18px;
+                        border-top: 1px solid #BBF7D0;
+                        background: white;
+                        color: #166534;
+                        font-size: 14px;
                     }
 
                     /* Detailed Analysis prominent styling */
