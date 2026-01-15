@@ -5866,29 +5866,39 @@
             const processedFields = new Set();
 
             // Build a lowercase map of group fields for case-insensitive matching
+            // Handle both snake_case and space-separated formats
             const fieldToSection = {};
-            const fieldToOriginal = {};
             for (const [section, fields] of Object.entries(groups)) {
                 for (const field of fields) {
+                    // Add snake_case version
                     fieldToSection[field.toLowerCase()] = section;
-                    fieldToOriginal[field.toLowerCase()] = field;
+                    // Add space-separated version (deed_type -> deed type)
+                    fieldToSection[field.toLowerCase().replace(/_/g, ' ')] = section;
+                    // Add title case version (deed_type -> Deed Type)
+                    const titleCase = field.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()).toLowerCase();
+                    fieldToSection[titleCase] = section;
                 }
             }
 
             // First pass: assign data fields to their designated groups (case-insensitive)
             for (const [dataField, value] of Object.entries(data)) {
+                // Normalize to lowercase, try both snake_case and space formats
                 const dataFieldLower = dataField.toLowerCase();
+                const dataFieldNormalized = dataFieldLower.replace(/\s+/g, '_');
 
                 // Skip confidence fields
-                if (dataFieldLower.endsWith('_confidence') ||
+                if (dataFieldNormalized.endsWith('_confidence') ||
                     dataFieldLower.endsWith(' confidence') ||
-                    dataFieldLower.includes('confidence_')) {
+                    dataFieldNormalized.includes('confidence_')) {
                     processedFields.add(dataField);
                     continue;
                 }
 
-                // Check if this field belongs to a group
-                const section = fieldToSection[dataFieldLower];
+                // Check if this field belongs to a group (try multiple formats)
+                const section = fieldToSection[dataFieldLower] ||
+                               fieldToSection[dataFieldNormalized] ||
+                               fieldToSection[dataFieldLower.replace(/_/g, ' ')];
+
                 if (section && value !== null && value !== undefined && value !== '') {
                     if (!grouped[section]) {
                         grouped[section] = {};
