@@ -343,10 +343,10 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
         }
         directSTRMap.get(directKey)!.push(pstr.propId);
 
-        // Get adjacent sections and add to adjacent map
-        const adjacentSections = getAdjacentSectionsInTownship(pstr.sec);
-        for (const adjSec of adjacentSections) {
-          const adjKey = `${adjSec}|${pstr.twn}|${pstr.rng}`;
+        // Get adjacent locations (including cross-township/range for edge sections)
+        const adjacentLocations = getAdjacentLocations(pstr.sec, pstr.twn, pstr.rng);
+        for (const loc of adjacentLocations) {
+          const adjKey = `${loc.section}|${loc.township}|${loc.range}`;
           if (!adjacentSTRMap.has(adjKey)) {
             adjacentSTRMap.set(adjKey, []);
           }
