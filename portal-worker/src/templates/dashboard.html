@@ -1711,6 +1711,114 @@
             outline: none;
             border-color: var(--red-dirt);
         }
+
+        /* Searchable Dropdown Styles */
+        .searchable-dropdown {
+            position: relative;
+            display: inline-block;
+        }
+        .searchable-dropdown-trigger {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 14px;
+            font-family: inherit;
+            background: white;
+            cursor: pointer;
+            min-width: 180px;
+            text-align: left;
+            color: inherit;
+        }
+        .searchable-dropdown-trigger:hover {
+            border-color: #9CA3AF;
+        }
+        .searchable-dropdown-trigger:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+        }
+        .searchable-dropdown-trigger .dropdown-label {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .searchable-dropdown-trigger svg {
+            flex-shrink: 0;
+            transition: transform 0.2s;
+        }
+        .searchable-dropdown.open .searchable-dropdown-trigger svg {
+            transform: rotate(180deg);
+        }
+        .searchable-dropdown-menu {
+            display: none;
+            position: absolute;
+            top: 100%;
+            left: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 240px;
+            max-height: 320px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .searchable-dropdown.open .searchable-dropdown-menu {
+            display: flex;
+        }
+        .dropdown-search-wrapper {
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .dropdown-search {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-size: 13px;
+            font-family: inherit;
+        }
+        .dropdown-search:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+        }
+        .dropdown-options {
+            overflow-y: auto;
+            max-height: 260px;
+            padding: 4px 0;
+        }
+        .dropdown-option {
+            padding: 10px 14px;
+            cursor: pointer;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .dropdown-option:hover {
+            background: #F3F4F6;
+        }
+        .dropdown-option.selected {
+            background: #EEF2FF;
+            color: var(--red-dirt);
+            font-weight: 500;
+        }
+        .dropdown-option.hidden {
+            display: none;
+        }
+        .dropdown-no-results {
+            padding: 16px;
+            text-align: center;
+            color: #6B7280;
+            font-size: 13px;
+        }
+
         .results-count {
             font-size: 13px;
             color: var(--slate-blue);
@@ -2314,25 +2422,23 @@
 
                     <div id="documentsControls" class="table-controls" style="display: none;">
                         <input type="text" id="documentsSearch" class="search-input" placeholder="Search documents by name, type, county, or content...">
-                        <select id="documentsCategory" class="sort-select" style="width: 180px;">
-                            <option value="all">All Categories</option>
-                            <option value="mineral_deeds">Mineral Deeds</option>
-                            <option value="leases">Leases</option>
-                            <option value="drilling_permits">Drilling Permits</option>
-                            <option value="well_completion_reports">Well Completion Reports</option>
-                            <option value="production_reports">Production Reports</option>
-                            <option value="division_orders">Division Orders</option>
-                            <option value="tax_records">Tax Records</option>
-                            <option value="correspondence">Correspondence</option>
-                            <option value="legal_documents">Legal Documents</option>
-                            <option value="check_stubs">Check Stubs / Royalty Statements</option>
-                            <option value="occ_orders">OCC Orders</option>
-                            <option value="suspense_notices">Suspense Notices</option>
-                            <option value="ownership_entity">Ownership/Entity</option>
-                            <option value="maps_plats">Maps/Plats</option>
-                            <option value="multi_document">Multi-Document PDFs</option>
-                            <option value="other">Other</option>
-                        </select>
+                        <div class="searchable-dropdown" id="documentsCategoryDropdown">
+                            <button type="button" class="searchable-dropdown-trigger" id="documentsCategoryTrigger">
+                                <span class="dropdown-label">All Categories</span>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 4.5L6 7.5L9 4.5"/>
+                                </svg>
+                            </button>
+                            <div class="searchable-dropdown-menu" id="documentsCategoryMenu">
+                                <div class="dropdown-search-wrapper">
+                                    <input type="text" class="dropdown-search" id="documentsCategorySearch" placeholder="Search categories...">
+                                </div>
+                                <div class="dropdown-options" id="documentsCategoryOptions">
+                                    <!-- Options populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="documentsCategory" value="all">
                         <select id="documentsSort" class="sort-select">
                             <!-- Options will be dynamically populated -->
                         </select>
@@ -4909,13 +5015,8 @@
                 debounceSearch(() => renderDocumentsList(loadedDocuments), 300);
             });
             
-            // Category filter
-            const categorySelect = document.getElementById('documentsCategory');
-            categorySelect.addEventListener('change', (e) => {
-                documentsCategory = e.target.value;
-                updateDocumentsSortOptions(); // Update sort options based on category
-                renderDocumentsList(loadedDocuments);
-            });
+            // Category filter - Searchable dropdown
+            initDocumentsCategoryDropdown();
             
             // Sort select
             const sortSelect = document.getElementById('documentsSort');
