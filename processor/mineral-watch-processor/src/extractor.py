@@ -330,23 +330,105 @@ For Mineral Deeds, note the sub-type if identifiable:
 
 Return your response as a JSON object with this exact structure:
 
-For DEEDS:
+For DEEDS (Mineral Deed, Royalty Deed, Warranty Deed, Quitclaim Deed, Assignment):
+NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
+This document transfers ownership of mineral or royalty interests from one party to another.
+Focus on extracting exactly what THIS document states. Do not infer prior ownership or subsequent transfers.
+
+CHAIN OF TITLE EXTRACTION:
+- Grantor is the party transferring ownership (seller/assignor)
+- Grantee is the party receiving ownership (buyer/assignee)
+- Extract normalized names for future matching (LAST, FIRST MIDDLE format for individuals)
+- Note any reservations the grantor keeps for themselves
+- Capture references to prior instruments in the chain
+
+DEED TYPE DETECTION:
+- warranty_deed: Contains warranty language guaranteeing title ("warrant and defend")
+- special_warranty_deed: Limited warranty (only warrants against claims during grantor's ownership)
+- quitclaim_deed: No warranty - just releases whatever interest grantor has ("remise, release, quitclaim")
+- mineral_deed: Specifically conveys mineral interest
+- royalty_deed: Specifically conveys royalty interest only (not mineral)
+- assignment: Assigns existing lease or interest
+
 {
   "doc_type": "mineral_deed",
+  "deed_type": "warranty_deed",
   "grantor_names": ["John A. Smith", "Mary B. Smith"],
   "grantee_names": ["Robert C. Jones"],
   "recording_date": "2023-03-15",
   "execution_date": "2023-03-10",
   "recording_book": "350",
   "recording_page": "125",
+  "instrument_number": "2023-012345",
   "legal_description": {
     "section": "16",
     "township": "12N",
     "range": "7W",
-    "county": "Grady"
+    "county": "Grady",
+    "full_description": "The NW/4 of Section 16, Township 12 North, Range 7 West, Grady County, Oklahoma"
   },
-  "interest_conveyed": "1/2 mineral interest in and under...",
+  "interest_conveyed": {
+    "type": "mineral",
+    "fraction_text": "an undivided one-half (1/2) interest",
+    "fraction_decimal": 0.50,
+    "depth_limitation": null,
+    "formation_limitation": null
+  },
+  "reservation": {
+    "has_reservation": false,
+    "reservation_text": null,
+    "reserved_interest_type": null,
+    "reserved_fraction": null
+  },
   "consideration": "$10,000.00",
+  "prior_instruments": [
+    {
+      "book": "245",
+      "page": "112",
+      "instrument_number": null,
+      "description": "Deed from William Smith to John A. Smith"
+    }
+  ],
+  "chain_of_title": {
+    "relevant": true,
+    "category": "conveyance",
+    "document_type": "mineral_deed",
+    "parties": {
+      "grantor": ["John A. Smith", "Mary B. Smith"],
+      "grantor_normalized": ["SMITH, JOHN A", "SMITH, MARY B"],
+      "grantor_type": "married_couple",
+      "grantee": ["Robert C. Jones"],
+      "grantee_normalized": ["JONES, ROBERT C"],
+      "grantee_type": "individual"
+    },
+    "interest": {
+      "type": "mineral",
+      "fraction_text": "an undivided one-half (1/2) interest",
+      "fraction_decimal": 0.50,
+      "undivided": true,
+      "reservation": false
+    },
+    "dates": {
+      "document_date": "2023-03-10",
+      "recording_date": "2023-03-15",
+      "effective_date": null
+    },
+    "recording": {
+      "county": "Grady",
+      "book": "350",
+      "page": "125",
+      "instrument_number": "2023-012345"
+    },
+    "chain_links": {
+      "references_prior": [
+        {
+          "book": "245",
+          "page": "112",
+          "description": "Deed from William Smith to John A. Smith"
+        }
+      ]
+    }
+  },
   "field_scores": {
     "grantor_names": 0.95,
     "grantee_names": 0.98,
@@ -359,7 +441,8 @@ For DEEDS:
     "legal_range": 0.95,
     "legal_county": 1.0,
     "interest_conveyed": 0.85,
-    "consideration": 0.75
+    "consideration": 0.75,
+    "chain_of_title": 0.90
   },
   "document_confidence": "high"
 }
