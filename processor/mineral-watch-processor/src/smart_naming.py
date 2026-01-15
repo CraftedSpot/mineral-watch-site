@@ -38,8 +38,11 @@ def extract_last_name(full_name: str) -> str:
     """Extract last name from a full name string, or shortened company name."""
     if not full_name:
         return ""
-    
+
     name = str(full_name).strip()
+
+    # Clean up stray parentheses and brackets that might come from extraction
+    name = name.replace('(', '').replace(')', '').replace('[', '').replace(']', '').strip()
     
     # Company indicators that suggest this is a business, not a person
     company_suffixes = ['LLC', 'L.L.C.', 'Inc', 'Inc.', 'Corp', 'Corp.', 'Corporation', 
@@ -204,105 +207,150 @@ def get_year_from_dates(extraction: dict) -> Optional[str]:
 def name_mineral_deed(data: Dict[str, Any]) -> str:
     """Mineral Deed - {County} - {Legal} - {Grantor to Grantee} - {Year}"""
     parts = ["Mineral Deed"]
-    
+
     if data.get('county'):
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
-    
+
     legal = format_legal_description(
-        data.get('section'), 
-        data.get('township'), 
+        data.get('section'),
+        data.get('township'),
         data.get('range')
     )
     if legal:
         parts.append(legal)
-    
-    # Handle array of names
-    grantor = data.get('grantor')
-    if isinstance(grantor, list) and grantor:
-        grantor = grantor[0]
-    elif isinstance(grantor, dict):
-        grantor = grantor.get('name', '')
-    
-    grantee = data.get('grantee')
-    if isinstance(grantee, list) and grantee:
-        grantee = grantee[0]
-    elif isinstance(grantee, dict):
-        grantee = grantee.get('name', '')
-    
-    # Also check plural forms
+
+    # Handle various formats for grantor names
+    grantor = None
+
+    # Check new 'grantors' array of objects format first
+    grantors_array = data.get('grantors', [])
+    if grantors_array and isinstance(grantors_array, list):
+        first_grantor = grantors_array[0]
+        if isinstance(first_grantor, dict):
+            grantor = first_grantor.get('name', '')
+        elif isinstance(first_grantor, str):
+            grantor = first_grantor
+
+    # Fall back to other formats
+    if not grantor:
+        grantor = data.get('grantor')
+        if isinstance(grantor, list) and grantor:
+            grantor = grantor[0]
+        elif isinstance(grantor, dict):
+            grantor = grantor.get('name', '')
+
     if not grantor:
         grantors = data.get('grantor_names', [])
         if grantors and isinstance(grantors, list):
             grantor = grantors[0]
-    
+
+    # Handle various formats for grantee names
+    grantee = None
+
+    # Check new 'grantees' array of objects format first
+    grantees_array = data.get('grantees', [])
+    if grantees_array and isinstance(grantees_array, list):
+        first_grantee = grantees_array[0]
+        if isinstance(first_grantee, dict):
+            grantee = first_grantee.get('name', '')
+        elif isinstance(first_grantee, str):
+            grantee = first_grantee
+
+    # Fall back to other formats
+    if not grantee:
+        grantee = data.get('grantee')
+        if isinstance(grantee, list) and grantee:
+            grantee = grantee[0]
+        elif isinstance(grantee, dict):
+            grantee = grantee.get('name', '')
+
     if not grantee:
         grantees = data.get('grantee_names', [])
         if grantees and isinstance(grantees, list):
             grantee = grantees[0]
-    
+
     party_transfer = format_party_transfer(grantor, grantee)
     if party_transfer:
         parts.append(party_transfer)
-    
+
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
 def name_royalty_deed(data: Dict[str, Any]) -> str:
     """Royalty Deed - {County} - {Legal} - {Grantor to Grantee} - {Year}"""
-    # Same logic as mineral deed but with different prefix
     parts = ["Royalty Deed"]
-    
+
     if data.get('county'):
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
-    
+
     legal = format_legal_description(
-        data.get('section'), 
-        data.get('township'), 
+        data.get('section'),
+        data.get('township'),
         data.get('range')
     )
     if legal:
         parts.append(legal)
-    
-    # Handle array of names
-    grantor = data.get('grantor')
-    if isinstance(grantor, list) and grantor:
-        grantor = grantor[0]
-    elif isinstance(grantor, dict):
-        grantor = grantor.get('name', '')
-    
-    grantee = data.get('grantee')
-    if isinstance(grantee, list) and grantee:
-        grantee = grantee[0]
-    elif isinstance(grantee, dict):
-        grantee = grantee.get('name', '')
-    
-    # Also check plural forms
+
+    # Handle various formats for grantor names
+    grantor = None
+    grantors_array = data.get('grantors', [])
+    if grantors_array and isinstance(grantors_array, list):
+        first_grantor = grantors_array[0]
+        if isinstance(first_grantor, dict):
+            grantor = first_grantor.get('name', '')
+        elif isinstance(first_grantor, str):
+            grantor = first_grantor
+
+    if not grantor:
+        grantor = data.get('grantor')
+        if isinstance(grantor, list) and grantor:
+            grantor = grantor[0]
+        elif isinstance(grantor, dict):
+            grantor = grantor.get('name', '')
+
     if not grantor:
         grantors = data.get('grantor_names', [])
         if grantors and isinstance(grantors, list):
             grantor = grantors[0]
-    
+
+    # Handle various formats for grantee names
+    grantee = None
+    grantees_array = data.get('grantees', [])
+    if grantees_array and isinstance(grantees_array, list):
+        first_grantee = grantees_array[0]
+        if isinstance(first_grantee, dict):
+            grantee = first_grantee.get('name', '')
+        elif isinstance(first_grantee, str):
+            grantee = first_grantee
+
+    if not grantee:
+        grantee = data.get('grantee')
+        if isinstance(grantee, list) and grantee:
+            grantee = grantee[0]
+        elif isinstance(grantee, dict):
+            grantee = grantee.get('name', '')
+
     if not grantee:
         grantees = data.get('grantee_names', [])
         if grantees and isinstance(grantees, list):
             grantee = grantees[0]
-    
+
     party_transfer = format_party_transfer(grantor, grantee)
     if party_transfer:
         parts.append(party_transfer)
-    
+
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
