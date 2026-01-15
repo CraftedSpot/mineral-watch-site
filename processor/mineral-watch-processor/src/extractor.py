@@ -1007,6 +1007,126 @@ Extract the EXACT footage from each boundary line - this is critical for underst
   "document_confidence": "high"
 }
 
+For AFFIDAVIT OF HEIRSHIP (sworn statement identifying heirs of deceased mineral owner):
+NOTE: These documents establish who inherits mineral rights when someone dies. Critical for title chains.
+Extract decedent info, property description, and complete list of heirs with their relationships.
+
+{
+  "doc_type": "affidavit_of_heirship",
+  "decedent": {
+    "name": "John Henry Smith",
+    "date_of_death": "2023-05-15",
+    "age_at_death": 82,
+    "place_of_death": {
+      "facility": "St. Mary's Hospital",
+      "county": "Oklahoma",
+      "state": "Oklahoma"
+    }
+  },
+  "affiant": {
+    "name": "Mary Jane Smith",
+    "address": "123 Main Street, Oklahoma City, OK 73102",
+    "relationship_to_decedent": "daughter",
+    "years_known_decedent": 55
+  },
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady",
+    "full_description": "The NW/4 of Section 16, Township 12 North, Range 7 West, Grady County, Oklahoma"
+  },
+  "property_acquisition": {
+    "when_acquired": "1965",
+    "acquired_from": "Estate of William Smith",
+    "how_acquired": "inheritance"
+  },
+  "will_and_probate": {
+    "has_will": true,
+    "will_probated": true,
+    "probate_county": "Oklahoma",
+    "probate_state": "Oklahoma",
+    "probate_date": "2023-07-20",
+    "executor_name": "Mary Jane Smith",
+    "executor_address": "123 Main Street, Oklahoma City, OK 73102"
+  },
+  "spouses": [
+    {
+      "name": "Sarah Mae Smith",
+      "marriage_date": "1962-06-15",
+      "status": "deceased",
+      "death_date": "2020-03-10",
+      "divorce_info": null
+    }
+  ],
+  "children_living": [
+    {
+      "name": "Mary Jane Smith",
+      "date_of_birth": "1965-02-20",
+      "by_which_spouse": "Sarah Mae Smith",
+      "address": "123 Main Street, Oklahoma City, OK 73102",
+      "spouse_name": "Robert Smith",
+      "spouse_address": "123 Main Street, Oklahoma City, OK 73102"
+    },
+    {
+      "name": "James William Smith",
+      "date_of_birth": "1968-08-14",
+      "by_which_spouse": "Sarah Mae Smith",
+      "address": "456 Oak Avenue, Tulsa, OK 74103",
+      "spouse_name": "Linda Smith",
+      "spouse_address": "456 Oak Avenue, Tulsa, OK 74103"
+    }
+  ],
+  "children_predeceased": [],
+  "grandchildren_of_predeceased": [],
+  "adopted_stepchildren": [],
+  "heirs_summary": [
+    {
+      "name": "Mary Jane Smith",
+      "relationship": "daughter",
+      "estimated_share": "50%"
+    },
+    {
+      "name": "James William Smith",
+      "relationship": "son",
+      "estimated_share": "50%"
+    }
+  ],
+  "unpaid_debts": {
+    "has_debts": false,
+    "debt_details": null
+  },
+  "inheritance_tax_status": "No inheritance tax due",
+  "notary": {
+    "notary_date": "2023-08-01",
+    "notary_county": "Oklahoma",
+    "notary_state": "Oklahoma"
+  },
+  "recording_info": {
+    "book": "1234",
+    "page": "567",
+    "document_number": "2023-045678",
+    "recording_date": "2023-08-05",
+    "recording_county": "Grady"
+  },
+  "field_scores": {
+    "decedent_name": 1.0,
+    "decedent_death_date": 0.95,
+    "affiant_name": 1.0,
+    "affiant_relationship": 0.95,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "has_will": 0.90,
+    "spouses": 0.85,
+    "children_living": 0.85,
+    "heirs_summary": 0.80,
+    "recording_info": 0.95
+  },
+  "document_confidence": "high"
+}
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -1363,8 +1483,11 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
-- ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, ownership_entity, legal_document, correspondence
 - tax_record, map
+
+AFFIDAVIT OF HEIRSHIP DETECTION:
+- affidavit_of_heirship: Look for "AFFIDAVIT OF HEIRSHIP" title. Contains decedent (deceased person) name, list of heirs/children/spouses, legal description of mineral property, notarized. Establishes who inherits mineral rights.
 
 OCC ORDER TYPE DETECTION - be specific:
 - horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.
