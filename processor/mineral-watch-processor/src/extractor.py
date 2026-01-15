@@ -2406,39 +2406,80 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
                     return results
                 elif split_result.reason == "no_extractable_text":
-                    # Scanned PDF - check if quick classification can help
-                    estimated_count = classification.get("estimated_doc_count", 1)
-                    if classification.get("is_multi_document") and estimated_count == len(image_paths):
-                        # Quick classification says N docs on N pages - assume 1 page per document
-                        logger.info(f"Scanned PDF: Using quick classification ({estimated_count} docs on {len(image_paths)} pages)")
+                    # Scanned PDF - try OCR
+                    logger.info("No embedded text found - attempting OCR")
+                    ocr_text_by_page = splitter.ocr_images(image_paths)
 
-                        results = {
-                            "is_multi_document": True,
-                            "document_count": estimated_count,
-                            "split_method": "classification_page_inference",
-                            "documents": []
-                        }
+                    if ocr_text_by_page and not splitter.is_text_empty(ocr_text_by_page):
+                        logger.info(f"OCR successful - extracted text from {len(ocr_text_by_page)} pages")
+                        # Re-run splitter with OCR'd text
+                        ocr_split_result = splitter.split(ocr_text_by_page)
 
-                        for page_num in range(1, estimated_count + 1):
-                            logger.info(f"Extracting Division Order {page_num} from page {page_num}")
+                        if ocr_split_result.success and ocr_split_result.document_count > 1:
+                            logger.info(f"OCR splitter found {ocr_split_result.document_count} Division Orders: {ocr_split_result.page_ranges}")
 
-                            doc_data = await extract_single_document(
-                                image_paths,
-                                page_num,
-                                page_num
-                            )
+                            results = {
+                                "is_multi_document": True,
+                                "document_count": ocr_split_result.document_count,
+                                "split_method": "ocr_text_patterns",
+                                "documents": []
+                            }
 
-                            doc_data["_start_page"] = page_num
-                            doc_data["_end_page"] = page_num
-                            results["documents"].append(doc_data)
+                            for i, (start_page, end_page) in enumerate(ocr_split_result.page_ranges):
+                                logger.info(f"Extracting Division Order {i + 1} from pages {start_page}-{end_page}")
 
-                            if page_num < estimated_count:
-                                logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-                                await asyncio.sleep(BATCH_DELAY_SECONDS)
+                                doc_data = await extract_single_document(
+                                    image_paths,
+                                    start_page,
+                                    end_page
+                                )
 
-                        return results
+                                doc_data["_start_page"] = start_page
+                                doc_data["_end_page"] = end_page
+                                if ocr_split_result.document_metadata and i < len(ocr_split_result.document_metadata):
+                                    doc_data["_split_metadata"] = ocr_split_result.document_metadata[i]
+
+                                results["documents"].append(doc_data)
+
+                                if i < ocr_split_result.document_count - 1:
+                                    logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+                                    await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+                            return results
+                        else:
+                            logger.info(f"OCR splitter found single document: {ocr_split_result.reason}")
                     else:
-                        logger.info(f"Scanned PDF but classification doesn't support page-per-doc split")
+                        # OCR failed - fall back to classification inference
+                        logger.info("OCR failed or returned empty text - trying classification inference")
+                        estimated_count = classification.get("estimated_doc_count", 1)
+                        if classification.get("is_multi_document") and estimated_count == len(image_paths):
+                            logger.info(f"Using classification inference ({estimated_count} docs on {len(image_paths)} pages)")
+
+                            results = {
+                                "is_multi_document": True,
+                                "document_count": estimated_count,
+                                "split_method": "classification_page_inference",
+                                "documents": []
+                            }
+
+                            for page_num in range(1, estimated_count + 1):
+                                logger.info(f"Extracting Division Order {page_num} from page {page_num}")
+
+                                doc_data = await extract_single_document(
+                                    image_paths,
+                                    page_num,
+                                    page_num
+                                )
+
+                                doc_data["_start_page"] = page_num
+                                doc_data["_end_page"] = page_num
+                                results["documents"].append(doc_data)
+
+                                if page_num < estimated_count:
+                                    logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+                                    await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+                            return results
                 else:
                     logger.info(f"Deterministic splitter found single document: {split_result.reason}")
         except ImportError as e:
