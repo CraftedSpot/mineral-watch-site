@@ -945,16 +945,21 @@ Do NOT penalize confidence for missing fields (e.g., recording info on unrecorde
 middle names that don't exist, etc.). If a field is not present in the document, 
 exclude it from the confidence calculation entirely.
 
-REMEMBER FOR OBSERVATIONS - Write as an experienced mineral rights advisor:
-- Examples of good advisor-style observations:
-  - "The retained overriding royalty here is unusual and worth noting - the grantor is keeping a piece of future production even after selling. If you're the buyer, factor this into your valuation. The depth limitation also means any deeper formations remain with the original owner."
-  - "This pooling order has a tight 20-day election deadline. If you're considering participating, you'll need to evaluate the $15,000/NMA cost quickly. The 200% non-consent penalty is standard, but the operator's proposed 3/16ths royalty is below market - Option 2's 1/5th royalty may be worth the lower cash bonus."
-  - "Multiple small decimal interests here suggest inherited minerals that have been divided over generations. Expect smaller royalty checks but also proportionally smaller decisions to make. The operator has grouped these efficiently."
-  - "This is a location exception allowing the horizontal lateral closer to section lines than normally permitted. The protest was resolved, but the special cementing provision they agreed to protects against potential drainage issues with the adjacent operator."
-- What to avoid:
-  - Data dumps: "The well was drilled to 20,783 feet with 13.375 inch surface casing..."
-  - Too generic: "This is a standard pooling order"
-  - Just restating fields: "The order date is January 15, 2024 and the applicant is Devon Energy..."
+REMEMBER - Examples of good output:
+
+KEY TAKEAWAY example:
+"Continental Resources is now operating 3 wells on your section. Expect updated division orders within 60-90 days - verify your decimal interest matches your records before signing."
+
+DETAILED ANALYSIS examples:
+- "The retained overriding royalty here is unusual - the grantor is keeping a piece of future production even after selling. If you're the buyer, factor this into your valuation. The depth limitation also means any deeper formations remain with the original owner."
+- "This pooling order has a tight 20-day election deadline. If you're considering participating, you'll need to evaluate the $15,000/NMA cost quickly. The 200% non-consent penalty is standard, but the operator's proposed 3/16ths royalty is below market - Option 2's 1/5th royalty may be worth the lower cash bonus."
+- "Multiple small decimal interests here suggest inherited minerals that have been divided over generations. Expect smaller royalty checks but also proportionally smaller decisions to make."
+- "This is a location exception allowing the horizontal lateral closer to section lines than normally permitted. The protest was resolved, but the special cementing provision protects against potential drainage issues with the adjacent operator."
+
+What to avoid:
+- Data dumps: "The well was drilled to 20,783 feet with 13.375 inch surface casing..."
+- Too generic: "This is a standard pooling order"
+- Just restating fields: "The order date is January 15, 2024 and the applicant is Devon Energy..."
 """
 
 
@@ -1370,19 +1375,46 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         try:
             extracted_data = json.loads(json_str.strip())
             
-            # Look for observations section after the JSON
-            observations = None
-            if "OBSERVATIONS:" in response_text:
+            # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections after the JSON
+            key_takeaway = None
+            detailed_analysis = None
+
+            if "KEY TAKEAWAY:" in response_text:
+                kt_start = response_text.find("KEY TAKEAWAY:")
+                kt_end = response_text.find("DETAILED ANALYSIS:", kt_start) if "DETAILED ANALYSIS:" in response_text else len(response_text)
+                if kt_start != -1:
+                    key_takeaway = response_text[kt_start + 13:kt_end].strip()
+                    # Clean up any markdown formatting
+                    if key_takeaway.startswith("```"):
+                        key_takeaway = key_takeaway[3:].strip()
+                    if key_takeaway.endswith("```"):
+                        key_takeaway = key_takeaway[:-3].strip()
+
+            if "DETAILED ANALYSIS:" in response_text:
+                da_start = response_text.find("DETAILED ANALYSIS:")
+                if da_start != -1:
+                    detailed_analysis = response_text[da_start + 18:].strip()
+                    # Clean up any markdown formatting
+                    if detailed_analysis.startswith("```"):
+                        detailed_analysis = detailed_analysis[3:].strip()
+                    if detailed_analysis.endswith("```"):
+                        detailed_analysis = detailed_analysis[:-3].strip()
+
+            # Add to extracted data
+            if key_takeaway:
+                extracted_data["key_takeaway"] = key_takeaway
+            if detailed_analysis:
+                extracted_data["ai_observations"] = detailed_analysis  # Keep ai_observations for backward compatibility
+
+            # Fallback: check for old OBSERVATIONS format for backward compatibility
+            if not detailed_analysis and "OBSERVATIONS:" in response_text:
                 obs_start = response_text.find("OBSERVATIONS:")
                 if obs_start != -1:
                     observations = response_text[obs_start + 13:].strip()
-                    # Clean up any markdown formatting
                     if observations.startswith("```"):
                         observations = observations[3:].strip()
                     if observations.endswith("```"):
                         observations = observations[:-3].strip()
-                    
-                    # Add observations to the extracted data
                     if observations:
                         extracted_data["ai_observations"] = observations
             
@@ -1471,18 +1503,45 @@ If these pages don't contain significant new information, return: {{"additional_
                 # First batch becomes our base data
                 extracted_data = batch_data
 
-                # Look for observations section after the JSON (first batch only)
-                if "OBSERVATIONS:" in response_text:
+                # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections (first batch only)
+                key_takeaway = None
+                detailed_analysis = None
+
+                if "KEY TAKEAWAY:" in response_text:
+                    kt_start = response_text.find("KEY TAKEAWAY:")
+                    kt_end = response_text.find("DETAILED ANALYSIS:", kt_start) if "DETAILED ANALYSIS:" in response_text else len(response_text)
+                    if kt_start != -1:
+                        key_takeaway = response_text[kt_start + 13:kt_end].strip()
+                        if key_takeaway.startswith("```"):
+                            key_takeaway = key_takeaway[3:].strip()
+                        if key_takeaway.endswith("```"):
+                            key_takeaway = key_takeaway[:-3].strip()
+
+                if "DETAILED ANALYSIS:" in response_text:
+                    da_start = response_text.find("DETAILED ANALYSIS:")
+                    if da_start != -1:
+                        detailed_analysis = response_text[da_start + 18:].strip()
+                        if detailed_analysis.startswith("```"):
+                            detailed_analysis = detailed_analysis[3:].strip()
+                        if detailed_analysis.endswith("```"):
+                            detailed_analysis = detailed_analysis[:-3].strip()
+
+                if key_takeaway:
+                    extracted_data["key_takeaway"] = key_takeaway
+                    logger.info(f"Extracted key takeaway from batch 1: {key_takeaway[:100]}...")
+                if detailed_analysis:
+                    extracted_data["ai_observations"] = detailed_analysis
+                    logger.info(f"Extracted detailed analysis from batch 1: {detailed_analysis[:100]}...")
+
+                # Fallback: check for old OBSERVATIONS format
+                if not detailed_analysis and "OBSERVATIONS:" in response_text:
                     obs_start = response_text.find("OBSERVATIONS:")
                     if obs_start != -1:
                         observations = response_text[obs_start + 13:].strip()
-                        # Clean up any markdown formatting
                         if observations.startswith("```"):
                             observations = observations[3:].strip()
                         if observations.endswith("```"):
                             observations = observations[:-3].strip()
-
-                        # Add observations to the extracted data
                         if observations:
                             extracted_data["ai_observations"] = observations
                             logger.info(f"Extracted observations from batch 1: {observations[:100]}...")
