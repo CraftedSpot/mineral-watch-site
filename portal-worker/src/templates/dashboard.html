@@ -5824,16 +5824,19 @@
         function groupFieldsBySection(data) {
             const groups = {
                 'Detailed Analysis': ['ai_observations'],
-                'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county'],
-                'Execution Details': ['execution_date', 'effective_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state'],
-                'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'quarter', 'lot_block', 'acres'],
-                'Parties': ['grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_address', 'grantee_address', 
+                'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
+                'Execution Details': ['execution_date', 'effective_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type'],
+                'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage'],
+                'Parties': ['grantors', 'grantees', 'grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_names', 'grantee_names',
+                          'grantor_address', 'grantee_address',
                           'grantor_marital_status', 'lessor_name', 'lessee_name', 'lessor_address', 'lessee_address',
                           'assignor_name', 'assignee_name', 'assignor_address', 'assignee_address',
                           'releasor', 'ratifying_party', 'original_party', 'principal_name', 'agent_name',
-                          'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name'],
-                'Interest & Consideration': ['interest_conveyed', 'interest_type', 'interest_assigned', 'consideration', 
-                                           'consideration_amount', 'consideration_description', 'bonus_amount'],
+                          'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name',
+                          'decedent', 'affiant', 'heirs_summary', 'children_living', 'children_predeceased', 'spouses'],
+                'Interest & Consideration': ['interest_conveyed', 'interest_type', 'interest_assigned', 'consideration',
+                                           'consideration_amount', 'consideration_description', 'bonus_amount',
+                                           'net_mineral_acres', 'reservation'],
                 'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions'],
                 'Well Information': ['well_name', 'api_number', 'well_location', 'operator', 'purchaser', 'owner_number',
                                    'decimal_interest', 'net_revenue_interest', 'unit_name'],
@@ -5899,14 +5902,24 @@
                 
                 // Skip confidence-related fields (various patterns)
                 const fieldLower = field.toLowerCase();
-                if (fieldLower.endsWith('_confidence') || 
+                if (fieldLower.endsWith('_confidence') ||
                     fieldLower.endsWith(' confidence') ||
                     fieldLower.includes('confidence_') ||
-                    field === 'field_scores' || 
+                    field === 'field_scores' ||
                     field === 'document_confidence' ||
                     field === 'fields_needing_review' ||
                     field === 'notes' ||
-                    field === 'doc_type') {
+                    field === 'doc_type' ||
+                    field === 'chain_of_title' ||
+                    field === 'prior_instruments' ||
+                    field === 'property_acquisition' ||
+                    field === 'will_and_probate' ||
+                    field === 'unpaid_debts' ||
+                    field === 'inheritance_tax_status' ||
+                    field === 'notary' ||
+                    field === 'recording_info' ||
+                    field === 'adopted_stepchildren' ||
+                    field === 'grandchildren_of_predeceased') {
                     continue;
                 }
                 

@@ -353,8 +353,24 @@ DEED TYPE DETECTION:
 {
   "doc_type": "mineral_deed",
   "deed_type": "warranty_deed",
-  "grantor_names": ["John A. Smith", "Mary B. Smith"],
-  "grantee_names": ["Robert C. Jones"],
+  "grantors": [
+    {
+      "name": "John A. Smith",
+      "address": "123 Main Street, Oklahoma City, OK 73102",
+      "marital_status": "married"
+    },
+    {
+      "name": "Mary B. Smith",
+      "address": "123 Main Street, Oklahoma City, OK 73102",
+      "marital_status": "married"
+    }
+  ],
+  "grantees": [
+    {
+      "name": "Robert C. Jones",
+      "address": "456 Oak Avenue, Tulsa, OK 74103"
+    }
+  ],
   "recording_date": "2023-03-15",
   "execution_date": "2023-03-10",
   "recording_book": "350",
@@ -365,12 +381,15 @@ DEED TYPE DETECTION:
     "township": "12N",
     "range": "7W",
     "county": "Grady",
-    "full_description": "The NW/4 of Section 16, Township 12 North, Range 7 West, Grady County, Oklahoma"
+    "quarter_section": "NW/4",
+    "acreage": 160,
+    "full_description": "The NW/4 of Section 16, Township 12 North, Range 7 West, Grady County, Oklahoma, containing 160 acres more or less"
   },
   "interest_conveyed": {
     "type": "mineral",
     "fraction_text": "an undivided one-half (1/2) interest",
     "fraction_decimal": 0.50,
+    "net_mineral_acres": 80.0,
     "depth_limitation": null,
     "formation_limitation": null
   },
@@ -405,6 +424,8 @@ DEED TYPE DETECTION:
       "type": "mineral",
       "fraction_text": "an undivided one-half (1/2) interest",
       "fraction_decimal": 0.50,
+      "acreage": 160,
+      "net_mineral_acres": 80.0,
       "undivided": true,
       "reservation": false
     },
@@ -430,8 +451,8 @@ DEED TYPE DETECTION:
     }
   },
   "field_scores": {
-    "grantor_names": 0.95,
-    "grantee_names": 0.98,
+    "grantors": 0.95,
+    "grantees": 0.98,
     "recording_date": 1.0,
     "execution_date": 0.90,
     "recording_book": 1.0,
@@ -440,6 +461,7 @@ DEED TYPE DETECTION:
     "legal_township": 0.95,
     "legal_range": 0.95,
     "legal_county": 1.0,
+    "acreage": 0.90,
     "interest_conveyed": 0.85,
     "consideration": 0.75,
     "chain_of_title": 0.90
