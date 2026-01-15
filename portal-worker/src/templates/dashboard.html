@@ -5100,10 +5100,27 @@
                     { value: 'operator', text: 'Operator' },
                     { value: 'formation', text: 'Formation' }
                 ],
-                'spacing_orders': [
+                'drilling_and_spacing': [
                     { value: 'cause-number', text: 'Cause Number' },
                     { value: 'county-trs', text: 'County & TRS' },
-                    { value: 'order-date', text: 'Order Date' }
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'unit-size', text: 'Unit Size (Acres)' },
+                    { value: 'formation', text: 'Formation' }
+                ],
+                'horizontal_drilling_and_spacing': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'unit-size', text: 'Unit Size (Acres)' },
+                    { value: 'formation', text: 'Formation' },
+                    { value: 'operator', text: 'Operator' }
+                ],
+                'location_exception': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'well-name', text: 'Well Name' },
+                    { value: 'operator', text: 'Operator' }
                 ],
                 'increased_density': [
                     { value: 'cause-number', text: 'Cause Number' },
@@ -5267,13 +5284,16 @@
             { value: 'death_certificate', label: 'Death Certificates' },
             { value: 'divorce_decree', label: 'Divorce Decrees' },
             { value: 'division_orders', label: 'Division Orders' },
+            { value: 'drilling_and_spacing', label: 'Drilling & Spacing Orders (Vertical)' },
             { value: 'drilling_permits', label: 'Drilling Permits' },
+            { value: 'horizontal_drilling_and_spacing', label: 'Horizontal Drilling & Spacing Orders' },
             { value: 'increased_density', label: 'Increased Density Orders' },
             { value: 'joa', label: 'Joint Operating Agreements' },
             { value: 'leases', label: 'Leases' },
             { value: 'lease_amendment', label: 'Lease Amendments' },
             { value: 'lease_extension', label: 'Lease Extensions' },
             { value: 'legal_documents', label: 'Legal Documents' },
+            { value: 'location_exception', label: 'Location Exception Orders' },
             { value: 'maps_plats', label: 'Maps / Plats' },
             { value: 'mineral_deeds', label: 'Mineral Deeds' },
             { value: 'multi_document', label: 'Multi-Document PDFs' },
@@ -5286,7 +5306,6 @@
             { value: 'release_of_lease', label: 'Release of Lease' },
             { value: 'right_of_way', label: 'Right of Way' },
             { value: 'royalty_deed', label: 'Royalty Deeds' },
-            { value: 'spacing_orders', label: 'Spacing Orders' },
             { value: 'suspense_notices', label: 'Suspense Notices' },
             { value: 'tax_records', label: 'Tax Records' },
             { value: 'title_opinions', label: 'Title Opinions' },
@@ -5413,7 +5432,9 @@
 
                         // OCC Orders - now granular
                         'pooling_order': 'pooling_orders',
-                        'spacing_order': 'spacing_orders',
+                        'drilling_and_spacing_order': 'drilling_and_spacing',
+                        'horizontal_drilling_and_spacing_order': 'horizontal_drilling_and_spacing',
+                        'location_exception_order': 'location_exception',
                         'increased_density_order': 'increased_density',
                         'change_of_operator_order': 'change_of_operator',
                         'multi_unit_horizontal_order': 'multi_unit_horizontal',

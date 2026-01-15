@@ -101,7 +101,10 @@ Valid document types:
 - increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY")
 - change_of_operator_order (transfer of operatorship from one company to another - look for "CHANGE OF OPERATOR")
 - multi_unit_horizontal_order (horizontal well authorization spanning multiple sections/units - look for allocation percentages)
-- occ_order (spacing, location exception - NOT pooling, increased density, change of operator, or multi-unit horizontal)
+- drilling_and_spacing_order (VERTICAL well spacing - establishes drilling/spacing units with well setbacks - look for "DRILLING AND SPACING", "SPACING UNIT", unit size like 160-acre, 640-acre with formation-specific setbacks)
+- horizontal_drilling_and_spacing_order (HORIZONTAL well spacing - establishes horizontal drilling units - look for "HORIZONTAL DRILLING AND SPACING", "HORIZONTAL WELL", lateral setbacks, completion interval setbacks)
+- location_exception_order (well location exceptions - permits drilling closer to boundaries than standard setbacks - look for "LOCATION EXCEPTION", footage distances, "exception from")
+- occ_order (other OCC orders - NOT pooling, increased density, change of operator, multi-unit horizontal, spacing, or location exception)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
 - ownership_entity (probate, heirship, trust docs, LLC docs)
@@ -759,6 +762,250 @@ IMPORTANT: Include ALL section locations in legal_description.sections array for
   "document_confidence": "high"
 }
 
+For DRILLING AND SPACING ORDERS (Vertical/Standard Spacing - establishes well units and setbacks):
+NOTE: These orders establish drilling and spacing units for VERTICAL wells with formation-specific setbacks.
+Look for "DRILLING AND SPACING", "SPACING UNIT", unit sizes (160-acre, 640-acre), and setback distances.
+These define where wells can be drilled and production allocated within the unit.
+
+{
+  "doc_type": "drilling_and_spacing_order",
+  "case_number": "CD2024-001234",
+  "order_number": "745000",
+  "order_date": "2024-03-15",
+  "effective_date": "2024-03-15",
+  "hearing_date": "2024-03-01",
+  "applicant": "Continental Resources, Inc.",
+  "operator": "Continental Resources, Inc.",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "unit_description": "The NW/4 of Section 16, Township 12 North, Range 7 West",
+  "unit_size_acres": 160,
+  "well_type": "oil",
+  "formations": [
+    {
+      "name": "Senora",
+      "common_source_of_supply": "Senora common source of supply",
+      "depth_from": 8500,
+      "depth_to": 8700,
+      "setbacks": {
+        "from_unit_boundary_feet": 660,
+        "from_lease_line_feet": 330,
+        "from_section_line_feet": null
+      }
+    }
+  ],
+  "well_location_requirements": {
+    "standard_setback_feet": 660,
+    "lease_line_setback_feet": 330,
+    "special_conditions": "No well shall be drilled within 660 feet of any unit boundary"
+  },
+  "allowable_type": "normal 160-acre oil",
+  "previous_orders": ["Order No. 123456 establishing original spacing"],
+  "amends_order": null,
+  "vacates_order": null,
+  "order_status": "active",
+  "controlling_order_info": {
+    "is_controlling": true,
+    "superseded_by": null,
+    "supersedes": null
+  },
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "hearing_date": 0.95,
+    "applicant": 1.0,
+    "operator": 0.95,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "unit_description": 0.90,
+    "unit_size_acres": 0.95,
+    "well_type": 0.90,
+    "formations": 0.85,
+    "well_location_requirements": 0.85,
+    "allowable_type": 0.80
+  },
+  "document_confidence": "high"
+}
+
+For HORIZONTAL DRILLING AND SPACING ORDERS (Horizontal well spacing with lateral requirements):
+NOTE: These orders establish drilling and spacing units for HORIZONTAL wells.
+Look for "HORIZONTAL DRILLING AND SPACING", "HORIZONTAL WELL", lateral setbacks, completion interval requirements.
+These have formation-specific setbacks for both lateral wellbore AND completion interval (perforated section).
+
+{
+  "doc_type": "horizontal_drilling_and_spacing_order",
+  "case_number": "CD2024-002345",
+  "order_number": "748000",
+  "order_date": "2024-05-20",
+  "effective_date": "2024-05-20",
+  "hearing_date": "2024-05-06",
+  "applicant": "Mewbourne Oil Company",
+  "operator": "Mewbourne Oil Company",
+  "legal_description": {
+    "section": "8",
+    "township": "17N",
+    "range": "17W",
+    "county": "Dewey"
+  },
+  "unit_description": "All of Section 8, Township 17 North, Range 17 West",
+  "unit_size_acres": 640,
+  "well_type": "horizontal",
+  "formations": [
+    {
+      "name": "Mississippian",
+      "common_source_of_supply": "Mississippian common source of supply",
+      "depth_from": 11890,
+      "depth_to": 12050,
+      "setbacks": {
+        "lateral_from_unit_boundary_feet": 330,
+        "lateral_from_lease_line_feet": 165,
+        "completion_interval_from_unit_boundary_feet": 330,
+        "completion_interval_from_lease_line_feet": 165,
+        "minimum_lateral_length_feet": null
+      }
+    },
+    {
+      "name": "Woodford",
+      "common_source_of_supply": "Woodford common source of supply",
+      "depth_from": 12200,
+      "depth_to": 12400,
+      "setbacks": {
+        "lateral_from_unit_boundary_feet": 330,
+        "lateral_from_lease_line_feet": 165,
+        "completion_interval_from_unit_boundary_feet": 330,
+        "completion_interval_from_lease_line_feet": 165,
+        "minimum_lateral_length_feet": null
+      }
+    }
+  ],
+  "well_location_requirements": {
+    "lateral_setback_feet": 330,
+    "completion_interval_setback_feet": 330,
+    "special_conditions": "The horizontal wellbore and completion interval shall not be located closer than 330 feet from any unit boundary"
+  },
+  "allowable_type": "normal 640-acre horizontal",
+  "maximum_wells_per_formation": null,
+  "previous_orders": [],
+  "amends_order": null,
+  "vacates_order": null,
+  "order_status": "active",
+  "controlling_order_info": {
+    "is_controlling": true,
+    "superseded_by": null,
+    "supersedes": null
+  },
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "hearing_date": 0.95,
+    "applicant": 1.0,
+    "operator": 0.95,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "unit_description": 0.90,
+    "unit_size_acres": 0.95,
+    "well_type": 1.0,
+    "formations": 0.85,
+    "well_location_requirements": 0.85,
+    "allowable_type": 0.80
+  },
+  "document_confidence": "high"
+}
+
+For LOCATION EXCEPTION ORDERS (Permits drilling closer to boundaries than standard setbacks):
+NOTE: These orders grant exceptions to standard well setback requirements.
+Look for "LOCATION EXCEPTION", specific footage distances, "exception from", "permit the drilling".
+Extract the EXACT footage from each boundary line - this is critical for understanding well placement.
+
+{
+  "doc_type": "location_exception_order",
+  "case_number": "CD2024-003456",
+  "order_number": "749500",
+  "order_date": "2024-06-10",
+  "effective_date": "2024-06-10",
+  "hearing_date": "2024-05-28",
+  "applicant": "Devon Energy Production Company, L.P.",
+  "operator": "Devon Energy Production Company, L.P.",
+  "well_name": "Smith 1-16",
+  "api_number": "35-051-12345",
+  "legal_description": {
+    "section": "16",
+    "township": "12N",
+    "range": "7W",
+    "county": "Grady"
+  },
+  "unit_description": "The SE/4 of Section 16, Township 12 North, Range 7 West",
+  "unit_size_acres": 160,
+  "well_type": "re-entry",
+  "exception_type": "standard_setback",
+  "well_location": {
+    "quarter_section": "SE/4",
+    "footage_from_south_line": 330,
+    "footage_from_north_line": null,
+    "footage_from_east_line": 990,
+    "footage_from_west_line": null,
+    "surface_location_description": "330 feet from south line and 990 feet from east line of Section 16"
+  },
+  "standard_setback_feet": 660,
+  "granted_setback_feet": 330,
+  "exception_details": {
+    "from_boundary": "south line",
+    "standard_requirement_feet": 660,
+    "approved_distance_feet": 330,
+    "exception_amount_feet": 330
+  },
+  "reason_for_exception": "Re-entry of existing wellbore to access previously untapped formation",
+  "formations": [
+    {
+      "name": "Hunton",
+      "common_source_of_supply": "Hunton common source of supply",
+      "depth_from": 9200,
+      "depth_to": 9400
+    }
+  ],
+  "referenced_spacing_order": "Order No. 456789",
+  "special_provisions": "The exception is granted for the specific well location only and does not alter the established spacing pattern",
+  "expiration_period": "one year",
+  "expiration_date": "2025-06-10",
+  "previous_orders": ["456789"],
+  "field_scores": {
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "order_date": 1.0,
+    "effective_date": 0.90,
+    "hearing_date": 0.95,
+    "applicant": 1.0,
+    "operator": 0.95,
+    "well_name": 0.90,
+    "api_number": 0.85,
+    "legal_section": 1.0,
+    "legal_township": 1.0,
+    "legal_range": 1.0,
+    "legal_county": 1.0,
+    "unit_description": 0.90,
+    "well_location": 0.90,
+    "standard_setback_feet": 0.95,
+    "granted_setback_feet": 0.95,
+    "exception_details": 0.85,
+    "reason_for_exception": 0.80,
+    "formations": 0.85,
+    "expiration_date": 0.90
+  },
+  "document_confidence": "high"
+}
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -1112,7 +1359,8 @@ If you see evidence of multiple documents, set is_multi_document: true and estim
 DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
 - pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order
-- spacing_order, drilling_permit, title_opinion
+- drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
+- drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
 - ownership_entity, legal_document, correspondence
 - tax_record, map
