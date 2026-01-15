@@ -46,7 +46,16 @@ class DivisionOrderSplitter(BaseSplitter):
         r'Owner\s+Signature',
     ]
 
-    # Pattern to extract Property # (the key identifier)
+    # Patterns to extract Property # (the key identifier)
+    # Multiple patterns to handle OCR variations
+    PROPERTY_NUMBER_PATTERNS = [
+        r'Property\s*#\s*[:\s]*(\d{5,7})',      # Property # 112295 or Property #: 112295
+        r'Property\s*[#\*]\s*[:\s]*(\d{5,7})',  # OCR might read # as *
+        r'Property\s+No\.?\s*[:\s]*(\d{5,7})',  # Property No. 112295
+        r'Prop(?:erty)?\s*#?\s*[:\s]*(\d{5,7})', # Prop # 112295 (abbreviated)
+    ]
+
+    # Legacy pattern for backward compatibility
     PROPERTY_NUMBER_PATTERN = r'Property\s*#\s*[:\s]*(\d+)'
 
     # Pattern to extract Property Name
@@ -154,8 +163,26 @@ class DivisionOrderSplitter(BaseSplitter):
 
     def _extract_property_numbers(self, text: str) -> list[str]:
         """Extract all Property # values from text."""
-        matches = re.findall(self.PROPERTY_NUMBER_PATTERN, text, re.IGNORECASE)
-        return list(dict.fromkeys(matches))  # Remove duplicates, preserve order
+        all_matches = []
+
+        # Try each pattern
+        for pattern in self.PROPERTY_NUMBER_PATTERNS:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            if matches:
+                logger.debug(f"Pattern '{pattern}' found: {matches}")
+                all_matches.extend(matches)
+
+        # Fallback to legacy pattern
+        if not all_matches:
+            all_matches = re.findall(self.PROPERTY_NUMBER_PATTERN, text, re.IGNORECASE)
+
+        # Debug: log a sample of the text if no matches found
+        if not all_matches:
+            # Log first 500 chars to help debug pattern issues
+            sample = text[:500].replace('\n', ' ')
+            logger.info(f"No Property # found. Text sample: {sample}...")
+
+        return list(dict.fromkeys(all_matches))  # Remove duplicates, preserve order
 
     def _extract_property_name(self, text: str) -> Optional[str]:
         """Extract Property Name from text."""
