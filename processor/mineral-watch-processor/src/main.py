@@ -196,9 +196,11 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             page_count = len(image_paths)
 
         logger.info(f"Prepared {page_count} image(s) for extraction")
-        
+
         # 3. Extract with Claude Vision
-        extraction_result = await extract_document_data(image_paths)
+        # Pass PDF path for deterministic splitting (only for actual PDFs)
+        pdf_path_for_splitting = file_path if content_type == 'application/pdf' else None
+        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting)
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):
