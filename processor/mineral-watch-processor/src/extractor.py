@@ -107,7 +107,8 @@ Valid document types:
 - occ_order (other OCC orders - NOT pooling, increased density, change of operator, multi-unit horizontal, spacing, or location exception)
 - suspense_notice (Form 1081, escrow notices)
 - joa (Joint Operating Agreement)
-- ownership_entity (probate, heirship, trust docs, LLC docs)
+- affidavit_of_heirship (sworn statement identifying heirs of a deceased mineral owner - look for "AFFIDAVIT OF HEIRSHIP", decedent name, list of heirs/children/spouses, notarized)
+- ownership_entity (probate, trust docs, LLC docs - NOT affidavit of heirship)
 - legal_document (lawsuits, judgments, court orders)
 - correspondence
 - tax_record (tax assessments, property tax records)
