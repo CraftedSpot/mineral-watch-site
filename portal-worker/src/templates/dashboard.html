@@ -6474,7 +6474,7 @@
                 
                 // User Notes - always show
                 content += '<div class="detail-section">';
-                content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                content += '<h4 class="detail-section-title">Notes</h4>';
                 content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
                 content += '</div>';
                 
@@ -6532,26 +6532,28 @@
                         
                         content += '</div>';
 
-                        // Key Takeaway if available (always visible, prominent)
+                        // Key Takeaway if available (always visible, prominent at top)
                         if (data.key_takeaway) {
-                            content += '<div class="detail-section">';
                             const cleanedTakeaway = data.key_takeaway.trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
-                            content += `<div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
-                                <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 13px;">Key Takeaway</strong>
-                                ${escapeHtml(cleanedTakeaway)}
+                            content += `<div style="margin-bottom: 20px;">
+                                <div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px 20px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
+                                    <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Key Takeaway</strong>
+                                    ${escapeHtml(cleanedTakeaway)}
+                                </div>
                             </div>`;
-                            content += '</div>';
                         }
 
-                        // AI Observations if available (collapsible detailed analysis)
+                        // AI Observations if available (prominent expandable detailed analysis)
                         if (data.ai_observations) {
                             content += '<div class="detail-section">';
                             const cleanedObs = data.ai_observations.trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
-                            content += `<details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
-                                <summary style="padding: 12px 16px; cursor: pointer; font-weight: 500; color: #475569; display: flex; align-items: center; gap: 8px;">
-                                    <span class="details-chevron" style="font-size: 10px; transition: transform 0.2s;">&#9654;</span> Detailed Analysis
+                            content += `<details class="detailed-analysis-block">
+                                <summary class="detailed-analysis-trigger">
+                                    <span class="details-chevron">&#9654;</span>
+                                    <span class="detailed-analysis-label">View Detailed Analysis</span>
+                                    <span class="detailed-analysis-hint">Click to expand</span>
                                 </summary>
-                                <div style="white-space: pre-wrap; line-height: 1.6; padding: 16px; border-top: 1px solid #e2e8f0; color: #334155;">${escapeHtml(cleanedObs)}</div>
+                                <div class="detailed-analysis-content">${escapeHtml(cleanedObs)}</div>
                             </details>`;
                             content += '</div>';
                         }
@@ -6563,7 +6565,7 @@
                         
                         // User Notes - always show
                         content += '<div class="detail-section">';
-                        content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                        content += '<h4 class="detail-section-title">Notes</h4>';
                         content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
                         content += '</div>';
                         
@@ -6735,7 +6737,7 @@
                     
                     // User Notes
                     content += '<div class="detail-section">';
-                    content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                    content += '<h4 class="detail-section-title">Notes</h4>';
                     content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
                     content += '</div>';
                     }
@@ -6820,7 +6822,7 @@
                 
                 // User Notes - always show
                 content += '<div class="detail-section">';
-                content += '<h4 class="detail-section-title">📝 Notes</h4>';
+                content += '<h4 class="detail-section-title">Notes</h4>';
                 content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
                 content += '</div>';
             }
