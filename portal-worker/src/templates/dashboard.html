@@ -5138,7 +5138,138 @@
                 documentsSortBy = 'date-desc';
             }
         }
-        
+
+        // Document categories - alphabetized with granular types
+        const DOCUMENT_CATEGORIES = [
+            { value: 'all', label: 'All Categories' },
+            { value: 'affidavit_of_heirship', label: 'Affidavit of Heirship' },
+            { value: 'assignment', label: 'Assignments' },
+            { value: 'change_of_operator', label: 'Change of Operator' },
+            { value: 'check_stubs', label: 'Check Stubs / Royalty Statements' },
+            { value: 'correspondence', label: 'Correspondence' },
+            { value: 'death_certificate', label: 'Death Certificates' },
+            { value: 'divorce_decree', label: 'Divorce Decrees' },
+            { value: 'division_orders', label: 'Division Orders' },
+            { value: 'drilling_permits', label: 'Drilling Permits' },
+            { value: 'increased_density', label: 'Increased Density Orders' },
+            { value: 'joa', label: 'Joint Operating Agreements' },
+            { value: 'leases', label: 'Leases' },
+            { value: 'lease_amendment', label: 'Lease Amendments' },
+            { value: 'lease_extension', label: 'Lease Extensions' },
+            { value: 'legal_documents', label: 'Legal Documents' },
+            { value: 'maps_plats', label: 'Maps / Plats' },
+            { value: 'mineral_deeds', label: 'Mineral Deeds' },
+            { value: 'multi_document', label: 'Multi-Document PDFs' },
+            { value: 'multi_unit_horizontal', label: 'Multi-Unit Horizontal Orders' },
+            { value: 'pooling_orders', label: 'Pooling Orders' },
+            { value: 'power_of_attorney', label: 'Power of Attorney' },
+            { value: 'probate', label: 'Probate Documents' },
+            { value: 'production_reports', label: 'Production Reports' },
+            { value: 'ratification', label: 'Ratifications' },
+            { value: 'release_of_lease', label: 'Release of Lease' },
+            { value: 'right_of_way', label: 'Right of Way' },
+            { value: 'royalty_deed', label: 'Royalty Deeds' },
+            { value: 'spacing_orders', label: 'Spacing Orders' },
+            { value: 'suspense_notices', label: 'Suspense Notices' },
+            { value: 'tax_records', label: 'Tax Records' },
+            { value: 'title_opinions', label: 'Title Opinions' },
+            { value: 'trust', label: 'Trust Documents' },
+            { value: 'well_completion_reports', label: 'Well Completion Reports' },
+            { value: 'other', label: 'Other' }
+        ];
+
+        // Initialize searchable category dropdown
+        function initDocumentsCategoryDropdown() {
+            const dropdown = document.getElementById('documentsCategoryDropdown');
+            const trigger = document.getElementById('documentsCategoryTrigger');
+            const menu = document.getElementById('documentsCategoryMenu');
+            const searchInput = document.getElementById('documentsCategorySearch');
+            const optionsContainer = document.getElementById('documentsCategoryOptions');
+            const hiddenInput = document.getElementById('documentsCategory');
+            const label = trigger.querySelector('.dropdown-label');
+
+            // Populate options
+            function renderOptions(filter = '') {
+                const filterLower = filter.toLowerCase();
+                let hasVisible = false;
+
+                optionsContainer.innerHTML = '';
+
+                DOCUMENT_CATEGORIES.forEach(cat => {
+                    const matchesFilter = !filter || cat.label.toLowerCase().includes(filterLower);
+                    if (!matchesFilter) return;
+
+                    hasVisible = true;
+                    const option = document.createElement('div');
+                    option.className = 'dropdown-option' + (cat.value === documentsCategory ? ' selected' : '');
+                    option.dataset.value = cat.value;
+                    option.textContent = cat.label;
+                    option.addEventListener('click', () => selectCategory(cat.value, cat.label));
+                    optionsContainer.appendChild(option);
+                });
+
+                if (!hasVisible) {
+                    optionsContainer.innerHTML = '<div class="dropdown-no-results">No categories found</div>';
+                }
+            }
+
+            // Select a category
+            function selectCategory(value, labelText) {
+                documentsCategory = value;
+                hiddenInput.value = value;
+                label.textContent = labelText;
+                closeDropdown();
+                updateDocumentsSortOptions();
+                renderDocumentsList(loadedDocuments);
+            }
+
+            // Open/close dropdown
+            function toggleDropdown() {
+                const isOpen = dropdown.classList.contains('open');
+                if (isOpen) {
+                    closeDropdown();
+                } else {
+                    openDropdown();
+                }
+            }
+
+            function openDropdown() {
+                dropdown.classList.add('open');
+                searchInput.value = '';
+                renderOptions();
+                setTimeout(() => searchInput.focus(), 50);
+            }
+
+            function closeDropdown() {
+                dropdown.classList.remove('open');
+                searchInput.value = '';
+            }
+
+            // Event listeners
+            trigger.addEventListener('click', toggleDropdown);
+
+            searchInput.addEventListener('input', (e) => {
+                renderOptions(e.target.value);
+            });
+
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeDropdown();
+                    trigger.focus();
+                }
+            });
+
+            // Close on click outside
+            document.addEventListener('click', (e) => {
+                if (!dropdown.contains(e.target)) {
+                    closeDropdown();
+                }
+            });
+
+            // Initial render
+            renderOptions();
+        }
+
         // Filter documents based on search and category
         function filterDocuments(documents) {
             return documents.filter(doc => {
@@ -5147,48 +5278,66 @@
                     // Use category field if available, fall back to doc_type mapping
                     let docCategory;
                     
-                    // Map database category/doc_type (singular) to filter value (plural)
+                    // Map database category/doc_type to filter value (granular categories)
                     const categoryOrDocType = doc.category || doc.doc_type || 'other';
                     const docTypeToFilterValue = {
-                        // Existing categories
+                        // Deeds
                         'mineral_deed': 'mineral_deeds',
-                        'royalty_deed': 'mineral_deeds',  // Group with mineral deeds
+                        'royalty_deed': 'royalty_deed',
+                        'assignment': 'assignment',
+                        'ratification': 'ratification',
+                        'right_of_way': 'right_of_way',
+
+                        // Leases
                         'lease': 'leases',
+                        'release_of_lease': 'release_of_lease',
+                        'lease_amendment': 'lease_amendment',
+                        'lease_extension': 'lease_extension',
+
+                        // OCC Orders - now granular
+                        'pooling_order': 'pooling_orders',
+                        'spacing_order': 'spacing_orders',
+                        'increased_density_order': 'increased_density',
+                        'change_of_operator_order': 'change_of_operator',
+                        'multi_unit_horizontal_order': 'multi_unit_horizontal',
+                        'occ_order': 'other',  // Generic OCC orders go to other
+
+                        // Well documents
                         'division_order': 'division_orders',
+                        'drilling_permit': 'drilling_permits',
                         'title_opinion': 'title_opinions',
-                        'check_stub': 'check_stubs',
-                        'royalty_statement': 'check_stubs',  // Group with check stubs
-                        'occ_order': 'occ_orders',
-                        'pooling_order': 'occ_orders',  // Group with OCC orders
-                        'spacing_order': 'occ_orders',  // Group with OCC orders
-                        'suspense_notice': 'suspense_notices',
                         'joa': 'joa',
-                        'joint_operating_agreement': 'joa',  // Alias
-                        'ownership_entity': 'ownership_entity',
-                        'probate': 'ownership_entity',  // Group with ownership
-                        'probate_document': 'ownership_entity',
-                        'affidavit_of_heirship': 'ownership_entity',
-                        'heirship': 'ownership_entity',
-                        'trust': 'ownership_entity',
-                        'llc_docs': 'ownership_entity',
-                        'estate': 'ownership_entity',
-                        'legal_document': 'legal_documents',
-                        'divorce_decree': 'legal_documents',  // Group with legal
-                        'death_certificate': 'legal_documents',
-                        'power_of_attorney': 'legal_documents',
-                        'correspondence': 'correspondence',
+                        'joint_operating_agreement': 'joa',
+
+                        // Financial
+                        'check_stub': 'check_stubs',
+                        'royalty_statement': 'check_stubs',
+                        'suspense_notice': 'suspense_notices',
                         'tax_record': 'tax_records',
+
+                        // Estate/Ownership - now granular
+                        'affidavit_of_heirship': 'affidavit_of_heirship',
+                        'heirship': 'affidavit_of_heirship',
+                        'probate': 'probate',
+                        'probate_document': 'probate',
+                        'trust': 'trust',
+                        'ownership_entity': 'trust',
+                        'llc_docs': 'trust',
+                        'estate': 'probate',
+
+                        // Legal - now granular
+                        'legal_document': 'legal_documents',
+                        'divorce_decree': 'divorce_decree',
+                        'death_certificate': 'death_certificate',
+                        'power_of_attorney': 'power_of_attorney',
+
+                        // Other
+                        'correspondence': 'correspondence',
                         'map': 'maps_plats',
                         'plat': 'maps_plats',
                         'multi_document': 'multi_document',
-                        'drilling_permit': 'drilling_permits',
-                        // Less common but valid
-                        'assignment': 'mineral_deeds',  // Group with deeds
-                        'ratification': 'mineral_deeds',
-                        'right_of_way': 'mineral_deeds',
-                        'release_of_lease': 'leases',  // Group with leases
-                        'lease_amendment': 'leases',
-                        'lease_extension': 'leases',
+                        'production_report': 'production_reports',
+                        'well_completion_report': 'well_completion_reports',
                         'other': 'other'
                     };
                     docCategory = docTypeToFilterValue[categoryOrDocType.toLowerCase()] || 'other';
