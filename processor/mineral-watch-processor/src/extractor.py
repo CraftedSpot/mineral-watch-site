@@ -2447,9 +2447,40 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
                             return results
                         else:
+                            # OCR patterns didn't find multiple docs - fall back to classification
                             logger.info(f"OCR splitter found single document: {ocr_split_result.reason}")
+                            logger.info("OCR patterns failed - falling back to classification inference")
+                            estimated_count = classification.get("estimated_doc_count", 1)
+                            if classification.get("is_multi_document") and estimated_count == len(image_paths):
+                                logger.info(f"Using classification inference ({estimated_count} docs on {len(image_paths)} pages)")
+
+                                results = {
+                                    "is_multi_document": True,
+                                    "document_count": estimated_count,
+                                    "split_method": "classification_page_inference",
+                                    "documents": []
+                                }
+
+                                for page_num in range(1, estimated_count + 1):
+                                    logger.info(f"Extracting Division Order {page_num} from page {page_num}")
+
+                                    doc_data = await extract_single_document(
+                                        image_paths,
+                                        page_num,
+                                        page_num
+                                    )
+
+                                    doc_data["_start_page"] = page_num
+                                    doc_data["_end_page"] = page_num
+                                    results["documents"].append(doc_data)
+
+                                    if page_num < estimated_count:
+                                        logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+                                        await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+                                return results
                     else:
-                        # OCR failed - fall back to classification inference
+                        # OCR completely failed - fall back to classification inference
                         logger.info("OCR failed or returned empty text - trying classification inference")
                         estimated_count = classification.get("estimated_doc_count", 1)
                         if classification.get("is_multi_document") and estimated_count == len(image_paths):
