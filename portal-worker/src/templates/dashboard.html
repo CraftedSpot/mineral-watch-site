@@ -6276,28 +6276,10 @@
                         // Regular field
                         hasVisibleFields = true;
                         
-                        // Skip key_takeaway here - it's rendered at the top
-                        if (fieldName === 'key_takeaway') {
+                        // Skip key_takeaway and ai_observations - rendered at the top
+                        if (fieldName === 'key_takeaway' || fieldName === 'ai_observations') {
                             // Already rendered at top of content
-                        }
-                        // Special handling for AI observations - prominent expandable detailed analysis
-                        else if (fieldName === 'ai_observations') {
-                            // Clean up any leading/trailing whitespace and normalize internal spacing
-                            const cleanedValue = String(value)
-                                .trim()
-                                .replace(/^\s+/gm, '') // Remove leading spaces from each line
-                                .replace(/\t/g, ' '); // Replace tabs with spaces
-
-                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">
-                                <details class="detailed-analysis-block">
-                                    <summary class="detailed-analysis-trigger">
-                                        <span class="details-chevron">&#9654;</span>
-                                        <span class="detailed-analysis-label">View Detailed Analysis</span>
-                                        <span class="detailed-analysis-hint">Click to expand</span>
-                                    </summary>
-                                    <div class="detailed-analysis-content">${escapeHtml(cleanedValue)}</div>
-                                </details>
-                            </div>`;
+                            hasVisibleFields = false; // Don't count these as visible in sections
                         } else {
                             sectionContent += `
                                 <div class="doc-field">
@@ -6916,7 +6898,24 @@
                     .detail-section-title.expanded .section-chevron {
                         transform: rotate(90deg);
                     }
-                    /* Details/summary chevron rotation */
+                    /* Hide default details marker across browsers */
+                    summary::-webkit-details-marker {
+                        display: none;
+                    }
+                    summary::marker {
+                        display: none;
+                        content: '';
+                    }
+                    details summary {
+                        list-style: none;
+                    }
+
+                    /* Custom chevron rotation */
+                    .details-chevron {
+                        display: inline-block;
+                        font-size: 10px;
+                        transition: transform 0.2s ease;
+                    }
                     details[open] .details-chevron {
                         transform: rotate(90deg);
                     }
