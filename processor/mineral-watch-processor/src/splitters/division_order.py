@@ -66,6 +66,12 @@ class DivisionOrderSplitter(BaseSplitter):
 
         total_pages = len(text_by_page)
 
+        # Check if PDF has extractable text (not scanned/image-based)
+        total_text_length = sum(len(page.strip()) for page in text_by_page)
+        if total_text_length < 50:  # Less than 50 chars across all pages = likely scanned
+            logger.info(f"PDF appears to be scanned (only {total_text_length} chars extracted)")
+            return SplitResult.no_text(total_pages)
+
         if total_pages == 1:
             # Single page - check if it's a valid DO
             property_numbers = self._extract_property_numbers(text_by_page[0])

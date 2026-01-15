@@ -2405,6 +2405,40 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                             await asyncio.sleep(BATCH_DELAY_SECONDS)
 
                     return results
+                elif split_result.reason == "no_extractable_text":
+                    # Scanned PDF - check if quick classification can help
+                    estimated_count = classification.get("estimated_doc_count", 1)
+                    if classification.get("is_multi_document") and estimated_count == len(image_paths):
+                        # Quick classification says N docs on N pages - assume 1 page per document
+                        logger.info(f"Scanned PDF: Using quick classification ({estimated_count} docs on {len(image_paths)} pages)")
+
+                        results = {
+                            "is_multi_document": True,
+                            "document_count": estimated_count,
+                            "split_method": "classification_page_inference",
+                            "documents": []
+                        }
+
+                        for page_num in range(1, estimated_count + 1):
+                            logger.info(f"Extracting Division Order {page_num} from page {page_num}")
+
+                            doc_data = await extract_single_document(
+                                image_paths,
+                                page_num,
+                                page_num
+                            )
+
+                            doc_data["_start_page"] = page_num
+                            doc_data["_end_page"] = page_num
+                            results["documents"].append(doc_data)
+
+                            if page_num < estimated_count:
+                                logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+                                await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+                        return results
+                    else:
+                        logger.info(f"Scanned PDF but classification doesn't support page-per-doc split")
                 else:
                     logger.info(f"Deterministic splitter found single document: {split_result.reason}")
         except ImportError as e:

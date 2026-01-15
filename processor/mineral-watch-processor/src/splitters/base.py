@@ -52,6 +52,16 @@ class SplitResult:
             reason=reason
         )
 
+    @classmethod
+    def no_text(cls, total_pages: int) -> 'SplitResult':
+        """Return a result indicating PDF has no extractable text (scanned/image PDF)."""
+        return cls(
+            page_ranges=[(1, total_pages)],
+            document_count=1,
+            success=False,
+            reason="no_extractable_text"
+        )
+
 
 class BaseSplitter(ABC):
     """
