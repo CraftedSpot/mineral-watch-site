@@ -5852,15 +5852,32 @@
                         // Regular field
                         hasVisibleFields = true;
                         
-                        // Special handling for AI observations
-                        if (fieldName === 'ai_observations') {
+                        // Special handling for key_takeaway - always visible, prominent
+                        if (fieldName === 'key_takeaway') {
+                            const cleanedValue = String(value).trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">
+                                <div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px; border-radius: 8px; border: 1px solid #86efac; text-align: left; font-size: 14px; color: #166534;">
+                                    <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 13px;">💡 Key Takeaway</strong>
+                                    ${escapeHtml(cleanedValue)}
+                                </div>
+                            </div>`;
+                        }
+                        // Special handling for AI observations - collapsible detailed analysis
+                        else if (fieldName === 'ai_observations') {
                             // Clean up any leading/trailing whitespace and normalize internal spacing
                             const cleanedValue = String(value)
                                 .trim()
                                 .replace(/^\s+/gm, '') // Remove leading spaces from each line
                                 .replace(/\t/g, ' '); // Replace tabs with spaces
-                            
-                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;"><div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; text-align: left;">${escapeHtml(cleanedValue)}</div></div>`;
+
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">
+                                <details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
+                                    <summary style="padding: 12px 16px; cursor: pointer; font-weight: 500; color: #475569; display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 12px;">📖</span> Detailed Analysis
+                                    </summary>
+                                    <div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; padding: 16px; border-top: 1px solid #e2e8f0; text-align: left; color: #334155;">${escapeHtml(cleanedValue)}</div>
+                                </details>
+                            </div>`;
                         } else {
                             sectionContent += `
                                 <div class="doc-field">
