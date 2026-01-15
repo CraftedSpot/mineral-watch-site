@@ -211,6 +211,24 @@ function formatStatus(status: string): string {
 }
 
 /**
+ * Normalize township format - strip leading zeros
+ * "08N" -> "8N", "7N" -> "7N", "07 N" -> "7N"
+ */
+function normalizeTownship(twn: string): string {
+  const match = twn.trim().toUpperCase().match(/^0*(\d{1,2})\s*([NS])$/);
+  return match ? `${parseInt(match[1], 10)}${match[2]}` : twn.toUpperCase();
+}
+
+/**
+ * Normalize range format - strip leading zeros
+ * "04W" -> "4W", "13E" -> "13E"
+ */
+function normalizeRange(rng: string): string {
+  const match = rng.trim().toUpperCase().match(/^0*(\d{1,2})\s*([EW])$/);
+  return match ? `${parseInt(match[1], 10)}${match[2]}` : rng.toUpperCase();
+}
+
+/**
  * GET /api/docket-entries
  * Fetch docket entries for a section/township/range
  */
@@ -238,10 +256,10 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
       }, 400);
     }
 
-    // Normalize inputs
+    // Normalize inputs - strip leading zeros from township/range to match docket data format
     const sectionNum = parseInt(section);
-    const townshipNorm = township.toUpperCase();
-    const rangeNorm = range.toUpperCase();
+    const townshipNorm = normalizeTownship(township);
+    const rangeNorm = normalizeRange(range);
     const meridianNorm = meridian.toUpperCase();
 
     if (isNaN(sectionNum) || sectionNum < 1 || sectionNum > 36) {
