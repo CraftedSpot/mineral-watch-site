@@ -446,28 +446,166 @@ def name_pooling_order(data: Dict[str, Any]) -> str:
 def name_spacing_order(data: Dict[str, Any]) -> str:
     """Spacing Order - CD {Number} - {County} - {Legal} - {Year}"""
     parts = ["Spacing Order"]
-    
+
     cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number'))
     if cd_num:
         parts.append(f"CD {cd_num}")
-    
+
     if data.get('county'):
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
-    
+
     legal = format_legal_description(
-        data.get('section'), 
-        data.get('township'), 
+        data.get('section'),
+        data.get('township'),
         data.get('range')
     )
     if legal:
         parts.append(legal)
-    
+
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
+    return " - ".join(parts)
+
+
+def name_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
+    """Drilling & Spacing Order - CD {Number} - {County} - {Legal} - {Unit Size} - {Formation} - {Year}"""
+    parts = ["Drilling & Spacing Order"]
+
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    if cd_num:
+        parts.append(f"CD {cd_num}")
+
+    if data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    legal = format_legal_description(
+        data.get('section'),
+        data.get('township'),
+        data.get('range')
+    )
+    if legal:
+        parts.append(legal)
+
+    # Unit size
+    unit_size = data.get('unit_size_acres')
+    if unit_size:
+        parts.append(f"{unit_size}-acre")
+
+    # Primary formation
+    formations = data.get('formations')
+    if formations and isinstance(formations, list) and len(formations) > 0:
+        first_formation = formations[0]
+        if isinstance(first_formation, dict):
+            formation_name = first_formation.get('name', '')
+        else:
+            formation_name = str(first_formation)
+        if formation_name:
+            parts.append(formation_name)
+
+    if data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
+def name_horizontal_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
+    """Horizontal Drilling & Spacing - CD {Number} - {County} - {Legal} - {Unit Size} - {Formation} - {Year}"""
+    parts = ["Horizontal Drilling & Spacing"]
+
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    if cd_num:
+        parts.append(f"CD {cd_num}")
+
+    if data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    legal = format_legal_description(
+        data.get('section'),
+        data.get('township'),
+        data.get('range')
+    )
+    if legal:
+        parts.append(legal)
+
+    # Unit size
+    unit_size = data.get('unit_size_acres')
+    if unit_size:
+        parts.append(f"{unit_size}-acre")
+
+    # Primary formation (or multiple if present)
+    formations = data.get('formations')
+    if formations and isinstance(formations, list):
+        if len(formations) == 1:
+            first_formation = formations[0]
+            if isinstance(first_formation, dict):
+                formation_name = first_formation.get('name', '')
+            else:
+                formation_name = str(first_formation)
+            if formation_name:
+                parts.append(formation_name)
+        elif len(formations) > 1:
+            # Multiple formations - show count
+            parts.append(f"{len(formations)} formations")
+
+    # Operator
+    operator = data.get('operator') or data.get('applicant')
+    if operator:
+        parts.append(extract_last_name(operator))
+
+    if data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
+def name_location_exception_order(data: Dict[str, Any]) -> str:
+    """Location Exception - CD {Number} - {Well Name} - {County} - {Formation} - {Year}"""
+    parts = ["Location Exception"]
+
+    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    if cd_num:
+        parts.append(f"CD {cd_num}")
+
+    # Well name is important for location exceptions
+    well_name = data.get('well_name') or data.get('proposed_well_name')
+    if well_name:
+        parts.append(truncate_name(str(well_name), 30))
+
+    if data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Primary formation
+    formations = data.get('formations')
+    if formations and isinstance(formations, list) and len(formations) > 0:
+        first_formation = formations[0]
+        if isinstance(first_formation, dict):
+            formation_name = first_formation.get('name', '')
+        else:
+            formation_name = str(first_formation)
+        if formation_name:
+            parts.append(formation_name)
+
+    # Operator
+    operator = data.get('operator') or data.get('applicant')
+    if operator:
+        parts.append(extract_last_name(operator))
+
+    if data.get('year'):
+        parts.append(str(data['year']))
+
     return " - ".join(parts)
 
 
@@ -1185,6 +1323,9 @@ NAMING_FUNCTIONS = {
     'change_of_operator_order': name_change_of_operator_order,
     'multi_unit_horizontal_order': name_multi_unit_horizontal_order,
     'spacing_order': name_spacing_order,
+    'drilling_and_spacing_order': name_drilling_and_spacing_order,
+    'horizontal_drilling_and_spacing_order': name_horizontal_drilling_and_spacing_order,
+    'location_exception_order': name_location_exception_order,
     'ratification': name_ratification,
     'affidavit_of_heirship': name_affidavit_of_heirship,
     'probate_document': name_probate_document,

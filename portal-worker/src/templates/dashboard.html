@@ -5823,7 +5823,7 @@
         // Helper to group fields into logical sections
         function groupFieldsBySection(data) {
             const groups = {
-                '📋 Observations': ['key_takeaway', 'ai_observations'],
+                'Observations': ['key_takeaway', 'ai_observations'],
                 'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county'],
                 'Execution Details': ['execution_date', 'effective_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state'],
                 'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'quarter', 'lot_block', 'acres'],
@@ -5887,7 +5887,7 @@
             
             // Add Observations if notes exist
             if (data.notes) {
-                grouped['📋 Observations'] = { observations: data.notes };
+                grouped['Observations'] = { observations: data.notes };
                 processedFields.add('notes');
             }
             
@@ -5932,7 +5932,7 @@
             
             // Define section order with Observations first
             const sectionOrder = [
-                '📋 Observations',
+                'Observations',
                 'Observations',
                 'Recording Information',
                 'Execution Details',
@@ -6245,7 +6245,7 @@
                             const cleanedValue = String(value).trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
                             sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">
                                 <div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px; border-radius: 8px; border: 1px solid #86efac; text-align: left; font-size: 14px; color: #166534;">
-                                    <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 13px;">💡 Key Takeaway</strong>
+                                    <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 13px;">Key Takeaway</strong>
                                     ${escapeHtml(cleanedValue)}
                                 </div>
                             </div>`;
@@ -6261,7 +6261,7 @@
                             sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">
                                 <details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                                     <summary style="padding: 12px 16px; cursor: pointer; font-weight: 500; color: #475569; display: flex; align-items: center; gap: 8px;">
-                                        <span style="font-size: 12px;">📖</span> Detailed Analysis
+                                        <span class="details-chevron" style="font-size: 10px; transition: transform 0.2s;">&#9654;</span> Detailed Analysis
                                     </summary>
                                     <div class="doc-value" style="white-space: pre-wrap; line-height: 1.6; padding: 16px; border-top: 1px solid #e2e8f0; text-align: left; color: #334155;">${escapeHtml(cleanedValue)}</div>
                                 </details>
@@ -6279,7 +6279,7 @@
                 // Only add section if it has visible fields
                 if (hasVisibleFields) {
                     // Make Observations expanded by default, all others collapsed
-                    const isObservations = sectionName === 'Observations' || sectionName === '📋 Observations';
+                    const isObservations = sectionName === 'Observations' || sectionName === 'Observations';
                     const isExpanded = isObservations;
                     const sectionId = sectionName.toLowerCase().replace(/[^a-z0-9]/g, '-');
                     
@@ -6430,7 +6430,7 @@
                 
                 // Split document info
                 content += '<div class="detail-section" style="background: #F0F9FF; border: 1px solid #BAE6FD; border-radius: 8px; padding: 16px; margin: 20px 0;">';
-                content += '<h4 style="margin: 0 0 12px 0; color: #1E40AF; font-size: 16px; font-weight: 600;">📄 This PDF contained multiple documents</h4>';
+                content += '<h4 style="margin: 0 0 12px 0; color: #1E40AF; font-size: 16px; font-weight: 600;">This PDF contained multiple documents</h4>';
                 content += `<p style="margin: 0; color: #1E40AF; font-size: 14px;">The uploaded PDF has been split into ${doc.children.length} separate documents for easier management.</p>`;
                 content += '</div>';
                 
@@ -6533,7 +6533,7 @@
                             content += '<div class="detail-section">';
                             const cleanedTakeaway = data.key_takeaway.trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
                             content += `<div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
-                                <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 13px;">💡 Key Takeaway</strong>
+                                <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 13px;">Key Takeaway</strong>
                                 ${escapeHtml(cleanedTakeaway)}
                             </div>`;
                             content += '</div>';
@@ -6545,7 +6545,7 @@
                             const cleanedObs = data.ai_observations.trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
                             content += `<details style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden;">
                                 <summary style="padding: 12px 16px; cursor: pointer; font-weight: 500; color: #475569; display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-size: 12px;">📖</span> Detailed Analysis
+                                    <span class="details-chevron" style="font-size: 10px; transition: transform 0.2s;">&#9654;</span> Detailed Analysis
                                 </summary>
                                 <div style="white-space: pre-wrap; line-height: 1.6; padding: 16px; border-top: 1px solid #e2e8f0; color: #334155;">${escapeHtml(cleanedObs)}</div>
                             </details>`;
@@ -6599,7 +6599,7 @@
                         
                         content += '<div class="detail-section">';
                         content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                        content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> 🔗 Linked Items`;
+                        content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> Linked Items`;
                         content += '</h4>';
                         content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
                         
@@ -6768,7 +6768,7 @@
                     
                     content += '<div class="detail-section">';
                     content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                    content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> 🔗 Linked Items`;
+                    content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> Linked Items`;
                     content += '</h4>';
                     content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
                     
@@ -6883,6 +6883,10 @@
                         transition: transform 0.2s;
                     }
                     .detail-section-title.expanded .section-chevron {
+                        transform: rotate(90deg);
+                    }
+                    /* Details/summary chevron rotation */
+                    details[open] .details-chevron {
                         transform: rotate(90deg);
                     }
                     .detail-row {
