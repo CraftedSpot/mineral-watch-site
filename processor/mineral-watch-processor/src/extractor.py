@@ -1365,6 +1365,14 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - ownership_entity, legal_document, correspondence
 - tax_record, map
 
+OCC ORDER TYPE DETECTION - be specific:
+- horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.
+- drilling_and_spacing_order: Look for "DRILLING AND SPACING" without "HORIZONTAL". Establishes vertical well units with setback distances (like 660ft from boundary). Often 160-acre or 640-acre units for vertical wells.
+- location_exception_order: Look for "LOCATION EXCEPTION" - allows wells closer to boundaries than standard setbacks. Shows specific footage from boundary lines.
+- pooling_order: Contains election options for mineral owners (participate, cash bonus, royalty conversion, non-consent penalties).
+- increased_density_order: Look for "INCREASED DENSITY" or "INCREASED WELL DENSITY" - authorizes additional wells in existing units.
+- occ_order: ONLY use this for OCC orders that don't fit the specific types above.
+
 Examples of "other" documents (oil and gas docs that don't fit defined categories):
 - Farmout agreements, surface use agreements, pipeline agreements
 - AFEs, payout statements, salt water disposal agreements
