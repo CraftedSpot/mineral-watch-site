@@ -89,9 +89,16 @@ function normalizeSection(sec: string | number | null): number | null {
   return isNaN(num) ? null : num;
 }
 
-const LINKS_TABLE = '🔗 Property-Well Links';
-const BATCH_SIZE_AIRTABLE = 30;
 const BATCH_SIZE_D1 = 25; // Smaller batch for more complex queries
+
+// Document types that show on property modals (same as property-documents-d1.ts)
+const PROPERTY_DOC_TYPES = [
+  'mineral_deed', 'royalty_deed', 'assignment_of_interest', 'warranty_deed', 'quitclaim_deed',
+  'oil_gas_lease', 'extension_agreement', 'amendment', 'ratification', 'release',
+  'affidavit', 'probate', 'power_of_attorney', 'judgment',
+  'division_order', 'transfer_order', 'revenue_statement',
+  'pooling_order', 'spacing_order', 'occ_order', 'increased_density_order', 'location_exception_order'
+];
 
 interface LinkCounts {
   [propertyId: string]: {
@@ -172,22 +179,33 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     }
 
     // =====================================================
-    // WELL COUNTS - from Property-Well Links table
+    // WELL COUNTS - from D1 property_well_links table (same as modal)
     // =====================================================
     const propertyIds = properties.map(p => p.id);
-    const propertyIdBatches = chunk(propertyIds, BATCH_SIZE_AIRTABLE);
+    const propertyIdBatches = chunk(propertyIds, BATCH_SIZE_D1);
 
     for (const batch of propertyIdBatches) {
       try {
-        const linksFilter = `OR(${batch.map(id => `FIND("${id}", ARRAYJOIN({Property})) > 0`).join(',')})`;
-        const links = await fetchAllAirtableRecords(env, LINKS_TABLE, linksFilter);
-        for (const link of links || []) {
-          for (const propId of link.fields?.Property || []) {
-            if (counts[propId]) counts[propId].wells++;
+        const placeholders = batch.map(() => '?').join(', ');
+        const query = `
+          SELECT property_airtable_id, COUNT(*) as count
+          FROM property_well_links
+          WHERE property_airtable_id IN (${placeholders})
+            AND status = 'Active'
+          GROUP BY property_airtable_id
+        `;
+
+        const result = await env.WELLS_DB.prepare(query).bind(...batch).all();
+
+        if (result.results) {
+          for (const row of result.results as { property_airtable_id: string; count: number }[]) {
+            if (counts[row.property_airtable_id]) {
+              counts[row.property_airtable_id].wells = row.count;
+            }
           }
         }
       } catch (err) {
-        console.error('[LinkCounts] Error fetching well links:', err);
+        console.error('[LinkCounts] Error fetching well links from D1:', err);
       }
     }
 
@@ -336,54 +354,43 @@ export async function handleGetPropertyLinkCounts(request: Request, env: Env) {
     }
 
     // =====================================================
-    // DOCUMENT COUNTS - from D1 documents table
+    // DOCUMENT COUNTS - from D1 documents table (same as modal)
+    // Uses property_id which stores Airtable record ID
     // =====================================================
-    if (propertySTRs.length > 0) {
-      const strBatches = chunk(propertySTRs, BATCH_SIZE_D1);
+    const docTypeList = PROPERTY_DOC_TYPES.map(type => `'${type}'`).join(', ');
 
-      for (const batch of strBatches) {
-        try {
-          const whereConditions = batch.map(
-            ({ sec, twn, rng }) => `(CAST(section AS INTEGER) = ${sec} AND UPPER(township) = '${twn}' AND UPPER(range) = '${rng}')`
-          ).join(' OR ');
+    for (const batch of propertyIdBatches) {
+      try {
+        const placeholders = batch.map(() => '?').join(', ');
+        const query = `
+          SELECT property_id, COUNT(*) as count
+          FROM documents
+          WHERE property_id IN (${placeholders})
+            AND (deleted_at IS NULL OR deleted_at = '')
+            AND doc_type IN (${docTypeList})
+          GROUP BY property_id
+        `;
 
-          const query = `
-            SELECT section as sec, township as twn, range as rng, COUNT(*) as count
-            FROM documents
-            WHERE (${whereConditions}) AND deleted_at IS NULL
-            GROUP BY section, township, range
-          `;
+        const result = await env.WELLS_DB.prepare(query).bind(...batch).all();
 
-          const result = await env.DOCUMENTS_DB.prepare(query).all();
-
-          if (result.results) {
-            for (const row of result.results as { sec: string; twn: string; rng: string; count: number }[]) {
-              const normSec = normalizeSection(row.sec);
-              const normTwn = normalizeTownship(row.twn);
-              const normRng = normalizeRange(row.rng);
-              if (normSec !== null && normTwn && normRng) {
-                const strKey = `${normSec}|${normTwn}|${normRng}`;
-                // Find matching properties
-                for (const pstr of batch) {
-                  if (pstr.sec === normSec && pstr.twn === normTwn && pstr.rng === normRng) {
-                    counts[pstr.propId].documents = row.count;
-                  }
-                }
-              }
+        if (result.results) {
+          for (const row of result.results as { property_id: string; count: number }[]) {
+            if (counts[row.property_id]) {
+              counts[row.property_id].documents = row.count;
             }
           }
-        } catch (err) {
-          console.log('[LinkCounts] Document count query skipped');
-          break;
         }
+      } catch (err) {
+        console.error('[LinkCounts] Error fetching document counts from D1:', err);
       }
     }
 
     // Log summary
     const withFilings = Object.entries(counts).filter(([_, c]) => c.filings > 0);
     const withWells = Object.entries(counts).filter(([_, c]) => c.wells > 0);
-    console.log('[LinkCounts] Done. With filings:', withFilings.length, 'With wells:', withWells.length);
-    console.log('[LinkCounts] Sample with filings:', withFilings.slice(0, 3));
+    const withDocs = Object.entries(counts).filter(([_, c]) => c.documents > 0);
+    console.log('[LinkCounts] Done. With filings:', withFilings.length, 'With wells:', withWells.length, 'With docs:', withDocs.length);
+    console.log('[LinkCounts] Sample:', withFilings.slice(0, 2), withWells.slice(0, 2), withDocs.slice(0, 2));
 
     return jsonResponse(counts);
 
