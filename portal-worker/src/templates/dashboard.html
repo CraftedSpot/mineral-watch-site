@@ -6285,7 +6285,7 @@
                     
                     content += `<div class="detail-section">`;
                     content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                    content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> ${sectionName}`;
+                    content += `<span class="section-chevron">&#9654;</span> ${sectionName}`;
                     content += `</h4>`;
                     content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
                     content += sectionContent;
@@ -6299,15 +6299,12 @@
         function toggleSection(sectionId) {
             const section = document.getElementById(sectionId);
             const header = document.querySelector(`[data-section="${sectionId}"]`);
-            const chevron = header.querySelector('.section-chevron');
-            
+
             if (section.style.display === 'none' || section.style.display === '') {
                 section.style.display = 'grid';
-                chevron.textContent = '▼';
                 header.classList.add('expanded');
             } else {
                 section.style.display = 'none';
-                chevron.textContent = '▶';
                 header.classList.remove('expanded');
             }
         }
@@ -6599,7 +6596,7 @@
                         
                         content += '<div class="detail-section">';
                         content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                        content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> Linked Items`;
+                        content += `<span class="section-chevron">&#9654;</span> Linked Items`;
                         content += '</h4>';
                         content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
                         
@@ -6768,7 +6765,7 @@
                     
                     content += '<div class="detail-section">';
                     content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                    content += `<span class="section-chevron">${isExpanded ? '▼' : '▶'}</span> Linked Items`;
+                    content += `<span class="section-chevron">&#9654;</span> Linked Items`;
                     content += '</h4>';
                     content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
                     
