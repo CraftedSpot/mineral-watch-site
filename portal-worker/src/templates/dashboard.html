@@ -1766,7 +1766,6 @@
             min-width: 240px;
             max-height: 320px;
             overflow: hidden;
-            display: flex;
             flex-direction: column;
         }
         .searchable-dropdown.open .searchable-dropdown-menu {
@@ -5042,6 +5041,7 @@
             
             // Category-specific sort options
             const categoryOptions = {
+                // Deeds
                 'mineral_deeds': [
                     { value: 'county-trs', text: 'County & TRS' },
                     { value: 'execution-date', text: 'Execution Date' },
@@ -5049,12 +5049,86 @@
                     { value: 'grantor', text: 'Grantor Name' },
                     { value: 'grantee', text: 'Grantee Name' }
                 ],
+                'royalty_deed': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' },
+                    { value: 'grantor', text: 'Grantor Name' },
+                    { value: 'grantee', text: 'Grantee Name' }
+                ],
+                'assignment': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' },
+                    { value: 'assignor', text: 'Assignor Name' },
+                    { value: 'assignee', text: 'Assignee Name' }
+                ],
+                'ratification': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' }
+                ],
+                'right_of_way': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' },
+                    { value: 'grantee', text: 'Grantee Name' }
+                ],
+
+                // Leases
                 'leases': [
                     { value: 'county-trs', text: 'County & TRS' },
                     { value: 'lease-date', text: 'Lease Date' },
                     { value: 'lessor', text: 'Lessor Name' },
                     { value: 'lessee', text: 'Lessee Name' }
                 ],
+                'release_of_lease': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' },
+                    { value: 'operator', text: 'Operator' }
+                ],
+                'lease_amendment': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' }
+                ],
+                'lease_extension': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'execution-date', text: 'Execution Date' }
+                ],
+
+                // OCC Orders - granular
+                'pooling_orders': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county', text: 'County' },
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'formation', text: 'Formation' }
+                ],
+                'spacing_orders': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'order-date', text: 'Order Date' }
+                ],
+                'increased_density': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county', text: 'County' },
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'wells-authorized', text: 'Wells Authorized' }
+                ],
+                'change_of_operator': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county', text: 'County' },
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'new-operator', text: 'New Operator' },
+                    { value: 'wells-transferred', text: 'Wells Transferred' }
+                ],
+                'multi_unit_horizontal': [
+                    { value: 'cause-number', text: 'Cause Number' },
+                    { value: 'county', text: 'County' },
+                    { value: 'order-date', text: 'Order Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'formation', text: 'Formation' },
+                    { value: 'sections', text: 'Sections' }
+                ],
+
+                // Well documents
                 'drilling_permits': [
                     { value: 'permit-date', text: 'Permit Date' },
                     { value: 'operator', text: 'Operator' },
@@ -5075,29 +5149,72 @@
                     { value: 'operator', text: 'Operator' },
                     { value: 'interest-decimal', text: 'Interest Decimal' }
                 ],
-                'tax_records': [
-                    { value: 'tax-year', text: 'Tax Year' },
-                    { value: 'assessed-value', text: 'Assessed Value' }
+                'title_opinions': [
+                    { value: 'county-trs', text: 'County & TRS' },
+                    { value: 'opinion-date', text: 'Opinion Date' },
+                    { value: 'attorney', text: 'Attorney/Firm' }
                 ],
+                'joa': [
+                    { value: 'effective-date', text: 'Effective Date' },
+                    { value: 'operator', text: 'Operator' },
+                    { value: 'unit-name', text: 'Unit Name' }
+                ],
+
+                // Financial
                 'check_stubs': [
                     { value: 'payment-date', text: 'Payment Date' },
                     { value: 'amount', text: 'Payment Amount' },
                     { value: 'well', text: 'Well Name' }
-                ],
-                'occ_orders': [
-                    { value: 'order-date', text: 'Order Date' },
-                    { value: 'cause-number', text: 'Cause Number' },
-                    { value: 'order-type', text: 'Order Type' }
                 ],
                 'suspense_notices': [
                     { value: 'notice-date', text: 'Notice Date' },
                     { value: 'operator', text: 'Operator' },
                     { value: 'amount', text: 'Suspense Amount' }
                 ],
-                'ownership_entity': [
-                    { value: 'document-date', text: 'Document Date' },
+                'tax_records': [
+                    { value: 'tax-year', text: 'Tax Year' },
+                    { value: 'assessed-value', text: 'Assessed Value' }
+                ],
+
+                // Estate/Ownership - granular
+                'affidavit_of_heirship': [
+                    { value: 'county', text: 'County' },
+                    { value: 'decedent', text: 'Decedent Name' },
+                    { value: 'execution-date', text: 'Execution Date' }
+                ],
+                'probate': [
+                    { value: 'county', text: 'County' },
+                    { value: 'decedent', text: 'Decedent Name' },
+                    { value: 'case-number', text: 'Case Number' }
+                ],
+                'trust': [
                     { value: 'entity-name', text: 'Entity Name' },
+                    { value: 'document-date', text: 'Document Date' }
+                ],
+
+                // Legal - granular
+                'legal_documents': [
+                    { value: 'document-date', text: 'Document Date' },
                     { value: 'document-type', text: 'Document Type' }
+                ],
+                'divorce_decree': [
+                    { value: 'decree-date', text: 'Decree Date' },
+                    { value: 'petitioner', text: 'Petitioner Name' }
+                ],
+                'death_certificate': [
+                    { value: 'death-date', text: 'Date of Death' },
+                    { value: 'decedent', text: 'Decedent Name' }
+                ],
+                'power_of_attorney': [
+                    { value: 'execution-date', text: 'Execution Date' },
+                    { value: 'principal', text: 'Principal Name' }
+                ],
+
+                // Other
+                'correspondence': [
+                    { value: 'letter-date', text: 'Letter Date' },
+                    { value: 'sender', text: 'From' },
+                    { value: 'recipient', text: 'To' }
                 ],
                 'maps_plats': [
                     { value: 'map-date', text: 'Map Date' },
