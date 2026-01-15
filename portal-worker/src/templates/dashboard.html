@@ -2104,15 +2104,10 @@
                         <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range...">
                         <select id="propertiesSort" class="sort-select">
                             <option value="legal-asc" selected>Legal Description</option>
-                            <option value="acres-desc">Total Acres (High to Low)</option>
-                            <option value="acres-asc">Total Acres (Low to High)</option>
-                            <option value="wells-desc">Wells (Most)</option>
-                            <option value="wells-asc">Wells (Least)</option>
-                            <option value="documents-desc">Documents (Most)</option>
-                            <option value="documents-asc">Documents (Least)</option>
-                            <option value="filings-desc">OCC Filings (Most)</option>
-                            <option value="filings-asc">OCC Filings (Least)</option>
-                            <option value="date-desc">Date Added</option>
+                            <option value="acres-desc">Total Acres</option>
+                            <option value="wells-desc">Wells</option>
+                            <option value="documents-desc">Documents</option>
+                            <option value="filings-desc">OCC Filings</option>
                         </select>
                         <span id="propertiesResultsCount" class="results-count"></span>
                     </div>
@@ -2146,16 +2141,12 @@
                     <div id="wellsControls" class="table-controls" style="display: none;">
                         <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
                         <select id="wellsSort" class="sort-select">
-                            <option value="legal-asc" selected>Legal Description</option>
-                            <option value="date-desc">Date Added</option>
-                            <option value="name-asc">Well Name</option>
+                            <option value="name-asc" selected>Well Name</option>
+                            <option value="legal-asc">Legal Description</option>
                             <option value="operator-asc">Operator</option>
-                            <option value="properties-desc">Properties (Most)</option>
-                            <option value="properties-asc">Properties (Least)</option>
-                            <option value="documents-desc">Documents (Most)</option>
-                            <option value="documents-asc">Documents (Least)</option>
-                            <option value="filings-desc">OCC Filings (Most)</option>
-                            <option value="filings-asc">OCC Filings (Least)</option>
+                            <option value="properties-desc">Properties</option>
+                            <option value="documents-desc">Documents</option>
+                            <option value="filings-desc">OCC Filings</option>
                         </select>
                         <span id="wellsResultsCount" class="results-count"></span>
                     </div>
@@ -3911,7 +3902,7 @@
 
         // Wells Search & Sort State
         let wellsSearchTerm = '';
-        let wellsSortBy = 'legal-asc';
+        let wellsSortBy = 'name-asc';
 
         // Initialize Wells Controls (call this after user loads)
         function initWellsControls() {
@@ -4371,7 +4362,7 @@
             if (!isViewer) html += '<col class="col-select">';
             html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th>';
-            html += '<th>Well Information</th><th>Operator Contact</th><th class="links-header">Links</th></tr></thead><tbody>';
+            html += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
 
             displayWells.forEach(w => {
                 const f = w.fields;
@@ -4445,15 +4436,17 @@
                         </div>
                     </td>
                     <td class="operator-contact-cell">${operatorContactDisplay}</td>
-                    <td class="links-column">
-                        <div class="links-desktop">
-                            <span class="${propsClass}" title="Linked Properties">${propsIcon}${linkCounts.properties}</span>
-                            <span class="link-separator">│</span>
-                            <span class="${docsClass}" title="Documents">${docsIcon}${linkCounts.documents}</span>
-                            <span class="link-separator">│</span>
-                            <span class="${filingsClass}" title="OCC Filings">${filingsIcon}${linkCounts.filings}</span>
+                    <td>
+                        <div class="links-cell">
+                            <div class="link-breakdown">
+                                <span class="${propsClass}" title="Linked Properties">${propsIcon}${linkCounts.properties}</span>
+                                <span class="link-separator">│</span>
+                                <span class="${docsClass}" title="Documents">${docsIcon}${linkCounts.documents}</span>
+                                <span class="link-separator">│</span>
+                                <span class="${filingsClass}" title="OCC Filings">${filingsIcon}${linkCounts.filings}</span>
+                            </div>
+                            <span class="${totalClass}" title="Total Links (Properties: ${linkCounts.properties}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${linkIcon}${totalLinks}</span>
                         </div>
-                        <span class="${totalClass}" title="Total Links (Properties: ${linkCounts.properties}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${linkIcon}${totalLinks}</span>
                     </td>
                 </tr>`;
             });
