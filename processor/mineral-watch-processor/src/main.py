@@ -352,17 +352,23 @@ async def handle_multi_document(
         status = 'manual_review' if doc_confidence == 'low' else 'complete'
         
         legal = doc_data.get('legal_description', {})
-        
+
+        # Extract TRS - check both legal_description (deeds) and top-level (division orders)
+        county = legal.get('county') or doc_data.get('county')
+        section = legal.get('section') if legal.get('section') is not None else doc_data.get('section')
+        township = legal.get('township') or doc_data.get('township')
+        range_val = legal.get('range') or doc_data.get('range')
+
         # Extract recording info
         recording_book = doc_data.get('recording_book')
         recording_page = doc_data.get('recording_page')
-        
+
         # Try old format as fallback
         if not recording_book or not recording_page:
             recording_info = doc_data.get('recording_info', {})
             recording_book = recording_book or recording_info.get('book')
             recording_page = recording_page or recording_info.get('page')
-        
+
         children.append({
             'page_range_start': page_start,
             'page_range_end': page_end,
@@ -371,10 +377,10 @@ async def handle_multi_document(
             'display_name': display_name,
             'status': status,
             'confidence': doc_confidence,
-            'county': legal.get('county'),
-            'section': str(legal.get('section')) if legal.get('section') is not None else None,
-            'township': legal.get('township'),
-            'range': legal.get('range'),
+            'county': county,
+            'section': str(section) if section is not None else None,
+            'township': township,
+            'range': range_val,
             'recording_book': recording_book,
             'recording_page': recording_page,
             'extracted_data': doc_data,
