@@ -540,45 +540,52 @@ For DRILLING PERMITS:
 For DIVISION ORDERS:
 Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
 this is critical for verifying payments match your records.
+
+IMPORTANT DISTINCTIONS:
+- "Property Name" on the document is the WELL/UNIT NAME (e.g., "Holdings 25-36-1XH"), NOT the legal description
+- Legal description (Section-Township-Range) is usually found in the body text explaining unit allocation
+- Effective Date may be a specific date OR "First Production" - capture exactly as stated
+- If owner is a trust, extract both the trust name AND the trustee name separately
 {
   "doc_type": "division_order",
-  "owner_name": "John A. Smith",
-  "trustee_name": "Jane Smith (if owner is a trust, extract trustee name separately)",
-  "owner_address": "123 Main St, Oklahoma City, OK 73101",
-  "operator_name": "XYZ Oil Company",
-  "well_name": "Smith 1-16H (often labeled as Property Name)",
-  "property_number": "112295 (operator's internal property/billing ID)",
+
+  "operator_name": "XYZ Oil Company (the payor - company sending this Division Order)",
+  "operator_address": "PO Box 779, Oklahoma City, OK 73101 (where to mail signed DO back)",
+
+  "property_name": "Smith 1-16H (labeled as 'Property Name' - this is the well/unit name, NOT TRS)",
+  "property_number": "112295 (operator's internal property ID)",
   "billing_code": "ABC123 (operator's billing code for payment inquiries)",
-  "effective_date": "2023-04-01 (or 'First Production' if stated that way)",
-  "decimal_interest": 0.00390625,
+
+  "owner_name": "John A. Smith Family Trust (the mineral owner - may be individual or trust name)",
+  "trustee_name": "John A. Smith, Trustee (if owner is a trust, extract trustee separately)",
+  "owner_address": "123 Main St, Oklahoma City, OK 73101",
+
   "working_interest": 0.00000000,
   "royalty_interest": 0.00390625,
-  "api_number": "35-051-12345",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady"
-  },
+  "decimal_interest": 0.00390625,
+  "ownership_type": "royalty (or 'working' if working_interest > 0)",
+
+  "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
+  "payment_minimum": 100.00,
+
+  "api_number": "35-051-12345 (if shown)",
+  "county": "Grady",
+  "state": "OK",
+
   "is_multi_section_unit": true,
   "unit_sections": [
     {"section": "16", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.6546},
     {"section": "15", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.3454}
   ],
-  "payment_minimum": 100.00,
+
   "field_scores": {
-    "owner_name": 1.0,
     "operator_name": 1.0,
-    "well_name": 1.0,
-    "effective_date": 0.95,
-    "decimal_interest": 1.0,
+    "operator_address": 0.95,
+    "property_name": 1.0,
+    "owner_name": 1.0,
     "working_interest": 1.0,
     "royalty_interest": 1.0,
-    "api_number": 0.90,
-    "legal_section": 0.95,
-    "legal_township": 0.95,
-    "legal_range": 0.95,
-    "legal_county": 1.0,
+    "effective_date": 0.95,
     "unit_sections": 0.90
   },
   "document_confidence": "high"

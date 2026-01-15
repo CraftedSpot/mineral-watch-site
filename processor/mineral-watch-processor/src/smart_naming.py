@@ -395,26 +395,27 @@ def name_lease(data: Dict[str, Any]) -> str:
 
 
 def name_division_order(data: Dict[str, Any]) -> str:
-    """Division Order - {Well Name} - {Operator} - {Year}"""
+    """Division Order - {Property/Well Name} - {Operator} - {Year}"""
     parts = ["Division Order"]
-    
-    well_name = data.get('well_name')
-    if well_name:
-        parts.append(truncate_name(str(well_name), 40))
-    
+
+    # Check property_name first (new schema), then well_name (legacy)
+    property_name = data.get('property_name') or data.get('well_name')
+    if property_name:
+        parts.append(truncate_name(str(property_name), 40))
+
     operator = data.get('operator') or data.get('operator_name')
     if operator:
         parts.append(extract_last_name(operator))
-    elif not well_name and data.get('county'):
-        # Fallback to county if no well name or operator
+    elif not property_name and data.get('county'):
+        # Fallback to county if no property name or operator
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
-    
+
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
