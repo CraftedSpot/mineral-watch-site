@@ -5864,27 +5864,37 @@
             
             const grouped = {};
             const processedFields = new Set();
-            
-            // First pass: assign fields to their designated groups
+
+            // Build a lowercase map of group fields for case-insensitive matching
+            const fieldToSection = {};
+            const fieldToOriginal = {};
             for (const [section, fields] of Object.entries(groups)) {
-                const sectionData = {};
                 for (const field of fields) {
-                    // Skip confidence fields even if they're in predefined groups
-                    const fieldLower = field.toLowerCase();
-                    if (fieldLower.endsWith('_confidence') || 
-                        fieldLower.endsWith(' confidence') ||
-                        fieldLower.includes('confidence_')) {
-                        processedFields.add(field); // Mark as processed so it's not added to "Other"
-                        continue;
-                    }
-                    
-                    if (data[field] !== null && data[field] !== undefined && data[field] !== '') {
-                        sectionData[field] = data[field];
-                        processedFields.add(field);
-                    }
+                    fieldToSection[field.toLowerCase()] = section;
+                    fieldToOriginal[field.toLowerCase()] = field;
                 }
-                if (Object.keys(sectionData).length > 0) {
-                    grouped[section] = sectionData;
+            }
+
+            // First pass: assign data fields to their designated groups (case-insensitive)
+            for (const [dataField, value] of Object.entries(data)) {
+                const dataFieldLower = dataField.toLowerCase();
+
+                // Skip confidence fields
+                if (dataFieldLower.endsWith('_confidence') ||
+                    dataFieldLower.endsWith(' confidence') ||
+                    dataFieldLower.includes('confidence_')) {
+                    processedFields.add(dataField);
+                    continue;
+                }
+
+                // Check if this field belongs to a group
+                const section = fieldToSection[dataFieldLower];
+                if (section && value !== null && value !== undefined && value !== '') {
+                    if (!grouped[section]) {
+                        grouped[section] = {};
+                    }
+                    grouped[section][dataField] = value;
+                    processedFields.add(dataField);
                 }
             }
             
@@ -5910,7 +5920,16 @@
                     field === 'fields_needing_review' ||
                     field === 'notes' ||
                     field === 'doc_type' ||
-                    field === 'chain_of_title' ||
+                    // Skip chain_of_title and all its sub-fields (internal data for Phase 2)
+                    fieldLower.startsWith('chain_of_title') ||
+                    fieldLower.startsWith('chain of title') ||
+                    // Skip reservation sub-fields (handled specially in Interest section)
+                    fieldLower.startsWith('reservation_') ||
+                    fieldLower.startsWith('reservation ') ||
+                    // Skip internal metadata
+                    field === 'start_page' ||
+                    field === 'end_page' ||
+                    field === 'page_count' ||
                     field === 'prior_instruments' ||
                     field === 'property_acquisition' ||
                     field === 'will_and_probate' ||
