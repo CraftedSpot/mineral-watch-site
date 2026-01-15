@@ -546,6 +546,7 @@ IMPORTANT DISTINCTIONS:
 - Legal description (Section-Township-Range) is usually found in the body text explaining unit allocation
 - Effective Date may be a specific date OR "First Production" - capture exactly as stated
 - If owner is a trust, extract both the trust name AND the trustee name separately
+- ALWAYS extract section/township/range at top level (use the FIRST section mentioned for property matching)
 {
   "doc_type": "division_order",
 
@@ -569,8 +570,11 @@ IMPORTANT DISTINCTIONS:
   "payment_minimum": 100.00,
 
   "api_number": "35-051-12345 (if shown)",
-  "county": "Grady",
+  "county": "Grady (from County | State field in header)",
   "state": "OK",
+  "section": "16 (FIRST section mentioned - for property matching)",
+  "township": "12N",
+  "range": "7W",
 
   "is_multi_section_unit": true,
   "unit_sections": [
@@ -586,6 +590,10 @@ IMPORTANT DISTINCTIONS:
     "working_interest": 1.0,
     "royalty_interest": 1.0,
     "effective_date": 0.95,
+    "county": 1.0,
+    "section": 0.95,
+    "township": 0.95,
+    "range": 0.95,
     "unit_sections": 0.90
   },
   "document_confidence": "high"
@@ -1811,6 +1819,10 @@ Determine if this PDF contains multiple separate documents. Look for:
 - Different parties (grantors/grantees) in separate sections
 - Clear page breaks between distinct documents
 - Multiple check stubs or multiple division orders
+- DIVISION ORDERS: Different Property Numbers or Property Names = SEPARATE DOCUMENTS (even if same owner/operator)
+  Example: Page 1 has "Property #: 112295, Property Name: Holdings 25-36-1XH"
+           Page 2 has "Property #: 112294, Property Name: Holdings 24-25-1XH"
+           This is TWO separate division orders, not one!
 
 If you see evidence of multiple documents, set is_multi_document: true and estimate the count.
 
