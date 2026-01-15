@@ -118,12 +118,19 @@ Your task is to extract key information and provide a confidence score (0.0-1.0)
 
 IMPORTANT: Structure your response as follows:
 1. FIRST: The JSON object with extracted data
-2. THEN: After the JSON, add a section labeled "OBSERVATIONS:" with:
-   - Write as an experienced mineral rights advisor providing insight to a client - whether they're a first-time heir or a seasoned land professional
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Lead with actions needed, if any
+   - Answer: what does this mean for the mineral owner?
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor providing insight to a client
    - Focus on what's genuinely significant, unusual, or actionable
-   - Be direct and substantive - highlight implications that even experts might miss on a quick read
+   - Be direct and substantive - highlight implications that even experts might miss
    - Only reference information explicitly stated in the document
-   - DO NOT list specific data already extracted (dates, book/page numbers, names, etc.) - focus on insight, not summary
+   - DO NOT list specific data already extracted (dates, names, etc.) - focus on insight, not summary
 
 Document Types:
 1. Division Order - Payment distribution instructions for royalty owners
