@@ -2301,7 +2301,7 @@ If these pages don't contain significant new information, return: {{"additional_
     return extracted_data or {"error": "Failed to extract data from document"}
 
 
-async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None) -> dict:
     """
     Main entry point for document extraction.
     Detects multiple documents and extracts data from each.
@@ -2309,6 +2309,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     Args:
         image_paths: List of paths to page images
         _rotation_attempted: Internal flag to prevent infinite rotation loops
+        pdf_path: Optional path to original PDF for deterministic text-based splitting
 
     Returns:
         Combined extraction results
@@ -2337,7 +2338,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
 
         # Re-run extraction with rotated images (with flag to prevent loops)
         logger.info(f"Re-running extraction with {len(rotated_paths)} rotated image(s)")
-        result = await extract_document_data(rotated_paths, _rotation_attempted=True)
+        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path)
 
         # Add rotation info to result
         result["rotation_applied"] = rotation_needed
@@ -2348,7 +2349,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         logger.info(f"Document classified as 'other', skipping all extraction and detection")
         return {
             "doc_type": "other",
-            "category": "other", 
+            "category": "other",
             "document_confidence": classification.get("confidence", "high"),
             "classification_model": CONFIG.CLAUDE_MODEL,
             "classification_scores": classification.get("scores", {}),
@@ -2356,7 +2357,61 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             "skip_extraction": True,
             "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
         }
-    
+
+    # Step 1.7: For Division Orders, try deterministic text-based splitting first
+    # This is more reliable than AI-based detection for standardized forms
+    doc_type = classification.get("doc_type")
+    if doc_type == "division_order" and pdf_path and len(image_paths) > 1:
+        logger.info("Division Order detected - attempting deterministic text-based splitting")
+        try:
+            from .splitters import DivisionOrderSplitter
+            splitter = DivisionOrderSplitter()
+            text_by_page = splitter.extract_text_from_pdf(pdf_path)
+
+            if text_by_page:
+                split_result = splitter.split(text_by_page)
+
+                if split_result.success and split_result.document_count > 1:
+                    logger.info(f"Deterministic splitter found {split_result.document_count} Division Orders: {split_result.page_ranges}")
+
+                    # Process each document
+                    results = {
+                        "is_multi_document": True,
+                        "document_count": split_result.document_count,
+                        "split_method": "deterministic_text_patterns",
+                        "documents": []
+                    }
+
+                    for i, (start_page, end_page) in enumerate(split_result.page_ranges):
+                        logger.info(f"Extracting Division Order {i + 1} from pages {start_page}-{end_page}")
+
+                        doc_data = await extract_single_document(
+                            image_paths,
+                            start_page,
+                            end_page
+                        )
+
+                        # Add document boundaries and metadata
+                        doc_data["_start_page"] = start_page
+                        doc_data["_end_page"] = end_page
+                        if split_result.document_metadata and i < len(split_result.document_metadata):
+                            doc_data["_split_metadata"] = split_result.document_metadata[i]
+
+                        results["documents"].append(doc_data)
+
+                        # Add delay between documents to avoid rate limits
+                        if i < split_result.document_count - 1:
+                            logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+                            await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+                    return results
+                else:
+                    logger.info(f"Deterministic splitter found single document: {split_result.reason}")
+        except ImportError as e:
+            logger.warning(f"Could not import splitter module: {e}. Falling back to AI detection.")
+        except Exception as e:
+            logger.warning(f"Deterministic splitting failed: {e}. Falling back to AI detection.")
+
     # Step 2: Check if classification detected multiple documents
     # The quick classification now includes multi-doc detection
     if classification.get("is_multi_document", False):
