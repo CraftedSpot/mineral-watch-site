@@ -77,24 +77,10 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         // Clean county display - remove numeric prefix
         const cleanCounty = row.county ? row.county.replace(/^\d+-/, '') : 'Unknown County';
 
-        // Try to extract full well name from OCC Map Link
-        let displayName = row.well_name || 'Unknown Well';
-        if (row.occ_map_link) {
-          try {
-            const decoded = decodeURIComponent(row.occ_map_link);
-            const titleMatch = decoded.match(/"title":"([^"]+)"/);
-            if (titleMatch && titleMatch[1]) {
-              displayName = titleMatch[1];
-            }
-          } catch (e) {
-            // Keep original well name
-          }
-        }
-
         return {
           linkId: row.link_id,
           wellId: row.well_id,
-          wellName: displayName,
+          wellName: row.well_name || 'Unknown Well',
           operator: row.operator || 'Unknown Operator',
           county: cleanCounty,
           wellStatus: row.well_status || 'AC',
