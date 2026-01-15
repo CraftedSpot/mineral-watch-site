@@ -538,13 +538,21 @@ For DRILLING PERMITS:
 }
 
 For DIVISION ORDERS:
+Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
+this is critical for verifying payments match your records.
 {
   "doc_type": "division_order",
   "owner_name": "John A. Smith",
+  "trustee_name": "Jane Smith (if owner is a trust, extract trustee name separately)",
+  "owner_address": "123 Main St, Oklahoma City, OK 73101",
   "operator_name": "XYZ Oil Company",
-  "well_name": "Smith 1-16H",
-  "effective_date": "2023-04-01",
+  "well_name": "Smith 1-16H (often labeled as Property Name)",
+  "property_number": "112295 (operator's internal property/billing ID)",
+  "billing_code": "ABC123 (operator's billing code for payment inquiries)",
+  "effective_date": "2023-04-01 (or 'First Production' if stated that way)",
   "decimal_interest": 0.00390625,
+  "working_interest": 0.00000000,
+  "royalty_interest": 0.00390625,
   "api_number": "35-051-12345",
   "legal_description": {
     "section": "16",
@@ -552,17 +560,26 @@ For DIVISION ORDERS:
     "range": "7W",
     "county": "Grady"
   },
+  "is_multi_section_unit": true,
+  "unit_sections": [
+    {"section": "16", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.6546},
+    {"section": "15", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.3454}
+  ],
+  "payment_minimum": 100.00,
   "field_scores": {
     "owner_name": 1.0,
     "operator_name": 1.0,
     "well_name": 1.0,
     "effective_date": 0.95,
     "decimal_interest": 1.0,
+    "working_interest": 1.0,
+    "royalty_interest": 1.0,
     "api_number": 0.90,
     "legal_section": 0.95,
     "legal_township": 0.95,
     "legal_range": 0.95,
-    "legal_county": 1.0
+    "legal_county": 1.0,
+    "unit_sections": 0.90
   },
   "document_confidence": "high"
 }
