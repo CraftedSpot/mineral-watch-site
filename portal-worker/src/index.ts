@@ -90,6 +90,8 @@ import {
   handleUpdateWellNotes,
   handleSearchWells,
   fetchWellDetailsFromOCC,
+  // Well link counts
+  handleGetWellLinkCounts,
   // Nearby wells handlers
   handleNearbyWells,
   handleSurroundingWells,
@@ -821,6 +823,9 @@ var index_default = {
       // Wells endpoints
       if (path === "/api/wells" && request.method === "GET") {
         return handleListWells(request, env);
+      }
+      if (path === "/api/wells/link-counts" && request.method === "GET") {
+        return handleGetWellLinkCounts(request, env);
       }
       if (path === "/api/wells" && request.method === "POST") {
         return handleAddWell(request, env, ctx);

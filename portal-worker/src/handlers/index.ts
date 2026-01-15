@@ -34,6 +34,11 @@ export {
   fetchWellDetailsFromOCC
 } from './wells.js';
 
+// Well link counts handler
+export {
+  handleGetWellLinkCounts
+} from './well-link-counts.js';
+
 // Nearby wells handlers (D1 database queries)
 export {
   handleNearbyWells,

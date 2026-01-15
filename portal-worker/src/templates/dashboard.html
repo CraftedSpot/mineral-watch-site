@@ -2150,6 +2150,12 @@
                             <option value="date-desc">Date Added</option>
                             <option value="name-asc">Well Name</option>
                             <option value="operator-asc">Operator</option>
+                            <option value="properties-desc">Properties (Most)</option>
+                            <option value="properties-asc">Properties (Least)</option>
+                            <option value="documents-desc">Documents (Most)</option>
+                            <option value="documents-asc">Documents (Least)</option>
+                            <option value="filings-desc">OCC Filings (Most)</option>
+                            <option value="filings-asc">OCC Filings (Least)</option>
                         </select>
                         <span id="wellsResultsCount" class="results-count"></span>
                     </div>
@@ -3638,11 +3644,35 @@
                 loadedWells = wells; // Store for filtering/sorting
                 document.getElementById('wellCount').textContent = wells.length;
                 updateTotalCount();
-                
-                
+
+
                 // Render the table (handles empty state internally)
                 renderWellsTable();
+
+                // Fetch link counts in background (non-blocking)
+                fetchWellLinkCounts();
             } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
+
+        // Fetch link counts and merge into loadedWells
+        async function fetchWellLinkCounts() {
+            try {
+                const res = await fetch('/api/wells/link-counts');
+                if (!res.ok) return;
+                const counts = await res.json();
+
+                // Merge counts into loadedWells
+                for (const well of loadedWells) {
+                    if (counts[well.id]) {
+                        well._linkCounts = counts[well.id];
+                    }
+                }
+
+                // Re-render with updated counts
+                renderWellsTable();
+            } catch (err) {
+                console.error('Failed to load well link counts:', err);
+            }
         }
 
         // Properties Search & Sort State
@@ -3988,8 +4018,26 @@
                     const aVal = (a.fields['Operator'] || '').toLowerCase();
                     const bVal = (b.fields['Operator'] || '').toLowerCase();
                     return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
+
+                } else if (field === 'properties') {
+                    // Linked Properties count
+                    const aCount = a._linkCounts?.properties || 0;
+                    const bCount = b._linkCounts?.properties || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'documents') {
+                    // Linked Documents count
+                    const aCount = a._linkCounts?.documents || 0;
+                    const bCount = b._linkCounts?.documents || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'filings') {
+                    // OCC Filings count
+                    const aCount = a._linkCounts?.filings || 0;
+                    const bCount = b._linkCounts?.filings || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
                 }
-                
+
                 return 0;
             });
         }
@@ -4321,10 +4369,10 @@
             const isViewer = currentUser?.role === 'Viewer';
             let html = '<table class="data-table wells-table"><colgroup>';
             if (!isViewer) html += '<col class="col-select">';
-            html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-well-map"></colgroup><thead><tr>';
+            html += '<col class="col-well-info"><col class="col-well-operator"><col class="col-links"></colgroup><thead><tr>';
             if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllWells" title="Select all"></th>';
-            html += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right; padding-right: 16px;">Actions</th></tr></thead><tbody>';
-            
+            html += '<th>Well Information</th><th>Operator Contact</th><th class="links-header">Links</th></tr></thead><tbody>';
+
             displayWells.forEach(w => {
                 const f = w.fields;
                 const wellBaseName = f['Well Name'] || '';
@@ -4337,7 +4385,7 @@
                 const apiNumber = f['API Number'] || '';
                 const status = f['Well Status'] || f['OCC Status'] || '—';
                 const wellType = f['Well Type'] || '';
-                
+
                 // Format location (county + legal)
                 const county = cleanCountyDisplay(f['County']) || '';
                 const section = f['Section'] || '';
@@ -4350,7 +4398,7 @@
                         locationDisplay += ` • ${section}-${township}-${range}`;
                     }
                 }
-                
+
                 // Format operator contact for compact view (with bold operator name)
                 let operatorContactDisplay = `<strong>${operator}</strong>`;
                 if (operatorPhone || contactPerson) {
@@ -4366,9 +4414,21 @@
                         operatorContactDisplay += ` ${contactParts.join(' • ')}`;
                     }
                 }
-                
-                        // All wells now open modal on click
-                
+
+                // Build Links column - show properties, documents, OCC filings
+                const linkCounts = w._linkCounts || { properties: 0, documents: 0, filings: 0 };
+                const propsClass = linkCounts.properties === 0 ? 'link-count zero' : 'link-count';
+                const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
+                const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
+                const totalLinks = linkCounts.properties + linkCounts.documents + linkCounts.filings;
+                const totalClass = totalLinks === 0 ? 'link-count-total zero' : 'link-count-total';
+
+                // Icons
+                const propsIcon = '<svg class="link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>';
+                const docsIcon = '<svg class="link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>';
+                const filingsIcon = '<svg class="link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v18M3 12h18M5.5 5.5l13 13M18.5 5.5l-13 13"></path></svg>';
+                const linkIcon = '<svg class="link-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path></svg>';
+
                 // Clean row that opens modal on click
                 html += `<tr class="well-row" onclick="openWellDetailsModal('${w.id}')" style="cursor: pointer;">`;
                 if (!isViewer) {
@@ -4385,8 +4445,15 @@
                         </div>
                     </td>
                     <td class="operator-contact-cell">${operatorContactDisplay}</td>
-                    <td onclick="event.stopPropagation()" style="text-align: right; padding-right: 16px;">
-                        <button class="btn-map-link" onclick="viewWellOnMap('${w.id}')" title="View on Map">📍 Map</button>
+                    <td class="links-column">
+                        <div class="links-desktop">
+                            <span class="${propsClass}" title="Linked Properties">${propsIcon}${linkCounts.properties}</span>
+                            <span class="link-separator">│</span>
+                            <span class="${docsClass}" title="Documents">${docsIcon}${linkCounts.documents}</span>
+                            <span class="link-separator">│</span>
+                            <span class="${filingsClass}" title="OCC Filings">${filingsIcon}${linkCounts.filings}</span>
+                        </div>
+                        <span class="${totalClass}" title="Total Links (Properties: ${linkCounts.properties}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${linkIcon}${totalLinks}</span>
                     </td>
                 </tr>`;
             });
