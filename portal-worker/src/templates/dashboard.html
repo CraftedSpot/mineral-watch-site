@@ -5952,6 +5952,9 @@
                     fieldLower === 'start_page' ||
                     fieldWithSpaces === 'start page' ||
                     fieldLower.includes('start_page') ||
+                    fieldLower === '_split_metadata' ||
+                    fieldLower === 'split_metadata' ||
+                    fieldLower.includes('split_metadata') ||
                     fieldWithSpaces.includes('start page') ||
                     fieldLower === 'end_page' ||
                     fieldWithSpaces === 'end page' ||
@@ -6494,10 +6497,17 @@
                             for (const [subField, subValue] of Object.entries(value)) {
                                 if (subValue !== null && subValue !== undefined && subValue !== '') {
                                     hasVisibleFields = true;
+                                    // Handle nested objects/arrays properly
+                                    let displayValue;
+                                    if (typeof subValue === 'object') {
+                                        displayValue = JSON.stringify(subValue, null, 2);
+                                    } else {
+                                        displayValue = String(subValue);
+                                    }
                                     sectionContent += `
                                         <div class="doc-field">
                                             <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
-                                            <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
+                                            <div class="doc-value">${escapeHtml(displayValue)}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
                                         </div>`;
                                 }
                             }

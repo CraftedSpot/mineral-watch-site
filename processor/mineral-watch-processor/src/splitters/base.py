@@ -162,11 +162,15 @@ class BaseSplitter(ABC):
             import pytesseract
             from PIL import Image
 
+            # PSM 6 = Assume uniform text block (better for forms)
+            # PSM 3 = Auto-detect (default, can scramble multi-column)
+            custom_config = r'--psm 6'
+
             text_by_page = []
             for i, image_path in enumerate(image_paths):
                 self.logger.debug(f"OCR processing page {i + 1}/{len(image_paths)}")
                 image = Image.open(image_path)
-                text = pytesseract.image_to_string(image)
+                text = pytesseract.image_to_string(image, config=custom_config)
                 text_by_page.append(text)
                 self.logger.debug(f"Page {i + 1}: extracted {len(text)} chars via OCR")
 
