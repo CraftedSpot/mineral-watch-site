@@ -145,3 +145,41 @@ class BaseSplitter(ABC):
         except Exception as e:
             self.logger.error(f"Failed to get page count: {e}")
             return 0
+
+    def ocr_images(self, image_paths: list[str]) -> list[str]:
+        """
+        OCR a list of images to extract text.
+
+        Used as fallback when PDF has no embedded text (scanned documents).
+
+        Args:
+            image_paths: List of paths to page images
+
+        Returns:
+            List of text strings, one per image
+        """
+        try:
+            import pytesseract
+            from PIL import Image
+
+            text_by_page = []
+            for i, image_path in enumerate(image_paths):
+                self.logger.debug(f"OCR processing page {i + 1}/{len(image_paths)}")
+                image = Image.open(image_path)
+                text = pytesseract.image_to_string(image)
+                text_by_page.append(text)
+                self.logger.debug(f"Page {i + 1}: extracted {len(text)} chars via OCR")
+
+            return text_by_page
+
+        except ImportError as e:
+            self.logger.error(f"OCR dependencies not installed: {e}")
+            return []
+        except Exception as e:
+            self.logger.error(f"OCR failed: {e}")
+            return []
+
+    def is_text_empty(self, text_by_page: list[str], min_chars: int = 50) -> bool:
+        """Check if extracted text is effectively empty (scanned PDF)."""
+        total_chars = sum(len(page.strip()) for page in text_by_page)
+        return total_chars < min_chars
