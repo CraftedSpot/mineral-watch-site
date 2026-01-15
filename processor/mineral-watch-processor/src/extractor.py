@@ -5,12 +5,151 @@ import base64
 import json
 import logging
 import asyncio
+import re
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 from .config import CONFIG
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# NAME NORMALIZATION FOR CHAIN OF TITLE
+# ============================================================================
+
+def normalize_party_name(name: str) -> str:
+    """
+    Normalize a party name for chain of title matching.
+
+    Rules:
+    - Convert to uppercase
+    - Format individuals as "LAST, FIRST MIDDLE"
+    - Remove titles (Mr., Mrs., Dr., etc.)
+    - Standardize suffixes (Jr., Sr., III, etc.)
+    - Standardize corporate suffixes (LLC, Inc., etc.)
+    - Preserve maiden names in parentheses
+
+    Args:
+        name: Raw name string from document
+
+    Returns:
+        Normalized name string for matching
+    """
+    if not name:
+        return ""
+
+    name = str(name).strip()
+    if not name:
+        return ""
+
+    # Convert to uppercase for consistency
+    name = name.upper()
+
+    # Remove common titles
+    titles = [
+        r'\bMR\.?\s*', r'\bMRS\.?\s*', r'\bMS\.?\s*', r'\bMISS\s+',
+        r'\bDR\.?\s*', r'\bREV\.?\s*', r'\bHON\.?\s*'
+    ]
+    for title in titles:
+        name = re.sub(title, '', name, flags=re.IGNORECASE)
+
+    # Standardize suffixes
+    suffix_map = {
+        r'\bJUNIOR\b': 'JR',
+        r'\bJR\.?\b': 'JR',
+        r'\bSENIOR\b': 'SR',
+        r'\bSR\.?\b': 'SR',
+        r'\bII\b': 'II',
+        r'\bIII\b': 'III',
+        r'\bIV\b': 'IV',
+    }
+
+    suffix_found = None
+    for pattern, replacement in suffix_map.items():
+        if re.search(pattern, name):
+            suffix_found = replacement
+            name = re.sub(pattern, '', name)
+            break
+
+    # Check if this is a company/entity (not an individual)
+    company_indicators = [
+        r'\bLLC\b', r'\bL\.L\.C\.?\b', r'\bLIMITED LIABILITY\b',
+        r'\bINC\.?\b', r'\bINCORPORATED\b',
+        r'\bCORP\.?\b', r'\bCORPORATION\b',
+        r'\bCO\.?\b', r'\bCOMPANY\b',
+        r'\bLTD\.?\b', r'\bLIMITED\b',
+        r'\bLP\b', r'\bL\.P\.?\b', r'\bLIMITED PARTNERSHIP\b',
+        r'\bLLP\b', r'\bL\.L\.P\.?\b',
+        r'\bTRUST\b', r'\bESTATE\b', r'\bESTATE OF\b',
+        r'\bPARTNERS\b', r'\bPARTNERSHIP\b',
+        r'\bASSOCIATES\b', r'\bGROUP\b', r'\bHOLDINGS\b',
+        r'\bENERGY\b', r'\bRESOURCES\b', r'\bOIL\b', r'\bGAS\b',
+        r'\bPETROLEUM\b', r'\bOPERATING\b', r'\bPRODUCTION\b',
+        r'\b&\b', r'\bAND\b'
+    ]
+
+    is_company = any(re.search(pattern, name) for pattern in company_indicators)
+
+    if is_company:
+        # For companies, standardize common suffixes and clean up
+        name = re.sub(r'\bL\.L\.C\.?\b', 'LLC', name)
+        name = re.sub(r'\bLIMITED LIABILITY COMPANY\b', 'LLC', name)
+        name = re.sub(r'\bINCORPORATED\b', 'INC', name)
+        name = re.sub(r'\bCORPORATION\b', 'CORP', name)
+        name = re.sub(r'\bLIMITED PARTNERSHIP\b', 'LP', name)
+        name = re.sub(r'\bL\.P\.?\b', 'LP', name)
+        name = re.sub(r'\bL\.L\.P\.?\b', 'LLP', name)
+        name = re.sub(r'\bCOMPANY\b', 'CO', name)
+        name = re.sub(r'\bLIMITED\b', 'LTD', name)
+        # Clean up extra spaces and punctuation
+        name = re.sub(r'\s+', ' ', name).strip()
+        name = re.sub(r'\s*,\s*', ', ', name)
+        return name
+
+    # For individuals, convert to "LAST, FIRST MIDDLE" format
+    # Clean up the name first
+    name = re.sub(r'\s+', ' ', name).strip()
+    name = name.replace(',', ' ')  # Remove any existing commas
+    name = re.sub(r'\s+', ' ', name).strip()
+
+    parts = name.split()
+
+    if len(parts) == 0:
+        return ""
+    elif len(parts) == 1:
+        # Just a last name
+        result = parts[0]
+    elif len(parts) == 2:
+        # First Last -> LAST, FIRST
+        result = f"{parts[1]}, {parts[0]}"
+    else:
+        # First Middle Last -> LAST, FIRST MIDDLE
+        # Or First Middle Middle Last -> LAST, FIRST MIDDLE MIDDLE
+        last = parts[-1]
+        first_and_middle = ' '.join(parts[:-1])
+        result = f"{last}, {first_and_middle}"
+
+    # Add suffix back if found
+    if suffix_found:
+        result = f"{result} {suffix_found}"
+
+    return result
+
+
+def normalize_party_names(names: List[str]) -> List[str]:
+    """
+    Normalize a list of party names.
+
+    Args:
+        names: List of raw name strings
+
+    Returns:
+        List of normalized name strings
+    """
+    if not names:
+        return []
+    return [normalize_party_name(name) for name in names if name]
 
 # Initialize Anthropic client
 client = anthropic.Anthropic(api_key=CONFIG.ANTHROPIC_API_KEY)
@@ -1008,17 +1147,31 @@ Extract the EXACT footage from each boundary line - this is critical for underst
 }
 
 For AFFIDAVIT OF HEIRSHIP (sworn statement identifying heirs of deceased mineral owner):
-NOTE: These documents establish who inherits mineral rights when someone dies. Critical for title chains.
-Extract decedent info, property description, and complete list of heirs with their relationships.
+NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
+This document establishes who inherits mineral rights when someone dies - it is a critical link in the ownership chain.
+Focus on extracting exactly what THIS document states about ownership succession. Do not infer or construct
+the broader chain - only extract what is explicitly stated in this document.
+
+CHAIN OF TITLE EXTRACTION:
+For chain of title purposes, the decedent is the "grantor" (ownership passes FROM them) and
+the heirs are the "grantees" (ownership passes TO them). Extract normalized names for future matching.
+Also extract any references to prior instruments that show how the decedent acquired the property.
 
 {
   "doc_type": "affidavit_of_heirship",
   "decedent": {
     "name": "John Henry Smith",
     "date_of_death": "2023-05-15",
+    "date_of_birth": "1941-03-22",
     "age_at_death": 82,
     "place_of_death": {
       "facility": "St. Mary's Hospital",
+      "county": "Oklahoma",
+      "state": "Oklahoma"
+    },
+    "residence_at_death": {
+      "address": "456 Oak Street",
+      "city": "Oklahoma City",
       "county": "Oklahoma",
       "state": "Oklahoma"
     }
@@ -1039,13 +1192,20 @@ Extract decedent info, property description, and complete list of heirs with the
   "property_acquisition": {
     "when_acquired": "1965",
     "acquired_from": "Estate of William Smith",
-    "how_acquired": "inheritance"
+    "how_acquired": "inheritance",
+    "prior_instrument_reference": {
+      "book": "198",
+      "page": "45",
+      "instrument_number": null,
+      "description": "Deed from Estate of William Smith"
+    }
   },
   "will_and_probate": {
     "has_will": true,
     "will_probated": true,
     "probate_county": "Oklahoma",
     "probate_state": "Oklahoma",
+    "probate_case_number": "PB-2023-1234",
     "probate_date": "2023-07-20",
     "executor_name": "Mary Jane Smith",
     "executor_address": "123 Main Street, Oklahoma City, OK 73102"
@@ -1054,6 +1214,7 @@ Extract decedent info, property description, and complete list of heirs with the
     {
       "name": "Sarah Mae Smith",
       "marriage_date": "1962-06-15",
+      "marriage_county": "Oklahoma",
       "status": "deceased",
       "death_date": "2020-03-10",
       "divorce_info": null
@@ -1084,12 +1245,14 @@ Extract decedent info, property description, and complete list of heirs with the
     {
       "name": "Mary Jane Smith",
       "relationship": "daughter",
-      "estimated_share": "50%"
+      "estimated_share": "50%",
+      "share_decimal": 0.50
     },
     {
       "name": "James William Smith",
       "relationship": "son",
-      "estimated_share": "50%"
+      "estimated_share": "50%",
+      "share_decimal": 0.50
     }
   ],
   "unpaid_debts": {
@@ -1109,6 +1272,50 @@ Extract decedent info, property description, and complete list of heirs with the
     "recording_date": "2023-08-05",
     "recording_county": "Grady"
   },
+  "chain_of_title": {
+    "relevant": true,
+    "category": "probate",
+    "document_type": "affidavit_of_heirship",
+    "parties": {
+      "grantor": ["John Henry Smith"],
+      "grantor_normalized": ["SMITH, JOHN HENRY"],
+      "grantor_type": "individual_deceased",
+      "grantee": ["Mary Jane Smith", "James William Smith"],
+      "grantee_normalized": ["SMITH, MARY JANE", "SMITH, JAMES WILLIAM"],
+      "grantee_type": "individuals"
+    },
+    "interest": {
+      "type": "mineral",
+      "fraction_text": "all mineral interest owned by decedent",
+      "creates_fractional": true,
+      "heir_shares": [
+        {"heir": "Mary Jane Smith", "share_decimal": 0.50},
+        {"heir": "James William Smith", "share_decimal": 0.50}
+      ]
+    },
+    "dates": {
+      "document_date": "2023-08-01",
+      "recording_date": "2023-08-05",
+      "effective_date": "2023-05-15",
+      "date_of_death": "2023-05-15"
+    },
+    "recording": {
+      "county": "Grady",
+      "book": "1234",
+      "page": "567",
+      "instrument_number": "2023-045678"
+    },
+    "chain_links": {
+      "references_prior": [
+        {
+          "book": "198",
+          "page": "45",
+          "description": "Deed showing how decedent acquired property"
+        }
+      ],
+      "probate_case": "PB-2023-1234"
+    }
+  },
   "field_scores": {
     "decedent_name": 1.0,
     "decedent_death_date": 0.95,
@@ -1122,7 +1329,8 @@ Extract decedent info, property description, and complete list of heirs with the
     "spouses": 0.85,
     "children_living": 0.85,
     "heirs_summary": 0.80,
-    "recording_info": 0.95
+    "recording_info": 0.95,
+    "chain_of_title": 0.85
   },
   "document_confidence": "high"
 }
