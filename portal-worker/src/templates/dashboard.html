@@ -5909,36 +5909,43 @@
             for (const [field, value] of Object.entries(data)) {
                 // Skip if already processed
                 if (processedFields.has(field)) continue;
-                
+
+                // Normalize field name for comparison (handle both snake_case and spaces)
+                const fieldLower = field.toLowerCase().replace(/\s+/g, '_');
+                const fieldWithSpaces = field.toLowerCase();
+
                 // Skip confidence-related fields (various patterns)
-                const fieldLower = field.toLowerCase();
                 if (fieldLower.endsWith('_confidence') ||
-                    fieldLower.endsWith(' confidence') ||
+                    fieldWithSpaces.endsWith(' confidence') ||
                     fieldLower.includes('confidence_') ||
-                    field === 'field_scores' ||
-                    field === 'document_confidence' ||
-                    field === 'fields_needing_review' ||
-                    field === 'notes' ||
-                    field === 'doc_type' ||
+                    fieldLower === 'field_scores' ||
+                    fieldLower === 'document_confidence' ||
+                    fieldLower === 'fields_needing_review' ||
+                    fieldLower === 'notes' ||
+                    fieldLower === 'doc_type' ||
                     // Skip chain_of_title and all its sub-fields (internal data for Phase 2)
                     fieldLower.startsWith('chain_of_title') ||
-                    fieldLower.startsWith('chain of title') ||
+                    fieldWithSpaces.startsWith('chain of title') ||
+                    fieldLower.includes('chain_of_title') ||
+                    fieldWithSpaces.includes('chain of title') ||
                     // Skip reservation sub-fields (handled specially in Interest section)
-                    fieldLower.startsWith('reservation_') ||
-                    fieldLower.startsWith('reservation ') ||
+                    (fieldLower.startsWith('reservation_') && fieldLower !== 'reservation') ||
+                    (fieldWithSpaces.startsWith('reservation ') && fieldWithSpaces !== 'reservation') ||
                     // Skip internal metadata
-                    field === 'start_page' ||
-                    field === 'end_page' ||
-                    field === 'page_count' ||
-                    field === 'prior_instruments' ||
-                    field === 'property_acquisition' ||
-                    field === 'will_and_probate' ||
-                    field === 'unpaid_debts' ||
-                    field === 'inheritance_tax_status' ||
-                    field === 'notary' ||
-                    field === 'recording_info' ||
-                    field === 'adopted_stepchildren' ||
-                    field === 'grandchildren_of_predeceased') {
+                    fieldLower === 'start_page' ||
+                    fieldWithSpaces === 'start page' ||
+                    fieldLower === 'end_page' ||
+                    fieldWithSpaces === 'end page' ||
+                    fieldLower === 'page_count' ||
+                    fieldLower === 'prior_instruments' ||
+                    fieldLower === 'property_acquisition' ||
+                    fieldLower === 'will_and_probate' ||
+                    fieldLower === 'unpaid_debts' ||
+                    fieldLower === 'inheritance_tax_status' ||
+                    fieldLower === 'notary' ||
+                    fieldLower === 'recording_info' ||
+                    fieldLower === 'adopted_stepchildren' ||
+                    fieldLower === 'grandchildren_of_predeceased') {
                     continue;
                 }
                 
