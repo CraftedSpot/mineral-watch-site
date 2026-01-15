@@ -5931,20 +5931,45 @@
 
             // Key Takeaway - render prominently at the very top, outside sections
             if (data.key_takeaway) {
-                const cleanedTakeaway = String(data.key_takeaway).trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
-                content += `<div style="margin-bottom: 20px;">
-                    <div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 16px 20px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
-                        <strong style="display: block; margin-bottom: 8px; color: #15803d; font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px;">Key Takeaway</strong>
+                // Clean up formatting issues - remove random # and excessive whitespace
+                let cleanedTakeaway = String(data.key_takeaway)
+                    .trim()
+                    .replace(/^#\s*/gm, '') // Remove leading # from lines
+                    .replace(/^\s+/gm, '') // Remove leading spaces from each line
+                    .replace(/\t/g, ' ') // Replace tabs with spaces
+                    .replace(/\n{3,}/g, '\n\n'); // Collapse multiple newlines
+
+                content += `<div style="margin-bottom: 16px;">
+                    <div style="white-space: pre-wrap; line-height: 1.6; background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%); padding: 12px 16px; border-radius: 8px; border: 1px solid #86efac; font-size: 14px; color: #166534;">
+                        <strong style="display: block; margin-bottom: 6px; color: #15803d; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px;">Key Takeaway</strong>
                         ${escapeHtml(cleanedTakeaway)}
                     </div>
                 </div>`;
             }
 
+            // Detailed Analysis - render right after Key Takeaway, full width, not nested
+            if (data.ai_observations) {
+                const cleanedAnalysis = String(data.ai_observations)
+                    .trim()
+                    .replace(/^\s+/gm, '')
+                    .replace(/\t/g, ' ');
+
+                content += `<div style="margin-bottom: 20px;">
+                    <details class="detailed-analysis-block">
+                        <summary class="detailed-analysis-trigger">
+                            <span class="details-chevron">&#9654;</span>
+                            <span class="detailed-analysis-label">View Detailed Analysis</span>
+                            <span class="detailed-analysis-hint">Click to expand</span>
+                        </summary>
+                        <div class="detailed-analysis-content">${escapeHtml(cleanedAnalysis)}</div>
+                    </details>
+                </div>`;
+            }
+
             const groupedFields = groupFieldsBySection(data);
 
-            // Define section order
+            // Define section order (Key Takeaway and Detailed Analysis rendered above, not in sections)
             const sectionOrder = [
-                'Detailed Analysis',
                 'Recording Information',
                 'Execution Details',
                 'Legal Description',
