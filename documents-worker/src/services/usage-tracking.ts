@@ -348,7 +348,10 @@ export class UsageTrackingService {
     const billingPeriod = getCurrentBillingPeriod();
 
     // Determine if this costs a credit
-    const costsCredit = !(docType === 'other' && skipExtraction);
+    // Skip credits for:
+    // - "other" docs with skip_extraction (classified but not extracted)
+    // - "multi_document" parents with skip_extraction (children will be charged instead)
+    const costsCredit = !skipExtraction;
     let creditDeducted = false;
 
     if (costsCredit) {
@@ -516,7 +519,8 @@ export class UsageTrackingService {
     // userPlan is not available here, so we can't do proper bucket tracking
     // This method should be deprecated in favor of trackDocumentProcessed
     const billingPeriod = getCurrentBillingPeriod();
-    const creditsUsed = (docType === 'other' && skipExtraction) ? 0 : 1;
+    // Skip credits when skipExtraction is true (multi_document parents, "other" docs without extraction)
+    const creditsUsed = skipExtraction ? 0 : 1;
 
     // Ensure usage record exists
     await this.db.prepare(`
