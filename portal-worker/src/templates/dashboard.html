@@ -10829,7 +10829,59 @@
                 <p style="margin: 0; font-size: 13px; color: var(--slate-blue);">PDF, JPEG, PNG, TIFF • Max 50MB per file, up to 500 files</p>
                 <input type="file" id="documentFileInput" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" multiple style="display: none;" onchange="handleDocumentFileSelect(event)">
             </div>
-            
+
+            <!-- Photo Upload Section (Mobile-Friendly) -->
+            <div id="photoUploadSection" style="margin-bottom: 24px;">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                    <div style="flex: 1; height: 1px; background: var(--border);"></div>
+                    <span style="font-size: 12px; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px;">Or</span>
+                    <div style="flex: 1; height: 1px; background: var(--border);"></div>
+                </div>
+
+                <button type="button" id="photoUploadBtn" onclick="document.getElementById('photoFileInput').click()" class="photo-upload-btn">
+                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                    </svg>
+                    <span>Upload from Photos</span>
+                </button>
+                <p style="margin: 8px 0 0; font-size: 12px; color: var(--slate-blue); text-align: center;">
+                    Select multiple photos to combine into a single document
+                </p>
+                <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple style="display: none;" onchange="handlePhotoFileSelect(event)">
+            </div>
+
+            <!-- Photo Preview Grid -->
+            <div id="photoPreviewSection" style="display: none; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="margin: 0; font-size: 14px; color: var(--oil-navy);">
+                        <span id="photoCount">0</span> Photos Selected
+                    </h4>
+                    <button type="button" onclick="clearPhotoSelection()" style="background: none; border: none; color: var(--red-dirt); cursor: pointer; font-size: 13px; font-weight: 500;">
+                        Clear All
+                    </button>
+                </div>
+                <p style="margin: 0 0 12px; font-size: 12px; color: var(--slate-blue);">
+                    Drag to reorder • Uncheck to exclude • Photos will be combined into a PDF
+                </p>
+                <div id="photoPreviewGrid" class="photo-preview-grid"></div>
+
+                <!-- Photo Upload Actions -->
+                <div id="photoUploadActions" style="margin-top: 16px; display: flex; gap: 12px;">
+                    <button type="button" onclick="document.getElementById('photoFileInput').click()" class="btn-secondary-action" style="flex: 1;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 6px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add More
+                    </button>
+                    <button type="button" id="combineUploadBtn" onclick="handlePhotoUpload()" class="btn-add" style="flex: 2;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 6px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        Upload <span id="uploadPageCount">0</span> Pages
+                    </button>
+                </div>
+            </div>
+
             <!-- Selected Files Display -->
             <div id="selectedFilesDisplay" style="display: none; max-height: 200px; overflow-y: auto; margin-bottom: 24px;">
                 <h4 style="margin: 0 0 12px; font-size: 14px; color: var(--oil-navy);">Selected Files:</h4>
@@ -10882,6 +10934,197 @@
 </div>
 
 <style>
+/* Photo Upload Styles - Mobile First */
+
+/* Photo upload button - prominent on mobile */
+.photo-upload-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 16px 24px;
+    background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    min-height: 56px; /* Large touch target */
+}
+
+.photo-upload-btn:hover {
+    background: linear-gradient(135deg, #047857 0%, #065f46 100%);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(5, 150, 105, 0.3);
+}
+
+.photo-upload-btn:active {
+    transform: translateY(0);
+}
+
+/* Photo preview grid */
+.photo-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 4px;
+}
+
+@media (max-width: 480px) {
+    .photo-preview-grid {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 8px;
+    }
+}
+
+/* Individual photo preview item */
+.photo-preview-item {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f3f4f6;
+    border: 2px solid var(--border);
+    cursor: grab;
+    transition: all 0.2s;
+}
+
+.photo-preview-item:hover {
+    border-color: var(--red-dirt);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.photo-preview-item.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.photo-preview-item.drag-over {
+    border-color: var(--red-dirt);
+    background: #fef3c7;
+}
+
+.photo-preview-item.excluded {
+    opacity: 0.5;
+    border-color: #d1d5db;
+}
+
+.photo-preview-item.excluded .photo-thumbnail {
+    filter: grayscale(100%);
+}
+
+/* Thumbnail image */
+.photo-thumbnail {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+/* Page number badge */
+.photo-page-number {
+    position: absolute;
+    bottom: 6px;
+    left: 6px;
+    background: rgba(0, 0, 0, 0.7);
+    color: white;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 6px;
+    border-radius: 4px;
+    min-width: 20px;
+    text-align: center;
+}
+
+/* Checkbox for include/exclude */
+.photo-checkbox {
+    position: absolute;
+    top: 6px;
+    left: 6px;
+    width: 22px;
+    height: 22px;
+    cursor: pointer;
+    accent-color: var(--red-dirt);
+}
+
+/* Remove button */
+.photo-remove-btn {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    background: rgba(220, 38, 38, 0.9);
+    border: none;
+    border-radius: 50%;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+
+.photo-preview-item:hover .photo-remove-btn {
+    opacity: 1;
+}
+
+/* Drag handle (visible on mobile) */
+.photo-drag-handle {
+    position: absolute;
+    bottom: 6px;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    cursor: grab;
+}
+
+/* Loading state for HEIC conversion */
+.photo-preview-item.loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.photo-preview-item.loading::after {
+    content: '';
+    width: 24px;
+    height: 24px;
+    border: 2px solid #e5e7eb;
+    border-top-color: var(--red-dirt);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+
+/* Progress overlay for combining/uploading */
+.photo-progress-overlay {
+    position: absolute;
+    inset: 0;
+    background: rgba(255, 255, 255, 0.9);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+}
+
+.photo-progress-text {
+    font-size: 13px;
+    color: var(--oil-navy);
+    margin-top: 8px;
+}
+
 /* Bulk Upload Modal - Redesigned Styles */
 
 /* Modal specific overrides */
