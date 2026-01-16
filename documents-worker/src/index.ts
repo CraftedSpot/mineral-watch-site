@@ -1,6 +1,7 @@
 import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
 import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
+import { PDFDocument } from 'pdf-lib';
 
 interface Env {
   WELLS_DB: D1Database;
@@ -746,7 +747,7 @@ export default {
         // Check access
         const conditions = ['user_id = ?'];
         const params = [user.id];
-        
+
         const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         if (userOrg) {
           conditions.push('organization_id = ?');
@@ -754,7 +755,7 @@ export default {
         }
 
         const query = `
-          SELECT r2_key, filename, display_name, content_type FROM documents
+          SELECT r2_key, filename, display_name, content_type, page_range_start, page_range_end FROM documents
           WHERE id = ?
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
@@ -790,7 +791,47 @@ export default {
           downloadName = downloadName + expectedExt;
         }
 
-        // Return file with appropriate headers
+        // Check if this is a child document from a split (has page range)
+        const pageStart = doc.page_range_start as number | null;
+        const pageEnd = doc.page_range_end as number | null;
+        const isPdf = contentType === 'application/pdf';
+
+        // If this is a child document with page ranges and it's a PDF, extract only those pages
+        if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1) {
+          console.log(`Extracting pages ${pageStart}-${pageEnd} for child document ${docId}`);
+          try {
+            // Load the full PDF
+            const pdfBytes = await object.arrayBuffer();
+            const fullPdf = await PDFDocument.load(pdfBytes);
+
+            // Create a new PDF with only the specific pages
+            const extractedPdf = await PDFDocument.create();
+
+            // Page indices are 0-based in pdf-lib, but our page_range is 1-based
+            const pageIndices = [];
+            for (let i = pageStart - 1; i <= pageEnd - 1 && i < fullPdf.getPageCount(); i++) {
+              pageIndices.push(i);
+            }
+
+            const copiedPages = await extractedPdf.copyPages(fullPdf, pageIndices);
+            copiedPages.forEach(page => extractedPdf.addPage(page));
+
+            const extractedBytes = await extractedPdf.save();
+
+            return new Response(extractedBytes, {
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename="${downloadName}"`,
+                ...corsHeaders(env),
+              },
+            });
+          } catch (extractError) {
+            console.error('Error extracting pages:', extractError);
+            // Fall back to returning the full PDF if extraction fails
+          }
+        }
+
+        // Return full file with appropriate headers (for non-child docs or non-PDFs)
         return new Response(object.body, {
           headers: {
             'Content-Type': contentType,
@@ -816,7 +857,7 @@ export default {
         // Same access check as download
         const conditions = ['user_id = ?'];
         const params = [user.id];
-        
+
         const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
         if (userOrg) {
           conditions.push('organization_id = ?');
@@ -824,7 +865,7 @@ export default {
         }
 
         const query = `
-          SELECT r2_key, filename, display_name, content_type FROM documents
+          SELECT r2_key, filename, display_name, content_type, page_range_start, page_range_end FROM documents
           WHERE id = ?
             AND (${conditions.join(' OR ')})
             AND deleted_at IS NULL
@@ -848,7 +889,43 @@ export default {
         // Get the correct content type (default to pdf for legacy docs)
         const contentType = doc.content_type || 'application/pdf';
 
-        // Return file for inline viewing
+        // Check if this is a child document from a split (has page range)
+        const pageStart = doc.page_range_start as number | null;
+        const pageEnd = doc.page_range_end as number | null;
+        const isPdf = contentType === 'application/pdf';
+
+        // If this is a child document with page ranges and it's a PDF, extract only those pages
+        if (isPdf && pageStart !== null && pageEnd !== null && pageStart >= 1) {
+          console.log(`Extracting pages ${pageStart}-${pageEnd} for viewing child document ${docId}`);
+          try {
+            const pdfBytes = await object.arrayBuffer();
+            const fullPdf = await PDFDocument.load(pdfBytes);
+
+            const extractedPdf = await PDFDocument.create();
+            const pageIndices = [];
+            for (let i = pageStart - 1; i <= pageEnd - 1 && i < fullPdf.getPageCount(); i++) {
+              pageIndices.push(i);
+            }
+
+            const copiedPages = await extractedPdf.copyPages(fullPdf, pageIndices);
+            copiedPages.forEach(page => extractedPdf.addPage(page));
+
+            const extractedBytes = await extractedPdf.save();
+
+            return new Response(extractedBytes, {
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `inline; filename="${viewName}"`,
+                ...corsHeaders(env),
+              },
+            });
+          } catch (extractError) {
+            console.error('Error extracting pages for view:', extractError);
+            // Fall back to returning the full PDF if extraction fails
+          }
+        }
+
+        // Return full file for inline viewing (for non-child docs or non-PDFs)
         return new Response(object.body, {
           headers: {
             'Content-Type': contentType,
