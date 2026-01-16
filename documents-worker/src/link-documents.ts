@@ -191,8 +191,20 @@ export async function linkDocumentToEntities(
     console.log(`[LinkDocuments] Found ${unitSections.length} unit_sections to check`);
     for (const unit of unitSections) {
       const unitSection = normalizeSection(getValue(unit.section));
-      const unitTownship = normalizeTownship(getValue(unit.township));
-      const unitRange = normalizeRange(getValue(unit.range));
+      let unitTownship = normalizeTownship(getValue(unit.township));
+      let unitRange = normalizeRange(getValue(unit.range));
+
+      // FALLBACK: If unit section has no township/range, inherit from primary
+      if (unitSection && (!unitTownship || !unitRange)) {
+        if (!unitTownship && township) {
+          unitTownship = township;
+          console.log(`[LinkDocuments] Unit section ${unitSection} missing township, inheriting: ${township}`);
+        }
+        if (!unitRange && range) {
+          unitRange = range;
+          console.log(`[LinkDocuments] Unit section ${unitSection} missing range, inheriting: ${range}`);
+        }
+      }
 
       if (unitSection && unitTownship && unitRange) {
         // Avoid duplicates

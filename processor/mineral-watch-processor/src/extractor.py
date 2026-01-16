@@ -310,6 +310,24 @@ CRITICAL EXTRACTION RULES:
 9. Look for any amendment or correction references
 10. Always format dates as "YYYY-MM-DD" if possible
 
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system for land descriptions.
+When you see patterns like "Section 25-T18N-R15W" or "Section 25, Township 18 North, Range 15 West":
+- SECTION is the number (1-36) within a township: "25" in the example
+- TOWNSHIP contains "N" or "S" direction: "18N" means Township 18 North (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction: "15W" means Range 15 West (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- "25" is the SECTION number, NOT the township.
+- If you extract a township like "25N" or "36N", STOP and re-check - you likely confused the section number with the township.
+- Township numbers in Oklahoma are typically 1-30. Section numbers are 1-36.
+
+SANITY CHECK for TRS:
+- If township > 30, you probably extracted the section number by mistake
+- If section > 36, double-check your parsing
+- Township always ends with N or S (North/South)
+- Range always ends with E or W (East/West)
+
 DOCUMENT RECOGNITION RULES:
 - Check Stubs: Look for payment amounts, decimal interest, deductions, well/property ID, pay period, "payment advice", "royalty payment"
 - OCC Orders: Look for cause numbers (CD-XXXXXX, PUD-XXXXXX), order captions, Form numbers, "Corporation Commission", "ORDER NO."
@@ -547,6 +565,12 @@ IMPORTANT DISTINCTIONS:
 - Effective Date may be a specific date OR "First Production" - capture exactly as stated
 - If owner is a trust, extract both the trust name AND the trustee name separately
 - ALWAYS extract section/township/range at top level (use the FIRST section mentioned for property matching)
+
+FOR MULTI-SECTION UNITS (unit_sections):
+If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each section typically shares the SAME township and range.
+- Extract township/range for each section in unit_sections
+- If township/range is not explicitly stated for a secondary section, use the township/range from the primary (first) section
+- Example: If you see "Section 25-T18N-R15W has 640 acres... Section 36 has 640 acres...", Section 36 is also T18N-R15W
 {
   "doc_type": "division_order",
 
