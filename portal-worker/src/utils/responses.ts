@@ -29,8 +29,11 @@ export function jsonResponse(data: any, status = 200): Response {
  */
 export function servePage(html: string, request?: Request, env?: any): Response {
   return new Response(html, {
-    headers: { 
+    headers: {
       "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "no-cache, no-store, must-revalidate",
+      "Pragma": "no-cache",
+      "Expires": "0",
       ...SECURITY_HEADERS
     }
   });
