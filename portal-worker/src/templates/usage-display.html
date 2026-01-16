@@ -132,13 +132,7 @@
     currentUsageStats = data;
     const { usage, plan } = data;
     
-    // Don't show for Enterprise users (unlimited)
-    if (plan === 'Enterprise' || plan === 'Business') {
-      document.getElementById('documentUsageTracker').style.display = 'none';
-      return;
-    }
-    
-    // Show the tracker
+    // Show the tracker for all plans
     document.getElementById('documentUsageTracker').style.display = 'block';
     
     // Update counts
