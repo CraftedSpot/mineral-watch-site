@@ -1577,12 +1577,13 @@ export default {
           WHERE id = ?
         `).bind(parentDocId).run();
 
-        // Track usage for multi-document processing (parent gets 0 credits, children get actual credits)
+        // Track usage for multi-document processing
         try {
           if (parentDoc?.user_id) {
             const usageService = new UsageTrackingService(env.WELLS_DB);
             const userPlan = (parentDoc.user_plan as string) || 'Free';
-            // Parent is tracked with skip_extraction=true so no credits deducted
+
+            // 1. Track parent with skip_extraction=true (0 credits)
             await usageService.trackDocumentProcessed(
               parentDoc.user_id as string,
               userPlan,
@@ -1593,7 +1594,28 @@ export default {
               children.length, // childCount
               true // skip_extraction = true means no credit deducted for parent
             );
-            console.log(`[Usage] Tracked multi-document processing for user ${parentDoc.user_id}: ${children.length} child documents`);
+            console.log(`[Usage] Tracked parent multi-document ${parentDocId} (0 credits)`);
+
+            // 2. Track each child document (1 credit each)
+            for (let i = 0; i < children.length; i++) {
+              const child = children[i];
+              const childId = childIds[i];
+              const pageCount = child.page_range_end - child.page_range_start + 1;
+
+              await usageService.trackDocumentProcessed(
+                parentDoc.user_id as string,
+                userPlan,
+                childId,
+                child.doc_type || 'unknown',
+                pageCount,
+                false, // not a multi-doc parent
+                0, // no children
+                false // skip_extraction = false means credit IS deducted
+              );
+              console.log(`[Usage] Tracked child document ${childId} (${child.doc_type}, 1 credit)`);
+            }
+
+            console.log(`[Usage] Total for multi-document: ${children.length} credits for ${children.length} children`);
           }
         } catch (usageError) {
           console.error('[Usage] Failed to track multi-doc usage:', usageError);
