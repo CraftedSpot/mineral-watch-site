@@ -1632,8 +1632,25 @@
             .stat-divider {
                 display: none;
             }
-            .stat-value { 
-                font-size: 20px; 
+            .stat-value {
+                font-size: 20px;
+            }
+
+            /* Mobile: Collapse stats card when no alerts */
+            .stats-card.no-alerts {
+                padding: 12px 20px;
+                gap: 0;
+            }
+            .stats-card.no-alerts .stat-item:not(:first-child) {
+                display: none;
+            }
+            .stats-card.no-alerts .stat-item:first-child {
+                flex-direction: row;
+                gap: 8px;
+                align-items: center;
+            }
+            .stats-card.no-alerts .stat-label {
+                margin-bottom: 0;
             }
             
             /* Activity mobile */
@@ -4858,10 +4875,12 @@
                     else lastAlertText = date.toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
                     
                     document.getElementById('statLastAlert').textContent = lastAlertText;
+                    document.getElementById('statsCard').classList.remove('no-alerts');
                 } else {
                     document.getElementById('statLastAlert').textContent = 'No alerts yet';
+                    document.getElementById('statsCard').classList.add('no-alerts');
                 }
-                
+
                 document.getElementById('statThisMonth').textContent = stats.thisMonth;
                 document.getElementById('statThisYear').textContent = stats.thisYear;
             } catch (err) {
