@@ -2529,7 +2529,7 @@
                                                 <div class="credit-row-bar rolling">
                                                     <div class="credit-row-bar-fill rolling" id="rollingBarFill"></div>
                                                 </div>
-                                                <span class="credit-row-count"><span id="rollingRemaining">0</span> remaining</span>
+                                                <span class="credit-row-count"><span id="rollingUsed">0</span> of <span id="rollingTotal">0</span></span>
                                                 <span class="credit-row-status">Roll over</span>
                                             </div>
                                         </div>
@@ -7999,16 +7999,19 @@
                 monthlyBarFill.classList.add('warning');
             }
 
-            // Update rolling row (only show if user has rolling credits)
+            // Update rolling row (only show if user has rolling credits OR has used some)
             const rollingRow = document.getElementById('rollingRow');
-            if (rollingCredits > 0) {
-                rollingRow.style.display = 'grid';
-                document.getElementById('rollingRemaining').textContent = rollingCredits.toLocaleString();
+            const rollingUsed = usage.rolling_credits_used || 0;
+            const rollingTotal = rollingCredits + rollingUsed; // Total = remaining + used
 
-                // Rolling bar - show as percentage of some reasonable max (e.g., 1000 or their amount)
+            if (rollingTotal > 0) {
+                rollingRow.style.display = 'grid';
+                document.getElementById('rollingUsed').textContent = rollingUsed.toLocaleString();
+                document.getElementById('rollingTotal').textContent = rollingTotal.toLocaleString();
+
+                // Rolling bar fills as credits are used (like monthly)
                 const rollingBarFill = document.getElementById('rollingBarFill');
-                const rollingMax = Math.max(1000, rollingCredits);
-                const rollingPercentage = Math.min(100, (rollingCredits / rollingMax) * 100);
+                const rollingPercentage = rollingTotal > 0 ? Math.min(100, (rollingUsed / rollingTotal) * 100) : 0;
                 rollingBarFill.style.width = rollingPercentage + '%';
             } else {
                 rollingRow.style.display = 'none';
