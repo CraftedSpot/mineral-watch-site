@@ -870,3 +870,280 @@ function jsonResponse(data: any, status = 200): Response {
     }
   });
 }
+
+/**
+ * Test endpoint: Probe OCC Well Records API to see if we can fetch Form 1000/1001/1002
+ * by API number using the same Laserfiche JSON API we use for case documents.
+ */
+async function handleTestWellRecords(request: Request): Promise<Response> {
+  let body: { apiNumber: string };
+
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const { apiNumber } = body;
+  if (!apiNumber) {
+    return jsonResponse({ error: 'apiNumber is required' }, 400);
+  }
+
+  const results: any = {
+    apiNumber,
+    tests: [],
+    summary: {}
+  };
+
+  try {
+    // Step 1: Get session cookies from the Well Records search page
+    console.log(`[Well Records Test] Getting cookies for API ${apiNumber}`);
+
+    const cookieJar: Map<string, string> = new Map();
+    const extractCookies = (response: Response) => {
+      const setCookieHeader = response.headers.get('set-cookie');
+      if (setCookieHeader) {
+        const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
+        for (const cookie of cookies) {
+          const match = cookie.match(/^([^=]+)=([^;]*)/);
+          if (match) {
+            cookieJar.set(match[1].trim(), match[2]);
+          }
+        }
+      }
+    };
+
+    const browserHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    };
+
+    // Try getting cookies from the OGCDWellRecords search page
+    let response = await fetch('https://public.occ.ok.gov/OGCDWellRecords/Search.aspx', {
+      method: 'GET',
+      headers: browserHeaders,
+      redirect: 'manual'
+    });
+    extractCookies(response);
+
+    // Follow redirects
+    let location = response.headers.get('location');
+    let maxRedirects = 5;
+    while (location && response.status >= 300 && response.status < 400 && maxRedirects > 0) {
+      if (!location.startsWith('http')) {
+        location = 'https://public.occ.ok.gov' + location;
+      }
+      response = await fetch(location, {
+        method: 'GET',
+        headers: {
+          ...browserHeaders,
+          'Cookie': Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ')
+        },
+        redirect: 'manual'
+      });
+      extractCookies(response);
+      location = response.headers.get('location');
+      maxRedirects--;
+    }
+
+    const cookies = Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+    results.cookiesObtained = cookies.length > 0;
+    results.cookiePreview = cookies.substring(0, 100) + '...';
+
+    // Test different search syntaxes
+    const searchVariants = [
+      {
+        name: 'OG Well Records - Simple',
+        syntax: `{[OG Well Records]:[API Number]="${apiNumber}*"}`,
+        lookin: null,
+        templateId: null,
+        referer: 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+      },
+      {
+        name: 'OilandGasWellRecordsSearch collection',
+        syntax: `{[OG Well Records]:[API Number]="${apiNumber}*"}`,
+        lookin: null,
+        templateId: null,
+        referer: 'https://public.occ.ok.gov/WebLink/CustomSearch.aspx?SearchName=OilandGasWellRecordsSearch&dbid=0&repo=OCC'
+      },
+      {
+        name: 'Form 1000 search',
+        syntax: `({[OG Well Records]:[API Number]="${apiNumber}*"} & {[OG Well Records]:[Form Number]="1000"})`,
+        lookin: null,
+        templateId: null,
+        referer: 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+      },
+      {
+        name: 'Form 1000 wildcard',
+        syntax: `({[]:[API Number]="${apiNumber}*"} & {[]:[Form Number]="1000*"})`,
+        lookin: null,
+        templateId: null,
+        referer: 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+      },
+      {
+        name: 'Intent to Drill search',
+        syntax: `({[]:[API Number]="${apiNumber}*"} & {[]:[Document Type]="Intent to Drill"})`,
+        lookin: null,
+        templateId: null,
+        referer: 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+      },
+      {
+        name: 'OG Well Records - With OGCD path',
+        syntax: `({[OG Well Records]:[API Number]="${apiNumber}*"} & {LF:LOOKIN="\\\\OGCD"})`,
+        lookin: '\\\\OGCD',
+        templateId: null,
+        referer: 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+      }
+    ];
+
+    for (const variant of searchVariants) {
+      console.log(`[Well Records Test] Testing: ${variant.name}`);
+
+      const searchPayload = {
+        repoName: 'OCC',
+        searchSyn: variant.syntax,
+        searchUuid: '',
+        sortColumn: '',
+        startIdx: 0,
+        endIdx: 20,
+        getNewListing: true,
+        sortOrder: 2,
+        displayInGridView: false
+      };
+
+      const testResult: any = {
+        name: variant.name,
+        syntax: variant.syntax,
+        status: 'pending'
+      };
+
+      try {
+        const searchResponse = await fetch('https://public.occ.ok.gov/WebLink/SearchService.aspx/GetSearchListing', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+            'Cookie': cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Origin': 'https://public.occ.ok.gov',
+            'Referer': 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+          },
+          body: JSON.stringify(searchPayload)
+        });
+
+        testResult.httpStatus = searchResponse.status;
+        const responseText = await searchResponse.text();
+        testResult.responseLength = responseText.length;
+
+        if (!searchResponse.ok) {
+          testResult.status = 'http_error';
+          testResult.errorPreview = responseText.substring(0, 300);
+        } else {
+          try {
+            const searchData = JSON.parse(responseText);
+            const data = searchData?.data || searchData?.d || searchData;
+            const searchResults = data?.results || data?.entries || [];
+
+            testResult.status = 'success';
+            testResult.totalResults = data?.totalResults ?? searchResults.length;
+            testResult.resultsReturned = searchResults.length;
+
+            if (searchResults.length > 0) {
+              // Parse first few results to see structure
+              testResult.sampleResults = searchResults.slice(0, 3).map((result: any) => {
+                const metadata: Record<string, string> = {};
+                for (const item of result.metadata || []) {
+                  if (item.name && item.values && item.values.length > 0) {
+                    metadata[item.name] = item.values[0];
+                  }
+                }
+                return {
+                  entryId: result.entryId,
+                  name: result.name,
+                  extension: result.extension,
+                  metadataFields: Object.keys(metadata),
+                  metadata
+                };
+              });
+            }
+          } catch (parseError) {
+            testResult.status = 'parse_error';
+            testResult.responsePreview = responseText.substring(0, 500);
+          }
+        }
+      } catch (fetchError) {
+        testResult.status = 'fetch_error';
+        testResult.error = fetchError instanceof Error ? fetchError.message : 'Unknown error';
+      }
+
+      results.tests.push(testResult);
+    }
+
+    // Also try the OGCDWellRecords specific endpoint if it exists
+    console.log(`[Well Records Test] Testing OGCDWellRecords specific API`);
+    try {
+      // The OGCDWellRecords site might use a different API endpoint
+      const ogcdResponse = await fetch('https://public.occ.ok.gov/OGCDWellRecords/SearchService.aspx/GetSearchListing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json',
+          'Cookie': cookies,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          'Origin': 'https://public.occ.ok.gov',
+          'Referer': 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx'
+        },
+        body: JSON.stringify({
+          repoName: 'OCC',
+          searchSyn: `{[OG Well Records]:[API Number]="${apiNumber}*"}`,
+          searchUuid: '',
+          sortColumn: '',
+          startIdx: 0,
+          endIdx: 20,
+          getNewListing: true,
+          sortOrder: 2,
+          displayInGridView: false
+        })
+      });
+
+      results.tests.push({
+        name: 'OGCDWellRecords endpoint',
+        endpoint: '/OGCDWellRecords/SearchService.aspx/GetSearchListing',
+        httpStatus: ogcdResponse.status,
+        responseLength: (await ogcdResponse.text()).length,
+        note: ogcdResponse.ok ? 'Endpoint exists!' : 'Endpoint may not exist or requires different params'
+      });
+    } catch (e) {
+      results.tests.push({
+        name: 'OGCDWellRecords endpoint',
+        status: 'error',
+        error: e instanceof Error ? e.message : 'Unknown error'
+      });
+    }
+
+    // Summary
+    const successfulTests = results.tests.filter((t: any) => t.status === 'success' && t.resultsReturned > 0);
+    results.summary = {
+      totalTests: results.tests.length,
+      successful: successfulTests.length,
+      bestResult: successfulTests.length > 0
+        ? successfulTests.reduce((best: any, current: any) =>
+            (current.resultsReturned || 0) > (best.resultsReturned || 0) ? current : best
+          )
+        : null,
+      recommendation: successfulTests.length > 0
+        ? 'API search works! Can implement automated PDF fetch.'
+        : 'No successful searches. May need different approach or manual inspection.'
+    };
+
+    return jsonResponse(results);
+
+  } catch (error) {
+    console.error(`[Well Records Test] Error:`, error);
+    return jsonResponse({
+      ...results,
+      error: 'Test failed',
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
