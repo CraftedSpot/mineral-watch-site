@@ -40,6 +40,11 @@ export default {
       return handleSearchCase(request, env);
     }
 
+    // Test endpoint: Probe well records API
+    if (url.pathname === '/test-well-records') {
+      return handleTestWellRecords(request);
+    }
+
     return jsonResponse({ error: 'Not found' }, 404);
   }
 };
