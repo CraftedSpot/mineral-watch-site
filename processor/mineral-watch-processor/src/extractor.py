@@ -956,6 +956,12 @@ Look for "MULTI-UNIT HORIZONTAL WELL", "HORIZONTAL WELL ORDER", "LOCATION EXCEPT
 Extract allocation percentages for each section/unit. Capture ALL available details including protests, attorneys, and special provisions.
 IMPORTANT: Include ALL section locations in legal_description.sections array for property matching.
 
+FOR MULTI-SECTION UNITS (unit_sections):
+If a unit spans multiple sections (e.g., "Section 5...Section 8..."), each section typically shares the SAME township and range.
+- Extract township/range for each section in unit_sections
+- If township/range is not explicitly stated for a secondary section, use the township/range from the primary (first) section
+- Example: If you see "Section 5-T17N-R17W... Section 8...", Section 8 is also T17N-R17W
+
 {
   "doc_type": "multi_unit_horizontal_order",
   "case_number": "CD2023-001823-T",
