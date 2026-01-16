@@ -8049,8 +8049,9 @@
                 }
             }
 
-            // Update total in tooltip
-            document.getElementById('tooltipTotalAvailable').textContent = usage.total_available || 0;
+            // Update total in tooltip (if element exists)
+            const tooltipTotalAvailable = document.getElementById('tooltipTotalAvailable');
+            if (tooltipTotalAvailable) tooltipTotalAvailable.textContent = usage.total_available || 0;
 
             // Show low credit warning if below 20% or out of credits
             showLowCreditWarning(usage, isLifetimeTier);
