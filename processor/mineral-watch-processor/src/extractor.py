@@ -609,11 +609,13 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
   "owner_name": "John A. Smith Family Trust (the mineral owner - may be individual or trust name)",
   "trustee_name": "John A. Smith, Trustee (if owner is a trust, extract trustee separately)",
   "owner_address": "123 Main St, Oklahoma City, OK 73101",
+  "owner_number": "PRI38 (if shown - operator's internal owner/interest ID like PR16, PRI38, etc.)",
 
   "working_interest": 0.00000000,
   "royalty_interest": 0.00390625,
   "decimal_interest": 0.00390625,
   "ownership_type": "royalty (or 'working' if working_interest > 0)",
+  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, etc.)",
 
   "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
   "payment_minimum": 100.00,
@@ -2143,9 +2145,9 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         content = await process_image_batch(doc_pages, f"all {total_pages} pages")
         content.append({
             "type": "text",
-            "text": EXTRACTION_PROMPT
+            "text": get_extraction_prompt()
         })
-        
+
         # Call Claude for extraction with retry logic
         async def make_extraction_call():
             return client.messages.create(
@@ -2253,7 +2255,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             # First batch - full extraction
             content.append({
                 "type": "text",
-                "text": EXTRACTION_PROMPT
+                "text": get_extraction_prompt()
             })
         else:
             # Subsequent batches - look for additional/missing info

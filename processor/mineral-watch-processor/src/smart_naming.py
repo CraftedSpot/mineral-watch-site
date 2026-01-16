@@ -395,7 +395,11 @@ def name_lease(data: Dict[str, Any]) -> str:
 
 
 def name_division_order(data: Dict[str, Any]) -> str:
-    """Division Order - {Property/Well Name} - {Operator} - {Year}"""
+    """Division Order - {Well Name} - {Operator} - {Interest Type} - {Owner Abbrev or Owner#}
+
+    Pattern: Division Order - FRANKS A 1-35 - REDLINE - WI - PO&G
+    This helps differentiate similar documents for the same well with different owners/interest types.
+    """
     parts = ["Division Order"]
 
     # Check property_name first (new schema), then well_name (legacy)
@@ -413,10 +417,89 @@ def name_division_order(data: Dict[str, Any]) -> str:
             county = f"{county} County"
         parts.append(county)
 
-    if data.get('year'):
-        parts.append(str(data['year']))
+    # Add interest type abbreviation
+    interest_type = data.get('interest_type') or data.get('ownership_type')
+    if interest_type:
+        interest_type_str = str(interest_type).lower()
+        if 'working' in interest_type_str or interest_type_str == 'wi':
+            parts.append("WI")
+        elif 'override' in interest_type_str or 'orri' in interest_type_str:
+            parts.append("Override")
+        elif 'royalty' in interest_type_str:
+            parts.append("Royalty")
+        else:
+            # Use first word if unknown type
+            parts.append(str(interest_type).split()[0][:10])
+
+    # Add owner number or abbreviated owner name
+    owner_number = data.get('owner_number')
+    if owner_number:
+        parts.append(str(owner_number))
+    else:
+        # Try to create an abbreviation from owner name
+        owner_name = data.get('owner_name')
+        if owner_name:
+            # Create abbreviation: take initials of key words
+            owner_abbrev = _create_owner_abbreviation(str(owner_name))
+            if owner_abbrev:
+                parts.append(owner_abbrev)
 
     return " - ".join(parts)
+
+
+def _create_owner_abbreviation(owner_name: str) -> str:
+    """Create a short abbreviation from owner name for display.
+
+    Examples:
+    - "Price Oil & Gas Co Ltd" -> "PO&G"
+    - "Price Royalty Co Ltd Partnership" -> "PRC"
+    - "John A. Smith Family Trust" -> "Smith"
+    """
+    if not owner_name:
+        return ""
+
+    name = owner_name.strip()
+
+    # Common suffixes to ignore
+    suffixes = ['ltd', 'llc', 'inc', 'corp', 'co', 'company', 'partnership', 'lp', 'llp', 'trust', 'estate']
+
+    # Check for "Oil & Gas" or "O&G" pattern - keep as abbreviation
+    if 'oil & gas' in name.lower() or 'oil and gas' in name.lower():
+        words = name.split()
+        initials = []
+        for word in words:
+            word_lower = word.lower().rstrip('.,')
+            if word_lower in suffixes:
+                continue
+            if word == '&' or word.lower() == 'and':
+                initials.append('&')
+            elif word_lower in ['oil', 'gas']:
+                initials.append(word[0].upper())
+            elif word[0].isalpha():
+                initials.append(word[0].upper())
+        return ''.join(initials)[:6]
+
+    # For trusts, try to extract the family name
+    if 'trust' in name.lower():
+        # Look for pattern like "Smith Family Trust" or "John Smith Trust"
+        words = [w for w in name.split() if w.lower() not in ['family', 'trust', 'revocable', 'irrevocable', 'living']]
+        if words:
+            # Take the last "name-like" word (skip Jr, Sr, III, etc.)
+            for word in reversed(words):
+                if word[0].isupper() and len(word) > 2 and word.lower() not in suffixes:
+                    return word[:8]
+
+    # Default: take initials of first few significant words
+    words = name.split()
+    initials = []
+    for word in words[:4]:
+        word_clean = word.rstrip('.,')
+        if word_clean.lower() in suffixes:
+            continue
+        if word_clean[0].isalpha():
+            initials.append(word_clean[0].upper())
+
+    return ''.join(initials)[:5] if initials else ""
 
 
 def name_assignment(data: Dict[str, Any]) -> str:
