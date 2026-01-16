@@ -7035,15 +7035,16 @@
 
                     // Show all linked properties
                     if (hasLinkedProps) {
-                        content += `<div class="doc-field"><label>Properties (${doc.linked_properties.length})</label><div class="doc-value" style="display: flex; flex-direction: column; gap: 8px;">`;
+                        content += `<div class="doc-field" style="flex-direction: column; align-items: stretch;"><label style="margin-bottom: 8px;">Properties (${doc.linked_properties.length})</label><div class="doc-value" style="text-align: left;">`;
                         for (const prop of doc.linked_properties) {
+                            // Build location string without group (group shown separately)
+                            const meridianSuffix = prop.meridian ? `-${prop.meridian}` : '';
+                            const locationStr = `S${prop.section}-T${prop.township}-R${prop.range}${meridianSuffix} (${prop.county})`;
                             content += `
-                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #E5E7EB;">
-                                    <span style="color: #1E40AF; font-weight: 500; font-size: 13px;">${escapeHtml(prop.name)}</span>
-                                    <button onclick="openPropertyFromDocument('${prop.id}')"
-                                            style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
-                                        View →
-                                    </button>
+                                <div class="linked-property-card">
+                                    <div class="property-location">${escapeHtml(locationStr)}</div>
+                                    ${prop.group_name ? `<div class="property-group">${escapeHtml(prop.group_name)}</div>` : ''}
+                                    <button class="view-btn" onclick="openPropertyFromDocument('${prop.id}')">View →</button>
                                 </div>`;
                         }
                         content += '</div></div>';
