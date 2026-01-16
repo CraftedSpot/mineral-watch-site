@@ -2536,7 +2536,7 @@
                                                 <div class="credit-row-bar">
                                                     <div class="credit-row-bar-fill" id="monthlyBarFill"></div>
                                                 </div>
-                                                <span class="credit-row-count"><span id="monthlyUsed">0</span> of <span id="monthlyLimit">100</span></span>
+                                                <span class="credit-row-count"><span id="monthlyRemaining">0</span> remaining</span>
                                                 <span class="credit-row-status" id="monthlyStatus">Resets --</span>
                                             </div>
                                             <!-- Rolling row (only shown if user has rolling credits) -->
@@ -2545,7 +2545,7 @@
                                                 <div class="credit-row-bar rolling">
                                                     <div class="credit-row-bar-fill rolling" id="rollingBarFill"></div>
                                                 </div>
-                                                <span class="credit-row-count"><span id="rollingUsed">0</span> of <span id="rollingTotal">0</span></span>
+                                                <span class="credit-row-count"><span id="rollingRemaining">0</span> remaining</span>
                                                 <span class="credit-row-status">Roll over</span>
                                             </div>
                                         </div>
@@ -7997,17 +7997,16 @@
             const resetDate = new Date(usage.reset_date);
             const resetDateStr = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-            // Update monthly row
-            document.getElementById('monthlyUsed').textContent = monthlyUsed;
-            document.getElementById('monthlyLimit').textContent = monthlyLimit;
+            // Update monthly row - show remaining
+            document.getElementById('monthlyRemaining').textContent = monthlyRemaining;
             document.getElementById('monthlyStatus').textContent = isLifetimeTier ? 'Lifetime' : `Resets ${resetDateStr}`;
 
-            // Update monthly progress bar
+            // Update monthly progress bar - bar depletes as credits are used
             const monthlyBarFill = document.getElementById('monthlyBarFill');
-            const monthlyPercentage = monthlyLimit > 0 ? Math.min(100, (monthlyUsed / monthlyLimit) * 100) : 0;
+            const monthlyPercentage = monthlyLimit > 0 ? Math.min(100, (monthlyRemaining / monthlyLimit) * 100) : 0;
             monthlyBarFill.style.width = monthlyPercentage + '%';
 
-            // Color coding for monthly bar
+            // Color coding for monthly bar (when low)
             monthlyBarFill.classList.remove('warning', 'danger');
             if (monthlyRemaining === 0) {
                 monthlyBarFill.classList.add('danger');
@@ -8015,20 +8014,15 @@
                 monthlyBarFill.classList.add('warning');
             }
 
-            // Update rolling row (only show if user has rolling credits OR has used some)
+            // Update rolling row (only show if user has rolling credits)
             const rollingRow = document.getElementById('rollingRow');
-            const rollingUsed = usage.rolling_credits_used || 0;
-            const rollingTotal = rollingCredits + rollingUsed; // Total = remaining + used
-
-            if (rollingTotal > 0) {
+            if (rollingCredits > 0) {
                 rollingRow.style.display = 'grid';
-                document.getElementById('rollingUsed').textContent = rollingUsed.toLocaleString();
-                document.getElementById('rollingTotal').textContent = rollingTotal.toLocaleString();
+                document.getElementById('rollingRemaining').textContent = rollingCredits.toLocaleString();
 
-                // Rolling bar fills as credits are used (like monthly)
+                // Rolling bar - always full since we show remaining (depletes as used)
                 const rollingBarFill = document.getElementById('rollingBarFill');
-                const rollingPercentage = rollingTotal > 0 ? Math.min(100, (rollingUsed / rollingTotal) * 100) : 0;
-                rollingBarFill.style.width = rollingPercentage + '%';
+                rollingBarFill.style.width = '100%';
             } else {
                 rollingRow.style.display = 'none';
             }
