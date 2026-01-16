@@ -167,3 +167,9 @@ export {
   handleCheckOtcFilesBatch,
   handleRecordOtcFile
 } from './otc-file-sync.js';
+
+// OTC production upload handlers
+export {
+  handleUploadProductionData,
+  handleGetProductionStats
+} from './otc-production-upload.js';

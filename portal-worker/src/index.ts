@@ -148,7 +148,10 @@ import {
   handleGetOtcSyncFiles,
   handleCheckOtcFile,
   handleCheckOtcFilesBatch,
-  handleRecordOtcFile
+  handleRecordOtcFile,
+  // OTC production upload handlers
+  handleUploadProductionData,
+  handleGetProductionStats
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -979,6 +982,12 @@ var index_default = {
       }
       if (path === "/api/otc-sync/record" && request.method === "POST") {
         return handleRecordOtcFile(request, env);
+      }
+      if (path === "/api/otc-sync/upload-production" && request.method === "POST") {
+        return handleUploadProductionData(request, env);
+      }
+      if (path === "/api/otc-sync/production-stats" && request.method === "GET") {
+        return handleGetProductionStats(request, env);
       }
 
       // Formation backfill endpoints
