@@ -1402,12 +1402,25 @@
             }
             
             /* Mobile table optimization */
-            .data-table { 
+            .data-table {
                 font-size: 12px;
-            } 
-            .data-table th, .data-table td { 
+            }
+            .data-table th, .data-table td {
                 padding: 8px 6px;
                 vertical-align: top;
+            }
+
+            /* Hide Date column on mobile to make room for Status */
+            #documentsContent .data-table th:nth-child(6),
+            #documentsContent .data-table td:nth-child(6) {
+                display: none;
+            }
+
+            /* Status badge mobile sizing */
+            #documentsContent .data-table td:nth-child(5) span {
+                white-space: nowrap;
+                font-size: 10px;
+                padding: 2px 6px;
             }
             
             /* Mobile expandable cards */
@@ -8368,7 +8381,9 @@
                 html += `<td><strong>${escapeHtml(doc.display_name || doc.filename)}</strong></td>`;
                 html += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 // Check doc.county first, then fall back to extracted_data.county
-                const displayCounty = doc.county || doc.parsedExtractedData?.county;
+                // Don't show county for multi_document parents (their county is often wrong - use children's counties instead)
+                const isParentMultiDoc = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
+                const displayCounty = isParentMultiDoc ? null : (doc.county || doc.parsedExtractedData?.county);
                 html += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 html += `<td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}</span></td>`;
                 html += `<td>${uploadDate}</td>`;
@@ -10847,8 +10862,8 @@
                 <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px; opacity: 0.4;">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
                 </svg>
-                <p style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Drop files here or click to browse</p>
-                <p style="margin: 0; font-size: 13px; color: var(--slate-blue);">PDF, JPEG, PNG, TIFF • Max 50MB per file, up to 500 files</p>
+                <p id="dropZoneText" style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Drop files here or click to browse</p>
+                <p id="dropZoneSubtext" style="margin: 0; font-size: 13px; color: var(--slate-blue);">PDF, JPEG, PNG, TIFF • Max 50MB per file</p>
                 <input type="file" id="documentFileInput" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" multiple style="display: none;" onchange="handleDocumentFileSelect(event)">
             </div>
 
@@ -12828,6 +12843,13 @@ function openUploadModal() {
     const uploadBtn = document.getElementById('uploadBtn');
     if (uploadBtn) {
         uploadBtn.disabled = true;
+    }
+
+    // Update drop zone text for mobile (no drag/drop on mobile)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const dropZoneText = document.getElementById('dropZoneText');
+    if (dropZoneText) {
+        dropZoneText.textContent = isMobile ? 'Tap to select files' : 'Drop files here or click to browse';
     }
 
     // Show modal
