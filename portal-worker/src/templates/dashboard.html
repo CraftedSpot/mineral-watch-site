@@ -12930,6 +12930,7 @@ function closeUploadModal() {
     // Reset photo upload state
     selectedPhotos = [];
     document.getElementById('photoPreviewSection').style.display = 'none';
+    document.getElementById('uploadBtn').style.display = 'inline-flex';  // Show desktop upload button again
     document.getElementById('photoFileInput').value = '';
 
     // Reset form and progress display
@@ -13271,8 +13272,9 @@ async function handlePhotoFileSelect(event) {
         openUploadModal();
     }
 
-    // Show photo preview section
+    // Show photo preview section, hide the regular upload button
     document.getElementById('photoPreviewSection').style.display = 'block';
+    document.getElementById('uploadBtn').style.display = 'none';  // Hide desktop upload button when photos selected
 
     // Process each file
     for (const file of files) {
@@ -13501,6 +13503,7 @@ function removePhoto(index) {
 function clearPhotoSelection() {
     selectedPhotos = [];
     document.getElementById('photoPreviewSection').style.display = 'none';
+    document.getElementById('uploadBtn').style.display = 'inline-flex';  // Show desktop upload button again
     document.getElementById('photoFileInput').value = '';
 }
 
