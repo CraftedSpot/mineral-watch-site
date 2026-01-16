@@ -2198,18 +2198,34 @@
                 align-items: flex-start;
                 gap: 8px;
             }
-            
+
             .credit-separator:first-child {
                 display: none;
             }
-            
+
             .credit-progress-bar {
                 width: 100%;
                 max-width: 200px;
             }
-            
+
             .credit-tooltip {
                 display: none !important; /* No hover on mobile */
+            }
+
+            /* New credit display mobile */
+            .credit-heading {
+                flex-wrap: wrap;
+                gap: 4px 6px;
+            }
+
+            .credit-row {
+                grid-template-columns: 50px 80px auto auto;
+                gap: 6px;
+                font-size: 11px;
+            }
+
+            .credit-row-status {
+                font-size: 10px;
             }
         }
 
