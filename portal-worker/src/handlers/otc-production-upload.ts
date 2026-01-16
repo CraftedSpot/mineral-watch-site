@@ -68,7 +68,7 @@ export async function handleUploadProductionData(
 
       // Use INSERT OR REPLACE to handle upserts
       const statements = batch.map((record) => {
-        return env.DB.prepare(
+        return env.WELLS_DB.prepare(
           `INSERT OR REPLACE INTO county_production_monthly
            (county_number, county_name, product_code, year_month, total_volume, well_count, updated_at)
            VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`
@@ -83,7 +83,7 @@ export async function handleUploadProductionData(
       });
 
       // Execute batch
-      const results = await env.DB.batch(statements);
+      const results = await env.WELLS_DB.batch(statements);
 
       for (const result of results) {
         if (result.meta.changes > 0) {
@@ -120,7 +120,7 @@ export async function handleGetProductionStats(
 ): Promise<Response> {
   try {
     // Get overall stats
-    const statsResult = await env.DB.prepare(
+    const statsResult = await env.WELLS_DB.prepare(
       `SELECT
          COUNT(*) as total_records,
          COUNT(DISTINCT county_number) as county_count,
@@ -132,14 +132,14 @@ export async function handleGetProductionStats(
     ).first();
 
     // Get record count by product
-    const byProductResult = await env.DB.prepare(
+    const byProductResult = await env.WELLS_DB.prepare(
       `SELECT product_code, COUNT(*) as count, SUM(total_volume) as volume
        FROM county_production_monthly
        GROUP BY product_code`
     ).all();
 
     // Get latest month's data summary
-    const latestMonthResult = await env.DB.prepare(
+    const latestMonthResult = await env.WELLS_DB.prepare(
       `SELECT year_month, COUNT(*) as records,
          SUM(CASE WHEN product_code = 1 THEN total_volume ELSE 0 END) as oil_volume,
          SUM(CASE WHEN product_code = 5 THEN total_volume ELSE 0 END) as gas_volume
