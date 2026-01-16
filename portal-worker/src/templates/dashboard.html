@@ -614,7 +614,10 @@
         .status-badge.horizontal { background: #DBEAFE; color: #1E40AF; }
         .status-value { font-size: 14px; font-weight: 600; color: var(--oil-navy); }
 
-        /* Status dots for mobile document list */
+        /* Status text badge (desktop) and dots (mobile) for document list */
+        .status-text {
+            display: inline-block; /* Shown on desktop */
+        }
         .status-dot {
             display: none; /* Hidden on desktop, shown on mobile */
             width: 12px;
@@ -8536,12 +8539,15 @@
                                   doc.status === 'manual_review' ? 'Needs Review' :
                                   doc.status === 'pending' ? 'Queued' :
                                   'Processing';
-                
+
+                // Status class for dot (matches CSS)
+                const statusClass = doc.status || 'processing';
+
                 // Add pulsing animation for processing documents
-                const statusStyle = (doc.status === 'processing' || doc.status === 'pending') 
-                    ? 'animation: pulse 1.5s ease-in-out infinite;' 
+                const statusStyle = (doc.status === 'processing' || doc.status === 'pending')
+                    ? 'animation: pulse 1.5s ease-in-out infinite;'
                     : '';
-                
+
                 html += `<tr onclick="openDocumentDetail('${doc.id}')" style="cursor: pointer;">`;
                 html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="document-checkbox" data-id="${doc.id}"></td>`;
                 html += `<td><strong>${escapeHtml(doc.display_name || doc.filename)}</strong></td>`;
@@ -8551,7 +8557,11 @@
                 const isParentMultiDoc = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
                 const displayCounty = isParentMultiDoc ? null : (doc.county || doc.parsedExtractedData?.county);
                 html += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
-                html += `<td><span style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}</span></td>`;
+                // Status: text badge for desktop, dot for mobile
+                html += `<td>
+                    <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}</span>
+                    <span class="status-dot ${statusClass}" title="${statusText}"></span>
+                </td>`;
                 html += `<td>${uploadDate}</td>`;
                 html += `<td style="text-align: right;" onclick="event.stopPropagation()">
                     <div style="display: flex; gap: 8px; justify-content: flex-end;">
