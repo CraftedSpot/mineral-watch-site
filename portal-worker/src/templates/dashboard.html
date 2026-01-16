@@ -1979,7 +1979,50 @@
         .credit-progress-fill.danger {
             background: linear-gradient(90deg, #DC2626 0%, #EF4444 100%);
         }
-        
+
+        .monthly-marker {
+            position: absolute;
+            top: -2px;
+            width: 2px;
+            height: 12px;
+            background: #581C87;
+            border-radius: 1px;
+            z-index: 2;
+            display: none;
+        }
+
+        .monthly-marker::after {
+            content: '';
+            position: absolute;
+            top: -3px;
+            left: -2px;
+            width: 6px;
+            height: 6px;
+            background: #581C87;
+            border-radius: 50%;
+        }
+
+        .monthly-marker-tooltip {
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #581C87;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 3px;
+            white-space: nowrap;
+            margin-bottom: 4px;
+            opacity: 0;
+            transition: opacity 0.2s;
+            pointer-events: none;
+        }
+
+        .credit-progress-bar:hover .monthly-marker-tooltip {
+            opacity: 1;
+        }
+
         .credit-details {
             display: flex;
             align-items: center;
@@ -2379,6 +2422,9 @@
                                     <div class="credit-progress">
                                         <div class="credit-progress-bar">
                                             <div class="credit-progress-fill" id="creditProgressFill"></div>
+                                            <div class="monthly-marker" id="monthlyMarker">
+                                                <span class="monthly-marker-tooltip" id="monthlyMarkerTooltip"></span>
+                                            </div>
                                         </div>
                                     </div>
                                     <div class="credit-details">
@@ -7881,6 +7927,22 @@
                 progressFill.classList.add('danger');
             } else if (remainingPct <= 20) {
                 progressFill.classList.add('warning');
+            }
+
+            // Position monthly marker if user has bonus credits
+            const monthlyMarker = document.getElementById('monthlyMarker');
+            const monthlyMarkerTooltip = document.getElementById('monthlyMarkerTooltip');
+            const bonusCredits = (usage.purchased_credits || 0) + (usage.permanent_credits || 0);
+            const monthlyRemaining = usage.monthly_remaining || 0;
+
+            if (!isLifetimeTier && bonusCredits > 0 && totalAvailable > 0) {
+                // Position marker at where monthly credits end (as percentage of total)
+                const markerPosition = (monthlyRemaining / totalAvailable) * 100;
+                monthlyMarker.style.display = 'block';
+                monthlyMarker.style.left = `calc(${markerPosition}% - 1px)`;
+                monthlyMarkerTooltip.textContent = `${monthlyRemaining} monthly`;
+            } else {
+                monthlyMarker.style.display = 'none';
             }
 
             // Format reset date
