@@ -465,8 +465,9 @@ export default {
         console.log('Stored in R2, creating DB record');
 
         // Get user's organization and plan
-        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
-        const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
+        // Auth-worker returns organizationId directly (not nested in fields)
+        const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
+        const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
 
         // All files (PDF and images) go to pending status for processing
         // The processor handles different file types appropriately
@@ -528,7 +529,9 @@ export default {
 
         const results = [];
         const errors = [];
-        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+        // Auth-worker returns organizationId directly (not nested in fields)
+        const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
+        const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
 
         // Process each file
         for (let i = 0; i < files.length; i++) {
@@ -571,7 +574,7 @@ export default {
                 id, r2_key, filename, original_filename, user_id, organization_id,
                 file_size, status, upload_date, queued_at, user_plan, content_type
               ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?)
-            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan || 'Free', file.type).run();
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type).run();
 
             results.push({
               success: true,
