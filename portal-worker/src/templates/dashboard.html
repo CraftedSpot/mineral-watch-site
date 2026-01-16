@@ -38,6 +38,10 @@
         .plan-badge { background: var(--success-bg); color: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
         .plan-usage { font-size: 14px; color: var(--slate-blue); display: flex; gap: 20px; flex-wrap: wrap; }
         .usage-item { display: flex; align-items: center; gap: 6px; }
+        .usage-count { font-weight: 700; color: var(--oil-navy); }
+        .usage-limit { color: var(--slate-blue); }
+        .usage-label { color: var(--slate-blue); }
+        .usage-separator { color: var(--slate-blue); }
         .upgrade-link { margin-left: auto; color: var(--red-dirt); text-decoration: none; font-size: 14px; font-weight: 600; }
         .stats-card { background: white; border-radius: 8px; padding: 20px 30px; margin-bottom: 25px; display: flex; align-items: center; justify-content: center; gap: 40px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .stat-item { text-align: center; }
@@ -2411,20 +2415,21 @@
             <div class="plan-info">
                 <span class="plan-badge" id="planBadge">FREE</span>
                 <div class="plan-usage">
-                    <div class="usage-item">
-                        <span><strong id="propCount">0</strong> / <strong id="propLimit">1</strong> Properties</span>
+                    <div class="usage-item usage-stat">
+                        <span class="usage-count" id="propCount">0</span>
+                        <span class="usage-limit">/ <span id="propLimit">1</span></span>
+                        <span class="usage-label">Properties</span>
                     </div>
-                    <div class="usage-item">
-                        <span>|</span>
+                    <div class="usage-item usage-separator">|</div>
+                    <div class="usage-item usage-stat">
+                        <span class="usage-count" id="wellCount">0</span>
+                        <span class="usage-limit">/ <span id="wellLimit">0</span></span>
+                        <span class="usage-label">Wells</span>
                     </div>
-                    <div class="usage-item">
-                        <span><strong id="wellCount">0</strong> / <strong id="wellLimit">0</strong> Wells</span>
-                    </div>
-                    <div class="usage-item" id="docCountItem" style="display: none;">
-                        <span>|</span>
-                    </div>
-                    <div class="usage-item" id="docCountDisplay" style="display: none;">
-                        <span><strong id="docCount">0</strong> Documents</span>
+                    <div class="usage-item usage-separator" id="docCountItem" style="display: none;">|</div>
+                    <div class="usage-item usage-stat" id="docCountDisplay" style="display: none;">
+                        <span class="usage-count" id="docCount">0</span>
+                        <span class="usage-label">Documents</span>
                     </div>
                 </div>
                 <a href="/portal/upgrade" class="upgrade-link" id="upgradeLink">Upgrade →</a>
