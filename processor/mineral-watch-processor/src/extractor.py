@@ -6,6 +6,7 @@ import json
 import logging
 import asyncio
 import re
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 
@@ -256,8 +257,16 @@ Valid document types:
 - other
 """
 
-EXTRACTION_PROMPT = """You are a specialized document processor for Oklahoma mineral rights documents.
+EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma mineral rights documents.
 Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Division orders commonly have effective dates BEFORE the document date (often 6-18 months earlier) - this is NORMAL, not a typo
+- Retrospective effective dates reflect when production/ownership began, not when paperwork was processed
+- Do NOT speculate that dates are typos unless literally impossible (e.g., effective date in the future relative to document date)
+- Do NOT use terms like "prospective" or "retrospective" incorrectly - if effective date is before document date, that is retrospective
 
 IMPORTANT: Structure your response as follows:
 1. FIRST: The JSON object with extracted data
@@ -267,6 +276,10 @@ IMPORTANT: Structure your response as follows:
    - 2-3 sentences maximum
    - Lead with actions needed, if any
    - Answer: what does this mean for the mineral owner?
+   - ALWAYS identify the owner entity by name
+   - When multiple documents exist for same well, include distinguishing details (interest type, owner number) to differentiate
+   - Mention county when relevant for geographic context
+   - Include owner number (e.g., "PRI38") when it helps identify the record
 
    DETAILED ANALYSIS:
    - Write as an experienced mineral rights advisor providing insight to a client
@@ -274,6 +287,11 @@ IMPORTANT: Structure your response as follows:
    - Be direct and substantive - highlight implications that even experts might miss
    - Only reference information explicitly stated in the document
    - DO NOT list specific data already extracted (dates, names, etc.) - focus on insight, not summary
+
+TERMINOLOGY RULES:
+- Working Interest owners receive "revenue" or "proceeds" - NEVER use "royalties" for WI owners
+- Royalty Interest and Override/ORRI owners receive "royalties"
+- Use the correct term based on the interest type being analyzed
 
 Document Types:
 1. Division Order - Payment distribution instructions for royalty owners
@@ -309,6 +327,13 @@ CRITICAL EXTRACTION RULES:
 8. Extract any API numbers for wells
 9. Look for any amendment or correction references
 10. Always format dates as "YYYY-MM-DD" if possible
+
+FIELD READING RULES (especially for Division Orders):
+- Read all fields EXACTLY as printed - do not infer or correct values based on context
+- For "Type of Interest" field: extract the literal value shown (Working Interest, Royalty, Override, ORRI, etc.)
+- For "Production" field: check which option is marked (Oil, Gas, Other) - do NOT claim this is blank if one is checked/marked
+- For "Owner Name & Address": extract the full entity name exactly as shown
+- If a field appears blank, confirm it is actually blank before stating so in your analysis
 
 LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
 Oklahoma uses the Section-Township-Range (TRS) system for land descriptions.
@@ -1684,9 +1709,23 @@ Confidence levels based on overall document quality:
 - "low": Significant uncertainty, needs manual review (avg < 0.70)
 
 IMPORTANT: Only calculate average confidence based on fields that actually exist in the document.
-Do NOT penalize confidence for missing fields (e.g., recording info on unrecorded deeds, 
-middle names that don't exist, etc.). If a field is not present in the document, 
+Do NOT penalize confidence for missing fields (e.g., recording info on unrecorded deeds,
+middle names that don't exist, etc.). If a field is not present in the document,
 exclude it from the confidence calculation entirely.
+
+FLAGGING GUIDELINES - What IS and IS NOT unusual:
+
+NOT unusual (do not flag as concerns):
+- Missing API number on division orders (common - request if needed for tracking)
+- Effective date before document date (standard industry practice for division orders)
+- $100 minimum payment threshold (industry standard)
+- NADOA Model Form language (standard)
+
+Potentially unusual (worth noting in DETAILED ANALYSIS):
+- Same decimal interest for different interest types on same well/owner
+- Effective date significantly in the FUTURE relative to document date
+- Interest type that doesn't match owner's expected holdings
+- Decimal interest that seems inconsistent with known acreage
 
 REMEMBER - Examples of good output:
 
@@ -1704,6 +1743,17 @@ What to avoid:
 - Too generic: "This is a standard pooling order"
 - Just restating fields: "The order date is January 15, 2024 and the applicant is Devon Energy..."
 """
+
+
+def get_extraction_prompt() -> str:
+    """
+    Get the extraction prompt with current date injected.
+
+    Returns:
+        Formatted extraction prompt with today's date
+    """
+    current_date = datetime.now().strftime("%B %d, %Y")
+    return EXTRACTION_PROMPT_TEMPLATE.format(current_date=current_date)
 
 
 async def retry_with_backoff(func, *args, **kwargs):
