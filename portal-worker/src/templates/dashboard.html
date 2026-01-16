@@ -7662,9 +7662,17 @@
         // Open property from document modal - stack on top
         function openPropertyFromDocument(propertyId) {
             console.log('[openPropertyFromDocument] Called with propertyId:', propertyId);
+
+            // Handle comma-separated property IDs (multi-property documents) - use first one
+            if (propertyId && propertyId.includes(',')) {
+                const firstPropertyId = propertyId.split(',')[0];
+                console.log('[openPropertyFromDocument] Multi-property document, using first ID:', firstPropertyId);
+                propertyId = firstPropertyId;
+            }
+
             console.log('[openPropertyFromDocument] Current modal stack length:', modalStack.length);
             console.log('[openPropertyFromDocument] Modal stack:', modalStack.map(m => ({ type: m.type, id: m.id })));
-            
+
             // Check if we've hit max depth
             if (modalStack.length >= MAX_MODAL_DEPTH) {
                 console.log('[openPropertyFromDocument] Max depth reached, closing document modal first');
