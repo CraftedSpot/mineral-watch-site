@@ -2408,6 +2408,14 @@
                             </svg>
                             Upload Documents
                         </button>
+                        <!-- Mobile-only: Upload from Photos button -->
+                        <button id="mobilePhotoUploadBtn" class="btn-add photo-upload-btn-mobile" onclick="document.getElementById('photoFileInput').click()" style="font-size: 14px; display: none; background: linear-gradient(135deg, #059669 0%, #047857 100%); border-color: #059669;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            Upload from Photos
+                        </button>
+                        <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple style="display: none;" onchange="handlePhotoFileSelect(event)">
                         <button id="relinkDocumentsBtn" class="btn-secondary" onclick="relinkDocuments()" style="font-size: 14px; display: none;" title="Re-scan unlinked documents for property/well matches">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
@@ -3563,6 +3571,15 @@
                 if (document.getElementById('docCountItem')) {
                     document.getElementById('docCountItem').style.display = 'flex';
                     document.getElementById('docCountDisplay').style.display = 'flex';
+                }
+
+                // Show mobile photo upload button only on mobile devices
+                const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+                if (isMobile) {
+                    const mobilePhotoBtn = document.getElementById('mobilePhotoUploadBtn');
+                    if (mobilePhotoBtn) {
+                        mobilePhotoBtn.style.display = 'inline-flex';
+                    }
                 }
                 
                 // Hide add/edit/delete buttons for Viewers
@@ -10830,27 +10847,7 @@
                 <input type="file" id="documentFileInput" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" multiple style="display: none;" onchange="handleDocumentFileSelect(event)">
             </div>
 
-            <!-- Photo Upload Section (Mobile-Friendly) -->
-            <div id="photoUploadSection" style="margin-bottom: 24px;">
-                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
-                    <div style="flex: 1; height: 1px; background: var(--border);"></div>
-                    <span style="font-size: 12px; color: var(--slate-blue); text-transform: uppercase; letter-spacing: 0.5px;">Or</span>
-                    <div style="flex: 1; height: 1px; background: var(--border);"></div>
-                </div>
-
-                <button type="button" id="photoUploadBtn" onclick="document.getElementById('photoFileInput').click()" class="photo-upload-btn">
-                    <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                    </svg>
-                    <span>Upload from Photos</span>
-                </button>
-                <p style="margin: 8px 0 0; font-size: 12px; color: var(--slate-blue); text-align: center;">
-                    Select multiple photos to combine into a single document
-                </p>
-                <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple style="display: none;" onchange="handlePhotoFileSelect(event)">
-            </div>
-
-            <!-- Photo Preview Grid -->
+            <!-- Photo Preview Grid (used when photos selected via mobile button) -->
             <div id="photoPreviewSection" style="display: none; margin-bottom: 24px;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
                     <h4 style="margin: 0; font-size: 14px; color: var(--oil-navy);">
@@ -13264,8 +13261,13 @@ async function handlePhotoFileSelect(event) {
     const files = Array.from(event.target.files);
     if (files.length === 0) return;
 
-    // Hide the initial photo upload section, show preview
-    document.getElementById('photoUploadSection').style.display = 'none';
+    // Open the upload modal if not already open (for mobile photo upload button)
+    const modal = document.getElementById('documentUploadModal');
+    if (modal.style.display === 'none') {
+        openUploadModal();
+    }
+
+    // Show photo preview section
     document.getElementById('photoPreviewSection').style.display = 'block';
 
     // Process each file
