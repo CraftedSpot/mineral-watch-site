@@ -536,9 +536,13 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
   // Extract well number as fallback if not in completion data
   const wellNumber = completionData?.wellNumber || extractWellNumber(suggestedWellName);
 
+  // Get user's organization if they have one
+  const organizationId = userRecord?.fields.Organization?.[0];
+
   // Build the fields object for Airtable (using record ID for linked field)
   const airtableFields = {
     User: [user.id],
+    ...(organizationId && { Organization: [organizationId] }), // Link to organization if user has one
     "API Number": cleanApi,
     "Well Name": suggestedWellName,
     Status: "Active",
