@@ -7967,133 +7967,83 @@
             const { usage, plan, credits } = data;
             const isLifetimeTier = usage.is_lifetime_tier;
 
-            // Update the main credit display
-            document.getElementById('creditsAvailable').textContent = usage.total_available || 0;
-
-            // Calculate bonus credits early for use in display
-            const bonusCreditsTotal = (usage.purchased_credits || 0) + (usage.permanent_credits || 0);
-            const monthlyRemainingEarly = usage.monthly_remaining || 0;
-            const isUsingBonus = monthlyRemainingEarly <= 0 && bonusCreditsTotal > 0;
-
-            // Update usage text based on tier type
-            const usageText = document.getElementById('creditsUsedThisMonth');
-            const monthlyLimitText = document.getElementById('creditsMonthlyLimit');
-            const bonusIndicator = document.getElementById('bonusIndicator');
-
-            // Get bonus line elements
-            const bonusLine = document.getElementById('bonusLine');
-            const bonusLineText = document.getElementById('bonusLineText');
-
-            if (isLifetimeTier) {
-                // Free tier: show lifetime usage
-                usageText.parentElement.innerHTML = `(<span id="creditsUsedThisMonth">${usage.credits_used || 0}</span> of ${(usage.credits_used || 0) + (usage.total_available || 0)} lifetime)`;
-                bonusLine.style.display = 'none';
-            } else {
-                // Paid tier: show monthly usage
-                usageText.textContent = usage.credits_used || 0;
-                monthlyLimitText.textContent = usage.monthly_limit || 100;
-
-                // Show bonus line if user has bonus credits
-                if (bonusCreditsTotal > 0) {
-                    bonusLine.style.display = 'block';
-                    if (isUsingBonus) {
-                        bonusLineText.innerHTML = `📦 <strong>Using permanent credits</strong> (${bonusCreditsTotal.toLocaleString()} remaining)`;
-                        bonusLine.style.color = '#A855F7';
-                    } else {
-                        bonusLineText.textContent = `+ ${bonusCreditsTotal.toLocaleString()} permanent credits available`;
-                        bonusLine.style.color = '#7C3AED';
-                    }
-                } else {
-                    bonusLine.style.display = 'none';
-                }
-            }
-
-            // Update progress bar - shows USED credits as percentage of monthly limit
-            let percentage;
-            const progressFill = document.getElementById('creditProgressFill');
-            const bonusCredits = (usage.purchased_credits || 0) + (usage.permanent_credits || 0);
+            // Calculate values
             const monthlyUsed = usage.credits_used || 0;
             const monthlyLimit = usage.monthly_limit || 100;
             const monthlyRemaining = usage.monthly_remaining || 0;
+            const rollingCredits = (usage.purchased_credits || 0) + (usage.permanent_credits || 0);
             const totalAvailable = usage.total_available || 0;
-            const usingBonusCredits = monthlyRemaining <= 0 && bonusCredits > 0;
 
-            if (isLifetimeTier) {
-                // Free tier: show used as percentage of total lifetime
-                const totalLifetime = (usage.credits_used || 0) + (usage.total_available || 0);
-                percentage = totalLifetime > 0 ? Math.min(100, ((usage.credits_used || 0) / totalLifetime) * 100) : 0;
-            } else {
-                // Paid tier: show used as percentage of monthly limit
-                percentage = monthlyLimit > 0 ? Math.min(100, (monthlyUsed / monthlyLimit) * 100) : 0;
-            }
-            progressFill.style.width = percentage + '%';
-
-            // Update progress bar color
-            progressFill.classList.remove('warning', 'danger', 'using-bonus');
-
-            if (usingBonusCredits) {
-                // Using bonus credits - show distinct color
-                progressFill.classList.add('using-bonus');
-            } else if (totalAvailable === 0) {
-                progressFill.classList.add('danger');
-            } else if (monthlyRemaining <= monthlyLimit * 0.1) {
-                // Less than 10% monthly remaining
-                progressFill.classList.add('warning');
-            }
-
-            // Hide the marker - we're using the simpler text approach
-            const monthlyMarker = document.getElementById('monthlyMarker');
-            if (monthlyMarker) {
-                monthlyMarker.style.display = 'none';
-            }
+            // Update main credit display
+            document.getElementById('creditsAvailable').textContent = totalAvailable.toLocaleString();
 
             // Format reset date
             const resetDate = new Date(usage.reset_date);
             const resetDateStr = resetDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 
-            // Update reset date display (hide for lifetime tier)
-            const resetElement = document.getElementById('creditResetDate');
-            if (isLifetimeTier) {
-                resetElement.parentElement.innerHTML = 'Lifetime credits';
-            } else {
-                document.getElementById('creditResetDate').textContent = resetDateStr;
+            // Update monthly row
+            document.getElementById('monthlyUsed').textContent = monthlyUsed;
+            document.getElementById('monthlyLimit').textContent = monthlyLimit;
+            document.getElementById('monthlyStatus').textContent = isLifetimeTier ? 'Lifetime' : `Resets ${resetDateStr}`;
+
+            // Update monthly progress bar
+            const monthlyBarFill = document.getElementById('monthlyBarFill');
+            const monthlyPercentage = monthlyLimit > 0 ? Math.min(100, (monthlyUsed / monthlyLimit) * 100) : 0;
+            monthlyBarFill.style.width = monthlyPercentage + '%';
+
+            // Color coding for monthly bar
+            monthlyBarFill.classList.remove('warning', 'danger');
+            if (monthlyRemaining === 0) {
+                monthlyBarFill.classList.add('danger');
+            } else if (monthlyRemaining <= monthlyLimit * 0.2) {
+                monthlyBarFill.classList.add('warning');
             }
 
-            // Update tooltip content
-            if (isLifetimeTier) {
-                // Free tier tooltip
-                document.getElementById('tooltipMonthlyUsed').textContent = usage.credits_used || 0;
-                document.getElementById('tooltipMonthlyLimit').textContent = (usage.credits_used || 0) + (usage.total_available || 0);
-                document.getElementById('tooltipResetDate').textContent = 'never';
-                document.getElementById('tooltipBonusRow').style.display = 'none';
-                document.getElementById('tooltipPurchasedRow').style.display = 'none';
+            // Update rolling row (only show if user has rolling credits)
+            const rollingRow = document.getElementById('rollingRow');
+            if (rollingCredits > 0) {
+                rollingRow.style.display = 'grid';
+                document.getElementById('rollingRemaining').textContent = rollingCredits.toLocaleString();
 
-                // Free tier can still have purchased credits
-                const purchasedCreditsFree = usage.purchased_credits || 0;
-                if (purchasedCreditsFree > 0) {
-                    document.getElementById('tooltipPurchasedRow').style.display = 'flex';
-                    document.getElementById('tooltipPurchasedRemaining').textContent = purchasedCreditsFree;
-                }
+                // Rolling bar - show as percentage of some reasonable max (e.g., 1000 or their amount)
+                const rollingBarFill = document.getElementById('rollingBarFill');
+                const rollingMax = Math.max(1000, rollingCredits);
+                const rollingPercentage = Math.min(100, (rollingCredits / rollingMax) * 100);
+                rollingBarFill.style.width = rollingPercentage + '%';
             } else {
-                // Paid tier tooltip - show credits USED, not remaining
-                document.getElementById('tooltipMonthlyUsed').textContent = usage.credits_used || 0;
-                document.getElementById('tooltipMonthlyLimit').textContent = usage.monthly_limit || 0;
-                document.getElementById('tooltipResetDate').textContent = resetDateStr;
+                rollingRow.style.display = 'none';
+            }
 
-                // Show purchased credits row
-                const purchasedCredits = usage.purchased_credits || 0;
+            // Legacy tooltip updates (for View details hover)
+            const tooltipMonthlyUsed = document.getElementById('tooltipMonthlyUsed');
+            const tooltipMonthlyLimit = document.getElementById('tooltipMonthlyLimit');
+            const tooltipResetDate = document.getElementById('tooltipResetDate');
+            const tooltipPurchasedRow = document.getElementById('tooltipPurchasedRow');
+            const tooltipBonusRow = document.getElementById('tooltipBonusRow');
+
+            if (tooltipMonthlyUsed) tooltipMonthlyUsed.textContent = monthlyUsed;
+            if (tooltipMonthlyLimit) tooltipMonthlyLimit.textContent = monthlyLimit;
+            if (tooltipResetDate) tooltipResetDate.textContent = isLifetimeTier ? 'never' : resetDateStr;
+
+            // Show purchased credits in tooltip
+            const purchasedCredits = usage.purchased_credits || 0;
+            if (tooltipPurchasedRow) {
                 if (purchasedCredits > 0) {
-                    document.getElementById('tooltipPurchasedRow').style.display = 'flex';
-                    document.getElementById('tooltipPurchasedRemaining').textContent = purchasedCredits;
+                    tooltipPurchasedRow.style.display = 'flex';
+                    const tooltipPurchasedRemaining = document.getElementById('tooltipPurchasedRemaining');
+                    if (tooltipPurchasedRemaining) tooltipPurchasedRemaining.textContent = purchasedCredits;
                 } else {
-                    document.getElementById('tooltipPurchasedRow').style.display = 'none';
+                    tooltipPurchasedRow.style.display = 'none';
                 }
+            }
 
-                // Show bonus/permanent credits row
-                const permanentCredits = usage.permanent_credits || 0;
+            // Show bonus credits in tooltip
+            const permanentCredits = usage.permanent_credits || 0;
+            if (tooltipBonusRow) {
                 if (permanentCredits > 0) {
-                    document.getElementById('tooltipBonusRow').style.display = 'flex';
-                    document.getElementById('tooltipBonusRemaining').textContent = permanentCredits;
+                    tooltipBonusRow.style.display = 'flex';
+                    const tooltipBonusRemaining = document.getElementById('tooltipBonusRemaining');
+                    if (tooltipBonusRemaining) tooltipBonusRemaining.textContent = permanentCredits;
                 } else {
                     document.getElementById('tooltipBonusRow').style.display = 'none';
                 }
