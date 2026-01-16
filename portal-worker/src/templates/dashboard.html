@@ -613,6 +613,31 @@
         .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; background: var(--success-bg); color: var(--success); }
         .status-badge.horizontal { background: #DBEAFE; color: #1E40AF; }
         .status-value { font-size: 14px; font-weight: 600; color: var(--oil-navy); }
+
+        /* Status dots for mobile document list */
+        .status-dot {
+            display: none; /* Hidden on desktop, shown on mobile */
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+        .status-dot.complete { background: #10B981; }
+        .status-dot.processing, .status-dot.pending {
+            background: #F59E0B;
+            animation: pulse-dot 1.5s ease-in-out infinite;
+        }
+        .status-dot.manual_review {
+            background: #F97316;
+            box-shadow: 0 0 0 2px #FED7AA;
+        }
+        .status-dot.failed { background: #EF4444; }
+        .status-dot.unprocessed { background: #9CA3AF; }
+
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(0.9); }
+        }
         
         /* Info Sections */
         .info-section { margin-bottom: 16px; }
@@ -1416,11 +1441,24 @@
                 display: none;
             }
 
-            /* Status badge mobile sizing */
-            #documentsContent .data-table td:nth-child(5) span {
-                white-space: nowrap;
-                font-size: 10px;
-                padding: 2px 6px;
+            /* Mobile: Hide status text badge, show status dot */
+            #documentsContent .data-table .status-text {
+                display: none !important;
+            }
+            #documentsContent .data-table .status-dot {
+                display: inline-block !important;
+            }
+
+            /* Mobile: Filename column - allow earlier wrapping */
+            #documentsContent .data-table td:nth-child(2) {
+                max-width: 120px;
+                word-break: break-word;
+            }
+
+            /* Mobile: Hide Category column */
+            #documentsContent .data-table th:nth-child(3),
+            #documentsContent .data-table td:nth-child(3) {
+                display: none;
             }
             
             /* Mobile expandable cards */
