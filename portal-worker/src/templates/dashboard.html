@@ -1984,16 +1984,88 @@
             background: linear-gradient(90deg, #7C3AED 0%, #A855F7 100%);
         }
 
-        .bonus-indicator {
-            color: #7C3AED;
-            font-weight: 500;
-            font-size: 12px;
-            margin-left: 8px;
+        /* New credit display styles */
+        .credit-display-new {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
         }
 
-        .bonus-indicator.using {
-            color: #A855F7;
-            font-weight: 600;
+        .credit-heading {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 14px;
+        }
+
+        .credit-available {
+            font-weight: 700;
+            color: #059669;
+            font-size: 16px;
+        }
+
+        .credit-available-label {
+            color: #6B7280;
+        }
+
+        .credit-rows {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .credit-row {
+            display: grid;
+            grid-template-columns: 55px 100px auto auto;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+        }
+
+        .credit-row-label {
+            color: #6B7280;
+            font-weight: 500;
+        }
+
+        .credit-row-bar {
+            height: 6px;
+            background: #E5E7EB;
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .credit-row-bar.rolling {
+            background: #EDE9FE;
+        }
+
+        .credit-row-bar-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #059669 0%, #10B981 100%);
+            border-radius: 3px;
+            transition: width 0.3s ease;
+        }
+
+        .credit-row-bar-fill.rolling {
+            background: linear-gradient(90deg, #7C3AED 0%, #A855F7 100%);
+        }
+
+        .credit-row-bar-fill.warning {
+            background: linear-gradient(90deg, #F59E0B 0%, #FBBF24 100%);
+        }
+
+        .credit-row-bar-fill.danger {
+            background: linear-gradient(90deg, #DC2626 0%, #EF4444 100%);
+        }
+
+        .credit-row-count {
+            color: #374151;
+            white-space: nowrap;
+        }
+
+        .credit-row-status {
+            color: #9CA3AF;
+            font-size: 11px;
+            white-space: nowrap;
         }
 
         .monthly-marker {
