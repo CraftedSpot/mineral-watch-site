@@ -232,10 +232,10 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
     const statements = allRecords.map(record => {
       const id = `prop_${record.id}`;
       const fields = record.fields || {};
-      
+
       return env.WELLS_DB.prepare(`
-        INSERT INTO properties (id, airtable_record_id, county, section, township, range, meridian, acres, net_acres, notes, owner, synced_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO properties (id, airtable_record_id, county, section, township, range, meridian, acres, net_acres, notes, owner, group_name, synced_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(airtable_record_id) DO UPDATE SET
           county = excluded.county,
           section = excluded.section,
@@ -246,6 +246,7 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
           net_acres = excluded.net_acres,
           notes = excluded.notes,
           owner = excluded.owner,
+          group_name = excluded.group_name,
           synced_at = CURRENT_TIMESTAMP
       `).bind(
         id,
@@ -258,7 +259,8 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
         parseNumber(fields.ACRES),
         parseNumber(fields['NET ACRES']),
         fields.Notes || null,
-        fields['User']?.[0] || null
+        fields['User']?.[0] || null,
+        fields.Group || null
       );
     });
 

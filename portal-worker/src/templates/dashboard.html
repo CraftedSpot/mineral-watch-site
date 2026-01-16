@@ -6849,30 +6849,33 @@
                         content += '</div>';
                     
                     // Add linked property/well section as collapsible
-                    if (doc.property_id || doc.well_id) {
+                    const hasLinkedProperties = doc.linked_properties && doc.linked_properties.length > 0;
+                    if (hasLinkedProperties || doc.well_id) {
                         const sectionId = 'linked-items';
                         const isExpanded = true; // Show expanded by default for linked items
-                        
+
                         content += '<div class="detail-section">';
                         content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
                         content += `<span class="section-chevron">&#9654;</span> Linked Items`;
                         content += '</h4>';
                         content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
-                        
-                        if (doc.property_name && doc.property_id) {
-                            content += `
-                                <div class="doc-field">
-                                    <label>Property</label>
-                                    <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
-                                        <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.property_name)}</span>
-                                        <button onclick="console.log('Button clicked for property:', '${doc.property_id}'); openPropertyFromDocument('${doc.property_id}')" 
+
+                        // Show all linked properties
+                        if (hasLinkedProperties) {
+                            content += `<div class="doc-field"><label>Properties (${doc.linked_properties.length})</label><div class="doc-value" style="display: flex; flex-direction: column; gap: 8px;">`;
+                            for (const prop of doc.linked_properties) {
+                                content += `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #E5E7EB;">
+                                        <span style="color: #1E40AF; font-weight: 500; font-size: 13px;">${escapeHtml(prop.name)}</span>
+                                        <button onclick="openPropertyFromDocument('${prop.id}')"
                                                 style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                             View →
                                         </button>
-                                    </div>
-                                </div>`;
+                                    </div>`;
+                            }
+                            content += '</div></div>';
                         }
-                        
+
                         if (doc.well_name && doc.well_id) {
                             content += `
                                 <div class="doc-field">
@@ -6882,14 +6885,14 @@
                                             <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
                                             ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
                                         </div>
-                                        <button onclick="console.log('Button clicked for well:', '${doc.well_id}'); openWellFromDocument('${doc.well_id}')" 
+                                        <button onclick="console.log('Button clicked for well:', '${doc.well_id}'); openWellFromDocument('${doc.well_id}')"
                                                 style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                             View →
                                         </button>
                                     </div>
                                 </div>`;
                         }
-                        
+
                         content += '</div></div>';
                     }
                     
@@ -7018,30 +7021,33 @@
                 content += '</div>';
                 
                 // Add linked property/well section as collapsible (same as above)
-                if (doc.property_id || doc.well_id) {
+                const hasLinkedProps = doc.linked_properties && doc.linked_properties.length > 0;
+                if (hasLinkedProps || doc.well_id) {
                     const sectionId = 'linked-items-no-data';
                     const isExpanded = true; // Show expanded by default for linked items
-                    
+
                     content += '<div class="detail-section">';
                     content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
                     content += `<span class="section-chevron">&#9654;</span> Linked Items`;
                     content += '</h4>';
                     content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
-                    
-                    if (doc.property_name && doc.property_id) {
-                        content += `
-                            <div class="doc-field">
-                                <label>Property</label>
-                                <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
-                                    <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.property_name)}</span>
-                                    <button onclick="console.log('Button clicked for property:', '${doc.property_id}'); openPropertyFromDocument('${doc.property_id}')" 
+
+                    // Show all linked properties
+                    if (hasLinkedProps) {
+                        content += `<div class="doc-field"><label>Properties (${doc.linked_properties.length})</label><div class="doc-value" style="display: flex; flex-direction: column; gap: 8px;">`;
+                        for (const prop of doc.linked_properties) {
+                            content += `
+                                <div style="display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #E5E7EB;">
+                                    <span style="color: #1E40AF; font-weight: 500; font-size: 13px;">${escapeHtml(prop.name)}</span>
+                                    <button onclick="openPropertyFromDocument('${prop.id}')"
                                             style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                         View →
                                     </button>
-                                </div>
-                            </div>`;
+                                </div>`;
+                        }
+                        content += '</div></div>';
                     }
-                    
+
                     if (doc.well_name && doc.well_id) {
                         content += `
                             <div class="doc-field">
@@ -7051,14 +7057,14 @@
                                         <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
                                         ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
                                     </div>
-                                    <button onclick="openWellFromDocument('${doc.well_id}')" 
+                                    <button onclick="openWellFromDocument('${doc.well_id}')"
                                             style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
                                         View →
                                     </button>
                                 </div>
                             </div>`;
                     }
-                    
+
                     content += '</div></div>';
                 }
                 

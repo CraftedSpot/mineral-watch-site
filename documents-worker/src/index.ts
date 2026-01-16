@@ -618,66 +618,79 @@ export default {
           params.push(userOrg);
         }
 
-        // Note: wells.id might be INTEGER (from schema.sql) or TEXT (from create_tables.sql)
-        // We'll use a more flexible JOIN that handles both cases
+        // Query document without property JOIN - we'll fetch properties separately
         const query = `
-          SELECT 
+          SELECT
             d.*,
-            p.county as property_county,
-            p.section as property_section,
-            p.township as property_township,
-            p.range as property_range,
-            p.meridian as property_meridian,
             w.well_name,
             w.api_number as well_api_number
           FROM documents d
-          LEFT JOIN properties p ON (
-            d.property_id = p.airtable_record_id
-            OR (d.property_id LIKE p.airtable_record_id || ',%')
-          )
           LEFT JOIN wells w ON d.well_id = w.airtable_record_id
-          WHERE d.id = ? 
+          WHERE d.id = ?
             AND (d.${conditions.join(' OR d.')})
             AND d.deleted_at IS NULL
         `;
 
         console.log('Fetching document with query:', query);
         console.log('Query params:', [docId, ...params]);
-        
+
         const doc = await env.WELLS_DB.prepare(query).bind(docId, ...params).first();
 
         if (!doc) {
           console.log('Document not found for ID:', docId);
           return errorResponse('Document not found', 404, env);
         }
-        
+
         console.log('Document found:', doc.id, doc.filename);
-        console.log('Document linked data:', {
-          property_id: doc.property_id,
-          property_county: doc.property_county,
-          property_section: doc.property_section,
-          property_township: doc.property_township,
-          property_range: doc.property_range,
-          well_id: doc.well_id,
-          well_name: doc.well_name,
-          well_api_number: doc.well_api_number
-        });
+
+        // Fetch ALL linked properties if property_id is set
+        let linked_properties: any[] = [];
+        if (doc.property_id) {
+          const propertyIds = (doc.property_id as string).split(',').map(id => id.trim()).filter(id => id);
+          console.log('Fetching linked properties:', propertyIds);
+
+          if (propertyIds.length > 0) {
+            // Build query with placeholders for each property ID
+            const placeholders = propertyIds.map(() => '?').join(', ');
+            const propsResult = await env.WELLS_DB.prepare(`
+              SELECT airtable_record_id, county, section, township, range, meridian, group_name
+              FROM properties
+              WHERE airtable_record_id IN (${placeholders})
+            `).bind(...propertyIds).all();
+
+            linked_properties = (propsResult.results || []).map((p: any) => {
+              const meridianSuffix = p.meridian ? `-${p.meridian}` : '';
+              const locationName = `S${p.section}-T${p.township}-R${p.range}${meridianSuffix} (${p.county})`;
+              return {
+                id: p.airtable_record_id,
+                section: p.section,
+                township: p.township,
+                range: p.range,
+                county: p.county,
+                meridian: p.meridian,
+                group_name: p.group_name || null,
+                name: p.group_name ? `${locationName} - ${p.group_name}` : locationName
+              };
+            });
+            console.log('Found linked properties:', linked_properties.length);
+          }
+        }
 
         // Check for child documents - wrap in try/catch for safety
         let children = [];
         let child_count = 0;
-        
+
         console.log('Checking for children of document:', docId);
         try {
           const childrenResult = await env.WELLS_DB.prepare(`
-            SELECT id, display_name, filename, status, doc_type, county, confidence, 
+            SELECT id, display_name, filename, status, doc_type, county, confidence,
                    page_range_start, page_range_end
-            FROM documents 
+            FROM documents
             WHERE parent_document_id = ?
               AND deleted_at IS NULL
             ORDER BY page_range_start ASC
           `).bind(docId).all();
-          
+
           children = childrenResult.results || [];
           child_count = children.length;
           console.log('Found', child_count, 'children for document', docId);
@@ -686,39 +699,29 @@ export default {
           // Continue without children data if query fails
         }
 
-        // Format property name if we have property data
-        let property_name = null;
-        if (doc.property_county && doc.property_section && doc.property_township && doc.property_range) {
-          // Include meridian if available (IM = Indian Meridian, CM = Cimarron Meridian)
-          const meridianSuffix = doc.property_meridian ? `-${doc.property_meridian}` : '';
-          property_name = `S${doc.property_section}-T${doc.property_township}-R${doc.property_range}${meridianSuffix} (${doc.property_county} County)`;
-        }
-        
+        // For backwards compatibility, also set property_name from first linked property
+        const property_name = linked_properties.length > 0 ? linked_properties[0].name : null;
+
         // Add children and linked data to response
         const documentWithChildren = {
           ...doc,
           children,
           child_count,
-          // Add formatted property name if we have property data
+          // Array of all linked properties
+          linked_properties,
+          // For backwards compatibility - first property name
           property_name: property_name,
           // Add well name and API number if we have well data
           well_name: doc.well_name || null,
           well_api_number: doc.well_api_number || null
         };
-        
-        // Remove the raw property fields we joined (they're not part of the document schema)
-        delete documentWithChildren.property_county;
-        delete documentWithChildren.property_section;
-        delete documentWithChildren.property_township;
-        delete documentWithChildren.property_range;
-        delete documentWithChildren.property_meridian;
-        
+
         console.log('Returning document with children and linked data:', {
           doc_id: documentWithChildren.id,
           children_count: documentWithChildren.child_count,
           has_children: documentWithChildren.children.length > 0,
           property_id: documentWithChildren.property_id,
-          property_name: documentWithChildren.property_name,
+          linked_properties_count: documentWithChildren.linked_properties.length,
           well_id: documentWithChildren.well_id,
           well_name: documentWithChildren.well_name,
           well_api_number: documentWithChildren.well_api_number
