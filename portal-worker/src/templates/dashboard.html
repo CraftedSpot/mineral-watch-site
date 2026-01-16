@@ -7904,15 +7904,24 @@
                 usageText.textContent = usage.credits_used || 0;
             }
 
-            // Update progress bar
+            // Update progress bar - shows AVAILABLE credits (fills from left)
             let percentage;
+            const bonusCreditsPrelim = (usage.purchased_credits || 0) + (usage.permanent_credits || 0);
+
             if (isLifetimeTier) {
-                // Free tier: show lifetime usage percentage
+                // Free tier: show remaining as percentage of total lifetime
                 const totalLifetime = (usage.credits_used || 0) + (usage.total_available || 0);
-                percentage = totalLifetime > 0 ? Math.min(100, ((usage.credits_used || 0) / totalLifetime) * 100) : 0;
+                percentage = totalLifetime > 0 ? Math.min(100, ((usage.total_available || 0) / totalLifetime) * 100) : 0;
+            } else if (bonusCreditsPrelim > 0) {
+                // Paid tier with bonus: show available as percentage of total (monthly + bonus)
+                // Scale so bar is meaningful - use monthly limit as baseline 100%
+                const monthlyLimit = usage.monthly_limit || 100;
+                const totalAvailableNow = usage.total_available || 0;
+                // Cap at 100% so bar doesn't overflow, but show fullness
+                percentage = Math.min(100, (totalAvailableNow / monthlyLimit) * 100);
             } else {
-                // Paid tier: show monthly usage percentage
-                percentage = usage.monthly_limit > 0 ? Math.min(100, (usage.credits_used / usage.monthly_limit) * 100) : 0;
+                // Paid tier without bonus: show remaining monthly as percentage
+                percentage = usage.monthly_limit > 0 ? Math.min(100, ((usage.monthly_remaining || 0) / usage.monthly_limit) * 100) : 0;
             }
             const progressFill = document.getElementById('creditProgressFill');
             progressFill.style.width = percentage + '%';
