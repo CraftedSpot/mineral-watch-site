@@ -1450,16 +1450,27 @@
                 display: none;
             }
 
-            /* Mobile: Filename column - allow earlier wrapping */
+            /* Mobile: Filename column - let it breathe */
             #documentsContent .data-table td:nth-child(2) {
-                max-width: 140px;
                 word-break: break-word;
+            }
+
+            /* Mobile: Status column align right */
+            #documentsContent .data-table th:nth-child(5),
+            #documentsContent .data-table td:nth-child(5) {
+                text-align: right !important;
             }
 
             /* Mobile: Compact status badge */
             #documentsContent .data-table .status-text {
                 font-size: 11px !important;
                 padding: 2px 6px !important;
+            }
+
+            /* Mobile: Hide View details link and its separator (hover doesn't work on touch) */
+            .credit-view-details,
+            .credit-view-details + .credit-separator {
+                display: none !important;
             }
             
             /* Mobile expandable cards */
