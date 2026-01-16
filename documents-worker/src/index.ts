@@ -631,7 +631,10 @@ export default {
             w.well_name,
             w.api_number as well_api_number
           FROM documents d
-          LEFT JOIN properties p ON d.property_id = p.airtable_record_id
+          LEFT JOIN properties p ON (
+            d.property_id = p.airtable_record_id
+            OR (d.property_id LIKE p.airtable_record_id || ',%')
+          )
           LEFT JOIN wells w ON d.well_id = w.airtable_record_id
           WHERE d.id = ? 
             AND (d.${conditions.join(' OR d.')})
