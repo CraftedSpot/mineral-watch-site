@@ -8,60 +8,120 @@
     margin: 0 0 20px 0;
     display: none; /* Hidden by default, shown when usage data loads */
   }
-  
+
   .usage-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
   }
-  
+
   .usage-title {
     font-size: 14px;
     font-weight: 600;
     color: #6B21A8;
   }
-  
+
   .usage-count {
     font-size: 24px;
     font-weight: 700;
     color: #581C87;
   }
-  
+
   .usage-limit {
     font-size: 14px;
     color: #7C3AED;
     font-weight: 500;
   }
-  
-  .usage-bar {
+
+  .usage-bar-container {
     width: 100%;
-    height: 8px;
+    height: 10px;
     background: rgba(255, 255, 255, 0.7);
-    border-radius: 4px;
-    overflow: hidden;
+    border-radius: 5px;
+    overflow: visible;
     position: relative;
   }
-  
+
   .usage-bar-fill {
     height: 100%;
     background: linear-gradient(90deg, #7C3AED 0%, #A855F7 100%);
     transition: width 0.3s ease;
-    min-width: 1%;
+    border-radius: 5px;
+    min-width: 2px;
   }
-  
-  .usage-bar-fill.high-usage {
+
+  .usage-bar-fill.low-credits {
     background: linear-gradient(90deg, #F59E0B 0%, #EF4444 100%);
   }
-  
+
+  .monthly-marker {
+    position: absolute;
+    top: -3px;
+    width: 3px;
+    height: 16px;
+    background: #581C87;
+    border-radius: 2px;
+    transition: left 0.3s ease;
+    z-index: 2;
+  }
+
+  .monthly-marker::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: -3px;
+    width: 9px;
+    height: 9px;
+    background: #581C87;
+    border-radius: 50%;
+  }
+
+  .monthly-marker-label {
+    position: absolute;
+    top: 18px;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #6B21A8;
+    white-space: nowrap;
+    font-weight: 500;
+  }
+
   .usage-info {
     display: flex;
     justify-content: space-between;
-    margin-top: 8px;
+    align-items: flex-start;
+    margin-top: 14px;
     font-size: 12px;
     color: #6B21A8;
   }
-  
+
+  .usage-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .usage-breakdown-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .usage-breakdown-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+  }
+
+  .usage-breakdown-dot.monthly {
+    background: #A855F7;
+  }
+
+  .usage-breakdown-dot.bonus {
+    background: #10B981;
+  }
+
   .usage-refresh {
     background: none;
     border: none;
@@ -72,7 +132,7 @@
     border-radius: 4px;
     transition: background 0.2s;
   }
-  
+
   .usage-refresh:hover {
     background: rgba(124, 58, 237, 0.1);
   }
@@ -81,10 +141,10 @@
 <div id="documentUsageTracker" class="usage-tracker">
   <div class="usage-header">
     <div>
-      <div class="usage-title">Documents Processed</div>
+      <div class="usage-title">Credits Available</div>
       <div class="usage-count">
-        <span id="usageCount">0</span>
-        <span class="usage-limit">/ <span id="usageLimit">5</span></span>
+        <span id="usageTotalAvailable">0</span>
+        <span class="usage-limit" id="usageLimitText"></span>
       </div>
     </div>
     <button class="usage-refresh" onclick="refreshUsageStats()" title="Refresh">
@@ -93,22 +153,25 @@
       </svg>
     </button>
   </div>
-  
-  <div class="usage-bar">
+
+  <div class="usage-bar-container">
     <div id="usageBarFill" class="usage-bar-fill" style="width: 0%"></div>
+    <div id="monthlyMarker" class="monthly-marker" style="display: none;">
+      <span id="monthlyMarkerLabel" class="monthly-marker-label"></span>
+    </div>
   </div>
-  
+
   <div class="usage-info">
+    <div class="usage-breakdown" id="usageBreakdown">
+      <!-- Filled by JS -->
+    </div>
     <span id="usagePeriod">This month</span>
-    <span id="usageTopoff" style="display: none;">
-      + <span id="topoffCount">0</span> bonus credits
-    </span>
   </div>
 </div>
 
 <script>
   let currentUsageStats = null;
-  
+
   async function loadUsageStats() {
     try {
       const response = await fetch('/api/documents/usage', {
@@ -116,9 +179,9 @@
           'Authorization': `Bearer ${localStorage.getItem('auth_token')}`
         }
       });
-      
+
       if (!response.ok) throw new Error('Failed to load usage stats');
-      
+
       const data = await response.json();
       displayUsageStats(data);
     } catch (error) {
@@ -127,56 +190,116 @@
       document.getElementById('documentUsageTracker').style.display = 'none';
     }
   }
-  
+
   function displayUsageStats(data) {
     currentUsageStats = data;
     const { usage, plan } = data;
-    
+
     // Show the tracker for all plans
     document.getElementById('documentUsageTracker').style.display = 'block';
-    
-    // Update counts
-    document.getElementById('usageCount').textContent = usage.docs_processed;
-    document.getElementById('usageLimit').textContent = usage.monthly_limit;
-    
-    // Update progress bar
-    const percentage = Math.min(100, (usage.docs_processed / usage.monthly_limit) * 100);
+
+    // Calculate values
+    const monthlyRemaining = usage.monthly_remaining || 0;
+    const bonusCredits = (usage.purchased_credits || 0) + (usage.permanent_credits || 0);
+    const totalAvailable = usage.total_available || (monthlyRemaining + bonusCredits);
+    const monthlyLimit = usage.monthly_limit || 0;
+    const monthlyUsed = usage.credits_used || 0;
+
+    // Update main count - show total available
+    document.getElementById('usageTotalAvailable').textContent = totalAvailable.toLocaleString();
+
+    // Update limit text based on whether they have bonus credits
+    const limitText = document.getElementById('usageLimitText');
+    if (bonusCredits > 0) {
+      limitText.textContent = `(${monthlyRemaining} monthly + ${bonusCredits.toLocaleString()} bonus)`;
+    } else {
+      limitText.textContent = `of ${monthlyLimit} monthly`;
+    }
+
+    // Calculate bar fill percentage (based on total available vs some max)
+    // Bar shows what percentage of credits are remaining
     const barFill = document.getElementById('usageBarFill');
-    barFill.style.width = percentage + '%';
-    
-    // Change color when > 80% used
-    if (percentage > 80) {
-      barFill.classList.add('high-usage');
+    const maxForBar = Math.max(totalAvailable, monthlyLimit); // Use larger of total or monthly limit
+
+    if (maxForBar > 0) {
+      const fillPercentage = Math.min(100, (totalAvailable / maxForBar) * 100);
+      barFill.style.width = fillPercentage + '%';
+
+      // Change color when low on credits (< 20% of monthly remaining)
+      if (monthlyRemaining < monthlyLimit * 0.2) {
+        barFill.classList.add('low-credits');
+      } else {
+        barFill.classList.remove('low-credits');
+      }
     } else {
-      barFill.classList.remove('high-usage');
+      barFill.style.width = '0%';
     }
-    
-    // Show bonus credits if any
-    if (usage.topoff_credits > 0) {
-      document.getElementById('usageTopoff').style.display = 'inline';
-      document.getElementById('topoffCount').textContent = usage.topoff_credits;
+
+    // Show monthly marker if user has bonus credits
+    const marker = document.getElementById('monthlyMarker');
+    const markerLabel = document.getElementById('monthlyMarkerLabel');
+
+    if (bonusCredits > 0 && totalAvailable > 0) {
+      // Position marker at where monthly credits end (as percentage of total)
+      const markerPosition = (monthlyRemaining / totalAvailable) * 100;
+      marker.style.display = 'block';
+      marker.style.left = `calc(${markerPosition}% - 1.5px)`;
+      markerLabel.textContent = `${monthlyRemaining} monthly`;
     } else {
-      document.getElementById('usageTopoff').style.display = 'none';
+      marker.style.display = 'none';
     }
-    
+
+    // Update breakdown
+    const breakdown = document.getElementById('usageBreakdown');
+    let breakdownHTML = '';
+
+    if (bonusCredits > 0) {
+      breakdownHTML = `
+        <div class="usage-breakdown-item">
+          <span class="usage-breakdown-dot monthly"></span>
+          <span>${monthlyRemaining} monthly remaining</span>
+        </div>
+        <div class="usage-breakdown-item">
+          <span class="usage-breakdown-dot bonus"></span>
+          <span>${bonusCredits.toLocaleString()} bonus credits</span>
+        </div>
+      `;
+    } else {
+      breakdownHTML = `
+        <div class="usage-breakdown-item">
+          <span>${monthlyUsed} of ${monthlyLimit} used this month</span>
+        </div>
+      `;
+    }
+    breakdown.innerHTML = breakdownHTML;
+
     // Update period
     const periodDate = new Date(usage.billing_period);
     const monthName = periodDate.toLocaleDateString('en-US', { month: 'long' });
-    document.getElementById('usagePeriod').textContent = `${monthName} usage`;
+    document.getElementById('usagePeriod').textContent = `${monthName} ${periodDate.getFullYear()}`;
   }
-  
+
   function refreshUsageStats() {
     loadUsageStats();
   }
-  
+
   // Auto-update usage after document processing
   function incrementLocalUsageCount() {
     if (currentUsageStats) {
-      currentUsageStats.usage.docs_processed++;
+      // Decrement from monthly first, then bonus
+      if (currentUsageStats.usage.monthly_remaining > 0) {
+        currentUsageStats.usage.monthly_remaining--;
+        currentUsageStats.usage.credits_used++;
+      } else if (currentUsageStats.usage.purchased_credits > 0) {
+        currentUsageStats.usage.purchased_credits--;
+      } else if (currentUsageStats.usage.permanent_credits > 0) {
+        currentUsageStats.usage.permanent_credits--;
+      }
+      currentUsageStats.usage.total_available--;
       displayUsageStats(currentUsageStats);
     }
   }
-  
+
   // Load on page load (called from main dashboard script)
   // loadUsageStats();
 </script>
