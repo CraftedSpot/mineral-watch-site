@@ -1434,15 +1434,18 @@ export default {
             if (status !== 'failed') {
               try {
                 // Get user info and plan from the document
+                // Use organization_id if available (for org-level credit tracking)
                 const docInfo = await env.WELLS_DB.prepare(`
-                  SELECT user_id, user_plan FROM documents WHERE id = ?
+                  SELECT user_id, organization_id, user_plan FROM documents WHERE id = ?
                 `).bind(docId).first();
 
                 if (docInfo?.user_id) {
                   const usageService = new UsageTrackingService(env.WELLS_DB);
                   const userPlan = (docInfo.user_plan as string) || 'Free';
+                  // Use organization_id for credit tracking if available, otherwise user_id
+                  const creditUserId = (docInfo.organization_id as string) || (docInfo.user_id as string);
                   await usageService.trackDocumentProcessed(
-                    docInfo.user_id as string,
+                    creditUserId,
                     userPlan,
                     docId,
                     doc_type || 'unknown',
@@ -1451,7 +1454,7 @@ export default {
                     0,     // childCount - handle this in split endpoint
                     extracted_data?.skip_extraction || false
                   );
-                  console.log('[Usage] Tracked document processing for user:', docInfo.user_id, 'plan:', userPlan);
+                  console.log('[Usage] Tracked document processing for:', creditUserId, '(org:', docInfo.organization_id, ', user:', docInfo.user_id, ') plan:', userPlan);
                 }
               } catch (usageError) {
                 // Don't fail the request if usage tracking fails
