@@ -2408,13 +2408,7 @@
                             </svg>
                             Upload Documents
                         </button>
-                        <!-- Mobile-only: Upload from Photos button -->
-                        <button id="mobilePhotoUploadBtn" class="btn-add photo-upload-btn-mobile" onclick="document.getElementById('photoFileInput').click()" style="font-size: 14px; display: none; background: linear-gradient(135deg, #059669 0%, #047857 100%); border-color: #059669;">
-                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
-                            </svg>
-                            Upload from Photos
-                        </button>
+                        <!-- Hidden file input for photo uploads (used by mobile photo upload section) -->
                         <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple style="display: none;" onchange="handlePhotoFileSelect(event)">
                         <button id="relinkDocumentsBtn" class="btn-secondary" onclick="relinkDocuments()" style="font-size: 14px; display: none;" title="Re-scan unlinked documents for property/well matches">
                             <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
