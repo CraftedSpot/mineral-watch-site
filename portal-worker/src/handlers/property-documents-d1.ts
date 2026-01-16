@@ -50,6 +50,8 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
 
       console.log(`[GetPropertyDocuments-D1] Querying documents for property ${propertyId}`);
 
+      // Support both single property_id and comma-separated multiple property_ids
+      // Use LIKE with delimiters to handle: "prop1" or "prop1,prop2" or "prop2,prop1,prop3"
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
           id,
@@ -59,12 +61,17 @@ export async function handleGetPropertyLinkedDocuments(propertyId: string, reque
           upload_date,
           r2_key
         FROM documents
-        WHERE property_id = ?
+        WHERE (
+          property_id = ?
+          OR property_id LIKE ? || ',%'
+          OR property_id LIKE '%,' || ?
+          OR property_id LIKE '%,' || ? || ',%'
+        )
           AND (deleted_at IS NULL OR deleted_at = '')
           AND doc_type IN (${docTypeList})
           AND (user_id = ? OR organization_id = ?)
         ORDER BY upload_date DESC
-      `).bind(propertyId, authUser.id, userOrgId).all();
+      `).bind(propertyId, propertyId, propertyId, propertyId, authUser.id, userOrgId).all();
       
       console.log(`[GetPropertyDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       
