@@ -2430,52 +2430,35 @@
                                 <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);">Digital Documents</h3>
                                 <div class="credit-display-container">
                                     <span class="credit-separator">|</span>
-                                    <div class="credit-info" style="flex-direction: column; align-items: flex-start; gap: 2px;">
-                                        <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div class="credit-display-new">
+                                        <!-- Main heading -->
+                                        <div class="credit-heading">
                                             <span class="credit-label">Credits:</span>
-                                            <span class="credit-available" id="creditsAvailable">0</span> available
-                                            <span class="credit-usage">(<span id="creditsUsedThisMonth">0</span> of <span id="creditsMonthlyLimit">100</span> monthly)</span>
+                                            <span class="credit-available" id="creditsAvailable">0</span>
+                                            <span class="credit-available-label">available</span>
+                                            <a href="/portal/account#credits" class="credit-view-details">View details</a>
+                                            <span class="credit-separator">·</span>
+                                            <a href="#" onclick="openCreditPackModal(); return false;" class="credit-buy-more">Buy More</a>
                                         </div>
-                                        <div class="bonus-line" id="bonusLine" style="display: none; font-size: 12px; color: #7C3AED;">
-                                            <span id="bonusLineText"></span>
-                                        </div>
-                                    </div>
-                                    <div class="credit-progress">
-                                        <div class="credit-progress-bar">
-                                            <div class="credit-progress-fill" id="creditProgressFill"></div>
-                                            <div class="monthly-marker" id="monthlyMarker">
-                                                <span class="monthly-marker-tooltip" id="monthlyMarkerTooltip"></span>
+                                        <!-- Credit rows -->
+                                        <div class="credit-rows">
+                                            <!-- Monthly row -->
+                                            <div class="credit-row" id="monthlyRow">
+                                                <span class="credit-row-label">Monthly</span>
+                                                <div class="credit-row-bar">
+                                                    <div class="credit-row-bar-fill" id="monthlyBarFill"></div>
+                                                </div>
+                                                <span class="credit-row-count"><span id="monthlyUsed">0</span> of <span id="monthlyLimit">100</span></span>
+                                                <span class="credit-row-status" id="monthlyStatus">Resets --</span>
                                             </div>
-                                        </div>
-                                    </div>
-                                    <div class="credit-details">
-                                        <span class="credit-reset">Resets <span id="creditResetDate">--</span></span>
-                                        <span class="credit-separator">·</span>
-                                        <a href="/portal/account#credits" class="credit-view-details">View details</a>
-                                        <span class="credit-separator">·</span>
-                                        <a href="#" onclick="openCreditPackModal(); return false;" class="credit-buy-more">Buy More</a>
-                                    </div>
-                                    <div class="credit-tooltip" id="creditTooltip">
-                                        <div class="tooltip-content">
-                                            <div class="tooltip-row">
-                                                <span>Monthly:</span>
-                                                <span><span id="tooltipMonthlyUsed">0</span>/<span id="tooltipMonthlyLimit">0</span> (resets <span id="tooltipResetDate">--</span>)</span>
-                                            </div>
-                                            <div class="tooltip-row" id="tooltipPurchasedRow" style="display: none;">
-                                                <span>Purchased:</span>
-                                                <span id="tooltipPurchasedRemaining">0</span>
-                                            </div>
-                                            <div class="tooltip-row" id="tooltipBonusRow" style="display: none;">
-                                                <span>Bonus:</span>
-                                                <span id="tooltipBonusRemaining">0</span>
-                                            </div>
-                                            <div class="tooltip-divider"></div>
-                                            <div class="tooltip-row">
-                                                <span><strong>Total:</strong></span>
-                                                <span><strong id="tooltipTotalAvailable">0</strong></span>
-                                            </div>
-                                            <div class="tooltip-footer">
-                                                Click for full history
+                                            <!-- Rolling row (only shown if user has rolling credits) -->
+                                            <div class="credit-row" id="rollingRow" style="display: none;">
+                                                <span class="credit-row-label">Rolling</span>
+                                                <div class="credit-row-bar rolling">
+                                                    <div class="credit-row-bar-fill rolling" id="rollingBarFill"></div>
+                                                </div>
+                                                <span class="credit-row-count"><span id="rollingRemaining">0</span> remaining</span>
+                                                <span class="credit-row-status">Roll over</span>
                                             </div>
                                         </div>
                                     </div>
