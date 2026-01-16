@@ -177,38 +177,88 @@ export async function linkDocumentToEntities(
   console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}', County '${county}'`);
   console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
   
-  // Match property by legal description (only if we know the document owner)
-  if (section && township && range && county && documentUserId) {
-    try {
-      const propertyQuery = `
-        SELECT airtable_record_id as id FROM properties
-        WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
-          AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
-          AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
-          AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
-          AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
-          AND LOWER(county) = LOWER(?)
-          AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
-          AND owner = ?
-        LIMIT 1
-      `;
-      const propertyParams = [section, township, township, range, range, county, meridian, meridian, documentUserId];
+  // Build list of all sections to check (primary + unit_sections)
+  const sectionsToCheck: Array<{section: string, township: string, range: string}> = [];
 
-      console.log(`[LinkDocuments] Property matching SQL query:\n${propertyQuery}`);
-      console.log(`[LinkDocuments] Property query parameters:`, propertyParams);
+  // Add primary section if available
+  if (section && township && range) {
+    sectionsToCheck.push({ section, township, range });
+  }
 
-      const property = await db.prepare(propertyQuery).bind(...propertyParams).first();
+  // Add sections from unit_sections array (for multi-section horizontal wells / Division Orders)
+  const unitSections = getValue(extractedFields.unit_sections);
+  if (Array.isArray(unitSections)) {
+    console.log(`[LinkDocuments] Found ${unitSections.length} unit_sections to check`);
+    for (const unit of unitSections) {
+      const unitSection = normalizeSection(getValue(unit.section));
+      const unitTownship = normalizeTownship(getValue(unit.township));
+      const unitRange = normalizeRange(getValue(unit.range));
 
-      if (property) {
-        propertyId = property.id as string;
-        console.log(`[LinkDocuments] Found matching property: ${propertyId}`);
-      } else {
-        console.log(`[LinkDocuments] No property match found for legal description (or not owned by user)`);
+      if (unitSection && unitTownship && unitRange) {
+        // Avoid duplicates
+        const isDuplicate = sectionsToCheck.some(
+          s => s.section === unitSection && s.township === unitTownship && s.range === unitRange
+        );
+        if (!isDuplicate) {
+          sectionsToCheck.push({ section: unitSection, township: unitTownship, range: unitRange });
+        }
       }
-    } catch (error) {
-      console.error(`[LinkDocuments] Error matching property:`, error);
     }
-  } else if (section && township && range && county && !documentUserId) {
+  }
+
+  console.log(`[LinkDocuments] Total sections to check for property matching: ${sectionsToCheck.length}`);
+
+  // Match properties by legal description - find ALL matching properties across ALL sections
+  const matchedPropertyIds: string[] = [];
+
+  if (sectionsToCheck.length > 0 && county && documentUserId) {
+    for (const sectionData of sectionsToCheck) {
+      try {
+        // Query for ALL properties matching this section (not LIMIT 1)
+        const propertyQuery = `
+          SELECT airtable_record_id as id FROM properties
+          WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
+            AND CAST(REPLACE(REPLACE(UPPER(township), 'N', ''), 'S', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'N', ''), 'S', '') AS INTEGER)
+            AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
+            AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
+            AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
+            AND LOWER(county) = LOWER(?)
+            AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
+            AND owner = ?
+        `;
+        const propertyParams = [
+          sectionData.section,
+          sectionData.township, sectionData.township,
+          sectionData.range, sectionData.range,
+          county, meridian, meridian, documentUserId
+        ];
+
+        console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range}`);
+
+        const properties = await db.prepare(propertyQuery).bind(...propertyParams).all();
+
+        if (properties.results && properties.results.length > 0) {
+          for (const prop of properties.results) {
+            const propId = prop.id as string;
+            if (!matchedPropertyIds.includes(propId)) {
+              matchedPropertyIds.push(propId);
+              console.log(`[LinkDocuments] Found matching property: ${propId} for section ${sectionData.section}`);
+            }
+          }
+        }
+      } catch (error) {
+        console.error(`[LinkDocuments] Error matching property for section ${sectionData.section}:`, error);
+      }
+    }
+
+    if (matchedPropertyIds.length > 0) {
+      // Store all property IDs as comma-separated string
+      propertyId = matchedPropertyIds.join(',');
+      console.log(`[LinkDocuments] Total matched properties: ${matchedPropertyIds.length} - IDs: ${propertyId}`);
+    } else {
+      console.log(`[LinkDocuments] No property matches found for any section`);
+    }
+  } else if (sectionsToCheck.length > 0 && county && !documentUserId) {
     console.log(`[LinkDocuments] Skipping property matching - could not determine document owner`);
   }
   
