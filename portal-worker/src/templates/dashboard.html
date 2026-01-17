@@ -6550,7 +6550,7 @@
                             sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
 
                             if (fieldName === 'grantors' || fieldName === 'grantees') {
-                                // Special handling for grantors/grantees arrays with detailed info
+                                // Special handling for grantors/grantees arrays with detailed info (v2 schema)
                                 const partyType = fieldName === 'grantors' ? 'Grantor' : 'Grantee';
                                 const bgColor = fieldName === 'grantors' ? '#FEF3C7' : '#F0FDF4';
                                 const borderColor = fieldName === 'grantors' ? '#F59E0B' : '#22C55E';
@@ -6561,13 +6561,24 @@
                                     if (typeof party === 'object') {
                                         const name = party.name || 'Unknown';
                                         const address = party.address || '';
+                                        const capacity = party.capacity || '';  // Trustee, Personal Representative, etc.
+                                        const tenancy = party.tenancy || '';    // joint_tenants_wros, tenants_in_common, etc.
                                         const maritalStatus = party.marital_status || '';
+
+                                        // Format tenancy for display
+                                        const tenancyDisplay = tenancy ? tenancy.replace(/_/g, ' ').replace(/wros/gi, 'WROS') : '';
 
                                         sectionContent += `
                                             <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
-                                                <div style="font-weight: 600; color: ${textColor};">${escapeHtml(name)}</div>
+                                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                                    <span style="font-weight: 600; color: ${textColor};">${escapeHtml(name)}</span>
+                                                    ${capacity ? `<span style="background: #E5E7EB; color: #374151; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(capacity)}</span>` : ''}
+                                                </div>
                                                 ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
-                                                ${maritalStatus ? `<div style="font-size: 11px; color: #9CA3AF; margin-top: 2px; text-transform: capitalize;">${escapeHtml(maritalStatus)}</div>` : ''}
+                                                <div style="display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
+                                                    ${maritalStatus ? `<span style="font-size: 11px; color: #9CA3AF; text-transform: capitalize;">${escapeHtml(maritalStatus)}</span>` : ''}
+                                                    ${tenancyDisplay ? `<span style="font-size: 11px; color: #6B7280; text-transform: capitalize;">${escapeHtml(tenancyDisplay)}</span>` : ''}
+                                                </div>
                                             </div>`;
                                     } else {
                                         sectionContent += `
@@ -6757,6 +6768,107 @@
                                         sectionContent += `
                                             <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 6px; padding: 10px 12px;">
                                                 <span style="font-weight: 500; color: #166534;">${escapeHtml(String(well))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'tracts') {
+                                // Special handling for tracts array (mineral deed v2 schema)
+                                // Each tract has legal description and interest conveyed
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+                                value.forEach((tract, index) => {
+                                    if (typeof tract === 'object') {
+                                        const legal = tract.legal || {};
+                                        const interest = tract.interest || {};
+
+                                        // Location info
+                                        const section = legal.section || '';
+                                        const township = legal.township || '';
+                                        const range = legal.range || '';
+                                        const meridian = legal.meridian || '';
+                                        const county = legal.county || '';
+                                        const state = legal.state || 'OK';
+                                        const quarterCalls = legal.quarter_calls || [];
+                                        const grossAcres = legal.gross_acres;
+                                        const fullDescription = legal.full_description || '';
+
+                                        // Interest info
+                                        const interestType = interest.type || 'mineral';
+                                        const fractionText = interest.fraction_text || '';
+                                        const fractionDecimal = interest.fraction_decimal;
+                                        const netMineralAcres = interest.net_mineral_acres;
+                                        const depthClause = interest.depth_clause || '';
+                                        const formationClause = interest.formation_clause || '';
+                                        const termClause = interest.term_clause || '';
+
+                                        // Build location string
+                                        let locationStr = '';
+                                        if (section && township && range) {
+                                            locationStr = `Section ${section}-${township}-${range}`;
+                                            if (meridian) locationStr += `-${meridian}`;
+                                        }
+                                        if (county) locationStr += locationStr ? `, ${county} County` : `${county} County`;
+                                        if (state) locationStr += `, ${state}`;
+
+                                        sectionContent += `
+                                            <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                                ${value.length > 1 ? `<div style="font-size: 11px; color: #9CA3AF; margin-bottom: 8px;">Tract ${index + 1}</div>` : ''}
+                                                <div style="font-weight: 600; color: #1F2937; font-size: 14px; margin-bottom: 8px;">${escapeHtml(locationStr)}</div>
+                                                ${quarterCalls.length > 0 ? `<div style="font-size: 13px; color: #4B5563; margin-bottom: 4px;">Quarter: ${escapeHtml(quarterCalls.join(', '))}</div>` : ''}
+                                                ${grossAcres ? `<div style="font-size: 13px; color: #4B5563; margin-bottom: 8px;">Gross Acres: ${grossAcres.toLocaleString()}</div>` : ''}
+
+                                                <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px; margin-top: 8px;">
+                                                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
+                                                        <div>
+                                                            <span style="font-size: 12px; color: #6B7280;">Interest Type:</span>
+                                                            <span style="font-weight: 600; color: #1E40AF; text-transform: capitalize; margin-left: 4px;">${escapeHtml(interestType)}</span>
+                                                        </div>
+                                                        ${fractionText ? `<div style="font-weight: 600; color: #1E40AF;">${escapeHtml(fractionText)}</div>` : ''}
+                                                    </div>
+                                                    ${netMineralAcres !== undefined ? `<div style="font-size: 13px; color: #4B5563; margin-top: 6px;">Net Mineral Acres: <strong>${netMineralAcres.toLocaleString()}</strong></div>` : ''}
+                                                </div>
+
+                                                ${depthClause || formationClause || termClause ? `
+                                                    <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #D1D5DB;">
+                                                        ${depthClause ? `<div style="font-size: 12px; color: #DC2626; margin-bottom: 4px;"><strong>Depth Limitation:</strong> ${escapeHtml(depthClause)}</div>` : ''}
+                                                        ${formationClause ? `<div style="font-size: 12px; color: #DC2626; margin-bottom: 4px;"><strong>Formation Limitation:</strong> ${escapeHtml(formationClause)}</div>` : ''}
+                                                        ${termClause ? `<div style="font-size: 12px; color: #9333EA;"><strong>Term:</strong> ${escapeHtml(termClause)}</div>` : ''}
+                                                    </div>
+                                                ` : ''}
+
+                                                ${fullDescription ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px; font-style: italic;">${escapeHtml(fullDescription)}</div>` : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'prior_instruments') {
+                                // Special handling for prior instruments array (chain of title references)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                sectionContent += `<div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">References to source of title:</div>`;
+                                value.forEach(instrument => {
+                                    if (typeof instrument === 'object') {
+                                        const book = instrument.book || '';
+                                        const page = instrument.page || '';
+                                        const instrumentNumber = instrument.instrument_number || '';
+                                        const description = instrument.description || '';
+
+                                        let refStr = '';
+                                        if (book && page) {
+                                            refStr = `Book ${book}, Page ${page}`;
+                                        }
+                                        if (instrumentNumber) {
+                                            refStr = refStr ? `${refStr} (Inst. #${instrumentNumber})` : `Inst. #${instrumentNumber}`;
+                                        }
+
+                                        sectionContent += `
+                                            <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px 12px;">
+                                                ${refStr ? `<div style="font-weight: 500; color: #92400E;">${escapeHtml(refStr)}</div>` : ''}
+                                                ${description ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(description)}</div>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px 12px;">
+                                                <span style="color: #92400E;">${escapeHtml(String(instrument))}</span>
                                             </div>`;
                                     }
                                 });
@@ -7351,6 +7463,47 @@
                                         </div>
                                     </div>`;
                             }
+                        } else if (fieldName === 'recording' && typeof value === 'object') {
+                            // Special handling for recording info object (mineral deeds v2 schema)
+                            hasVisibleFields = true;
+                            const recordingDate = value.recording_date || '';
+                            const book = value.book || '';
+                            const page = value.page || '';
+                            const instrumentNumber = value.instrument_number || '';
+                            const county = value.county || '';
+                            const state = value.state || 'OK';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; font-size: 13px;">
+                                            ${book && page ? `<div><span style="color: #6B7280;">Book/Page:</span> <strong>${escapeHtml(book)}/${escapeHtml(page)}</strong></div>` : ''}
+                                            ${instrumentNumber ? `<div><span style="color: #6B7280;">Instrument #:</span> <strong>${escapeHtml(instrumentNumber)}</strong></div>` : ''}
+                                            ${recordingDate ? `<div><span style="color: #6B7280;">Recorded:</span> <strong>${escapeHtml(recordingDate)}</strong></div>` : ''}
+                                            ${county ? `<div><span style="color: #6B7280;">County:</span> <strong>${escapeHtml(county)}${state ? `, ${escapeHtml(state)}` : ''}</strong></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'reservation' && typeof value === 'object') {
+                            // Special handling for reservation object (mineral deeds v2 schema)
+                            hasVisibleFields = true;
+                            const resType = value.type || '';
+                            const fractionText = value.fraction_text || '';
+                            const fractionDecimal = value.fraction_decimal;
+                            const description = value.description || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEE2E2; border: 1px solid #EF4444; border-radius: 8px; padding: 14px;">
+                                        <div style="font-weight: 600; color: #DC2626; font-size: 14px; margin-bottom: 8px;">⚠️ Grantor Reserved Interest</div>
+                                        <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-bottom: 8px;">
+                                            ${resType ? `<span style="background: #FECACA; padding: 4px 10px; border-radius: 4px;"><strong>Type:</strong> ${escapeHtml(resType)}</span>` : ''}
+                                            ${fractionText ? `<span style="background: #FECACA; padding: 4px 10px; border-radius: 4px;"><strong>Amount:</strong> ${escapeHtml(fractionText)}</span>` : ''}
+                                            ${fractionDecimal !== undefined ? `<span style="color: #6B7280;">(${fractionDecimal})</span>` : ''}
+                                        </div>
+                                        ${description ? `<div style="font-size: 12px; color: #7F1D1D; padding: 8px; background: #FECACA; border-radius: 4px; font-style: italic;">${escapeHtml(description)}</div>` : ''}
+                                    </div>
+                                </div>`;
                         } else if ((fieldName === 'respondents_with_known_addresses' ||
                                    fieldName.toLowerCase().includes('respondents') && fieldName.toLowerCase().includes('known')) &&
                                    Array.isArray(value)) {
