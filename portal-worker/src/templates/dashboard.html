@@ -7679,51 +7679,52 @@
                         display: inline;
                     }
                     
-                    /* Confidence section styles */
+                    /* Confidence section styles - subtle metadata row */
                     .confidence-section {
                         background-color: #f9fafb;
-                        padding: 1rem;
-                        border-radius: 0.5rem;
-                        margin-top: 1.5rem;
-                        margin-bottom: 1.5rem;
+                        padding: 8px 12px;
+                        border-radius: 6px;
+                        margin-top: 12px;
+                        margin-bottom: 12px;
+                        font-size: 14px;
                     }
-                    
-                    .confidence-summary {
+
+                    .confidence-header {
                         display: flex;
                         align-items: center;
-                        justify-content: space-between;
+                        gap: 8px;
                     }
-                    
-                    .confidence-info {
-                        display: flex;
-                        align-items: center;
-                        gap: 0.5rem;
+
+                    .confidence-label {
+                        color: #6b7280;
+                        font-weight: 500;
                     }
-                    
+
                     .confidence-badge {
                         display: inline-flex;
                         align-items: center;
-                        gap: 0.25rem;
+                        gap: 4px;
                         font-weight: 500;
+                        font-size: 13px;
                     }
-                    
+
                     .confidence-badge.high { color: #10b981; }
                     .confidence-badge.medium { color: #f59e0b; }
                     .confidence-badge.low { color: #ef4444; }
-                    
+
                     .confidence-toggle {
                         background: none;
                         border: none;
-                        color: #3b82f6;
+                        color: #6b7280;
                         cursor: pointer;
-                        font-size: 0.875rem;
-                        padding: 0.25rem 0.5rem;
-                        text-decoration: underline;
+                        font-size: 12px;
+                        padding: 2px 6px;
+                        margin-left: auto;
                         transition: color 0.2s;
                     }
-                    
+
                     .confidence-toggle:hover {
-                        color: #2563eb;
+                        color: #374151;
                     }
                     
                     .confidence-details {
