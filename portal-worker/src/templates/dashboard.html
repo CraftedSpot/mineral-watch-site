@@ -6109,7 +6109,7 @@
                 'Owner': ['owner_name', 'owner_address', 'trustee_name'],
                 'Interests': ['working_interest', 'royalty_interest', 'decimal_interest', 'ownership_type', 'net_revenue_interest',
                             'is_multi_section_unit', 'unit_sections'],
-                'Payment Terms': ['effective_date', 'payment_minimum'],
+                'Payment Terms': ['payment_minimum', 'payment_effective_date'],
                 'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
                 'Execution Details': ['execution_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type',
                                     'notary_expiration', 'commission_expiration', 'corporate_acknowledgment', 'acknowledgment_date'],
@@ -6128,7 +6128,7 @@
                 'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions'],
                 'Well Information': ['operator', 'purchaser', 'owner_number', 'unit_name'],
                 'Order Details': ['cd_number', 'order_number', 'cause_number', 'case_number', 'order_sub_type',
-                               'order_date', 'hearing_date', 'reopen_date', 'reopen_purpose',
+                               'order_date', 'effective_date', 'hearing_date', 'reopen_date', 'reopen_purpose',
                                'applicant', 'well_cost', 'unit_size_acres', 'unit_description', 'relief_granted',
                                'unit_shape', 'formations', 'election_options', 'election_deadline_days',
                                'additional_wells_authorized', 'existing_wells', 'expiration_date', 'expiration_period',
@@ -6385,10 +6385,10 @@
 
             // Define section order (Key Takeaway and Detailed Analysis rendered above, not in sections)
             const sectionOrder = [
-                // Pooling Order sections (in priority order)
+                // Pooling Order sections (in priority order - most actionable first)
                 'Election Options',
                 'Operator Information',
-                'Applicant Information',
+                'Legal Description',
                 'Unit Information',
                 'Well Details',
                 'Formations',
@@ -6396,8 +6396,9 @@
                 'Default Election',
                 'Subsequent Wells',
                 'Pooling Order Details',
-                'Additional Parties',
+                'Applicant Information',
                 'Notes',
+                'Additional Parties',
                 // Division Order / general document sections
                 'Operator/Payor',
                 'Property/Well',
