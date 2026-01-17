@@ -552,106 +552,83 @@ For LEASES:
 
 For DRILLING PERMITS (Form 1000 - Intent to Drill):
 Form 1000 is the OCC "Notice of Intent / Permit to Drill" for oil, gas, and injection wells.
-For horizontal wells, extract the Bottom Hole Location (BHL) - this is critical for mapping lateral paths.
-BHL coordinates are typically found on page 12 in the "Take Point: Bottom Hole" table.
 
-ORGANIZE extraction into these categories for display:
+WHERE TO FIND KEY DATA:
+- Page 1: API number, Well Name, Surface Location coordinates (latitude/longitude provided directly)
+- Page 2: Operator Information (name, address, OCC number)
+- Page 3: Target formation in "Zones of Significance" table
+- Page 6: Multi-Unit Orders table (lists all sections affected with allocations)
+- Page 12: "Take Point: Bottom Hole" table has BHL latitude/longitude - CRITICAL for lateral paths
+- Page 12: Other "Take Point" rows between surface and bottom hole are section crossings
 
-{
+EXTRACT (flat structure for clean display):
+{{
   "doc_type": "drilling_permit",
 
-  // === PERMIT INFORMATION ===
-  "permit_info": {
-    "permit_type": "New Drill",
-    "well_type": "Horizontal",
-    "issue_date": "2025-11-26",
-    "expiration_date": "2027-05-26"
-  },
+  "api_number": "3500900005",
+  "well_name": "Hutson",
+  "well_number": "30-31H",
+  "operator_name": "KING ENERGY LLC",
+  "operator_address": "7025 N ROBINSON AVE, OKLAHOMA CITY, OK 73116",
+  "county": "Beckham",
+  "issue_date": "2025-11-26",
+  "expiration_date": "2027-05-26",
+  "permit_type": "New Drill",
+  "well_type": "Horizontal",
 
-  // === WELL IDENTIFICATION ===
-  "well_info": {
-    "api_number": "35-009-00005",
-    "well_name": "Hutson",
-    "well_number": "30-31H",
-    "operator_name": "King Energy LLC"
-  },
-
-  // === SURFACE LOCATION ===
-  "legal_description": {
-    "section": "19",
+  "surface_location": {{
+    "section": 19,
     "township": "11N",
     "range": "23W",
-    "county": "Beckham"
-  },
-  "surface_latitude": 35.408369,
-  "surface_longitude": -99.666761,
+    "latitude": 35.408369,
+    "longitude": -99.666761
+  }},
 
-  // === TARGET FORMATION ===
-  "target_info": {
-    "formation": "Virgil",
-    "depth_top_tvd": 8400,
-    "depth_bottom_tvd": 9100
-  },
+  "bottom_hole_location": {{
+    "section": 31,
+    "township": "11N",
+    "range": "23W",
+    "latitude": 35.378663,
+    "longitude": -99.666866
+  }},
 
-  // === UNIT DETAILS ===
-  "unit_info": {
-    "unit_size_acres": 640,
-    "spacing_order": "83283"
-  },
+  "section_crossings": [
+    {{"from_section": 30, "to_section": 31, "latitude": 35.392702, "longitude": -99.666814}}
+  ],
 
-  // === LATERAL PATH (horizontal wells only) ===
-  // Critical for mapping - extract BHL from "Take Point: Bottom Hole" table
-  "lateral_path": {
-    "bhl_section": "31",
-    "bhl_township": "11N",
-    "bhl_range": "23W",
-    "bhl_latitude": 35.378663,
-    "bhl_longitude": -99.666866,
-    "lateral_length_ft": 10891,
-    "lateral_direction": "south",
-    "section_crossings": [
-      {"latitude": 35.392702, "longitude": -99.666814, "sections": "30/31"}
-    ]
-  },
+  "multi_unit_sections": [
+    {{"section": 30, "township": "11N", "range": "23W", "allocation_percentage": 50.0}},
+    {{"section": 31, "township": "11N", "range": "23W", "allocation_percentage": 50.0}}
+  ],
 
-  // === MULTI-UNIT (if well spans multiple sections) ===
-  "multi_unit": {
-    "is_multi_unit": true,
-    "sections": [
-      {"section": "30", "township": "11N", "range": "23W", "allocation_pct": 50.0},
-      {"section": "31", "township": "11N", "range": "23W", "allocation_pct": 50.0}
-    ]
-  },
+  "target_formation": "VIRGIL",
+  "target_depth_top": 8400,
+  "target_depth_bottom": 9100,
+  "lateral_direction": "south",
+  "lateral_length_ft": 10891,
+  "unit_size_acres": 640,
+  "spacing_order": "83283",
 
-  // === REGULATORY ORDERS (if applicable) ===
-  "regulatory": {
-    "increased_density_order": "752124",
-    "increased_density_formation": "Virgil",
-    "increased_density_wells": 4,
-    "location_exception_order": "752124"
-  },
-
-  "field_scores": {
+  "field_scores": {{
     "api_number": 1.0,
     "well_name": 1.0,
     "operator_name": 1.0,
-    "legal_description": 1.0,
-    "permit_type": 0.95,
-    "target_formation": 0.90,
-    "bhl_coordinates": 0.85
-  },
+    "surface_location": 1.0,
+    "bottom_hole_location": 0.95,
+    "target_formation": 0.90
+  }},
   "document_confidence": "high"
-}
+}}
 
 EXTRACTION NOTES FOR FORM 1000:
+- Parse legal description: "19-11N-23W-IM" → section=19, township="11N", range="23W"
+- Longitude should be NEGATIVE (west of prime meridian) - if you see positive, negate it
+- Well numbers ending in "H" indicate horizontal wells
+- Lateral direction: Compare surface to BHL latitude (BHL latitude < surface latitude = "south")
 - Permit type options: "New Drill", "New Drill - Multi Unit", "Re-Entry", "Deepen", "Sidetrack", "Workover"
-- Well type: "Horizontal" (well number often ends in H), "Vertical", "Directional"
-- BHL coordinates: Look on page 12 for "Take Point: Bottom Hole" table with Latitude/Longitude columns
-- Section crossings: Also on page 12, any "Take Point" entries between surface and bottom hole
-- Multi-unit: Check page 6 "Multi-Unit Orders" table for allocation percentages
-- Lateral direction: Derive from comparing surface lat/lon to BHL lat/lon (north, south, east, west)
-- Lateral length: Calculate from wellbore depths if not stated (Total Depth MD - Kickoff Depth MD)
-- For vertical wells, omit the lateral_path section entirely
+- Well type: "Horizontal", "Vertical", "Directional"
+- For VERTICAL wells: omit bottom_hole_location, section_crossings, lateral_direction, lateral_length_ft
+- BHL coordinates are CRITICAL for mapping lateral wellbore paths
 
 For DIVISION ORDERS:
 Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
