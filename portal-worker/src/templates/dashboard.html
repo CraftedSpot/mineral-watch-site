@@ -6453,7 +6453,16 @@
                 let sectionContent = '';
                 let hasVisibleFields = false;
                 
+                // Track if legal_description object was processed to avoid duplicate flat fields
+                const hasLegalDescObject = fields.legal_description && typeof fields.legal_description === 'object';
+                const legalDescFlatFields = ['section', 'township', 'range', 'county', 'state', 'meridian', 'quarters', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage'];
+
                 for (const [fieldName, value] of Object.entries(fields)) {
+                    // Skip flat legal description fields if we already have the object
+                    if (hasLegalDescObject && legalDescFlatFields.includes(fieldName.toLowerCase())) {
+                        continue;
+                    }
+
                     // Special handling for observations
                     if (fieldName === 'observations' && sectionName.includes('Observations')) {
                         const observations = escapeHtml(String(value));
@@ -6648,7 +6657,7 @@
                                 });
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'formations') {
-                                // Special handling for formations array
+                                // Special handling for formations array (pooling orders)
                                 sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
                                 value.forEach(formation => {
                                     if (typeof formation === 'object') {
@@ -6665,6 +6674,25 @@
                                         sectionContent += `
                                             <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 8px 12px;">
                                                 <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(formation))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'target_formations') {
+                                // Special handling for target formations array (increased density orders)
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(formation => {
+                                    const name = formation.name || '';
+                                    const isPrimary = formation.is_primary;
+                                    const commonSource = formation.common_source || '';
+                                    if (name) {
+                                        sectionContent += `
+                                            <div style="background: ${isPrimary ? '#DCFCE7' : '#F3F4F6'}; border: 1px solid ${isPrimary ? '#22C55E' : '#D1D5DB'}; border-radius: 8px; padding: 10px 14px;">
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <span style="font-weight: 600; color: ${isPrimary ? '#166534' : '#374151'}; font-size: 14px;">${escapeHtml(name)}</span>
+                                                    ${isPrimary ? `<span style="background: #166534; color: white; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px;">PRIMARY</span>` : ''}
+                                                </div>
+                                                ${commonSource ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(commonSource)}</div>` : ''}
                                             </div>`;
                                     }
                                 });
@@ -7218,29 +7246,6 @@
                                         ${additionalWells ? `<div style="font-size: 14px; color: #166534; font-weight: 500; margin-top: 10px;">✓ ${additionalWells} additional well${additionalWells > 1 ? 's' : ''} authorized</div>` : ''}
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'target_formations' && Array.isArray(value)) {
-                            // Special handling for target formations array (increased density orders)
-                            if (value.length > 0) {
-                                hasVisibleFields = true;
-                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
-                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
-                                value.forEach(formation => {
-                                    const name = formation.name || '';
-                                    const isPrimary = formation.is_primary;
-                                    const commonSource = formation.common_source || '';
-                                    if (name) {
-                                        sectionContent += `
-                                            <div style="background: ${isPrimary ? '#DCFCE7' : '#F3F4F6'}; border: 1px solid ${isPrimary ? '#22C55E' : '#D1D5DB'}; border-radius: 8px; padding: 10px 14px;">
-                                                <div style="display: flex; align-items: center; gap: 8px;">
-                                                    <span style="font-weight: 600; color: ${isPrimary ? '#166534' : '#374151'}; font-size: 14px;">${escapeHtml(name)}</span>
-                                                    ${isPrimary ? `<span style="background: #166534; color: white; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px;">PRIMARY</span>` : ''}
-                                                </div>
-                                                ${commonSource ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(commonSource)}</div>` : ''}
-                                            </div>`;
-                                    }
-                                });
-                                sectionContent += `</div></div>`;
-                            }
                         } else if (fieldName === 'recoverable_reserves' && typeof value === 'object') {
                             // Special handling for recoverable reserves object (increased density orders)
                             const oilMbo = value.oil_mbo;
