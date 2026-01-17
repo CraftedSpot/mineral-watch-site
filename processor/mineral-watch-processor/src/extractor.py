@@ -263,10 +263,12 @@ Your task is to extract key information and provide a confidence score (0.0-1.0)
 CURRENT DATE: {current_date}
 
 DATE ANALYSIS RULES:
-- Division orders commonly have effective dates BEFORE the document date (often 6-18 months earlier) - this is NORMAL, not a typo
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Only comment on dates if they conflict with OTHER dates in the SAME document (e.g., the same event listed with two different years)
+- Division orders commonly have effective dates BEFORE the document date (often 6-18 months earlier) - this is NORMAL
 - Retrospective effective dates reflect when production/ownership began, not when paperwork was processed
-- Do NOT speculate that dates are typos unless literally impossible (e.g., effective date in the future relative to document date)
-- Do NOT use terms like "prospective" or "retrospective" incorrectly - if effective date is before document date, that is retrospective
+- Do NOT speculate that dates are typos unless literally impossible (e.g., effective date after document date by years)
 
 IMPORTANT: Structure your response as follows:
 1. FIRST: The JSON object with extracted data
