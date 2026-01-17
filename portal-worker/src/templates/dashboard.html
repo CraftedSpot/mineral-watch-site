@@ -6211,9 +6211,33 @@
                 }
 
                 // Check if this field belongs to a group (try multiple formats)
-                const section = fieldToSection[dataFieldLower] ||
+                let section = fieldToSection[dataFieldLower] ||
                                fieldToSection[dataFieldNormalized] ||
                                fieldToSection[dataFieldLower.replace(/_/g, ' ')];
+
+                // If no exact match, try prefix-based pattern matching for pooling order fields
+                if (!section) {
+                    if (dataFieldLower.startsWith('legal representation') ||
+                        dataFieldLower.startsWith('legal_representation')) {
+                        section = 'Applicant Information';
+                    } else if (dataFieldLower.startsWith('order execution') ||
+                               dataFieldLower.startsWith('order_execution')) {
+                        section = 'Pooling Order Details';
+                    } else if (dataFieldLower.startsWith('additional provisions subsequent wells') ||
+                               dataFieldLower.startsWith('additional_provisions_subsequent_wells') ||
+                               dataFieldLower.startsWith('additional provisions bonus payment') ||
+                               dataFieldLower.startsWith('additional_provisions_bonus_payment') ||
+                               dataFieldLower.startsWith('additional provisions replacement wells') ||
+                               dataFieldLower.startsWith('additional_provisions_replacement_wells')) {
+                        section = 'Subsequent Wells';
+                    } else if (dataFieldLower.startsWith('exhibit a respondents') ||
+                               dataFieldLower.startsWith('exhibit_a_respondents')) {
+                        section = 'Additional Parties';
+                    } else if (dataFieldLower.startsWith('additional provisions operator lien') ||
+                               dataFieldLower.startsWith('additional_provisions_operator_lien')) {
+                        section = 'Notes';
+                    }
+                }
 
                 if (section && value !== null && value !== undefined && value !== '') {
                     if (!grouped[section]) {
@@ -6283,11 +6307,26 @@
                     continue;
                 }
                 
-                // Skip null/undefined/empty values
+                // Skip null/undefined/empty values and "None"/"N/A" strings
                 if (value === null || value === undefined || value === '') {
                     continue;
                 }
-                
+                // Skip string values that are essentially empty
+                if (typeof value === 'string') {
+                    const trimmed = value.trim().toLowerCase();
+                    if (trimmed === '' || trimmed === 'none' || trimmed === 'n/a' || trimmed === 'null' || trimmed === 'undefined') {
+                        continue;
+                    }
+                }
+                // Skip empty arrays
+                if (Array.isArray(value) && value.length === 0) {
+                    continue;
+                }
+                // Skip empty objects
+                if (typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0) {
+                    continue;
+                }
+
                 otherFields[field] = value;
             }
             
@@ -7150,21 +7189,53 @@
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {
-                                if (subValue !== null && subValue !== undefined && subValue !== '') {
-                                    hasVisibleFields = true;
-                                    // Handle nested objects/arrays properly
-                                    let displayValue;
-                                    if (typeof subValue === 'object') {
-                                        displayValue = JSON.stringify(subValue, null, 2);
-                                    } else {
-                                        displayValue = String(subValue);
-                                    }
-                                    sectionContent += `
-                                        <div class="doc-field">
-                                            <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
-                                            <div class="doc-value">${escapeHtml(displayValue)}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
-                                        </div>`;
+                                // Skip null/None/empty values
+                                if (subValue === null || subValue === undefined || subValue === '') continue;
+                                if (typeof subValue === 'string') {
+                                    const trimmed = subValue.trim().toLowerCase();
+                                    if (trimmed === '' || trimmed === 'none' || trimmed === 'n/a' || trimmed === 'null') continue;
                                 }
+                                if (Array.isArray(subValue) && subValue.length === 0) continue;
+                                if (typeof subValue === 'object' && !Array.isArray(subValue) && Object.keys(subValue).length === 0) continue;
+
+                                hasVisibleFields = true;
+                                let displayValue;
+
+                                if (Array.isArray(subValue)) {
+                                    // Render arrays as bullet lists
+                                    if (subValue.every(item => typeof item === 'string' || typeof item === 'number')) {
+                                        // Simple array of strings/numbers
+                                        displayValue = subValue.join(', ');
+                                    } else {
+                                        // Array of objects - render each
+                                        displayValue = '<ul style="margin: 4px 0; padding-left: 20px;">';
+                                        subValue.forEach(item => {
+                                            if (typeof item === 'object') {
+                                                const parts = Object.entries(item)
+                                                    .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
+                                                    .map(([k, v]) => `${formatFieldName(k)}: ${escapeHtml(String(v))}`);
+                                                displayValue += `<li>${parts.join(' • ')}</li>`;
+                                            } else {
+                                                displayValue += `<li>${escapeHtml(String(item))}</li>`;
+                                            }
+                                        });
+                                        displayValue += '</ul>';
+                                    }
+                                } else if (typeof subValue === 'object') {
+                                    // Render nested objects as key-value pairs
+                                    const parts = Object.entries(subValue)
+                                        .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
+                                        .map(([k, v]) => `<strong>${formatFieldName(k)}:</strong> ${escapeHtml(String(v))}`);
+                                    displayValue = parts.join(' • ');
+                                } else {
+                                    displayValue = escapeHtml(String(subValue));
+                                }
+
+                                sectionContent += `
+                                    <div class="doc-field">
+                                        <label>${formatFieldName(fieldName)} ${formatFieldName(subField)}</label>
+                                        <div class="doc-value">${displayValue}${getConfidenceIndicator(`${fieldName}_${subField}`, fieldScores)}</div>
+                                    </div>`;
                             }
                         }
                     } else {
