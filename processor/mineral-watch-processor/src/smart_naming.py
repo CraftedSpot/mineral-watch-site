@@ -205,32 +205,27 @@ def get_year_from_dates(extraction: dict) -> Optional[str]:
 # ============================================================================
 
 def name_mineral_deed(data: Dict[str, Any]) -> str:
-    """Mineral Deed - {County} - {Legal} - {Grantor to Grantee} - {Year}"""
+    """Mineral Deed - {Grantor to Grantee} - S{Section}-{Township}-{Range}-{Meridian} - {Year}
+
+    Format optimized for chain of title context.
+    Multi-tract indicator added when deed covers multiple tracts.
+    """
     parts = ["Mineral Deed"]
 
-    if data.get('county'):
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
-
-    legal = format_legal_description(
-        data.get('section'),
-        data.get('township'),
-        data.get('range')
-    )
-    if legal:
-        parts.append(legal)
-
-    # Handle various formats for grantor names
+    # === PARTIES (Grantor to Grantee format for chain context) ===
     grantor = None
+    grantee = None
 
-    # Check new 'grantors' array of objects format first
+    # Check 'grantors' array of objects format (v2 schema)
     grantors_array = data.get('grantors', [])
     if grantors_array and isinstance(grantors_array, list):
         first_grantor = grantors_array[0]
         if isinstance(first_grantor, dict):
             grantor = first_grantor.get('name', '')
+            # Check for capacity (Trustee, etc.)
+            capacity = first_grantor.get('capacity', '')
+            if capacity and grantor:
+                grantor = f"{grantor} ({capacity})"
         elif isinstance(first_grantor, str):
             grantor = first_grantor
 
@@ -241,21 +236,21 @@ def name_mineral_deed(data: Dict[str, Any]) -> str:
             grantor = grantor[0]
         elif isinstance(grantor, dict):
             grantor = grantor.get('name', '')
-
     if not grantor:
         grantors = data.get('grantor_names', [])
         if grantors and isinstance(grantors, list):
             grantor = grantors[0]
 
-    # Handle various formats for grantee names
-    grantee = None
-
-    # Check new 'grantees' array of objects format first
+    # Check 'grantees' array of objects format (v2 schema)
     grantees_array = data.get('grantees', [])
     if grantees_array and isinstance(grantees_array, list):
         first_grantee = grantees_array[0]
         if isinstance(first_grantee, dict):
             grantee = first_grantee.get('name', '')
+            # Check for capacity (Trustee, etc.)
+            capacity = first_grantee.get('capacity', '')
+            if capacity and grantee:
+                grantee = f"{grantee} ({capacity})"
         elif isinstance(first_grantee, str):
             grantee = first_grantee
 
@@ -266,7 +261,6 @@ def name_mineral_deed(data: Dict[str, Any]) -> str:
             grantee = grantee[0]
         elif isinstance(grantee, dict):
             grantee = grantee.get('name', '')
-
     if not grantee:
         grantees = data.get('grantee_names', [])
         if grantees and isinstance(grantees, list):
@@ -276,6 +270,62 @@ def name_mineral_deed(data: Dict[str, Any]) -> str:
     if party_transfer:
         parts.append(party_transfer)
 
+    # === LOCATION (from tracts array in v2 schema, or flat fields) ===
+    section = None
+    township = None
+    range_val = None
+    meridian = None
+    county = None
+    num_tracts = 0
+
+    # Check v2 schema tracts array first
+    tracts = data.get('tracts', [])
+    if tracts and isinstance(tracts, list) and len(tracts) > 0:
+        num_tracts = len(tracts)
+        first_tract = tracts[0]
+        if isinstance(first_tract, dict):
+            legal = first_tract.get('legal', {})
+            if isinstance(legal, dict):
+                section = legal.get('section')
+                township = legal.get('township')
+                range_val = legal.get('range')
+                meridian = legal.get('meridian')
+                county = legal.get('county')
+
+    # Fall back to nested legal_description object
+    if not section:
+        legal_desc = data.get('legal_description', {})
+        if isinstance(legal_desc, dict):
+            section = legal_desc.get('section')
+            township = legal_desc.get('township')
+            range_val = legal_desc.get('range')
+            meridian = legal_desc.get('meridian')
+            county = legal_desc.get('county')
+
+    # Fall back to flat fields
+    if not section:
+        section = data.get('section')
+        township = data.get('township')
+        range_val = data.get('range')
+        meridian = data.get('meridian')
+        county = data.get('county')
+
+    # Format location with meridian
+    if section and township and range_val:
+        loc = f"S{section}-{township}-{range_val}"
+        if meridian:
+            loc += f"-{meridian}"
+        # Add multi-tract indicator
+        if num_tracts > 1:
+            loc += f" (+{num_tracts - 1} tracts)"
+        parts.append(loc)
+    elif county:
+        county_str = str(county).strip()
+        if not county_str.lower().endswith('county'):
+            county_str = f"{county_str} County"
+        parts.append(county_str)
+
+    # === YEAR ===
     if data.get('year'):
         parts.append(str(data['year']))
 

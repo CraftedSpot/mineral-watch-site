@@ -6154,6 +6154,12 @@
                 'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
                 'Unit Details': ['unit_size_acres', 'spacing_order', 'lateral_direction', 'lateral_length_ft'],
                 'Multi-Unit Sections': ['multi_unit_sections', 'section_crossings'],
+                // Mineral Deed sections (v2 schema)
+                'Tracts': ['tracts'],  // Array of legal descriptions with interests
+                'Recording Information': ['recording', 'recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
+                'Reservation': ['reservation'],  // Grantor's reserved interests
+                'Prior Instruments': ['prior_instruments'],  // Chain of title references
+                'Extraction Notes': ['extraction_notes'],  // Ambiguities or interpretation notes
                 // Increased Density Order sections
                 'Order Details': ['order_info'],
                 'Officials': ['officials'],
@@ -6395,6 +6401,14 @@
 
             // Define section order (Key Takeaway and Detailed Analysis rendered above, not in sections)
             const sectionOrder = [
+                // Mineral Deed sections (chain of title priority)
+                'Parties',
+                'Tracts',
+                'Interest & Consideration',
+                'Reservation',
+                'Recording Information',
+                'Prior Instruments',
+                'Extraction Notes',
                 // Increased Density Order sections (in priority order)
                 'Order Details',
                 'Officials',

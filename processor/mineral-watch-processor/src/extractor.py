@@ -375,144 +375,131 @@ For Mineral Deeds, note the sub-type if identifiable:
 
 Return your response as a JSON object with this exact structure:
 
-For DEEDS (Mineral Deed, Royalty Deed, Warranty Deed, Quitclaim Deed, Assignment):
+For DEEDS (Mineral Deed, Royalty Deed, Warranty Deed, Quitclaim Deed, Gift Deed, Assignment):
 NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
 This document transfers ownership of mineral or royalty interests from one party to another.
 Focus on extracting exactly what THIS document states. Do not infer prior ownership or subsequent transfers.
 
-CHAIN OF TITLE EXTRACTION:
+CHAIN OF TITLE PRINCIPLES:
 - Grantor is the party transferring ownership (seller/assignor)
 - Grantee is the party receiving ownership (buyer/assignee)
-- Extract normalized names for future matching (LAST, FIRST MIDDLE format for individuals)
+- Extract names EXACTLY as written - code will normalize for matching
 - Note any reservations the grantor keeps for themselves
 - Capture references to prior instruments in the chain
+- Capture tenancy on BOTH grantors (what they held) and grantees (how they're taking)
 
-DEED TYPE DETECTION (for the "deed_type" field - this is the LEGAL type of conveyance, NOT the document category):
-- warranty_deed: Contains warranty language guaranteeing title ("warrant and defend", "general warranty")
-- special_warranty_deed: Limited warranty (only warrants against claims arising during grantor's ownership)
-- quitclaim_deed: No warranty - just releases whatever interest grantor may have ("remise, release, quitclaim")
-- grant_deed: Simple grant with implied warranties
-- bargain_and_sale_deed: Implies grantor has title but no warranties
-NOTE: Do NOT use "mineral_deed" or "royalty_deed" for deed_type - those describe WHAT is conveyed (doc_type), not the legal warranty type.
+DEED TYPE DETECTION (for the "deed_type" field - this is the LEGAL type of conveyance):
+- warranty: Contains warranty language ("warrant and defend", "general warranty")
+- special_warranty: Limited warranty (only warrants against claims during grantor's ownership)
+- quitclaim: No warranty - releases whatever interest grantor may have ("remise, release, quitclaim")
+- gift: Transfer without monetary consideration, often between family members
+- other: Grant deeds, bargain and sale, or unclear type
 
-{
+MULTI-TRACT DEEDS: If a deed conveys interests in MULTIPLE sections or tracts, include each as a separate entry in the tracts array. Each tract has its own legal description and interest details.
+
+OMIT fields that don't apply - do NOT include null values or empty objects.
+
+REQUIRED FIELDS: doc_type, deed_type, grantors, grantees, tracts (with at least one), execution_date, consideration
+
+{{
   "doc_type": "mineral_deed",
-  "deed_type": "warranty_deed",
+  "deed_type": "warranty",
+
   "grantors": [
-    {
-      "name": "John A. Smith",
-      "address": "123 Main Street, Oklahoma City, OK 73102",
+    {{
+      "name": "Joel S. Price",
+      "address": "6801 No. Country Club Dr., Oklahoma City, Oklahoma",
+      "tenancy": "joint_tenants_wros",
       "marital_status": "married"
-    },
-    {
-      "name": "Mary B. Smith",
-      "address": "123 Main Street, Oklahoma City, OK 73102",
+    }},
+    {{
+      "name": "Virginia K. Price",
+      "address": "6801 No. Country Club Dr., Oklahoma City, Oklahoma",
+      "tenancy": "joint_tenants_wros",
       "marital_status": "married"
-    }
+    }}
   ],
+
   "grantees": [
-    {
-      "name": "Robert C. Jones",
-      "address": "456 Oak Avenue, Tulsa, OK 74103"
-    }
+    {{
+      "name": "Joel S. Price",
+      "address": "6801 N. Ctry Club Dr. O.C.",
+      "capacity": "Trustee"
+    }}
   ],
-  "recording_date": "2023-03-15",
-  "execution_date": "2023-03-10",
-  "recording_book": "350",
-  "recording_page": "125",
-  "instrument_number": "2023-012345",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady",
-    "quarter_section": "NW/4",
-    "acreage": 160,
-    "full_description": "The NW/4 of Section 16, Township 12 North, Range 7 West, Grady County, Oklahoma, containing 160 acres more or less"
-  },
-  "interest_conveyed": {
-    "type": "mineral",
-    "fraction_text": "an undivided one-half (1/2) interest",
-    "fraction_decimal": 0.50,
-    "net_mineral_acres": 80.0,
-    "depth_limitation": null,
-    "formation_limitation": null
-  },
-  "reservation": {
-    "has_reservation": false,
-    "reservation_text": null,
-    "reserved_interest_type": null,
-    "reserved_fraction": null
-  },
-  "consideration": "$10,000.00",
-  "prior_instruments": [
-    {
-      "book": "245",
-      "page": "112",
-      "instrument_number": null,
-      "description": "Deed from William Smith to John A. Smith"
-    }
+
+  "tracts": [
+    {{
+      "legal": {{
+        "section": "18",
+        "township": "17N",
+        "range": "13W",
+        "meridian": "IM",
+        "county": "Blaine",
+        "state": "OK",
+        "quarter_calls": ["E/2"],
+        "gross_acres": 320
+      }},
+      "interest": {{
+        "type": "mineral",
+        "fraction_text": "One Sixty fourths (1/64)",
+        "fraction_decimal": 0.015625,
+        "net_mineral_acres": 5
+      }}
+    }}
   ],
-  "chain_of_title": {
-    "relevant": true,
-    "category": "conveyance",
-    "document_type": "mineral_deed",
-    "parties": {
-      "grantor": ["John A. Smith", "Mary B. Smith"],
-      "grantor_normalized": ["SMITH, JOHN A", "SMITH, MARY B"],
-      "grantor_type": "married_couple",
-      "grantee": ["Robert C. Jones"],
-      "grantee_normalized": ["JONES, ROBERT C"],
-      "grantee_type": "individual"
-    },
-    "interest": {
-      "type": "mineral",
-      "fraction_text": "an undivided one-half (1/2) interest",
-      "fraction_decimal": 0.50,
-      "acreage": 160,
-      "net_mineral_acres": 80.0,
-      "undivided": true,
-      "reservation": false
-    },
-    "dates": {
-      "document_date": "2023-03-10",
-      "recording_date": "2023-03-15",
-      "effective_date": null
-    },
-    "recording": {
-      "county": "Grady",
-      "book": "350",
-      "page": "125",
-      "instrument_number": "2023-012345"
-    },
-    "chain_links": {
-      "references_prior": [
-        {
-          "book": "245",
-          "page": "112",
-          "description": "Deed from William Smith to John A. Smith"
-        }
-      ]
-    }
-  },
-  "field_scores": {
-    "grantors": 0.95,
-    "grantees": 0.98,
-    "recording_date": 1.0,
-    "execution_date": 0.90,
-    "recording_book": 1.0,
-    "recording_page": 1.0,
-    "legal_section": 0.95,
-    "legal_township": 0.95,
-    "legal_range": 0.95,
-    "legal_county": 1.0,
-    "acreage": 0.90,
-    "interest_conveyed": 0.85,
-    "consideration": 0.75,
-    "chain_of_title": 0.90
-  },
-  "document_confidence": "high"
-}
+
+  "execution_date": "1975-01-26",
+
+  "recording": {{
+    "recording_date": "1975-01-28",
+    "book": "242",
+    "page": "232",
+    "county": "Blaine",
+    "state": "OK"
+  }},
+
+  "consideration": "No Monetary Consideration",
+
+  "extraction_notes": "Grantors held as joint tenants, transferring to one of them as Trustee.",
+
+  "key_takeaway": "Joel S. and Virginia K. Price transferred their 1/64 mineral interest in Section 18-17N-13W to Joel S. Price as Trustee.",
+
+  "detailed_analysis": "This deed transfers a fractional mineral interest from a married couple holding as joint tenants with right of survivorship to one of them acting as Trustee. The transfer is for no monetary consideration, indicating an estate planning transaction. The interest conveyed is 1/64 of the minerals in the East Half (E/2) of Section 18, Township 17 North, Range 13 West, Blaine County, Oklahoma, equating to approximately 5 net mineral acres."
+}}
+
+PARTY FIELDS (include only when document states them):
+- name: REQUIRED - exactly as written on document
+- address: If provided
+- capacity: "Trustee", "Personal Representative", "Attorney-in-Fact", "Guardian", etc.
+- tenancy: "joint_tenants_wros", "tenants_in_common", "community_property" (on both grantors AND grantees)
+- marital_status: "married", "single", "widow", "widower", "divorced"
+
+TRACT FIELDS:
+- legal.section, legal.township, legal.range, legal.meridian, legal.county, legal.state: REQUIRED
+- legal.quarter_calls: Array of quarter section calls. Nested calls as single string: ["NW/4 NE/4"]. Multiple separate tracts as multiple items: ["NW/4", "SE/4"]
+- legal.gross_acres: Total acres in the tract
+- legal.full_description: For metes-and-bounds or complex descriptions
+- interest.type: "mineral", "royalty", "overriding_royalty", "working", "leasehold"
+- interest.fraction_text: As written ("one-sixty fourth (1/64)")
+- interest.fraction_decimal: Numeric value (0.015625)
+- interest.net_mineral_acres: gross_acres × fraction_decimal
+- interest.depth_clause: Only if depth limitation exists
+- interest.formation_clause: Only if formation limitation exists
+- interest.term_clause: Only if term mineral interest (e.g., "for 20 years")
+
+RESERVATION (only if grantor reserved something):
+- type: "mineral", "royalty", "npri", "life_estate", "other"
+- fraction_text: As written
+- fraction_decimal: Numeric value
+- description: Full reservation language
+
+PRIOR INSTRUMENTS (references to source of grantor's title):
+- book, page, instrument_number: Recording reference
+- description: "Deed from William Smith dated..."
+
+COMMON FRACTION CONVERSIONS:
+1/2 = 0.5, 1/4 = 0.25, 1/8 = 0.125, 1/16 = 0.0625, 1/32 = 0.03125, 1/64 = 0.015625, 1/128 = 0.0078125, 1/256 = 0.00390625
 
 For LEASES:
 {
