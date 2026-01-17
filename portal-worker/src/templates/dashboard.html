@@ -7142,23 +7142,53 @@
                             }
 
                             sectionContent += `</div>`;
-                        } else if (fieldName === 'respondents_with_known_addresses' && Array.isArray(value)) {
-                            // Handle flat respondents_with_known_addresses array
+                        } else if ((fieldName === 'respondents_with_known_addresses' ||
+                                   fieldName.toLowerCase().includes('respondents') && fieldName.toLowerCase().includes('known')) &&
+                                   Array.isArray(value)) {
+                            // Handle respondents with known addresses array (various field name patterns)
                             if (value.length > 0) {
                                 hasVisibleFields = true;
                                 sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 6px;">`;
                                 value.forEach(party => {
-                                    const name = party.name || (typeof party === 'string' ? party : '');
-                                    const address = party.address || '';
-                                    sectionContent += `
-                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
-                                            <div style="font-weight: 500; color: #374151;">${escapeHtml(name)}</div>
-                                            ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(address)}</div>` : ''}
-                                        </div>`;
+                                    if (typeof party === 'object' && party !== null) {
+                                        const name = party.name || party.Name || '';
+                                        const address = party.address || party.Address || '';
+                                        sectionContent += `
+                                            <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
+                                                <div style="font-weight: 500; color: #374151;">${escapeHtml(name)}</div>
+                                                ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(address)}</div>` : ''}
+                                            </div>`;
+                                    } else if (typeof party === 'string') {
+                                        sectionContent += `
+                                            <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
+                                                <div style="font-weight: 500; color: #374151;">${escapeHtml(party)}</div>
+                                            </div>`;
+                                    }
                                 });
                                 sectionContent += `</div></div>`;
                             }
+                        } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
+                            // Generic handler for arrays of objects (catch-all for respondents, etc.)
+                            hasVisibleFields = true;
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                            sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
+                            sectionContent += `<div style="display: flex; flex-direction: column; gap: 6px;">`;
+                            value.forEach(item => {
+                                if (typeof item === 'object' && item !== null) {
+                                    const parts = Object.entries(item)
+                                        .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
+                                        .map(([k, v]) => `<strong>${formatFieldName(k)}:</strong> ${escapeHtml(String(v))}`);
+                                    if (parts.length > 0) {
+                                        sectionContent += `
+                                            <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
+                                                ${parts.join(' • ')}
+                                            </div>`;
+                                    }
+                                }
+                            });
+                            sectionContent += `</div></div>`;
                         } else if (fieldName === 'commissioners' && Array.isArray(value)) {
                             // Special handling for commissioners array
                             if (value.length > 0) {
