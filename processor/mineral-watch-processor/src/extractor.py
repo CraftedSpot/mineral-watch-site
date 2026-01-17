@@ -987,82 +987,140 @@ For INCREASED DENSITY ORDERS (Authorization for additional wells in existing uni
 NOTE: These orders do NOT require owner action - they are informational only.
 Look for "INCREASED WELL DENSITY" or "INCREASED DENSITY" in the relief sought section.
 
-{
+CRITICAL - FIELD NAME ENFORCEMENT:
+You MUST use ONLY the exact field names shown in the schema below. Do NOT invent new field names.
+- Use "order_info" NOT "case_info" or "Order Information"
+- Use "officials" NOT "commissioners_info" or "Officials Information"
+- Use "well_authorization" NOT "proposed_well" or "Well Info"
+- Use "target_formations" NOT "formations" or "Target Formation"
+- Use "recoverable_reserves" NOT "engineering_data" or "reserves"
+- Use "related_orders" NOT "previous_orders" or "companion_orders"
+If information doesn't fit an existing field, put it in "notes" as a text summary.
+
+REQUIRED FIELDS: order_info.case_number, order_info.order_number, order_info.order_date,
+officials.administrative_law_judge, operator.name, applicant.name, applicant.is_operator,
+legal_description (all subfields), well_authorization.well_name, well_authorization.well_type,
+target_formations (at least one with is_primary: true), key_takeaway, detailed_analysis
+
+OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
+- operator address fields (address, city, state, zip)
+- applicant.attorney, applicant.attorney_oba, applicant.attorney_address, applicant.attorney_phone
+- well_authorization.api_number, well_authorization.well_classification
+- unit_info.description
+- existing_wells (omit entire array if none listed)
+- recoverable_reserves (omit if no engineering data)
+- allowable_notes
+- related_orders.amends_order, related_orders.companion_cases
+
+{{
   "doc_type": "increased_density_order",
-  "case_number": "CD2025-001682",
-  "order_number": "750759",
-  "order_date": "2025-07-17",
-  "effective_date": "2025-07-17",
-  "hearing_date": "2025-06-17",
-  "applicant": "R. Michael Lortz",
-  "operator": "Charter Oak Production Co., LLC",
-  "proposed_well_name": "Charter Oak 1-15",
-  "legal_description": {
-    "section": "15",
-    "township": "13N",
-    "range": "24W",
-    "county": "Roger Mills"
-  },
-  "unit_description": "All of Section 15, Township 13 North, Range 24 West",
-  "unit_size_acres": 640,
-  "formations": [
-    {
-      "name": "Tonkawa",
-      "depth_from": null,
-      "depth_to": null
-    }
+
+  "order_info": {{
+    "case_number": "CD2023-001229",
+    "order_number": "734065",
+    "order_date": "2023-05-03",
+    "hearing_date": "2023-04-25"
+  }},
+
+  "officials": {{
+    "administrative_law_judge": "Jan Preslar",
+    "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
+  }},
+
+  "operator": {{
+    "name": "Continental Resources, Inc.",
+    "address": "20 N Broadway",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "zip": "73102"
+  }},
+
+  "applicant": {{
+    "name": "Continental Resources, Inc.",
+    "is_operator": true,
+    "attorney": "Karl F. Hirsch",
+    "attorney_oba": "4232",
+    "attorney_address": "Two Leadership Square, Oklahoma City, OK 73102",
+    "attorney_phone": "(405) 235-4100"
+  }},
+
+  "legal_description": {{
+    "section": 10,
+    "township": "14N",
+    "range": "14W",
+    "meridian": "IM",
+    "county": "Custer",
+    "state": "Oklahoma"
+  }},
+
+  "unit_info": {{
+    "unit_size_acres": 640,
+    "spacing_order": "668920",
+    "description": "All of Section 10, Township 14 North, Range 14 West"
+  }},
+
+  "well_authorization": {{
+    "well_name": "KO Kipp 4-34-3-10XHW",
+    "api_number": "35-039-22605",
+    "well_type": "multiunit_horizontal",
+    "well_classification": "oil",
+    "additional_wells_authorized": 1
+  }},
+
+  "target_formations": [
+    {{
+      "name": "Mississippian",
+      "is_primary": true,
+      "common_source": "Mississippian common source of supply"
+    }}
   ],
-  "well_type": "oil",
-  "additional_wells_authorized": 1,
-  "amends_order": "115709",
+
   "existing_wells": [
-    {
-      "well_name": "Barton 1-15H",
-      "api_number": "35-129-23721",
-      "classification": "oil"
-    },
-    {
-      "well_name": "Luke 15-11",
-      "api_number": "35-129-24084",
-      "classification": "oil"
-    }
+    {{
+      "well_name": "KO Kipp 1-34-3-10MXH",
+      "api_number": "35-039-22501",
+      "well_classification": "oil"
+    }}
   ],
-  "engineering_data": {
-    "recoverable_oil_stb": 1117000,
-    "recoverable_gas_mmcf": 3977,
-    "remaining_oil_stb": 990000,
-    "remaining_gas_mmcf": 3297
-  },
-  "allowable_type": "normal 80-acre plus incentive horizontal",
-  "allowable_notes": "If completed as gas well, shares single unit gas allowable",
-  "expiration_period": "one year",
-  "expiration_date": "2026-07-17",
-  "companion_cases": ["CD2025-001680", "CD2025-001681"],
-  "previous_orders": ["115709"],
-  "field_scores": {
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "hearing_date": 0.95,
+
+  "recoverable_reserves": {{
+    "oil_mbo": 94,
+    "gas_mmcf": 94391
+  }},
+
+  "allowable_notes": "Multiunit horizontal allocation factors per Appendix A supplemented by Appendix C; gas per 165:10-3-28(h)(2)",
+
+  "expiration": {{
+    "period": "1 year",
+    "date": "2024-05-03"
+  }},
+
+  "related_orders": {{
+    "spacing_order": "668920",
+    "amends_order": "720145",
+    "companion_cases": ["CD2023-001228", "CD2023-001230"]
+  }},
+
+  "key_takeaway": "Continental Resources authorized to drill one additional multiunit horizontal well (KO Kipp 4-34-3-10XHW) targeting the Mississippian in Section 10-14N-14W, Custer County.",
+
+  "detailed_analysis": "This increased density order grants Continental Resources permission to drill an additional horizontal well in an existing 640-acre spacing unit in Section 10. The well, named KO Kipp 4-34-3-10XHW, will target the Mississippian formation.\n\nThe Commission found that significant recoverable reserves remain in the unit - approximately 94,000 barrels of oil and 94 billion cubic feet of gas - that would not be efficiently drained by existing wells alone.\n\nThis order is informational only and does not require mineral owner action. If you own minerals in this section, you may see increased royalty payments once the well is drilled and begins production. The authorization expires May 3, 2024 if drilling operations have not commenced.",
+
+  "field_scores": {{
+    "order_info": 0.95,
+    "officials": 0.90,
+    "operator": 0.95,
     "applicant": 0.95,
-    "operator": 1.0,
-    "proposed_well_name": 0.85,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "unit_description": 0.90,
-    "unit_size_acres": 0.95,
-    "formations": 0.85,
-    "well_type": 0.90,
-    "additional_wells_authorized": 0.95,
+    "legal_description": 1.0,
+    "unit_info": 0.90,
+    "well_authorization": 0.95,
+    "target_formations": 0.90,
     "existing_wells": 0.85,
-    "engineering_data": 0.80,
-    "expiration_date": 0.90
-  },
+    "recoverable_reserves": 0.80,
+    "expiration": 0.90,
+    "related_orders": 0.85
+  }},
   "document_confidence": "high"
-}
+}}
 
 For CHANGE OF OPERATOR ORDERS (Transfer of operatorship to new company):
 NOTE: These orders transfer operational responsibility from one company to another.
