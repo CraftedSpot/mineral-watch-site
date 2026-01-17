@@ -11086,6 +11086,23 @@
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     transform: translateY(-2px);
 }
+
+/* Credit pack modal mobile */
+@media (max-width: 768px) {
+    #creditPackModal .modal {
+        max-width: calc(100vw - 32px) !important;
+        margin: 16px;
+        max-height: calc(100vh - 32px);
+        overflow-y: auto;
+    }
+    #creditPackModal .credit-pack-grid {
+        grid-template-columns: 1fr !important;
+        gap: 12px !important;
+    }
+    #creditPackModal .credit-pack-card {
+        padding: 16px !important;
+    }
+}
 </style>
 
 <!-- DOCUMENT UPLOAD MODAL -->
