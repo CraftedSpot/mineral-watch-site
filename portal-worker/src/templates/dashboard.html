@@ -7031,11 +7031,13 @@
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'unit_info' && typeof value === 'object') {
-                            // Special handling for unit information object
+                            // Special handling for unit information object (pooling orders and increased density)
                             hasVisibleFields = true;
+                            // Pooling order format has nested legal_description
                             const legalDesc = value.legal_description || {};
-                            const unitDesc = value.unit_description || '';
+                            const unitDesc = value.unit_description || value.description || '';
                             const unitSize = value.unit_size_acres;
+                            const spacingOrder = value.spacing_order || '';
                             const section = legalDesc.section || '';
                             const township = legalDesc.township || '';
                             const range = legalDesc.range || '';
@@ -7048,7 +7050,10 @@
                                         ${section ? `<div style="font-weight: 600; color: #0369A1; font-size: 15px;">Section ${escapeHtml(section)} - ${escapeHtml(township)}-${escapeHtml(range)}${county ? `, ${escapeHtml(county)} County` : ''}</div>` : ''}
                                         ${quarters ? `<div style="font-size: 13px; color: #374151; margin-top: 4px;">${escapeHtml(quarters)}</div>` : ''}
                                         ${unitDesc ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(unitDesc)}</div>` : ''}
-                                        ${unitSize ? `<div style="font-size: 13px; color: #059669; font-weight: 500; margin-top: 6px;">${unitSize.toLocaleString()} acres</div>` : ''}
+                                        <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 13px;">
+                                            ${unitSize ? `<span style="color: #059669; font-weight: 500;">${unitSize.toLocaleString()} acres</span>` : ''}
+                                            ${spacingOrder ? `<span style="color: #6B7280;">Spacing Order: <strong>${escapeHtml(spacingOrder)}</strong></span>` : ''}
+                                        </div>
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'well_info' && typeof value === 'object') {
