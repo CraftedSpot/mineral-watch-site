@@ -13580,8 +13580,8 @@ async function handleDocumentUpload(e) {
             // Refresh credit display after upload
             loadUsageStats();
 
-            // Show bulk processing modal for 10+ documents
-            if (result.uploaded >= 10) {
+            // Show processing notification for any upload
+            if (result.uploaded >= 1) {
                 showBulkProcessingModal(result.uploaded);
             }
 
@@ -14086,6 +14086,9 @@ async function handlePhotoUpload() {
         loadUsageStats();
         onDocumentUploaded();
 
+        // Show processing notification
+        showBulkProcessingModal(1);
+
         // Reset photo state
         selectedPhotos = [];
 
@@ -14139,10 +14142,16 @@ function showBulkProcessingModal(count) {
     if (preference === 'true') {
         return;
     }
-    
+
     // Update count in message
     document.getElementById('bulkProcessingCount').textContent = count;
-    
+
+    // Handle singular/plural
+    const pluralSpan = document.getElementById('bulkProcessingPlural');
+    if (pluralSpan) {
+        pluralSpan.textContent = count === 1 ? '' : 's';
+    }
+
     // Show modal
     document.getElementById('bulkProcessingModal').style.display = 'flex';
 }
