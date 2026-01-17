@@ -6873,10 +6873,91 @@
             }
             
             if (scores.length === 0) return null;
-            
+
             // Calculate average of only the fields that exist
             const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
             return avg;
+        }
+
+        // Helper function to render linked items sections in document modal
+        function renderDocumentLinkedSections(doc) {
+            const hasLinkedProperties = doc.linked_properties && doc.linked_properties.length > 0;
+            const hasLinkedWell = doc.well_id && doc.well_name;
+
+            if (!hasLinkedProperties && !hasLinkedWell) {
+                return '';
+            }
+
+            let html = '';
+
+            // Linked Properties section
+            if (hasLinkedProperties) {
+                const propCount = doc.linked_properties.length;
+                html += `
+                    <div class="doc-linked-section">
+                        <div class="doc-linked-header expanded" onclick="toggleDocLinkedSection(this)">
+                            <span class="doc-linked-arrow">▶</span>
+                            <span class="doc-linked-title">Linked Properties</span>
+                            <span class="doc-linked-count">${propCount}</span>
+                        </div>
+                        <div class="doc-linked-content expanded">`;
+
+                for (const prop of doc.linked_properties) {
+                    const meridianSuffix = prop.meridian ? `-${prop.meridian}` : '';
+                    const locationStr = `S${prop.section}-T${prop.township}-R${prop.range}${meridianSuffix}`;
+                    const countyStr = prop.county || '';
+
+                    html += `
+                        <div class="doc-linked-row" onclick="openPropertyFromDocument('${prop.id}')">
+                            <div>
+                                <div class="link-name">${escapeHtml(locationStr)} (${escapeHtml(countyStr)})</div>
+                            </div>
+                            <div class="link-badges">
+                                ${prop.group_name ? `<span class="group-badge">${escapeHtml(prop.group_name)}</span>` : ''}
+                            </div>
+                        </div>`;
+                }
+
+                html += `</div></div>`;
+            }
+
+            // Linked Wells section
+            if (hasLinkedWell) {
+                const wellStatus = doc.well_status || 'AC';
+                const statusStyle = wellStatus === 'AC' ? 'background: #dcfce7; color: #166534;' :
+                                   wellStatus === 'TA' ? 'background: #fef9c3; color: #854d0e;' :
+                                   wellStatus === 'PA' ? 'background: #f3f4f6; color: #6b7280;' :
+                                   'background: #e5e7eb; color: #374151;';
+
+                html += `
+                    <div class="doc-linked-section">
+                        <div class="doc-linked-header expanded" onclick="toggleDocLinkedSection(this)">
+                            <span class="doc-linked-arrow">▶</span>
+                            <span class="doc-linked-title">Linked Wells</span>
+                            <span class="doc-linked-count">1</span>
+                        </div>
+                        <div class="doc-linked-content expanded">
+                            <div class="doc-linked-row" onclick="openWellFromDocument('${doc.well_id}')">
+                                <div>
+                                    <div class="link-name">${escapeHtml(doc.well_name)}</div>
+                                    <div class="link-meta">${doc.well_operator ? escapeHtml(doc.well_operator) + ' • ' : ''}${doc.well_county ? escapeHtml(doc.well_county) : ''}</div>
+                                </div>
+                                <div class="link-badges">
+                                    <span class="status-badge" style="${statusStyle}">${wellStatus}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            }
+
+            return html;
+        }
+
+        // Toggle function for document linked sections
+        function toggleDocLinkedSection(header) {
+            header.classList.toggle('expanded');
+            const content = header.nextElementSibling;
+            content.classList.toggle('expanded');
         }
 
         async function openDocumentDetail(docId) {
@@ -7128,55 +7209,9 @@
                         
                         content += '</div>';
                     
-                    // Add linked property/well section as collapsible
-                    const hasLinkedProperties = doc.linked_properties && doc.linked_properties.length > 0;
-                    if (hasLinkedProperties || doc.well_id) {
-                        const sectionId = 'linked-items';
-                        const isExpanded = true; // Show expanded by default for linked items
+                    // Add linked items sections (Properties and Wells as separate collapsibles)
+                    content += renderDocumentLinkedSections(doc);
 
-                        content += '<div class="detail-section">';
-                        content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                        content += `<span class="section-chevron">&#9654;</span> Linked Items`;
-                        content += '</h4>';
-                        content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
-
-                        // Show all linked properties
-                        if (hasLinkedProperties) {
-                            content += `<div class="doc-field" style="flex-direction: column; align-items: stretch;"><label style="margin-bottom: 8px;">Properties (${doc.linked_properties.length})</label><div class="doc-value" style="text-align: left;">`;
-                            for (const prop of doc.linked_properties) {
-                                // Build location string without group (group shown separately)
-                                const meridianSuffix = prop.meridian ? `-${prop.meridian}` : '';
-                                const locationStr = `S${prop.section}-T${prop.township}-R${prop.range}${meridianSuffix} (${prop.county})`;
-                                content += `
-                                    <div class="linked-property-card">
-                                        <div class="property-location">${escapeHtml(locationStr)}</div>
-                                        ${prop.group_name ? `<div class="property-group">${escapeHtml(prop.group_name)}</div>` : ''}
-                                        <button class="view-btn" onclick="openPropertyFromDocument('${prop.id}')">View →</button>
-                                    </div>`;
-                            }
-                            content += '</div></div>';
-                        }
-
-                        if (doc.well_name && doc.well_id) {
-                            content += `
-                                <div class="doc-field">
-                                    <label>Well</label>
-                                    <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
-                                        <div>
-                                            <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
-                                            ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
-                                        </div>
-                                        <button onclick="console.log('Button clicked for well:', '${doc.well_id}'); openWellFromDocument('${doc.well_id}')"
-                                                style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
-                                            View →
-                                        </button>
-                                    </div>
-                                </div>`;
-                        }
-
-                        content += '</div></div>';
-                    }
-                    
                     // Confidence Section with collapsible details
                     if (fieldScores && Object.keys(fieldScores).length > 0) {
                         const overallScore = calculateOverallScore(fieldScores);
@@ -7300,56 +7335,10 @@
                     </div>`;
                 
                 content += '</div>';
-                
-                // Add linked property/well section as collapsible (same as above)
-                const hasLinkedProps = doc.linked_properties && doc.linked_properties.length > 0;
-                if (hasLinkedProps || doc.well_id) {
-                    const sectionId = 'linked-items-no-data';
-                    const isExpanded = true; // Show expanded by default for linked items
 
-                    content += '<div class="detail-section">';
-                    content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                    content += `<span class="section-chevron">&#9654;</span> Linked Items`;
-                    content += '</h4>';
-                    content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
+                // Add linked items sections (Properties and Wells as separate collapsibles)
+                content += renderDocumentLinkedSections(doc);
 
-                    // Show all linked properties
-                    if (hasLinkedProps) {
-                        content += `<div class="doc-field" style="flex-direction: column; align-items: stretch;"><label style="margin-bottom: 8px;">Properties (${doc.linked_properties.length})</label><div class="doc-value" style="text-align: left;">`;
-                        for (const prop of doc.linked_properties) {
-                            // Build location string without group (group shown separately)
-                            const meridianSuffix = prop.meridian ? `-${prop.meridian}` : '';
-                            const locationStr = `S${prop.section}-T${prop.township}-R${prop.range}${meridianSuffix} (${prop.county})`;
-                            content += `
-                                <div class="linked-property-card">
-                                    <div class="property-location">${escapeHtml(locationStr)}</div>
-                                    ${prop.group_name ? `<div class="property-group">${escapeHtml(prop.group_name)}</div>` : ''}
-                                    <button class="view-btn" onclick="openPropertyFromDocument('${prop.id}')">View →</button>
-                                </div>`;
-                        }
-                        content += '</div></div>';
-                    }
-
-                    if (doc.well_name && doc.well_id) {
-                        content += `
-                            <div class="doc-field">
-                                <label>Well</label>
-                                <div class="doc-value" style="display: flex; justify-content: space-between; align-items: center;">
-                                    <div>
-                                        <span style="color: #1E40AF; font-weight: 500;">${escapeHtml(doc.well_name)}</span>
-                                        ${doc.well_api_number ? `<span style="color: #6B7280; font-size: 13px; margin-left: 8px;">(${escapeHtml(doc.well_api_number)})</span>` : ''}
-                                    </div>
-                                    <button onclick="openWellFromDocument('${doc.well_id}')"
-                                            style="background: #1D6F5C; color: white; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; cursor: pointer; white-space: nowrap;">
-                                        View →
-                                    </button>
-                                </div>
-                            </div>`;
-                    }
-
-                    content += '</div></div>';
-                }
-                
                 content += '<div class="detail-section" style="text-align: center; padding: 40px 20px; background: #F9FAFB; border-radius: 8px; margin: 20px 0;">';
                 content += '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; opacity: 0.3;">';
                 content += '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>';
@@ -7430,39 +7419,104 @@
                         transform: rotate(90deg);
                     }
 
-                    /* Linked Property Card - stacked layout for mobile */
-                    .linked-property-card {
-                        display: flex;
-                        flex-direction: column;
-                        padding: 10px 0;
-                        border-bottom: 1px solid #E5E7EB;
+                    /* Document Modal - Linked Items Sections */
+                    .doc-linked-section {
+                        margin: 12px 0;
+                        border: 1px solid #e5e7eb;
+                        border-radius: 8px;
+                        overflow: hidden;
                     }
-                    .linked-property-card:last-child {
+                    .doc-linked-header {
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 10px 14px;
+                        background: #f9fafb;
+                        cursor: pointer;
+                        user-select: none;
+                    }
+                    .doc-linked-header:hover {
+                        background: #f3f4f6;
+                    }
+                    .doc-linked-arrow {
+                        font-size: 10px;
+                        color: #6b7280;
+                        transition: transform 0.2s;
+                    }
+                    .doc-linked-header.expanded .doc-linked-arrow {
+                        transform: rotate(90deg);
+                    }
+                    .doc-linked-title {
+                        font-weight: 500;
+                        font-size: 14px;
+                        color: var(--oil-navy);
+                    }
+                    .doc-linked-count {
+                        background: #e5e7eb;
+                        padding: 2px 8px;
+                        border-radius: 10px;
+                        font-size: 11px;
+                        font-weight: 500;
+                        color: #374151;
+                    }
+                    .doc-linked-content {
+                        display: none;
+                        padding: 0 14px 10px;
+                    }
+                    .doc-linked-content.expanded {
+                        display: block;
+                    }
+                    .doc-linked-row {
+                        display: flex;
+                        justify-content: space-between;
+                        align-items: center;
+                        padding: 8px 0;
+                        border-bottom: 1px solid #f3f4f6;
+                        cursor: pointer;
+                    }
+                    .doc-linked-row:last-child {
                         border-bottom: none;
                     }
-                    .property-location {
+                    .doc-linked-row:hover {
+                        background: #f9fafb;
+                        margin: 0 -14px;
+                        padding: 8px 14px;
+                    }
+                    .doc-linked-row .link-name {
                         font-weight: 500;
-                        color: #1D6F5C;
+                        color: #2563eb;
                         font-size: 14px;
                     }
-                    .property-group {
+                    .doc-linked-row .link-meta {
                         font-size: 12px;
-                        color: #6B7280;
-                        margin: 2px 0 6px;
+                        color: #6b7280;
+                        margin-top: 2px;
                     }
-                    .linked-property-card .view-btn {
-                        align-self: flex-start;
-                        background: #1D6F5C;
-                        color: white;
-                        border: none;
-                        padding: 4px 12px;
-                        border-radius: 6px;
-                        font-size: 12px;
-                        cursor: pointer;
-                        white-space: nowrap;
+                    .doc-linked-row .link-badges {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        flex-shrink: 0;
                     }
-                    .linked-property-card .view-btn:hover {
-                        background: #165a4a;
+                    .doc-linked-row .group-badge {
+                        background: #dbeafe;
+                        color: #1d4ed8;
+                        padding: 2px 8px;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        font-weight: 500;
+                    }
+                    .doc-linked-row .status-badge {
+                        padding: 2px 6px;
+                        border-radius: 4px;
+                        font-size: 11px;
+                        font-weight: 500;
+                    }
+                    .doc-linked-empty {
+                        color: #6b7280;
+                        font-size: 13px;
+                        padding: 8px 0;
+                        font-style: italic;
                     }
 
                     /* Hide default details marker across browsers */
