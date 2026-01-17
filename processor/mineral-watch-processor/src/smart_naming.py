@@ -944,26 +944,32 @@ def name_lease_extension(data: Dict[str, Any]) -> str:
 
 
 def name_drilling_permit(data: Dict[str, Any]) -> str:
-    """Drilling Permit - {Well Name} - Permit {#} - {Year}"""
+    """Drilling Permit - {Well Name} - S{Section}-{Township}-{Range} - {Issue Date}"""
     parts = ["Drilling Permit"]
 
-    # Check both top-level and nested well_info for well name
-    well_info = data.get('well_info', {}) or {}
-    well_name = data.get('well_name') or well_info.get('well_name')
+    # Get well name (check both top-level and nested)
+    well_name = data.get('well_name')
     if well_name:
-        # Include well number if present
-        well_number = data.get('well_number') or well_info.get('well_number')
+        # Include well number if present and not already in name
+        well_number = data.get('well_number')
         if well_number and str(well_number) not in str(well_name):
             well_name = f"{well_name} {well_number}"
         parts.append(truncate_name(str(well_name), 40))
 
-    # Check both top-level and nested for permit/API number
-    permit_num = (data.get('permit_number') or data.get('permit_no') or
-                  data.get('api_number') or well_info.get('api_number'))
-    if permit_num:
-        parts.append(f"Permit {permit_num}")
+    # Get TRS from surface_location
+    surface_loc = data.get('surface_location', {}) or {}
+    section = surface_loc.get('section') or data.get('section')
+    township = surface_loc.get('township') or data.get('township')
+    range_val = surface_loc.get('range') or data.get('range')
 
-    if data.get('year'):
+    if section and township and range_val:
+        parts.append(f"S{section}-{township}-{range_val}")
+
+    # Use issue_date if available, otherwise fall back to year
+    issue_date = data.get('issue_date')
+    if issue_date:
+        parts.append(str(issue_date))
+    elif data.get('year'):
         parts.append(str(data['year']))
 
     return " - ".join(parts)
