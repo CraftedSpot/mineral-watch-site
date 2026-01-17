@@ -6154,6 +6154,15 @@
                 'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
                 'Unit Details': ['unit_size_acres', 'spacing_order', 'lateral_direction', 'lateral_length_ft'],
                 'Multi-Unit Sections': ['multi_unit_sections', 'section_crossings'],
+                // Increased Density Order sections
+                'Order Details': ['order_info'],
+                'Officials': ['officials'],
+                'Well Authorization': ['well_authorization'],
+                'Target Formations': ['target_formations'],
+                'Existing Wells': ['existing_wells'],
+                'Recoverable Reserves': ['recoverable_reserves'],
+                'Expiration': ['expiration'],
+                'Related Orders': ['related_orders'],
                 // Pooling Order sections (nested objects with special rendering)
                 'Election Options': ['election_options'],
                 'Operator Information': ['operator'],
@@ -6385,18 +6394,27 @@
 
             // Define section order (Key Takeaway and Detailed Analysis rendered above, not in sections)
             const sectionOrder = [
-                // Pooling Order sections (in priority order - most actionable first)
-                'Election Options',
+                // Increased Density Order sections (in priority order)
+                'Order Details',
+                'Officials',
                 'Operator Information',
+                'Applicant Information',
                 'Legal Description',
                 'Unit Information',
+                'Well Authorization',
+                'Target Formations',
+                'Existing Wells',
+                'Recoverable Reserves',
+                'Expiration',
+                'Related Orders',
+                // Pooling Order sections (in priority order - most actionable first)
+                'Election Options',
                 'Well Details',
                 'Formations',
                 'Important Deadlines',
                 'Default Election',
                 'Subsequent Wells',
                 'Pooling Order Details',
-                'Applicant Information',
                 'Notes',
                 'Additional Parties',
                 // Division Order / general document sections
