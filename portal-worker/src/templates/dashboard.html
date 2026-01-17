@@ -6157,16 +6157,24 @@
                 // Pooling Order sections (nested objects with special rendering)
                 'Election Options': ['election_options'],
                 'Operator Information': ['operator'],
-                'Applicant Information': ['applicant'],
-                'Attorney Information': ['attorney_information'],
+                'Applicant Information': ['applicant', 'attorney_information',
+                    // Flat attorney field names that extractor may produce
+                    'attorney_name', 'attorney_bar_number', 'attorney_oba_number', 'oba_number',
+                    'attorney_firm', 'attorney_address', 'attorney_phone', 'attorney_fax'],
                 'Formations': ['formations'],
                 'Important Deadlines': ['deadlines'],
                 'Default Election': ['default_election'],
-                'Subsequent Wells': ['subsequent_wells'],
-                'Additional Parties': ['additional_parties'],
-                'Pooling Order Details': ['order_info'],
+                'Subsequent Wells': ['subsequent_wells',
+                    // Flat subsequent wells field names that extractor may produce
+                    'subsequent_wells_provisions_election_period', 'subsequent_wells_provisions_payment_deadline',
+                    'subsequent_wells_provisions_bonus_payment_deadline', 'subsequent_wells_provisions_operator_commencement',
+                    'subsequent_wells_provisions_participation_options'],
+                'Additional Parties': ['additional_parties', 'respondents_with_known_addresses',
+                    'respondents_with_unknown_addresses', 'respondents_dismissed'],
+                'Pooling Order Details': ['order_info', 'commissioners'],
                 'Well Details': ['well_info'],
                 'Unit Information': ['unit_info'],
+                'Notes': ['notes', 'additional_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
             
@@ -6349,8 +6357,8 @@
                 'Default Election',
                 'Subsequent Wells',
                 'Pooling Order Details',
-                'Attorney Information',
                 'Additional Parties',
+                'Notes',
                 // Division Order / general document sections
                 'Operator/Payor',
                 'Property/Well',
@@ -7031,6 +7039,9 @@
                             const hasProvision = value.has_provision;
                             const noticeDays = value.notice_period_days;
                             const paymentDays = value.payment_deadline_days;
+                            const bonusPaymentDays = value.bonus_payment_deadline_days;
+                            const commencementDays = value.operator_commencement_days;
+                            const participationOptions = value.participation_options;
                             const excludesReplacement = value.excludes_replacement_wells;
 
                             if (hasProvision) {
@@ -7039,38 +7050,103 @@
                                         <div style="background: #FAF5FF; border: 1px solid #A855F7; border-radius: 8px; padding: 14px;">
                                             <div style="font-weight: 600; color: #7C3AED; font-size: 14px; margin-bottom: 8px;">📋 Subsequent Wells Provision</div>
                                             <div style="font-size: 13px; color: #374151;">This order covers future wells in the same unit.</div>
-                                            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 13px;">
-                                                ${noticeDays ? `<span><strong>Notice Period:</strong> ${noticeDays} days</span>` : ''}
-                                                ${paymentDays ? `<span><strong>Payment Deadline:</strong> ${paymentDays} days</span>` : ''}
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; margin-top: 10px; font-size: 13px;">
+                                                ${noticeDays ? `<div><span style="color: #6B7280;">Election Period:</span> <strong>${noticeDays} days</strong></div>` : ''}
+                                                ${paymentDays ? `<div><span style="color: #6B7280;">Payment Deadline:</span> <strong>${paymentDays} days</strong></div>` : ''}
+                                                ${bonusPaymentDays ? `<div><span style="color: #6B7280;">Bonus Payment:</span> <strong>${bonusPaymentDays} days</strong></div>` : ''}
+                                                ${commencementDays ? `<div><span style="color: #6B7280;">Operator Commencement:</span> <strong>${commencementDays} days</strong></div>` : ''}
                                             </div>
-                                            ${excludesReplacement ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">Excludes replacement wells</div>` : ''}
+                                            ${participationOptions && Array.isArray(participationOptions) && participationOptions.length > 0 ? `
+                                                <div style="margin-top: 10px;">
+                                                    <div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">Available Options:</div>
+                                                    <ul style="margin: 0; padding-left: 20px; font-size: 13px; color: #374151;">
+                                                        ${participationOptions.map(opt => `<li>${escapeHtml(String(opt))}</li>`).join('')}
+                                                    </ul>
+                                                </div>` : ''}
+                                            ${excludesReplacement ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px; font-style: italic;">Note: Excludes replacement/substitute wells</div>` : ''}
                                         </div>
                                     </div>`;
                             } else {
                                 hasVisibleFields = false;
                             }
-                        } else if (fieldName === 'additional_parties' && Array.isArray(value)) {
-                            // Special handling for additional parties array
-                            if (value.length > 0) {
-                                hasVisibleFields = true;
-                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
-                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
-                                value.forEach(party => {
-                                    const name = party.name || '';
-                                    const role = party.role || '';
-                                    const address = party.address || '';
+                        } else if (fieldName === 'additional_parties' && typeof value === 'object') {
+                            // Special handling for additional parties object with nested arrays
+                            hasVisibleFields = true;
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
 
+                            // Render respondents with known addresses
+                            const knownRespondents = value.respondents_with_known_addresses || [];
+                            if (Array.isArray(knownRespondents) && knownRespondents.length > 0) {
+                                sectionContent += `<div style="margin-bottom: 12px;"><div style="font-size: 12px; color: #6B7280; margin-bottom: 6px; text-transform: uppercase;">Respondents with Known Addresses</div>`;
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 6px;">`;
+                                knownRespondents.forEach(party => {
+                                    const name = party.name || '';
+                                    const address = party.address || '';
                                     sectionContent += `
-                                        <div style="background: #F3F4F6; border: 1px solid #9CA3AF; border-radius: 6px; padding: 10px 12px;">
-                                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                                <span style="font-weight: 500; color: #374151;">${escapeHtml(name)}</span>
-                                                ${role ? `<span style="background: #E5E7EB; color: #4B5563; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${escapeHtml(role)}</span>` : ''}
-                                            </div>
-                                            ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
+                                            <div style="font-weight: 500; color: #374151;">${escapeHtml(name)}</div>
+                                            ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(address)}</div>` : ''}
                                         </div>`;
                                 });
                                 sectionContent += `</div></div>`;
                             }
+
+                            // Render counts for unknown addresses and dismissed
+                            const unknownCount = value.respondents_with_unknown_addresses;
+                            const dismissedCount = value.respondents_dismissed;
+                            if (unknownCount || dismissedCount) {
+                                sectionContent += `<div style="display: flex; gap: 16px; font-size: 13px; color: #6B7280;">`;
+                                if (unknownCount) sectionContent += `<span>Unknown addresses: ${unknownCount}</span>`;
+                                if (dismissedCount) sectionContent += `<span>Dismissed: ${dismissedCount}</span>`;
+                                sectionContent += `</div>`;
+                            }
+
+                            sectionContent += `</div>`;
+                        } else if (fieldName === 'respondents_with_known_addresses' && Array.isArray(value)) {
+                            // Handle flat respondents_with_known_addresses array
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 6px;">`;
+                                value.forEach(party => {
+                                    const name = party.name || (typeof party === 'string' ? party : '');
+                                    const address = party.address || '';
+                                    sectionContent += `
+                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
+                                            <div style="font-weight: 500; color: #374151;">${escapeHtml(name)}</div>
+                                            ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(address)}</div>` : ''}
+                                        </div>`;
+                                });
+                                sectionContent += `</div></div>`;
+                            }
+                        } else if (fieldName === 'commissioners' && Array.isArray(value)) {
+                            // Special handling for commissioners array
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                sectionContent += `<label>Commissioners</label>`;
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(commissioner => {
+                                    const name = commissioner.name || (typeof commissioner === 'string' ? commissioner : '');
+                                    const title = commissioner.title || '';
+                                    sectionContent += `
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 4px; padding: 6px 10px;">
+                                            <span style="font-weight: 500; color: #374151;">${escapeHtml(name)}</span>
+                                            ${title ? `<span style="font-size: 11px; color: #6B7280; margin-left: 4px;">(${escapeHtml(title)})</span>` : ''}
+                                        </div>`;
+                                });
+                                sectionContent += `</div></div>`;
+                            }
+                        } else if ((fieldName === 'notes' || fieldName === 'additional_info') && value) {
+                            // Special handling for notes/additional info
+                            hasVisibleFields = true;
+                            const noteText = String(value).trim();
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px; font-size: 13px; color: #4B5563; line-height: 1.5;">
+                                        ${escapeHtml(noteText)}
+                                    </div>
+                                </div>`;
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {

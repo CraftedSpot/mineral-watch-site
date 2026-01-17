@@ -833,7 +833,12 @@ DETAILED ANALYSIS GUIDANCE - Cover these topics:
     "hearing_date": "2015-03-10",
     "order_date": "2015-03-17",
     "effective_date": "2015-03-17",
-    "alj_report_date": "2015-03-15"
+    "alj_report_date": "2015-03-15",
+    "commissioners": [
+      {{"name": "Bob Anthony", "title": "Chairman"}},
+      {{"name": "Dana L. Murphy", "title": "Vice Chairman"}},
+      {{"name": "J. Todd Hiett", "title": "Commissioner"}}
+    ]
   }},
 
   "applicant": {{
@@ -947,7 +952,20 @@ DETAILED ANALYSIS GUIDANCE - Cover these topics:
     "has_provision": true,
     "notice_period_days": 20,
     "payment_deadline_days": 25,
+    "bonus_payment_deadline_days": 30,
+    "operator_commencement_days": 180,
+    "participation_options": ["Participate", "Cash bonus with excess royalty", "No cash, higher royalty"],
     "excludes_replacement_wells": true
+  }},
+
+  "notes": "Additional provisions such as operator's lien, dispute resolution, etc.",
+
+  "additional_parties": {{
+    "respondents_with_known_addresses": [
+      {{"name": "Osage Exploration and Development, Inc.", "address": "2445 Fifth Ave., Suite 310, San Diego, CA 92101"}}
+    ],
+    "respondents_with_unknown_addresses": 5,
+    "respondents_dismissed": 2
   }},
 
   "field_scores": {{
