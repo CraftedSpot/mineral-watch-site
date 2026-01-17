@@ -794,6 +794,15 @@ For POOLING ORDERS (Force pooling orders requiring mineral owner response):
 Pooling orders compel unleased mineral owners to participate in well development. Extract ALL election options
 with their specific financial terms - this is critical for owners to make informed decisions.
 
+CRITICAL - FIELD NAME ENFORCEMENT:
+You MUST use ONLY the exact field names shown in the schema below. Do NOT invent new field names.
+- Use "attorney_information" NOT "Legal Representation Attorney" or "Attorney Info"
+- Use "order_info.commissioners" NOT "Order Execution Commissioners"
+- Use "additional_parties.respondents_with_known_addresses" NOT "Exhibit A Respondents Known Addresses"
+- Use "subsequent_wells" NOT "Additional Provisions Subsequent Wells"
+- Use "notes" for any additional provisions NOT captured elsewhere
+If information doesn't fit an existing field, put it in "notes" as a text summary. Do NOT create new top-level fields.
+
 ELECTION OPTION TYPES:
 - "participate" - Working interest participation (owner pays proportionate costs, shares in production)
 - "cash_bonus" - Cash payment per NMA, standard royalty, no excess royalty
@@ -850,14 +859,6 @@ DETAILED ANALYSIS GUIDANCE - Cover these topics:
     "applicant_attorney": "Jane Doe",
     "applicant_attorney_firm": "Hall Estill"
   }},
-
-  "additional_parties": [
-    {{
-      "name": "John Doe",
-      "role": "Respondent",
-      "address": "123 Main St, Tulsa, OK"
-    }}
-  ],
 
   "operator": {{
     "name": "Canyon Creek Energy Operating LLC",
