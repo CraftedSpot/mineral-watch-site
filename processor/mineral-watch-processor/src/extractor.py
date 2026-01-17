@@ -550,37 +550,108 @@ For LEASES:
   "document_confidence": "high"
 }
 
-For DRILLING PERMITS:
+For DRILLING PERMITS (Form 1000 - Intent to Drill):
+Form 1000 is the OCC "Notice of Intent / Permit to Drill" for oil, gas, and injection wells.
+For horizontal wells, extract the Bottom Hole Location (BHL) - this is critical for mapping lateral paths.
+BHL coordinates are typically found on page 12 in the "Take Point: Bottom Hole" table.
+
+ORGANIZE extraction into these categories for display:
+
 {
   "doc_type": "drilling_permit",
-  "operator_name": "XYZ Oil Company",
-  "well_name": "Smith 1-16H",
-  "permit_date": "2023-03-15",
-  "api_number": "35-051-12345",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady"
+
+  // === PERMIT INFORMATION ===
+  "permit_info": {
+    "permit_type": "New Drill",
+    "well_type": "Horizontal",
+    "issue_date": "2025-11-26",
+    "expiration_date": "2027-05-26"
   },
-  "permit_type": "horizontal",
-  "target_formation": "Woodford",
-  "unit_size_acres": "640",
+
+  // === WELL IDENTIFICATION ===
+  "well_info": {
+    "api_number": "35-009-00005",
+    "well_name": "Hutson",
+    "well_number": "30-31H",
+    "operator_name": "King Energy LLC"
+  },
+
+  // === SURFACE LOCATION ===
+  "legal_description": {
+    "section": "19",
+    "township": "11N",
+    "range": "23W",
+    "county": "Beckham"
+  },
+  "surface_latitude": 35.408369,
+  "surface_longitude": -99.666761,
+
+  // === TARGET FORMATION ===
+  "target_info": {
+    "formation": "Virgil",
+    "depth_top_tvd": 8400,
+    "depth_bottom_tvd": 9100
+  },
+
+  // === UNIT DETAILS ===
+  "unit_info": {
+    "unit_size_acres": 640,
+    "spacing_order": "83283"
+  },
+
+  // === LATERAL PATH (horizontal wells only) ===
+  // Critical for mapping - extract BHL from "Take Point: Bottom Hole" table
+  "lateral_path": {
+    "bhl_section": "31",
+    "bhl_township": "11N",
+    "bhl_range": "23W",
+    "bhl_latitude": 35.378663,
+    "bhl_longitude": -99.666866,
+    "lateral_length_ft": 10891,
+    "lateral_direction": "south",
+    "section_crossings": [
+      {"latitude": 35.392702, "longitude": -99.666814, "sections": "30/31"}
+    ]
+  },
+
+  // === MULTI-UNIT (if well spans multiple sections) ===
+  "multi_unit": {
+    "is_multi_unit": true,
+    "sections": [
+      {"section": "30", "township": "11N", "range": "23W", "allocation_pct": 50.0},
+      {"section": "31", "township": "11N", "range": "23W", "allocation_pct": 50.0}
+    ]
+  },
+
+  // === REGULATORY ORDERS (if applicable) ===
+  "regulatory": {
+    "increased_density_order": "752124",
+    "increased_density_formation": "Virgil",
+    "increased_density_wells": 4,
+    "location_exception_order": "752124"
+  },
+
   "field_scores": {
-    "operator_name": 1.0,
+    "api_number": 1.0,
     "well_name": 1.0,
-    "permit_date": 1.0,
-    "api_number": 0.95,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "permit_type": 0.90,
-    "target_formation": 0.85,
-    "unit_size_acres": 0.90
+    "operator_name": 1.0,
+    "legal_description": 1.0,
+    "permit_type": 0.95,
+    "target_formation": 0.90,
+    "bhl_coordinates": 0.85
   },
   "document_confidence": "high"
 }
+
+EXTRACTION NOTES FOR FORM 1000:
+- Permit type options: "New Drill", "New Drill - Multi Unit", "Re-Entry", "Deepen", "Sidetrack", "Workover"
+- Well type: "Horizontal" (well number often ends in H), "Vertical", "Directional"
+- BHL coordinates: Look on page 12 for "Take Point: Bottom Hole" table with Latitude/Longitude columns
+- Section crossings: Also on page 12, any "Take Point" entries between surface and bottom hole
+- Multi-unit: Check page 6 "Multi-Unit Orders" table for allocation percentages
+- Lateral direction: Derive from comparing surface lat/lon to BHL lat/lon (north, south, east, west)
+- Lateral length: Calculate from wellbore depths if not stated (Total Depth MD - Kickoff Depth MD)
+- For vertical wells, omit the lateral_path section entirely
 
 For DIVISION ORDERS:
 Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
