@@ -1009,6 +1009,7 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
 - unit_info.description
 - existing_wells (omit entire array if none listed)
 - recoverable_reserves (omit if no engineering data)
+- allocation_factors (only include for MULTIUNIT wells that cross multiple sections - extract from appendices if included, or from allocation tables in the order body. Each entry needs section, township, range, and percentage at minimum)
 - allowable_notes
 - related_orders.amends_order, related_orders.companion_cases
 
@@ -1088,6 +1089,23 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
     "gas_mmcf": 94391
   }},
 
+  "allocation_factors": [
+    {{
+      "section": 10,
+      "township": "14N",
+      "range": "14W",
+      "percentage": 45.5,
+      "acres": 291.2
+    }},
+    {{
+      "section": 3,
+      "township": "14N",
+      "range": "14W",
+      "percentage": 54.5,
+      "acres": 348.8
+    }}
+  ],
+
   "allowable_notes": "Multiunit horizontal allocation factors per Appendix A supplemented by Appendix C; gas per 165:10-3-28(h)(2)",
 
   "expiration": {{
@@ -1116,6 +1134,7 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
     "target_formations": 0.90,
     "existing_wells": 0.85,
     "recoverable_reserves": 0.80,
+    "allocation_factors": 0.85,
     "expiration": 0.90,
     "related_orders": 0.85
   }},
