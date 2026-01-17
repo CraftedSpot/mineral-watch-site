@@ -946,18 +946,26 @@ def name_lease_extension(data: Dict[str, Any]) -> str:
 def name_drilling_permit(data: Dict[str, Any]) -> str:
     """Drilling Permit - {Well Name} - Permit {#} - {Year}"""
     parts = ["Drilling Permit"]
-    
-    well_name = data.get('well_name')
+
+    # Check both top-level and nested well_info for well name
+    well_info = data.get('well_info', {}) or {}
+    well_name = data.get('well_name') or well_info.get('well_name')
     if well_name:
+        # Include well number if present
+        well_number = data.get('well_number') or well_info.get('well_number')
+        if well_number and str(well_number) not in str(well_name):
+            well_name = f"{well_name} {well_number}"
         parts.append(truncate_name(str(well_name), 40))
-    
-    permit_num = data.get('permit_number') or data.get('permit_no') or data.get('api_number')
+
+    # Check both top-level and nested for permit/API number
+    permit_num = (data.get('permit_number') or data.get('permit_no') or
+                  data.get('api_number') or well_info.get('api_number'))
     if permit_num:
         parts.append(f"Permit {permit_num}")
-    
+
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
