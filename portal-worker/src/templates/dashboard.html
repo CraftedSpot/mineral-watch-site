@@ -6699,6 +6699,30 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'allocation_factors') {
+                                // Special handling for allocation factors array (multiunit wells)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                sectionContent += `<div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">Production and costs are allocated across these sections:</div>`;
+                                value.forEach(factor => {
+                                    const section = factor.section || '';
+                                    const township = factor.township || '';
+                                    const range = factor.range || '';
+                                    const percentage = factor.percentage;
+                                    const acres = factor.acres;
+                                    const location = section ? `Section ${section}${township ? ` - ${township}` : ''}${range ? `-${range}` : ''}` : '';
+
+                                    if (location) {
+                                        sectionContent += `
+                                            <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
+                                                <div>
+                                                    <span style="font-weight: 600; color: #0369A1; font-size: 14px;">${escapeHtml(location)}</span>
+                                                    ${acres ? `<span style="color: #6B7280; font-size: 12px; margin-left: 8px;">(${acres.toLocaleString()} acres)</span>` : ''}
+                                                </div>
+                                                ${percentage !== undefined ? `<span style="background: #0369A1; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 600; font-size: 14px;">${percentage}%</span>` : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
                             } else if (fieldName === 'existing_wells') {
                                 // Special handling for existing wells array (from increased density orders)
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
