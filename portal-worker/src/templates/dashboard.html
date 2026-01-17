@@ -6110,7 +6110,7 @@
                 'Interests': ['working_interest', 'royalty_interest', 'decimal_interest', 'ownership_type', 'net_revenue_interest',
                             'is_multi_section_unit', 'unit_sections'],
                 'Payment Terms': ['payment_minimum', 'payment_effective_date'],
-                'Recording Information': ['recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
+                'Recording Information': ['recording', 'recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
                 'Execution Details': ['execution_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type',
                                     'notary_expiration', 'commission_expiration', 'corporate_acknowledgment', 'acknowledgment_date'],
                 'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'state', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage'],
@@ -6156,7 +6156,7 @@
                 'Multi-Unit Sections': ['multi_unit_sections', 'section_crossings'],
                 // Mineral Deed sections (v2 schema)
                 'Tracts': ['tracts'],  // Array of legal descriptions with interests
-                'Recording Information': ['recording', 'recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
+                // 'Recording Information' merged into main Recording Information above
                 'Reservation': ['reservation'],  // Grantor's reserved interests
                 'Prior Instruments': ['prior_instruments'],  // Chain of title references
                 'Extraction Notes': ['extraction_notes'],  // Ambiguities or interpretation notes
@@ -6439,9 +6439,9 @@
                 'Owner',
                 'Interests',
                 'Payment Terms',
-                'Parties',
+                // 'Parties' - already in Mineral Deed sections above
                 'Interest & Consideration',
-                'Recording Information',
+                // 'Recording Information' - already in Mineral Deed sections above
                 'Execution Details',
                 'Title & Warranties',
                 'Restrictions & Provisions',
