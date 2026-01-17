@@ -2273,6 +2273,8 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                         key_takeaway = key_takeaway[3:].strip()
                     if key_takeaway.endswith("```"):
                         key_takeaway = key_takeaway[:-3].strip()
+                    # Remove trailing # and other markdown artifacts
+                    key_takeaway = key_takeaway.rstrip('#').rstrip()
 
             if "DETAILED ANALYSIS:" in response_text:
                 da_start = response_text.find("DETAILED ANALYSIS:")
@@ -2400,6 +2402,8 @@ If these pages don't contain significant new information, return: {{"additional_
                             key_takeaway = key_takeaway[3:].strip()
                         if key_takeaway.endswith("```"):
                             key_takeaway = key_takeaway[:-3].strip()
+                        # Remove trailing # and other markdown artifacts
+                        key_takeaway = key_takeaway.rstrip('#').rstrip()
 
                 if "DETAILED ANALYSIS:" in response_text:
                     da_start = response_text.find("DETAILED ANALYSIS:")
