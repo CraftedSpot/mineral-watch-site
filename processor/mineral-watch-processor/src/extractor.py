@@ -1757,7 +1757,7 @@ def get_extraction_prompt() -> str:
         Formatted extraction prompt with today's date
     """
     current_date = datetime.now().strftime("%B %d, %Y")
-    return EXTRACTION_PROMPT_TEMPLATE.format(current_date=current_date)
+    return EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
 
 
 async def retry_with_backoff(func, *args, **kwargs):
