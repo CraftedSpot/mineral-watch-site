@@ -767,47 +767,48 @@ def name_location_exception_order(data: Dict[str, Any]) -> str:
 
 
 def name_increased_density_order(data: Dict[str, Any]) -> str:
-    """Increased Density Order - CD {Number} - {Well Name or County} - {Operator} - {Formation} - {Year}"""
+    """Increased Density Order - CD {Number} - {Well Name} - S{Section}-{Township}-{Range} - {Year}"""
     parts = ["Increased Density Order"]
 
-    # Case/CD number
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
+    # Case/CD number - check nested order_info first, then flat fields
+    order_info = data.get('order_info', {})
+    cd_num = clean_cd_number(
+        order_info.get('case_number') or
+        data.get('cd_number') or
+        data.get('cause_number') or
+        data.get('case_number')
+    )
     if cd_num:
         parts.append(f"CD {cd_num}")
 
-    # Well name (preferred) or county as location identifier
-    well_name = data.get('proposed_well_name') or data.get('well_name')
-    if well_name:
-        parts.append(truncate_name(str(well_name), 30))
-    elif data.get('county'):
-        county = str(data['county']).strip()
+    # Well name - check nested well_authorization first, then flat fields
+    well_auth = data.get('well_authorization', {})
+    well_name = (
+        well_auth.get('well_name') or
+        data.get('proposed_well_name') or
+        data.get('well_name')
+    )
+    if well_name and isinstance(well_name, str):
+        parts.append(truncate_name(well_name, 30))
+
+    # Location - Section-Township-Range format
+    legal_desc = data.get('legal_description', {})
+    section = legal_desc.get('section') or data.get('section')
+    township = legal_desc.get('township') or data.get('township')
+    range_val = legal_desc.get('range') or data.get('range')
+    if section and township and range_val:
+        parts.append(f"S{section}-{township}-{range_val}")
+    elif legal_desc.get('county') or data.get('county'):
+        county = str(legal_desc.get('county') or data.get('county')).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
 
-    # Operator (use short name)
-    operator = data.get('operator') or data.get('applicant')
-    if operator:
-        parts.append(extract_last_name(operator))
-
-    # Primary formation (if available)
-    formations = data.get('formations')
-    if formations and isinstance(formations, list) and len(formations) > 0:
-        first_formation = formations[0]
-        if isinstance(first_formation, dict):
-            formation_name = first_formation.get('name', '')
-        else:
-            formation_name = str(first_formation)
-        if formation_name:
-            parts.append(formation_name)
-
-    # Additional wells authorized
-    additional = data.get('additional_wells_authorized')
-    if additional:
-        parts.append(f"+{additional} well{'s' if additional > 1 else ''}")
-
-    # Year
-    if data.get('year'):
+    # Year from order date
+    order_date = order_info.get('order_date') or data.get('order_date')
+    if order_date and isinstance(order_date, str) and len(order_date) >= 4:
+        parts.append(order_date[:4])
+    elif data.get('year'):
         parts.append(str(data['year']))
 
     return " - ".join(parts)
