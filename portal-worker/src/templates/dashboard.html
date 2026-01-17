@@ -7726,7 +7726,24 @@
                     .confidence-toggle:hover {
                         color: #374151;
                     }
-                    
+
+                    /* Mobile: Compact confidence section */
+                    @media (max-width: 480px) {
+                        .confidence-section {
+                            padding: 6px 10px;
+                            font-size: 12px;
+                        }
+                        .confidence-label {
+                            display: none;
+                        }
+                        .confidence-badge {
+                            font-size: 12px;
+                        }
+                        .confidence-toggle {
+                            font-size: 11px;
+                        }
+                    }
+
                     .confidence-details {
                         margin-top: 10px;
                         padding-top: 10px;
