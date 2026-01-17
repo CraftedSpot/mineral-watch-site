@@ -6676,14 +6676,14 @@
                                     if (typeof well === 'object') {
                                         const wellName = well.well_name || well.name || 'Unknown Well';
                                         const apiNumber = well.api_number || well.api || '';
-                                        const classification = well.classification || well.type || '';
+                                        const classification = well.well_classification || well.classification || well.type || '';
                                         sectionContent += `
                                             <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 6px; padding: 10px 12px; display: flex; justify-content: space-between; align-items: center;">
                                                 <div>
                                                     <span style="font-weight: 500; color: #166534;">${escapeHtml(wellName)}</span>
                                                     ${apiNumber ? `<span style="color: #6B7280; font-size: 12px; margin-left: 8px;">API: ${escapeHtml(apiNumber)}</span>` : ''}
                                                 </div>
-                                                ${classification ? `<span style="background: #DCFCE7; color: #166534; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${escapeHtml(classification)}</span>` : ''}
+                                                ${classification ? `<span style="background: ${classification.toLowerCase() === 'oil' ? '#FEE2E2' : '#DBEAFE'}; color: ${classification.toLowerCase() === 'oil' ? '#92400E' : '#1E40AF'}; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${escapeHtml(classification)}</span>` : ''}
                                             </div>`;
                                     } else {
                                         sectionContent += `
@@ -7175,6 +7175,132 @@
                             }
 
                             sectionContent += `</div>`;
+                        } else if (fieldName === 'officials' && typeof value === 'object') {
+                            // Special handling for officials object (increased density orders)
+                            hasVisibleFields = true;
+                            const alj = value.administrative_law_judge || '';
+                            const commissioners = value.commissioners || [];
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        ${alj ? `<div style="font-size: 13px; color: #374151; margin-bottom: 8px;"><strong>Administrative Law Judge:</strong> ${escapeHtml(alj)}</div>` : ''}
+                                        ${commissioners.length > 0 ? `
+                                            <div style="font-size: 13px; color: #374151;">
+                                                <strong>Commissioners:</strong> ${commissioners.map(c => escapeHtml(c)).join(', ')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'well_authorization' && typeof value === 'object') {
+                            // Special handling for well authorization object (increased density orders)
+                            hasVisibleFields = true;
+                            const wellName = value.well_name || '';
+                            const apiNumber = value.api_number || '';
+                            const wellType = value.well_type || '';
+                            const wellClassification = value.well_classification || '';
+                            const additionalWells = value.additional_wells_authorized;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                        ${wellName ? `<div style="font-weight: 600; color: #92400E; font-size: 16px; margin-bottom: 8px;">${escapeHtml(wellName)}</div>` : ''}
+                                        <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;">
+                                            ${wellType ? `<span style="background: #FEF9C3; padding: 4px 10px; border-radius: 4px;"><strong>Type:</strong> ${escapeHtml(wellType)}</span>` : ''}
+                                            ${wellClassification ? `<span style="background: ${wellClassification.toLowerCase() === 'oil' ? '#FEE2E2' : '#DBEAFE'}; padding: 4px 10px; border-radius: 4px;"><strong>Classification:</strong> ${escapeHtml(wellClassification)}</span>` : ''}
+                                            ${apiNumber ? `<span style="color: #6B7280;"><strong>API:</strong> ${escapeHtml(apiNumber)}</span>` : ''}
+                                        </div>
+                                        ${additionalWells ? `<div style="font-size: 14px; color: #166534; font-weight: 500; margin-top: 10px;">✓ ${additionalWells} additional well${additionalWells > 1 ? 's' : ''} authorized</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'target_formations' && Array.isArray(value)) {
+                            // Special handling for target formations array (increased density orders)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(formation => {
+                                    const name = formation.name || '';
+                                    const isPrimary = formation.is_primary;
+                                    const commonSource = formation.common_source || '';
+                                    if (name) {
+                                        sectionContent += `
+                                            <div style="background: ${isPrimary ? '#DCFCE7' : '#F3F4F6'}; border: 1px solid ${isPrimary ? '#22C55E' : '#D1D5DB'}; border-radius: 8px; padding: 10px 14px;">
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <span style="font-weight: 600; color: ${isPrimary ? '#166534' : '#374151'}; font-size: 14px;">${escapeHtml(name)}</span>
+                                                    ${isPrimary ? `<span style="background: #166534; color: white; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px;">PRIMARY</span>` : ''}
+                                                </div>
+                                                ${commonSource ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(commonSource)}</div>` : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div></div>`;
+                            }
+                        } else if (fieldName === 'recoverable_reserves' && typeof value === 'object') {
+                            // Special handling for recoverable reserves object (increased density orders)
+                            const oilMbo = value.oil_mbo;
+                            const gasMmcf = value.gas_mmcf;
+                            if (oilMbo || gasMmcf) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                            <div style="font-weight: 600; color: #166534; font-size: 14px; margin-bottom: 10px;">📊 Estimated Recoverable Reserves</div>
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                                                ${oilMbo ? `
+                                                    <div style="background: white; border-radius: 6px; padding: 12px; text-align: center;">
+                                                        <div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Oil</div>
+                                                        <div style="font-weight: 700; color: #92400E; font-size: 20px;">${oilMbo.toLocaleString()}</div>
+                                                        <div style="font-size: 11px; color: #6B7280;">MBO (thousand barrels)</div>
+                                                    </div>
+                                                ` : ''}
+                                                ${gasMmcf ? `
+                                                    <div style="background: white; border-radius: 6px; padding: 12px; text-align: center;">
+                                                        <div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Gas</div>
+                                                        <div style="font-weight: 700; color: #0369A1; font-size: 20px;">${gasMmcf.toLocaleString()}</div>
+                                                        <div style="font-size: 11px; color: #6B7280;">MMCF (million cubic feet)</div>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'expiration' && typeof value === 'object') {
+                            // Special handling for expiration object (increased density orders)
+                            const period = value.period || '';
+                            const date = value.date || '';
+                            if (period || date) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px;">
+                                            <div style="font-weight: 600; color: #92400E; font-size: 14px; margin-bottom: 6px;">⏰ Authorization Expiration</div>
+                                            <div style="font-size: 13px; color: #374151;">
+                                                ${period ? `<span>Valid for <strong>${escapeHtml(period)}</strong></span>` : ''}
+                                                ${period && date ? ` • ` : ''}
+                                                ${date ? `<span>Expires: <strong>${escapeHtml(date)}</strong></span>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'related_orders' && typeof value === 'object') {
+                            // Special handling for related orders object (increased density orders)
+                            const spacingOrder = value.spacing_order || '';
+                            const amendsOrder = value.amends_order || '';
+                            const companionCases = value.companion_cases || [];
+                            if (spacingOrder || amendsOrder || companionCases.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; font-size: 13px;">
+                                                ${spacingOrder ? `<div><span style="color: #6B7280;">Spacing Order:</span> <strong>${escapeHtml(spacingOrder)}</strong></div>` : ''}
+                                                ${amendsOrder ? `<div><span style="color: #6B7280;">Amends Order:</span> <strong>${escapeHtml(amendsOrder)}</strong></div>` : ''}
+                                                ${companionCases.length > 0 ? `<div style="grid-column: 1 / -1;"><span style="color: #6B7280;">Companion Cases:</span> <strong>${companionCases.map(c => escapeHtml(c)).join(', ')}</strong></div>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }
                         } else if ((fieldName === 'respondents_with_known_addresses' ||
                                    fieldName.toLowerCase().includes('respondents') && fieldName.toLowerCase().includes('known')) &&
                                    Array.isArray(value)) {
