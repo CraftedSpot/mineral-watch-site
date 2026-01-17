@@ -1009,7 +1009,7 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
 - unit_info.description
 - existing_wells (omit entire array if none listed)
 - recoverable_reserves (omit if no engineering data)
-- allocation_factors (only include for MULTIUNIT wells that cross multiple sections - extract from appendices if included, or from allocation tables in the order body. Each entry needs section, township, range, and percentage at minimum)
+- allocation_factors (REQUIRED for MULTIUNIT wells - these wells cross multiple sections and you MUST extract ALL sections with their allocation percentages. Look carefully in: (1) Appendix A or allocation appendices, (2) tables showing "allocation factors" or "percentage allocation", (3) legal description that lists multiple sections. Extract EVERY section the well crosses - typically 2-4 sections. Each entry needs section, township, range, and percentage. If acres are shown, include those too. Missing sections will break property linking.)
 - allowable_notes
 - related_orders.amends_order, related_orders.companion_cases
 
