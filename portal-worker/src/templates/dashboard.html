@@ -6147,13 +6147,13 @@
                                             'formation_limitations', 'mineral_types', 'pooling_authorization',
                                             'surface_restrictions', 'no_surface_clause', 'pugh_clause', 'vertical_pugh_clause'],
                 // Drilling Permit (Form 1000) sections
-                'Permit Information': ['permit_info', 'permit_type', 'issue_date', 'expiration_date'],
-                'Well Identification': ['well_info'],
-                'Target Formation': ['target_info'],
-                'Unit Details': ['unit_info'],
-                'Lateral Path': ['lateral_path'],
-                'Multi-Unit': ['multi_unit'],
-                'Regulatory Orders': ['regulatory'],
+                'Permit Information': ['permit_type', 'well_type', 'issue_date', 'expiration_date'],
+                'Well Identification': ['api_number', 'well_name', 'well_number', 'operator_name', 'operator_address'],
+                'Surface Location': ['surface_location'],
+                'Bottom Hole Location': ['bottom_hole_location'],
+                'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
+                'Unit Details': ['unit_size_acres', 'spacing_order', 'lateral_direction', 'lateral_length_ft'],
+                'Multi-Unit Sections': ['multi_unit_sections', 'section_crossings'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
             
@@ -6666,6 +6666,43 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'multi_unit_sections') {
+                                // Special handling for drilling permit multi-unit section allocations
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(unit => {
+                                    if (typeof unit === 'object') {
+                                        const section = unit.section || '';
+                                        const township = unit.township || '';
+                                        const range = unit.range || '';
+                                        const allocation = unit.allocation_percentage;
+                                        const locationStr = section ? `Section ${section}` + (township ? ` - ${township}` : '') + (range ? `-${range}` : '') : '';
+
+                                        sectionContent += `
+                                            <div style="background: #F3E8FF; border: 1px solid #A855F7; border-radius: 6px; padding: 10px 14px; min-width: 140px;">
+                                                <div style="font-weight: 600; color: #7C3AED;">${escapeHtml(locationStr)}</div>
+                                                ${allocation != null ? `<div style="font-size: 13px; color: #6B7280; margin-top: 4px;">${allocation}% Allocation</div>` : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'section_crossings') {
+                                // Special handling for drilling permit section crossings with coordinates
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach((crossing, index) => {
+                                    if (typeof crossing === 'object') {
+                                        const fromSection = crossing.from_section || '';
+                                        const toSection = crossing.to_section || '';
+                                        const lat = crossing.latitude;
+                                        const lon = crossing.longitude;
+
+                                        sectionContent += `
+                                            <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px 12px;">
+                                                <div style="font-weight: 500; color: #92400E;">Section ${fromSection} → ${toSection}</div>
+                                                ${lat != null && lon != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Coordinates: ${lat.toFixed(6)}, ${lon.toFixed(6)}</div>` : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
                             } else {
                                 // Regular array
                                 sectionContent += `<ul style="margin: 8px 0; padding-left: 20px;">`;
@@ -6778,6 +6815,27 @@
                                         ${relationship ? `<div style="font-size: 13px; color: #4B5563; margin-top: 4px; text-transform: capitalize;">Relationship: ${escapeHtml(relationship)}</div>` : ''}
                                         ${yearsKnown ? `<div style="font-size: 12px; color: #6B7280;">Knew decedent for ${yearsKnown} years</div>` : ''}
                                         ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'surface_location' || fieldName === 'bottom_hole_location') {
+                            // Special handling for drilling permit location objects
+                            hasVisibleFields = true;
+                            const section = value.section;
+                            const township = value.township || '';
+                            const range = value.range || '';
+                            const lat = value.latitude;
+                            const lon = value.longitude;
+                            const label = fieldName === 'surface_location' ? 'Surface Location' : 'Bottom Hole Location';
+                            const bgColor = fieldName === 'surface_location' ? '#F0FDF4' : '#EFF6FF';
+                            const borderColor = fieldName === 'surface_location' ? '#22C55E' : '#3B82F6';
+                            const textColor = fieldName === 'surface_location' ? '#166534' : '#1E40AF';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>${label}</label>
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 12px;">
+                                        ${section ? `<div style="font-weight: 600; color: ${textColor}; font-size: 15px;">Section ${section} - ${township}-${range}</div>` : ''}
+                                        ${lat != null && lon != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Coordinates: ${lat.toFixed(6)}, ${lon.toFixed(6)}</div>` : ''}
                                     </div>
                                 </div>`;
                         } else {
