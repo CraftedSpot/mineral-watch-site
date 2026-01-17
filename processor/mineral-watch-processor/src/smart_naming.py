@@ -534,30 +534,58 @@ def name_assignment(data: Dict[str, Any]) -> str:
 
 
 def name_pooling_order(data: Dict[str, Any]) -> str:
-    """Pooling Order - CD {Number} - {Well Name or County} - {Operator} - {Formation} - {Year}"""
+    """Pooling Order - CD {Number} - {Well Name} - {Location} - {Formation}
+
+    Format uses spaces within parts, ' - ' between major parts.
+    Location keeps internal dashes (S3-1N-8E) as standard PLSS notation.
+    """
     parts = ["Pooling Order"]
 
-    # Case/CD number
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
-    if cd_num:
-        parts.append(f"CD {cd_num}")
+    # 1. Case/CD number - clean -T/-P suffix
+    order_info = data.get('order_info', {}) or {}
+    case_num = order_info.get('case_number') or data.get('case_number') or data.get('cd_number') or data.get('cause_number')
+    if case_num:
+        # Normalize: "CD 201500614-T" -> "CD 201500614"
+        case_num = str(case_num).replace('-T', '').replace('-P', '').strip()
+        cd_num = clean_cd_number(case_num)
+        if cd_num:
+            parts.append(f"CD {cd_num}")
 
-    # Well name (preferred) or county as location identifier
-    well_name = data.get('proposed_well_name') or data.get('well_name')
+    # 2. Well name (from nested well_info or top-level) or County as fallback
+    well_info = data.get('well_info', {}) or {}
+    well_name = well_info.get('proposed_well_name') or data.get('proposed_well_name') or data.get('well_name')
     if well_name:
-        parts.append(truncate_name(str(well_name), 30))
-    elif data.get('county'):
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
+        # Clean well name: "Hockett #1-3" -> "Hockett 1-3" (spaces, not underscores)
+        well_name = str(well_name).replace('#', '').replace('_', ' ').strip()
+        parts.append(truncate_name(well_name, 30))
+    else:
+        # Fallback to county - check top-level first, then nested
+        county = data.get('county')
+        if not county:
+            unit_info = data.get('unit_info', {}) or {}
+            legal_desc = unit_info.get('legal_description', {}) or {}
+            county = legal_desc.get('county')
+        if county:
+            county = str(county).strip()
+            if not county.lower().endswith('county'):
+                county = f"{county} County"
+            parts.append(county)
 
-    # Operator (use short name)
-    operator = data.get('operator') or data.get('applicant')
-    if operator:
-        parts.append(extract_last_name(operator))
+    # 3. Location shorthand - use top-level TRS fields, fallback to nested
+    section = data.get('section')
+    township = data.get('township')
+    range_val = data.get('range')
+    if not (section and township and range_val):
+        unit_info = data.get('unit_info', {}) or {}
+        legal_desc = unit_info.get('legal_description', {}) or {}
+        section = section or legal_desc.get('section')
+        township = township or legal_desc.get('township')
+        range_val = range_val or legal_desc.get('range')
+    if section and township and range_val:
+        # Location format keeps internal dashes (standard PLSS notation)
+        parts.append(f"S{section}-{township}-{range_val}")
 
-    # Primary formation (if available)
+    # 4. First formation name
     formations = data.get('formations')
     if formations and isinstance(formations, list) and len(formations) > 0:
         first_formation = formations[0]
@@ -568,10 +596,7 @@ def name_pooling_order(data: Dict[str, Any]) -> str:
         if formation_name:
             parts.append(formation_name)
 
-    # Year
-    if data.get('year'):
-        parts.append(str(data['year']))
-
+    # Join with ' - ' (space-dash-space), NOT underscores
     return " - ".join(parts)
 
 

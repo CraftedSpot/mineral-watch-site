@@ -6154,6 +6154,19 @@
                 'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
                 'Unit Details': ['unit_size_acres', 'spacing_order', 'lateral_direction', 'lateral_length_ft'],
                 'Multi-Unit Sections': ['multi_unit_sections', 'section_crossings'],
+                // Pooling Order sections (nested objects with special rendering)
+                'Election Options': ['election_options'],
+                'Operator Information': ['operator'],
+                'Applicant Information': ['applicant'],
+                'Attorney Information': ['attorney_information'],
+                'Formations': ['formations'],
+                'Important Deadlines': ['deadlines'],
+                'Default Election': ['default_election'],
+                'Subsequent Wells': ['subsequent_wells'],
+                'Additional Parties': ['additional_parties'],
+                'Pooling Order Details': ['order_info'],
+                'Well Details': ['well_info'],
+                'Unit Information': ['unit_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
             
@@ -6325,6 +6338,20 @@
 
             // Define section order (Key Takeaway and Detailed Analysis rendered above, not in sections)
             const sectionOrder = [
+                // Pooling Order sections (in priority order)
+                'Election Options',
+                'Operator Information',
+                'Applicant Information',
+                'Unit Information',
+                'Well Details',
+                'Formations',
+                'Important Deadlines',
+                'Default Election',
+                'Subsequent Wells',
+                'Pooling Order Details',
+                'Attorney Information',
+                'Additional Parties',
+                // Division Order / general document sections
                 'Operator/Payor',
                 'Property/Well',
                 'Owner',
@@ -6513,39 +6540,44 @@
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'election_options') {
                                 // Special handling for election options
-                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
                                 value.forEach((option, index) => {
                                     // Support both option.type and option.option_type
                                     const optType = (option.option_type || option.type || '').toLowerCase();
+                                    const isDefault = option.is_default === true;
 
-                                    // Color coding by option type
-                                    let optionBgColor, optionBorderColor;
-                                    if (optType === 'participate') {
-                                        optionBgColor = '#F0F9FF'; optionBorderColor = '#3B82F6'; // Blue
-                                    } else if (optType === 'cash_bonus' || optType === 'cash_plus_royalty') {
-                                        optionBgColor = '#FEF3C7'; optionBorderColor = '#F59E0B'; // Yellow/Amber
-                                    } else if (optType === 'overburdened') {
-                                        optionBgColor = '#F0FDF4'; optionBorderColor = '#22C55E'; // Green
-                                    } else if (optType === 'royalty_conversion') {
-                                        optionBgColor = '#FAF5FF'; optionBorderColor = '#A855F7'; // Purple
+                                    // Color coding: green=default, blue=participate, grey=other
+                                    let optionBgColor, optionBorderColor, optionTextColor, borderWidth;
+                                    if (isDefault) {
+                                        // Default option - green with thicker border
+                                        optionBgColor = '#DCFCE7'; optionBorderColor = '#22C55E'; optionTextColor = '#166534'; borderWidth = '2px';
+                                    } else if (optType === 'participate') {
+                                        // Participate option - blue
+                                        optionBgColor = '#EFF6FF'; optionBorderColor = '#3B82F6'; optionTextColor = '#1E40AF'; borderWidth = '1px';
                                     } else if (optType === 'non_consent') {
-                                        optionBgColor = '#FEE2E2'; optionBorderColor = '#EF4444'; // Red
+                                        // Non-consent option - red (warning)
+                                        optionBgColor = '#FEE2E2'; optionBorderColor = '#EF4444'; optionTextColor = '#DC2626'; borderWidth = '1px';
                                     } else {
-                                        optionBgColor = '#F3F4F6'; optionBorderColor = '#6B7280'; // Gray for unknown
+                                        // All other options - grey
+                                        optionBgColor = '#F3F4F6'; optionBorderColor = '#9CA3AF'; optionTextColor = '#4B5563'; borderWidth = '1px';
                                     }
 
                                     sectionContent += `
-                                        <div style="background: ${optionBgColor}; border: 1px solid ${optionBorderColor}; border-radius: 8px; padding: 12px;">
-                                            <div style="font-weight: 600; color: ${optionBorderColor};">Option ${option.option_number || index + 1}${optType ? ` - ${formatFieldName(optType)}` : ''}</div>
-                                            ${option.bonus_per_acre ? `<div>Cash Bonus: $${option.bonus_per_acre}/acre</div>` : ''}
-                                            ${option.cash_bonus_per_acre ? `<div>Cash Bonus: $${option.cash_bonus_per_acre}/acre</div>` : ''}
-                                            ${option.royalty_fraction ? `<div>Royalty: ${option.royalty_fraction}</div>` : ''}
-                                            ${option.royalty_rate ? `<div>Royalty: ${option.royalty_rate}</div>` : ''}
-                                            ${option.cost_per_nma ? `<div>Est. Cost: $${option.cost_per_nma.toLocaleString()}/NMA</div>` : ''}
-                                            ${option.penalty_percentage ? `<div>Penalty: ${option.penalty_percentage}%</div>` : ''}
-                                            ${option.working_interest_retained ? `<div style="color: #059669;">✓ Working Interest Retained</div>` : ''}
-                                            ${option.net_revenue_interest ? `<div>NRI: ${option.net_revenue_interest}</div>` : ''}
-                                            ${option.description ? `<div style="margin-top: 4px; font-size: 13px; color: #4B5563;">${escapeHtml(option.description)}</div>` : ''}
+                                        <div style="background: ${optionBgColor}; border: ${borderWidth} solid ${optionBorderColor}; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <div style="font-weight: 600; color: ${optionTextColor}; font-size: 14px;">Option ${option.option_number || index + 1}${optType ? ` - ${formatFieldName(optType)}` : ''}</div>
+                                                ${isDefault ? `<span style="background: #22C55E; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">DEFAULT</span>` : ''}
+                                            </div>
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; font-size: 13px;">
+                                                ${option.bonus_per_nma ? `<div><span style="color: #6B7280;">Bonus:</span> <strong>$${option.bonus_per_nma.toLocaleString()}/NMA</strong></div>` : ''}
+                                                ${option.bonus_per_acre ? `<div><span style="color: #6B7280;">Bonus:</span> <strong>$${option.bonus_per_acre}/acre</strong></div>` : ''}
+                                                ${option.cost_per_nma ? `<div><span style="color: #6B7280;">Est. Cost:</span> <strong>$${option.cost_per_nma.toLocaleString()}/NMA</strong></div>` : ''}
+                                                ${option.royalty_rate ? `<div><span style="color: #6B7280;">Royalty:</span> <strong>${option.royalty_rate}</strong></div>` : ''}
+                                                ${option.excess_royalty ? `<div><span style="color: #6B7280;">Excess Royalty:</span> <strong>${option.excess_royalty}</strong></div>` : ''}
+                                                ${option.nri_delivered ? `<div><span style="color: #6B7280;">NRI Delivered:</span> <strong>${option.nri_delivered}</strong></div>` : ''}
+                                                ${option.risk_penalty_percentage ? `<div><span style="color: #DC2626;">Risk Penalty:</span> <strong style="color: #DC2626;">${option.risk_penalty_percentage}%</strong></div>` : ''}
+                                            </div>
+                                            ${option.description ? `<div style="margin-top: 8px; font-size: 13px; color: #4B5563; border-top: 1px solid ${optionBorderColor}; padding-top: 8px;">${escapeHtml(option.description)}</div>` : ''}
                                             ${option.notes ? `<div style="margin-top: 4px; font-size: 12px; color: #6B7280; font-style: italic;">${escapeHtml(option.notes)}</div>` : ''}
                                         </div>`;
                                 });
@@ -6846,6 +6878,199 @@
                                         ${lat != null && lon != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Coordinates: ${lat.toFixed(6)}, ${lon.toFixed(6)}</div>` : ''}
                                     </div>
                                 </div>`;
+                        } else if (fieldName === 'operator' && typeof value === 'object') {
+                            // Special handling for pooling order operator object
+                            hasVisibleFields = true;
+                            const name = value.name || '';
+                            const contactName = value.contact_name || '';
+                            const address = value.address || '';
+                            const city = value.city || '';
+                            const state = value.state || '';
+                            const zip = value.zip || '';
+                            const phone = value.phone || '';
+                            const email = value.email || '';
+                            const fullAddress = [address, city, state, zip].filter(Boolean).join(', ').replace(/, ,/g, ',');
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        ${name ? `<div style="font-weight: 600; color: #1E40AF; font-size: 15px; margin-bottom: 8px;">${escapeHtml(name)}</div>` : ''}
+                                        ${contactName ? `<div style="font-size: 13px; color: #374151;"><strong>Contact:</strong> ${escapeHtml(contactName)}</div>` : ''}
+                                        ${fullAddress ? `<div style="font-size: 13px; color: #6B7280; margin-top: 4px;">${escapeHtml(fullAddress)}</div>` : ''}
+                                        ${phone || email ? `<div style="margin-top: 8px; display: flex; gap: 16px; flex-wrap: wrap;">
+                                            ${phone ? `<span style="font-size: 13px; color: #059669;">📞 ${escapeHtml(phone)}</span>` : ''}
+                                            ${email ? `<span style="font-size: 13px; color: #3B82F6;">✉️ ${escapeHtml(email)}</span>` : ''}
+                                        </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'applicant' && typeof value === 'object') {
+                            // Special handling for pooling order applicant object
+                            hasVisibleFields = true;
+                            const name = value.name || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 12px;">
+                                        ${name ? `<div style="font-weight: 600; color: #166534; font-size: 15px;">${escapeHtml(name)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'attorney_information' && typeof value === 'object') {
+                            // Special handling for attorney information object
+                            hasVisibleFields = true;
+                            const alj = value.administrative_law_judge || '';
+                            const applicantAttorney = value.applicant_attorney || '';
+                            const firm = value.applicant_attorney_firm || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FAF5FF; border: 1px solid #A855F7; border-radius: 8px; padding: 12px;">
+                                        ${alj ? `<div style="font-size: 13px; color: #374151; margin-bottom: 6px;"><strong>Administrative Law Judge:</strong> ${escapeHtml(alj)}</div>` : ''}
+                                        ${applicantAttorney ? `<div style="font-size: 13px; color: #374151;"><strong>Applicant Attorney:</strong> ${escapeHtml(applicantAttorney)}${firm ? ` (${escapeHtml(firm)})` : ''}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'order_info' && typeof value === 'object') {
+                            // Special handling for pooling order details object
+                            hasVisibleFields = true;
+                            const caseNumber = value.case_number || '';
+                            const orderNumber = value.order_number || '';
+                            const hearingDate = value.hearing_date || '';
+                            const orderDate = value.order_date || '';
+                            const effectiveDate = value.effective_date || '';
+                            const aljReportDate = value.alj_report_date || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px;">
+                                        ${caseNumber ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Case Number</label><div style="font-weight: 600; color: #1F2937;">${escapeHtml(caseNumber)}</div></div>` : ''}
+                                        ${orderNumber ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Order Number</label><div style="font-weight: 600; color: #1F2937;">${escapeHtml(orderNumber)}</div></div>` : ''}
+                                        ${hearingDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Hearing Date</label><div style="color: #374151;">${escapeHtml(hearingDate)}</div></div>` : ''}
+                                        ${orderDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Order Date</label><div style="color: #374151;">${escapeHtml(orderDate)}</div></div>` : ''}
+                                        ${effectiveDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Effective Date</label><div style="color: #374151;">${escapeHtml(effectiveDate)}</div></div>` : ''}
+                                        ${aljReportDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">ALJ Report Date</label><div style="color: #374151;">${escapeHtml(aljReportDate)}</div></div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'unit_info' && typeof value === 'object') {
+                            // Special handling for unit information object
+                            hasVisibleFields = true;
+                            const legalDesc = value.legal_description || {};
+                            const unitDesc = value.unit_description || '';
+                            const unitSize = value.unit_size_acres;
+                            const section = legalDesc.section || '';
+                            const township = legalDesc.township || '';
+                            const range = legalDesc.range || '';
+                            const county = legalDesc.county || '';
+                            const quarters = legalDesc.quarters || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 14px;">
+                                        ${section ? `<div style="font-weight: 600; color: #0369A1; font-size: 15px;">Section ${escapeHtml(section)} - ${escapeHtml(township)}-${escapeHtml(range)}${county ? `, ${escapeHtml(county)} County` : ''}</div>` : ''}
+                                        ${quarters ? `<div style="font-size: 13px; color: #374151; margin-top: 4px;">${escapeHtml(quarters)}</div>` : ''}
+                                        ${unitDesc ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(unitDesc)}</div>` : ''}
+                                        ${unitSize ? `<div style="font-size: 13px; color: #059669; font-weight: 500; margin-top: 6px;">${unitSize.toLocaleString()} acres</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'well_info' && typeof value === 'object') {
+                            // Special handling for well information object
+                            hasVisibleFields = true;
+                            const wellName = value.proposed_well_name || '';
+                            const wellType = value.well_type || '';
+                            const wellStatus = value.well_status || '';
+                            const apiNumber = value.api_number || '';
+                            const initialCost = value.initial_well_cost;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                        ${wellName ? `<div style="font-weight: 600; color: #92400E; font-size: 15px; margin-bottom: 6px;">${escapeHtml(wellName)}</div>` : ''}
+                                        <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;">
+                                            ${wellType ? `<span style="color: #374151;"><strong>Type:</strong> ${escapeHtml(wellType)}</span>` : ''}
+                                            ${wellStatus ? `<span style="color: #374151;"><strong>Status:</strong> ${escapeHtml(wellStatus)}</span>` : ''}
+                                            ${apiNumber ? `<span style="color: #6B7280;"><strong>API:</strong> ${escapeHtml(apiNumber)}</span>` : ''}
+                                        </div>
+                                        ${initialCost ? `<div style="font-size: 13px; color: #92400E; font-weight: 500; margin-top: 8px;">Est. Well Cost: $${initialCost.toLocaleString()}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'deadlines' && typeof value === 'object') {
+                            // Special handling for deadlines object
+                            hasVisibleFields = true;
+                            const electionDays = value.election_period_days;
+                            const electionDeadline = value.election_deadline || '';
+                            const participationDays = value.participation_payment_days;
+                            const bonusDays = value.bonus_payment_days;
+                            const commencementDays = value.operator_commencement_days;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEE2E2; border: 1px solid #EF4444; border-radius: 8px; padding: 14px;">
+                                        <div style="font-weight: 600; color: #DC2626; font-size: 14px; margin-bottom: 10px;">⚠️ Important Deadlines</div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px;">
+                                            ${electionDays ? `<div style="background: white; border-radius: 6px; padding: 10px;"><div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Election Period</div><div style="font-weight: 600; color: #DC2626; font-size: 16px;">${electionDays} days</div>${electionDeadline ? `<div style="font-size: 12px; color: #6B7280;">Deadline: ${escapeHtml(electionDeadline)}</div>` : ''}</div>` : ''}
+                                            ${participationDays ? `<div style="background: white; border-radius: 6px; padding: 10px;"><div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Participation Payment</div><div style="font-weight: 500; color: #374151;">${participationDays} days</div></div>` : ''}
+                                            ${bonusDays ? `<div style="background: white; border-radius: 6px; padding: 10px;"><div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Bonus Payment</div><div style="font-weight: 500; color: #374151;">${bonusDays} days</div></div>` : ''}
+                                            ${commencementDays ? `<div style="background: white; border-radius: 6px; padding: 10px;"><div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Operator Must Commence</div><div style="font-weight: 500; color: #374151;">${commencementDays} days</div></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'default_election' && typeof value === 'object') {
+                            // Special handling for default election object
+                            hasVisibleFields = true;
+                            const optionNum = value.option_number;
+                            const description = value.description || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #DCFCE7; border: 2px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                        <div style="font-weight: 600; color: #166534; font-size: 14px; margin-bottom: 6px;">🎯 Default Election${optionNum ? ` (Option ${optionNum})` : ''}</div>
+                                        ${description ? `<div style="font-size: 13px; color: #374151;">${escapeHtml(description)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'subsequent_wells' && typeof value === 'object') {
+                            // Special handling for subsequent wells provision
+                            hasVisibleFields = true;
+                            const hasProvision = value.has_provision;
+                            const noticeDays = value.notice_period_days;
+                            const paymentDays = value.payment_deadline_days;
+                            const excludesReplacement = value.excludes_replacement_wells;
+
+                            if (hasProvision) {
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FAF5FF; border: 1px solid #A855F7; border-radius: 8px; padding: 14px;">
+                                            <div style="font-weight: 600; color: #7C3AED; font-size: 14px; margin-bottom: 8px;">📋 Subsequent Wells Provision</div>
+                                            <div style="font-size: 13px; color: #374151;">This order covers future wells in the same unit.</div>
+                                            <div style="display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; font-size: 13px;">
+                                                ${noticeDays ? `<span><strong>Notice Period:</strong> ${noticeDays} days</span>` : ''}
+                                                ${paymentDays ? `<span><strong>Payment Deadline:</strong> ${paymentDays} days</span>` : ''}
+                                            </div>
+                                            ${excludesReplacement ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">Excludes replacement wells</div>` : ''}
+                                        </div>
+                                    </div>`;
+                            } else {
+                                hasVisibleFields = false;
+                            }
+                        } else if (fieldName === 'additional_parties' && Array.isArray(value)) {
+                            // Special handling for additional parties array
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(party => {
+                                    const name = party.name || '';
+                                    const role = party.role || '';
+                                    const address = party.address || '';
+
+                                    sectionContent += `
+                                        <div style="background: #F3F4F6; border: 1px solid #9CA3AF; border-radius: 6px; padding: 10px 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                <span style="font-weight: 500; color: #374151;">${escapeHtml(name)}</span>
+                                                ${role ? `<span style="background: #E5E7EB; color: #4B5563; padding: 2px 8px; border-radius: 4px; font-size: 11px; text-transform: uppercase;">${escapeHtml(role)}</span>` : ''}
+                                            </div>
+                                            ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                        </div>`;
+                                });
+                                sectionContent += `</div></div>`;
+                            }
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {

@@ -789,109 +789,180 @@ For OCC ORDERS (Spacing, Increased Density, Location Exception - NOT Pooling):
   "document_confidence": "high"
 }
 
-For POOLING ORDERS (Use this for forced pooling/force pooling orders specifically):
-IMPORTANT: Pooling orders have detailed election options that mineral owners must respond to.
-Extract ALL election options with their specific terms. Common option types include:
-- "participate" (working interest participation)
-- "cash_bonus" (bonus payment for leasing)
-- "overburdened" (reduced working interest with bonus)
-- "royalty_conversion" (convert to royalty interest)
-- "non_consent" (penalty for not participating)
-Use the closest matching type, or describe the option if none fit.
+For POOLING ORDERS (Force pooling orders requiring mineral owner response):
 
-{
+Pooling orders compel unleased mineral owners to participate in well development. Extract ALL election options
+with their specific financial terms - this is critical for owners to make informed decisions.
+
+ELECTION OPTION TYPES:
+- "participate" - Working interest participation (owner pays proportionate costs, shares in production)
+- "cash_bonus" - Cash payment per NMA, standard royalty, no excess royalty
+- "cash_bonus_excess_royalty" - Cash payment plus excess royalty (reduced NRI to operator)
+- "no_cash_higher_royalty" - No cash bonus, higher excess royalty
+- "non_consent" - Risk penalty option (150-300% cost recovery before sharing in production)
+- "statutory" - Falls under OCC statutory terms (52 O.S. §87.1)
+
+KEY TAKEAWAY GUIDANCE - Help the mineral owner understand:
+- WHO filed it (operator/applicant)
+- WHAT well and formation(s)
+- WHERE (section-township-range, county)
+- WHEN they need to respond (election deadline days)
+- DEFAULT consequence if they don't respond (bonus amount, NRI delivered)
+- SUBSEQUENT WELLS if order covers future wells
+
+DETAILED ANALYSIS GUIDANCE - Cover these topics:
+- Plain English explanation of what force pooling means for this owner
+- Election options compared (cash vs participation vs royalty trade-offs)
+- Key deadlines (election period, payment deadlines)
+- Default consequences if owner doesn't respond
+- Where to send elections (operator contact info: name, address, email)
+- Subsequent well provisions if applicable
+
+{{
   "doc_type": "pooling_order",
-  "case_number": "CD 2024-001234",
-  "order_number": "123456",
-  "order_date": "2024-01-15",
-  "effective_date": "2024-02-01",
-  "applicant": "Continental Resources, Inc.",
-  "operator": "Continental Resources, Inc.",
-  "proposed_well_name": "Smith 1-16H",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady"
-  },
-  "unit_description": "The W/2 of Section 16, Township 12 North, Range 7 West",
-  "unit_size_acres": 320,
-  "formations": [
-    {
-      "name": "Woodford",
-      "depth_from": 10500,
-      "depth_to": 10800
-    },
-    {
-      "name": "Mississippian",
-      "depth_from": 9800,
-      "depth_to": 10200
-    }
+
+  // Top-level TRS for property matching (also in unit_info.legal_description)
+  "section": "3",
+  "township": "1N",
+  "range": "8E",
+  "county": "Coal",
+
+  "order_info": {{
+    "case_number": "CD 201500614-T",
+    "order_number": "639589",
+    "hearing_date": "2015-03-10",
+    "order_date": "2015-03-17",
+    "effective_date": "2015-03-17",
+    "alj_report_date": "2015-03-15"
+  }},
+
+  "applicant": {{
+    "name": "Canyon Creek Energy Operating LLC"
+  }},
+
+  "attorney_information": {{
+    "administrative_law_judge": "John Smith",
+    "applicant_attorney": "Jane Doe",
+    "applicant_attorney_firm": "Hall Estill"
+  }},
+
+  "additional_parties": [
+    {{
+      "name": "John Doe",
+      "role": "Respondent",
+      "address": "123 Main St, Tulsa, OK"
+    }}
   ],
-  "well_type": "horizontal",
+
+  "operator": {{
+    "name": "Canyon Creek Energy Operating LLC",
+    "contact_name": "Mr. Blake Gray",
+    "address": "2431 East 61st Street, Suite 400",
+    "city": "Tulsa",
+    "state": "Oklahoma",
+    "zip": "74136",
+    "phone": "918-555-1234",
+    "email": "bgray@cceok.com"
+  }},
+
+  "unit_info": {{
+    "legal_description": {{
+      "section": "3",
+      "township": "1N",
+      "range": "8E",
+      "county": "Coal",
+      "meridian": "IM",
+      "quarters": "SE/4"
+    }},
+    "unit_description": "The SE/4 of Section 3, Township 1 North, Range 8 East, IM, Coal County",
+    "unit_size_acres": 160
+  }},
+
+  "well_info": {{
+    "proposed_well_name": "Hockett 1-3",
+    "well_type": "vertical",
+    "well_status": "new",
+    "api_number": null,
+    "initial_well_cost": 886600
+  }},
+
+  "formations": [
+    {{"name": "Cromwell", "order_number": "591429", "depth_from": 2800, "depth_to": 3200}},
+    {{"name": "Booch", "order_number": "591429", "depth_from": 2200, "depth_to": 2600}}
+  ],
+
   "election_options": [
-    {
+    {{
       "option_number": 1,
       "option_type": "participate",
       "description": "Participate as working interest owner",
-      "bonus_per_acre": null,
-      "royalty_fraction": "3/16",
-      "working_interest_retained": true,
-      "cost_per_nma": 15000.00,
-      "penalty_percentage": null,
-      "notes": "Owner pays proportionate share of drilling costs"
-    },
-    {
+      "bonus_per_nma": null,
+      "cost_per_nma": 5541.25,
+      "royalty_rate": "1/8",
+      "excess_royalty": null,
+      "nri_delivered": null,
+      "risk_penalty_percentage": null,
+      "is_default": false
+    }},
+    {{
       "option_number": 2,
-      "option_type": "cash_bonus",
-      "description": "Cash bonus and royalty",
-      "bonus_per_acre": 1500.00,
-      "royalty_fraction": "3/16",
-      "working_interest_retained": false,
+      "option_type": "cash_bonus_excess_royalty",
+      "description": "Cash bonus plus excess royalty",
+      "bonus_per_nma": 350,
       "cost_per_nma": null,
-      "penalty_percentage": null,
-      "notes": null
-    },
-    {
+      "royalty_rate": "1/8",
+      "excess_royalty": "1/16",
+      "nri_delivered": "81.25%",
+      "risk_penalty_percentage": null,
+      "is_default": true
+    }},
+    {{
       "option_number": 3,
-      "option_type": "non_consent",
-      "description": "Non-consent penalty",
-      "bonus_per_acre": null,
-      "royalty_fraction": "3/16",
-      "working_interest_retained": false,
+      "option_type": "no_cash_higher_royalty",
+      "description": "No cash, higher royalty",
+      "bonus_per_nma": null,
       "cost_per_nma": null,
-      "penalty_percentage": 200,
-      "notes": "200% penalty before sharing in production"
-    }
+      "royalty_rate": "1/8",
+      "excess_royalty": "1/8",
+      "nri_delivered": "75%",
+      "risk_penalty_percentage": null,
+      "is_default": false
+    }}
   ],
-  "default_election": {
+
+  "deadlines": {{
+    "election_period_days": 20,
+    "election_deadline": "2015-04-06",
+    "participation_payment_days": 25,
+    "bonus_payment_days": 30,
+    "operator_commencement_days": 180
+  }},
+
+  "default_election": {{
     "option_number": 2,
-    "description": "If owner fails to respond, deemed to have elected Option 2"
-  },
-  "response_deadline": "2024-02-15",
-  "response_deadline_days": 20,
-  "field_scores": {
+    "description": "If owner fails to respond within 20 days, deemed to have elected Option 2 ($350/NMA, 81.25% NRI)"
+  }},
+
+  "subsequent_wells": {{
+    "has_provision": true,
+    "notice_period_days": 20,
+    "payment_deadline_days": 25,
+    "excludes_replacement_wells": true
+  }},
+
+  "field_scores": {{
     "case_number": 1.0,
     "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "applicant": 1.0,
     "operator": 1.0,
-    "proposed_well_name": 0.85,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "unit_description": 0.90,
-    "unit_size_acres": 0.95,
-    "formations": 0.85,
-    "well_type": 0.90,
-    "election_options": 0.85,
-    "default_election": 0.90,
-    "response_deadline": 0.95
-  },
+    "applicant": 0.95,
+    "attorney_information": 0.85,
+    "legal_description": 1.0,
+    "election_options": 0.90,
+    "deadlines": 0.95,
+    "additional_parties": 0.80
+  }},
   "document_confidence": "high"
-}
+}}
 
 For INCREASED DENSITY ORDERS (Authorization for additional wells in existing unit):
 NOTE: These orders do NOT require owner action - they are informational only.
