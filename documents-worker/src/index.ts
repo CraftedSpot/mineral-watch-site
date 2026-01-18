@@ -1486,10 +1486,11 @@ export default {
             ).run();
             
             // After successful update, attempt to link document to properties/wells
-            console.log('[DEBUG] Checking if should link - extracted_data exists:', !!extracted_data, 'status:', status);
+            console.log('[DEBUG] Checking if should link - extracted_data exists:', !!extracted_data, 'effectiveStatus:', effectiveStatus, 'skip_extraction:', extracted_data?.skip_extraction);
             console.log('[DEBUG] extracted_data type:', typeof extracted_data);
-            
-            if (extracted_data && status !== 'failed') {
+
+            // Skip linking for failed, unprocessed, or skip_extraction documents
+            if (extracted_data && effectiveStatus !== 'failed' && effectiveStatus !== 'unprocessed' && !extracted_data?.skip_extraction) {
               console.log('[DEBUG] About to call linkDocumentToEntities for:', docId);
               console.log('[Documents] Starting auto-link for document:', docId);
               console.log('[Documents] Extracted data keys:', Object.keys(extracted_data));
@@ -1509,7 +1510,7 @@ export default {
                 console.error('[Documents] Error stack:', linkError.stack);
               }
             } else {
-              console.log('[Documents] Skipping auto-link - Status:', status, 'Has extracted data:', !!extracted_data);
+              console.log('[Documents] Skipping auto-link - effectiveStatus:', effectiveStatus, 'Has extracted data:', !!extracted_data, 'skip_extraction:', extracted_data?.skip_extraction);
               if (extracted_data) {
                 console.log('[DEBUG] extracted_data sample:', JSON.stringify(extracted_data).substring(0, 200));
               }
