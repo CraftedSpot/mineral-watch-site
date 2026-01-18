@@ -2213,7 +2213,7 @@ SAME PARTY DIFFERENT CAPACITIES:
   "doc_type": "limited_partnership",
 
   "entity_info": {{
-    "entity_name": "REQUIRED - Price Oil and Gas Company",
+    "name": "REQUIRED - Price Oil and Gas Company",
     "formation_date": "REQUIRED - 1980-01-20",
     "governing_law": "Oklahoma Uniform Limited Partnership Act, Title 54 O.S. 1971 § 141",
     "jurisdiction": "Oklahoma"
@@ -2236,56 +2236,32 @@ SAME PARTY DIFFERENT CAPACITIES:
   "general_partners": [
     {{
       "name": "REQUIRED - Montine Price Foerster Sprehe",
-      "address": "7520 Nichols Road",
-      "city": "Oklahoma City",
-      "state": "Oklahoma",
-      "zip": "73120",
+      "address": "7520 Nichols Road, Oklahoma City, Oklahoma 73120",
       "capacity": "Individual",
-      "contribution_interest": {{
-        "fraction": "25%",
-        "decimal": 0.25
-      }},
-      "profit_interest": {{
-        "fraction": "25%",
-        "decimal": 0.25
-      }}
+      "interest_fraction": "25%",
+      "interest_decimal": 0.25,
+      "capital_contribution": "$1,666.67"
     }}
   ],
 
   "limited_partners": [
     {{
       "name": "REQUIRED - Gudbjorg Price",
-      "address": "1416 Brighton",
-      "city": "Oklahoma City",
-      "state": "Oklahoma",
-      "zip": "73120",
+      "address": "1416 Brighton, Oklahoma City, Oklahoma 73120",
       "capacity": "Individual",
       "custodian_for": null,
-      "contribution_interest": {{
-        "fraction": "8-1/3%",
-        "decimal": 0.083333
-      }},
-      "profit_interest": {{
-        "fraction": "8-1/3%",
-        "decimal": 0.083333
-      }}
+      "interest_fraction": "8-1/3%",
+      "interest_decimal": 0.083333,
+      "capital_contribution": "$555.56"
     }},
     {{
       "name": "Gudbjorg Price",
-      "address": "1416 Brighton",
-      "city": "Oklahoma City",
-      "state": "Oklahoma",
-      "zip": "73120",
+      "address": "1416 Brighton, Oklahoma City, Oklahoma 73120",
       "capacity": "Custodian",
       "custodian_for": "Siri Montine Price",
-      "contribution_interest": {{
-        "fraction": "8-1/3%",
-        "decimal": 0.083333
-      }},
-      "profit_interest": {{
-        "fraction": "8-1/3%",
-        "decimal": 0.083333
-      }}
+      "interest_fraction": "8-1/3%",
+      "interest_decimal": 0.083333,
+      "capital_contribution": "$555.56"
     }}
   ],
 
@@ -2376,7 +2352,7 @@ SAME PARTY DIFFERENT CAPACITIES:
   "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) entity structure - who are the partners and what are their percentages; (2) management - how decisions are made, LP restrictions; (3) succession - critical: what happens when partners die, especially the GP-to-LP conversion; (4) assignment restrictions - family-only new LPs, GP approval required.",
 
   "field_scores": {{
-    "entity_name": 1.0,
+    "entity_info": 1.0,
     "formation_date": 1.0,
     "general_partners": 1.0,
     "limited_partners": 1.0,
@@ -2388,9 +2364,10 @@ SAME PARTY DIFFERENT CAPACITIES:
 }}
 
 PARTNER INTEREST EXTRACTION:
-- MUST include both `fraction` (as stated: "25%", "8-1/3%") and `decimal` (computed: 0.25, 0.083333)
+- MUST include both `interest_fraction` (as stated: "25%", "8-1/3%") and `interest_decimal` (computed: 0.25, 0.083333)
 - Common fractions: 1/3 = 0.333333, 1/4 = 0.25, 8-1/3% = 0.083333, 16-2/3% = 0.166667
 - Preserve full decimal precision
+- Include `capital_contribution` if stated in the document
 
 SAME PARTY DIFFERENT CAPACITIES:
 - If Gudbjorg Price appears as Individual AND as Custodian for two minors, create THREE separate entries
