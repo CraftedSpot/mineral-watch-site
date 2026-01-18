@@ -9721,14 +9721,18 @@
                                 </div>`;
                         } else if (fieldName === 'well_location' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
                             // Special handling for well_location object (multi-unit horizontal order)
-                            hasVisibleFields = true;
                             const surfaceLoc = value.surface_location || {};
                             const firstPerf = value.first_perforation || {};
                             const lastPerf = value.last_perforation || {};
                             const totalMD = value.total_measured_depth_ft;
                             const lateralLength = value.lateral_total_length_ft;
 
-                            sectionContent += `
+                            // Only show section if there's actual data
+                            const hasLocData = Object.keys(surfaceLoc).length > 0 || Object.keys(firstPerf).length > 0 ||
+                                              Object.keys(lastPerf).length > 0 || totalMD || lateralLength;
+                            if (hasLocData) {
+                                hasVisibleFields = true;
+                                sectionContent += `
                                 <div class="doc-field" style="grid-column: 1 / -1;">
                                     <div style="display: flex; flex-direction: column; gap: 12px;">
                                         ${Object.keys(surfaceLoc).length > 0 ? `
