@@ -9836,6 +9836,7 @@
                                                 ${wellClass ? `<div><span style="color: #6B7280;">Classification:</span> <strong style="text-transform: capitalize;">${escapeHtml(wellClass)}</strong></div>` : ''}
                                             </div>
                                         </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
                         } else {
