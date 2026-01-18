@@ -501,41 +501,267 @@ PRIOR INSTRUMENTS (references to source of grantor's title):
 COMMON FRACTION CONVERSIONS:
 1/2 = 0.5, 1/4 = 0.25, 1/8 = 0.125, 1/16 = 0.0625, 1/32 = 0.03125, 1/64 = 0.015625, 1/128 = 0.0078125, 1/256 = 0.00390625
 
-For LEASES:
-{
-  "doc_type": "lease",
-  "lessor_names": ["John A. Smith", "Mary B. Smith"],
-  "lessee_name": "XYZ Oil Company, LLC",
-  "recording_date": "2023-03-15",
-  "execution_date": "2023-03-10",
-  "recording_book": "L-350",
-  "recording_page": "125",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady"
-  },
-  "primary_term_years": 3,
-  "royalty_percentage": 18.75,
-  "bonus_per_acre": "$500.00",
-  "field_scores": {
-    "lessor_names": 0.95,
+For OIL AND GAS LEASES:
+Extract comprehensive lease terms. Pay special attention to Exhibit A or Addendum which may override printed form.
+
+CRITICAL INSTRUCTIONS:
+1. CHECK FOR EXHIBIT A - Many leases have an Exhibit A that modifies the printed form. Look for:
+   - "See Exhibit A attached hereto"
+   - Separate page titled "Exhibit A" or "Addendum"
+   - Depth Clause, Pugh Clause, Shut-In Limitation, No Deductions Clause
+2. EXTRACT ALL TRACTS - Missing tracts break property linking
+3. CALCULATE EXPIRATION DATE - Add primary term years to commencement date
+4. NOTE ABSENT CLAUSES - In detailed_analysis, mention when protective clauses are NOT present
+
+Common Royalty Fractions: 1/8=0.125, 3/16=0.1875, 1/5=0.20, 1/4=0.25, 1/6=0.166667
+
+{{
+  "doc_type": "oil_gas_lease",
+  "lease_form": "Hefner Form or AAPL Form 675 or omit if unknown",
+
+  "lessor": {{
+    "name": "REQUIRED - Price Oil & Gas, Ltd.",
+    "address": "6801 N. Country Club Drive",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "zip": "73116",
+    "capacity": "Mineral Owner|Trustee|Personal Representative|Guardian|Attorney-in-Fact|Manager|President",
+    "signatory": "William S. Price - person who signed if different from entity",
+    "signatory_title": "Manager - title if signing in representative capacity"
+  }},
+
+  "lessee": {{
+    "name": "REQUIRED - Hefner Energy, LLC",
+    "address": "16224 Muirfield Place",
+    "city": "Edmond",
+    "state": "OK",
+    "zip": "73013"
+  }},
+
+  "execution_date": "REQUIRED - 2016-08-09",
+  "effective_date": "omit if same as execution_date",
+
+  "recording_info": {{
+    "book": "L-350",
+    "page": "125",
+    "instrument_number": "2016-12345",
+    "recording_date": "2016-08-15",
+    "county": "REQUIRED - Blaine",
+    "state": "Oklahoma"
+  }},
+
+  "tracts": [
+    {{
+      "tract_number": 1,
+      "legal_description": {{
+        "section": 20,
+        "township": "16N",
+        "range": "13W",
+        "meridian": "IM",
+        "county": "Blaine",
+        "state": "Oklahoma",
+        "quarters": "SW/4 SE/4"
+      }},
+      "acres": 40.0,
+      "acres_qualifier": "more or less",
+      "depths_limited": false,
+      "formations_limited": null,
+      "mineral_interest_fraction": "1/2 - only if lessor owns partial minerals"
+    }}
+  ],
+
+  "primary_term": {{
+    "years": 3,
+    "months": 0,
+    "commencement_date": "REQUIRED - 2016-08-09",
+    "expiration_date": "REQUIRED - 2019-08-09"
+  }},
+
+  "consideration": {{
+    "bonus_stated": "REQUIRED - $10.00 and other good and valuable consideration",
+    "bonus_per_acre": 500.00,
+    "total_bonus": 20000.00,
+    "is_paid_up": true,
+    "delay_rental": "REQUIRED if is_paid_up is false",
+    "delay_rental_per_acre": 10.00,
+    "delay_rental_due_date": "anniversary of lease"
+  }},
+
+  "royalty": {{
+    "oil": {{
+      "fraction": "REQUIRED - 1/4",
+      "decimal": 0.25
+    }},
+    "gas": {{
+      "fraction": "REQUIRED - 1/4",
+      "decimal": 0.25
+    }},
+    "other_minerals": {{
+      "fraction": "1/10",
+      "decimal": 0.10,
+      "note": "sulphur $1.00 per long ton"
+    }}
+  }},
+
+  "pooling_provisions": {{
+    "lessee_has_pooling_rights": true,
+    "pooling_type": "lessee option|requires lessor consent|OCC only",
+    "vertical_oil_well": {{
+      "max_acres": 80,
+      "tolerance": "10%"
+    }},
+    "gas_or_horizontal_well": {{
+      "max_acres": 640,
+      "tolerance": "10%"
+    }},
+    "governmental_override": true,
+    "allocation_method": "surface acres|net mineral acres",
+    "pugh_clause_limits_pooling": true,
+    "anti_pugh_language": false,
+    "anti_pugh_text": "quote the language if present"
+  }},
+
+  "habendum_clause": {{
+    "cessation_period_days": 180,
+    "continuous_operations": true,
+    "operations_definition": "drilling, reworking, or production"
+  }},
+
+  "shut_in_provisions": {{
+    "shut_in_royalty": "$1.00 per acre",
+    "shut_in_royalty_per_acre": 1.00,
+    "trigger_period_days": 90,
+    "payment_frequency": "annual",
+    "limitation": {{
+      "has_limitation": true,
+      "max_consecutive_years": 2,
+      "source": "Exhibit A"
+    }}
+  }},
+
+  "depth_clause": {{
+    "has_depth_clause": true,
+    "trigger": "extended solely by commercial production beyond primary term",
+    "depth_retained": "100 feet below stratigraphic equivalent of base of deepest penetrated formation",
+    "depth_feet": null,
+    "reference_point": "deepest penetrated formation",
+    "source": "Exhibit A"
+  }},
+
+  "pugh_clause": {{
+    "has_pugh_clause": true,
+    "type": "Corporation Commission unit|production unit|voluntary pooling",
+    "trigger": "expiration of primary term",
+    "releases": "portions not in OCC unit and not producing or drilling",
+    "horizontal_pugh": true,
+    "vertical_pugh": false,
+    "unit_change_provision": "90 days to develop or release if unit boundaries change",
+    "source": "Exhibit A"
+  }},
+
+  "deductions_clause": {{
+    "has_no_deductions_clause": true,
+    "scope": "all post-production costs",
+    "prohibited_deductions": ["producing", "gathering", "storing", "separating", "treating", "dehydrating", "compressing", "processing", "transporting", "marketing"],
+    "exception": "value-enhancing costs if reasonable and based on actual cost",
+    "source": "Exhibit A"
+  }},
+
+  "continuous_development_clause": {{
+    "has_continuous_development": false,
+    "period_between_wells_days": null,
+    "wells_required": null,
+    "penalty_for_breach": null,
+    "applies_after": null
+  }},
+
+  "top_lease_provision": {{
+    "has_top_lease_rofr": true,
+    "response_period_days": 15,
+    "trigger": "bona fide offer during primary term",
+    "matching_required": true,
+    "notice_requirements": null
+  }},
+
+  "force_majeure": {{
+    "has_force_majeure": true,
+    "extension_period": "first anniversary 90+ days after removal of delay",
+    "excluded_causes": ["financial"],
+    "included_causes": ["war", "strikes", "regulations", "acts of God"]
+  }},
+
+  "surface_use": {{
+    "water_use_free_of_royalty": true,
+    "setback_from_house_feet": 200,
+    "setback_from_barn_feet": 200,
+    "no_surface_operations": false,
+    "surface_use_limited_to_acres": null,
+    "designated_drill_site": null,
+    "surface_damage_payment": {{
+      "required": true,
+      "amount": null,
+      "basis": "damages to growing crops and timber"
+    }},
+    "restoration_required": true
+  }},
+
+  "assignment_status": {{
+    "original_lessee": "Hefner Energy, LLC",
+    "current_holder": null,
+    "has_been_assigned": false,
+    "assignment_noted_on_document": false,
+    "note": null
+  }},
+
+  "exhibit_a": {{
+    "has_exhibit_a": true,
+    "provisions": ["Depth Clause", "Pugh Clause", "Shut-In Royalty Limitation (2 years)", "No Deductions Clause"],
+    "controls_over_printed_form": true,
+    "additional_terms": null
+  }},
+
+  "notarization": {{
+    "notary_name": "Jane Doe",
+    "notary_date": "2016-08-09",
+    "commission_number": "12345678",
+    "commission_expires": "2020-03-15"
+  }},
+
+  "notes": "any additional information not captured elsewhere",
+
+  "key_takeaway": "REQUIRED - One sentence: 3-year paid-up lease from [Lessor] to [Lessee] covering [acres] acres in [quarters] of Section [S]-[T]-[R], [County] County, with [royalty] royalty and [key provisions or 'standard form with no protective clauses'].",
+
+  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) parties, date, legal description; (2) primary term and consideration; (3) royalty and economic terms; (4) protective clauses PRESENT and ABSENT - explicitly note if Pugh, depth, no-deductions clauses are missing; (5) current status if primary term has expired.",
+
+  "field_scores": {{
+    "lessor_name": 0.95,
     "lessee_name": 1.0,
-    "recording_date": 1.0,
     "execution_date": 0.90,
-    "recording_book": 1.0,
-    "recording_page": 1.0,
-    "legal_section": 0.95,
-    "legal_township": 0.95,
-    "legal_range": 0.95,
-    "legal_county": 1.0,
-    "primary_term_years": 1.0,
-    "royalty_percentage": 0.98,
-    "bonus_per_acre": 0.85
-  },
+    "recording_info": 1.0,
+    "tracts": 0.95,
+    "primary_term": 1.0,
+    "royalty": 0.98,
+    "depth_clause": 0.90,
+    "pugh_clause": 0.90,
+    "deductions_clause": 0.85,
+    "exhibit_a": 1.0
+  }},
   "document_confidence": "high"
-}
+}}
+
+IMPORTANT FOR LEASES WITHOUT PROTECTIVE CLAUSES:
+If no Exhibit A or addendum, set:
+- depth_clause.has_depth_clause: false
+- pugh_clause.has_pugh_clause: false
+- deductions_clause.has_no_deductions_clause: false
+- exhibit_a.has_exhibit_a: false
+
+Check for anti-Pugh pooling language like:
+- "Production from a pooled unit shall maintain this lease as to all lands covered hereby"
+- "Pooling shall extend this lease as to all lands"
+If found, set pooling_provisions.anti_pugh_language: true and quote in anti_pugh_text.
+
+detailed_analysis MUST note: "This lease uses a standard printed form with NO Exhibit A. Notably absent are: a Pugh clause, a depth clause, and a no-deductions clause."
 
 For DRILLING PERMITS (Form 1000 - Intent to Drill):
 Form 1000 is the OCC "Notice of Intent / Permit to Drill" for oil, gas, and injection wells.
