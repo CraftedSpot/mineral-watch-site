@@ -3184,6 +3184,8 @@ async def quick_classify_document(image_paths: list[str]) -> dict:
         "type": "text",
         "text": """Classify this document and detect if it contains multiple separate documents.
 
+IMPORTANT: Look at ALL provided page images. If you see DIFFERENT document types on different pages (e.g., "Assignment of Oil and Gas Lease" on one page, "Quit Claim Deed" on another, "Mineral Deed" on another), this is a MULTI-DOCUMENT PDF containing separate documents that need to be split.
+
 Return ONLY a JSON object with:
 {
   "doc_type": "mineral_deed|lease|division_order|... or other",
