@@ -9868,6 +9868,250 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
+                        } else if (fieldName === 'well_identification' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for well_identification object (completion report)
+                            const wellName = value.well_name || '';
+                            const apiNumber = value.api_number || '';
+                            const permitNumber = value.permit_number || '';
+                            const operator = value.operator || '';
+
+                            if (wellName || apiNumber || permitNumber || operator) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                            ${wellName ? `<div style="font-size: 18px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">${escapeHtml(wellName)}</div>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                                ${apiNumber ? `<div><span style="color: #6B7280;">API:</span> <strong style="font-family: monospace;">${escapeHtml(apiNumber)}</strong></div>` : ''}
+                                                ${permitNumber ? `<div><span style="color: #6B7280;">Permit:</span> <strong>${escapeHtml(permitNumber)}</strong></div>` : ''}
+                                                ${operator ? `<div><span style="color: #6B7280;">Operator:</span> <strong>${escapeHtml(operator)}</strong></div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'dates' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for dates object (completion report)
+                            const spudDate = value.spud_date || '';
+                            const completionDate = value.completion_date || '';
+                            const firstProduction = value.first_production_date || '';
+
+                            if (spudDate || completionDate || firstProduction) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 12px; background: #F9FAFB; border-radius: 8px;">
+                                            ${spudDate ? `<div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #E5E7EB;"><span style="color: #6B7280; font-size: 12px;">Spud Date</span><div style="font-weight: 600; font-size: 14px;">${escapeHtml(spudDate)}</div></div>` : ''}
+                                            ${completionDate ? `<div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #E5E7EB;"><span style="color: #6B7280; font-size: 12px;">Completion Date</span><div style="font-weight: 600; font-size: 14px;">${escapeHtml(completionDate)}</div></div>` : ''}
+                                            ${firstProduction ? `<div style="background: white; padding: 10px 14px; border-radius: 6px; border: 1px solid #22C55E;"><span style="color: #16A34A; font-size: 12px;">First Production</span><div style="font-weight: 600; font-size: 14px; color: #166534;">${escapeHtml(firstProduction)}</div></div>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'well_type' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for well_type object (completion report)
+                            const drillType = value.drill_type || '';
+                            const wellClass = value.well_class || '';
+                            const status = value.status || '';
+
+                            if (drillType || wellClass || status) {
+                                hasVisibleFields = true;
+                                const typeColor = drillType === 'HORIZONTAL' ? '#7C3AED' : '#3B82F6';
+                                const statusColor = status === 'Accepted' ? '#16A34A' : (status === 'Rejected' ? '#DC2626' : '#F59E0B');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 12px; align-items: center;">
+                                            ${drillType ? `<span style="background: ${typeColor}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 600;">${escapeHtml(drillType)}</span>` : ''}
+                                            ${wellClass ? `<span style="background: #E5E7EB; color: #374151; padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 500;">${escapeHtml(wellClass)}</span>` : ''}
+                                            ${status ? `<span style="background: ${statusColor}; color: white; padding: 4px 12px; border-radius: 16px; font-size: 13px; font-weight: 600;">${escapeHtml(status)}</span>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'surface_location' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for surface_location object (completion report)
+                            const section = value.section || '';
+                            const township = value.township || '';
+                            const range = value.range || '';
+                            const county = value.county || '';
+                            const state = value.state || '';
+                            const spot = value.spot || '';
+                            const footage = value.footage_from_section_lines || '';
+
+                            if (section || township || range || county) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                            <div style="font-size: 14px; font-weight: 600; color: #166534; margin-bottom: 8px;">
+                                                ${section ? `Section ${escapeHtml(section)}` : ''} ${township ? `- ${escapeHtml(township)}` : ''} ${range ? `- ${escapeHtml(range)}` : ''}
+                                            </div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                                ${county ? `<div><span style="color: #6B7280;">County:</span> <strong>${escapeHtml(county)}</strong></div>` : ''}
+                                                ${state ? `<div><span style="color: #6B7280;">State:</span> <strong>${escapeHtml(state)}</strong></div>` : ''}
+                                                ${spot ? `<div><span style="color: #6B7280;">Spot:</span> <strong>${escapeHtml(spot)}</strong></div>` : ''}
+                                            </div>
+                                            ${footage ? `<div style="margin-top: 8px; font-size: 12px; color: #374151; background: #DCFCE7; padding: 6px 10px; border-radius: 4px;">${escapeHtml(footage)}</div>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'bottom_hole_location' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for bottom_hole_location object (completion report)
+                            const section = value.section || '';
+                            const township = value.township || '';
+                            const range = value.range || '';
+                            const direction = value.direction_from_surface || '';
+                            const distance = value.distance_from_surface_ft;
+
+                            if (section || township || range || direction || distance) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                            <div style="font-size: 14px; font-weight: 600; color: #92400E; margin-bottom: 8px;">
+                                                🎯 Bottom Hole Location
+                                            </div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                                ${section ? `<div><span style="color: #6B7280;">Section:</span> <strong>${escapeHtml(section)}</strong></div>` : ''}
+                                                ${township ? `<div><span style="color: #6B7280;">Township:</span> <strong>${escapeHtml(township)}</strong></div>` : ''}
+                                                ${range ? `<div><span style="color: #6B7280;">Range:</span> <strong>${escapeHtml(range)}</strong></div>` : ''}
+                                            </div>
+                                            ${direction || distance ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #FBBF24; font-size: 13px;">
+                                                ${direction ? `<span style="color: #6B7280;">Direction:</span> <strong>${escapeHtml(direction)}</strong>` : ''}
+                                                ${distance ? `<span style="margin-left: 12px; color: #6B7280;">Distance:</span> <strong>${distance.toLocaleString()} ft</strong>` : ''}
+                                            </div>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'lateral_details' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for lateral_details object (completion report)
+                            const lateralLength = value.lateral_length_ft;
+                            const tvd = value.true_vertical_depth_ft;
+                            const direction = value.direction || '';
+
+                            if (lateralLength || tvd || direction) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F5F3FF; border: 1px solid #8B5CF6; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px;">
+                                                ${lateralLength ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${lateralLength.toLocaleString()}'</div><div style="font-size: 12px; color: #6B7280;">Lateral Length</div></div>` : ''}
+                                                ${tvd ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${tvd.toLocaleString()}'</div><div style="font-size: 12px; color: #6B7280;">True Vertical Depth</div></div>` : ''}
+                                                ${direction ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${escapeHtml(direction)}</div><div style="font-size: 12px; color: #6B7280;">Direction</div></div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'perforated_intervals' && Array.isArray(value) && data.doc_type === 'completion_report') {
+                            // Special handling for perforated_intervals array (completion report)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let intervalsHtml = value.map((interval, idx) => {
+                                    const formation = interval.formation || '';
+                                    const top = interval.top_md_ft;
+                                    const bottom = interval.bottom_md_ft;
+                                    const length = interval.interval_length_ft;
+                                    return `<tr style="border-bottom: 1px solid #E5E7EB;">
+                                        <td style="padding: 8px; font-weight: 500;">${escapeHtml(formation) || `Interval ${idx + 1}`}</td>
+                                        <td style="padding: 8px; text-align: right; font-family: monospace;">${top ? top.toLocaleString() : '-'}</td>
+                                        <td style="padding: 8px; text-align: right; font-family: monospace;">${bottom ? bottom.toLocaleString() : '-'}</td>
+                                        <td style="padding: 8px; text-align: right; font-family: monospace; font-weight: 600;">${length ? length.toLocaleString() : '-'}</td>
+                                    </tr>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                                            <thead style="background: #F3F4F6;">
+                                                <tr>
+                                                    <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Formation</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Top (ft MD)</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Bottom (ft MD)</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Length (ft)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>${intervalsHtml}</tbody>
+                                        </table>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'initial_production' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for initial_production object (completion report)
+                            const testDate = value.test_date || '';
+                            const oil = value.oil_bopd;
+                            const gas = value.gas_mcfd;
+                            const water = value.water_bwpd;
+                            const choke = value.choke_size_64ths;
+                            const tubingPressure = value.tubing_pressure_psi;
+                            const casingPressure = value.casing_pressure_psi;
+                            const remarks = value.remarks || '';
+
+                            if (testDate || oil !== undefined || gas !== undefined || water !== undefined) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: linear-gradient(135deg, #065F46 0%, #047857 100%); border-radius: 12px; padding: 16px; color: white;">
+                                            ${testDate ? `<div style="font-size: 12px; opacity: 0.8; margin-bottom: 12px;">Test Date: ${escapeHtml(testDate)}</div>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px;">
+                                                ${oil !== undefined ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${oil.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">OIL (BOPD)</div></div>` : ''}
+                                                ${gas !== undefined ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${gas.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">GAS (MCFD)</div></div>` : ''}
+                                                ${water !== undefined ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${water.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">WATER (BWPD)</div></div>` : ''}
+                                            </div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; opacity: 0.9;">
+                                                ${choke ? `<span>Choke: ${choke}/64"</span>` : ''}
+                                                ${tubingPressure ? `<span>Tubing: ${tubingPressure.toLocaleString()} psi</span>` : ''}
+                                                ${casingPressure ? `<span>Casing: ${casingPressure.toLocaleString()} psi</span>` : ''}
+                                            </div>
+                                            ${remarks ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; opacity: 0.9;">${escapeHtml(remarks)}</div>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'formation_tops' && Array.isArray(value) && data.doc_type === 'completion_report') {
+                            // Special handling for formation_tops array (completion report)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let formationsHtml = value.map(formation => {
+                                    const name = formation.name || '';
+                                    const md = formation.md_ft;
+                                    const tvd = formation.tvd_ft;
+                                    return `<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB;">
+                                        <span style="font-weight: 500;">${escapeHtml(name)}</span>
+                                        <span style="font-family: monospace; color: #6B7280;">
+                                            ${md ? `${md.toLocaleString()} ft MD` : ''}${md && tvd ? ' / ' : ''}${tvd ? `${tvd.toLocaleString()} ft TVD` : ''}
+                                        </span>
+                                    </div>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px;">
+                                            ${formationsHtml}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'affected_sections' && Array.isArray(value) && data.doc_type === 'completion_report') {
+                            // Special handling for affected_sections array (completion report)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let sectionsHtml = value.map(sec => {
+                                    const section = sec.section || '';
+                                    const township = sec.township || '';
+                                    const range = sec.range || '';
+                                    return `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500;">
+                                        ${escapeHtml(section)} - ${escapeHtml(township)} - ${escapeHtml(range)}
+                                    </span>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                            ${sectionsHtml}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {

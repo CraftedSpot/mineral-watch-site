@@ -1879,6 +1879,66 @@ def name_assignment_of_lease(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_completion_report(data: Dict[str, Any]) -> str:
+    """Completion Report - {Well Name} - S{Section}-{Township}-{Range} - {Completion Date}
+
+    For well completion reports (Form 1002A).
+    Uses well_identification, surface_location, dates from schema.
+    """
+    parts = ["Completion Report"]
+
+    # Get well name from well_identification
+    well_id = data.get('well_identification', {})
+    well_name = None
+    if isinstance(well_id, dict):
+        well_name = well_id.get('well_name')
+
+    # Fallback to top-level well_name
+    if not well_name:
+        well_name = data.get('well_name')
+
+    if well_name:
+        parts.append(truncate_name(str(well_name), 35))
+
+    # Get location from surface_location
+    surface_loc = data.get('surface_location', {})
+    section = None
+    township = None
+    range_val = None
+
+    if isinstance(surface_loc, dict):
+        section = surface_loc.get('section')
+        township = surface_loc.get('township')
+        range_val = surface_loc.get('range')
+
+    # Fallback to top-level fields
+    if not section:
+        section = data.get('section')
+        township = data.get('township')
+        range_val = data.get('range')
+
+    if section and township and range_val:
+        parts.append(f"S{section}-{township}-{range_val}")
+    elif data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Get completion date from dates object
+    dates_obj = data.get('dates', {})
+    completion_date = None
+    if isinstance(dates_obj, dict):
+        completion_date = dates_obj.get('completion_date')
+
+    if completion_date:
+        parts.append(str(completion_date))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 def name_quit_claim_deed(data: Dict[str, Any]) -> str:
     """Quit Claim Deed - {Grantor} to {Grantee} - {Legal} - {Date}
 
@@ -1989,6 +2049,7 @@ NAMING_FUNCTIONS = {
     'limited_partnership': name_limited_partnership,
     'assignment_of_lease': name_assignment_of_lease,
     'quit_claim_deed': name_quit_claim_deed,
+    'completion_report': name_completion_report,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,
     'tax_record': name_tax_record,
