@@ -152,8 +152,12 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.RNG) ||
                    getValue(extractedFields.rng);
                 
+  // Check location object for county (used by location_exception_order schema)
+  const locationObjForCounty = getValue(extractedFields.location);
+
   const county = getValue(legalDescObj?.county) ||
-                 getValue(extractedFields.county) || 
+                 getValue(locationObjForCounty?.county) ||
+                 getValue(extractedFields.county) ||
                  getValue(extractedFields.County) ||
                  getValue(extractedFields.COUNTY) ||
                  getValue(extractedFields.recording_county);
