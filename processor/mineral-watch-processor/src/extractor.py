@@ -4451,7 +4451,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
-- affidavit_of_heirship, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
 - tax_record, map
 
 TRUST FUNDING DETECTION:
@@ -4468,6 +4468,9 @@ QUIT CLAIM DEED DETECTION:
 
 AFFIDAVIT OF HEIRSHIP DETECTION:
 - affidavit_of_heirship: Look for "AFFIDAVIT OF HEIRSHIP" title. Contains decedent (deceased person) name, list of heirs/children/spouses, legal description of mineral property, notarized. Establishes who inherits mineral rights.
+
+DEATH CERTIFICATE DETECTION:
+- death_certificate: Look for "CERTIFICATE OF DEATH", "DEATH CERTIFICATE", "STANDARD CERTIFICATE OF DEATH", "CONSULAR REPORT OF DEATH". Key indicators: state/county health department or vital records header, certificate number, cause of death, date of death, place of death, decedent personal information (birth date, occupation, SSN), informant details, funeral home/disposition info. Also includes "REPORT OF DEATH OF AN AMERICAN CITIZEN ABROAD" (consular reports). NOT affidavit_of_heirship (which lists heirs and establishes inheritance). Death certificates document the death itself, not who inherits.
 
 OCC ORDER TYPE DETECTION - be specific:
 - horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.

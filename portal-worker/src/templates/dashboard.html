@@ -6625,6 +6625,11 @@
                     continue;
                 }
 
+                // Skip Legal Description for death certificates (no TRS - county/state are domicile, not property)
+                if (sectionName === 'Legal Description' && data.doc_type === 'death_certificate') {
+                    continue;
+                }
+
                 // Build section content first to check if it's empty
                 let sectionContent = '';
                 let hasVisibleFields = false;
