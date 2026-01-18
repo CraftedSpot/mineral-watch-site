@@ -2384,6 +2384,223 @@ CHAIN OF TITLE LINKING:
 - Link by entity name matching to division orders, deeds, leases
 - Partner names link to individual deeds/conveyances
 
+For ASSIGNMENT OF LEASE (Assignment of Oil and Gas Lease, Partial Assignment, Assignment of Operating Rights):
+NOTE: This document transfers a lessee's working interest/operating rights to a new party.
+Critical for chain of title - determines who currently holds the lease.
+
+Core Question: "Who now holds the operating rights to this lease, and what did they acquire?"
+
+EXTRACTION PRIORITY:
+1. Assignor(s) and Assignee(s) - who transferred to whom
+2. Interest assigned - all, partial, depth-limited
+3. Underlying lease - original lessor/lessee, date, recording
+4. Retained interests - did assignor keep an ORRI?
+5. Legal description for property linking
+
+{{
+  "doc_type": "assignment_of_lease",
+
+  "section": "REQUIRED - integer for property linking",
+  "township": "REQUIRED - string with direction (e.g., '15N')",
+  "range": "REQUIRED - string with direction (e.g., '12W')",
+  "county": "REQUIRED - string",
+  "state": "Oklahoma",
+
+  "assignors": [
+    {{
+      "name": "REQUIRED - Montine Price Foerster Sprehe",
+      "address": "7520 Nichols Road, Oklahoma City, Oklahoma",
+      "capacity": "Individual",
+      "entity_name": null,
+      "entity_type": null
+    }},
+    {{
+      "name": "Kelsey Price Walters",
+      "address": "same capacity pattern",
+      "capacity": "Individual"
+    }}
+  ],
+
+  "assignees": [
+    {{
+      "name": "REQUIRED - Robert A. Price",
+      "address": "1416 Brighton Ave, Oklahoma City, Oklahoma",
+      "capacity": "Individual",
+      "interest_share": {{
+        "fraction": "ALL",
+        "decimal": 1.0
+      }}
+    }}
+  ],
+
+  "interest_assigned": {{
+    "type": "all | partial | undivided",
+    "fraction": "ALL",
+    "decimal": 1.0,
+    "description": "all of Assignors' right, title and interest in and to the within described lease",
+    "depths": null,
+    "formations": null,
+    "acres": 20.0
+  }},
+
+  "retained_interests": {{
+    "has_retained_interest": false
+  }},
+
+  "subject_to": {{
+    "has_subject_to_clause": true,
+    "existing_royalties": true,
+    "existing_overrides": false,
+    "existing_burdens": ["Lessor's 1/8 royalty"],
+    "burdens_description": "subject to the terms of said lease and the royalty reserved therein"
+  }},
+
+  "proportionate_reduction": {{
+    "has_clause": false
+  }},
+
+  "underlying_lease": {{
+    "lease_date": "REQUIRED - 1974-03-04",
+    "lessor": {{
+      "name": "REQUIRED - Joel S. Price and Virginia K. Price, as Trustee",
+      "capacity": "Individual and Trustee"
+    }},
+    "original_lessee": {{
+      "name": "REQUIRED - Robert A. Price"
+    }},
+    "recording_info": {{
+      "book": "456",
+      "page": "123",
+      "instrument_number": null,
+      "recording_date": "1974-03-10",
+      "county": "Blaine"
+    }},
+    "lease_description": "Oil and Gas Lease covering 20 acres in SE/4"
+  }},
+
+  "legal_description": {{
+    "section": 27,
+    "township": "15N",
+    "range": "12W",
+    "meridian": "IM",
+    "county": "Blaine",
+    "state": "Oklahoma",
+    "quarters": "SE/4",
+    "gross_acres": 160,
+    "net_acres": 20,
+    "description_verbatim": "An undivided 20 acres in the SE/4 of Section 27, Township 15 North, Range 12 West, I.M., Blaine County, Oklahoma"
+  }},
+
+  "consideration": {{
+    "stated": "REQUIRED - One Dollar ($1.00) and other good and valuable consideration",
+    "amount": 1.00,
+    "is_nominal": true
+  }},
+
+  "warranties": {{
+    "has_warranty": true,
+    "warranty_type": "general | special | quitclaim | none",
+    "covenants": ["lawful owners", "good title", "free of encumbrances", "warrant and defend"],
+    "warranty_language": "Assignors covenant they are the lawful owners with good title, free and clear of all encumbrances, and will warrant and forever defend"
+  }},
+
+  "execution_info": {{
+    "execution_date": "REQUIRED - 1974-09-27",
+    "effective_date": null,
+    "execution_location": "Oklahoma County, Oklahoma",
+    "notarized": true,
+    "notary_name": "Jane Smith",
+    "notary_county": "Oklahoma",
+    "notary_commission_expires": "1976-05-15",
+    "witnesses": []
+  }},
+
+  "recording_info": {{
+    "recorded": true,
+    "book": "789",
+    "page": "456",
+    "instrument_number": null,
+    "recording_date": "1974-10-05",
+    "county": "Blaine",
+    "state": "Oklahoma",
+    "fee": "$3.00"
+  }},
+
+  "annotations": {{
+    "has_annotations": true,
+    "handwritten_notes": [
+      {{
+        "content": "DRY HOLE",
+        "location": "top margin",
+        "significance": "Well drilled under this lease was non-productive"
+      }}
+    ],
+    "stamps": ["FILED Oct 5 1974"],
+    "marginal_notes": []
+  }},
+
+  "key_takeaway": "REQUIRED - Assignment from Price family members to Robert A. Price of 20-acre leasehold interest in Section 27-15N-12W, Blaine County.",
+
+  "detailed_analysis": "REQUIRED - 2-4 paragraphs covering: (1) who assigned what to whom; (2) underlying lease details; (3) consideration type; (4) chain of title significance.",
+
+  "field_scores": {{
+    "assignors": 1.0,
+    "assignees": 1.0,
+    "interest_assigned": 0.95,
+    "underlying_lease": 0.90,
+    "legal_description": 1.0,
+    "consideration": 0.95,
+    "warranties": 0.90,
+    "execution_info": 1.0
+  }},
+  "document_confidence": "high"
+}}
+
+RETAINED INTERESTS - CRITICAL:
+- `has_retained_interest`: MUST be explicitly true or false, never omitted
+- If assignor keeps an overriding royalty (ORRI), capture fraction AND decimal
+- `payable_out_of`: "working_interest" or "gross_production" (8/8) - affects calculation
+
+RETAINED ORRI EXAMPLE:
+{{
+  "retained_interests": {{
+    "has_retained_interest": true,
+    "overriding_royalty": {{
+      "fraction": "1/16 of 8/8",
+      "decimal": 0.0625,
+      "payable_out_of": "gross_production"
+    }},
+    "description": "Assignor reserves an overriding royalty of 1/16 of 8/8"
+  }}
+}}
+
+SUBJECT TO CLAUSE:
+- Captures existing burdens the interest is subject to
+- Common: lessor's royalty, existing ORRIs
+
+PARTIAL/DEPTH-LIMITED ASSIGNMENT:
+{{
+  "interest_assigned": {{
+    "type": "partial",
+    "fraction": "ALL",
+    "decimal": 1.0,
+    "description": "all interest from surface to 100 feet below the Hunton",
+    "depths": "surface to 100' below Hunton",
+    "formations": ["Hunton", "all formations above"]
+  }}
+}}
+
+WARRANTY TYPE DETECTION:
+| Keywords | warranty_type |
+| "warrant and defend", "good title", "lawful owner" | general |
+| "by, through, or under grantor only" | special |
+| "quitclaim", "remise, release", "without warranty" | quitclaim |
+| No warranty language | none |
+
+SAME PARTY DIFFERENT CAPACITIES:
+- If Virginia K. Price assigns as Individual AND as Trustee, create TWO assignor entries
+- Capture entity_name and entity_type for trustee/entity capacities
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -2769,7 +2986,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
-- affidavit_of_heirship, trust_funding, limited_partnership, ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, trust_funding, limited_partnership, assignment_of_lease, ownership_entity, legal_document, correspondence
 - tax_record, map
 
 TRUST FUNDING DETECTION:
@@ -2777,6 +2994,9 @@ TRUST FUNDING DETECTION:
 
 LIMITED PARTNERSHIP DETECTION:
 - limited_partnership: Look for "CERTIFICATE OF LIMITED PARTNERSHIP" or "LIMITED PARTNERSHIP AGREEMENT". Contains formation date, term/duration, general partners with management authority, limited partners with capital contributions, percentage interests. Key indicators: "General Partner", "Limited Partner", Article structures defining rights/duties, capital contribution amounts, profit/loss sharing percentages. May include succession provisions for what happens when GP dies (interest converts to LP interest).
+
+ASSIGNMENT OF LEASE DETECTION:
+- assignment_of_lease: Look for "ASSIGNMENT OF OIL AND GAS LEASE", "ASSIGNMENT OF LEASEHOLD INTEREST", "PARTIAL ASSIGNMENT OF LEASE", or "ASSIGNMENT OF OPERATING RIGHTS". Key indicators: references an underlying lease (date, lessor, lessee), transfers working interest/operating rights from assignor to assignee, may retain an overriding royalty (ORRI). Contains legal description, consideration, warranty language. NOT trust_funding (which transfers to a trust where assignor is trustee).
 
 AFFIDAVIT OF HEIRSHIP DETECTION:
 - affidavit_of_heirship: Look for "AFFIDAVIT OF HEIRSHIP" title. Contains decedent (deceased person) name, list of heirs/children/spouses, legal description of mineral property, notarized. Establishes who inherits mineral rights.

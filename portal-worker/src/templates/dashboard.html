@@ -6229,6 +6229,16 @@
                 'Management & Governance': ['management_provisions', 'voting_provisions', 'liability_provisions'],
                 'Succession & Assignment': ['succession_provisions', 'assignment_provisions'],
                 'Dissolution': ['dissolution_provisions'],
+                // Assignment of Lease sections
+                'Assignors': ['assignors'],
+                'Assignees': ['assignees'],
+                'Interest Assigned': ['interest_assigned'],
+                'Retained Interests': ['retained_interests'],
+                'Subject To': ['subject_to'],
+                'Proportionate Reduction': ['proportionate_reduction'],
+                'Underlying Lease': ['underlying_lease'],
+                'Warranties': ['warranties'],
+                'Annotations': ['annotations'],
                 'Notes': ['notes', 'additional_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
@@ -6516,6 +6526,16 @@
                 'Management & Governance',
                 'Succession & Assignment',
                 'Dissolution',
+                // Assignment of Lease sections
+                'Assignors',
+                'Assignees',
+                'Interest Assigned',
+                'Retained Interests',
+                'Subject To',
+                'Proportionate Reduction',
+                'Underlying Lease',
+                'Warranties',
+                'Annotations',
                 'Other Information'
             ];
             
@@ -7269,6 +7289,57 @@
                                                     ${interestDecimal !== undefined && interestDecimal !== null ? `<div style="font-size: 12px; color: #6B7280;">(${(interestDecimal * 100).toFixed(4)}%)</div>` : ''}
                                                     ${contribution ? `<div style="font-size: 12px; color: #059669; margin-top: 4px;">Contribution: ${escapeHtml(contribution)}</div>` : ''}
                                                 </div>
+                                            </div>
+                                        </div>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'assignors' && data.doc_type === 'assignment_of_lease') {
+                                // Special handling for assignors array (assignment_of_lease schema)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(assignor => {
+                                    const name = assignor.name || '';
+                                    const address = assignor.address || '';
+                                    const capacity = assignor.capacity || '';
+                                    const entityName = assignor.entity_name || '';
+                                    const entityType = assignor.entity_type || '';
+
+                                    sectionContent += `
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px;">
+                                            <div style="font-weight: 600; color: #92400E; font-size: 15px;">${escapeHtml(name)}</div>
+                                            ${capacity ? `<div style="font-size: 12px; color: #B45309; margin-top: 2px;">${escapeHtml(capacity)}</div>` : ''}
+                                            ${entityName ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(entityName)}${entityType ? ` (${escapeHtml(entityType)})` : ''}</div>` : ''}
+                                            ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                        </div>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'assignees' && data.doc_type === 'assignment_of_lease') {
+                                // Special handling for assignees array (assignment_of_lease schema)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(assignee => {
+                                    const name = assignee.name || '';
+                                    const address = assignee.address || '';
+                                    const capacity = assignee.capacity || '';
+                                    const entityName = assignee.entity_name || '';
+                                    const entityType = assignee.entity_type || '';
+                                    const interestShare = assignee.interest_share || {};
+                                    const shareFraction = interestShare.fraction || '';
+                                    const shareDecimal = interestShare.decimal;
+
+                                    sectionContent += `
+                                        <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                                                <div style="flex: 1; min-width: 200px;">
+                                                    <div style="font-weight: 600; color: #166534; font-size: 15px;">${escapeHtml(name)}</div>
+                                                    ${capacity ? `<div style="font-size: 12px; color: #22C55E; margin-top: 2px;">${escapeHtml(capacity)}</div>` : ''}
+                                                    ${entityName ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(entityName)}${entityType ? ` (${escapeHtml(entityType)})` : ''}</div>` : ''}
+                                                    ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                                </div>
+                                                ${shareFraction ? `
+                                                    <div style="text-align: right;">
+                                                        <div style="font-weight: 700; color: #166534; font-size: 16px;">${escapeHtml(shareFraction)}</div>
+                                                        ${shareDecimal !== undefined && shareDecimal !== null ? `<div style="font-size: 12px; color: #6B7280;">(${(shareDecimal * 100).toFixed(4)}%)</div>` : ''}
+                                                    </div>
+                                                ` : ''}
                                             </div>
                                         </div>`;
                                 });
