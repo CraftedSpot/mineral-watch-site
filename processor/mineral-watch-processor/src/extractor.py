@@ -2693,6 +2693,380 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
   "document_confidence": "high"
 }
 
+For MULTI-UNIT HORIZONTAL ORDER (authorization to drill horizontal wells across multiple spacing units):
+NOTE: Multi-unit horizontal orders authorize horizontal wells that cross section boundaries, with production allocated between affected units based on completion interval length in each section.
+
+CRITICAL - ALLOCATION FACTORS:
+- MUST extract ALL sections with allocation percentages
+- Missing sections breaks property linking for mineral owners in those sections
+- Production is allocated based on feet of lateral in each section
+
+PROPERTY LINKING:
+- Primary section (top-level) is where first perforation occurs
+- All sections in allocation_factors[] are linked to the document
+- is_surface_location=true only for section containing surface hole
+- is_target_section=true for all sections the lateral passes through
+
+{
+  "doc_type": "multi_unit_horizontal_order",
+
+  "section": 13,
+  "township": "2N",
+  "range": "9E",
+  "county": "Coal",
+  "state": "Oklahoma",
+
+  "order_info": {
+    "cause_number": "CD-202101431-T",
+    "order_number": "724496",
+    "order_date": "2022-03-28",
+    "order_type": "original",
+    "hearing_date": "2021-08-16",
+    "final_hearing_date": "2022-03-07"
+  },
+
+  "officials": {
+    "administrative_law_judge": "Connie Moore",
+    "alj_approval_date": "2022-03-23",
+    "technical_reviewer": "Russell H. Blasing",
+    "technical_review_date": "2022-03-17",
+    "hearing_location": "Eastern Regional Office, 201 W. 5th St., Suite 540, Tulsa, OK 74103",
+    "commissioners": ["Dana L. Murphy", "Bob Anthony", "J. Todd Hiett"]
+  },
+
+  "applicant": {
+    "name": "Canyon Creek Energy - Arkoma, LLC",
+    "role": "Operator",
+    "attorney": "Ron M. Barnes, Grayson Barnes",
+    "attorney_oba": "OBA #534, OBA #31475"
+  },
+
+  "well_authorization": {
+    "well_name": "LDC 24/25-4H",
+    "api_number": "029-21406",
+    "well_type": "multiunit_horizontal",
+    "well_classification": "oil"
+  },
+
+  "target_formations": [
+    {
+      "name": "Woodford",
+      "common_source": "Woodford common source of supply",
+      "is_primary": true,
+      "depth_range": {
+        "top_ft": 6607,
+        "bottom_ft": 6850
+      }
+    }
+  ],
+
+  "well_location": {
+    "surface_location": {
+      "section": 13,
+      "township": "2N",
+      "range": "9E",
+      "footage_ns": "1,952' FSL",
+      "footage_ew": "2,323' FEL"
+    },
+    "first_perforation": {
+      "section": 13,
+      "township": "2N",
+      "range": "9E",
+      "formation": "Woodford",
+      "measured_depth_ft": 7755,
+      "tvd_ft": 6768,
+      "footage_ns": "683' FSL",
+      "footage_ew": "1,506' FEL"
+    },
+    "last_perforation": {
+      "section": 25,
+      "township": "2N",
+      "range": "9E",
+      "formation": "Woodford",
+      "measured_depth_ft": 14880,
+      "tvd_ft": 6607,
+      "footage_ns": "1,148' FNL",
+      "footage_ew": "1,435' FEL"
+    },
+    "total_measured_depth_ft": 14880,
+    "lateral_total_length_ft": 7125
+  },
+
+  "allocation_factors": [
+    {
+      "section": 13,
+      "township": "2N",
+      "range": "9E",
+      "county": "Coal",
+      "unit_size_acres": 640,
+      "completion_interval_length_ft": 686,
+      "allocation_percentage": 9.6281,
+      "is_surface_location": true,
+      "is_target_section": true,
+      "spacing_order_number": "537528"
+    },
+    {
+      "section": 24,
+      "township": "2N",
+      "range": "9E",
+      "county": "Coal",
+      "unit_size_acres": 640,
+      "completion_interval_length_ft": 5288,
+      "allocation_percentage": 74.2175,
+      "is_surface_location": false,
+      "is_target_section": true,
+      "spacing_order_number": "662358",
+      "entry_point": {
+        "description": "South Line of Section 13/North Line of Section 24",
+        "footage_ns": "0' FNL",
+        "footage_ew": "1,457' FEL",
+        "measured_depth_ft": 8441
+      }
+    },
+    {
+      "section": 25,
+      "township": "2N",
+      "range": "9E",
+      "county": "Coal",
+      "unit_size_acres": 640,
+      "completion_interval_length_ft": 1151,
+      "allocation_percentage": 16.1544,
+      "is_surface_location": false,
+      "is_target_section": true,
+      "spacing_order_number": "662358",
+      "entry_point": {
+        "description": "South Line of Section 24/North Line of Section 25",
+        "footage_ns": "0' FNL",
+        "footage_ew": "1,464' FEL",
+        "measured_depth_ft": 13729
+      }
+    }
+  ],
+
+  "related_orders": {
+    "references": [
+      {
+        "order_number": "720189",
+        "type": "interim_order",
+        "description": "Interim Order granting authorization and permission, superseded by this order"
+      },
+      {
+        "order_number": "537528",
+        "type": "spacing_order",
+        "section": 13,
+        "township": "2N",
+        "range": "9E",
+        "formation": "Woodford"
+      },
+      {
+        "order_number": "662358",
+        "type": "spacing_order",
+        "section": 24,
+        "township": "2N",
+        "range": "9E",
+        "formation": "Woodford"
+      },
+      {
+        "order_number": "662358",
+        "type": "spacing_order",
+        "section": 25,
+        "township": "2N",
+        "range": "9E",
+        "formation": "Woodford"
+      }
+    ]
+  },
+
+  "companion_causes": [
+    {
+      "cause_number": "CD-202101432-T",
+      "order_number": "720264",
+      "cause_type": "Location Exception"
+    },
+    {
+      "cause_number": "CD-202101435-T",
+      "order_number": "720265",
+      "cause_type": "Increased Well Density"
+    }
+  ],
+
+  "relief_granted": {
+    "reason_summary": "Multiunit authorization prevents waste by not requiring a second vertical hole and allows shared surface facilities",
+    "cost_savings": "Approximately $1,000,000 savings",
+    "reservoir_justification": "Woodford common source of supply has approximately the same thickness and quality across all affected units"
+  },
+
+  "special_provisions": {
+    "shortened_lateral_reason": "Lateral shortened in Section 13 due to faulting north of wellbore; shortened in Section 25 due to faulting south of wellbore",
+    "cemented_perforations": true,
+    "amendments_at_hearing": "Well location amended to exact location, completion interval amended to exact footage and percentage"
+  },
+
+  "conditions": [
+    "Perforations shall be cemented to isolate production",
+    "Allocation percentages shall be used for reporting and division of production"
+  ],
+
+  "key_takeaway": "Canyon Creek Energy authorized to operate the LDC 24/25-4H multiunit horizontal well targeting Woodford across Sections 13, 24, and 25 of T2N-R9E, Coal County, with production allocated 9.63% to Section 13, 74.22% to Section 24, and 16.15% to Section 25.",
+
+  "detailed_analysis": "This order authorizes Canyon Creek Energy - Arkoma, LLC to operate a multiunit horizontal well (LDC 24/25-4H) that spans three 640-acre spacing units in Coal County. The well targets the Woodford formation and was drilled with a lateral extending from Section 13 through Section 24 and into Section 25.\n\nProduction from this well will be allocated between the three sections based on the length of the completion interval within each unit. Section 24 receives the largest share (74.22%) with 5,288 feet of lateral, Section 25 receives 16.15% with 1,151 feet, and Section 13 receives 9.63% with only 686 feet. The shortened laterals in Sections 13 and 25 are due to geological faulting that limited the wellbore path.\n\nMineral owners in any of these three sections should ensure their division orders reflect the correct allocation percentage for their section. The well was drilled pursuant to spacing orders 537528 (Section 13) and 662358 (Sections 24-25).\n\nThe order supersedes Interim Order No. 720189 and is associated with companion Location Exception and Increased Well Density causes.",
+
+  "field_scores": {
+    "order_info": "high",
+    "officials": "high",
+    "well_authorization": "high",
+    "target_formations": "high",
+    "well_location": "high",
+    "allocation_factors": "high"
+  },
+  "document_confidence": 0.95
+}
+
+SECOND MULTI-UNIT HORIZONTAL ORDER EXAMPLE (Two sections, simpler case):
+{
+  "doc_type": "multi_unit_horizontal_order",
+
+  "section": 5,
+  "township": "15N",
+  "range": "11W",
+  "county": "Blaine",
+  "state": "Oklahoma",
+
+  "order_info": {
+    "cause_number": "CD-202300567-T",
+    "order_number": "731200",
+    "order_date": "2023-09-15",
+    "order_type": "original",
+    "hearing_date": "2023-08-22"
+  },
+
+  "officials": {
+    "administrative_law_judge": "Michael Peters",
+    "alj_approval_date": "2023-09-10",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City, OK",
+    "commissioners": ["Kim David", "Bob Anthony", "Todd Hiett"]
+  },
+
+  "applicant": {
+    "name": "Continental Resources, Inc.",
+    "role": "Operator",
+    "attorney": "James Taylor",
+    "attorney_oba": "OBA #12345"
+  },
+
+  "well_authorization": {
+    "well_name": "Hansen 5-8H",
+    "api_number": "35-011-23456",
+    "well_type": "multiunit_horizontal",
+    "well_classification": "oil"
+  },
+
+  "target_formations": [
+    {
+      "name": "Mississippian",
+      "common_source": "Mississippian common source of supply",
+      "is_primary": true
+    }
+  ],
+
+  "well_location": {
+    "surface_location": {
+      "section": 5,
+      "township": "15N",
+      "range": "11W",
+      "footage_ns": "660' FSL",
+      "footage_ew": "1980' FWL"
+    },
+    "first_perforation": {
+      "section": 5,
+      "township": "15N",
+      "range": "11W",
+      "formation": "Mississippian",
+      "measured_depth_ft": 11200,
+      "tvd_ft": 8500
+    },
+    "last_perforation": {
+      "section": 8,
+      "township": "15N",
+      "range": "11W",
+      "formation": "Mississippian",
+      "measured_depth_ft": 21000,
+      "tvd_ft": 8450
+    },
+    "total_measured_depth_ft": 21000,
+    "lateral_total_length_ft": 9800
+  },
+
+  "allocation_factors": [
+    {
+      "section": 5,
+      "township": "15N",
+      "range": "11W",
+      "county": "Blaine",
+      "unit_size_acres": 640,
+      "completion_interval_length_ft": 4500,
+      "allocation_percentage": 45.92,
+      "is_surface_location": true,
+      "is_target_section": true,
+      "spacing_order_number": "680000"
+    },
+    {
+      "section": 8,
+      "township": "15N",
+      "range": "11W",
+      "county": "Blaine",
+      "unit_size_acres": 640,
+      "completion_interval_length_ft": 5300,
+      "allocation_percentage": 54.08,
+      "is_surface_location": false,
+      "is_target_section": true,
+      "spacing_order_number": "680001",
+      "entry_point": {
+        "description": "South Line of Section 5/North Line of Section 8",
+        "footage_ns": "0' FNL",
+        "measured_depth_ft": 15700
+      }
+    }
+  ],
+
+  "related_orders": {
+    "references": [
+      {
+        "order_number": "680000",
+        "type": "spacing_order",
+        "section": 5,
+        "township": "15N",
+        "range": "11W",
+        "formation": "Mississippian"
+      },
+      {
+        "order_number": "680001",
+        "type": "spacing_order",
+        "section": 8,
+        "township": "15N",
+        "range": "11W",
+        "formation": "Mississippian"
+      }
+    ]
+  },
+
+  "relief_granted": {
+    "reason_summary": "Multiunit well prevents waste and reduces surface disturbance",
+    "reservoir_justification": "Mississippian formation extends continuously across both sections"
+  },
+
+  "key_takeaway": "Continental Resources authorized to operate the Hansen 5-8H multiunit horizontal well targeting Mississippian across Sections 5 and 8 of T15N-R11W, Blaine County, with production allocated 45.92% to Section 5 and 54.08% to Section 8.",
+
+  "detailed_analysis": "This order authorizes Continental Resources to operate a multiunit horizontal well spanning two 640-acre spacing units in Blaine County. The Hansen 5-8H targets the Mississippian formation with a lateral extending from Section 5 into Section 8.\n\nProduction will be allocated between the sections based on completion interval length. Section 8 receives the larger share (54.08%) with 5,300 feet of lateral, while Section 5 receives 45.92% with 4,500 feet. Total lateral length is 9,800 feet.\n\nMineral owners in either section should verify their division orders reflect the correct allocation percentage. The existing spacing orders (680000 for Section 5, 680001 for Section 8) established the 640-acre units for the Mississippian formation.",
+
+  "field_scores": {
+    "order_info": "high",
+    "well_authorization": "high",
+    "allocation_factors": "high"
+  },
+  "document_confidence": 0.92
+}
+
 For AFFIDAVIT OF HEIRSHIP (sworn statement identifying heirs of deceased mineral owner):
 NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
 This document establishes who inherits mineral rights when someone dies - it is a critical link in the ownership chain.
@@ -4478,6 +4852,7 @@ OCC ORDER TYPE DETECTION - be specific:
 - location_exception_order: Look for "LOCATION EXCEPTION" - allows wells closer to boundaries than standard setbacks. Shows specific footage from boundary lines.
 - pooling_order: Contains election options for mineral owners (participate, cash bonus, royalty conversion, non-consent penalties).
 - increased_density_order: Look for "INCREASED DENSITY" or "INCREASED WELL DENSITY" - authorizes additional wells in existing units.
+- multi_unit_horizontal_order: Look for "MULTIUNIT HORIZONTAL" or "MULTI-UNIT HORIZONTAL" or "MULTIUNIT WELL" in the title. Key indicators: horizontal well crossing multiple section boundaries, allocation percentages per section, completion interval lengths, production split between units. Contains tables showing section-by-section allocation factors. NOT horizontal_drilling_and_spacing_order (which establishes spacing rules, not production allocation).
 - occ_order: ONLY use this for OCC orders that don't fit the specific types above.
 
 Examples of "other" documents (oil and gas docs that don't fit defined categories):
