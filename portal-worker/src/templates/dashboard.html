@@ -9516,6 +9516,144 @@
                                         ${escapeHtml(noteText)}
                                     </div>
                                 </div>`;
+                        } else if (fieldName === 'decedent' && typeof value === 'object' && data.doc_type === 'death_certificate') {
+                            // Special handling for decedent object (death certificate)
+                            hasVisibleFields = true;
+                            const fullName = value.full_name || '';
+                            const dateOfDeath = value.date_of_death || '';
+                            const dateOfBirth = value.date_of_birth || '';
+                            const ageAtDeath = value.age_at_death || {};
+                            const placeOfBirth = value.place_of_birth || '';
+                            const ssnLastFour = value.ssn_last_four || '';
+                            const occupation = value.occupation || '';
+                            const educationLevel = value.education_level || '';
+
+                            const ageYears = ageAtDeath.years;
+                            const ageStr = ageYears ? `${ageYears} years` : '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F3F4F6; border: 1px solid #9CA3AF; border-radius: 8px; padding: 14px;">
+                                        ${fullName ? `<div style="font-size: 18px; font-weight: 700; color: #1F2937; margin-bottom: 10px;">${escapeHtml(fullName)}</div>` : ''}
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; font-size: 13px;">
+                                            ${dateOfBirth ? `<div><span style="color: #6B7280;">Born:</span> <strong>${escapeHtml(dateOfBirth)}</strong></div>` : ''}
+                                            ${dateOfDeath ? `<div><span style="color: #6B7280;">Died:</span> <strong style="color: #DC2626;">${escapeHtml(dateOfDeath)}</strong></div>` : ''}
+                                            ${ageStr ? `<div><span style="color: #6B7280;">Age:</span> <strong>${escapeHtml(ageStr)}</strong></div>` : ''}
+                                            ${placeOfBirth ? `<div><span style="color: #6B7280;">Birthplace:</span> <strong>${escapeHtml(placeOfBirth)}</strong></div>` : ''}
+                                            ${ssnLastFour ? `<div><span style="color: #6B7280;">SSN (last 4):</span> <strong>***-**-${escapeHtml(ssnLastFour)}</strong></div>` : ''}
+                                            ${occupation ? `<div><span style="color: #6B7280;">Occupation:</span> <strong>${escapeHtml(occupation)}</strong></div>` : ''}
+                                            ${educationLevel ? `<div><span style="color: #6B7280;">Education:</span> <strong>${escapeHtml(educationLevel)}</strong></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'marital_status' && typeof value === 'object' && data.doc_type === 'death_certificate') {
+                            // Special handling for marital_status object (death certificate)
+                            hasVisibleFields = true;
+                            const status = value.status || '';
+                            const survivingSpouse = value.surviving_spouse || {};
+                            const spouseName = survivingSpouse.name_on_certificate || survivingSpouse.married_name || '';
+                            const isSurviving = survivingSpouse.is_surviving;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center; font-size: 14px;">
+                                            ${status ? `<div><span style="color: #6B7280;">Status:</span> <strong style="color: #92400E;">${escapeHtml(status)}</strong></div>` : ''}
+                                            ${spouseName ? `<div><span style="color: #6B7280;">Spouse:</span> <strong>${escapeHtml(spouseName)}</strong>
+                                                ${isSurviving === true ? `<span style="background: #22C55E; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 6px;">SURVIVING</span>` : ''}
+                                                ${isSurviving === false ? `<span style="background: #6B7280; color: white; padding: 2px 6px; border-radius: 3px; font-size: 11px; margin-left: 6px;">PREDECEASED</span>` : ''}
+                                            </div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'parents' && typeof value === 'object' && data.doc_type === 'death_certificate') {
+                            // Special handling for parents object (death certificate)
+                            hasVisibleFields = true;
+                            const father = value.father || {};
+                            const mother = value.mother || {};
+                            const fatherName = father.full_name || '';
+                            const fatherBirthplace = father.birthplace || '';
+                            const motherName = mother.full_name || '';
+                            const motherBirthplace = mother.birthplace || '';
+                            const motherMaidenName = mother.maiden_name || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                                        ${fatherName ? `
+                                            <div style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 8px; padding: 12px; flex: 1; min-width: 200px;">
+                                                <div style="font-size: 11px; color: #6B7280; margin-bottom: 4px;">FATHER</div>
+                                                <div style="font-weight: 600; color: #1E40AF; font-size: 14px;">${escapeHtml(fatherName)}</div>
+                                                ${fatherBirthplace ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Born: ${escapeHtml(fatherBirthplace)}</div>` : ''}
+                                            </div>` : ''}
+                                        ${motherName ? `
+                                            <div style="background: #FCE7F3; border: 1px solid #EC4899; border-radius: 8px; padding: 12px; flex: 1; min-width: 200px;">
+                                                <div style="font-size: 11px; color: #6B7280; margin-bottom: 4px;">MOTHER</div>
+                                                <div style="font-weight: 600; color: #BE185D; font-size: 14px;">${escapeHtml(motherName)}</div>
+                                                ${motherMaidenName ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Maiden: ${escapeHtml(motherMaidenName)}</div>` : ''}
+                                                ${motherBirthplace ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">Born: ${escapeHtml(motherBirthplace)}</div>` : ''}
+                                            </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'chain_of_title' && typeof value === 'object' && data.doc_type === 'death_certificate') {
+                            // Special handling for chain_of_title object (death certificate)
+                            hasVisibleFields = true;
+                            const decedentNameAsOwner = value.decedent_name_as_owner || '';
+                            const nameVariations = value.name_variations || [];
+                            const domicileState = value.domicile_state || '';
+                            const hasSurvivingSpouse = value.has_surviving_spouse;
+                            const childrenIdentified = value.children_identified;
+                            const childrenNames = value.children_names || [];
+                            const heirCompleteness = value.heir_identification_completeness || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                        <div style="font-weight: 600; color: #166534; font-size: 14px; margin-bottom: 10px;">Chain of Title Information</div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px;">
+                                            ${decedentNameAsOwner ? `<div><span style="color: #6B7280;">Name as Owner:</span> <strong>${escapeHtml(decedentNameAsOwner)}</strong></div>` : ''}
+                                            ${domicileState ? `<div><span style="color: #6B7280;">Domicile:</span> <strong>${escapeHtml(domicileState)}</strong></div>` : ''}
+                                            ${hasSurvivingSpouse !== undefined ? `<div><span style="color: #6B7280;">Surviving Spouse:</span> <strong>${hasSurvivingSpouse ? 'Yes' : 'No'}</strong></div>` : ''}
+                                            ${childrenIdentified !== undefined ? `<div><span style="color: #6B7280;">Children Identified:</span> <strong>${childrenIdentified ? 'Yes' : 'No'}</strong></div>` : ''}
+                                        </div>
+                                        ${nameVariations.length > 0 ? `
+                                            <div style="margin-top: 12px;">
+                                                <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">Name Variations:</div>
+                                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                    ${nameVariations.map(v => `<span style="background: #EDE9FE; border: 1px solid #A855F7; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #7C3AED;">${escapeHtml(v)}</span>`).join('')}
+                                                </div>
+                                            </div>` : ''}
+                                        ${childrenNames.length > 0 ? `
+                                            <div style="margin-top: 12px;">
+                                                <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">Children Names:</div>
+                                                <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                    ${childrenNames.map(c => `<span style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #1E40AF;">${escapeHtml(c)}</span>`).join('')}
+                                                </div>
+                                            </div>` : ''}
+                                        ${heirCompleteness ? `
+                                            <div style="margin-top: 12px; padding: 8px; background: ${heirCompleteness === 'complete' ? '#DCFCE7' : '#FEF3C7'}; border-radius: 4px;">
+                                                <span style="color: #6B7280; font-size: 12px;">Heir Identification:</span>
+                                                <strong style="color: ${heirCompleteness === 'complete' ? '#166534' : '#92400E'}; margin-left: 6px; text-transform: capitalize;">${escapeHtml(heirCompleteness)}</strong>
+                                            </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'related_documents' && typeof value === 'object' && data.doc_type === 'death_certificate') {
+                            // Special handling for related_documents object (death certificate)
+                            hasVisibleFields = true;
+                            const expectedCompanion = value.expected_companion_documents || [];
+                            const notes = value.notes || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                        ${expectedCompanion.length > 0 ? `
+                                            <div style="font-size: 12px; color: #6B7280; margin-bottom: 8px;">Expected Companion Documents:</div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: ${notes ? '12px' : '0'};">
+                                                ${expectedCompanion.map(doc => `<span style="background: #FDE68A; border: 1px solid #F59E0B; border-radius: 4px; padding: 4px 10px; font-size: 12px; color: #92400E;">${escapeHtml(doc)}</span>`).join('')}
+                                            </div>` : ''}
+                                        ${notes ? `<div style="font-size: 13px; color: #92400E; font-style: italic;">${escapeHtml(notes)}</div>` : ''}
+                                    </div>
+                                </div>`;
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {
