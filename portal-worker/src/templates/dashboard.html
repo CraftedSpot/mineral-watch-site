@@ -9777,40 +9777,47 @@
                                             </div>` : ''}
                                     </div>
                                 </div>`;
+                            }
                         } else if (fieldName === 'relief_granted' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
                             // Special handling for relief_granted object (multi-unit horizontal order)
-                            hasVisibleFields = true;
                             const reason = value.reason_summary || '';
                             const costSavings = value.cost_savings || '';
                             const reservoir = value.reservoir_justification || '';
 
-                            sectionContent += `
-                                <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
-                                        ${reason ? `<div style="font-size: 14px; color: #166534; font-weight: 500; margin-bottom: 10px;">${escapeHtml(reason)}</div>` : ''}
-                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px;">
-                                            ${costSavings ? `<div style="background: #DCFCE7; padding: 8px 12px; border-radius: 6px;"><span style="color: #166534;">💰 Cost Savings:</span> <strong>${escapeHtml(costSavings)}</strong></div>` : ''}
+                            // Only show section if there's actual data
+                            if (reason || costSavings || reservoir) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                            ${reason ? `<div style="font-size: 14px; color: #166534; font-weight: 500; margin-bottom: 10px;">${escapeHtml(reason)}</div>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px;">
+                                                ${costSavings ? `<div style="background: #DCFCE7; padding: 8px 12px; border-radius: 6px;"><span style="color: #166534;">💰 Cost Savings:</span> <strong>${escapeHtml(costSavings)}</strong></div>` : ''}
+                                            </div>
+                                            ${reservoir ? `<div style="font-size: 13px; color: #374151; margin-top: 10px; padding-top: 10px; border-top: 1px solid #22C55E;"><strong>Reservoir Justification:</strong> ${escapeHtml(reservoir)}</div>` : ''}
                                         </div>
-                                        ${reservoir ? `<div style="font-size: 13px; color: #374151; margin-top: 10px; padding-top: 10px; border-top: 1px solid #22C55E;"><strong>Reservoir Justification:</strong> ${escapeHtml(reservoir)}</div>` : ''}
-                                    </div>
-                                </div>`;
+                                    </div>`;
+                            }
                         } else if (fieldName === 'special_provisions' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
                             // Special handling for special_provisions object (multi-unit horizontal order)
-                            hasVisibleFields = true;
                             const shortenedReason = value.shortened_lateral_reason || '';
                             const cemented = value.cemented_perforations;
                             const amendments = value.amendments_at_hearing || '';
 
-                            sectionContent += `
-                                <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
-                                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
-                                            ${shortenedReason ? `<div><strong style="color: #92400E;">⚠️ Shortened Lateral:</strong> ${escapeHtml(shortenedReason)}</div>` : ''}
-                                            ${cemented !== undefined ? `<div><strong>Cemented Perforations:</strong> ${cemented ? '<span style="color: #166534;">✓ Yes</span>' : '<span style="color: #DC2626;">✗ No</span>'}</div>` : ''}
-                                            ${amendments ? `<div><strong>Hearing Amendments:</strong> ${escapeHtml(amendments)}</div>` : ''}
+                            // Only show section if there's actual data
+                            if (shortenedReason || cemented !== undefined || amendments) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+                                                ${shortenedReason ? `<div><strong style="color: #92400E;">⚠️ Shortened Lateral:</strong> ${escapeHtml(shortenedReason)}</div>` : ''}
+                                                ${cemented !== undefined ? `<div><strong>Cemented Perforations:</strong> ${cemented ? '<span style="color: #166534;">✓ Yes</span>' : '<span style="color: #DC2626;">✗ No</span>'}</div>` : ''}
+                                                ${amendments ? `<div><strong>Hearing Amendments:</strong> ${escapeHtml(amendments)}</div>` : ''}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>`;
+                                    </div>`;
+                            }
                         } else if (fieldName === 'well_authorization' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
                             // Special handling for well_authorization object (multi-unit horizontal order)
                             const wellName = value.well_name || '';
