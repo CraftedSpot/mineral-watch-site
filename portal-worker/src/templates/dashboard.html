@@ -7158,64 +7158,6 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
-                            } else if (fieldName === 'tracts') {
-                                // Special handling for tracts array (oil_gas_lease v2 schema)
-                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
-                                value.forEach((tract, index) => {
-                                    if (typeof tract === 'object') {
-                                        const legal = tract.legal_description || {};
-                                        const tractNum = tract.tract_number || (index + 1);
-                                        const acres = tract.acres;
-                                        const acresQualifier = tract.acres_qualifier || '';
-                                        const depthsLimited = tract.depths_limited;
-                                        const formationsLimited = Array.isArray(tract.formations_limited) ? tract.formations_limited : [];
-                                        const mineralInterest = tract.mineral_interest_fraction;
-
-                                        // Build location string
-                                        const section = legal.section ? String(legal.section) : '';
-                                        const township = legal.township ? String(legal.township) : '';
-                                        const range = legal.range ? String(legal.range) : '';
-                                        const meridian = legal.meridian || '';
-                                        const quarters = legal.quarters || '';
-                                        const county = legal.county || '';
-
-                                        let locationStr = '';
-                                        if (section && township && range) {
-                                            locationStr = `Section ${section}-${township}-${range}`;
-                                            if (meridian) locationStr += `-${meridian}`;
-                                        }
-                                        if (quarters) {
-                                            locationStr += quarters ? ` (${quarters})` : '';
-                                        }
-
-                                        sectionContent += `
-                                            <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
-                                                ${value.length > 1 ? `<div style="font-size: 11px; color: #166534; font-weight: 600; margin-bottom: 8px;">Tract ${tractNum}</div>` : ''}
-                                                <div style="font-weight: 600; color: #166534; font-size: 14px; margin-bottom: 8px;">${escapeHtml(locationStr)}</div>
-
-                                                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px;">
-                                                    ${acres ? `<div style="background: #DCFCE7; border-radius: 4px; padding: 4px 8px; font-size: 12px;">
-                                                        <span style="color: #166534; font-weight: 600;">${acres} acres</span>
-                                                        ${acresQualifier ? `<span style="color: #6B7280;"> (${escapeHtml(acresQualifier)})</span>` : ''}
-                                                    </div>` : ''}
-                                                    ${county ? `<div style="background: #D1FAE5; border-radius: 4px; padding: 4px 8px; font-size: 12px;">
-                                                        <span style="color: #6B7280;">County:</span> <strong style="color: #166534;">${escapeHtml(county)}</strong>
-                                                    </div>` : ''}
-                                                    ${mineralInterest ? `<div style="background: #FEF3C7; border-radius: 4px; padding: 4px 8px; font-size: 12px;">
-                                                        <span style="color: #6B7280;">Mineral Interest:</span> <strong style="color: #92400E;">${escapeHtml(mineralInterest)}</strong>
-                                                    </div>` : ''}
-                                                </div>
-
-                                                ${depthsLimited || formationsLimited.length > 0 ? `
-                                                    <div style="font-size: 12px; color: #92400E; background: #FEF3C7; padding: 6px 10px; border-radius: 4px; margin-top: 6px;">
-                                                        ${depthsLimited ? '<strong>Depth Limited</strong>' : ''}
-                                                        ${formationsLimited.length > 0 ? `<span>Formations: ${formationsLimited.map(f => escapeHtml(String(f))).join(', ')}</span>` : ''}
-                                                    </div>
-                                                ` : ''}
-                                            </div>`;
-                                    }
-                                });
-                                sectionContent += `</div>`;
                             } else if (fieldName === 'prohibited_deductions') {
                                 // Special handling for prohibited deductions array (lease deductions_clause)
                                 sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
