@@ -6838,17 +6838,20 @@
                                 });
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'target_formations') {
-                                // Special handling for target formations array (increased density orders)
+                                // Special handling for target formations array
+                                // Supports increased density (name, common_source) and location exception (formation_name, qualifier)
                                 sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
                                 value.forEach(formation => {
-                                    const name = formation.name || '';
+                                    const name = formation.name || formation.formation_name || '';
                                     const isPrimary = formation.is_primary;
                                     const commonSource = formation.common_source || '';
+                                    const qualifier = formation.qualifier || '';
                                     if (name) {
                                         sectionContent += `
                                             <div style="background: ${isPrimary ? '#DCFCE7' : '#F3F4F6'}; border: 1px solid ${isPrimary ? '#22C55E' : '#D1D5DB'}; border-radius: 8px; padding: 10px 14px;">
                                                 <div style="display: flex; align-items: center; gap: 8px;">
                                                     <span style="font-weight: 600; color: ${isPrimary ? '#166534' : '#374151'}; font-size: 14px;">${escapeHtml(name)}</span>
+                                                    ${qualifier ? `<span style="color: #6B7280; font-size: 12px;">(${escapeHtml(qualifier)})</span>` : ''}
                                                     ${isPrimary ? `<span style="background: #166534; color: white; font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 3px;">PRIMARY</span>` : ''}
                                                 </div>
                                                 ${commonSource ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(commonSource)}</div>` : ''}
