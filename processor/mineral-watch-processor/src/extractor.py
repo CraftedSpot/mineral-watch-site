@@ -2882,6 +2882,348 @@ Also extract any references to prior instruments that show how the decedent acqu
   "document_confidence": "high"
 }
 
+For DEATH CERTIFICATE (establishes date of death, domicile, and surviving family for chain of title):
+NOTE: Death certificates are critical for chain of title - they establish:
+1. WHEN the person died (triggers inheritance)
+2. WHERE they were domiciled (determines which state's intestacy laws apply)
+3. WHO survived them (spouse, children, other heirs)
+
+EXTRACTION PRIORITIES:
+- MUST extract ALL family members listed anywhere on the certificate
+- Generate name variations for title matching (J. Scott Price, Joel S. Price, etc.)
+- Identify domicile state clearly - this determines which intestacy laws apply
+- Note whether heirship is fully determinable from this certificate alone
+
+SSN HANDLING:
+If Social Security Number is visible, extract ONLY the last 4 digits.
+Never extract full SSN even if visible. Purpose is matching only.
+
+FAMILY MEMBERS - LOOK IN THESE PLACES:
+- Informant section (name + relationship)
+- Surviving spouse field
+- "Traveling abroad with relatives" (consular reports)
+- "Other known relatives" (consular reports)
+- Any named individuals with stated relationships
+
+STATE CERTIFICATE EXAMPLE:
+{{
+  "doc_type": "death_certificate",
+
+  "county": "Oklahoma",
+  "state": "Oklahoma",
+
+  "certificate_info": {{
+    "state_file_number": "75-012345",
+    "local_registrar_number": "1234",
+    "certificate_type": "state",
+    "issue_date": "1975-07-01",
+    "issuing_authority": "Oklahoma State Department of Health",
+    "is_certified_copy": true
+  }},
+
+  "decedent": {{
+    "full_name": "Joel Scott Price",
+    "name_suffix": "M.D.",
+    "sex": "male",
+    "race": "White",
+    "date_of_death": "1975-06-14",
+    "time_of_death": "14:30",
+    "age_at_death_years": 73,
+    "date_of_birth": "1901-09-22",
+    "birthplace": {{
+      "city": "Guthrie",
+      "state": "Oklahoma",
+      "country": "USA"
+    }},
+    "ssn_last_four": "1234",
+    "occupation": "Surgeon-Physician",
+    "industry": "Medical"
+  }},
+
+  "death_location": {{
+    "facility_name": "Mercy Hospital",
+    "facility_type": "hospital",
+    "city": "Oklahoma City",
+    "county": "Oklahoma",
+    "state": "Oklahoma",
+    "country": "USA",
+    "inside_city_limits": true
+  }},
+
+  "residence_at_death": {{
+    "street_address": "6801 Country Club Drive",
+    "city": "Oklahoma City",
+    "county": "Oklahoma",
+    "state": "Oklahoma",
+    "zip_code": "73116",
+    "country": "USA"
+  }},
+
+  "marital_status": {{
+    "status": "married",
+    "surviving_spouse": {{
+      "name_on_certificate": "Virginia Reynolds",
+      "married_name": "Virginia K. Price",
+      "is_surviving": true
+    }},
+    "years_married": 45
+  }},
+
+  "parents": {{
+    "father": {{
+      "full_name": "Joel Scott Price Sr."
+    }},
+    "mother": {{
+      "full_name": "Rilla Reynolds"
+    }}
+  }},
+
+  "family_members": [
+    {{
+      "name": "Virginia K. Price",
+      "relationship": "spouse",
+      "relationship_source": "stated",
+      "address": "6801 Country Club Drive, Oklahoma City, OK 73116",
+      "role_on_certificate": "informant"
+    }}
+  ],
+
+  "cause_of_death": {{
+    "immediate_cause": "Myocardial infarction",
+    "contributing_causes": ["Arteriosclerotic heart disease"],
+    "manner": "natural",
+    "autopsy_performed": false
+  }},
+
+  "disposition": {{
+    "method": "burial",
+    "date": "1975-06-17",
+    "cemetery_name": "Rose Hill Cemetery",
+    "cemetery_location": "Oklahoma City, Oklahoma",
+    "funeral_home": "Hahn-Cook Funeral Home",
+    "funeral_director": "Robert Cook"
+  }},
+
+  "certification": {{
+    "certifier_name": "Dr. James Wilson",
+    "certifier_title": "M.D.",
+    "certifier_type": "attending_physician",
+    "date_signed": "1975-06-14"
+  }},
+
+  "chain_of_title": {{
+    "decedent_name_as_owner": "Joel Scott Price",
+    "name_variations": ["J. Scott Price", "Joel S. Price", "Dr. Joel Price", "Joel Scott Price, M.D."],
+    "domicile_state": "Oklahoma",
+    "domicile_county": "Oklahoma",
+    "has_surviving_spouse": true,
+    "surviving_spouse_name": "Virginia K. Price",
+    "children_identified": false,
+    "children_names": [],
+    "other_potential_heirs": ["Joel Scott Price Sr. (father)", "Rilla Reynolds (mother)"],
+    "heir_identification_completeness": "partial"
+  }},
+
+  "related_documents": {{
+    "expected_companion_documents": ["affidavit_of_heirship", "probate_order"],
+    "notes": "Certificate does not list children. Affidavit of heirship or probate records needed to identify complete heir list."
+  }},
+
+  "key_takeaway": "Dr. Joel Scott Price died June 14, 1975 in Oklahoma City, survived by wife Virginia K. Price; domiciled in Oklahoma County, Oklahoma.",
+
+  "detailed_analysis": "Dr. Joel Scott Price died on June 14, 1975 at Mercy Hospital in Oklahoma City, Oklahoma at age 73. He was a surgeon-physician who resided at 6801 Country Club Drive, Oklahoma City, Oklahoma County, Oklahoma.\n\nAt the time of death, he was married to Virginia K. Price (née Reynolds). His parents were Joel Scott Price Sr. and Rilla Reynolds. The informant on the certificate was Mrs. Joel Scott Price at the residence address.\n\nFor mineral title purposes, Dr. Price was domiciled in Oklahoma, meaning Oklahoma intestacy and probate law governs the distribution of his mineral interests. As a married decedent, his surviving spouse Virginia K. Price would have inheritance rights under Oklahoma law. An affidavit of heirship or probate records would be needed to establish the complete chain of title from Dr. Price to his heirs.",
+
+  "field_scores": {{
+    "decedent_identity": "high",
+    "death_date": "high",
+    "residence": "high",
+    "marital_status": "high",
+    "family_members": "medium"
+  }},
+  "document_confidence": "high"
+}}
+
+CONSULAR REPORT EXAMPLE (death abroad):
+{{
+  "doc_type": "death_certificate",
+
+  "county": "Oklahoma",
+  "state": "Oklahoma",
+
+  "certificate_info": {{
+    "state_file_number": null,
+    "local_registrar_number": null,
+    "certificate_type": "consular_report",
+    "issue_date": "1979-09-05",
+    "issuing_authority": "U.S. Department of State",
+    "is_certified_copy": true
+  }},
+
+  "decedent": {{
+    "full_name": "Robert Allison Price",
+    "name_suffix": null,
+    "sex": "male",
+    "race": "White",
+    "date_of_death": "1979-08-15",
+    "time_of_death": null,
+    "age_at_death_years": 42,
+    "date_of_birth": "1937-04-07",
+    "birthplace": {{
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "country": "USA"
+    }},
+    "ssn_last_four": "3459",
+    "occupation": "Attorney",
+    "industry": "Legal"
+  }},
+
+  "death_location": {{
+    "facility_name": null,
+    "facility_type": "foreign",
+    "city": "Sirdal",
+    "county": null,
+    "state": "Vest-Agder",
+    "country": "Norway",
+    "inside_city_limits": null
+  }},
+
+  "residence_at_death": {{
+    "street_address": "1104 First National Center",
+    "city": "Oklahoma City",
+    "county": "Oklahoma",
+    "state": "Oklahoma",
+    "zip_code": "73102",
+    "country": "USA"
+  }},
+
+  "marital_status": {{
+    "status": "married",
+    "surviving_spouse": {{
+      "name_on_certificate": "Gudbjorg D. Price",
+      "married_name": "Gudbjorg D. Price",
+      "is_surviving": true
+    }},
+    "years_married": null
+  }},
+
+  "parents": {{
+    "father": {{
+      "full_name": "Joel Scott Price"
+    }},
+    "mother": {{
+      "full_name": "Virginia K. Price"
+    }}
+  }},
+
+  "family_members": [
+    {{
+      "name": "Gudbjorg D. Price",
+      "relationship": "spouse",
+      "relationship_source": "stated",
+      "address": null,
+      "role_on_certificate": "next_of_kin"
+    }},
+    {{
+      "name": "Siri M. Price",
+      "relationship": "daughter",
+      "relationship_source": "stated",
+      "address": null,
+      "role_on_certificate": "traveling_companion"
+    }},
+    {{
+      "name": "Eirik S. Price",
+      "relationship": "son",
+      "relationship_source": "stated",
+      "address": null,
+      "role_on_certificate": "traveling_companion"
+    }},
+    {{
+      "name": "Virginia K. Price",
+      "relationship": "mother",
+      "relationship_source": "stated",
+      "address": "6801 Country Club Drive, Oklahoma City, OK",
+      "role_on_certificate": "other_known_relative"
+    }},
+    {{
+      "name": "William Scott Price",
+      "relationship": "brother",
+      "relationship_source": "stated",
+      "address": null,
+      "role_on_certificate": "other_known_relative"
+    }},
+    {{
+      "name": "Montine Price Tyree",
+      "relationship": "sister",
+      "relationship_source": "stated",
+      "address": null,
+      "role_on_certificate": "other_known_relative"
+    }}
+  ],
+
+  "cause_of_death": {{
+    "immediate_cause": "Accidental drowning",
+    "contributing_causes": [],
+    "manner": "accident",
+    "autopsy_performed": true
+  }},
+
+  "disposition": {{
+    "method": "removal",
+    "date": "1979-08-20",
+    "cemetery_name": null,
+    "cemetery_location": null,
+    "funeral_home": null,
+    "funeral_director": null
+  }},
+
+  "certification": {{
+    "certifier_name": "George S. Vest",
+    "certifier_title": "Consul of the United States of America",
+    "certifier_type": "consul",
+    "date_signed": "1979-09-05"
+  }},
+
+  "consular_info": {{
+    "embassy_location": "Oslo, Norway",
+    "consul_name": "George S. Vest",
+    "report_date": "1979-09-05",
+    "passport_number": "Z1234567",
+    "passport_issue_location": "Oklahoma City"
+  }},
+
+  "chain_of_title": {{
+    "decedent_name_as_owner": "Robert Allison Price",
+    "name_variations": ["Robert A. Price", "R. Allison Price", "R.A. Price"],
+    "domicile_state": "Oklahoma",
+    "domicile_county": "Oklahoma",
+    "has_surviving_spouse": true,
+    "surviving_spouse_name": "Gudbjorg D. Price",
+    "children_identified": true,
+    "children_names": ["Siri M. Price", "Eirik S. Price"],
+    "other_potential_heirs": ["Virginia K. Price (mother)", "William Scott Price (brother)", "Montine Price Tyree (sister)"],
+    "heir_identification_completeness": "partial"
+  }},
+
+  "related_documents": {{
+    "expected_companion_documents": ["affidavit_of_heirship", "probate_order", "will"],
+    "notes": "Consular report lists children and other relatives. Probate records would confirm complete distribution of estate."
+  }},
+
+  "key_takeaway": "Robert Allison Price died August 15, 1979 in Sirdal, Norway at age 42, survived by wife Gudbjorg D. Price and children Siri and Eirik; domiciled in Oklahoma City, Oklahoma.",
+
+  "detailed_analysis": "Robert Allison Price, an attorney, died on August 15, 1979 in Sirdal, Norway at age 42 due to accidental drowning. Although he died abroad, his permanent residence was 1104 First National Center, Oklahoma City, Oklahoma County, Oklahoma.\n\nThe consular report identifies his surviving family: wife Gudbjorg D. Price, daughter Siri M. Price, and son Eirik S. Price (listed as traveling companions). The report also lists other known relatives: mother Virginia K. Price, brother William Scott Price, and sister Montine Price Tyree.\n\nFor mineral title purposes, Robert was domiciled in Oklahoma despite dying in Norway. Oklahoma intestacy and probate law governs his estate. His surviving spouse and two children are the primary heirs. The presence of identified children simplifies the heirship determination compared to cases where children must be discovered through other means.\n\nTo complete the chain of title, an affidavit of heirship or Oklahoma probate records should be obtained showing the actual distribution of his mineral interests to his heirs.",
+
+  "field_scores": {{
+    "decedent_identity": "high",
+    "death_date": "high",
+    "residence": "high",
+    "marital_status": "high",
+    "family_members": "high"
+  }},
+  "document_confidence": "high"
+}}
+
 For TRUST FUNDING documents (assignment of property from individual to their trust):
 NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
 This document transfers ownership from an individual to a trust where the individual is typically the trustee.
