@@ -1109,63 +1109,39 @@ def name_change_of_operator_order(data: Dict[str, Any]) -> str:
 
 
 def name_multi_unit_horizontal_order(data: Dict[str, Any]) -> str:
-    """Multi-Unit Horizontal - CD {Number} - {County} - {Sections} - {Formation} - {Operator} - {Year}"""
-    parts = ["Multi-Unit Horizontal"]
+    """Multi-Unit Horizontal Order - [Well Name] - S{section}-{township}-{range} - {order_date}
 
-    # Case/CD number
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
-    if cd_num:
-        parts.append(f"CD {cd_num}")
+    Format: Multi-Unit Horizontal Order - LDC 24/25-4H - S13-2N-9E - 2022-03-28
+    """
+    parts = ["Multi-Unit Horizontal Order"]
 
-    # County
-    if data.get('county'):
+    # Well name from nested well_authorization (new schema) or flat fields
+    well_auth = data.get('well_authorization', {}) or {}
+    well_name = well_auth.get('well_name') or data.get('well_name')
+    if well_name:
+        parts.append(truncate_name(str(well_name), 30))
+
+    # Location: S{section}-{township}-{range} from top-level linking fields
+    section = data.get('section')
+    township = data.get('township')
+    range_val = data.get('range')
+
+    if section and township and range_val:
+        parts.append(f"S{section}-{township}-{range_val}")
+    elif data.get('county'):
+        # Fall back to county if no specific location
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
 
-    # Sections involved (from unit_sections array)
-    unit_sections = data.get('unit_sections')
-    if unit_sections and isinstance(unit_sections, list) and len(unit_sections) > 0:
-        # Extract section numbers and create clear format: S17 & S20 - 11N-12W
-        section_nums = []
-        first_twp = None
-        first_rng = None
-        for unit in unit_sections:
-            if isinstance(unit, dict):
-                sec = unit.get('section')
-                if sec:
-                    section_nums.append(str(sec))
-                if not first_twp:
-                    first_twp = unit.get('township')
-                if not first_rng:
-                    first_rng = unit.get('range')
+    # Order date from nested order_info (new schema) or flat fields
+    order_info = data.get('order_info', {}) or {}
+    order_date = order_info.get('order_date') or data.get('order_date')
 
-        if section_nums:
-            # Use "S17 & S20" format to clearly show these are separate sections
-            sections_str = " & ".join([f"S{s}" for s in section_nums])
-            if first_twp and first_rng:
-                sections_str += f" - {first_twp}-{first_rng}"
-            parts.append(sections_str)
-
-    # Primary formation (if available)
-    formations = data.get('formations')
-    if formations and isinstance(formations, list) and len(formations) > 0:
-        first_formation = formations[0]
-        if isinstance(first_formation, dict):
-            formation_name = first_formation.get('name', '')
-        else:
-            formation_name = str(first_formation)
-        if formation_name:
-            parts.append(formation_name)
-
-    # Operator (use short name)
-    operator = data.get('operator') or data.get('applicant')
-    if operator:
-        parts.append(extract_last_name(operator))
-
-    # Year
-    if data.get('year'):
+    if order_date:
+        parts.append(str(order_date))
+    elif data.get('year'):
         parts.append(str(data['year']))
 
     return " - ".join(parts)

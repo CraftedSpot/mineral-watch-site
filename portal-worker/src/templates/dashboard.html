@@ -6617,6 +6617,12 @@
                 'Consular Information',
                 'Chain of Title',
                 'Related Documents',
+                // Multi-Unit Horizontal Order sections
+                'Well Authorization',
+                'Well Location',
+                'Allocation Factors',
+                'Relief Granted',
+                'Special Provisions',
                 'Other Information'
             ];
             
@@ -7556,6 +7562,54 @@
                                         <span style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 4px; padding: 4px 10px; font-size: 13px; color: #1E40AF;">
                                             ${escapeHtml(String(child))}
                                         </span>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'allocation_factors' && data.doc_type === 'multi_unit_horizontal_order') {
+                                // Special handling for multi-unit horizontal order allocation factors
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(factor => {
+                                    const section = factor.section || '';
+                                    const township = factor.township || '';
+                                    const range = factor.range || '';
+                                    const county = factor.county || '';
+                                    const percentage = factor.allocation_percentage;
+                                    const intervalFt = factor.completion_interval_length_ft;
+                                    const unitAcres = factor.unit_size_acres;
+                                    const isSurface = factor.is_surface_location;
+                                    const spacingOrder = factor.spacing_order_number;
+                                    const entryPoint = factor.entry_point || {};
+
+                                    // Color based on percentage (larger = more prominent)
+                                    const bgColor = percentage > 50 ? '#DCFCE7' : percentage > 25 ? '#FEF9C3' : '#F3F4F6';
+                                    const borderColor = percentage > 50 ? '#22C55E' : percentage > 25 ? '#EAB308' : '#D1D5DB';
+                                    const percentColor = percentage > 50 ? '#166534' : percentage > 25 ? '#A16207' : '#374151';
+
+                                    sectionContent += `
+                                        <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+                                                <div>
+                                                    <div style="font-weight: 700; color: #1F2937; font-size: 15px;">
+                                                        Section ${escapeHtml(String(section))} - ${escapeHtml(township)}-${escapeHtml(range)}
+                                                        ${county ? `<span style="font-weight: 400; color: #6B7280; font-size: 13px; margin-left: 8px;">${escapeHtml(county)} County</span>` : ''}
+                                                    </div>
+                                                    ${isSurface ? `<span style="background: #3B82F6; color: white; padding: 2px 8px; border-radius: 3px; font-size: 11px; margin-top: 4px; display: inline-block;">SURFACE LOCATION</span>` : ''}
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    <div style="font-size: 24px; font-weight: 700; color: ${percentColor};">${percentage ? percentage.toFixed(2) : '—'}%</div>
+                                                    <div style="font-size: 12px; color: #6B7280;">Allocation</div>
+                                                </div>
+                                            </div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-top: 10px; font-size: 13px;">
+                                                ${intervalFt ? `<div><span style="color: #6B7280;">Lateral Length:</span> <strong>${intervalFt.toLocaleString()} ft</strong></div>` : ''}
+                                                ${unitAcres ? `<div><span style="color: #6B7280;">Unit Size:</span> <strong>${unitAcres} acres</strong></div>` : ''}
+                                                ${spacingOrder ? `<div><span style="color: #6B7280;">Spacing Order:</span> <strong>#${escapeHtml(spacingOrder)}</strong></div>` : ''}
+                                            </div>
+                                            ${entryPoint.description ? `
+                                                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid ${borderColor}; font-size: 12px; color: #6B7280;">
+                                                    <strong>Entry:</strong> ${escapeHtml(entryPoint.description)}
+                                                    ${entryPoint.measured_depth_ft ? ` at ${entryPoint.measured_depth_ft.toLocaleString()} ft MD` : ''}
+                                                </div>` : ''}
+                                        </div>`;
                                 });
                                 sectionContent += `</div>`;
                             } else {
@@ -9663,6 +9717,113 @@
                                                 ${expectedCompanion.map(doc => `<span style="background: #FDE68A; border: 1px solid #F59E0B; border-radius: 4px; padding: 4px 10px; font-size: 12px; color: #92400E;">${escapeHtml(doc)}</span>`).join('')}
                                             </div>` : ''}
                                         ${notes ? `<div style="font-size: 13px; color: #92400E; font-style: italic;">${escapeHtml(notes)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'well_location' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
+                            // Special handling for well_location object (multi-unit horizontal order)
+                            hasVisibleFields = true;
+                            const surfaceLoc = value.surface_location || {};
+                            const firstPerf = value.first_perforation || {};
+                            const lastPerf = value.last_perforation || {};
+                            const totalMD = value.total_measured_depth_ft;
+                            const lateralLength = value.lateral_total_length_ft;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="display: flex; flex-direction: column; gap: 12px;">
+                                        ${Object.keys(surfaceLoc).length > 0 ? `
+                                            <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 12px;">
+                                                <div style="font-weight: 600; color: #1E40AF; font-size: 13px; margin-bottom: 8px;">📍 Surface Location</div>
+                                                <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                                    ${surfaceLoc.section ? `<div><span style="color: #6B7280;">Section:</span> <strong>${escapeHtml(String(surfaceLoc.section))}</strong></div>` : ''}
+                                                    ${surfaceLoc.township ? `<div><span style="color: #6B7280;">Township:</span> <strong>${escapeHtml(surfaceLoc.township)}</strong></div>` : ''}
+                                                    ${surfaceLoc.range ? `<div><span style="color: #6B7280;">Range:</span> <strong>${escapeHtml(surfaceLoc.range)}</strong></div>` : ''}
+                                                </div>
+                                                <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px; margin-top: 6px;">
+                                                    ${surfaceLoc.footage_ns ? `<div><span style="color: #6B7280;">N/S:</span> <strong>${escapeHtml(surfaceLoc.footage_ns)}</strong></div>` : ''}
+                                                    ${surfaceLoc.footage_ew ? `<div><span style="color: #6B7280;">E/W:</span> <strong>${escapeHtml(surfaceLoc.footage_ew)}</strong></div>` : ''}
+                                                </div>
+                                            </div>` : ''}
+                                        <div style="display: flex; gap: 12px; flex-wrap: wrap;">
+                                            ${Object.keys(firstPerf).length > 0 ? `
+                                                <div style="flex: 1; min-width: 250px; background: #DCFCE7; border: 1px solid #22C55E; border-radius: 8px; padding: 12px;">
+                                                    <div style="font-weight: 600; color: #166534; font-size: 13px; margin-bottom: 8px;">▶ First Perforation</div>
+                                                    <div style="font-size: 13px;">
+                                                        ${firstPerf.section ? `<div><strong>Section ${escapeHtml(String(firstPerf.section))}</strong> - ${escapeHtml(firstPerf.township || '')}-${escapeHtml(firstPerf.range || '')}</div>` : ''}
+                                                        ${firstPerf.formation ? `<div style="margin-top: 4px;"><span style="color: #6B7280;">Formation:</span> <strong>${escapeHtml(firstPerf.formation)}</strong></div>` : ''}
+                                                        ${firstPerf.measured_depth_ft ? `<div style="margin-top: 4px;"><span style="color: #6B7280;">MD:</span> <strong>${firstPerf.measured_depth_ft.toLocaleString()} ft</strong></div>` : ''}
+                                                        ${firstPerf.tvd_ft ? `<div><span style="color: #6B7280;">TVD:</span> <strong>${firstPerf.tvd_ft.toLocaleString()} ft</strong></div>` : ''}
+                                                    </div>
+                                                </div>` : ''}
+                                            ${Object.keys(lastPerf).length > 0 ? `
+                                                <div style="flex: 1; min-width: 250px; background: #FEE2E2; border: 1px solid #EF4444; border-radius: 8px; padding: 12px;">
+                                                    <div style="font-weight: 600; color: #DC2626; font-size: 13px; margin-bottom: 8px;">⏹ Last Perforation</div>
+                                                    <div style="font-size: 13px;">
+                                                        ${lastPerf.section ? `<div><strong>Section ${escapeHtml(String(lastPerf.section))}</strong> - ${escapeHtml(lastPerf.township || '')}-${escapeHtml(lastPerf.range || '')}</div>` : ''}
+                                                        ${lastPerf.formation ? `<div style="margin-top: 4px;"><span style="color: #6B7280;">Formation:</span> <strong>${escapeHtml(lastPerf.formation)}</strong></div>` : ''}
+                                                        ${lastPerf.measured_depth_ft ? `<div style="margin-top: 4px;"><span style="color: #6B7280;">MD:</span> <strong>${lastPerf.measured_depth_ft.toLocaleString()} ft</strong></div>` : ''}
+                                                        ${lastPerf.tvd_ft ? `<div><span style="color: #6B7280;">TVD:</span> <strong>${lastPerf.tvd_ft.toLocaleString()} ft</strong></div>` : ''}
+                                                    </div>
+                                                </div>` : ''}
+                                        </div>
+                                        ${(totalMD || lateralLength) ? `
+                                            <div style="display: flex; gap: 20px; padding: 10px; background: #F9FAFB; border-radius: 6px; font-size: 14px;">
+                                                ${totalMD ? `<div><span style="color: #6B7280;">Total MD:</span> <strong>${totalMD.toLocaleString()} ft</strong></div>` : ''}
+                                                ${lateralLength ? `<div><span style="color: #6B7280;">Lateral Length:</span> <strong>${lateralLength.toLocaleString()} ft</strong></div>` : ''}
+                                            </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'relief_granted' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
+                            // Special handling for relief_granted object (multi-unit horizontal order)
+                            hasVisibleFields = true;
+                            const reason = value.reason_summary || '';
+                            const costSavings = value.cost_savings || '';
+                            const reservoir = value.reservoir_justification || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                        ${reason ? `<div style="font-size: 14px; color: #166534; font-weight: 500; margin-bottom: 10px;">${escapeHtml(reason)}</div>` : ''}
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px;">
+                                            ${costSavings ? `<div style="background: #DCFCE7; padding: 8px 12px; border-radius: 6px;"><span style="color: #166534;">💰 Cost Savings:</span> <strong>${escapeHtml(costSavings)}</strong></div>` : ''}
+                                        </div>
+                                        ${reservoir ? `<div style="font-size: 13px; color: #374151; margin-top: 10px; padding-top: 10px; border-top: 1px solid #22C55E;"><strong>Reservoir Justification:</strong> ${escapeHtml(reservoir)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'special_provisions' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
+                            // Special handling for special_provisions object (multi-unit horizontal order)
+                            hasVisibleFields = true;
+                            const shortenedReason = value.shortened_lateral_reason || '';
+                            const cemented = value.cemented_perforations;
+                            const amendments = value.amendments_at_hearing || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">
+                                            ${shortenedReason ? `<div><strong style="color: #92400E;">⚠️ Shortened Lateral:</strong> ${escapeHtml(shortenedReason)}</div>` : ''}
+                                            ${cemented !== undefined ? `<div><strong>Cemented Perforations:</strong> ${cemented ? '<span style="color: #166534;">✓ Yes</span>' : '<span style="color: #DC2626;">✗ No</span>'}</div>` : ''}
+                                            ${amendments ? `<div><strong>Hearing Amendments:</strong> ${escapeHtml(amendments)}</div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'well_authorization' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
+                            // Special handling for well_authorization object (multi-unit horizontal order)
+                            hasVisibleFields = true;
+                            const wellName = value.well_name || '';
+                            const apiNumber = value.api_number || '';
+                            const wellType = value.well_type || '';
+                            const wellClass = value.well_classification || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        ${wellName ? `<div style="font-size: 18px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">${escapeHtml(wellName)}</div>` : ''}
+                                        <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                            ${apiNumber ? `<div><span style="color: #6B7280;">API:</span> <strong>${escapeHtml(apiNumber)}</strong></div>` : ''}
+                                            ${wellType ? `<div><span style="color: #6B7280;">Type:</span> <strong>${escapeHtml(formatFieldName(wellType))}</strong></div>` : ''}
+                                            ${wellClass ? `<div><span style="color: #6B7280;">Classification:</span> <strong style="text-transform: capitalize;">${escapeHtml(wellClass)}</strong></div>` : ''}
+                                        </div>
                                     </div>
                                 </div>`;
                         } else {
