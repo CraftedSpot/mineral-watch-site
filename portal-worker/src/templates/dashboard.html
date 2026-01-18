@@ -10108,49 +10108,6 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'formation_tops' && Array.isArray(value) && data.doc_type === 'completion_report') {
-                            // Special handling for formation_tops array (completion report)
-                            if (value.length > 0) {
-                                hasVisibleFields = true;
-                                let formationsHtml = value.map(formation => {
-                                    const name = formation.name || '';
-                                    const md = formation.md_ft;
-                                    const tvd = formation.tvd_ft;
-                                    return `<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB;">
-                                        <span style="font-weight: 500;">${escapeHtml(name)}</span>
-                                        <span style="font-family: monospace; color: #6B7280;">
-                                            ${md ? `${md.toLocaleString()} ft MD` : ''}${md && tvd ? ' / ' : ''}${tvd ? `${tvd.toLocaleString()} ft TVD` : ''}
-                                        </span>
-                                    </div>`;
-                                }).join('');
-                                sectionContent += `
-                                    <div class="doc-field" style="grid-column: 1 / -1;">
-                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px;">
-                                            ${formationsHtml}
-                                        </div>
-                                        ${getConfidenceIndicator(fieldName, fieldScores)}
-                                    </div>`;
-                            }
-                        } else if (fieldName === 'affected_sections' && Array.isArray(value) && data.doc_type === 'completion_report') {
-                            // Special handling for affected_sections array (completion report)
-                            if (value.length > 0) {
-                                hasVisibleFields = true;
-                                let sectionsHtml = value.map(sec => {
-                                    const section = sec.section || '';
-                                    const township = sec.township || '';
-                                    const range = sec.range || '';
-                                    return `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500;">
-                                        ${escapeHtml(section)} - ${escapeHtml(township)} - ${escapeHtml(range)}
-                                    </span>`;
-                                }).join('');
-                                sectionContent += `
-                                    <div class="doc-field" style="grid-column: 1 / -1;">
-                                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
-                                            ${sectionsHtml}
-                                        </div>
-                                        ${getConfidenceIndicator(fieldName, fieldScores)}
-                                    </div>`;
-                            }
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {
