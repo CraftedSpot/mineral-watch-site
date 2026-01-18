@@ -9774,6 +9774,7 @@
                                                 ${lateralLength ? `<div><span style="color: #6B7280;">Lateral Length:</span> <strong>${lateralLength.toLocaleString()} ft</strong></div>` : ''}
                                             </div>` : ''}
                                     </div>
+                                    ${getConfidenceIndicator(fieldName, fieldScores)}
                                 </div>`;
                             }
                         } else if (fieldName === 'relief_granted' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
@@ -9794,6 +9795,7 @@
                                             </div>
                                             ${reservoir ? `<div style="font-size: 13px; color: #374151; margin-top: 10px; padding-top: 10px; border-top: 1px solid #22C55E;"><strong>Reservoir Justification:</strong> ${escapeHtml(reservoir)}</div>` : ''}
                                         </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
                         } else if (fieldName === 'special_provisions' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
@@ -9814,6 +9816,7 @@
                                                 ${amendments ? `<div><strong>Hearing Amendments:</strong> ${escapeHtml(amendments)}</div>` : ''}
                                             </div>
                                         </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
                         } else if (fieldName === 'well_authorization' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
