@@ -1066,36 +1066,43 @@ def name_increased_density_order(data: Dict[str, Any]) -> str:
 
 
 def name_change_of_operator_order(data: Dict[str, Any]) -> str:
-    """Change of Operator - CD {Number} - {County} - {Current Operator} to {New Operator} - {# Wells} - {Year}"""
+    """Change of Operator - [Former] to [New] - S{sec}-{twp}-{rge} - {order_date}"""
     parts = ["Change of Operator"]
 
-    # Case/CD number
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
-    if cd_num:
-        parts.append(f"CD {cd_num}")
+    # Get operator names from nested objects (new schema) or flat fields (legacy)
+    former_operator = data.get('former_operator', {}) or {}
+    new_operator = data.get('new_operator', {}) or {}
 
-    # County
-    if data.get('county'):
+    former_name = former_operator.get('name') if isinstance(former_operator, dict) else data.get('current_operator')
+    new_name = new_operator.get('name') if isinstance(new_operator, dict) else data.get('new_operator')
+
+    # Operator transfer - use short names
+    if former_name and new_name:
+        parts.append(f"{extract_last_name(former_name)} to {extract_last_name(new_name)}")
+    elif new_name:
+        parts.append(f"to {extract_last_name(new_name)}")
+
+    # Location: S{section}-{township}-{range}
+    section = data.get('section')
+    township = data.get('township')
+    range_val = data.get('range')
+
+    if section and township and range_val:
+        parts.append(f"S{section}-{township}-{range_val}")
+    elif data.get('county'):
+        # Fall back to county if no specific location
         county = str(data['county']).strip()
         if not county.lower().endswith('county'):
             county = f"{county} County"
         parts.append(county)
 
-    # Operator transfer
-    current_op = data.get('current_operator')
-    new_op = data.get('new_operator')
-    if current_op and new_op:
-        parts.append(f"{extract_last_name(current_op)} to {extract_last_name(new_op)}")
-    elif new_op:
-        parts.append(f"to {extract_last_name(new_op)}")
+    # Order date or year
+    order_info = data.get('order_info', {}) or {}
+    order_date = order_info.get('order_date') or data.get('order_date')
 
-    # Number of wells transferred
-    total_wells = data.get('total_wells_transferred')
-    if total_wells:
-        parts.append(f"{total_wells} wells")
-
-    # Year
-    if data.get('year'):
+    if order_date:
+        parts.append(str(order_date))
+    elif data.get('year'):
         parts.append(str(data['year']))
 
     return " - ".join(parts)
