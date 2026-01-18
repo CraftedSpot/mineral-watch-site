@@ -1687,11 +1687,14 @@ export default {
             );
             console.log(`[Usage] Tracked parent multi-document ${parentDocId} for ${creditUserId} (0 credits)`);
 
-            // 2. Track each child document (1 credit each)
+            // 2. Track each child document (1 credit each, unless skip_extraction)
             for (let i = 0; i < children.length; i++) {
               const child = children[i];
               const childId = childIds[i];
               const pageCount = child.page_range_end - child.page_range_start + 1;
+
+              // Check if this child has skip_extraction (e.g., "other" type documents)
+              const childSkipExtraction = child.extracted_data?.skip_extraction || false;
 
               await usageService.trackDocumentProcessed(
                 creditUserId,
@@ -1701,9 +1704,9 @@ export default {
                 pageCount,
                 false, // not a multi-doc parent
                 0, // no children
-                false // skip_extraction = false means credit IS deducted
+                childSkipExtraction // Only charge if extraction was actually done
               );
-              console.log(`[Usage] Tracked child document ${childId} for ${creditUserId} (${child.doc_type}, 1 credit)`);
+              console.log(`[Usage] Tracked child document ${childId} for ${creditUserId} (${child.doc_type}, ${childSkipExtraction ? '0' : '1'} credit)`);
             }
 
             console.log(`[Usage] Total for multi-document: ${children.length} credits for ${children.length} children (user: ${creditUserId})`);

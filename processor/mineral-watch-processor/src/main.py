@@ -348,8 +348,13 @@ async def handle_multi_document(
         display_name = generate_display_name_for_child(doc_data, page_start, page_end)
         
         # Determine confidence/status
-        doc_confidence = doc_data.get('document_confidence', 'medium')
-        status = 'manual_review' if doc_confidence == 'low' else 'complete'
+        # For skip_extraction documents (coarse_type="other"), mark as unprocessed
+        if doc_data.get('skip_extraction'):
+            doc_confidence = 'medium'
+            status = 'unprocessed'  # User can decide to process later
+        else:
+            doc_confidence = doc_data.get('document_confidence', 'medium')
+            status = 'manual_review' if doc_confidence == 'low' else 'complete'
         
         legal = doc_data.get('legal_description', {})
 
