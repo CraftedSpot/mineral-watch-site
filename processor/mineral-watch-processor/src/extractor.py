@@ -2190,84 +2190,329 @@ Multi-section horizontal example (1280-acre unit covering 2 sections):
 }
 
 For LOCATION EXCEPTION ORDERS (Permits drilling closer to boundaries than standard setbacks):
-NOTE: These orders grant exceptions to standard well setback requirements.
-Look for "LOCATION EXCEPTION", specific footage distances, "exception from", "permit the drilling".
-Extract the EXACT footage from each boundary line - this is critical for understanding well placement.
+NOTE: These orders grant exceptions to standard well setback requirements for BOTH vertical and horizontal wells.
+Look for "LOCATION EXCEPTION" or "HORIZONTAL LOCATION EXCEPTION", specific footage distances, "exception from", "permit the drilling".
+For HORIZONTAL wells: Look for lateral path tables with measured depth, TVD, and section crossings.
+For RE-ENTRY wells: Note the previous formation and well_type = "re_entry".
+
+CRITICAL DISTINCTIONS:
+- PRIOR ORDERS: Orders being amended, superseded, or referenced (historical relationship)
+- COMPANION CAUSES: Causes filed together in the same application package (same development project)
 
 {
   "doc_type": "location_exception_order",
-  "case_number": "CD2024-003456",
-  "order_number": "749500",
-  "order_date": "2024-06-10",
-  "effective_date": "2024-06-10",
-  "hearing_date": "2024-05-28",
-  "applicant": "Devon Energy Production Company, L.P.",
-  "operator": "Devon Energy Production Company, L.P.",
-  "well_name": "Smith 1-16",
-  "api_number": "35-051-12345",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady"
+  "order_number": "754630",
+  "cause_number": "CD2024-003810",
+  "effective_date": "2024-11-05",
+  "order_date": "2024-11-05",
+
+  "hearing_info": {
+    "hearing_date": "2024-10-15",
+    "alj_name": "Paul E. Porter",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City"
   },
-  "unit_description": "The SE/4 of Section 16, Township 12 North, Range 7 West",
-  "unit_size_acres": 160,
-  "well_type": "re-entry",
-  "exception_type": "standard_setback",
-  "well_location": {
-    "quarter_section": "SE/4",
-    "footage_from_south_line": 330,
-    "footage_from_north_line": null,
-    "footage_from_east_line": 990,
-    "footage_from_west_line": null,
-    "surface_location_description": "330 feet from south line and 990 feet from east line of Section 16"
+
+  "applicant": {
+    "name": "Ovintiv USA Inc.",
+    "role": "Applicant"
   },
-  "standard_setback_feet": 660,
-  "granted_setback_feet": 330,
-  "exception_details": {
-    "from_boundary": "south line",
-    "standard_requirement_feet": 660,
-    "approved_distance_feet": 330,
-    "exception_amount_feet": 330
+
+  "well_orientation": "horizontal",
+
+  "well_info": {
+    "well_name": "Lohmeyer 1708 2H-26X",
+    "api_number": "35-073-27140",
+    "operator": "Ovintiv USA Inc.",
+    "well_type": "new_drill",
+    "previous_formation": null,
+    "previous_api": null,
+    "spacing_unit_acres": 640
   },
-  "reason_for_exception": "Re-entry of existing wellbore to access previously untapped formation",
-  "formations": [
+
+  "target_formations": [
     {
-      "name": "Hunton",
-      "common_source_of_supply": "Hunton common source of supply",
-      "depth_from": 9200,
-      "depth_to": 9400
+      "formation_name": "Mississippian",
+      "qualifier": "less Chester"
     }
   ],
-  "referenced_spacing_order": "Order No. 456789",
-  "special_provisions": "The exception is granted for the specific well location only and does not alter the established spacing pattern",
-  "expiration_period": "one year",
-  "expiration_date": "2025-06-10",
-  "previous_orders": ["456789"],
-  "field_scores": {
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "hearing_date": 0.95,
-    "applicant": 1.0,
-    "operator": 0.95,
-    "well_name": 0.90,
-    "api_number": 0.85,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "unit_description": 0.90,
-    "well_location": 0.90,
-    "standard_setback_feet": 0.95,
-    "granted_setback_feet": 0.95,
-    "exception_details": 0.85,
-    "reason_for_exception": 0.80,
-    "formations": 0.85,
-    "expiration_date": 0.90
+
+  "location": {
+    "county": "Kingfisher",
+    "state": "Oklahoma",
+    "sections": [
+      {
+        "section": 23,
+        "township": "17N",
+        "range": "8W",
+        "is_surface_location": true,
+        "is_target_section": false
+      },
+      {
+        "section": 26,
+        "township": "17N",
+        "range": "8W",
+        "is_surface_location": false,
+        "is_target_section": true
+      },
+      {
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "is_surface_location": false,
+        "is_target_section": true
+      }
+    ]
   },
+
+  "exception_details": {
+    "standard_setback_ft": 165,
+    "granted_setback_ft": 147,
+    "actual_setback_ft": 147,
+    "exception_type": "lateral_path",
+    "exception_reason": "Horizontal lateral path through multiple sections"
+  },
+
+  "vertical_well_location": null,
+
+  "lateral_path": {
+    "surface_location": {
+      "section": 23,
+      "township": "17N",
+      "range": "8W",
+      "footage_fsl": null,
+      "footage_fnl": 200,
+      "footage_fel": 1430,
+      "footage_fwl": null
+    },
+    "lateral_points": [
+      {
+        "point_type": "first_perforation",
+        "section": 26,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 10540,
+        "true_vertical_depth_ft": 7490,
+        "footage_fsl": null,
+        "footage_fnl": 156,
+        "footage_fel": 2326,
+        "footage_fwl": null,
+        "line_crossed": null,
+        "description": null
+      },
+      {
+        "point_type": "section_crossing",
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 15348,
+        "true_vertical_depth_ft": 7488,
+        "footage_fsl": 0,
+        "footage_fnl": null,
+        "footage_fel": 2241,
+        "footage_fwl": null,
+        "line_crossed": "south",
+        "description": "Crosses from Section 26 to Section 35"
+      },
+      {
+        "point_type": "last_perforation",
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 20608,
+        "true_vertical_depth_ft": 7537,
+        "footage_fsl": 1316,
+        "footage_fnl": null,
+        "footage_fel": 2159,
+        "footage_fwl": null,
+        "line_crossed": null,
+        "description": null
+      },
+      {
+        "point_type": "terminus_bhl",
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 20783,
+        "true_vertical_depth_ft": 7550,
+        "footage_fsl": 1359,
+        "footage_fnl": null,
+        "footage_fel": 2155,
+        "footage_fwl": null,
+        "line_crossed": null,
+        "description": "Bottom Hole Location"
+      }
+    ],
+    "total_lateral_length_ft": 10243,
+    "drilling_direction": "north to south"
+  },
+
+  "prior_orders": [
+    {
+      "order_number": "647505",
+      "order_date": "2015-06-30",
+      "relationship": "establishes_unit"
+    },
+    {
+      "order_number": "747579",
+      "order_date": null,
+      "relationship": "interim_order"
+    }
+  ],
+
+  "companion_causes": [
+    {
+      "cause_number": "CD2024-003803",
+      "cause_type": "increased_density",
+      "order_number": null,
+      "relationship": "authorizes additional well in unit"
+    },
+    {
+      "cause_number": "CD2024-003807",
+      "cause_type": "multiunit_horizontal",
+      "order_number": null,
+      "relationship": "establishes multiunit horizontal well"
+    },
+    {
+      "cause_number": "CD2024-003811",
+      "cause_type": "600_foot_rule",
+      "order_number": null,
+      "relationship": "600-foot rule exception for lateral"
+    }
+  ],
+
+  "conditions": [
+    "The location exception is granted for the horizontal well described herein only",
+    "Operator shall comply with all other applicable rules and regulations"
+  ],
+
+  "protestants": [],
+
+  "commissioners": [
+    {"name": "Bob Anthony", "vote": "aye"},
+    {"name": "Todd Hiett", "vote": "aye"},
+    {"name": "Kim David", "vote": "aye"}
+  ],
+
+  "field_scores": {
+    "order_number": "high",
+    "cause_number": "high",
+    "well_info": "high",
+    "target_formations": "high",
+    "location": "high",
+    "exception_details": "high",
+    "lateral_path": "high",
+    "prior_orders": "medium",
+    "companion_causes": "medium"
+  },
+
+  "document_confidence": "high"
+}
+
+VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
+{
+  "doc_type": "location_exception_order",
+  "order_number": "647505",
+  "cause_number": "CD2015-001234",
+  "effective_date": "2015-06-30",
+  "order_date": "2015-06-30",
+
+  "hearing_info": {
+    "hearing_date": "2015-06-15",
+    "alj_name": "Keith Thomas",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City"
+  },
+
+  "applicant": {
+    "name": "Triad Energy Corporation",
+    "role": "Applicant"
+  },
+
+  "well_orientation": "vertical",
+
+  "well_info": {
+    "well_name": "Sanders 1-17",
+    "api_number": "35-051-20123",
+    "operator": "Triad Energy Corporation",
+    "well_type": "re_entry",
+    "previous_formation": "Hunton",
+    "previous_api": null,
+    "spacing_unit_acres": 80
+  },
+
+  "target_formations": [
+    {
+      "formation_name": "Hoxbar",
+      "qualifier": null
+    }
+  ],
+
+  "location": {
+    "county": "Grady",
+    "state": "Oklahoma",
+    "sections": [
+      {
+        "section": 17,
+        "township": "9N",
+        "range": "7W",
+        "is_surface_location": true,
+        "is_target_section": true
+      }
+    ]
+  },
+
+  "exception_details": {
+    "standard_setback_ft": 660,
+    "granted_setback_ft": 330,
+    "actual_setback_ft": null,
+    "exception_type": "reduced_setback",
+    "exception_reason": "Re-entry of existing wellbore to access Hoxbar formation"
+  },
+
+  "vertical_well_location": {
+    "footage_from_south": 330,
+    "footage_from_north": null,
+    "footage_from_east": 990,
+    "footage_from_west": null,
+    "quarter_section": "SE/4"
+  },
+
+  "lateral_path": null,
+
+  "prior_orders": [
+    {
+      "order_number": "456789",
+      "order_date": null,
+      "relationship": "establishes_unit"
+    }
+  ],
+
+  "companion_causes": [],
+
+  "conditions": [
+    "Exception granted for specific well location only",
+    "Does not alter established spacing pattern"
+  ],
+
+  "protestants": [],
+
+  "commissioners": [
+    {"name": "Bob Anthony", "vote": "aye"},
+    {"name": "Todd Hiett", "vote": "aye"},
+    {"name": "Dana Murphy", "vote": "aye"}
+  ],
+
+  "field_scores": {
+    "order_number": "high",
+    "cause_number": "high",
+    "well_info": "high",
+    "target_formations": "high",
+    "location": "high",
+    "exception_details": "high",
+    "vertical_well_location": "high",
+    "prior_orders": "medium",
+    "companion_causes": "high"
+  },
+
   "document_confidence": "high"
 }
 

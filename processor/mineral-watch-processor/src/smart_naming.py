@@ -895,41 +895,110 @@ def name_horizontal_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
 
 
 def name_location_exception_order(data: Dict[str, Any]) -> str:
-    """Location Exception - CD {Number} - {Well Name} - {County} - {Formation} - {Year}"""
-    parts = ["Location Exception"]
+    """Location Exception - Order# - {Well Name} - {Sections} - {Formation} - {Date}
 
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
-    if cd_num:
-        parts.append(f"CD {cd_num}")
+    For horizontal wells: shows multiple sections (S26 & S35)
+    For vertical wells: shows single section
+    For re-entries: prefixes with "Re-Entry"
+    """
+    # Determine prefix based on well orientation and type
+    well_info = data.get('well_info', {}) or {}
+    well_orientation = data.get('well_orientation', 'vertical')
+    well_type = well_info.get('well_type', 'new_drill')
 
-    # Well name is important for location exceptions
-    well_name = data.get('well_name') or data.get('proposed_well_name')
+    if well_type == 're_entry':
+        prefix = "Re-Entry Location Exception"
+    elif well_orientation == 'horizontal':
+        prefix = "Horizontal Location Exception"
+    else:
+        prefix = "Location Exception"
+
+    parts = [prefix]
+
+    # Order number (preferred) or cause number
+    order_number = data.get('order_number')
+    if order_number:
+        parts.append(str(order_number))
+    else:
+        cd_num = clean_cd_number(data.get('cause_number') or data.get('cd_number') or data.get('case_number'))
+        if cd_num:
+            parts.append(f"CD {cd_num}")
+
+    # Well name
+    well_name = well_info.get('well_name') or data.get('well_name') or data.get('proposed_well_name')
     if well_name:
         parts.append(truncate_name(str(well_name), 30))
 
-    if data.get('county'):
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
+    # Sections - different format for horizontal vs vertical
+    location = data.get('location', {}) or {}
+    sections = location.get('sections', [])
 
-    # Primary formation
-    formations = data.get('formations')
-    if formations and isinstance(formations, list) and len(formations) > 0:
-        first_formation = formations[0]
+    if sections and isinstance(sections, list) and len(sections) > 0:
+        if well_orientation == 'horizontal' and len(sections) > 1:
+            # Show multiple sections for horizontal wells: "S26 & S35"
+            section_nums = []
+            first_twp = None
+            first_rng = None
+            for sec in sections:
+                if isinstance(sec, dict) and sec.get('is_target_section'):
+                    sec_num = sec.get('section')
+                    if sec_num:
+                        section_nums.append(str(sec_num))
+                    if not first_twp:
+                        first_twp = sec.get('township')
+                    if not first_rng:
+                        first_rng = sec.get('range')
+
+            if section_nums:
+                sections_str = " & ".join([f"S{s}" for s in section_nums])
+                if first_twp and first_rng:
+                    sections_str += f" - {first_twp}-{first_rng}"
+                parts.append(sections_str)
+        else:
+            # Single section for vertical wells
+            first_section = sections[0]
+            if isinstance(first_section, dict):
+                section = first_section.get('section')
+                township = first_section.get('township')
+                range_val = first_section.get('range')
+                if section and township and range_val:
+                    parts.append(f"S{section}-{township}-{range_val}")
+    else:
+        # Fallback to county from location or top-level
+        county = location.get('county') or data.get('county')
+        if county:
+            county = str(county).strip()
+            if not county.lower().endswith('county'):
+                county = f"{county} County"
+            parts.append(county)
+
+    # Primary formation (check target_formations first, then formations)
+    target_formations = data.get('target_formations', [])
+    if target_formations and isinstance(target_formations, list) and len(target_formations) > 0:
+        first_formation = target_formations[0]
         if isinstance(first_formation, dict):
-            formation_name = first_formation.get('name', '')
+            formation_name = first_formation.get('formation_name', '')
         else:
             formation_name = str(first_formation)
         if formation_name:
             parts.append(formation_name)
+    else:
+        # Fallback to old formations array
+        formations = data.get('formations', [])
+        if formations and isinstance(formations, list) and len(formations) > 0:
+            first_formation = formations[0]
+            if isinstance(first_formation, dict):
+                formation_name = first_formation.get('name', '')
+            else:
+                formation_name = str(first_formation)
+            if formation_name:
+                parts.append(formation_name)
 
-    # Operator
-    operator = data.get('operator') or data.get('applicant')
-    if operator:
-        parts.append(extract_last_name(operator))
-
-    if data.get('year'):
+    # Order date (prefer over year)
+    order_date = data.get('order_date')
+    if order_date:
+        parts.append(str(order_date))
+    elif data.get('year'):
         parts.append(str(data['year']))
 
     return " - ".join(parts)
