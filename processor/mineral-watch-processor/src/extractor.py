@@ -2579,8 +2579,11 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
-- affidavit_of_heirship, ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, trust_funding, ownership_entity, legal_document, correspondence
 - tax_record, map
+
+TRUST FUNDING DETECTION:
+- trust_funding: Look for "GENERAL ASSIGNMENT" or "ASSIGNMENT" that transfers property from an individual to a TRUST. Key indicators: same person appears as both assignor (individual) AND assignee (as trustee), trust name mentioned (e.g., "Virginia K. Price Trust"), language about transferring "all property" or specific categories to a trust. Often includes nominal consideration ($10.00 and other good and valuable consideration). This is an estate planning document, NOT a sale.
 
 AFFIDAVIT OF HEIRSHIP DETECTION:
 - affidavit_of_heirship: Look for "AFFIDAVIT OF HEIRSHIP" title. Contains decedent (deceased person) name, list of heirs/children/spouses, legal description of mineral property, notarized. Establishes who inherits mineral rights.
@@ -2832,21 +2835,46 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         
         # Extract JSON from response
         json_str = response_text.strip()
-        
-        # Try to find JSON in the response
-        # First, check if it's wrapped in ```json blocks
+
+        # Try to find JSON in the response - multiple strategies
+        # Strategy 1: Look for ```json blocks
         if "```json" in json_str:
             start = json_str.find("```json") + 7
             end = json_str.find("```", start)
             if end != -1:
                 json_str = json_str[start:end].strip()
-        # Otherwise, look for the first { and last }
-        elif "{" in json_str and "}" in json_str:
-            # Find the first { and last } to extract just the JSON
+                logger.debug(f"Extracted JSON from ```json block, length: {len(json_str)}")
+        # Strategy 2: Look for ``` blocks (without json specifier)
+        elif json_str.startswith("```"):
+            lines = json_str.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]  # Remove opening fence
+            # Find and remove closing fence
+            for i, line in enumerate(lines):
+                if line.strip() == "```":
+                    lines = lines[:i]
+                    break
+            json_str = "\n".join(lines).strip()
+            logger.debug(f"Extracted JSON from ``` block, length: {len(json_str)}")
+
+        # Strategy 3: Find the JSON object by matching braces
+        if "{" in json_str and "}" in json_str:
+            # Find the first {
             start = json_str.find("{")
-            end = json_str.rfind("}") + 1
-            if start != -1 and end != 0:
+            # Find matching closing } by counting braces
+            brace_count = 0
+            end = start
+            for i, char in enumerate(json_str[start:], start):
+                if char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end = i + 1
+                        break
+            if end > start:
                 json_str = json_str[start:end]
+                logger.debug(f"Extracted JSON by brace matching, length: {len(json_str)}")
         
         try:
             extracted_data = json.loads(json_str.strip())
