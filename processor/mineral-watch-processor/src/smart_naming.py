@@ -1736,6 +1736,62 @@ def name_limited_partnership(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_assignment_of_lease(data: Dict[str, Any]) -> str:
+    """Assignment of Lease - {Assignor} to {Assignee} - {Legal} - {Date}
+
+    For assignment of oil and gas lease documents.
+    Uses assignors[], assignees[], legal_description, effective_date from schema.
+    """
+    parts = ["Assignment of Lease"]
+
+    # Get first assignor name (short form)
+    assignors = data.get('assignors', [])
+    if assignors and isinstance(assignors, list) and len(assignors) > 0:
+        first_assignor = assignors[0]
+        if isinstance(first_assignor, dict):
+            assignor_name = first_assignor.get('name', '')
+            if assignor_name:
+                # Use short form - first word or first 20 chars
+                short_name = assignor_name.split()[0] if ' ' in assignor_name else assignor_name[:20]
+                if len(assignors) > 1:
+                    short_name += f" +{len(assignors)-1}"
+                parts.append(short_name)
+
+    # Get first assignee name (short form)
+    assignees = data.get('assignees', [])
+    if assignees and isinstance(assignees, list) and len(assignees) > 0:
+        first_assignee = assignees[0]
+        if isinstance(first_assignee, dict):
+            assignee_name = first_assignee.get('name', '')
+            if assignee_name:
+                # Use short form - first word or first 20 chars
+                short_name = assignee_name.split()[0] if ' ' in assignee_name else assignee_name[:20]
+                if len(assignees) > 1:
+                    short_name += f" +{len(assignees)-1}"
+                # Add "to" prefix for clarity
+                parts.append(f"to {short_name}")
+
+    # Get legal description (short form)
+    legal = data.get('legal_description', {})
+    if isinstance(legal, dict):
+        section = legal.get('section')
+        township = legal.get('township')
+        range_val = legal.get('range')
+        if section and township and range_val:
+            parts.append(f"S{section}-{township}-{range_val}")
+
+    # Get effective date or execution date
+    effective_date = data.get('effective_date')
+    if effective_date:
+        parts.append(str(effective_date))
+    elif data.get('execution_date'):
+        parts.append(str(data['execution_date']))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 # ============================================================================
 # MAIN DISPATCHER
 # ============================================================================
@@ -1776,6 +1832,7 @@ NAMING_FUNCTIONS = {
     'ownership_entity': name_ownership_entity,
     'trust_funding': name_trust_funding,
     'limited_partnership': name_limited_partnership,
+    'assignment_of_lease': name_assignment_of_lease,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,
     'tax_record': name_tax_record,
