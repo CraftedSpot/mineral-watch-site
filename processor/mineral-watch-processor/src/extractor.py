@@ -1815,55 +1815,210 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
 For CHANGE OF OPERATOR ORDERS (Transfer of operatorship to new company):
 NOTE: These orders transfer operational responsibility from one company to another.
 Look for "CHANGE OF OPERATOR", "TRANSFER OF OPERATOR", or similar language.
-Extract ALL affected wells with their names, API numbers, and OTC lease numbers if available.
 
+KEY EXTRACTION POINTS:
+- Extract BOTH former and new operator details including OTC operator numbers
+- Extract ALL affected wells with names, API numbers, and OTC lease numbers
+- If order modifies existing pooling/spacing orders, capture those in modified_orders[]
+- If subsequent well provisions are added, capture all deadline details
+- Many change of operator orders also ADD subsequent well language to older orders that didn't have it
+
+CRITICAL: Use standard OCC order structure (order_info, officials, etc.)
+
+EXAMPLE - Simple Change of Operator:
 {
   "doc_type": "change_of_operator_order",
-  "case_number": "CD2023-002361",
-  "order_number": "737686",
-  "order_date": "2023-12-14",
-  "effective_date": "2023-12-14",
-  "hearing_date": "2023-11-28",
-  "current_operator": "Panther Creek Resources, Inc.",
-  "new_operator": "Unbridled Resources, LLC",
-  "transfer_type": "Full Transfer",
-  "legal_description": {
-    "sections": ["10", "3", "4", "9"],
-    "township": "20N",
-    "range": "24W",
-    "county": "Ellis"
+
+  "section": 22,
+  "township": "7N",
+  "range": "19E",
+  "county": "Haskell",
+  "state": "Oklahoma",
+
+  "order_info": {
+    "cause_number": "CD-202200987",
+    "order_number": "728456",
+    "order_date": "2022-04-01",
+    "effective_date": "2022-04-01",
+    "hearing_date": "2022-03-15"
   },
+
+  "officials": {
+    "administrative_law_judge": "Richard Grimes",
+    "alj_approval_date": "2022-03-20",
+    "technical_reviewer": "John Smith",
+    "technical_review_date": "2022-03-18",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City",
+    "commissioners": ["Kim David", "J. Todd Hiett", "Brian Bingman"]
+  },
+
+  "applicant": {
+    "name": "Pride Energy Company",
+    "role": "Proposed Operator",
+    "attorney": "Jane Attorney",
+    "attorney_oba": "12345"
+  },
+
+  "former_operator": {
+    "name": "Samson Resources Company",
+    "address": "15 E. 5th St, Ste. 1000",
+    "city": "Tulsa",
+    "state": "Oklahoma",
+    "zip": "74103",
+    "otc_operator_number": "5415"
+  },
+
+  "new_operator": {
+    "name": "Pride Energy Company",
+    "address": "PO Box 701950",
+    "city": "Tulsa",
+    "state": "Oklahoma",
+    "zip": "74170",
+    "otc_operator_number": "19430",
+    "in_business_since": "1994-10-06",
+    "wells_currently_operated": 57,
+    "financial_statement_amount": 50000.00,
+    "form_1006b_renewal_date": "2022-08-01"
+  },
+
+  "target_formations": [
+    {"name": "Basal Atoka (Spiro)", "common_source": "Basal Atoka (Spiro)"},
+    {"name": "Middle Atoka", "common_source": "Middle Atoka"},
+    {"name": "Upper Atoka", "common_source": "Upper Atoka"}
+  ],
+
+  "affected_wells": [
+    {
+      "well_name": "Sappington 1-22",
+      "api_number": "35-061-20698",
+      "otc_number": "061-019480-0",
+      "well_type": "vertical",
+      "producing_formations": ["Atoka", "Cromwell"],
+      "status": "producing"
+    }
+  ],
+
+  "modified_orders": [
+    {
+      "order_number": "155561",
+      "order_date": "1979-07-24",
+      "order_type": "Pooling",
+      "modifications_made": [
+        "Delete Samson Resources Company as operator",
+        "Name Pride Energy Company as operator",
+        "Add subsequent well provision"
+      ]
+    },
+    {
+      "order_number": "158121",
+      "order_date": "1979-10-01",
+      "order_type": "Pooling",
+      "modifications_made": [
+        "Delete Samson Resources Company as operator",
+        "Name Pride Energy Company as operator",
+        "Add subsequent well provision"
+      ]
+    }
+  ],
+
+  "subsequent_wells": {
+    "has_provision": true,
+    "notice_period_days": 20,
+    "payment_deadline_days": 25,
+    "operator_commencement_days": 180,
+    "non_election_consequence": "Owner deemed to have relinquished all right, title, interest to operator for proposed subsequent well"
+  },
+
+  "key_takeaway": "Change of operator from Samson Resources to Pride Energy for the Basal Atoka, Middle Atoka, and Upper Atoka formations in Section 22-7N-19E, Haskell County. Modifies two 1979 pooling orders and adds subsequent well provisions.",
+
+  "detailed_analysis": "This Change of Operator Order transfers operatorship from Samson Resources Company to Pride Energy Company for the Basal Atoka (Spiro), Middle Atoka, and Upper Atoka formations in Section 22-7N-19E, Haskell County, Oklahoma.\n\nThe order modifies two existing pooling orders from 1979 (Order No. 155561 and 158121) to delete Samson as operator and name Pride Energy. Pride Energy has assumed operations of the Sappington 1-22 well, a vertical Atoka and Cromwell producer.\n\nPride Energy has been in business since October 1994, currently operates 57 wells, and maintains a $50,000 financial statement on file with the Commission.\n\nSignificantly, this order also adds subsequent well development provisions to the original pooling orders. Mineral owners who elected to participate in the initial well will receive written notice of any proposed subsequent wells and have 20 days to elect participation and 25 days to pay their proportionate share. Owners who fail to timely elect or pay will be deemed to have relinquished their rights to the proposed well.",
+
+  "field_scores": {
+    "order_info": "high",
+    "officials": "high",
+    "applicant": "high",
+    "former_operator": "high",
+    "new_operator": "high",
+    "target_formations": "high",
+    "affected_wells": "high",
+    "modified_orders": "high",
+    "subsequent_wells": "high"
+  },
+  "document_confidence": "high"
+}
+
+EXAMPLE - Simple Change of Operator (no modified orders, no subsequent wells):
+{
+  "doc_type": "change_of_operator_order",
+
+  "section": 10,
+  "township": "20N",
+  "range": "24W",
+  "county": "Ellis",
+  "state": "Oklahoma",
+
+  "order_info": {
+    "cause_number": "CD-202302361",
+    "order_number": "737686",
+    "order_date": "2023-12-14",
+    "effective_date": "2023-12-14",
+    "hearing_date": "2023-11-28"
+  },
+
+  "officials": {
+    "administrative_law_judge": "Mary Johnson",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City",
+    "commissioners": ["Kim David", "J. Todd Hiett", "Brian Bingman"]
+  },
+
+  "applicant": {
+    "name": "Unbridled Resources, LLC",
+    "role": "Proposed Operator"
+  },
+
+  "former_operator": {
+    "name": "Panther Creek Resources, Inc.",
+    "otc_operator_number": "8823"
+  },
+
+  "new_operator": {
+    "name": "Unbridled Resources, LLC",
+    "otc_operator_number": "21456",
+    "wells_currently_operated": 34,
+    "financial_statement_amount": 75000.00
+  },
+
   "affected_wells": [
     {
       "well_name": "Davis Unit 10-1",
       "api_number": "35-045-22313",
-      "otc_lease_number": "01665",
-      "well_type": "Oil"
+      "otc_number": "01665",
+      "well_type": "vertical",
+      "status": "producing"
     },
     {
       "well_name": "Davis Unit 10-2",
       "api_number": "35-045-22314",
-      "otc_lease_number": "01666",
-      "well_type": "Oil"
+      "otc_number": "01666",
+      "well_type": "vertical",
+      "status": "producing"
     }
   ],
-  "total_wells_transferred": 12,
-  "bonding_requirements": "New operator must maintain proper bond coverage",
+
+  "subsequent_wells": {
+    "has_provision": false
+  },
+
+  "key_takeaway": "Change of operator from Panther Creek Resources to Unbridled Resources for 2 wells in Section 10-20N-24W, Ellis County.",
+
+  "detailed_analysis": "This Change of Operator Order transfers operatorship from Panther Creek Resources, Inc. to Unbridled Resources, LLC for 2 wells in Section 10-20N-24W, Ellis County, Oklahoma. The Davis Unit 10-1 and 10-2 wells are both producing vertical wells. Unbridled Resources currently operates 34 wells and maintains a $75,000 financial statement on file with the Commission. This is a straightforward operator transfer with no modifications to existing orders.",
+
   "field_scores": {
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "hearing_date": 0.95,
-    "current_operator": 1.0,
-    "new_operator": 1.0,
-    "transfer_type": 0.90,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "affected_wells": 0.85,
-    "total_wells_transferred": 0.95
+    "order_info": "high",
+    "officials": "medium",
+    "former_operator": "high",
+    "new_operator": "high",
+    "affected_wells": "high"
   },
   "document_confidence": "high"
 }
