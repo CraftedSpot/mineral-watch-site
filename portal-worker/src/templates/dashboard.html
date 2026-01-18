@@ -7590,20 +7590,22 @@
                             value.forEach((unit, index) => {
                                 if (typeof unit === 'object') {
                                     const legal = unit.legal || {};
-                                    const formations = unit.formations || [];
-                                    const wellLocation = unit.well_location || {};
-                                    const unitSize = unit.unit_size_acres;
-                                    const unitShape = unit.unit_shape || '';
-                                    const wellType = unit.well_type || '';
-                                    const sectionsCovered = unit.sections_covered;
+                                    const formations = Array.isArray(unit.formations) ? unit.formations : [];
+                                    const wellLocation = (typeof unit.well_location === 'object' && unit.well_location) ? unit.well_location : {};
 
-                                    // Build location string
-                                    const section = legal.section || '';
-                                    const township = legal.township || '';
-                                    const range = legal.range || '';
-                                    const meridian = legal.meridian || '';
-                                    const quarterCalls = legal.quarter_calls || [];
-                                    const fullDescription = legal.full_description || '';
+                                    // Safely extract scalar values - ensure they're primitives
+                                    const unitSize = typeof unit.unit_size_acres === 'number' ? unit.unit_size_acres : null;
+                                    const unitShape = typeof unit.unit_shape === 'string' ? unit.unit_shape : '';
+                                    const wellType = typeof unit.well_type === 'string' ? unit.well_type : '';
+                                    const sectionsCovered = typeof unit.sections_covered === 'number' ? unit.sections_covered : null;
+
+                                    // Build location string - safely extract from legal object
+                                    const section = typeof legal.section === 'string' ? legal.section : (legal.section ? String(legal.section) : '');
+                                    const township = typeof legal.township === 'string' ? legal.township : (legal.township ? String(legal.township) : '');
+                                    const range = typeof legal.range === 'string' ? legal.range : (legal.range ? String(legal.range) : '');
+                                    const meridian = typeof legal.meridian === 'string' ? legal.meridian : '';
+                                    const quarterCalls = Array.isArray(legal.quarter_calls) ? legal.quarter_calls : [];
+                                    const fullDescription = typeof legal.full_description === 'string' ? legal.full_description : '';
 
                                     let locationStr = '';
                                     if (section && township && range) {
@@ -7612,8 +7614,14 @@
                                     }
                                     if (quarterCalls.length > 0) {
                                         // Handle quarter_calls that might be strings or objects
-                                        const qcStrings = quarterCalls.map(qc => typeof qc === 'object' ? (qc.name || qc.quarter || String(qc)) : String(qc));
-                                        locationStr += ` (${qcStrings.join(', ')})`;
+                                        const qcStrings = quarterCalls.map(qc => {
+                                            if (typeof qc === 'string') return qc;
+                                            if (typeof qc === 'object' && qc) return qc.name || qc.quarter || '';
+                                            return '';
+                                        }).filter(s => s);
+                                        if (qcStrings.length > 0) {
+                                            locationStr += ` (${qcStrings.join(', ')})`;
+                                        }
                                     }
 
                                     sectionContent += `
@@ -7633,15 +7641,24 @@
                                                     <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">Formations:</div>
                                                     <div style="display: flex; flex-wrap: wrap; gap: 6px;">
                                                         ${formations.map(f => {
-                                                            const name = typeof f === 'object' ? (f.name || '') : String(f);
+                                                            // Safely extract name - handle if it's an object
+                                                            let name = '';
+                                                            if (typeof f === 'object') {
+                                                                name = typeof f.name === 'string' ? f.name : (f.name ? String(f.name) : '');
+                                                            } else {
+                                                                name = String(f);
+                                                            }
+
+                                                            // Safely extract depth values - ensure they're numbers
                                                             const depthFrom = typeof f === 'object' ? (f.depth_from_ft || f.depth_from) : null;
                                                             const depthTo = typeof f === 'object' ? (f.depth_to_ft || f.depth_to) : null;
                                                             const depthDesc = typeof f === 'object' ? f.depth_description : null;
+
                                                             let depthStr = '';
-                                                            if (depthFrom && depthTo) {
+                                                            if (typeof depthFrom === 'number' && typeof depthTo === 'number') {
                                                                 depthStr = ` (${depthFrom.toLocaleString()}'-${depthTo.toLocaleString()}')`;
-                                                            } else if (depthDesc) {
-                                                                depthStr = ` (${depthDesc})`;
+                                                            } else if (depthDesc && typeof depthDesc === 'string') {
+                                                                depthStr = ` (${escapeHtml(depthDesc)})`;
                                                             }
                                                             return `<span style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #92400E;">${escapeHtml(name)}${depthStr}</span>`;
                                                         }).join('')}
@@ -7649,21 +7666,32 @@
                                                 </div>
                                             ` : ''}
 
-                                            ${Object.keys(wellLocation).length > 0 ? `
+                                            ${Object.keys(wellLocation).length > 0 ? (() => {
+                                                // Safely extract wellLocation values
+                                                const ubSetback = typeof wellLocation.unit_boundary_setback_ft === 'number' ? wellLocation.unit_boundary_setback_ft : null;
+                                                const llSetback = typeof wellLocation.lease_line_setback_ft === 'number' ? wellLocation.lease_line_setback_ft : null;
+                                                const latSetback = typeof wellLocation.lateral_setback_ft === 'number' ? wellLocation.lateral_setback_ft : null;
+                                                const ciSetback = typeof wellLocation.completion_interval_setback_ft === 'number' ? wellLocation.completion_interval_setback_ft : null;
+                                                const maxWellsUnit = typeof wellLocation.max_wells_per_unit === 'number' ? wellLocation.max_wells_per_unit : null;
+                                                const maxWellsForm = typeof wellLocation.max_wells_per_formation === 'number' ? wellLocation.max_wells_per_formation : null;
+                                                const locDesc = typeof wellLocation.location_description === 'string' ? wellLocation.location_description : '';
+                                                const specCond = typeof wellLocation.special_conditions === 'string' ? wellLocation.special_conditions : '';
+
+                                                return `
                                                 <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px;">
                                                     <div style="font-size: 12px; color: #1E40AF; font-weight: 500; margin-bottom: 6px;">Well Location Requirements</div>
                                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; font-size: 12px;">
-                                                        ${wellLocation.unit_boundary_setback_ft ? `<div><span style="color: #6B7280;">Unit Boundary:</span> <strong>${wellLocation.unit_boundary_setback_ft}' setback</strong></div>` : ''}
-                                                        ${wellLocation.lease_line_setback_ft ? `<div><span style="color: #6B7280;">Lease Line:</span> <strong>${wellLocation.lease_line_setback_ft}' setback</strong></div>` : ''}
-                                                        ${wellLocation.lateral_setback_ft ? `<div><span style="color: #6B7280;">Lateral:</span> <strong>${wellLocation.lateral_setback_ft}' setback</strong></div>` : ''}
-                                                        ${wellLocation.completion_interval_setback_ft ? `<div><span style="color: #6B7280;">Completion Interval:</span> <strong>${wellLocation.completion_interval_setback_ft}' setback</strong></div>` : ''}
-                                                        ${wellLocation.max_wells_per_unit ? `<div><span style="color: #6B7280;">Max Wells/Unit:</span> <strong>${wellLocation.max_wells_per_unit}</strong></div>` : ''}
-                                                        ${wellLocation.max_wells_per_formation ? `<div><span style="color: #6B7280;">Max Wells/Formation:</span> <strong>${wellLocation.max_wells_per_formation}</strong></div>` : ''}
+                                                        ${ubSetback !== null ? `<div><span style="color: #6B7280;">Unit Boundary:</span> <strong>${ubSetback}' setback</strong></div>` : ''}
+                                                        ${llSetback !== null ? `<div><span style="color: #6B7280;">Lease Line:</span> <strong>${llSetback}' setback</strong></div>` : ''}
+                                                        ${latSetback !== null ? `<div><span style="color: #6B7280;">Lateral:</span> <strong>${latSetback}' setback</strong></div>` : ''}
+                                                        ${ciSetback !== null ? `<div><span style="color: #6B7280;">Completion Interval:</span> <strong>${ciSetback}' setback</strong></div>` : ''}
+                                                        ${maxWellsUnit !== null ? `<div><span style="color: #6B7280;">Max Wells/Unit:</span> <strong>${maxWellsUnit}</strong></div>` : ''}
+                                                        ${maxWellsForm !== null ? `<div><span style="color: #6B7280;">Max Wells/Formation:</span> <strong>${maxWellsForm}</strong></div>` : ''}
                                                     </div>
-                                                    ${wellLocation.location_description ? `<div style="font-size: 12px; color: #4B5563; margin-top: 6px;">${escapeHtml(wellLocation.location_description)}</div>` : ''}
-                                                    ${wellLocation.special_conditions ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">${escapeHtml(wellLocation.special_conditions)}</div>` : ''}
-                                                </div>
-                                            ` : ''}
+                                                    ${locDesc ? `<div style="font-size: 12px; color: #4B5563; margin-top: 6px;">${escapeHtml(locDesc)}</div>` : ''}
+                                                    ${specCond ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">${escapeHtml(specCond)}</div>` : ''}
+                                                </div>`;
+                                            })() : ''}
                                         </div>`;
                                 }
                             });
