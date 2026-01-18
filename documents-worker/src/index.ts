@@ -1418,8 +1418,13 @@ export default {
         } else {
           // For successful extraction, update all fields
           console.log('Attempting to update document:', docId);
+
+          // Determine status: if skip_extraction is true (e.g., "other" docs), use "unprocessed"
+          // This allows users to decide later whether to process these documents
+          const effectiveStatus = status || (extracted_data?.skip_extraction ? 'unprocessed' : 'complete');
+
           const updateValues = {
-            status: status || 'complete',
+            status: effectiveStatus,
             extracted_data: extracted_data ? JSON.stringify(extracted_data) : null,
             doc_type,
             county,
@@ -1461,7 +1466,7 @@ export default {
                   extraction_completed_at = datetime('now', '-6 hours')
               WHERE id = ?
             `).bind(
-              status || 'complete',
+              effectiveStatus,
               extracted_data ? JSON.stringify(extracted_data) : null,
               doc_type ?? null,
               county ?? null,

@@ -3188,13 +3188,18 @@ IMPORTANT: Look at ALL provided page images. If you see DIFFERENT document types
 
 Return ONLY a JSON object with:
 {
-  "doc_type": "mineral_deed|lease|division_order|... or other",
+  "doc_type": "mineral_deed|lease|division_order|... or multi_document",
   "confidence": "high|medium|low",
   "is_multi_document": true or false,
   "estimated_doc_count": number (1 if single document),
   "rotation_needed": 0|90|180|270,
   "reasoning": "Brief explanation"
 }
+
+CRITICAL FOR MULTI-DOCUMENT PDFs:
+- If pages contain DIFFERENT document types, set "is_multi_document": true and "doc_type": "multi_document"
+- Set "estimated_doc_count" to the number of separate documents (usually equals number of pages if each page is a different document)
+- Example: PDF with Assignment on page 1, Quit Claim Deed on page 2, Mineral Deed on page 3 → is_multi_document: true, doc_type: "multi_document", estimated_doc_count: 3
 
 ROTATION DETECTION:
 Check if the document is rotated from normal reading orientation.
