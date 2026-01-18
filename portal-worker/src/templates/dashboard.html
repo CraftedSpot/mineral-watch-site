@@ -8742,6 +8742,211 @@
                                         </div>
                                     </div>`;
                             }
+                        } else if (fieldName === 'interest_assigned' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                            // Special handling for interest_assigned object (assignment_of_lease schema)
+                            hasVisibleFields = true;
+                            const type = value.type || '';
+                            const fraction = value.fraction || '';
+                            const decimal = value.decimal;
+                            const description = value.description || '';
+                            const depths = value.depths || '';
+                            const formations = value.formations || [];
+                            const acres = value.acres;
+
+                            const isPartial = type === 'partial' || (depths || formations.length > 0);
+                            const bgColor = isPartial ? '#FEF3C7' : '#EFF6FF';
+                            const borderColor = isPartial ? '#F59E0B' : '#3B82F6';
+                            const textColor = isPartial ? '#92400E' : '#1E40AF';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Interest Assigned</label>
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px;">
+                                            <div>
+                                                ${type ? `<div style="font-weight: 600; color: ${textColor}; font-size: 15px; text-transform: uppercase;">${escapeHtml(type)} INTEREST</div>` : ''}
+                                                ${description ? `<div style="font-size: 13px; color: #374151; margin-top: 6px; font-style: italic;">"${escapeHtml(description)}"</div>` : ''}
+                                            </div>
+                                            <div style="text-align: right;">
+                                                ${fraction ? `<div style="font-weight: 700; color: ${textColor}; font-size: 18px;">${escapeHtml(fraction)}</div>` : ''}
+                                                ${decimal !== undefined && decimal !== null ? `<div style="font-size: 12px; color: #6B7280;">(${(decimal * 100).toFixed(4)}%)</div>` : ''}
+                                                ${acres ? `<div style="font-size: 12px; color: #059669; margin-top: 4px;">${acres} acres</div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${depths ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid ${borderColor};"><span style="color: #6B7280; font-size: 12px;">Depth Limitation:</span> <strong style="color: ${textColor};">${escapeHtml(depths)}</strong></div>` : ''}
+                                        ${formations.length > 0 ? `<div style="margin-top: 6px;"><span style="color: #6B7280; font-size: 12px;">Formations:</span> <strong style="color: ${textColor};">${formations.map(f => escapeHtml(f)).join(', ')}</strong></div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'retained_interests' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                            // Special handling for retained_interests object (assignment_of_lease schema)
+                            hasVisibleFields = true;
+                            const hasRetained = value.has_retained_interest;
+                            const orri = value.overriding_royalty || {};
+                            const orriFraction = orri.fraction || '';
+                            const orriDecimal = orri.decimal;
+                            const orriPayableOutOf = orri.payable_out_of || '';
+                            const description = value.description || '';
+
+                            if (hasRetained) {
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Retained Interests</label>
+                                        <div style="background: #FEE2E2; border: 1px solid #EF4444; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                                <span style="background: #EF4444; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">ORRI RETAINED</span>
+                                            </div>
+                                            ${orriFraction ? `
+                                                <div style="display: flex; align-items: baseline; gap: 8px;">
+                                                    <span style="font-weight: 700; color: #DC2626; font-size: 18px;">${escapeHtml(orriFraction)}</span>
+                                                    ${orriDecimal !== undefined ? `<span style="font-size: 12px; color: #6B7280;">(${(orriDecimal * 100).toFixed(4)}%)</span>` : ''}
+                                                    ${orriPayableOutOf ? `<span style="font-size: 12px; color: #6B7280;">of ${escapeHtml(orriPayableOutOf.replace(/_/g, ' '))}</span>` : ''}
+                                                </div>
+                                            ` : ''}
+                                            ${description ? `<div style="font-size: 13px; color: #374151; margin-top: 8px; font-style: italic;">"${escapeHtml(description)}"</div>` : ''}
+                                        </div>
+                                    </div>`;
+                            } else {
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Retained Interests</label>
+                                        <div style="background: #DCFCE7; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                            <span style="color: #166534; font-weight: 500;">✓ No interests retained - full assignment</span>
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'subject_to' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                            // Special handling for subject_to object (assignment_of_lease schema)
+                            if (value.has_subject_to_clause) {
+                                hasVisibleFields = true;
+                                const existingRoyalties = value.existing_royalties;
+                                const existingOverrides = value.existing_overrides;
+                                const existingBurdens = value.existing_burdens || [];
+                                const burdensDescription = value.burdens_description || '';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Subject To</label>
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: ${burdensDescription ? '10px' : '0'};">
+                                                ${existingRoyalties ? `<span style="background: #FEF3C7; border: 1px solid #D97706; border-radius: 4px; padding: 4px 8px; font-size: 12px; color: #92400E;">Lessor's Royalty</span>` : ''}
+                                                ${existingOverrides ? `<span style="background: #FEF3C7; border: 1px solid #D97706; border-radius: 4px; padding: 4px 8px; font-size: 12px; color: #92400E;">Existing ORRIs</span>` : ''}
+                                                ${existingBurdens.map(b => `<span style="background: #FEF3C7; border: 1px solid #D97706; border-radius: 4px; padding: 4px 8px; font-size: 12px; color: #92400E;">${escapeHtml(b)}</span>`).join('')}
+                                            </div>
+                                            ${burdensDescription ? `<div style="font-size: 13px; color: #374151; font-style: italic;">"${escapeHtml(burdensDescription)}"</div>` : ''}
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'underlying_lease' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                            // Special handling for underlying_lease object (assignment_of_lease schema)
+                            hasVisibleFields = true;
+                            const leaseDate = value.lease_date || '';
+                            const lessor = value.lessor || {};
+                            const lessorName = lessor.name || '';
+                            const lessorCapacity = lessor.capacity || '';
+                            const originalLessee = value.original_lessee || {};
+                            const lesseeName = originalLessee.name || '';
+                            const recordingInfo = value.recording_info || {};
+                            const book = recordingInfo.book || '';
+                            const page = recordingInfo.page || '';
+                            const recordingDate = recordingInfo.recording_date || '';
+                            const recordingCounty = recordingInfo.county || '';
+                            const leaseDescription = value.lease_description || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Underlying Lease</label>
+                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px;">
+                                            ${leaseDate ? `<div><span style="color: #6B7280; font-size: 12px;">Lease Date:</span><br><strong style="color: #1E40AF;">${escapeHtml(leaseDate)}</strong></div>` : ''}
+                                            ${lessorName ? `<div><span style="color: #6B7280; font-size: 12px;">Lessor:</span><br><strong style="color: #1E40AF;">${escapeHtml(lessorName)}</strong>${lessorCapacity ? `<br><span style="font-size: 11px; color: #6B7280;">${escapeHtml(lessorCapacity)}</span>` : ''}</div>` : ''}
+                                            ${lesseeName ? `<div><span style="color: #6B7280; font-size: 12px;">Original Lessee:</span><br><strong style="color: #1E40AF;">${escapeHtml(lesseeName)}</strong></div>` : ''}
+                                        </div>
+                                        ${book && page ? `
+                                            <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #93C5FD;">
+                                                <span style="color: #6B7280; font-size: 12px;">Recording:</span>
+                                                <strong style="color: #1E40AF;"> Book ${escapeHtml(book)}, Page ${escapeHtml(page)}</strong>
+                                                ${recordingCounty ? `<span style="color: #6B7280;">, ${escapeHtml(recordingCounty)} County</span>` : ''}
+                                                ${recordingDate ? `<span style="color: #6B7280;"> (${escapeHtml(recordingDate)})</span>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${leaseDescription ? `<div style="margin-top: 8px; font-size: 13px; color: #374151; font-style: italic;">${escapeHtml(leaseDescription)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'warranties' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                            // Special handling for warranties object (assignment_of_lease schema)
+                            hasVisibleFields = true;
+                            const hasWarranty = value.has_warranty;
+                            const warrantyType = value.warranty_type || '';
+                            const covenants = value.covenants || [];
+                            const warrantyLanguage = value.warranty_language || '';
+
+                            const typeColors = {
+                                'general': { bg: '#DCFCE7', border: '#22C55E', text: '#166534' },
+                                'special': { bg: '#FEF3C7', border: '#F59E0B', text: '#92400E' },
+                                'quitclaim': { bg: '#FEE2E2', border: '#EF4444', text: '#DC2626' },
+                                'none': { bg: '#F3F4F6', border: '#9CA3AF', text: '#6B7280' }
+                            };
+                            const colors = typeColors[warrantyType] || typeColors['none'];
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Warranties</label>
+                                    <div style="background: ${colors.bg}; border: 1px solid ${colors.border}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: ${warrantyLanguage || covenants.length ? '10px' : '0'};">
+                                            <span style="font-weight: 600; color: ${colors.text}; font-size: 15px; text-transform: uppercase;">${warrantyType ? escapeHtml(warrantyType) : 'No'} Warranty</span>
+                                            ${hasWarranty ? `<span style="color: ${colors.text};">✓</span>` : `<span style="color: ${colors.text};">✗</span>`}
+                                        </div>
+                                        ${covenants.length > 0 ? `
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px;">
+                                                ${covenants.map(c => `<span style="background: white; border: 1px solid ${colors.border}; border-radius: 4px; padding: 2px 8px; font-size: 11px; color: ${colors.text};">${escapeHtml(c)}</span>`).join('')}
+                                            </div>
+                                        ` : ''}
+                                        ${warrantyLanguage ? `<div style="font-size: 13px; color: #374151; font-style: italic;">"${escapeHtml(warrantyLanguage)}"</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'annotations' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
+                            // Special handling for annotations object (assignment_of_lease schema)
+                            if (value.has_annotations) {
+                                hasVisibleFields = true;
+                                const handwrittenNotes = value.handwritten_notes || [];
+                                const stamps = value.stamps || [];
+                                const marginalNotes = value.marginal_notes || [];
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Annotations</label>
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                            ${handwrittenNotes.length > 0 ? `
+                                                <div style="margin-bottom: ${stamps.length || marginalNotes.length ? '12px' : '0'};">
+                                                    <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 6px;">HANDWRITTEN NOTES</div>
+                                                    ${handwrittenNotes.map(note => `
+                                                        <div style="background: white; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px; margin-bottom: 6px;">
+                                                            <div style="font-weight: 600; color: #92400E;">"${escapeHtml(note.content || '')}"</div>
+                                                            ${note.location ? `<div style="font-size: 11px; color: #6B7280; margin-top: 4px;">Location: ${escapeHtml(note.location)}</div>` : ''}
+                                                            ${note.significance ? `<div style="font-size: 12px; color: #374151; margin-top: 4px;">${escapeHtml(note.significance)}</div>` : ''}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
+                                            ${stamps.length > 0 ? `
+                                                <div style="margin-bottom: ${marginalNotes.length ? '12px' : '0'};">
+                                                    <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 6px;">STAMPS</div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                        ${stamps.map(s => `<span style="background: #E5E7EB; border-radius: 4px; padding: 4px 8px; font-size: 12px; color: #374151;">${escapeHtml(s)}</span>`).join('')}
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+                                            ${marginalNotes.length > 0 ? `
+                                                <div>
+                                                    <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 6px;">MARGINAL NOTES</div>
+                                                    <ul style="margin: 0; padding-left: 20px; color: #374151;">
+                                                        ${marginalNotes.map(n => `<li>${escapeHtml(n)}</li>`).join('')}
+                                                    </ul>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>`;
+                            }
                         } else if ((fieldName === 'respondents_with_known_addresses' ||
                                    fieldName.toLowerCase().includes('respondents') && fieldName.toLowerCase().includes('known')) &&
                                    Array.isArray(value)) {
