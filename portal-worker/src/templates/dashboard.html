@@ -8105,6 +8105,182 @@
                                         ` : ''}
                                     </div>
                                 </div>`;
+                        } else if (fieldName === 'assignor' && typeof value === 'object' && data.doc_type === 'trust_funding') {
+                            // Special handling for assignor object (trust_funding schema)
+                            hasVisibleFields = true;
+                            const name = value.name || '';
+                            const address = value.address || '';
+                            const capacity = value.capacity || 'Individual';
+                            const signatory = value.signatory || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Assignor (Transferring Party)</label>
+                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                            <span style="font-weight: 600; color: #92400E; font-size: 15px;">${escapeHtml(name)}</span>
+                                            <span style="background: #FDE68A; color: #92400E; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(capacity)}</span>
+                                        </div>
+                                        ${address ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(address)}</div>` : ''}
+                                        ${signatory && signatory !== name ? `<div style="font-size: 12px; color: #4B5563; margin-top: 6px; border-top: 1px solid #F59E0B; padding-top: 6px;">
+                                            <strong>Signed by:</strong> ${escapeHtml(signatory)}
+                                        </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'assignee' && typeof value === 'object' && data.doc_type === 'trust_funding') {
+                            // Special handling for assignee object (trust_funding schema)
+                            hasVisibleFields = true;
+                            const name = value.name || '';
+                            const address = value.address || '';
+                            const capacity = value.capacity || 'Trustee';
+                            const trustName = value.trust_name || '';
+                            const trustDate = value.trust_date || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Assignee (Receiving Party)</label>
+                                    <div style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                            <span style="font-weight: 600; color: #1E40AF; font-size: 15px;">${escapeHtml(name)}</span>
+                                            <span style="background: #BFDBFE; color: #1E40AF; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(capacity)}</span>
+                                        </div>
+                                        ${trustName ? `
+                                            <div style="background: #EFF6FF; border-radius: 6px; padding: 10px; margin-top: 10px;">
+                                                <div style="font-weight: 600; color: #1E40AF; font-size: 14px;">${escapeHtml(trustName)}</div>
+                                                ${trustDate ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Trust Created: ${escapeHtml(trustDate)}</div>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${address ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(address)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'property_categories' && typeof value === 'object' && data.doc_type === 'trust_funding') {
+                            // Special handling for property_categories object (trust_funding schema)
+                            hasVisibleFields = true;
+                            const categories = [
+                                { key: 'mineral_interests', label: 'Mineral Interests', important: true },
+                                { key: 'real_property', label: 'Real Property', important: false },
+                                { key: 'personal_effects', label: 'Personal Effects', important: false },
+                                { key: 'household_goods', label: 'Household Goods', important: false },
+                                { key: 'financial_accounts', label: 'Financial Accounts', important: false },
+                                { key: 'vehicles', label: 'Vehicles', important: false },
+                                { key: 'other_property', label: 'Other Property', important: false }
+                            ];
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Property Categories Included</label>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                        ${categories.map(cat => {
+                                            const included = value[cat.key];
+                                            if (included === undefined) return '';
+                                            const bgColor = included ? (cat.important ? '#DCFCE7' : '#F3F4F6') : '#FEE2E2';
+                                            const textColor = included ? (cat.important ? '#166534' : '#374151') : '#DC2626';
+                                            const borderColor = included ? (cat.important ? '#22C55E' : '#D1D5DB') : '#EF4444';
+                                            const icon = included ? '✓' : '✗';
+                                            return `<span style="background: ${bgColor}; color: ${textColor}; border: 1px solid ${borderColor}; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: ${cat.important && included ? '600' : '400'};">
+                                                ${icon} ${cat.label}
+                                            </span>`;
+                                        }).join('')}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'mineral_interests' && typeof value === 'object' && data.doc_type === 'trust_funding') {
+                            // Special handling for mineral_interests object (trust_funding schema)
+                            hasVisibleFields = true;
+                            const description = value.description || '';
+                            const typesIncluded = value.types_included || [];
+                            const geographicScope = value.geographic_scope || '';
+                            const depthLimitation = value.depth_limitation || '';
+                            const formationLimitation = value.formation_limitation || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Mineral Interests Coverage</label>
+                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                        ${description ? `<div style="font-size: 13px; color: #374151; font-style: italic; margin-bottom: 10px;">"${escapeHtml(description)}"</div>` : ''}
+                                        ${typesIncluded.length > 0 ? `
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                                                ${typesIncluded.map(type => `<span style="background: #166534; color: white; padding: 3px 10px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(type)}</span>`).join('')}
+                                            </div>
+                                        ` : ''}
+                                        <div style="font-size: 13px; color: #374151;">
+                                            ${geographicScope ? `<div><strong>Geographic Scope:</strong> ${escapeHtml(geographicScope)}</div>` : ''}
+                                            ${depthLimitation ? `<div><strong>Depth Limitation:</strong> ${escapeHtml(depthLimitation)}</div>` : ''}
+                                            ${formationLimitation ? `<div><strong>Formation Limitation:</strong> ${escapeHtml(formationLimitation)}</div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'specific_properties' && Array.isArray(value) && data.doc_type === 'trust_funding') {
+                            // Special handling for specific_properties array (trust_funding schema)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Specific Properties Mentioned</label>
+                                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                                            ${value.map(prop => {
+                                                const propertyName = prop.property_name || '';
+                                                const source = prop.source || '';
+                                                const legal = prop.legal_description || {};
+                                                const interestType = prop.interest_type || '';
+                                                const notes = prop.notes || '';
+
+                                                const isHandwritten = source === 'handwritten';
+                                                const bgColor = isHandwritten ? '#FEF9C3' : '#F9FAFB';
+                                                const borderColor = isHandwritten ? '#EAB308' : '#D1D5DB';
+
+                                                let locationStr = '';
+                                                if (legal.section) locationStr += 'S' + legal.section;
+                                                if (legal.township) locationStr += '-' + legal.township;
+                                                if (legal.range) locationStr += '-' + legal.range;
+                                                if (legal.county) locationStr += ', ' + legal.county + ' County';
+
+                                                return `
+                                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 12px;">
+                                                        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                                            ${propertyName ? `<span style="font-weight: 600; color: #374151;">${escapeHtml(propertyName)}</span>` : ''}
+                                                            ${isHandwritten ? `<span style="background: #FDE68A; color: #92400E; padding: 2px 6px; border-radius: 3px; font-size: 10px;">✎ Handwritten</span>` : ''}
+                                                            ${source && !isHandwritten ? `<span style="background: #E5E7EB; color: #6B7280; padding: 2px 6px; border-radius: 3px; font-size: 10px;">${escapeHtml(source)}</span>` : ''}
+                                                            ${interestType ? `<span style="background: #DBEAFE; color: #1E40AF; padding: 2px 6px; border-radius: 3px; font-size: 10px;">${escapeHtml(interestType)}</span>` : ''}
+                                                        </div>
+                                                        ${locationStr ? `<div style="font-size: 13px; color: #374151; margin-top: 6px;">${escapeHtml(locationStr)}</div>` : ''}
+                                                        ${notes ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px; font-style: italic;">${escapeHtml(notes)}</div>` : ''}
+                                                    </div>
+                                                `;
+                                            }).join('')}
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'acceptance' && typeof value === 'object' && data.doc_type === 'trust_funding') {
+                            // Special handling for acceptance object (trust_funding schema)
+                            hasVisibleFields = true;
+                            const trusteeAccepted = value.trustee_accepted;
+                            const acceptanceDate = value.acceptance_date || '';
+                            const acceptedBy = value.accepted_by || '';
+                            const capacity = value.capacity || '';
+
+                            const bgColor = trusteeAccepted ? '#DCFCE7' : '#FEE2E2';
+                            const borderColor = trusteeAccepted ? '#22C55E' : '#EF4444';
+                            const textColor = trusteeAccepted ? '#166534' : '#DC2626';
+                            const icon = trusteeAccepted ? '✓' : '✗';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Trustee Acceptance</label>
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${trusteeAccepted && (acceptedBy || acceptanceDate) ? '10px' : '0'};">
+                                            <span style="font-size: 16px;">${icon}</span>
+                                            <span style="font-weight: 600; color: ${textColor}; font-size: 14px;">
+                                                ${trusteeAccepted ? 'Trustee Accepted Assignment' : 'Trustee Acceptance Missing'}
+                                            </span>
+                                        </div>
+                                        ${trusteeAccepted ? `
+                                            <div style="font-size: 13px; color: #374151;">
+                                                ${acceptedBy ? `<div><strong>Accepted by:</strong> ${escapeHtml(acceptedBy)}${capacity ? ` (${escapeHtml(capacity)})` : ''}</div>` : ''}
+                                                ${acceptanceDate ? `<div><strong>Date:</strong> ${escapeHtml(acceptanceDate)}</div>` : ''}
+                                            </div>
+                                        ` : `<div style="font-size: 13px; color: #DC2626; font-style: italic;">Note: Missing trustee acceptance may affect document validity</div>`}
+                                    </div>
+                                </div>`;
                         } else if ((fieldName === 'respondents_with_known_addresses' ||
                                    fieldName.toLowerCase().includes('respondents') && fieldName.toLowerCase().includes('known')) &&
                                    Array.isArray(value)) {
