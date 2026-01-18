@@ -7243,7 +7243,7 @@
                                 value.forEach(cause => {
                                     if (typeof cause === 'object') {
                                         const caseNum = typeof cause.case_number === 'string' ? cause.case_number : '';
-                                        const causeType = typeof cause.cause_type === 'string' ? cause.cause_type : '';
+                                        const causeType = typeof cause.cause_type === 'string' ? formatFieldName(cause.cause_type) : '';
                                         sectionContent += `
                                             <div style="background: #DBEAFE; border: 1px solid #93C5FD; border-radius: 6px; padding: 6px 10px;">
                                                 <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(caseNum)}</span>
@@ -7648,21 +7648,29 @@
                                 </div>`;
                         } else if (fieldName === 'well_info' && typeof value === 'object') {
                             // Special handling for well information object
+                            // Supports pooling orders (proposed_well_name) and location exception orders (well_name)
                             hasVisibleFields = true;
-                            const wellName = value.proposed_well_name || '';
+                            const wellName = value.proposed_well_name || value.well_name || '';
                             const wellType = value.well_type || '';
                             const wellStatus = value.well_status || '';
                             const apiNumber = value.api_number || '';
                             const initialCost = value.initial_well_cost;
+                            // Location exception order fields
+                            const operator = value.operator || '';
+                            const previousFormation = value.previous_formation || '';
+                            const spacingUnitAcres = value.spacing_unit_acres;
 
                             sectionContent += `
                                 <div class="doc-field" style="grid-column: 1 / -1;">
                                     <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
                                         ${wellName ? `<div style="font-weight: 600; color: #92400E; font-size: 15px; margin-bottom: 6px;">${escapeHtml(wellName)}</div>` : ''}
                                         <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px;">
-                                            ${wellType ? `<span style="color: #374151;"><strong>Type:</strong> ${escapeHtml(wellType)}</span>` : ''}
+                                            ${wellType ? `<span style="color: #374151;"><strong>Type:</strong> ${escapeHtml(formatFieldName(wellType))}</span>` : ''}
                                             ${wellStatus ? `<span style="color: #374151;"><strong>Status:</strong> ${escapeHtml(wellStatus)}</span>` : ''}
                                             ${apiNumber ? `<span style="color: #6B7280;"><strong>API:</strong> ${escapeHtml(apiNumber)}</span>` : ''}
+                                            ${operator ? `<span style="color: #374151;"><strong>Operator:</strong> ${escapeHtml(operator)}</span>` : ''}
+                                            ${previousFormation ? `<span style="color: #6B7280;"><strong>Previous Formation:</strong> ${escapeHtml(previousFormation)}</span>` : ''}
+                                            ${spacingUnitAcres ? `<span style="color: #6B7280;"><strong>Spacing Unit:</strong> ${spacingUnitAcres} acres</span>` : ''}
                                         </div>
                                         ${initialCost ? `<div style="font-size: 13px; color: #92400E; font-weight: 500; margin-top: 8px;">Est. Well Cost: $${initialCost.toLocaleString()}</div>` : ''}
                                     </div>
@@ -7864,10 +7872,13 @@
                             }
                         } else if (fieldName === 'related_orders' && typeof value === 'object') {
                             // Special handling for related orders object
-                            // Supports both v1 (increased density) and v2 (drilling/spacing) structures
+                            // Supports v1 (increased density), v2 (drilling/spacing), and v3 (location exception) structures
                             hasVisibleFields = true;
                             sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
                             sectionContent += `<div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">`;
+
+                            // v3 structure fields (location exception - references array)
+                            const references = value.references || [];
 
                             // v1 structure fields (increased density)
                             const spacingOrder = value.spacing_order || '';
@@ -7953,6 +7964,38 @@
                                         ${amendsOrderV1 ? `<div><span style="color: #6B7280;">Amends Order:</span> <strong>${escapeHtml(amendsOrderV1)}</strong></div>` : ''}
                                         ${companionCases.length > 0 ? `<div style="grid-column: 1 / -1;"><span style="color: #6B7280;">Companion Cases:</span> <strong>${companionCases.map(c => escapeHtml(c)).join(', ')}</strong></div>` : ''}
                                     </div>`;
+                            }
+                            // v3 structure (location exception - references array)
+                            else if (references.length > 0) {
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">`;
+                                references.forEach(ref => {
+                                    const orderNum = ref.order_number || '';
+                                    const causeNum = ref.cause_number || '';
+                                    const refType = ref.type || 'reference';
+                                    const description = ref.description || '';
+
+                                    // Color coding by type
+                                    let bgColor = '#F3F4F6';
+                                    let borderColor = '#6B7280';
+                                    let textColor = '#4B5563';
+                                    if (refType === 'spacing_order' || refType === 'drilling_spacing') {
+                                        bgColor = '#DBEAFE'; borderColor = '#3B82F6'; textColor = '#1E40AF';
+                                    } else if (refType === 'pooling_order') {
+                                        bgColor = '#D1FAE5'; borderColor = '#10B981'; textColor = '#065F46';
+                                    } else if (refType === 'prior_location_exception') {
+                                        bgColor = '#FEF3C7'; borderColor = '#F59E0B'; textColor = '#92400E';
+                                    }
+
+                                    sectionContent += `
+                                        <div style="background: ${bgColor}; border-left: 3px solid ${borderColor}; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                                            <span style="color: ${textColor}; font-weight: 500;">${formatFieldName(refType)}:</span>
+                                            ${orderNum ? `<strong>${escapeHtml(orderNum)}</strong>` : ''}
+                                            ${causeNum && !orderNum ? `<strong>Cause ${escapeHtml(causeNum)}</strong>` : ''}
+                                            ${causeNum && orderNum ? `<span style="color: #6B7280;"> (Cause ${escapeHtml(causeNum)})</span>` : ''}
+                                            ${description ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(description)}</div>` : ''}
+                                        </div>`;
+                                });
+                                sectionContent += `</div>`;
                             }
 
                             sectionContent += `</div></div>`;
