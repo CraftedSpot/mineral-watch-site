@@ -550,6 +550,12 @@ Common Royalty Fractions: 1/8=0.125, 3/16=0.1875, 1/5=0.20, 1/4=0.25, 1/6=0.1666
     "state": "Oklahoma"
   }},
 
+  "section": "REQUIRED - integer from first tract, e.g. 20",
+  "township": "REQUIRED - string with direction from first tract, e.g. 16N",
+  "range": "REQUIRED - string with direction from first tract, e.g. 13W",
+  "county": "REQUIRED - from first tract or recording_info, e.g. Blaine",
+  "state": "Oklahoma",
+
   "tracts": [
     {{
       "tract_number": 1,
