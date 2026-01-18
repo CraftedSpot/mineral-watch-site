@@ -1308,161 +1308,201 @@ NOTE: These orders establish drilling and spacing units for VERTICAL wells with 
 Look for "DRILLING AND SPACING", "SPACING UNIT", unit sizes (160-acre, 640-acre), and setback distances.
 These define where wells can be drilled and production allocated within the unit.
 
+IMPORTANT: One order may establish MULTIPLE units with different sizes, sections, and setback rules.
+Use the units[] array to capture each unit separately. Setbacks are per-unit, not per-formation.
+
+Order Type Detection:
+- "This Order establishes..." (no prior order referenced) → order_type: "original"
+- "Amendment of Order No..." → order_type: "amendment"
+- "Extend Order No..." → order_type: "extension"
+- "Vacate Order No..." → order_type: "vacation"
+- "Correcting Order No..." (simple fix) → order_type: "correction"
+- "Nunc Pro Tunc Correcting Order No..." → order_type: "nunc_pro_tunc"
+
 {
   "doc_type": "drilling_and_spacing_order",
-  "case_number": "CD2024-001234",
-  "order_number": "745000",
-  "order_date": "2024-03-15",
-  "effective_date": "2024-03-15",
-  "hearing_date": "2024-03-01",
-  "applicant": "Continental Resources, Inc.",
-  "operator": "Continental Resources, Inc.",
-  "legal_description": {
-    "section": "16",
-    "township": "12N",
-    "range": "7W",
-    "county": "Grady"
-  },
-  "unit_description": "The NW/4 of Section 16, Township 12 North, Range 7 West",
-  "unit_size_acres": 160,
-  "well_type": "oil",
-  "formations": [
+  "case_number": "CD 202102682-T",
+  "order_number": "724343",
+  "order_type": "nunc_pro_tunc",
+  "applicant": "E2 Operating, LLC",
+  "hearing_date": "2022-01-11",
+  "order_date": "2022-03-21",
+  "county": "Okmulgee",
+  "state": "OK",
+  "units": [
     {
-      "name": "Senora",
-      "common_source_of_supply": "Senora common source of supply",
-      "depth_from": 8500,
-      "depth_to": 8700,
-      "setbacks": {
-        "from_unit_boundary_feet": 660,
-        "from_lease_line_feet": 330,
-        "from_section_line_feet": null
+      "legal": {
+        "section": "35",
+        "township": "13N",
+        "range": "12E",
+        "quarter_calls": ["N/2", "SW/4"]
+      },
+      "unit_size_acres": 160,
+      "unit_shape": "governmental quarter section",
+      "well_type": "dewatering",
+      "formations": [
+        {
+          "name": "Senora",
+          "common_source_of_supply": "Senora common sources of supply",
+          "depth_description": "700'"
+        }
+      ],
+      "well_location": {
+        "unit_boundary_setback_ft": 660
+      }
+    },
+    {
+      "legal": {
+        "section": "35",
+        "township": "13N",
+        "range": "12E",
+        "quarter_calls": ["NE/4", "SW/4"],
+        "full_description": "NE and SW 40-acre tracts"
+      },
+      "unit_size_acres": 80,
+      "unit_shape": "40-acre tract",
+      "well_type": "dewatering",
+      "formations": [
+        {
+          "name": "Senora",
+          "common_source_of_supply": "Senora common sources of supply"
+        }
+      ],
+      "well_location": {
+        "unit_boundary_setback_ft": 330,
+        "location_description": "within the center square 10 acres of the NE and SW 40-acre tracts"
       }
     }
   ],
-  "well_location_requirements": {
-    "standard_setback_feet": 660,
-    "lease_line_setback_feet": 330,
-    "special_conditions": "No well shall be drilled within 660 feet of any unit boundary"
+  "related_orders": {
+    "corrects": {
+      "order_number": "723664",
+      "description": "Corrects caption to reference NW/4 of Section 2"
+    },
+    "extends": [
+      {
+        "order_number": "573354",
+        "formation": "Senora",
+        "lands_affected": "SE/4 of Section 35"
+      }
+    ],
+    "vacates": [
+      {
+        "order_number": "581177",
+        "formation": "Senora",
+        "lands_affected": "S/2 NE/4 of Section 35"
+      }
+    ]
   },
-  "allowable_type": "normal 160-acre oil",
-  "previous_orders": ["Order No. 123456 establishing original spacing"],
-  "amends_order": null,
-  "vacates_order": null,
-  "order_status": "active",
-  "controlling_order_info": {
-    "is_controlling": true,
-    "superseded_by": null,
-    "supersedes": null
-  },
-  "field_scores": {
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "hearing_date": 0.95,
-    "applicant": 1.0,
-    "operator": 0.95,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "unit_description": 0.90,
-    "unit_size_acres": 0.95,
-    "well_type": 0.90,
-    "formations": 0.85,
-    "well_location_requirements": 0.85,
-    "allowable_type": 0.80
-  },
-  "document_confidence": "high"
+  "companion_causes": [
+    { "case_number": "CD 202102913-T", "cause_type": "Pooling" }
+  ],
+  "pooling_authorized": true,
+  "extraction_notes": "Order is Nunc Pro Tunc correcting prior Order 723664. Different setback rules for 160-acre (660') vs 80-acre (330') units."
 }
 
 For HORIZONTAL DRILLING AND SPACING ORDERS (Horizontal well spacing with lateral requirements):
 NOTE: These orders establish drilling and spacing units for HORIZONTAL wells.
 Look for "HORIZONTAL DRILLING AND SPACING", "HORIZONTAL WELL", lateral setbacks, completion interval requirements.
-These have formation-specific setbacks for both lateral wellbore AND completion interval (perforated section).
+These have setbacks for both lateral wellbore AND completion interval (perforated section).
+
+IMPORTANT: One order may establish MULTIPLE units. Use the units[] array to capture each unit separately.
+Setbacks are per-unit in well_location, not per-formation. Multi-section units (1280-acre, 1920-acre) should use sections_covered.
+
+Order Type Detection (same as vertical):
+- "This Order establishes..." (no prior order referenced) → order_type: "original"
+- "Amendment of Order No..." → order_type: "amendment"
+- "Extend Order No..." → order_type: "extension"
+- "Vacate Order No..." → order_type: "vacation"
+- "Correcting Order No..." (simple fix) → order_type: "correction"
+- "Nunc Pro Tunc Correcting Order No..." → order_type: "nunc_pro_tunc"
 
 {
   "doc_type": "horizontal_drilling_and_spacing_order",
-  "case_number": "CD2024-002345",
+  "case_number": "CD 2024-002345",
   "order_number": "748000",
-  "order_date": "2024-05-20",
-  "effective_date": "2024-05-20",
-  "hearing_date": "2024-05-06",
+  "order_type": "original",
   "applicant": "Mewbourne Oil Company",
-  "operator": "Mewbourne Oil Company",
-  "legal_description": {
-    "section": "8",
-    "township": "17N",
-    "range": "17W",
-    "county": "Dewey"
-  },
-  "unit_description": "All of Section 8, Township 17 North, Range 17 West",
-  "unit_size_acres": 640,
-  "well_type": "horizontal",
-  "formations": [
+  "hearing_date": "2024-05-06",
+  "order_date": "2024-05-20",
+  "county": "Dewey",
+  "state": "OK",
+  "units": [
     {
-      "name": "Mississippian",
-      "common_source_of_supply": "Mississippian common source of supply",
-      "depth_from": 11890,
-      "depth_to": 12050,
-      "setbacks": {
-        "lateral_from_unit_boundary_feet": 330,
-        "lateral_from_lease_line_feet": 165,
-        "completion_interval_from_unit_boundary_feet": 330,
-        "completion_interval_from_lease_line_feet": 165,
-        "minimum_lateral_length_feet": null
-      }
-    },
-    {
-      "name": "Woodford",
-      "common_source_of_supply": "Woodford common source of supply",
-      "depth_from": 12200,
-      "depth_to": 12400,
-      "setbacks": {
-        "lateral_from_unit_boundary_feet": 330,
-        "lateral_from_lease_line_feet": 165,
-        "completion_interval_from_unit_boundary_feet": 330,
-        "completion_interval_from_lease_line_feet": 165,
-        "minimum_lateral_length_feet": null
+      "legal": {
+        "section": "8",
+        "township": "17N",
+        "range": "17W",
+        "full_description": "All of Section 8"
+      },
+      "unit_size_acres": 640,
+      "unit_shape": "all of section",
+      "well_type": "oil",
+      "sections_covered": 1,
+      "formations": [
+        {
+          "name": "Mississippian",
+          "common_source_of_supply": "Mississippian common source of supply",
+          "depth_from_ft": 11890,
+          "depth_to_ft": 12050,
+          "depth_reference": "surface"
+        },
+        {
+          "name": "Woodford",
+          "common_source_of_supply": "Woodford common source of supply",
+          "depth_from_ft": 12200,
+          "depth_to_ft": 12400,
+          "depth_reference": "surface"
+        }
+      ],
+      "well_location": {
+        "lateral_setback_ft": 330,
+        "completion_interval_setback_ft": 330,
+        "special_conditions": "The horizontal wellbore and completion interval shall not be located closer than 330 feet from any unit boundary"
       }
     }
-  ],
-  "well_location_requirements": {
-    "lateral_setback_feet": 330,
-    "completion_interval_setback_feet": 330,
-    "special_conditions": "The horizontal wellbore and completion interval shall not be located closer than 330 feet from any unit boundary"
-  },
-  "allowable_type": "normal 640-acre horizontal",
-  "maximum_wells_per_formation": null,
-  "previous_orders": [],
-  "amends_order": null,
-  "vacates_order": null,
-  "order_status": "active",
-  "controlling_order_info": {
-    "is_controlling": true,
-    "superseded_by": null,
-    "supersedes": null
-  },
-  "field_scores": {
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "hearing_date": 0.95,
-    "applicant": 1.0,
-    "operator": 0.95,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "unit_description": 0.90,
-    "unit_size_acres": 0.95,
-    "well_type": 1.0,
-    "formations": 0.85,
-    "well_location_requirements": 0.85,
-    "allowable_type": 0.80
-  },
-  "document_confidence": "high"
+  ]
+}
+
+Multi-section horizontal example (1280-acre unit covering 2 sections):
+{
+  "doc_type": "horizontal_drilling_and_spacing_order",
+  "case_number": "CD 2024-003456",
+  "order_number": "749500",
+  "order_type": "original",
+  "applicant": "Continental Resources, Inc.",
+  "hearing_date": "2024-06-10",
+  "order_date": "2024-06-25",
+  "county": "Blaine",
+  "state": "OK",
+  "units": [
+    {
+      "legal": {
+        "section": "8",
+        "township": "17N",
+        "range": "13W",
+        "full_description": "All of Sections 8 and 17, Township 17 North, Range 13 West"
+      },
+      "unit_size_acres": 1280,
+      "unit_shape": "1280-acre",
+      "well_type": "oil",
+      "sections_covered": 2,
+      "formations": [
+        {
+          "name": "Woodford",
+          "common_source_of_supply": "Woodford common source of supply",
+          "depth_from_ft": 12500,
+          "depth_to_ft": 12700,
+          "depth_reference": "subsea"
+        }
+      ],
+      "well_location": {
+        "lateral_setback_ft": 330,
+        "completion_interval_setback_ft": 330,
+        "max_wells_per_formation": 4
+      }
+    }
+  ]
 }
 
 For LOCATION EXCEPTION ORDERS (Permits drilling closer to boundaries than standard setbacks):
