@@ -3238,9 +3238,13 @@ EXTRACTION PRIORITY:
         "significance": "Notes that correction deed was filed"
       }}
     ],
-    "stamps": ["FILED Mar 28 1991"],
+    "stamps": ["FILED Mar 28 1991", "COPY stamp at top"],
     "marginal_notes": []
   }},
+
+  // IMPORTANT: stamps must be a JSON array of properly quoted strings
+  // CORRECT: ["FILED Mar 28 1991", "COPY stamp at top"]
+  // WRONG: ["COPY" stamp at top] - this is invalid JSON
 
   "key_takeaway": "REQUIRED - Quit claim deed from Virginia K. Price (now Giles) to herself as Trustee of the Virginia K. Price Trust for trust funding purposes.",
 

@@ -348,8 +348,13 @@ async def handle_multi_document(
         display_name = generate_display_name_for_child(doc_data, page_start, page_end)
         
         # Determine confidence/status
+        # Check for extraction errors first
+        if doc_data.get('error'):
+            doc_confidence = 'low'
+            status = 'failed'
+            logger.warning(f"Document {i+1} (pages {page_start}-{page_end}) had extraction error: {doc_data.get('error')}")
         # For skip_extraction documents (coarse_type="other"), mark as unprocessed
-        if doc_data.get('skip_extraction'):
+        elif doc_data.get('skip_extraction'):
             doc_confidence = 'medium'
             status = 'unprocessed'  # User can decide to process later
         else:
