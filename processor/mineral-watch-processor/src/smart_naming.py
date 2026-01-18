@@ -915,12 +915,18 @@ def name_location_exception_order(data: Dict[str, Any]) -> str:
 
     parts = [prefix]
 
-    # Order number (preferred) or cause number
-    order_number = data.get('order_number')
+    # Order number (preferred) or cause number - check occ_identifiers first, then flat fields
+    occ_ids = data.get('occ_identifiers', {}) or {}
+    order_number = occ_ids.get('order_number') or data.get('order_number')
     if order_number:
         parts.append(str(order_number))
     else:
-        cd_num = clean_cd_number(data.get('cause_number') or data.get('cd_number') or data.get('case_number'))
+        cd_num = clean_cd_number(
+            occ_ids.get('cause_cd_number') or
+            data.get('cause_number') or
+            data.get('cd_number') or
+            data.get('case_number')
+        )
         if cd_num:
             parts.append(f"CD {cd_num}")
 
@@ -964,13 +970,20 @@ def name_location_exception_order(data: Dict[str, Any]) -> str:
                 if section and township and range_val:
                     parts.append(f"S{section}-{township}-{range_val}")
     else:
-        # Fallback to county from location or top-level
-        county = location.get('county') or data.get('county')
-        if county:
-            county = str(county).strip()
-            if not county.lower().endswith('county'):
-                county = f"{county} County"
-            parts.append(county)
+        # Fallback to top-level section/township/range (new schema has these at root)
+        section = data.get('section')
+        township = data.get('township')
+        range_val = data.get('range')
+        if section and township and range_val:
+            parts.append(f"S{section}-{township}-{range_val}")
+        else:
+            # Final fallback to county
+            county = location.get('county') or data.get('county')
+            if county:
+                county = str(county).strip()
+                if not county.lower().endswith('county'):
+                    county = f"{county} County"
+                parts.append(county)
 
     # Primary formation (check target_formations first, then formations)
     target_formations = data.get('target_formations', [])

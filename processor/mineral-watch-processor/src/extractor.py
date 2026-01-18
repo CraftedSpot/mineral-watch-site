@@ -2199,17 +2199,36 @@ CRITICAL DISTINCTIONS:
 - PRIOR ORDERS: Orders being amended, superseded, or referenced (historical relationship)
 - COMPANION CAUSES: Causes filed together in the same application package (same development project)
 
+TOP-LEVEL LINKING FIELDS: Always populate section/township/range/county at root level for property matching.
+- For VERTICAL wells: Use the well location section
+- For HORIZONTAL wells: Use the FIRST TARGET SECTION (where lateral starts), not surface section
+
+HORIZONTAL WELL EXAMPLE:
 {
   "doc_type": "location_exception_order",
-  "order_number": "754630",
-  "cause_number": "CD2024-003810",
-  "effective_date": "2024-11-05",
-  "order_date": "2024-11-05",
 
-  "hearing_info": {
-    "hearing_date": "2024-10-15",
-    "alj_name": "Paul E. Porter",
-    "hearing_location": "Jim Thorpe Building, Oklahoma City"
+  "section": 26,
+  "township": "17N",
+  "range": "8W",
+  "county": "Kingfisher",
+  "state": "Oklahoma",
+
+  "order_info": {
+    "cause_number": "CD2024-003810",
+    "order_number": "754630",
+    "order_date": "2024-11-05",
+    "effective_date": "2024-11-05",
+    "hearing_date": "2024-10-15"
+  },
+
+  "officials": {
+    "administrative_law_judge": "Paul E. Porter",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City",
+    "commissioners": [
+      {"name": "Bob Anthony", "vote": "aye"},
+      {"name": "Todd Hiett", "vote": "aye"},
+      {"name": "Kim David", "vote": "aye"}
+    ]
   },
 
   "applicant": {
@@ -2224,21 +2243,18 @@ CRITICAL DISTINCTIONS:
     "api_number": "35-073-27140",
     "operator": "Ovintiv USA Inc.",
     "well_type": "new_drill",
-    "previous_formation": null,
-    "previous_api": null,
     "spacing_unit_acres": 640
   },
 
   "target_formations": [
     {
       "formation_name": "Mississippian",
-      "qualifier": "less Chester"
+      "qualifier": "less Chester",
+      "is_primary": true
     }
   ],
 
   "location": {
-    "county": "Kingfisher",
-    "state": "Oklahoma",
     "sections": [
       {
         "section": 23,
@@ -2272,17 +2288,13 @@ CRITICAL DISTINCTIONS:
     "exception_reason": "Horizontal lateral path through multiple sections"
   },
 
-  "vertical_well_location": null,
-
   "lateral_path": {
     "surface_location": {
       "section": 23,
       "township": "17N",
       "range": "8W",
-      "footage_fsl": null,
       "footage_fnl": 200,
-      "footage_fel": 1430,
-      "footage_fwl": null
+      "footage_fel": 1430
     },
     "lateral_points": [
       {
@@ -2292,12 +2304,8 @@ CRITICAL DISTINCTIONS:
         "range": "8W",
         "measured_depth_ft": 10540,
         "true_vertical_depth_ft": 7490,
-        "footage_fsl": null,
         "footage_fnl": 156,
-        "footage_fel": 2326,
-        "footage_fwl": null,
-        "line_crossed": null,
-        "description": null
+        "footage_fel": 2326
       },
       {
         "point_type": "section_crossing",
@@ -2307,9 +2315,7 @@ CRITICAL DISTINCTIONS:
         "measured_depth_ft": 15348,
         "true_vertical_depth_ft": 7488,
         "footage_fsl": 0,
-        "footage_fnl": null,
         "footage_fel": 2241,
-        "footage_fwl": null,
         "line_crossed": "south",
         "description": "Crosses from Section 26 to Section 35"
       },
@@ -2321,11 +2327,7 @@ CRITICAL DISTINCTIONS:
         "measured_depth_ft": 20608,
         "true_vertical_depth_ft": 7537,
         "footage_fsl": 1316,
-        "footage_fnl": null,
-        "footage_fel": 2159,
-        "footage_fwl": null,
-        "line_crossed": null,
-        "description": null
+        "footage_fel": 2159
       },
       {
         "point_type": "terminus_bhl",
@@ -2335,15 +2337,26 @@ CRITICAL DISTINCTIONS:
         "measured_depth_ft": 20783,
         "true_vertical_depth_ft": 7550,
         "footage_fsl": 1359,
-        "footage_fnl": null,
         "footage_fel": 2155,
-        "footage_fwl": null,
-        "line_crossed": null,
         "description": "Bottom Hole Location"
       }
     ],
     "total_lateral_length_ft": 10243,
     "drilling_direction": "north to south"
+  },
+
+  "allowable": {
+    "oil_allowable_percent": 100,
+    "gas_allowable_percent": 100
+  },
+
+  "offset_impact": {
+    "offsets_adversely_affected": false
+  },
+
+  "expiration": {
+    "expires": false,
+    "notes": "Well drilled and completed - order remains in effect"
   },
 
   "prior_orders": [
@@ -2354,7 +2367,6 @@ CRITICAL DISTINCTIONS:
     },
     {
       "order_number": "747579",
-      "order_date": null,
       "relationship": "interim_order"
     }
   ],
@@ -2363,19 +2375,16 @@ CRITICAL DISTINCTIONS:
     {
       "cause_number": "CD2024-003803",
       "cause_type": "increased_density",
-      "order_number": null,
       "relationship": "authorizes additional well in unit"
     },
     {
       "cause_number": "CD2024-003807",
       "cause_type": "multiunit_horizontal",
-      "order_number": null,
       "relationship": "establishes multiunit horizontal well"
     },
     {
       "cause_number": "CD2024-003811",
       "cause_type": "600_foot_rule",
-      "order_number": null,
       "relationship": "600-foot rule exception for lateral"
     }
   ],
@@ -2385,17 +2394,18 @@ CRITICAL DISTINCTIONS:
     "Operator shall comply with all other applicable rules and regulations"
   ],
 
-  "protestants": [],
-
   "commissioners": [
     {"name": "Bob Anthony", "vote": "aye"},
     {"name": "Todd Hiett", "vote": "aye"},
     {"name": "Kim David", "vote": "aye"}
   ],
 
+  "key_takeaway": "Horizontal location exception for the Lohmeyer 1708 2H-26X well allowing the lateral to pass within 147 feet of the north section line (vs 165 ft standard). The lateral runs from Section 26 through Section 35, with surface location in Section 23. Engineering testimony confirmed no adverse impact on offset wells.",
+
+  "detailed_analysis": "This post-drill location exception addresses an inadvertent surveying error that placed the lateral toe 18 feet closer to the north line than the 165-foot standard setback. Ovintiv operates Mississippian wells in the north offset Section 23 and presented engineering testimony that fractures run east-west with minimal damage around the toe. No pressure communication with adjacent Lohmeyer 1708 2H-26X and 3H-26X wells was observed. The Commission found no offset would be adversely affected. This is part of a larger development package including increased density (CD2024-003803), multiunit horizontal (CD2024-003807), and 600-foot rule exception (CD2024-003811) causes.",
+
   "field_scores": {
-    "order_number": "high",
-    "cause_number": "high",
+    "occ_identifiers": "high",
     "well_info": "high",
     "target_formations": "high",
     "location": "high",
@@ -2411,8 +2421,18 @@ CRITICAL DISTINCTIONS:
 VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
 {
   "doc_type": "location_exception_order",
-  "order_number": "647505",
-  "cause_number": "CD2015-001234",
+
+  "section": 17,
+  "township": "9N",
+  "range": "7W",
+  "county": "Grady",
+  "state": "Oklahoma",
+
+  "occ_identifiers": {
+    "order_number": "647505",
+    "cause_cd_number": "CD2015-001234"
+  },
+
   "effective_date": "2015-06-30",
   "order_date": "2015-06-30",
 
@@ -2435,20 +2455,16 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
     "operator": "Triad Energy Corporation",
     "well_type": "re_entry",
     "previous_formation": "Hunton",
-    "previous_api": null,
     "spacing_unit_acres": 80
   },
 
   "target_formations": [
     {
-      "formation_name": "Hoxbar",
-      "qualifier": null
+      "formation_name": "Hoxbar"
     }
   ],
 
   "location": {
-    "county": "Grady",
-    "state": "Oklahoma",
     "sections": [
       {
         "section": 17,
@@ -2463,37 +2479,42 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
   "exception_details": {
     "standard_setback_ft": 660,
     "granted_setback_ft": 330,
-    "actual_setback_ft": null,
     "exception_type": "reduced_setback",
     "exception_reason": "Re-entry of existing wellbore to access Hoxbar formation"
   },
 
   "vertical_well_location": {
     "footage_from_south": 330,
-    "footage_from_north": null,
     "footage_from_east": 990,
-    "footage_from_west": null,
     "quarter_section": "SE/4"
   },
 
-  "lateral_path": null,
+  "allowable": {
+    "oil_allowable_percent": 100,
+    "gas_allowable_percent": 100
+  },
+
+  "offset_impact": {
+    "offsets_adversely_affected": false
+  },
+
+  "expiration": {
+    "expires": true,
+    "expiration_period": "one year",
+    "expiration_date": "2016-06-30"
+  },
 
   "prior_orders": [
     {
       "order_number": "456789",
-      "order_date": null,
       "relationship": "establishes_unit"
     }
   ],
-
-  "companion_causes": [],
 
   "conditions": [
     "Exception granted for specific well location only",
     "Does not alter established spacing pattern"
   ],
-
-  "protestants": [],
 
   "commissioners": [
     {"name": "Bob Anthony", "vote": "aye"},
@@ -2501,16 +2522,18 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
     {"name": "Dana Murphy", "vote": "aye"}
   ],
 
+  "key_takeaway": "Re-entry location exception for the Sanders 1-17 well, allowing completion 330 feet from the south line (vs 660 ft standard) to access the Hoxbar formation. This well previously produced from the Hunton formation which is now depleted.",
+
+  "detailed_analysis": "This is a re-entry location exception allowing Triad Energy to recomplete an existing Hunton well into the Hoxbar formation. The well is located 330 feet from the south line and 990 feet from the east line of Section 17. Because this is an existing wellbore, the operator cannot move the location to meet standard setbacks. The exception expires in one year if drilling/recompletion has not commenced. The Commission found no offset would be adversely affected by this exception.",
+
   "field_scores": {
-    "order_number": "high",
-    "cause_number": "high",
+    "occ_identifiers": "high",
     "well_info": "high",
     "target_formations": "high",
     "location": "high",
     "exception_details": "high",
     "vertical_well_location": "high",
-    "prior_orders": "medium",
-    "companion_causes": "high"
+    "prior_orders": "medium"
   },
 
   "document_confidence": "high"
