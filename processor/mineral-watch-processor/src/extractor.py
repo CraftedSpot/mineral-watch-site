@@ -311,7 +311,8 @@ Document Types:
 13. Tax Record - Tax assessments, property tax records, tax bills
 14. Map/Plat - Survey maps, plat maps, unit maps
 15. Multi-Document PDF - Multiple documents in one PDF file
-16. Other - Any document not fitting above categories
+16. Trust Funding - Assignment of property from individual to their trust (estate planning)
+17. Other - Any document not fitting above categories
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
@@ -2007,6 +2008,191 @@ Also extract any references to prior instruments that show how the decedent acqu
   },
   "document_confidence": "high"
 }
+
+For TRUST FUNDING documents (assignment of property from individual to their trust):
+NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
+This document transfers ownership from an individual to a trust where the individual is typically the trustee.
+The same person often appears in BOTH roles - as assignor (individual) AND as assignee (trustee).
+
+SAME PARTY DIFFERENT CAPACITIES:
+- When the same person signs as both assignor AND trustee/assignee, create SEPARATE party objects
+- Individual capacity and trustee capacity have different legal significance
+- Extract both roles even when names match
+
+BLANKET VS SPECIFIC COVERAGE:
+- Some trust fundings transfer "all property" (blanket) vs specific enumerated properties
+- Check for language like "all my interest in any and all oil, gas, and minerals"
+- Flag future-acquired property language ("now owned or hereafter acquired")
+
+HANDWRITTEN ANNOTATIONS:
+- Trust documents often have handwritten notes identifying specific properties
+- Capture these with source: "handwritten" to distinguish from printed content
+
+PROPERTY LINKING:
+- Even for blanket assignments, include top-level section/township/range/county if any specific property is mentioned
+- This enables linking to known properties in the system
+
+{{
+  "doc_type": "trust_funding",
+
+  "assignor": {{
+    "name": "REQUIRED - Virginia K. Price (now Giles)",
+    "address": "6801 N. Country Club Drive, Oklahoma City, Oklahoma 73116",
+    "capacity": "Individual",
+    "signatory": "same as name unless signed by attorney-in-fact"
+  }},
+
+  "assignee": {{
+    "name": "REQUIRED - Virginia K. Price (now Giles)",
+    "capacity": "Trustee",
+    "trust_name": "REQUIRED - Virginia K. Price Trust",
+    "trust_date": "1967-12-27",
+    "address": "6801 N. Country Club Drive, Oklahoma City, Oklahoma 73116"
+  }},
+
+  "execution_date": "REQUIRED - 1991-02-20",
+
+  "recording_info": {{
+    "book": "L-350",
+    "page": "125",
+    "instrument_number": "1991-12345",
+    "recording_date": "1991-03-05",
+    "county": "Oklahoma",
+    "state": "Oklahoma"
+  }},
+
+  "consideration": {{
+    "stated": "$10.00 and other good and valuable consideration",
+    "type": "nominal",
+    "amount": null,
+    "per_acre": null
+  }},
+
+  "is_blanket_assignment": true,
+  "includes_future_acquired": true,
+  "includes_mineral_interests": true,
+
+  "property_categories": {{
+    "personal_effects": true,
+    "household_goods": true,
+    "financial_accounts": true,
+    "real_property": false,
+    "mineral_interests": true,
+    "vehicles": false,
+    "other_property": true
+  }},
+
+  "mineral_interests": {{
+    "description": "All oil, gas and other minerals, producing or non-producing, whether presently owned or hereafter acquired",
+    "types_included": ["royalty", "working_interest", "mineral_interest", "overriding_royalty"],
+    "geographic_scope": "State of Oklahoma and elsewhere",
+    "depth_limitation": null,
+    "formation_limitation": null
+  }},
+
+  "section": "extract from first specific property if any, otherwise null",
+  "township": "extract from first specific property if any, otherwise null",
+  "range": "extract from first specific property if any, otherwise null",
+  "county": "extract from recording_info.county if no specific property",
+  "state": "Oklahoma",
+
+  "specific_properties": [
+    {{
+      "property_name": "La Fortuna",
+      "source": "handwritten",
+      "legal_description": {{
+        "section": 14,
+        "township": "9N",
+        "range": "4W",
+        "county": "Grady",
+        "state": "Oklahoma",
+        "quarters": null,
+        "full_description": null
+      }},
+      "interest_type": null,
+      "notes": "Handwritten annotation on page 2 - appears to reference Florida real estate"
+    }}
+  ],
+
+  "acceptance": {{
+    "trustee_accepted": true,
+    "acceptance_date": "1991-02-20",
+    "accepted_by": "Virginia K. Price (now Giles)",
+    "capacity": "Trustee"
+  }},
+
+  "notarization": {{
+    "notary_name": "Jane Doe",
+    "notary_date": "1991-02-20",
+    "notary_county": "Oklahoma",
+    "notary_state": "Oklahoma",
+    "commission_expires": "1993-12-31"
+  }},
+
+  "witnesses": [
+    {{
+      "name": "John Smith",
+      "address": null
+    }}
+  ],
+
+  "notes": "Any additional information not captured elsewhere",
+
+  "key_takeaway": "REQUIRED - One sentence: [Assignor name] transferred [blanket/specific] property interests to the [Trust Name], including mineral interests. This is an estate planning document that moves ownership from individual to trust.",
+
+  "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) parties - note when same person appears in multiple capacities; (2) scope of assignment - blanket vs specific, what property types are included; (3) mineral interest implications - does this affect mineral ownership, which states/counties; (4) chain of title significance - this document is the link between individual ownership and trust ownership for any properties the assignor held at execution date (and after, if includes_future_acquired is true).",
+
+  "field_scores": {{
+    "assignor_name": 1.0,
+    "assignee_name": 1.0,
+    "trust_name": 1.0,
+    "trust_date": 0.95,
+    "execution_date": 1.0,
+    "is_blanket_assignment": 0.95,
+    "includes_mineral_interests": 0.95,
+    "specific_properties": 0.80,
+    "acceptance": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+PARTY FIELDS (trust funding specific):
+- assignor.name: REQUIRED - individual transferring property, exactly as written
+- assignor.capacity: Always "Individual" for trust funding documents
+- assignee.name: REQUIRED - same person but in trustee capacity
+- assignee.capacity: Always "Trustee"
+- assignee.trust_name: REQUIRED - full name of the trust
+- assignee.trust_date: Date the trust was created (often in trust name)
+
+BLANKET ASSIGNMENT FLAGS:
+- is_blanket_assignment: true if document transfers "all property" or categories of property
+- includes_future_acquired: true if "now owned or hereafter acquired" language present
+- includes_mineral_interests: true if minerals are explicitly or implicitly included
+
+PROPERTY CATEGORIES (set each to true/false):
+- personal_effects, household_goods, financial_accounts, real_property, mineral_interests, vehicles, other_property
+
+SPECIFIC PROPERTIES:
+- If blanket, this may be empty []
+- Include any properties mentioned by name or legal description
+- Mark source as "printed" or "handwritten"
+- Handwritten notes often identify specific properties affected
+
+CONSIDERATION TYPES:
+| Value | Meaning |
+| nominal | Token amount + "other consideration" - common for trust funding |
+| gift | Love and affection - family transfer |
+| specific | Exact dollar amount stated |
+| not_stated | No consideration clause |
+
+ACCEPTANCE:
+- Many trust funding documents have a trustee acceptance section
+- Extract if present, note if acceptance is missing
+
+CHAIN OF TITLE LINKING:
+- For blanket assignments: Link to ALL grantor's properties as of execution_date
+- For blanket + future_acquired: Flag for ongoing linkage to newly acquired properties
+- For specific only: Link only to enumerated properties
 
 For SUSPENSE NOTICES:
 {
