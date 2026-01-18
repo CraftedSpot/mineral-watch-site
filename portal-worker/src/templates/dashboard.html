@@ -6167,9 +6167,9 @@
                 'Restrictions & Provisions': ['reservations', 'exceptions', 'subject_to', 'depth_limitations',
                                             'formation_limitations', 'mineral_types', 'pooling_authorization',
                                             'surface_restrictions', 'no_surface_clause', 'pugh_clause', 'vertical_pugh_clause'],
-                // Drilling Permit (Form 1000) sections
+                // Drilling Permit (Form 1000) and Completion Report sections
                 'Permit Information': ['permit_type', 'well_type', 'issue_date', 'expiration_date'],
-                'Well Identification': ['api_number', 'well_name', 'well_number', 'operator_name', 'operator_address'],
+                'Well Identification': ['api_number', 'well_name', 'well_number', 'operator_name', 'operator_address', 'well_identification'],
                 'Surface Location': ['surface_location'],
                 'Bottom Hole Location': ['bottom_hole_location'],
                 'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
@@ -6281,12 +6281,9 @@
                 'Allocation Factors': ['allocation_factors'],
                 'Relief Granted': ['relief_granted'],
                 'Special Provisions': ['special_provisions'],
-                // Completion Report sections
-                'Well Identification': ['well_identification'],
+                // Completion Report sections (Well Identification, Surface Location, Bottom Hole Location defined above)
                 'Key Dates': ['dates'],
                 'Well Type': ['well_type'],
-                'Surface Location': ['surface_location'],
-                'Bottom Hole Location': ['bottom_hole_location'],
                 'Lateral Details': ['lateral_details'],
                 'Perforated Intervals': ['perforated_intervals', 'total_perforated_length_ft'],
                 'Initial Production': ['initial_production'],
@@ -6483,8 +6480,10 @@
             }
 
             // Detailed Analysis - render right after Key Takeaway, full width, not nested
-            if (data.ai_observations) {
-                const cleanedAnalysis = String(data.ai_observations)
+            // Check for both ai_observations (older schemas) and detailed_analysis (newer schemas)
+            const analysisText = data.ai_observations || data.detailed_analysis;
+            if (analysisText) {
+                const cleanedAnalysis = String(analysisText)
                     .trim()
                     .replace(/^\s+/gm, '')
                     .replace(/\t/g, ' ');
@@ -6634,12 +6633,9 @@
                 'Allocation Factors',
                 'Relief Granted',
                 'Special Provisions',
-                // Completion Report sections
-                'Well Identification',
+                // Completion Report sections (Well Identification, Surface/Bottom Hole Location defined above)
                 'Key Dates',
                 'Well Type',
-                'Surface Location',
-                'Bottom Hole Location',
                 'Lateral Details',
                 'Perforated Intervals',
                 'Initial Production',
@@ -9557,6 +9553,81 @@
                                 });
                                 sectionContent += `</div></div>`;
                             }
+                        } else if (fieldName === 'affected_sections' && Array.isArray(value) && data.doc_type === 'completion_report') {
+                            // Special handling for affected_sections array (completion report)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let sectionsHtml = value.map(sec => {
+                                    const section = sec.section || '';
+                                    const township = sec.township || '';
+                                    const range = sec.range || '';
+                                    return `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 16px; font-size: 12px; font-weight: 500;">
+                                        ${escapeHtml(String(section))} - ${escapeHtml(String(township))} - ${escapeHtml(String(range))}
+                                    </span>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                            ${sectionsHtml}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'perforated_intervals' && Array.isArray(value) && data.doc_type === 'completion_report') {
+                            // Special handling for perforated_intervals array (completion report)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let intervalsHtml = value.map((interval, idx) => {
+                                    const formation = interval.formation || '';
+                                    const top = interval.top_md_ft || interval.from_ft;
+                                    const bottom = interval.bottom_md_ft || interval.to_ft;
+                                    const length = interval.interval_length_ft;
+                                    return `<tr style="border-bottom: 1px solid #E5E7EB;">
+                                        <td style="padding: 8px; font-weight: 500;">${escapeHtml(formation) || `Interval ${idx + 1}`}</td>
+                                        <td style="padding: 8px; text-align: right; font-family: monospace;">${top ? Number(top).toLocaleString() : '-'}</td>
+                                        <td style="padding: 8px; text-align: right; font-family: monospace;">${bottom ? Number(bottom).toLocaleString() : '-'}</td>
+                                        <td style="padding: 8px; text-align: right; font-family: monospace; font-weight: 600;">${length ? Number(length).toLocaleString() : '-'}</td>
+                                    </tr>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                                            <thead style="background: #F3F4F6;">
+                                                <tr>
+                                                    <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Formation</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Top (ft MD)</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Bottom (ft MD)</th>
+                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Length (ft)</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>${intervalsHtml}</tbody>
+                                        </table>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'formation_tops' && Array.isArray(value) && data.doc_type === 'completion_report') {
+                            // Special handling for formation_tops array (completion report)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let formationsHtml = value.map(formation => {
+                                    const name = formation.name || '';
+                                    const md = formation.md_ft;
+                                    const tvd = formation.tvd_ft;
+                                    return `<div style="display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #E5E7EB;">
+                                        <span style="font-weight: 500;">${escapeHtml(name)}</span>
+                                        <span style="font-family: monospace; color: #6B7280;">
+                                            ${md ? `${Number(md).toLocaleString()} ft MD` : ''}${md && tvd ? ' / ' : ''}${tvd ? `${Number(tvd).toLocaleString()} ft TVD` : ''}
+                                        </span>
+                                    </div>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px;">
+                                            ${formationsHtml}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
                         } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
                             // Generic handler for arrays of objects (catch-all for respondents, etc.)
                             hasVisibleFields = true;
@@ -10005,38 +10076,6 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'perforated_intervals' && Array.isArray(value) && data.doc_type === 'completion_report') {
-                            // Special handling for perforated_intervals array (completion report)
-                            if (value.length > 0) {
-                                hasVisibleFields = true;
-                                let intervalsHtml = value.map((interval, idx) => {
-                                    const formation = interval.formation || '';
-                                    const top = interval.top_md_ft;
-                                    const bottom = interval.bottom_md_ft;
-                                    const length = interval.interval_length_ft;
-                                    return `<tr style="border-bottom: 1px solid #E5E7EB;">
-                                        <td style="padding: 8px; font-weight: 500;">${escapeHtml(formation) || `Interval ${idx + 1}`}</td>
-                                        <td style="padding: 8px; text-align: right; font-family: monospace;">${top ? top.toLocaleString() : '-'}</td>
-                                        <td style="padding: 8px; text-align: right; font-family: monospace;">${bottom ? bottom.toLocaleString() : '-'}</td>
-                                        <td style="padding: 8px; text-align: right; font-family: monospace; font-weight: 600;">${length ? length.toLocaleString() : '-'}</td>
-                                    </tr>`;
-                                }).join('');
-                                sectionContent += `
-                                    <div class="doc-field" style="grid-column: 1 / -1;">
-                                        <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-                                            <thead style="background: #F3F4F6;">
-                                                <tr>
-                                                    <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Formation</th>
-                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Top (ft MD)</th>
-                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Bottom (ft MD)</th>
-                                                    <th style="padding: 10px 8px; text-align: right; font-weight: 600; color: #374151;">Length (ft)</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>${intervalsHtml}</tbody>
-                                        </table>
-                                        ${getConfidenceIndicator(fieldName, fieldScores)}
-                                    </div>`;
-                            }
                         } else if (fieldName === 'initial_production' && typeof value === 'object' && data.doc_type === 'completion_report') {
                             // Special handling for initial_production object (completion report)
                             const testDate = value.test_date || '';
@@ -10168,8 +10207,8 @@
                         // Regular field
                         hasVisibleFields = true;
                         
-                        // Skip key_takeaway and ai_observations - rendered at the top
-                        if (fieldName === 'key_takeaway' || fieldName === 'ai_observations') {
+                        // Skip key_takeaway, ai_observations, and detailed_analysis - rendered at the top
+                        if (fieldName === 'key_takeaway' || fieldName === 'ai_observations' || fieldName === 'detailed_analysis') {
                             // Already rendered at top of content
                             hasVisibleFields = false; // Don't count these as visible in sections
                         } else {

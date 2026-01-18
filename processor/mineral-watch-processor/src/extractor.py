@@ -1456,17 +1456,17 @@ CONDITIONAL REQUIREMENTS:
   "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud on February 1, 2019 and completed on November 27, 2019. The surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W.\n\nThe well has a total measured depth of 20,783 feet with a true vertical depth of 10,180 feet. The lateral length is approximately 10,106 feet. Two perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated interval of roughly 9,234 feet.\n\nInitial production test on December 27, 2019 showed 186.9 barrels of oil per day (52.2 API gravity), 3,490 MCF of gas per day, and 1,359 barrels of water per day, flowing naturally with a gas-oil ratio of 18,672 cubic feet per barrel. The high GOR and gas classification indicate this is primarily a gas well with condensate.\n\nMineral owners in both Section 22 and Section 15 should expect to see this well on their division orders. The well operates under spacing orders 685493 and 687876 (both 640-acre units) and multiunit order 708745.",
 
   "field_scores": {{
-    "well_identification": "high",
-    "operator": "high",
-    "dates": "high",
-    "well_type": "high",
-    "surface_location": "high",
-    "bottom_hole_location": "high",
-    "lateral_details": "high",
-    "target_formation": "high",
-    "perforated_intervals": "high",
-    "initial_production": "high",
-    "affected_sections": "high"
+    "well_identification": 0.95,
+    "operator": 0.95,
+    "dates": 0.95,
+    "well_type": 0.95,
+    "surface_location": 0.95,
+    "bottom_hole_location": 0.90,
+    "lateral_details": 0.90,
+    "target_formation": 0.95,
+    "perforated_intervals": 0.95,
+    "initial_production": 0.95,
+    "affected_sections": 0.95
   }},
   "document_confidence": "high"
 }}
@@ -1545,11 +1545,11 @@ VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
   "detailed_analysis": "This completion report documents the SMITH 1-14, a vertical well targeting the Hunton formation in Section 14-9N-4W, Grady County. The well was drilled to a single perforation interval at 8,450-8,520 feet.\n\nInitial production test showed 125 barrels of oil per day (42 API gravity), 150 MCF of gas per day, and 45 barrels of water per day on pump. This is a straightforward single-section vertical well with no horizontal component.",
 
   "field_scores": {{
-    "well_identification": "high",
-    "operator": "high",
-    "surface_location": "high",
-    "target_formation": "high",
-    "initial_production": "high"
+    "well_identification": 0.95,
+    "operator": 0.95,
+    "surface_location": 0.95,
+    "target_formation": 0.95,
+    "initial_production": 0.95
   }},
   "document_confidence": "high"
 }}
