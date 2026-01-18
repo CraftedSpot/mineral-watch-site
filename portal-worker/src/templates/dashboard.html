@@ -6471,6 +6471,13 @@
             for (const sectionName of sectionOrder) {
                 const fields = groupedFields[sectionName];
                 if (!fields) continue;
+
+                // Skip Legal Description section if data has 'units' array (drilling/spacing orders)
+                // because the detailed legal info is shown in the Spacing Units section
+                if (sectionName === 'Legal Description' && data.units && Array.isArray(data.units)) {
+                    continue;
+                }
+
                 // Build section content first to check if it's empty
                 let sectionContent = '';
                 let hasVisibleFields = false;
@@ -7378,7 +7385,14 @@
                                         ${alj ? `<div style="font-size: 13px; color: #374151; margin-bottom: 8px;"><strong>Administrative Law Judge:</strong> ${escapeHtml(alj)}</div>` : ''}
                                         ${commissioners.length > 0 ? `
                                             <div style="font-size: 13px; color: #374151;">
-                                                <strong>Commissioners:</strong> ${commissioners.map(c => escapeHtml(c)).join(', ')}
+                                                <strong>Commissioners:</strong> ${commissioners.map(c => {
+                                                    if (typeof c === 'object') {
+                                                        const name = c.name || '';
+                                                        const title = c.title || '';
+                                                        return escapeHtml(title ? `${name} (${title})` : name);
+                                                    }
+                                                    return escapeHtml(String(c));
+                                                }).join(', ')}
                                             </div>
                                         ` : ''}
                                     </div>
@@ -7597,7 +7611,9 @@
                                         if (meridian) locationStr += `-${meridian}`;
                                     }
                                     if (quarterCalls.length > 0) {
-                                        locationStr += ` (${quarterCalls.join(', ')})`;
+                                        // Handle quarter_calls that might be strings or objects
+                                        const qcStrings = quarterCalls.map(qc => typeof qc === 'object' ? (qc.name || qc.quarter || String(qc)) : String(qc));
+                                        locationStr += ` (${qcStrings.join(', ')})`;
                                     }
 
                                     sectionContent += `
