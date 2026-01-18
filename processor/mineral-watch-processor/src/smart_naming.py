@@ -1792,6 +1792,74 @@ def name_assignment_of_lease(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_quit_claim_deed(data: Dict[str, Any]) -> str:
+    """Quit Claim Deed - {Grantor} to {Grantee} - {Legal} - {Date}
+
+    For quit claim deed documents (including correction quit claim deeds).
+    Uses grantors[], grantees[], legal_description, execution_date from schema.
+    """
+    # Check if it's a correction deed
+    deed_classification = data.get('deed_classification', {})
+    is_correction = deed_classification.get('is_correction_deed', False) if isinstance(deed_classification, dict) else False
+
+    if is_correction:
+        parts = ["Correction Quit Claim Deed"]
+    else:
+        parts = ["Quit Claim Deed"]
+
+    # Get first grantor name (short form)
+    grantors = data.get('grantors', [])
+    if grantors and isinstance(grantors, list) and len(grantors) > 0:
+        first_grantor = grantors[0]
+        if isinstance(first_grantor, dict):
+            grantor_name = first_grantor.get('name', '')
+            if grantor_name:
+                # Use short form - first word or first 20 chars
+                short_name = grantor_name.split()[0] if ' ' in grantor_name else grantor_name[:20]
+                if len(grantors) > 1:
+                    short_name += f" +{len(grantors)-1}"
+                parts.append(short_name)
+
+    # Get first grantee name (short form)
+    grantees = data.get('grantees', [])
+    if grantees and isinstance(grantees, list) and len(grantees) > 0:
+        first_grantee = grantees[0]
+        if isinstance(first_grantee, dict):
+            grantee_name = first_grantee.get('name', '')
+            entity_name = first_grantee.get('entity_name', '')
+            # Use entity name if it's a trust/entity transfer
+            display_name = entity_name if entity_name else grantee_name
+            if display_name:
+                # Use short form - first word or first 20 chars
+                short_name = display_name.split()[0] if ' ' in display_name else display_name[:20]
+                if len(grantees) > 1:
+                    short_name += f" +{len(grantees)-1}"
+                # Add "to" prefix for clarity
+                parts.append(f"to {short_name}")
+
+    # Get legal description (short form)
+    legal = data.get('legal_description', {})
+    if isinstance(legal, dict):
+        section = legal.get('section')
+        township = legal.get('township')
+        range_val = legal.get('range')
+        if section and township and range_val:
+            parts.append(f"S{section}-{township}-{range_val}")
+
+    # Get execution date
+    execution_info = data.get('execution_info', {})
+    if isinstance(execution_info, dict):
+        execution_date = execution_info.get('execution_date')
+        if execution_date:
+            parts.append(str(execution_date))
+    elif data.get('execution_date'):
+        parts.append(str(data['execution_date']))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 # ============================================================================
 # MAIN DISPATCHER
 # ============================================================================
@@ -1833,6 +1901,7 @@ NAMING_FUNCTIONS = {
     'trust_funding': name_trust_funding,
     'limited_partnership': name_limited_partnership,
     'assignment_of_lease': name_assignment_of_lease,
+    'quit_claim_deed': name_quit_claim_deed,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,
     'tax_record': name_tax_record,
