@@ -7126,6 +7126,84 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'tracts') {
+                                // Special handling for tracts array (oil_gas_lease v2 schema)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+                                value.forEach((tract, index) => {
+                                    if (typeof tract === 'object') {
+                                        const legal = tract.legal_description || {};
+                                        const tractNum = tract.tract_number || (index + 1);
+                                        const acres = tract.acres;
+                                        const acresQualifier = tract.acres_qualifier || '';
+                                        const depthsLimited = tract.depths_limited;
+                                        const formationsLimited = Array.isArray(tract.formations_limited) ? tract.formations_limited : [];
+                                        const mineralInterest = tract.mineral_interest_fraction;
+
+                                        // Build location string
+                                        const section = legal.section ? String(legal.section) : '';
+                                        const township = legal.township ? String(legal.township) : '';
+                                        const range = legal.range ? String(legal.range) : '';
+                                        const meridian = legal.meridian || '';
+                                        const quarters = legal.quarters || '';
+                                        const county = legal.county || '';
+
+                                        let locationStr = '';
+                                        if (section && township && range) {
+                                            locationStr = `Section ${section}-${township}-${range}`;
+                                            if (meridian) locationStr += `-${meridian}`;
+                                        }
+                                        if (quarters) {
+                                            locationStr += quarters ? ` (${quarters})` : '';
+                                        }
+
+                                        sectionContent += `
+                                            <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                                ${value.length > 1 ? `<div style="font-size: 11px; color: #166534; font-weight: 600; margin-bottom: 8px;">Tract ${tractNum}</div>` : ''}
+                                                <div style="font-weight: 600; color: #166534; font-size: 14px; margin-bottom: 8px;">${escapeHtml(locationStr)}</div>
+
+                                                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 8px;">
+                                                    ${acres ? `<div style="background: #DCFCE7; border-radius: 4px; padding: 4px 8px; font-size: 12px;">
+                                                        <span style="color: #166534; font-weight: 600;">${acres} acres</span>
+                                                        ${acresQualifier ? `<span style="color: #6B7280;"> (${escapeHtml(acresQualifier)})</span>` : ''}
+                                                    </div>` : ''}
+                                                    ${county ? `<div style="background: #D1FAE5; border-radius: 4px; padding: 4px 8px; font-size: 12px;">
+                                                        <span style="color: #6B7280;">County:</span> <strong style="color: #166534;">${escapeHtml(county)}</strong>
+                                                    </div>` : ''}
+                                                    ${mineralInterest ? `<div style="background: #FEF3C7; border-radius: 4px; padding: 4px 8px; font-size: 12px;">
+                                                        <span style="color: #6B7280;">Mineral Interest:</span> <strong style="color: #92400E;">${escapeHtml(mineralInterest)}</strong>
+                                                    </div>` : ''}
+                                                </div>
+
+                                                ${depthsLimited || formationsLimited.length > 0 ? `
+                                                    <div style="font-size: 12px; color: #92400E; background: #FEF3C7; padding: 6px 10px; border-radius: 4px; margin-top: 6px;">
+                                                        ${depthsLimited ? '<strong>Depth Limited</strong>' : ''}
+                                                        ${formationsLimited.length > 0 ? `<span>Formations: ${formationsLimited.map(f => escapeHtml(String(f))).join(', ')}</span>` : ''}
+                                                    </div>
+                                                ` : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'prohibited_deductions') {
+                                // Special handling for prohibited deductions array (lease deductions_clause)
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
+                                value.forEach(deduction => {
+                                    sectionContent += `
+                                        <span style="background: #FEE2E2; border: 1px solid #EF4444; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #DC2626;">
+                                            ${escapeHtml(String(deduction))}
+                                        </span>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'provisions' && data.doc_type === 'oil_gas_lease') {
+                                // Special handling for exhibit_a provisions array
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
+                                value.forEach(provision => {
+                                    sectionContent += `
+                                        <span style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 4px; padding: 4px 10px; font-size: 12px; color: #1E40AF; font-weight: 500;">
+                                            ${escapeHtml(String(provision))}
+                                        </span>`;
+                                });
+                                sectionContent += `</div>`;
                             } else {
                                 // Regular array
                                 sectionContent += `<ul style="margin: 8px 0; padding-left: 20px;">`;
@@ -7723,6 +7801,334 @@
                                             ${fractionDecimal !== undefined ? `<span style="color: #6B7280;">(${fractionDecimal})</span>` : ''}
                                         </div>
                                         ${description ? `<div style="font-size: 12px; color: #7F1D1D; padding: 8px; background: #FECACA; border-radius: 4px; font-style: italic;">${escapeHtml(description)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if ((fieldName === 'lessor' || fieldName === 'lessee') && typeof value === 'object') {
+                            // Special handling for lessor/lessee objects (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const partyType = fieldName === 'lessor' ? 'Lessor (Mineral Owner)' : 'Lessee (Oil Company)';
+                            const bgColor = fieldName === 'lessor' ? '#FEF3C7' : '#EFF6FF';
+                            const borderColor = fieldName === 'lessor' ? '#F59E0B' : '#3B82F6';
+                            const textColor = fieldName === 'lessor' ? '#92400E' : '#1E40AF';
+
+                            const name = value.name || '';
+                            const address = value.address || '';
+                            const city = value.city || '';
+                            const state = value.state || '';
+                            const zip = value.zip || '';
+                            const capacity = value.capacity || '';
+                            const signatory = value.signatory || '';
+                            const signatoryTitle = value.signatory_title || '';
+                            const fullAddress = [address, city, state, zip].filter(Boolean).join(', ').replace(/, ,/g, ',');
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>${partyType}</label>
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+                                            <span style="font-weight: 600; color: ${textColor}; font-size: 15px;">${escapeHtml(name)}</span>
+                                            ${capacity ? `<span style="background: #E5E7EB; color: #374151; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(capacity)}</span>` : ''}
+                                        </div>
+                                        ${fullAddress ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(fullAddress)}</div>` : ''}
+                                        ${signatory ? `<div style="font-size: 12px; color: #4B5563; margin-top: 6px; border-top: 1px solid ${borderColor}; padding-top: 6px;">
+                                            <strong>Signed by:</strong> ${escapeHtml(signatory)}${signatoryTitle ? ` (${escapeHtml(signatoryTitle)})` : ''}
+                                        </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'primary_term' && typeof value === 'object') {
+                            // Special handling for primary_term object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const years = value.years;
+                            const months = value.months;
+                            const commencementDate = value.commencement_date || '';
+                            const expirationDate = value.expiration_date || '';
+
+                            let termStr = '';
+                            if (years) termStr += `${years} year${years > 1 ? 's' : ''}`;
+                            if (months) termStr += `${termStr ? ' ' : ''}${months} month${months > 1 ? 's' : ''}`;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Primary Term</label>
+                                    <div style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px;">
+                                            ${termStr ? `<div><span style="color: #6B7280;">Term:</span> <strong style="color: #1E40AF;">${escapeHtml(termStr)}</strong></div>` : ''}
+                                            ${commencementDate ? `<div><span style="color: #6B7280;">Commencement:</span> <strong style="color: #1E40AF;">${escapeHtml(commencementDate)}</strong></div>` : ''}
+                                            ${expirationDate ? `<div><span style="color: #6B7280;">Expiration:</span> <strong style="color: #DC2626;">${escapeHtml(expirationDate)}</strong></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'consideration' && typeof value === 'object') {
+                            // Special handling for consideration object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const bonusStated = value.bonus_stated || '';
+                            const bonusPerAcre = value.bonus_per_acre;
+                            const totalBonus = value.total_bonus;
+                            const isPaidUp = value.is_paid_up;
+                            const delayRental = value.delay_rental || '';
+                            const delayRentalPerAcre = value.delay_rental_per_acre;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Consideration</label>
+                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+                                            ${isPaidUp === true ? `<span style="background: #22C55E; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px;">PAID-UP LEASE</span>` : ''}
+                                            ${isPaidUp === false ? `<span style="background: #F59E0B; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px;">DELAY RENTAL</span>` : ''}
+                                        </div>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px;">
+                                            ${bonusPerAcre ? `<div><span style="color: #6B7280;">Bonus:</span> <strong style="color: #166534;">$${bonusPerAcre}/acre</strong></div>` : ''}
+                                            ${totalBonus ? `<div><span style="color: #6B7280;">Total Bonus:</span> <strong style="color: #166534;">$${totalBonus.toLocaleString()}</strong></div>` : ''}
+                                            ${delayRentalPerAcre ? `<div><span style="color: #6B7280;">Delay Rental:</span> <strong style="color: #92400E;">$${delayRentalPerAcre}/acre/year</strong></div>` : ''}
+                                        </div>
+                                        ${bonusStated ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px; font-style: italic;">"${escapeHtml(bonusStated)}"</div>` : ''}
+                                        ${delayRental && !delayRentalPerAcre ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Delay Rental: ${escapeHtml(delayRental)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'royalty' && typeof value === 'object') {
+                            // Special handling for royalty object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const oil = value.oil || {};
+                            const gas = value.gas || {};
+                            const otherMinerals = value.other_minerals || {};
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Royalty Rates</label>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                                        ${oil.fraction ? `
+                                            <div style="background: #1F2937; color: white; border-radius: 8px; padding: 12px 16px; min-width: 100px; text-align: center;">
+                                                <div style="font-size: 11px; color: #9CA3AF; margin-bottom: 4px;">OIL</div>
+                                                <div style="font-size: 18px; font-weight: 700;">${escapeHtml(oil.fraction)}</div>
+                                                ${oil.decimal ? `<div style="font-size: 11px; color: #9CA3AF;">(${oil.decimal})</div>` : ''}
+                                            </div>` : ''}
+                                        ${gas.fraction ? `
+                                            <div style="background: #3B82F6; color: white; border-radius: 8px; padding: 12px 16px; min-width: 100px; text-align: center;">
+                                                <div style="font-size: 11px; color: #BFDBFE; margin-bottom: 4px;">GAS</div>
+                                                <div style="font-size: 18px; font-weight: 700;">${escapeHtml(gas.fraction)}</div>
+                                                ${gas.decimal ? `<div style="font-size: 11px; color: #BFDBFE;">(${gas.decimal})</div>` : ''}
+                                            </div>` : ''}
+                                        ${otherMinerals.fraction ? `
+                                            <div style="background: #6B7280; color: white; border-radius: 8px; padding: 12px 16px; min-width: 100px; text-align: center;">
+                                                <div style="font-size: 11px; color: #D1D5DB; margin-bottom: 4px;">OTHER</div>
+                                                <div style="font-size: 18px; font-weight: 700;">${escapeHtml(otherMinerals.fraction)}</div>
+                                                ${otherMinerals.note ? `<div style="font-size: 10px; color: #D1D5DB; margin-top: 4px;">${escapeHtml(otherMinerals.note)}</div>` : ''}
+                                            </div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'depth_clause' && typeof value === 'object') {
+                            // Special handling for depth_clause object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const hasClause = value.has_depth_clause;
+                            const trigger = value.trigger || '';
+                            const depthRetained = value.depth_retained || '';
+                            const depthFeet = value.depth_feet;
+                            const referencePoint = value.reference_point || '';
+                            const source = value.source || '';
+
+                            const bgColor = hasClause ? '#DCFCE7' : '#FEE2E2';
+                            const borderColor = hasClause ? '#22C55E' : '#EF4444';
+                            const textColor = hasClause ? '#166534' : '#DC2626';
+                            const icon = hasClause ? '✓' : '✗';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${hasClause ? '10px' : '0'};">
+                                            <span style="font-size: 16px;">${icon}</span>
+                                            <span style="font-weight: 600; color: ${textColor}; font-size: 14px;">Depth Clause</span>
+                                            ${source ? `<span style="font-size: 11px; color: #6B7280; background: white; padding: 2px 6px; border-radius: 3px;">${escapeHtml(source)}</span>` : ''}
+                                        </div>
+                                        ${hasClause ? `
+                                            <div style="font-size: 13px; color: #374151;">
+                                                ${trigger ? `<div style="margin-bottom: 4px;"><strong>Trigger:</strong> ${escapeHtml(trigger)}</div>` : ''}
+                                                ${depthRetained ? `<div style="margin-bottom: 4px;"><strong>Depth Retained:</strong> ${escapeHtml(depthRetained)}</div>` : ''}
+                                                ${depthFeet ? `<div style="margin-bottom: 4px;"><strong>Specific Depth:</strong> ${depthFeet.toLocaleString()} feet</div>` : ''}
+                                                ${referencePoint ? `<div><strong>Reference:</strong> ${escapeHtml(referencePoint)}</div>` : ''}
+                                            </div>
+                                        ` : `<div style="font-size: 13px; color: #DC2626; font-style: italic;">No depth clause - lessee retains all depths</div>`}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'pugh_clause' && typeof value === 'object') {
+                            // Special handling for pugh_clause object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const hasClause = value.has_pugh_clause;
+                            const type = value.type || '';
+                            const trigger = value.trigger || '';
+                            const releases = value.releases || '';
+                            const horizontalPugh = value.horizontal_pugh;
+                            const verticalPugh = value.vertical_pugh;
+                            const unitChangeProvision = value.unit_change_provision || '';
+                            const source = value.source || '';
+
+                            const bgColor = hasClause ? '#DCFCE7' : '#FEE2E2';
+                            const borderColor = hasClause ? '#22C55E' : '#EF4444';
+                            const textColor = hasClause ? '#166534' : '#DC2626';
+                            const icon = hasClause ? '✓' : '✗';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${hasClause ? '10px' : '0'};">
+                                            <span style="font-size: 16px;">${icon}</span>
+                                            <span style="font-weight: 600; color: ${textColor}; font-size: 14px;">Pugh Clause</span>
+                                            ${source ? `<span style="font-size: 11px; color: #6B7280; background: white; padding: 2px 6px; border-radius: 3px;">${escapeHtml(source)}</span>` : ''}
+                                        </div>
+                                        ${hasClause ? `
+                                            <div style="font-size: 13px; color: #374151;">
+                                                ${type ? `<div style="margin-bottom: 4px;"><strong>Type:</strong> ${escapeHtml(type)}</div>` : ''}
+                                                ${trigger ? `<div style="margin-bottom: 4px;"><strong>Trigger:</strong> ${escapeHtml(trigger)}</div>` : ''}
+                                                ${releases ? `<div style="margin-bottom: 4px;"><strong>Releases:</strong> ${escapeHtml(releases)}</div>` : ''}
+                                                <div style="display: flex; gap: 12px; margin-top: 8px;">
+                                                    ${horizontalPugh !== undefined ? `<span style="background: ${horizontalPugh ? '#166534' : '#6B7280'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${horizontalPugh ? '✓' : '✗'} Horizontal Pugh</span>` : ''}
+                                                    ${verticalPugh !== undefined ? `<span style="background: ${verticalPugh ? '#166534' : '#6B7280'}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${verticalPugh ? '✓' : '✗'} Vertical Pugh</span>` : ''}
+                                                </div>
+                                                ${unitChangeProvision ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid ${borderColor}; font-size: 12px; color: #6B7280;"><strong>Unit Change:</strong> ${escapeHtml(unitChangeProvision)}</div>` : ''}
+                                            </div>
+                                        ` : `<div style="font-size: 13px; color: #DC2626; font-style: italic;">No Pugh clause - non-pooled acreage NOT automatically released</div>`}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'deductions_clause' && typeof value === 'object') {
+                            // Special handling for deductions_clause object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const hasNoDeductions = value.has_no_deductions_clause;
+                            const scope = value.scope || '';
+                            const prohibitedDeductions = Array.isArray(value.prohibited_deductions) ? value.prohibited_deductions : [];
+                            const exception = value.exception || '';
+                            const source = value.source || '';
+
+                            const bgColor = hasNoDeductions ? '#DCFCE7' : '#FEE2E2';
+                            const borderColor = hasNoDeductions ? '#22C55E' : '#EF4444';
+                            const textColor = hasNoDeductions ? '#166534' : '#DC2626';
+                            const icon = hasNoDeductions ? '✓' : '✗';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${hasNoDeductions ? '10px' : '0'};">
+                                            <span style="font-size: 16px;">${icon}</span>
+                                            <span style="font-weight: 600; color: ${textColor}; font-size: 14px;">No-Deductions Clause</span>
+                                            ${source ? `<span style="font-size: 11px; color: #6B7280; background: white; padding: 2px 6px; border-radius: 3px;">${escapeHtml(source)}</span>` : ''}
+                                        </div>
+                                        ${hasNoDeductions ? `
+                                            <div style="font-size: 13px; color: #374151;">
+                                                ${scope ? `<div style="margin-bottom: 6px;"><strong>Scope:</strong> ${escapeHtml(scope)}</div>` : ''}
+                                                ${prohibitedDeductions.length > 0 ? `
+                                                    <div style="margin-bottom: 6px;"><strong>Prohibited:</strong></div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                                        ${prohibitedDeductions.map(d => `<span style="background: #FEE2E2; border: 1px solid #EF4444; color: #DC2626; padding: 2px 6px; border-radius: 3px; font-size: 11px;">${escapeHtml(String(d))}</span>`).join('')}
+                                                    </div>
+                                                ` : ''}
+                                                ${exception ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid ${borderColor}; font-size: 12px; color: #6B7280;"><strong>Exception:</strong> ${escapeHtml(exception)}</div>` : ''}
+                                            </div>
+                                        ` : `<div style="font-size: 13px; color: #DC2626; font-style: italic;">No no-deductions clause - post-production costs may be deducted from royalty</div>`}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'shut_in_provisions' && typeof value === 'object') {
+                            // Special handling for shut_in_provisions object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const shutInRoyalty = value.shut_in_royalty || '';
+                            const perAcre = value.shut_in_royalty_per_acre;
+                            const triggerDays = value.trigger_period_days;
+                            const frequency = value.payment_frequency || '';
+                            const limitation = value.limitation || {};
+                            const hasLimitation = limitation.has_limitation;
+                            const maxYears = limitation.max_consecutive_years;
+                            const source = limitation.source || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Shut-In Provisions</label>
+                                    <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; margin-bottom: 10px;">
+                                            ${shutInRoyalty ? `<div><span style="color: #6B7280;">Amount:</span> <strong>${escapeHtml(shutInRoyalty)}</strong></div>` : ''}
+                                            ${perAcre ? `<div><span style="color: #6B7280;">Per Acre:</span> <strong>$${perAcre}</strong></div>` : ''}
+                                            ${triggerDays ? `<div><span style="color: #6B7280;">Trigger:</span> <strong>${triggerDays} days</strong></div>` : ''}
+                                            ${frequency ? `<div><span style="color: #6B7280;">Payment:</span> <strong>${escapeHtml(frequency)}</strong></div>` : ''}
+                                        </div>
+                                        ${hasLimitation !== undefined ? `
+                                            <div style="background: ${hasLimitation ? '#DCFCE7' : '#FEE2E2'}; border: 1px solid ${hasLimitation ? '#22C55E' : '#EF4444'}; border-radius: 6px; padding: 10px; margin-top: 8px;">
+                                                <div style="display: flex; align-items: center; gap: 8px;">
+                                                    <span style="font-size: 14px;">${hasLimitation ? '✓' : '✗'}</span>
+                                                    <span style="font-weight: 600; color: ${hasLimitation ? '#166534' : '#DC2626'}; font-size: 13px;">
+                                                        ${hasLimitation ? `Shut-In Limited to ${maxYears} consecutive year${maxYears > 1 ? 's' : ''}` : 'No shut-in limitation - lessee can hold indefinitely'}
+                                                    </span>
+                                                    ${source ? `<span style="font-size: 11px; color: #6B7280; background: white; padding: 2px 6px; border-radius: 3px;">${escapeHtml(source)}</span>` : ''}
+                                                </div>
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'exhibit_a' && typeof value === 'object') {
+                            // Special handling for exhibit_a object (oil_gas_lease v2 schema)
+                            hasVisibleFields = true;
+                            const hasExhibitA = value.has_exhibit_a;
+                            const provisions = Array.isArray(value.provisions) ? value.provisions : [];
+                            const controlsOver = value.controls_over_printed_form;
+                            const additionalTerms = value.additional_terms || '';
+
+                            const bgColor = hasExhibitA ? '#DBEAFE' : '#F3F4F6';
+                            const borderColor = hasExhibitA ? '#3B82F6' : '#D1D5DB';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: ${hasExhibitA && provisions.length > 0 ? '10px' : '0'};">
+                                            <span style="font-size: 16px;">${hasExhibitA ? '📋' : '—'}</span>
+                                            <span style="font-weight: 600; color: ${hasExhibitA ? '#1E40AF' : '#6B7280'}; font-size: 14px;">
+                                                ${hasExhibitA ? 'Exhibit A / Addendum' : 'No Exhibit A'}
+                                            </span>
+                                            ${controlsOver ? `<span style="background: #3B82F6; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">Controls Over Printed Form</span>` : ''}
+                                        </div>
+                                        ${provisions.length > 0 ? `
+                                            <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                ${provisions.map(p => `<span style="background: white; border: 1px solid #3B82F6; color: #1E40AF; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500;">${escapeHtml(String(p))}</span>`).join('')}
+                                            </div>
+                                        ` : ''}
+                                        ${additionalTerms ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px;">${escapeHtml(additionalTerms)}</div>` : ''}
+                                        ${!hasExhibitA ? `<div style="font-size: 13px; color: #6B7280; font-style: italic;">Standard printed form only - no protective addendum</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'pooling_provisions' && typeof value === 'object' && data.doc_type === 'oil_gas_lease') {
+                            // Special handling for pooling_provisions in oil_gas_lease (different from pooling order)
+                            hasVisibleFields = true;
+                            const hasRights = value.lessee_has_pooling_rights;
+                            const poolingType = value.pooling_type || '';
+                            const verticalOil = value.vertical_oil_well || {};
+                            const gasHorizontal = value.gas_or_horizontal_well || {};
+                            const govOverride = value.governmental_override;
+                            const allocationMethod = value.allocation_method || '';
+                            const pughLimits = value.pugh_clause_limits_pooling;
+                            const antiPugh = value.anti_pugh_language;
+                            const antiPughText = value.anti_pugh_text || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Pooling Provisions</label>
+                                    <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 12px;">
+                                            ${hasRights !== undefined ? `<span style="background: ${hasRights ? '#DCFCE7' : '#FEE2E2'}; color: ${hasRights ? '#166534' : '#DC2626'}; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 500;">
+                                                ${hasRights ? '✓ Lessee Has Pooling Rights' : '✗ No Lessee Pooling Rights'}
+                                            </span>` : ''}
+                                            ${poolingType ? `<span style="background: #E5E7EB; color: #374151; padding: 4px 10px; border-radius: 4px; font-size: 12px;">${escapeHtml(poolingType)}</span>` : ''}
+                                        </div>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 13px; margin-bottom: 12px;">
+                                            ${verticalOil.max_acres ? `<div><strong>Vertical/Oil:</strong> ${verticalOil.max_acres} acres max${verticalOil.tolerance ? ` (${verticalOil.tolerance} tolerance)` : ''}</div>` : ''}
+                                            ${gasHorizontal.max_acres ? `<div><strong>Gas/Horizontal:</strong> ${gasHorizontal.max_acres} acres max${gasHorizontal.tolerance ? ` (${gasHorizontal.tolerance} tolerance)` : ''}</div>` : ''}
+                                            ${allocationMethod ? `<div><strong>Allocation:</strong> ${escapeHtml(allocationMethod)}</div>` : ''}
+                                            ${govOverride !== undefined ? `<div><strong>Govt Override:</strong> ${govOverride ? 'Yes' : 'No'}</div>` : ''}
+                                        </div>
+                                        ${antiPugh ? `
+                                            <div style="background: #FEE2E2; border: 1px solid #EF4444; border-radius: 6px; padding: 10px; margin-top: 8px;">
+                                                <div style="font-weight: 600; color: #DC2626; font-size: 13px; margin-bottom: 4px;">⚠️ Anti-Pugh Language Detected</div>
+                                                ${antiPughText ? `<div style="font-size: 12px; color: #7F1D1D; font-style: italic;">"${escapeHtml(antiPughText)}"</div>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${pughLimits ? `
+                                            <div style="background: #DCFCE7; border: 1px solid #22C55E; border-radius: 6px; padding: 10px; margin-top: 8px;">
+                                                <span style="color: #166534; font-size: 13px;">✓ Pugh Clause Limits Pooling Effect</span>
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 </div>`;
                         } else if ((fieldName === 'respondents_with_known_addresses' ||

@@ -1657,6 +1657,7 @@ NAMING_FUNCTIONS = {
     'mineral_deed': name_mineral_deed,
     'royalty_deed': name_royalty_deed,
     'lease': name_lease,
+    'oil_gas_lease': name_lease,  # v2 schema uses oil_gas_lease doc_type
     'division_order': name_division_order,
     'assignment': name_assignment,
     'pooling_order': name_pooling_order,
