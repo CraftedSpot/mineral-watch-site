@@ -1706,16 +1706,38 @@ def name_divorce_decree(data: Dict[str, Any]) -> str:
 
 
 def name_death_certificate(data: Dict[str, Any]) -> str:
-    """Death Certificate - {Decedent} - {Year}"""
+    """Death Certificate - [Decedent Full Name] - [Death Date]
+
+    Uses full name (not last name only) for chain of title identification.
+    Format: Death Certificate - Joel Scott Price - 1975-06-14
+    """
     parts = ["Death Certificate"]
-    
-    decedent = data.get('decedent') or data.get('deceased') or data.get('decedent_name') or data.get('name')
-    if decedent:
-        parts.append(extract_last_name(decedent))
-    
-    if data.get('year'):
+
+    # Get decedent name from nested structure (new schema) or flat fields (legacy)
+    decedent_obj = data.get('decedent', {})
+    decedent_name = None
+
+    if isinstance(decedent_obj, dict):
+        decedent_name = decedent_obj.get('full_name')
+
+    # Fallback to flat fields
+    if not decedent_name:
+        decedent_name = data.get('decedent_name') or data.get('deceased') or data.get('name')
+
+    if decedent_name:
+        # Use full name (not extract_last_name) for chain of title clarity
+        parts.append(truncate_name(str(decedent_name), 40))
+
+    # Get date of death from nested structure or flat fields
+    date_of_death = None
+    if isinstance(decedent_obj, dict):
+        date_of_death = decedent_obj.get('date_of_death')
+
+    if date_of_death:
+        parts.append(str(date_of_death))
+    elif data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
