@@ -3276,6 +3276,18 @@
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#039;');
         }
+
+        // Format analysis text: escape HTML then convert markdown bold to HTML
+        function formatAnalysisText(text) {
+            if (!text) return '';
+            // First escape HTML for security
+            let escaped = escapeHtml(text);
+            // Convert **text** to <strong>text</strong>
+            escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // Convert line breaks to <br> for proper formatting
+            escaped = escaped.replace(/\n/g, '<br>');
+            return escaped;
+        }
         
         // Toggle save button visibility when content changes
         function toggleSaveButton(modalType) {
@@ -6404,7 +6416,7 @@
                             <span class="detailed-analysis-label">View Detailed Analysis</span>
                             <span class="detailed-analysis-hint">Click to expand</span>
                         </summary>
-                        <div class="detailed-analysis-content">${escapeHtml(cleanedAnalysis)}</div>
+                        <div class="detailed-analysis-content">${formatAnalysisText(cleanedAnalysis)}</div>
                     </details>
                 </div>`;
             }
