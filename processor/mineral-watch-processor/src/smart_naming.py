@@ -679,80 +679,34 @@ def name_spacing_order(data: Dict[str, Any]) -> str:
 
 
 def name_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
-    """Drilling & Spacing Order - CD {Number} - {County} - {Legal} - {Unit Size} - {Formation} - {Year}"""
-    parts = ["Drilling & Spacing Order"]
+    """Spacing Order {Order#} - {Applicant} - {Formation} - {Legal} (+N units) - {Date}
 
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
-    if cd_num:
-        parts.append(f"CD {cd_num}")
+    v2 schema: Uses units[] array for multi-unit orders.
+    """
+    parts = ["Spacing Order"]
 
-    if data.get('county'):
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
+    # Order number (preferred) or case number
+    order_number = data.get('order_number')
+    if order_number:
+        parts.append(str(order_number))
+    else:
+        cd_num = clean_cd_number(data.get('case_number'))
+        if cd_num:
+            parts.append(f"CD {cd_num}")
 
-    legal = format_legal_description(
-        data.get('section'),
-        data.get('township'),
-        data.get('range')
-    )
-    if legal:
-        parts.append(legal)
+    # Applicant
+    applicant = data.get('applicant')
+    if applicant:
+        parts.append(truncate_name(str(applicant), 30))
 
-    # Unit size
-    unit_size = data.get('unit_size_acres')
-    if unit_size:
-        parts.append(f"{unit_size}-acre")
+    # Get first unit's formation and legal (v2 schema uses units[])
+    units = data.get('units', [])
+    if units and isinstance(units, list) and len(units) > 0:
+        first_unit = units[0]
 
-    # Primary formation
-    formations = data.get('formations')
-    if formations and isinstance(formations, list) and len(formations) > 0:
-        first_formation = formations[0]
-        if isinstance(first_formation, dict):
-            formation_name = first_formation.get('name', '')
-        else:
-            formation_name = str(first_formation)
-        if formation_name:
-            parts.append(formation_name)
-
-    if data.get('year'):
-        parts.append(str(data['year']))
-
-    return " - ".join(parts)
-
-
-def name_horizontal_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
-    """Horizontal Drilling & Spacing - CD {Number} - {County} - {Legal} - {Unit Size} - {Formation} - {Year}"""
-    parts = ["Horizontal Drilling & Spacing"]
-
-    cd_num = clean_cd_number(data.get('cd_number') or data.get('cause_number') or data.get('case_number'))
-    if cd_num:
-        parts.append(f"CD {cd_num}")
-
-    if data.get('county'):
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
-
-    legal = format_legal_description(
-        data.get('section'),
-        data.get('township'),
-        data.get('range')
-    )
-    if legal:
-        parts.append(legal)
-
-    # Unit size
-    unit_size = data.get('unit_size_acres')
-    if unit_size:
-        parts.append(f"{unit_size}-acre")
-
-    # Primary formation (or multiple if present)
-    formations = data.get('formations')
-    if formations and isinstance(formations, list):
-        if len(formations) == 1:
+        # Primary formation from first unit
+        formations = first_unit.get('formations', [])
+        if formations and isinstance(formations, list) and len(formations) > 0:
             first_formation = formations[0]
             if isinstance(first_formation, dict):
                 formation_name = first_formation.get('name', '')
@@ -760,16 +714,127 @@ def name_horizontal_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
                 formation_name = str(first_formation)
             if formation_name:
                 parts.append(formation_name)
-        elif len(formations) > 1:
-            # Multiple formations - show count
-            parts.append(f"{len(formations)} formations")
 
-    # Operator
-    operator = data.get('operator') or data.get('applicant')
-    if operator:
-        parts.append(extract_last_name(operator))
+        # Legal from first unit
+        legal_obj = first_unit.get('legal', {})
+        legal = format_legal_description(
+            legal_obj.get('section'),
+            legal_obj.get('township'),
+            legal_obj.get('range')
+        )
+        if legal:
+            parts.append(legal)
 
-    if data.get('year'):
+        # Show additional units count if more than one
+        if len(units) > 1:
+            parts.append(f"(+{len(units) - 1} units)")
+    else:
+        # Fallback for v1 schema (flat structure)
+        formations = data.get('formations', [])
+        if formations and isinstance(formations, list) and len(formations) > 0:
+            first_formation = formations[0]
+            if isinstance(first_formation, dict):
+                formation_name = first_formation.get('name', '')
+            else:
+                formation_name = str(first_formation)
+            if formation_name:
+                parts.append(formation_name)
+
+        legal = format_legal_description(
+            data.get('section'),
+            data.get('township'),
+            data.get('range')
+        )
+        if legal:
+            parts.append(legal)
+
+    # Order date
+    order_date = data.get('order_date')
+    if order_date:
+        parts.append(str(order_date))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
+def name_horizontal_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
+    """Horizontal Spacing {Order#} - {Applicant} - {Formations} - {Legal} - {Date}
+
+    v2 schema: Uses units[] array. Shows multiple formations with / separator.
+    """
+    parts = ["Horizontal Spacing"]
+
+    # Order number (preferred) or case number
+    order_number = data.get('order_number')
+    if order_number:
+        parts.append(str(order_number))
+    else:
+        cd_num = clean_cd_number(data.get('case_number'))
+        if cd_num:
+            parts.append(f"CD {cd_num}")
+
+    # Applicant
+    applicant = data.get('applicant')
+    if applicant:
+        parts.append(truncate_name(str(applicant), 30))
+
+    # Get first unit's formations and legal (v2 schema uses units[])
+    units = data.get('units', [])
+    if units and isinstance(units, list) and len(units) > 0:
+        first_unit = units[0]
+
+        # Formations from first unit - show multiple with / separator
+        formations = first_unit.get('formations', [])
+        if formations and isinstance(formations, list):
+            formation_names = []
+            for f in formations[:3]:  # Max 3 formations in name
+                if isinstance(f, dict):
+                    name = f.get('name', '')
+                else:
+                    name = str(f)
+                if name:
+                    formation_names.append(name)
+            if formation_names:
+                parts.append('/'.join(formation_names))
+
+        # Legal from first unit
+        legal_obj = first_unit.get('legal', {})
+        legal = format_legal_description(
+            legal_obj.get('section'),
+            legal_obj.get('township'),
+            legal_obj.get('range')
+        )
+        if legal:
+            parts.append(legal)
+    else:
+        # Fallback for v1 schema (flat structure)
+        formations = data.get('formations', [])
+        if formations and isinstance(formations, list):
+            formation_names = []
+            for f in formations[:3]:
+                if isinstance(f, dict):
+                    name = f.get('name', '')
+                else:
+                    name = str(f)
+                if name:
+                    formation_names.append(name)
+            if formation_names:
+                parts.append('/'.join(formation_names))
+
+        legal = format_legal_description(
+            data.get('section'),
+            data.get('township'),
+            data.get('range')
+        )
+        if legal:
+            parts.append(legal)
+
+    # Order date
+    order_date = data.get('order_date')
+    if order_date:
+        parts.append(str(order_date))
+    elif data.get('year'):
         parts.append(str(data['year']))
 
     return " - ".join(parts)

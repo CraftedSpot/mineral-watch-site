@@ -6170,6 +6170,9 @@
                 'Recoverable Reserves': ['recoverable_reserves'],
                 'Expiration': ['expiration'],
                 'Related Orders': ['related_orders'],
+                // Drilling and Spacing Order sections (v2 schema with units[] array)
+                'Spacing Units': ['units'],  // Array of spacing units with legal/formations/well_location
+                'Companion Causes': ['companion_causes'],  // Related OCC cases
                 // Pooling Order sections (nested objects with special rendering)
                 'Election Options': ['election_options'],
                 'Operator Information': ['operator'],
@@ -6409,6 +6412,9 @@
                 'Recording Information',
                 'Prior Instruments',
                 'Extraction Notes',
+                // Drilling and Spacing Order sections (v2 schema)
+                'Spacing Units',
+                'Companion Causes',
                 // Increased Density Order sections (in priority order)
                 'Order Details',
                 'Officials',
@@ -7446,23 +7452,206 @@
                                     </div>`;
                             }
                         } else if (fieldName === 'related_orders' && typeof value === 'object') {
-                            // Special handling for related orders object (increased density orders)
+                            // Special handling for related orders object
+                            // Supports both v1 (increased density) and v2 (drilling/spacing) structures
+                            hasVisibleFields = true;
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                            sectionContent += `<div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">`;
+
+                            // v1 structure fields (increased density)
                             const spacingOrder = value.spacing_order || '';
-                            const amendsOrder = value.amends_order || '';
+                            const amendsOrderV1 = typeof value.amends_order === 'string' ? value.amends_order : '';
                             const companionCases = value.companion_cases || [];
-                            if (spacingOrder || amendsOrder || companionCases.length > 0) {
-                                hasVisibleFields = true;
+
+                            // v2 structure fields (drilling/spacing)
+                            const corrects = value.corrects;
+                            const amends = value.amends || [];
+                            const extends_ = value.extends || [];
+                            const vacates = value.vacates || [];
+                            const supersededBy = value.superseded_by || '';
+
+                            // Render v2 structure if present
+                            if (corrects || amends.length > 0 || extends_.length > 0 || vacates.length > 0 || supersededBy) {
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px; font-size: 13px;">`;
+
+                                // Corrects (nunc pro tunc)
+                                if (corrects && typeof corrects === 'object') {
+                                    sectionContent += `
+                                        <div style="background: #DBEAFE; border-left: 3px solid #3B82F6; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                                            <span style="color: #1E40AF; font-weight: 500;">Corrects Order:</span>
+                                            <strong>${escapeHtml(corrects.order_number || '')}</strong>
+                                            ${corrects.description ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(corrects.description)}</div>` : ''}
+                                        </div>`;
+                                }
+
+                                // Amends
+                                if (amends.length > 0) {
+                                    amends.forEach(ref => {
+                                        sectionContent += `
+                                            <div style="background: #FEF3C7; border-left: 3px solid #F59E0B; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                                                <span style="color: #92400E; font-weight: 500;">Amends Order:</span>
+                                                <strong>${escapeHtml(ref.order_number || '')}</strong>
+                                                ${ref.formation ? `<span style="color: #6B7280;"> (${escapeHtml(ref.formation)})</span>` : ''}
+                                                ${ref.lands_affected ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Lands: ${escapeHtml(ref.lands_affected)}</div>` : ''}
+                                            </div>`;
+                                    });
+                                }
+
+                                // Extends
+                                if (extends_.length > 0) {
+                                    extends_.forEach(ref => {
+                                        sectionContent += `
+                                            <div style="background: #D1FAE5; border-left: 3px solid #10B981; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                                                <span style="color: #065F46; font-weight: 500;">Extends Order:</span>
+                                                <strong>${escapeHtml(ref.order_number || '')}</strong>
+                                                ${ref.formation ? `<span style="color: #6B7280;"> (${escapeHtml(ref.formation)})</span>` : ''}
+                                                ${ref.lands_affected ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Lands: ${escapeHtml(ref.lands_affected)}</div>` : ''}
+                                            </div>`;
+                                    });
+                                }
+
+                                // Vacates
+                                if (vacates.length > 0) {
+                                    vacates.forEach(ref => {
+                                        sectionContent += `
+                                            <div style="background: #FEE2E2; border-left: 3px solid #EF4444; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                                                <span style="color: #DC2626; font-weight: 500;">Vacates Order:</span>
+                                                <strong>${escapeHtml(ref.order_number || '')}</strong>
+                                                ${ref.formation ? `<span style="color: #6B7280;"> (${escapeHtml(ref.formation)})</span>` : ''}
+                                                ${ref.lands_affected ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Lands: ${escapeHtml(ref.lands_affected)}</div>` : ''}
+                                            </div>`;
+                                    });
+                                }
+
+                                // Superseded by
+                                if (supersededBy) {
+                                    sectionContent += `
+                                        <div style="background: #F3F4F6; border-left: 3px solid #6B7280; padding: 8px 12px; border-radius: 0 6px 6px 0;">
+                                            <span style="color: #4B5563; font-weight: 500;">Superseded By:</span>
+                                            <strong>${escapeHtml(supersededBy)}</strong>
+                                        </div>`;
+                                }
+
+                                sectionContent += `</div>`;
+                            }
+                            // Fall back to v1 structure
+                            else if (spacingOrder || amendsOrderV1 || companionCases.length > 0) {
                                 sectionContent += `
-                                    <div class="doc-field" style="grid-column: 1 / -1;">
-                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">
-                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; font-size: 13px;">
-                                                ${spacingOrder ? `<div><span style="color: #6B7280;">Spacing Order:</span> <strong>${escapeHtml(spacingOrder)}</strong></div>` : ''}
-                                                ${amendsOrder ? `<div><span style="color: #6B7280;">Amends Order:</span> <strong>${escapeHtml(amendsOrder)}</strong></div>` : ''}
-                                                ${companionCases.length > 0 ? `<div style="grid-column: 1 / -1;"><span style="color: #6B7280;">Companion Cases:</span> <strong>${companionCases.map(c => escapeHtml(c)).join(', ')}</strong></div>` : ''}
-                                            </div>
-                                        </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; font-size: 13px;">
+                                        ${spacingOrder ? `<div><span style="color: #6B7280;">Spacing Order:</span> <strong>${escapeHtml(spacingOrder)}</strong></div>` : ''}
+                                        ${amendsOrderV1 ? `<div><span style="color: #6B7280;">Amends Order:</span> <strong>${escapeHtml(amendsOrderV1)}</strong></div>` : ''}
+                                        ${companionCases.length > 0 ? `<div style="grid-column: 1 / -1;"><span style="color: #6B7280;">Companion Cases:</span> <strong>${companionCases.map(c => escapeHtml(c)).join(', ')}</strong></div>` : ''}
                                     </div>`;
                             }
+
+                            sectionContent += `</div></div>`;
+                        } else if (fieldName === 'companion_causes' && Array.isArray(value)) {
+                            // Special handling for companion causes (drilling/spacing order v2 schema)
+                            hasVisibleFields = true;
+                            sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                            sectionContent += `<div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">`;
+                            sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                            value.forEach(cause => {
+                                if (typeof cause === 'object') {
+                                    const caseNum = cause.case_number || '';
+                                    const causeType = cause.cause_type || '';
+                                    sectionContent += `
+                                        <div style="background: #DBEAFE; border: 1px solid #93C5FD; border-radius: 6px; padding: 6px 10px;">
+                                            <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(caseNum)}</span>
+                                            ${causeType ? `<span style="color: #6B7280; font-size: 12px; margin-left: 6px;">(${escapeHtml(causeType)})</span>` : ''}
+                                        </div>`;
+                                } else {
+                                    sectionContent += `
+                                        <div style="background: #DBEAFE; border: 1px solid #93C5FD; border-radius: 6px; padding: 6px 10px;">
+                                            <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(cause))}</span>
+                                        </div>`;
+                                }
+                            });
+                            sectionContent += `</div></div></div>`;
+                        } else if (fieldName === 'units' && Array.isArray(value)) {
+                            // Special handling for units array (drilling/spacing order v2 schema)
+                            // Each unit has legal description, formations, and well_location
+                            hasVisibleFields = true;
+                            sectionContent += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+                            value.forEach((unit, index) => {
+                                if (typeof unit === 'object') {
+                                    const legal = unit.legal || {};
+                                    const formations = unit.formations || [];
+                                    const wellLocation = unit.well_location || {};
+                                    const unitSize = unit.unit_size_acres;
+                                    const unitShape = unit.unit_shape || '';
+                                    const wellType = unit.well_type || '';
+                                    const sectionsCovered = unit.sections_covered;
+
+                                    // Build location string
+                                    const section = legal.section || '';
+                                    const township = legal.township || '';
+                                    const range = legal.range || '';
+                                    const meridian = legal.meridian || '';
+                                    const quarterCalls = legal.quarter_calls || [];
+                                    const fullDescription = legal.full_description || '';
+
+                                    let locationStr = '';
+                                    if (section && township && range) {
+                                        locationStr = `Section ${section}-${township}-${range}`;
+                                        if (meridian) locationStr += `-${meridian}`;
+                                    }
+                                    if (quarterCalls.length > 0) {
+                                        locationStr += ` (${quarterCalls.join(', ')})`;
+                                    }
+
+                                    sectionContent += `
+                                        <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                            ${value.length > 1 ? `<div style="font-size: 11px; color: #9CA3AF; margin-bottom: 8px;">Unit ${index + 1}</div>` : ''}
+                                            <div style="font-weight: 600; color: #1F2937; font-size: 14px; margin-bottom: 8px;">${escapeHtml(locationStr || fullDescription)}</div>
+
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+                                                ${unitSize ? `<div style="background: #DBEAFE; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Size:</span> <strong style="color: #1E40AF;">${unitSize}-acre</strong></div>` : ''}
+                                                ${unitShape ? `<div style="background: #E0E7FF; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Shape:</span> <strong style="color: #3730A3;">${escapeHtml(unitShape)}</strong></div>` : ''}
+                                                ${wellType ? `<div style="background: #D1FAE5; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Well Type:</span> <strong style="color: #065F46;">${escapeHtml(wellType)}</strong></div>` : ''}
+                                                ${sectionsCovered ? `<div style="background: #FEF3C7; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Sections:</span> <strong style="color: #92400E;">${sectionsCovered}</strong></div>` : ''}
+                                            </div>
+
+                                            ${formations.length > 0 ? `
+                                                <div style="margin-bottom: 10px;">
+                                                    <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">Formations:</div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                        ${formations.map(f => {
+                                                            const name = typeof f === 'object' ? (f.name || '') : String(f);
+                                                            const depthFrom = typeof f === 'object' ? (f.depth_from_ft || f.depth_from) : null;
+                                                            const depthTo = typeof f === 'object' ? (f.depth_to_ft || f.depth_to) : null;
+                                                            const depthDesc = typeof f === 'object' ? f.depth_description : null;
+                                                            let depthStr = '';
+                                                            if (depthFrom && depthTo) {
+                                                                depthStr = ` (${depthFrom.toLocaleString()}'-${depthTo.toLocaleString()}')`;
+                                                            } else if (depthDesc) {
+                                                                depthStr = ` (${depthDesc})`;
+                                                            }
+                                                            return `<span style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #92400E;">${escapeHtml(name)}${depthStr}</span>`;
+                                                        }).join('')}
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+
+                                            ${Object.keys(wellLocation).length > 0 ? `
+                                                <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px;">
+                                                    <div style="font-size: 12px; color: #1E40AF; font-weight: 500; margin-bottom: 6px;">Well Location Requirements</div>
+                                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; font-size: 12px;">
+                                                        ${wellLocation.unit_boundary_setback_ft ? `<div><span style="color: #6B7280;">Unit Boundary:</span> <strong>${wellLocation.unit_boundary_setback_ft}' setback</strong></div>` : ''}
+                                                        ${wellLocation.lease_line_setback_ft ? `<div><span style="color: #6B7280;">Lease Line:</span> <strong>${wellLocation.lease_line_setback_ft}' setback</strong></div>` : ''}
+                                                        ${wellLocation.lateral_setback_ft ? `<div><span style="color: #6B7280;">Lateral:</span> <strong>${wellLocation.lateral_setback_ft}' setback</strong></div>` : ''}
+                                                        ${wellLocation.completion_interval_setback_ft ? `<div><span style="color: #6B7280;">Completion Interval:</span> <strong>${wellLocation.completion_interval_setback_ft}' setback</strong></div>` : ''}
+                                                        ${wellLocation.max_wells_per_unit ? `<div><span style="color: #6B7280;">Max Wells/Unit:</span> <strong>${wellLocation.max_wells_per_unit}</strong></div>` : ''}
+                                                        ${wellLocation.max_wells_per_formation ? `<div><span style="color: #6B7280;">Max Wells/Formation:</span> <strong>${wellLocation.max_wells_per_formation}</strong></div>` : ''}
+                                                    </div>
+                                                    ${wellLocation.location_description ? `<div style="font-size: 12px; color: #4B5563; margin-top: 6px;">${escapeHtml(wellLocation.location_description)}</div>` : ''}
+                                                    ${wellLocation.special_conditions ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">${escapeHtml(wellLocation.special_conditions)}</div>` : ''}
+                                                </div>
+                                            ` : ''}
+                                        </div>`;
+                                }
+                            });
+                            sectionContent += `</div>`;
                         } else if (fieldName === 'recording' && typeof value === 'object') {
                             // Special handling for recording info object (mineral deeds v2 schema)
                             hasVisibleFields = true;
