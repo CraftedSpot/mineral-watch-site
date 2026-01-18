@@ -2919,7 +2919,7 @@ PROPERTY LINKING:
     "well_location": "high",
     "allocation_factors": "high"
   },
-  "document_confidence": 0.95
+  "document_confidence": "high"
 }
 
 SECOND MULTI-UNIT HORIZONTAL ORDER EXAMPLE (Two sections, simpler case):
@@ -3064,7 +3064,7 @@ SECOND MULTI-UNIT HORIZONTAL ORDER EXAMPLE (Two sections, simpler case):
     "well_authorization": "high",
     "allocation_factors": "high"
   },
-  "document_confidence": 0.92
+  "document_confidence": "high"
 }
 
 For AFFIDAVIT OF HEIRSHIP (sworn statement identifying heirs of deceased mineral owner):
