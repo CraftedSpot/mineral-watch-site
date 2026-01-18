@@ -7001,6 +7001,131 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'units') {
+                                // Special handling for units array (drilling/spacing order v2 schema)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
+                                value.forEach((unit, index) => {
+                                    if (typeof unit === 'object') {
+                                        const legal = unit.legal || {};
+                                        const formations = Array.isArray(unit.formations) ? unit.formations : [];
+                                        const wellLocation = (typeof unit.well_location === 'object' && unit.well_location) ? unit.well_location : {};
+
+                                        // Safely extract scalar values
+                                        const unitSize = typeof unit.unit_size_acres === 'number' ? unit.unit_size_acres : null;
+                                        const unitShape = typeof unit.unit_shape === 'string' ? unit.unit_shape : '';
+                                        const wellType = typeof unit.well_type === 'string' ? unit.well_type : '';
+                                        const sectionsCovered = typeof unit.sections_covered === 'number' ? unit.sections_covered : null;
+
+                                        // Build location string
+                                        const section = typeof legal.section === 'string' ? legal.section : (legal.section ? String(legal.section) : '');
+                                        const township = typeof legal.township === 'string' ? legal.township : (legal.township ? String(legal.township) : '');
+                                        const range = typeof legal.range === 'string' ? legal.range : (legal.range ? String(legal.range) : '');
+                                        const meridian = typeof legal.meridian === 'string' ? legal.meridian : '';
+                                        const quarterCalls = Array.isArray(legal.quarter_calls) ? legal.quarter_calls : [];
+                                        const fullDescription = typeof legal.full_description === 'string' ? legal.full_description : '';
+
+                                        let locationStr = '';
+                                        if (section && township && range) {
+                                            locationStr = `Section ${section}-${township}-${range}`;
+                                            if (meridian) locationStr += `-${meridian}`;
+                                        }
+                                        if (quarterCalls.length > 0) {
+                                            const qcStrings = quarterCalls.map(qc => {
+                                                if (typeof qc === 'string') return qc;
+                                                if (typeof qc === 'object' && qc) return qc.name || qc.quarter || '';
+                                                return '';
+                                            }).filter(s => s);
+                                            if (qcStrings.length > 0) {
+                                                locationStr += ` (${qcStrings.join(', ')})`;
+                                            }
+                                        }
+
+                                        sectionContent += `
+                                            <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                                ${value.length > 1 ? `<div style="font-size: 11px; color: #9CA3AF; margin-bottom: 8px;">Unit ${index + 1}</div>` : ''}
+                                                <div style="font-weight: 600; color: #1F2937; font-size: 14px; margin-bottom: 8px;">${escapeHtml(locationStr || fullDescription)}</div>
+
+                                                <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+                                                    ${unitSize ? `<div style="background: #DBEAFE; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Size:</span> <strong style="color: #1E40AF;">${unitSize}-acre</strong></div>` : ''}
+                                                    ${unitShape ? `<div style="background: #E0E7FF; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Shape:</span> <strong style="color: #3730A3;">${escapeHtml(unitShape)}</strong></div>` : ''}
+                                                    ${wellType ? `<div style="background: #D1FAE5; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Well Type:</span> <strong style="color: #065F46;">${escapeHtml(wellType)}</strong></div>` : ''}
+                                                    ${sectionsCovered ? `<div style="background: #FEF3C7; border-radius: 4px; padding: 4px 8px; font-size: 12px;"><span style="color: #6B7280;">Sections:</span> <strong style="color: #92400E;">${sectionsCovered}</strong></div>` : ''}
+                                                </div>
+
+                                                ${formations.length > 0 ? `
+                                                    <div style="margin-bottom: 10px;">
+                                                        <div style="font-size: 12px; color: #6B7280; margin-bottom: 6px;">Formations:</div>
+                                                        <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+                                                            ${formations.map(f => {
+                                                                let name = '';
+                                                                if (typeof f === 'object') {
+                                                                    name = typeof f.name === 'string' ? f.name : '';
+                                                                } else {
+                                                                    name = String(f);
+                                                                }
+                                                                const depthFrom = typeof f === 'object' ? (f.depth_from_ft || f.depth_from) : null;
+                                                                const depthTo = typeof f === 'object' ? (f.depth_to_ft || f.depth_to) : null;
+                                                                const depthDesc = typeof f === 'object' ? f.depth_description : null;
+                                                                let depthStr = '';
+                                                                if (typeof depthFrom === 'number' && typeof depthTo === 'number') {
+                                                                    depthStr = ` (${depthFrom.toLocaleString()}'-${depthTo.toLocaleString()}')`;
+                                                                } else if (depthDesc && typeof depthDesc === 'string') {
+                                                                    depthStr = ` (${escapeHtml(depthDesc)})`;
+                                                                }
+                                                                return `<span style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 4px; padding: 3px 8px; font-size: 12px; color: #92400E;">${escapeHtml(name)}${depthStr}</span>`;
+                                                            }).join('')}
+                                                        </div>
+                                                    </div>
+                                                ` : ''}
+
+                                                ${Object.keys(wellLocation).length > 0 ? (() => {
+                                                    const ubSetback = typeof wellLocation.unit_boundary_setback_ft === 'number' ? wellLocation.unit_boundary_setback_ft : null;
+                                                    const llSetback = typeof wellLocation.lease_line_setback_ft === 'number' ? wellLocation.lease_line_setback_ft : null;
+                                                    const latSetback = typeof wellLocation.lateral_setback_ft === 'number' ? wellLocation.lateral_setback_ft : null;
+                                                    const ciSetback = typeof wellLocation.completion_interval_setback_ft === 'number' ? wellLocation.completion_interval_setback_ft : null;
+                                                    const maxWellsUnit = typeof wellLocation.max_wells_per_unit === 'number' ? wellLocation.max_wells_per_unit : null;
+                                                    const maxWellsForm = typeof wellLocation.max_wells_per_formation === 'number' ? wellLocation.max_wells_per_formation : null;
+                                                    const locDesc = typeof wellLocation.location_description === 'string' ? wellLocation.location_description : '';
+                                                    const specCond = typeof wellLocation.special_conditions === 'string' ? wellLocation.special_conditions : '';
+                                                    return `
+                                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px;">
+                                                        <div style="font-size: 12px; color: #1E40AF; font-weight: 500; margin-bottom: 6px;">Well Location Requirements</div>
+                                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; font-size: 12px;">
+                                                            ${ubSetback !== null ? `<div><span style="color: #6B7280;">Unit Boundary:</span> <strong>${ubSetback}' setback</strong></div>` : ''}
+                                                            ${llSetback !== null ? `<div><span style="color: #6B7280;">Lease Line:</span> <strong>${llSetback}' setback</strong></div>` : ''}
+                                                            ${latSetback !== null ? `<div><span style="color: #6B7280;">Lateral:</span> <strong>${latSetback}' setback</strong></div>` : ''}
+                                                            ${ciSetback !== null ? `<div><span style="color: #6B7280;">Completion Interval:</span> <strong>${ciSetback}' setback</strong></div>` : ''}
+                                                            ${maxWellsUnit !== null ? `<div><span style="color: #6B7280;">Max Wells/Unit:</span> <strong>${maxWellsUnit}</strong></div>` : ''}
+                                                            ${maxWellsForm !== null ? `<div><span style="color: #6B7280;">Max Wells/Formation:</span> <strong>${maxWellsForm}</strong></div>` : ''}
+                                                        </div>
+                                                        ${locDesc ? `<div style="font-size: 12px; color: #4B5563; margin-top: 6px;">${escapeHtml(locDesc)}</div>` : ''}
+                                                        ${specCond ? `<div style="font-size: 12px; color: #6B7280; margin-top: 6px; font-style: italic;">${escapeHtml(specCond)}</div>` : ''}
+                                                    </div>`;
+                                                })() : ''}
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'companion_causes') {
+                                // Special handling for companion causes (drilling/spacing order v2 schema)
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(cause => {
+                                    if (typeof cause === 'object') {
+                                        const caseNum = typeof cause.case_number === 'string' ? cause.case_number : '';
+                                        const causeType = typeof cause.cause_type === 'string' ? cause.cause_type : '';
+                                        sectionContent += `
+                                            <div style="background: #DBEAFE; border: 1px solid #93C5FD; border-radius: 6px; padding: 6px 10px;">
+                                                <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(caseNum)}</span>
+                                                ${causeType ? `<span style="color: #6B7280; font-size: 12px; margin-left: 6px;">(${escapeHtml(causeType)})</span>` : ''}
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #DBEAFE; border: 1px solid #93C5FD; border-radius: 6px; padding: 6px 10px;">
+                                                <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(cause))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
                             } else {
                                 // Regular array
                                 sectionContent += `<ul style="margin: 8px 0; padding-left: 20px;">`;
