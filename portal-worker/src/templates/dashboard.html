@@ -7486,6 +7486,67 @@
                                         </div>`;
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'family_members') {
+                                // Special handling for death certificate family members
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
+                                value.forEach(member => {
+                                    if (typeof member === 'object') {
+                                        const name = member.name || '';
+                                        const relationship = member.relationship || '';
+                                        const roleOnCert = member.role_on_certificate || '';
+                                        const relationshipSource = member.relationship_source || '';
+                                        const notes = member.notes || '';
+
+                                        sectionContent += `
+                                            <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px 12px;">
+                                                <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                                    <div>
+                                                        <div style="font-weight: 600; color: #1E40AF; font-size: 14px;">${escapeHtml(name)}</div>
+                                                        ${relationship ? `<div style="font-size: 13px; color: #3B82F6; margin-top: 2px;">${escapeHtml(relationship)}</div>` : ''}
+                                                        ${roleOnCert ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Role: ${escapeHtml(roleOnCert)}</div>` : ''}
+                                                        ${relationshipSource ? `<div style="font-size: 11px; color: #9CA3AF; margin-top: 2px;">Source: ${escapeHtml(relationshipSource)}</div>` : ''}
+                                                        ${notes ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px; font-style: italic;">${escapeHtml(notes)}</div>` : ''}
+                                                    </div>
+                                                </div>
+                                            </div>`;
+                                    } else {
+                                        sectionContent += `
+                                            <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px 12px;">
+                                                <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(String(member))}</span>
+                                            </div>`;
+                                    }
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'expected_companion_documents') {
+                                // Special handling for death certificate expected companion documents
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(doc => {
+                                    sectionContent += `
+                                        <span style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 4px; padding: 4px 10px; font-size: 13px; color: #92400E;">
+                                            ${escapeHtml(String(doc))}
+                                        </span>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'name_variations') {
+                                // Special handling for death certificate name variations in chain_of_title
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(variation => {
+                                    sectionContent += `
+                                        <span style="background: #EDE9FE; border: 1px solid #A855F7; border-radius: 4px; padding: 4px 10px; font-size: 13px; color: #7C3AED;">
+                                            ${escapeHtml(String(variation))}
+                                        </span>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'children_names') {
+                                // Special handling for death certificate children names
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                value.forEach(child => {
+                                    sectionContent += `
+                                        <span style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 4px; padding: 4px 10px; font-size: 13px; color: #1E40AF;">
+                                            ${escapeHtml(String(child))}
+                                        </span>`;
+                                });
+                                sectionContent += `</div>`;
                             } else {
                                 // Regular array
                                 sectionContent += `<ul style="margin: 8px 0; padding-left: 20px;">`;
