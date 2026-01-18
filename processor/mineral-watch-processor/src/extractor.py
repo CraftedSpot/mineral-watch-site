@@ -3205,6 +3205,7 @@ MULTI-DOCUMENT DETECTION:
 Determine if this PDF contains multiple separate documents. Look for:
 - Multiple recording stamps with different book/page numbers
 - Repeated document headers (e.g., "MINERAL DEED" appearing multiple times)
+- DIFFERENT document type headers on different pages (e.g., "ASSIGNMENT OF LEASE" on page 1, "QUIT CLAIM DEED" on page 2, "MINERAL DEED" on page 3) - THIS IS A MULTI-DOCUMENT PDF
 - Different document dates or execution dates
 - Different parties (grantors/grantees) in separate sections
 - Clear page breaks between distinct documents
@@ -3213,6 +3214,8 @@ Determine if this PDF contains multiple separate documents. Look for:
   Example: Page 1 has "Property #: 112295, Property Name: Holdings 25-36-1XH"
            Page 2 has "Property #: 112294, Property Name: Holdings 24-25-1XH"
            This is TWO separate division orders, not one!
+
+CRITICAL: If you see DIFFERENT document types on different pages (Assignment, Quit Claim Deed, Mineral Deed, etc.), this is DEFINITELY a multi-document PDF. Set is_multi_document: true and count the pages.
 
 If you see evidence of multiple documents, set is_multi_document: true and estimate the count.
 
