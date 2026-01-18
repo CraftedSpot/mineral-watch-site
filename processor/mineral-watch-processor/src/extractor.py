@@ -161,6 +161,457 @@ BATCH_DELAY_SECONDS = 3
 MAX_RETRIES = 3
 INITIAL_RETRY_DELAY = 60
 
+# ============================================================================
+# STAGE 1: PAGE-LEVEL CLASSIFICATION (Two-Stage Pipeline)
+# ============================================================================
+
+# Coarse document types for page-level classification
+# These are broader categories - fine-grained types come in Stage 2
+COARSE_TYPES = [
+    "deed",           # mineral deed, quit claim, warranty deed, correction deed
+    "lease",          # oil & gas lease, assignment of lease, ratification
+    "order",          # OCC orders (pooling, spacing, density, location exception)
+    "permit",         # drilling permits, completion reports
+    "check",          # check stubs, royalty statements
+    "tax",            # tax records, assessments
+    "title_opinion",  # attorney title opinions
+    "affidavit",      # affidavits of heirship, death, identity
+    "correspondence", # letters, notices, miscellaneous
+    "exhibit",        # exhibit pages, attachments (attach to previous)
+    "other"           # unknown/unclassifiable
+]
+
+# Regex patterns for heuristic title detection
+# Format: (pattern, coarse_type)
+TITLE_PATTERNS = [
+    # Deeds
+    (r"MINERAL\s+DEED", "deed"),
+    (r"QUIT\s*CLAIM\s+DEED", "deed"),
+    (r"QUITCLAIM\s+DEED", "deed"),
+    (r"WARRANTY\s+DEED", "deed"),
+    (r"CORRECTION\s+(QUIT\s*CLAIM\s+)?DEED", "deed"),
+    (r"CORRECTIVE\s+(QUIT\s*CLAIM\s+)?DEED", "deed"),
+    (r"ROYALTY\s+DEED", "deed"),
+    (r"GENERAL\s+WARRANTY\s+DEED", "deed"),
+    (r"SPECIAL\s+WARRANTY\s+DEED", "deed"),
+    # Leases
+    (r"OIL\s+AND\s+GAS\s+LEASE", "lease"),
+    (r"ASSIGNMENT\s+OF.*LEASE", "lease"),
+    (r"PARTIAL\s+ASSIGNMENT\s+OF\s+LEASE", "lease"),
+    (r"RATIFICATION\s+OF.*LEASE", "lease"),
+    (r"MEMORANDUM\s+OF\s+LEASE", "lease"),
+    (r"LEASE\s+AGREEMENT", "lease"),
+    # OCC Orders
+    (r"POOLING\s+ORDER", "order"),
+    (r"SPACING\s+ORDER", "order"),
+    (r"DRILLING\s+AND\s+SPACING", "order"),
+    (r"HORIZONTAL\s+DRILLING\s+AND\s+SPACING", "order"),
+    (r"INCREASED\s+DENSITY", "order"),
+    (r"INCREASED\s+WELL\s+DENSITY", "order"),
+    (r"LOCATION\s+EXCEPTION", "order"),
+    (r"CHANGE\s+OF\s+OPERATOR", "order"),
+    (r"MULTI[- ]?UNIT\s+HORIZONTAL", "order"),
+    (r"CAUSE\s+CD\s+NO", "order"),
+    (r"BEFORE\s+THE\s+CORPORATION\s+COMMISSION", "order"),
+    (r"ORDER\s+NO\.\s*\d+", "order"),
+    # Permits
+    (r"DRILLING\s+PERMIT", "permit"),
+    (r"PERMIT\s+TO\s+DRILL", "permit"),
+    (r"FORM\s+1000", "permit"),
+    (r"COMPLETION\s+REPORT", "permit"),
+    (r"FORM\s+1002", "permit"),
+    # Check/Statement
+    (r"CHECK\s+STUB", "check"),
+    (r"ROYALTY\s+STATEMENT", "check"),
+    (r"REVENUE\s+STATEMENT", "check"),
+    (r"OWNER\s+STATEMENT", "check"),
+    (r"DIVISION\s+ORDER", "check"),  # Division orders are payment-related
+    # Tax
+    (r"TAX\s+STATEMENT", "tax"),
+    (r"AD\s+VALOREM", "tax"),
+    (r"PROPERTY\s+TAX", "tax"),
+    # Title Opinion
+    (r"TITLE\s+OPINION", "title_opinion"),
+    (r"ATTORNEY['']?S?\s+OPINION", "title_opinion"),
+    (r"PRELIMINARY\s+TITLE", "title_opinion"),
+    # Affidavits
+    (r"AFFIDAVIT\s+OF\s+HEIRSHIP", "affidavit"),
+    (r"AFFIDAVIT\s+OF\s+DEATH", "affidavit"),
+    (r"AFFIDAVIT\s+OF\s+IDENTITY", "affidavit"),
+    (r"DEATH\s+CERTIFICATE", "affidavit"),
+    # Exhibits
+    (r"EXHIBIT\s+[A-Z][\s\-–—]", "exhibit"),
+    (r"ATTACHMENT\s+[A-Z]", "exhibit"),
+    (r"ADDENDUM\s+[A-Z]", "exhibit"),
+    (r"SCHEDULE\s+[A-Z]", "exhibit"),
+]
+
+# Patterns that indicate start of a new document
+START_INDICATORS = [
+    r"KNOW\s+ALL\s+MEN\s+BY\s+THESE\s+PRESENTS",
+    r"STATE\s+OF\s+OKLAHOMA\s*[,\n]",
+    r"THIS\s+(AGREEMENT|DEED|LEASE|INDENTURE|ASSIGNMENT)\s+made",
+    r"THIS\s+IS\s+TO\s+CERTIFY",
+    r"BEFORE\s+THE\s+CORPORATION\s+COMMISSION",
+    r"FILED\s+FOR\s+RECORD",
+    r"RECORDED\s+IN\s+BOOK",
+    r"DOCUMENT\s+NO[.:]\s*\d+",
+    r"INSTRUMENT\s+NO[.:]\s*\d+",
+]
+
+
+def heuristic_page_check(page_text: str) -> dict:
+    """
+    Quick regex-based pre-classification of a page.
+
+    Args:
+        page_text: OCR or extracted text from a single page
+
+    Returns:
+        dict with heuristic_type, heuristic_is_start, matched_title
+    """
+    result = {
+        "heuristic_type": None,
+        "heuristic_is_start": False,
+        "matched_title": None,
+        "confidence": 0.0
+    }
+
+    if not page_text:
+        return result
+
+    # Normalize text for matching (but preserve original for title extraction)
+    text_upper = page_text.upper()
+
+    # Check for document titles
+    for pattern, doc_type in TITLE_PATTERNS:
+        match = re.search(pattern, text_upper, re.IGNORECASE)
+        if match:
+            result["heuristic_type"] = doc_type
+            result["matched_title"] = match.group(0).strip()
+            result["heuristic_is_start"] = True
+            result["confidence"] = 0.8
+            break
+
+    # Check for start indicators (even if we didn't find a title)
+    for pattern in START_INDICATORS:
+        if re.search(pattern, text_upper, re.IGNORECASE):
+            result["heuristic_is_start"] = True
+            if result["confidence"] < 0.5:
+                result["confidence"] = 0.5
+            break
+
+    return result
+
+
+PAGE_CLASSIFIER_PROMPT = """You are a document page classifier for oil & gas mineral rights documents.
+
+For this SINGLE PAGE, determine:
+1. What broad document type does this page belong to?
+2. Is this the START of a new document (first page), or a continuation/middle page?
+
+You only see a SINGLE PAGE. Do not guess based on what might be on other pages.
+
+COARSE DOCUMENT TYPES (pick exactly one):
+- deed: Mineral deeds, quit claim deeds, warranty deeds, correction deeds, conveyances, trust funding assignments
+- lease: Oil & gas leases, assignments of lease, lease ratifications, memoranda of lease
+- order: OCC/Commission orders (pooling, spacing, density, location exception, change of operator)
+- permit: Drilling permits, completion reports, well permits (Form 1000, 1002)
+- check: Check stubs, royalty statements, payment statements, division orders
+- tax: Tax records, ad valorem assessments, tax statements
+- title_opinion: Attorney title opinions, title runsheets
+- affidavit: Affidavits of heirship, affidavits of death, identity affidavits, death certificates
+- correspondence: Letters, notices, cover letters, transmittal sheets (contains "Dear Sir or Madam", "Re: [Well Name]")
+- exhibit: Exhibit pages (EXHIBIT A, ATTACHMENT A), attachments, addenda, plat attachments
+- other: Cannot determine type from this page
+
+DOCUMENT START INDICATORS (high confidence = multiple present):
+- Clear title/heading at top: "MINERAL DEED", "OIL AND GAS LEASE", "POOLING ORDER"
+- Formal opening: "KNOW ALL MEN BY THESE PRESENTS", "STATE OF OKLAHOMA"
+- Case/cause number header: "CAUSE CD NO.", "ORDER NO."
+- Recording stamp/info at top of page
+- Date and parties introduction: "This Agreement made this ___ day of..."
+- Document number or instrument number
+
+CONTINUATION/MIDDLE PAGE INDICATORS (NOT a start page):
+- Page starts mid-sentence or mid-paragraph
+- No title or header
+- Continuation of legal description
+- Signature blocks (usually end of document, not start)
+- Notary blocks (usually end of document)
+- "Page 2 of 3" or similar pagination
+- Just exhibits/attachments
+
+Respond with JSON only:
+{
+  "page_index": <use the provided index>,
+  "coarse_type": "<type from list above>",
+  "is_document_start": <true if this is first page of a document>,
+  "start_confidence": <0.0-1.0>,
+  "detected_title": "<exact title text if visible, null if not>",
+  "features": {
+    "has_title_phrase": <true/false>,
+    "has_granting_clause": <true/false - "KNOW ALL MEN", "WITNESSETH", etc.>,
+    "has_signature_block": <true/false>,
+    "has_notary_block": <true/false>,
+    "has_exhibit_label": <true/false>,
+    "has_legal_description": <true/false>,
+    "has_recording_stamp": <true/false>
+  }
+}"""
+
+
+async def classify_single_page(image_path: str, page_index: int, page_text: str = None) -> dict:
+    """
+    Classify a single page using heuristics first, then Haiku if needed.
+
+    Args:
+        image_path: Path to the page image
+        page_index: 0-based page index
+        page_text: Optional pre-extracted text (for heuristic check)
+
+    Returns:
+        PageClassification dict
+    """
+    # First try heuristics if we have text
+    heuristic_result = None
+    if page_text:
+        heuristic_result = heuristic_page_check(page_text)
+
+        # If heuristics found a high-confidence match, use it
+        if heuristic_result["confidence"] >= 0.8 and heuristic_result["heuristic_type"]:
+            logger.debug(f"Page {page_index}: Heuristic match - {heuristic_result['heuristic_type']} "
+                        f"(title: {heuristic_result['matched_title']})")
+            return {
+                "page_index": page_index,
+                "coarse_type": heuristic_result["heuristic_type"],
+                "is_document_start": heuristic_result["heuristic_is_start"],
+                "start_confidence": heuristic_result["confidence"],
+                "detected_title": heuristic_result["matched_title"],
+                "features": {
+                    "has_title_phrase": bool(heuristic_result["matched_title"]),
+                    "has_granting_clause": False,
+                    "has_signature_block": False,
+                    "has_notary_block": False,
+                    "has_exhibit_label": heuristic_result["heuristic_type"] == "exhibit",
+                    "has_legal_description": False,
+                    "has_recording_stamp": False
+                },
+                "classification_method": "heuristic"
+            }
+
+    # Fall back to Haiku for classification
+    try:
+        with open(image_path, 'rb') as img:
+            img_data = base64.b64encode(img.read()).decode()
+
+        content = [
+            {"type": "text", "text": f"Page index: {page_index}\n\n{PAGE_CLASSIFIER_PROMPT}"},
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": "image/jpeg",
+                    "data": img_data
+                }
+            }
+        ]
+
+        response = client.messages.create(
+            model="claude-3-5-haiku-20241022",  # Use Haiku for speed/cost
+            max_tokens=512,
+            messages=[{"role": "user", "content": content}]
+        )
+
+        response_text = response.content[0].text.strip()
+
+        # Strip markdown code fences if present
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            if lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            response_text = "\n".join(lines)
+
+        result = json.loads(response_text)
+        result["page_index"] = page_index  # Ensure correct index
+        result["classification_method"] = "haiku"
+
+        logger.debug(f"Page {page_index}: Haiku classified as {result.get('coarse_type')} "
+                    f"(start: {result.get('is_document_start')}, conf: {result.get('start_confidence')})")
+
+        return result
+
+    except Exception as e:
+        logger.error(f"Failed to classify page {page_index}: {e}")
+        # Return a safe default
+        return {
+            "page_index": page_index,
+            "coarse_type": "other",
+            "is_document_start": page_index == 0,  # Assume first page starts a doc
+            "start_confidence": 0.3,
+            "detected_title": None,
+            "features": {},
+            "classification_method": "fallback",
+            "error": str(e)
+        }
+
+
+async def classify_pages(image_paths: list[str], page_texts: list[str] = None) -> list[dict]:
+    """
+    Classify all pages in a PDF using Stage 1 (page-level) classification.
+
+    Args:
+        image_paths: List of paths to page images
+        page_texts: Optional list of pre-extracted text per page
+
+    Returns:
+        List of PageClassification dicts
+    """
+    logger.info(f"Stage 1: Classifying {len(image_paths)} pages")
+
+    # If no page texts provided, use empty strings
+    if page_texts is None:
+        page_texts = [""] * len(image_paths)
+
+    # Classify pages concurrently (but with some rate limiting)
+    # Process in batches of 5 to avoid overwhelming the API
+    results = []
+    batch_size = 5
+
+    for i in range(0, len(image_paths), batch_size):
+        batch_paths = image_paths[i:i + batch_size]
+        batch_texts = page_texts[i:i + batch_size]
+        batch_indices = range(i, i + len(batch_paths))
+
+        # Process batch concurrently
+        tasks = [
+            classify_single_page(path, idx, text)
+            for path, idx, text in zip(batch_paths, batch_indices, batch_texts)
+        ]
+
+        batch_results = await asyncio.gather(*tasks)
+        results.extend(batch_results)
+
+        # Small delay between batches
+        if i + batch_size < len(image_paths):
+            await asyncio.sleep(0.5)
+
+    logger.info(f"Stage 1 complete: Classified {len(results)} pages")
+    return results
+
+
+def split_pages_into_documents(page_classifications: list[dict]) -> dict:
+    """
+    Group page classifications into logical document chunks.
+
+    Args:
+        page_classifications: List of PageClassification dicts from classify_pages
+
+    Returns:
+        SplitResult dict with chunks and metadata
+    """
+    logger.info(f"Splitting {len(page_classifications)} pages into documents")
+
+    chunks = []
+    current_chunk = None
+
+    for page in page_classifications:
+        page_idx = page["page_index"]
+        coarse_type = page.get("coarse_type", "other")
+        is_start = page.get("is_document_start", False)
+        start_conf = page.get("start_confidence", 0.0)
+
+        should_start_new = False
+        split_reason = None
+
+        # Rule 1: First page always starts a document
+        if current_chunk is None:
+            should_start_new = True
+            split_reason = "first_page"
+
+        # Rule 2: High-confidence document start
+        elif is_start and start_conf >= 0.7:
+            should_start_new = True
+            split_reason = "title_detected"
+
+        # Rule 3: Type change (incompatible types)
+        elif coarse_type != current_chunk["coarse_type"]:
+            # Exhibit/other/correspondence can attach to previous
+            if coarse_type in ["exhibit", "correspondence"]:
+                # Check if this looks like an attachment
+                if not is_start or start_conf < 0.5:
+                    # Attach as part of current document
+                    if "attachment_pages" not in current_chunk:
+                        current_chunk["attachment_pages"] = []
+                    current_chunk["attachment_pages"].append(page_idx)
+                    logger.debug(f"Page {page_idx}: Attaching {coarse_type} to previous document")
+                    continue
+
+            # "other" with low confidence attaches to previous
+            if coarse_type == "other" and start_conf < 0.5:
+                current_chunk["page_end"] = page_idx
+                continue
+
+            # Significant type change = new document
+            should_start_new = True
+            split_reason = "type_change"
+
+        # Rule 4: Medium-confidence start within same type
+        elif is_start and start_conf >= 0.5:
+            # Could be same type repeated (e.g., two mineral deeds)
+            should_start_new = True
+            split_reason = "new_document_same_type"
+
+        if should_start_new:
+            # Close previous chunk
+            if current_chunk:
+                chunks.append(current_chunk)
+
+            # Start new chunk
+            current_chunk = {
+                "chunk_index": len(chunks),
+                "page_start": page_idx,
+                "page_end": page_idx,
+                "coarse_type": coarse_type,
+                "detected_title": page.get("detected_title"),
+                "attachment_pages": [],
+                "split_reason": split_reason
+            }
+            logger.debug(f"Page {page_idx}: Starting new {coarse_type} document ({split_reason})")
+        else:
+            # Continue current chunk
+            current_chunk["page_end"] = page_idx
+
+    # Don't forget the last chunk
+    if current_chunk:
+        chunks.append(current_chunk)
+
+    # Build result
+    result = {
+        "total_pages": len(page_classifications),
+        "is_multi_document": len(chunks) > 1,
+        "document_count": len(chunks),
+        "chunks": chunks,
+        "page_classifications": page_classifications,
+        "split_metadata": {
+            "model": "claude-3-5-haiku-20241022",
+            "heuristics_used": any(p.get("classification_method") == "heuristic" for p in page_classifications)
+        }
+    }
+
+    logger.info(f"Split result: {len(chunks)} documents from {len(page_classifications)} pages")
+    for i, chunk in enumerate(chunks):
+        logger.info(f"  Doc {i+1}: pages {chunk['page_start']+1}-{chunk['page_end']+1} ({chunk['coarse_type']}) - {chunk['split_reason']}")
+
+    return result
+
+
+# ============================================================================
+# ORIGINAL DETECTION PROMPT (for backwards compatibility / Stage 2)
+# ============================================================================
+
 DETECTION_PROMPT = """You are analyzing a PDF that may contain one or more mineral rights documents.
 
 Your task is to identify EVERY separate legal document in this PDF.
@@ -3749,7 +4200,7 @@ If these pages don't contain significant new information, return: {{"additional_
 async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None) -> dict:
     """
     Main entry point for document extraction.
-    Detects multiple documents and extracts data from each.
+    Uses two-stage pipeline: Stage 1 (page-level classification + splitting) and Stage 2 (per-document extraction).
 
     Args:
         image_paths: List of paths to page images
@@ -3759,19 +4210,51 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     Returns:
         Combined extraction results
     """
-    # Step 1: Always do quick classification first (most efficient)
-    classification = await quick_classify_document(image_paths[:3])  # Use first 3 pages
+    logger.info(f"Starting extraction for {len(image_paths)}-page document")
 
-    # Step 1.5: Check if rotation is needed (only for direct images, not PDFs)
-    # Only attempt rotation once to avoid loops
+    # Step 0: For single-page docs, use quick classification path
+    if len(image_paths) == 1:
+        logger.info("Single page document - using quick classification")
+        classification = await quick_classify_document(image_paths)
+
+        # Handle rotation for single page
+        rotation_needed = classification.get("rotation_needed", 0)
+        if rotation_needed and rotation_needed != 0 and not _rotation_attempted:
+            logger.info(f"Document needs {rotation_needed}° rotation - applying correction")
+            from .main import rotate_image
+            try:
+                rotated_path = rotate_image(image_paths[0], rotation_needed)
+                result = await extract_document_data([rotated_path], _rotation_attempted=True, pdf_path=pdf_path)
+                result["rotation_applied"] = rotation_needed
+                return result
+            except Exception as e:
+                logger.error(f"Failed to rotate image: {e}")
+
+        # If "other", skip extraction
+        if classification.get("doc_type") == "other":
+            logger.info(f"Document classified as 'other', skipping extraction")
+            return {
+                "doc_type": "other",
+                "category": "other",
+                "document_confidence": classification.get("confidence", "high"),
+                "classification_model": CONFIG.CLAUDE_MODEL,
+                "page_count": 1,
+                "skip_extraction": True,
+                "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
+            }
+
+        # Single page, known type - extract it
+        return await extract_single_document(image_paths)
+
+    # Step 1: Quick classification on first page for rotation detection
+    classification = await quick_classify_document(image_paths[:1])
+
+    # Handle rotation if needed
     rotation_needed = classification.get("rotation_needed", 0)
     if rotation_needed and rotation_needed != 0 and not _rotation_attempted:
         logger.info(f"Document needs {rotation_needed}° rotation - applying correction")
-
-        # Import rotation function from main module
         from .main import rotate_image
 
-        # Rotate all images
         rotated_paths = []
         for img_path in image_paths:
             try:
@@ -3779,278 +4262,124 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 rotated_paths.append(rotated_path)
             except Exception as e:
                 logger.error(f"Failed to rotate image {img_path}: {e}")
-                rotated_paths.append(img_path)  # Use original on failure
+                rotated_paths.append(img_path)
 
-        # Re-run extraction with rotated images (with flag to prevent loops)
         logger.info(f"Re-running extraction with {len(rotated_paths)} rotated image(s)")
         result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path)
-
-        # Add rotation info to result
         result["rotation_applied"] = rotation_needed
         return result
 
-    # If it's "other", skip ALL extraction and detection
-    if classification.get("doc_type") == "other":
-        logger.info(f"Document classified as 'other', skipping all extraction and detection")
-        return {
-            "doc_type": "other",
-            "category": "other",
-            "document_confidence": classification.get("confidence", "high"),
-            "classification_model": CONFIG.CLAUDE_MODEL,
-            "classification_scores": classification.get("scores", {}),
-            "page_count": len(image_paths),
-            "skip_extraction": True,
-            "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
-        }
+    # =========================================================================
+    # STAGE 1: Page-level classification and splitting (Two-Stage Pipeline)
+    # =========================================================================
+    logger.info(f"Stage 1: Running page-level classification for {len(image_paths)} pages")
 
-    # Step 1.7: For Division Orders, try deterministic text-based splitting first
-    # This is more reliable than AI-based detection for standardized forms
-    doc_type = classification.get("doc_type")
-    if doc_type == "division_order" and pdf_path and len(image_paths) > 1:
-        logger.info("Division Order detected - attempting deterministic text-based splitting")
-        try:
-            from .splitters import DivisionOrderSplitter
-            splitter = DivisionOrderSplitter()
-            text_by_page = splitter.extract_text_from_pdf(pdf_path)
+    # Get page-level classifications using Haiku
+    page_classifications = await classify_pages(image_paths)
 
-            if text_by_page:
-                split_result = splitter.split(text_by_page)
+    # Split into logical documents
+    split_result = split_pages_into_documents(page_classifications)
 
-                if split_result.success and split_result.document_count > 1:
-                    logger.info(f"Deterministic splitter found {split_result.document_count} Division Orders: {split_result.page_ranges}")
+    logger.info(f"Stage 1 complete: Found {split_result['document_count']} document(s)")
 
-                    # Process each document
-                    results = {
-                        "is_multi_document": True,
-                        "document_count": split_result.document_count,
-                        "split_method": "deterministic_text_patterns",
-                        "documents": []
-                    }
+    # =========================================================================
+    # STAGE 2: Per-document classification and extraction
+    # =========================================================================
 
-                    for i, (start_page, end_page) in enumerate(split_result.page_ranges):
-                        logger.info(f"Extracting Division Order {i + 1} from pages {start_page}-{end_page}")
+    # If single document detected, extract it directly
+    if not split_result["is_multi_document"]:
+        chunk = split_result["chunks"][0]
+        coarse_type = chunk.get("coarse_type", "other")
 
-                        doc_data = await extract_single_document(
-                            image_paths,
-                            start_page,
-                            end_page
-                        )
+        logger.info(f"Single document detected (coarse_type: {coarse_type})")
 
-                        # Add document boundaries and metadata
-                        doc_data["_start_page"] = start_page
-                        doc_data["_end_page"] = end_page
-                        if split_result.document_metadata and i < len(split_result.document_metadata):
-                            doc_data["_split_metadata"] = split_result.document_metadata[i]
-
-                        results["documents"].append(doc_data)
-
-                        # Add delay between documents to avoid rate limits
-                        if i < split_result.document_count - 1:
-                            logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-                            await asyncio.sleep(BATCH_DELAY_SECONDS)
-
-                    return results
-                elif split_result.reason == "no_extractable_text":
-                    # Scanned PDF - try OCR
-                    logger.info("No embedded text found - attempting OCR")
-                    ocr_text_by_page = splitter.ocr_images(image_paths)
-
-                    if ocr_text_by_page and not splitter.is_text_empty(ocr_text_by_page):
-                        logger.info(f"OCR successful - extracted text from {len(ocr_text_by_page)} pages")
-                        # Re-run splitter with OCR'd text
-                        ocr_split_result = splitter.split(ocr_text_by_page)
-
-                        if ocr_split_result.success and ocr_split_result.document_count > 1:
-                            logger.info(f"OCR splitter found {ocr_split_result.document_count} Division Orders: {ocr_split_result.page_ranges}")
-
-                            results = {
-                                "is_multi_document": True,
-                                "document_count": ocr_split_result.document_count,
-                                "split_method": "ocr_text_patterns",
-                                "documents": []
-                            }
-
-                            for i, (start_page, end_page) in enumerate(ocr_split_result.page_ranges):
-                                logger.info(f"Extracting Division Order {i + 1} from pages {start_page}-{end_page}")
-
-                                doc_data = await extract_single_document(
-                                    image_paths,
-                                    start_page,
-                                    end_page
-                                )
-
-                                doc_data["_start_page"] = start_page
-                                doc_data["_end_page"] = end_page
-                                if ocr_split_result.document_metadata and i < len(ocr_split_result.document_metadata):
-                                    doc_data["_split_metadata"] = ocr_split_result.document_metadata[i]
-
-                                results["documents"].append(doc_data)
-
-                                if i < ocr_split_result.document_count - 1:
-                                    logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-                                    await asyncio.sleep(BATCH_DELAY_SECONDS)
-
-                            return results
-                        else:
-                            # OCR patterns didn't find multiple docs - fall back to classification
-                            logger.info(f"OCR splitter found single document: {ocr_split_result.reason}")
-                            logger.info("OCR patterns failed - falling back to classification inference")
-                            estimated_count = classification.get("estimated_doc_count", 1)
-                            if classification.get("is_multi_document") and estimated_count == len(image_paths):
-                                logger.info(f"Using classification inference ({estimated_count} docs on {len(image_paths)} pages)")
-
-                                results = {
-                                    "is_multi_document": True,
-                                    "document_count": estimated_count,
-                                    "split_method": "classification_page_inference",
-                                    "documents": []
-                                }
-
-                                for page_num in range(1, estimated_count + 1):
-                                    logger.info(f"Extracting Division Order {page_num} from page {page_num}")
-
-                                    doc_data = await extract_single_document(
-                                        image_paths,
-                                        page_num,
-                                        page_num
-                                    )
-
-                                    doc_data["_start_page"] = page_num
-                                    doc_data["_end_page"] = page_num
-                                    results["documents"].append(doc_data)
-
-                                    if page_num < estimated_count:
-                                        logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-                                        await asyncio.sleep(BATCH_DELAY_SECONDS)
-
-                                return results
-                    else:
-                        # OCR completely failed - fall back to classification inference
-                        logger.info("OCR failed or returned empty text - trying classification inference")
-                        estimated_count = classification.get("estimated_doc_count", 1)
-                        if classification.get("is_multi_document") and estimated_count == len(image_paths):
-                            logger.info(f"Using classification inference ({estimated_count} docs on {len(image_paths)} pages)")
-
-                            results = {
-                                "is_multi_document": True,
-                                "document_count": estimated_count,
-                                "split_method": "classification_page_inference",
-                                "documents": []
-                            }
-
-                            for page_num in range(1, estimated_count + 1):
-                                logger.info(f"Extracting Division Order {page_num} from page {page_num}")
-
-                                doc_data = await extract_single_document(
-                                    image_paths,
-                                    page_num,
-                                    page_num
-                                )
-
-                                doc_data["_start_page"] = page_num
-                                doc_data["_end_page"] = page_num
-                                results["documents"].append(doc_data)
-
-                                if page_num < estimated_count:
-                                    logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-                                    await asyncio.sleep(BATCH_DELAY_SECONDS)
-
-                            return results
-                else:
-                    logger.info(f"Deterministic splitter found single document: {split_result.reason}")
-        except ImportError as e:
-            logger.warning(f"Could not import splitter module: {e}. Falling back to AI detection.")
-        except Exception as e:
-            logger.warning(f"Deterministic splitting failed: {e}. Falling back to AI detection.")
-
-    # Step 2: Check if classification detected multiple documents
-    # The quick classification now includes multi-doc detection
-    if classification.get("is_multi_document", False):
-        logger.info(f"Classification detected multi-document PDF (estimated {classification.get('estimated_doc_count', 'unknown')} documents)")
-
-        # Get detailed document boundaries
-        detection = await detect_documents(image_paths)
-
-        if detection.get("is_multi_document", False):
-            # Handle multi-document flow
-            documents = detection.get("documents", [])
-            document_count = detection.get("document_count", len(documents))
-
-            logger.info(f"Detection returned {len(documents)} document entries")
-
-            # Filter out any summary notes - accept both "type" and "doc_type" as valid
-            actual_documents = []
-            for doc in documents:
-                if "note" in doc:
-                    continue  # Skip summary notes
-                if "type" in doc or "doc_type" in doc:
-                    # Normalize to use "type"
-                    if "doc_type" in doc and "type" not in doc:
-                        doc["type"] = doc["doc_type"]
-                    actual_documents.append(doc)
-                else:
-                    logger.warning(f"Document entry missing type field: {doc}")
-
-            logger.info(f"After filtering: {len(actual_documents)} valid documents")
-
-            results = {
-                "is_multi_document": True,
-                "document_count": document_count,
-                "documents": []
+        # If all pages classified as "other", skip extraction
+        if coarse_type == "other":
+            logger.info(f"Document classified as 'other', skipping extraction")
+            return {
+                "doc_type": "other",
+                "category": "other",
+                "document_confidence": "medium",
+                "classification_model": "claude-3-5-haiku-20241022",
+                "page_count": len(image_paths),
+                "skip_extraction": True,
+                "ai_observations": "Document type not recognized for automatic extraction.",
+                "split_metadata": split_result.get("split_metadata")
             }
 
-            # If we have too many documents detected, we'll process as a bundle
-            if document_count > 10 and len(actual_documents) < document_count:
-                logger.warning(f"Detected {document_count} documents but only {len(actual_documents)} were detailed. Processing as multi-document bundle.")
-                results["doc_type"] = "multi_document"
-                results["needs_manual_split"] = True
-                results["estimated_document_count"] = document_count
-                return results
+        # Extract the single document
+        result = await extract_single_document(
+            image_paths,
+            chunk["page_start"] + 1,  # Convert to 1-based
+            chunk["page_end"] + 1
+        )
+        result["_coarse_type"] = coarse_type
+        result["_split_metadata"] = split_result.get("split_metadata")
+        return result
 
-            # Extract each document
-            for doc in actual_documents:
-                if "start_page" not in doc:
-                    logger.warning(f"Skipping document entry without start_page: {doc}")
-                    continue
+    # Multiple documents detected - process each chunk
+    logger.info(f"Multi-document PDF: Processing {split_result['document_count']} documents")
 
-                doc_type = doc.get("type", doc.get("doc_type", "unknown"))
-                logger.info(f"Extracting {doc_type} from pages {doc['start_page']}-{doc.get('end_page', doc['start_page'])}")
-                
-                start_page = doc["start_page"]
-                end_page = doc.get("end_page", start_page)
+    results = {
+        "is_multi_document": True,
+        "document_count": split_result["document_count"],
+        "split_method": "two_stage_pipeline",
+        "split_metadata": split_result.get("split_metadata"),
+        "documents": []
+    }
 
-                doc_data = await extract_single_document(
-                    image_paths,
-                    start_page,
-                    end_page
-                )
+    for i, chunk in enumerate(split_result["chunks"]):
+        chunk_idx = chunk["chunk_index"]
+        page_start = chunk["page_start"]
+        page_end = chunk["page_end"]
+        coarse_type = chunk.get("coarse_type", "other")
+        detected_title = chunk.get("detected_title")
 
-                # Add document boundaries to extracted data
-                doc_data["_start_page"] = start_page
-                doc_data["_end_page"] = end_page
-                doc_data["_detection_confidence"] = doc.get("confidence", 0.5)
-                
-                results["documents"].append(doc_data)
-                
-                # Add delay between documents to avoid rate limits
-                if doc != actual_documents[-1]:  # Not the last document
-                    logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
-                    await asyncio.sleep(BATCH_DELAY_SECONDS)
-            
-            return results
-    
-    # Step 3: Single document - we already know it's not "other"
-    result = await extract_single_document(image_paths)
-    
-    # Check if this might be a missed multi-document bundle
-    if (len(image_paths) >= 30 and 
-        result.get("doc_type") in ["other", None] and
-        result.get("document_confidence", "medium") != "high"):
-        logger.warning(f"Large PDF ({len(image_paths)} pages) detected as single document of type '{result.get('doc_type')}'. May be a multi-document bundle.")
-        result["possible_multi_document"] = True
-        result["page_count"] = len(image_paths)
-    
-    return result
+        logger.info(f"Stage 2: Extracting document {i+1}/{split_result['document_count']} "
+                   f"(pages {page_start+1}-{page_end+1}, coarse_type: {coarse_type})")
+
+        # Skip extraction for "other" type chunks
+        if coarse_type == "other":
+            logger.info(f"Document {i+1} classified as 'other', skipping extraction")
+            doc_data = {
+                "doc_type": "other",
+                "category": "other",
+                "skip_extraction": True,
+                "page_count": page_end - page_start + 1,
+                "_start_page": page_start + 1,
+                "_end_page": page_end + 1,
+                "_coarse_type": coarse_type,
+                "_detected_title": detected_title,
+                "_split_reason": chunk.get("split_reason")
+            }
+        else:
+            # Extract the document
+            doc_data = await extract_single_document(
+                image_paths,
+                page_start + 1,  # Convert to 1-based
+                page_end + 1
+            )
+
+            # Add metadata from splitting
+            doc_data["_start_page"] = page_start + 1
+            doc_data["_end_page"] = page_end + 1
+            doc_data["_coarse_type"] = coarse_type
+            doc_data["_detected_title"] = detected_title
+            doc_data["_split_reason"] = chunk.get("split_reason")
+
+            # Include attachment pages if any
+            if chunk.get("attachment_pages"):
+                doc_data["_attachment_pages"] = [p + 1 for p in chunk["attachment_pages"]]
+
+        results["documents"].append(doc_data)
+
+        # Add delay between documents to avoid rate limits
+        if i < len(split_result["chunks"]) - 1:
+            logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next document...")
+            await asyncio.sleep(BATCH_DELAY_SECONDS)
+
+    logger.info(f"Multi-document extraction complete: {len(results['documents'])} documents extracted")
+    return results
 
 
 def calculate_document_confidence(field_scores: dict, doc_type: str = None, extracted_data: dict = None) -> str:
