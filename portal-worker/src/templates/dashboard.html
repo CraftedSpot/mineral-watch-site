@@ -6806,12 +6806,14 @@
                                 });
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'tracts') {
-                                // Special handling for tracts array (mineral deed v2 schema)
-                                // Each tract has legal description and interest conveyed
+                                // Special handling for tracts array (mineral deed v2 and oil_gas_lease v2 schemas)
+                                // Mineral deed: tract.legal, tract.interest
+                                // Lease: tract.legal_description, tract.acres
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 12px;">`;
                                 value.forEach((tract, index) => {
                                     if (typeof tract === 'object') {
-                                        const legal = tract.legal || {};
+                                        // Support both mineral deed (tract.legal) and lease (tract.legal_description) schemas
+                                        const legal = tract.legal || tract.legal_description || {};
                                         const interest = tract.interest || {};
 
                                         // Location info
@@ -6822,7 +6824,9 @@
                                         const county = legal.county || '';
                                         const state = legal.state || 'OK';
                                         const quarterCalls = legal.quarter_calls || [];
-                                        const grossAcres = legal.gross_acres;
+                                        const quarters = legal.quarters || '';  // Lease uses 'quarters' string
+                                        const grossAcres = legal.gross_acres || tract.acres;  // Lease has acres at tract level
+                                        const acresQualifier = tract.acres_qualifier || '';
                                         const fullDescription = legal.full_description || '';
 
                                         // Interest info
@@ -6843,13 +6847,20 @@
                                         if (county) locationStr += locationStr ? `, ${county} County` : `${county} County`;
                                         if (state) locationStr += `, ${state}`;
 
+                                        // Determine quarter display (quarterCalls array for deeds, quarters string for leases)
+                                        const quarterDisplay = quarterCalls.length > 0 ? quarterCalls.join(', ') : quarters;
+
+                                        // Check if this is a mineral deed (has interest object with data)
+                                        const hasInterestData = interest.type || fractionText || netMineralAcres !== undefined;
+
                                         sectionContent += `
                                             <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
                                                 ${value.length > 1 ? `<div style="font-size: 11px; color: #9CA3AF; margin-bottom: 8px;">Tract ${index + 1}</div>` : ''}
                                                 <div style="font-weight: 600; color: #1F2937; font-size: 14px; margin-bottom: 8px;">${escapeHtml(locationStr)}</div>
-                                                ${quarterCalls.length > 0 ? `<div style="font-size: 13px; color: #4B5563; margin-bottom: 4px;">Quarter: ${escapeHtml(quarterCalls.join(', '))}</div>` : ''}
-                                                ${grossAcres ? `<div style="font-size: 13px; color: #4B5563; margin-bottom: 8px;">Gross Acres: ${grossAcres.toLocaleString()}</div>` : ''}
+                                                ${quarterDisplay ? `<div style="font-size: 13px; color: #4B5563; margin-bottom: 4px;">Quarter: ${escapeHtml(quarterDisplay)}</div>` : ''}
+                                                ${grossAcres ? `<div style="font-size: 13px; color: #4B5563; margin-bottom: 8px;">Acres: ${grossAcres.toLocaleString()}${acresQualifier ? ` (${escapeHtml(acresQualifier)})` : ''}</div>` : ''}
 
+                                                ${hasInterestData ? `
                                                 <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 10px; margin-top: 8px;">
                                                     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;">
                                                         <div>
@@ -6860,6 +6871,7 @@
                                                     </div>
                                                     ${netMineralAcres !== undefined ? `<div style="font-size: 13px; color: #4B5563; margin-top: 6px;">Net Mineral Acres: <strong>${netMineralAcres.toLocaleString()}</strong></div>` : ''}
                                                 </div>
+                                                ` : ''}
 
                                                 ${depthClause || formationClause || termClause ? `
                                                     <div style="margin-top: 8px; padding-top: 8px; border-top: 1px dashed #D1D5DB;">
