@@ -405,42 +405,96 @@ def name_royalty_deed(data: Dict[str, Any]) -> str:
 
 
 def name_lease(data: Dict[str, Any]) -> str:
-    """Lease - {County} - {Legal} - {Lessor to Lessee} - {Year}"""
-    parts = ["Lease"]
-    
-    if data.get('county'):
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
-    
-    legal = format_legal_description(
-        data.get('section'), 
-        data.get('township'), 
-        data.get('range')
-    )
-    if legal:
-        parts.append(legal)
-    
-    # Handle lessor/lessee
-    lessor = data.get('lessor') or data.get('lessor_name')
-    lessee = data.get('lessee') or data.get('lessee_name')
-    
-    # Check for array forms
+    """Oil & Gas Lease - {Lessor to Lessee} - S{Section}-{Township}-{Range} - {execution_date}
+
+    v2 schema: Uses lessor.name, lessee.name, tracts[] array.
+    Format: Oil & Gas Lease - Price to Hefner - S20-16N-13W - 2016-08-09
+    """
+    parts = ["Oil & Gas Lease"]
+
+    # === PARTIES (v2 schema uses nested lessor/lessee objects) ===
+    lessor = None
+    lessee = None
+
+    # Check v2 schema: lessor.name
+    lessor_obj = data.get('lessor', {})
+    if isinstance(lessor_obj, dict):
+        lessor = lessor_obj.get('name')
+
+    # Fall back to other formats
+    if not lessor:
+        lessor = data.get('lessor_name')
     if not lessor:
         lessors = data.get('lessor_names', [])
         if lessors and isinstance(lessors, list):
             lessor = lessors[0]
-    
+
+    # Check v2 schema: lessee.name
+    lessee_obj = data.get('lessee', {})
+    if isinstance(lessee_obj, dict):
+        lessee = lessee_obj.get('name')
+
+    # Fall back to other formats
+    if not lessee:
+        lessee = data.get('lessee_name')
+
     party_transfer = format_party_transfer(lessor, lessee)
     if party_transfer:
         parts.append(party_transfer)
-    elif lessor:
-        parts.append(extract_last_name(lessor))
-    
-    if data.get('year'):
+
+    # === LOCATION (v2 schema uses tracts[] array) ===
+    section = None
+    township = None
+    range_val = None
+    county = None
+    num_tracts = 0
+
+    # Check v2 schema tracts array first
+    tracts = data.get('tracts', [])
+    if tracts and isinstance(tracts, list) and len(tracts) > 0:
+        num_tracts = len(tracts)
+        first_tract = tracts[0]
+        if isinstance(first_tract, dict):
+            legal = first_tract.get('legal_description', {})
+            if isinstance(legal, dict):
+                section = legal.get('section')
+                township = legal.get('township')
+                range_val = legal.get('range')
+                county = legal.get('county')
+
+    # Fall back to recording_info for county
+    if not county:
+        recording_info = data.get('recording_info', {})
+        if isinstance(recording_info, dict):
+            county = recording_info.get('county')
+
+    # Fall back to flat fields
+    if not section:
+        section = data.get('section')
+        township = data.get('township')
+        range_val = data.get('range')
+        county = county or data.get('county')
+
+    # Format location
+    if section and township and range_val:
+        loc = f"S{section}-{township}-{range_val}"
+        # Add multi-tract indicator
+        if num_tracts > 1:
+            loc += f" (+{num_tracts - 1} tracts)"
+        parts.append(loc)
+    elif county:
+        county_str = str(county).strip()
+        if not county_str.lower().endswith('county'):
+            county_str = f"{county_str} County"
+        parts.append(county_str)
+
+    # === DATE (prefer execution_date) ===
+    execution_date = data.get('execution_date')
+    if execution_date:
+        parts.append(str(execution_date))
+    elif data.get('year'):
         parts.append(str(data['year']))
-    
+
     return " - ".join(parts)
 
 
