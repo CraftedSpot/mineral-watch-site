@@ -6569,10 +6569,11 @@
                 'Return To',
                 'Chain of Title Links',
                 'Annotations',
-                // Change of Operator Order sections
+                // Change of Operator Order sections (Legal Description already in general sections above)
                 'Former Operator',
                 'New Operator',
                 'Affected Wells',
+                'Subsequent Wells',
                 'Modified Orders',
                 // Location Exception Order sections
                 'Order Information',
@@ -7270,6 +7271,59 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'affected_wells') {
+                                // Special handling for affected wells array (change of operator orders)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(well => {
+                                    const wellName = well.well_name || '';
+                                    const apiNumber = well.api_number || '';
+                                    const otcNumber = well.otc_number || '';
+                                    const wellType = well.well_type || '';
+                                    const status = well.status || '';
+                                    const formations = well.producing_formations || [];
+
+                                    sectionContent += `
+                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">
+                                            <div style="font-weight: 600; color: #374151; font-size: 14px; margin-bottom: 6px;">${escapeHtml(wellName)}</div>
+                                            <div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px;">
+                                                ${apiNumber ? `<span style="color: #6B7280;"><strong>API:</strong> ${escapeHtml(apiNumber)}</span>` : ''}
+                                                ${otcNumber ? `<span style="color: #6B7280;"><strong>OTC:</strong> ${escapeHtml(otcNumber)}</span>` : ''}
+                                                ${wellType ? `<span style="color: #374151;"><strong>Type:</strong> ${escapeHtml(formatFieldName(wellType))}</span>` : ''}
+                                                ${status ? `<span style="color: #374151;"><strong>Status:</strong> ${escapeHtml(formatFieldName(status))}</span>` : ''}
+                                                ${formations.length > 0 ? `<span style="color: #6B7280;"><strong>Formations:</strong> ${formations.map(f => escapeHtml(f)).join(', ')}</span>` : ''}
+                                            </div>
+                                        </div>`;
+                                });
+                                sectionContent += `</div>`;
+                            } else if (fieldName === 'modified_orders') {
+                                // Special handling for modified orders array (change of operator orders)
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(order => {
+                                    const orderNum = order.order_number || '';
+                                    const orderDate = order.order_date || '';
+                                    const orderType = order.order_type || '';
+                                    const modifications = order.modifications_made || [];
+
+                                    sectionContent += `
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                                                <div style="font-weight: 600; color: #92400E; font-size: 14px;">Order No. ${escapeHtml(orderNum)}</div>
+                                                <div style="font-size: 12px; color: #6B7280;">
+                                                    ${orderType ? `${escapeHtml(orderType)}` : ''}
+                                                    ${orderDate ? ` • ${escapeHtml(orderDate)}` : ''}
+                                                </div>
+                                            </div>
+                                            ${modifications.length > 0 ? `
+                                                <div style="font-size: 13px; color: #374151;">
+                                                    <strong>Modifications:</strong>
+                                                    <ul style="margin: 4px 0 0 16px; padding: 0;">
+                                                        ${modifications.map(mod => `<li>${escapeHtml(mod)}</li>`).join('')}
+                                                    </ul>
+                                                </div>
+                                            ` : ''}
+                                        </div>`;
+                                });
+                                sectionContent += `</div>`;
                             } else if (fieldName === 'prohibited_deductions') {
                                 // Special handling for prohibited deductions array (lease deductions_clause)
                                 sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 6px;">`;
@@ -7742,61 +7796,6 @@
                                         </div>
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'affected_wells' && Array.isArray(value)) {
-                            // Special handling for affected wells array (change of operator orders)
-                            hasVisibleFields = true;
-                            sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
-                            value.forEach(well => {
-                                const wellName = well.well_name || '';
-                                const apiNumber = well.api_number || '';
-                                const otcNumber = well.otc_number || '';
-                                const wellType = well.well_type || '';
-                                const status = well.status || '';
-                                const formations = well.producing_formations || [];
-
-                                sectionContent += `
-                                    <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 12px;">
-                                        <div style="font-weight: 600; color: #374151; font-size: 14px; margin-bottom: 6px;">${escapeHtml(wellName)}</div>
-                                        <div style="display: flex; gap: 12px; flex-wrap: wrap; font-size: 13px;">
-                                            ${apiNumber ? `<span style="color: #6B7280;"><strong>API:</strong> ${escapeHtml(apiNumber)}</span>` : ''}
-                                            ${otcNumber ? `<span style="color: #6B7280;"><strong>OTC:</strong> ${escapeHtml(otcNumber)}</span>` : ''}
-                                            ${wellType ? `<span style="color: #374151;"><strong>Type:</strong> ${escapeHtml(formatFieldName(wellType))}</span>` : ''}
-                                            ${status ? `<span style="color: #374151;"><strong>Status:</strong> ${escapeHtml(formatFieldName(status))}</span>` : ''}
-                                            ${formations.length > 0 ? `<span style="color: #6B7280;"><strong>Formations:</strong> ${formations.map(f => escapeHtml(f)).join(', ')}</span>` : ''}
-                                        </div>
-                                    </div>`;
-                            });
-                            sectionContent += `</div>`;
-                        } else if (fieldName === 'modified_orders' && Array.isArray(value)) {
-                            // Special handling for modified orders array (change of operator orders)
-                            hasVisibleFields = true;
-                            sectionContent += `<div style="display: flex; flex-direction: column; gap: 10px;">`;
-                            value.forEach(order => {
-                                const orderNum = order.order_number || '';
-                                const orderDate = order.order_date || '';
-                                const orderType = order.order_type || '';
-                                const modifications = order.modifications_made || [];
-
-                                sectionContent += `
-                                    <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 12px;">
-                                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                                            <div style="font-weight: 600; color: #92400E; font-size: 14px;">Order No. ${escapeHtml(orderNum)}</div>
-                                            <div style="font-size: 12px; color: #6B7280;">
-                                                ${orderType ? `${escapeHtml(orderType)}` : ''}
-                                                ${orderDate ? ` • ${escapeHtml(orderDate)}` : ''}
-                                            </div>
-                                        </div>
-                                        ${modifications.length > 0 ? `
-                                            <div style="font-size: 13px; color: #374151;">
-                                                <strong>Modifications:</strong>
-                                                <ul style="margin: 4px 0 0 16px; padding: 0;">
-                                                    ${modifications.map(mod => `<li>${escapeHtml(mod)}</li>`).join('')}
-                                                </ul>
-                                            </div>
-                                        ` : ''}
-                                    </div>`;
-                            });
-                            sectionContent += `</div>`;
                         } else if (fieldName === 'deadlines' && typeof value === 'object') {
                             // Special handling for deadlines object
                             hasVisibleFields = true;
