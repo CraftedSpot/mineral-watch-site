@@ -9809,23 +9809,26 @@
                                 </div>`;
                         } else if (fieldName === 'well_authorization' && typeof value === 'object' && data.doc_type === 'multi_unit_horizontal_order') {
                             // Special handling for well_authorization object (multi-unit horizontal order)
-                            hasVisibleFields = true;
                             const wellName = value.well_name || '';
                             const apiNumber = value.api_number || '';
                             const wellType = value.well_type || '';
                             const wellClass = value.well_classification || '';
 
-                            sectionContent += `
-                                <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
-                                        ${wellName ? `<div style="font-size: 18px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">${escapeHtml(wellName)}</div>` : ''}
-                                        <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
-                                            ${apiNumber ? `<div><span style="color: #6B7280;">API:</span> <strong>${escapeHtml(apiNumber)}</strong></div>` : ''}
-                                            ${wellType ? `<div><span style="color: #6B7280;">Type:</span> <strong>${escapeHtml(formatFieldName(wellType))}</strong></div>` : ''}
-                                            ${wellClass ? `<div><span style="color: #6B7280;">Classification:</span> <strong style="text-transform: capitalize;">${escapeHtml(wellClass)}</strong></div>` : ''}
+                            // Only show section if there's actual data
+                            if (wellName || apiNumber || wellType || wellClass) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                            ${wellName ? `<div style="font-size: 18px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">${escapeHtml(wellName)}</div>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
+                                                ${apiNumber ? `<div><span style="color: #6B7280;">API:</span> <strong>${escapeHtml(apiNumber)}</strong></div>` : ''}
+                                                ${wellType ? `<div><span style="color: #6B7280;">Type:</span> <strong>${escapeHtml(formatFieldName(wellType))}</strong></div>` : ''}
+                                                ${wellClass ? `<div><span style="color: #6B7280;">Classification:</span> <strong style="text-transform: capitalize;">${escapeHtml(wellClass)}</strong></div>` : ''}
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>`;
+                                    </div>`;
+                            }
                         } else {
                             // Handle other nested objects (like grantor/grantee)
                             for (const [subField, subValue] of Object.entries(value)) {
