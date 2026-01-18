@@ -1644,7 +1644,65 @@ def name_power_of_attorney(data: Dict[str, Any]) -> str:
     
     if data.get('year'):
         parts.append(str(data['year']))
-    
+
+    return " - ".join(parts)
+
+
+def name_trust_funding(data: Dict[str, Any]) -> str:
+    """Trust Funding - {Assignor} to {Trust Name} - {County} - {Date}
+
+    For trust funding documents where an individual transfers property to their trust.
+    Uses assignor.name, assignee.trust_name from schema.
+    """
+    parts = ["Trust Funding"]
+
+    # Get assignor name
+    assignor = data.get('assignor', {})
+    assignor_name = None
+    if isinstance(assignor, dict):
+        assignor_name = assignor.get('name')
+    elif isinstance(assignor, str):
+        assignor_name = assignor
+
+    # Also check top-level assignor_name
+    if not assignor_name:
+        assignor_name = data.get('assignor_name')
+
+    # Get trust name from assignee
+    assignee = data.get('assignee', {})
+    trust_name = None
+    if isinstance(assignee, dict):
+        trust_name = assignee.get('trust_name')
+
+    # Build "Assignor to Trust" part
+    if assignor_name and trust_name:
+        parts.append(f"{extract_last_name(assignor_name)} to {trust_name}")
+    elif assignor_name:
+        parts.append(f"{extract_last_name(assignor_name)} Trust")
+    elif trust_name:
+        parts.append(trust_name)
+
+    # Get county from recording_info or top-level
+    county = None
+    recording_info = data.get('recording_info', {})
+    if isinstance(recording_info, dict):
+        county = recording_info.get('county')
+    if not county:
+        county = data.get('county')
+
+    if county:
+        county = str(county).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Get execution date
+    execution_date = data.get('execution_date')
+    if execution_date:
+        parts.append(str(execution_date))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
     return " - ".join(parts)
 
 
@@ -1686,6 +1744,7 @@ NAMING_FUNCTIONS = {
     'joa': name_joa,
     'joint_operating_agreement': name_joa,
     'ownership_entity': name_ownership_entity,
+    'trust_funding': name_trust_funding,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,
     'tax_record': name_tax_record,

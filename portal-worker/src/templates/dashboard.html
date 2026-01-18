@@ -6213,6 +6213,10 @@
                 'Pooling Order Details': ['order_info', 'commissioners'],
                 'Well Details': ['well_info'],
                 'Unit Information': ['unit_info'],
+                // Trust Funding sections
+                'Assignment Flags': ['is_blanket_assignment', 'includes_future_acquired', 'includes_mineral_interests'],
+                'Property Coverage': ['property_categories', 'mineral_interests', 'specific_properties'],
+                'Trustee Acceptance': ['acceptance'],
                 'Notes': ['notes', 'additional_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
@@ -7834,8 +7838,16 @@
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'consideration' && typeof value === 'object') {
-                            // Special handling for consideration object (oil_gas_lease v2 schema)
+                            // Special handling for consideration object (oil_gas_lease v2 and trust_funding schemas)
                             hasVisibleFields = true;
+
+                            // Trust funding schema fields
+                            const stated = value.stated || '';
+                            const considerationType = value.type || '';
+                            const amount = value.amount;
+                            const perAcre = value.per_acre;
+
+                            // Oil & gas lease schema fields
                             const bonusStated = value.bonus_stated || '';
                             const bonusPerAcre = value.bonus_per_acre;
                             const totalBonus = value.total_bonus;
@@ -7843,23 +7855,52 @@
                             const delayRental = value.delay_rental || '';
                             const delayRentalPerAcre = value.delay_rental_per_acre;
 
-                            sectionContent += `
-                                <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <label>Consideration</label>
-                                    <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
-                                        <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
-                                            ${isPaidUp === true ? `<span style="background: #22C55E; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px;">PAID-UP LEASE</span>` : ''}
-                                            ${isPaidUp === false ? `<span style="background: #F59E0B; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px;">DELAY RENTAL</span>` : ''}
+                            // Detect which schema we're using
+                            const isTrustFunding = data.doc_type === 'trust_funding' || (stated && !bonusStated);
+                            const isLease = data.doc_type === 'oil_gas_lease' || bonusStated;
+
+                            if (isTrustFunding) {
+                                // Trust funding consideration display
+                                const typeLabels = {
+                                    'nominal': { label: 'NOMINAL', color: '#6B7280', bg: '#F3F4F6' },
+                                    'gift': { label: 'GIFT/LOVE & AFFECTION', color: '#9333EA', bg: '#F3E8FF' },
+                                    'specific': { label: 'SPECIFIC AMOUNT', color: '#166534', bg: '#DCFCE7' },
+                                    'not_stated': { label: 'NOT STATED', color: '#6B7280', bg: '#F3F4F6' }
+                                };
+                                const typeConfig = typeLabels[considerationType] || { label: considerationType.toUpperCase(), color: '#6B7280', bg: '#F3F4F6' };
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Consideration</label>
+                                        <div style="background: ${typeConfig.bg}; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                            ${considerationType ? `<span style="background: ${typeConfig.color}; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px; display: inline-block; margin-bottom: 10px;">${typeConfig.label}</span>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px;">
+                                                ${amount ? `<div><span style="color: #6B7280;">Amount:</span> <strong style="color: #166534;">$${amount.toLocaleString()}</strong></div>` : ''}
+                                                ${perAcre ? `<div><span style="color: #6B7280;">Per Acre:</span> <strong style="color: #166534;">$${perAcre}/acre</strong></div>` : ''}
+                                            </div>
+                                            ${stated ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px; font-style: italic;">"${escapeHtml(stated)}"</div>` : ''}
                                         </div>
-                                        <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px;">
-                                            ${bonusPerAcre ? `<div><span style="color: #6B7280;">Bonus:</span> <strong style="color: #166534;">$${bonusPerAcre}/acre</strong></div>` : ''}
-                                            ${totalBonus ? `<div><span style="color: #6B7280;">Total Bonus:</span> <strong style="color: #166534;">$${totalBonus.toLocaleString()}</strong></div>` : ''}
-                                            ${delayRentalPerAcre ? `<div><span style="color: #6B7280;">Delay Rental:</span> <strong style="color: #92400E;">$${delayRentalPerAcre}/acre/year</strong></div>` : ''}
+                                    </div>`;
+                            } else {
+                                // Oil & gas lease consideration display
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Consideration</label>
+                                        <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 10px;">
+                                                ${isPaidUp === true ? `<span style="background: #22C55E; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px;">PAID-UP LEASE</span>` : ''}
+                                                ${isPaidUp === false ? `<span style="background: #F59E0B; color: white; padding: 4px 12px; border-radius: 4px; font-weight: 600; font-size: 12px;">DELAY RENTAL</span>` : ''}
+                                            </div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 13px;">
+                                                ${bonusPerAcre ? `<div><span style="color: #6B7280;">Bonus:</span> <strong style="color: #166534;">$${bonusPerAcre}/acre</strong></div>` : ''}
+                                                ${totalBonus ? `<div><span style="color: #6B7280;">Total Bonus:</span> <strong style="color: #166534;">$${totalBonus.toLocaleString()}</strong></div>` : ''}
+                                                ${delayRentalPerAcre ? `<div><span style="color: #6B7280;">Delay Rental:</span> <strong style="color: #92400E;">$${delayRentalPerAcre}/acre/year</strong></div>` : ''}
+                                            </div>
+                                            ${bonusStated ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px; font-style: italic;">"${escapeHtml(bonusStated)}"</div>` : ''}
+                                            ${delayRental && !delayRentalPerAcre ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Delay Rental: ${escapeHtml(delayRental)}</div>` : ''}
                                         </div>
-                                        ${bonusStated ? `<div style="font-size: 12px; color: #6B7280; margin-top: 8px; font-style: italic;">"${escapeHtml(bonusStated)}"</div>` : ''}
-                                        ${delayRental && !delayRentalPerAcre ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Delay Rental: ${escapeHtml(delayRental)}</div>` : ''}
-                                    </div>
-                                </div>`;
+                                    </div>`;
+                            }
                         } else if (fieldName === 'royalty' && typeof value === 'object') {
                             // Special handling for royalty object (oil_gas_lease v2 schema)
                             hasVisibleFields = true;
@@ -8280,6 +8321,31 @@
                                                 ${acceptanceDate ? `<div><strong>Date:</strong> ${escapeHtml(acceptanceDate)}</div>` : ''}
                                             </div>
                                         ` : `<div style="font-size: 13px; color: #DC2626; font-style: italic;">Note: Missing trustee acceptance may affect document validity</div>`}
+                                    </div>
+                                </div>`;
+                        } else if ((fieldName === 'is_blanket_assignment' || fieldName === 'includes_future_acquired' || fieldName === 'includes_mineral_interests') && data.doc_type === 'trust_funding') {
+                            // Special handling for trust_funding assignment flags
+                            hasVisibleFields = true;
+                            const flagLabels = {
+                                'is_blanket_assignment': { label: 'Blanket Assignment', trueText: 'All Property', falseText: 'Specific Only' },
+                                'includes_future_acquired': { label: 'Future-Acquired Property', trueText: 'Included', falseText: 'Not Included' },
+                                'includes_mineral_interests': { label: 'Mineral Interests', trueText: 'Included', falseText: 'Not Included' }
+                            };
+                            const config = flagLabels[fieldName];
+                            const bgColor = value ? '#DCFCE7' : '#FEE2E2';
+                            const borderColor = value ? '#22C55E' : '#EF4444';
+                            const textColor = value ? '#166534' : '#DC2626';
+                            const icon = value ? '✓' : '✗';
+                            const displayText = value ? config.trueText : config.falseText;
+                            const isImportant = fieldName === 'includes_mineral_interests' && value;
+
+                            sectionContent += `
+                                <div class="doc-field">
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 14px; text-align: center;">
+                                        <div style="font-size: 11px; color: #6B7280; margin-bottom: 4px;">${config.label}</div>
+                                        <div style="font-weight: ${isImportant ? '700' : '600'}; color: ${textColor}; font-size: 14px;">
+                                            ${icon} ${displayText}
+                                        </div>
                                     </div>
                                 </div>`;
                         } else if ((fieldName === 'respondents_with_known_addresses' ||
