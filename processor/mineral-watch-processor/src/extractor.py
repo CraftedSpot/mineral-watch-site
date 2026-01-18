@@ -2601,6 +2601,242 @@ SAME PARTY DIFFERENT CAPACITIES:
 - If Virginia K. Price assigns as Individual AND as Trustee, create TWO assignor entries
 - Capture entity_name and entity_type for trustee/entity capacities
 
+For QUIT CLAIM DEED (Quitclaim Deed, Correction Quit Claim Deed):
+NOTE: This document transfers whatever interest the grantor may have WITHOUT WARRANTY.
+The grantor makes NO PROMISES about whether they actually own anything.
+
+Core Question: "What interest (if any) was transferred, and why was a quit claim used instead of a warranty deed?"
+
+COMMON USES:
+- Trust funding (individual → their own trust)
+- Clearing cloud on title (possible claimant releases any interest)
+- Divorce transfers (spouse → ex-spouse)
+- Correction of prior erroneous deed
+- Family gifts/transfers
+- Estate distribution (heir → heir to consolidate)
+
+EXTRACTION PRIORITY:
+1. Is this a CORRECTION deed? (critical classification)
+2. Grantors and Grantees with capacities (same person may appear in both as different capacity)
+3. Interest conveyed - all, partial, mineral only
+4. Legal description for property linking
+5. If correction: what prior document is being corrected and why
+
+{{
+  "doc_type": "quit_claim_deed",
+
+  "section": "REQUIRED - integer for property linking",
+  "township": "REQUIRED - string with direction (e.g., '15N')",
+  "range": "REQUIRED - string with direction (e.g., '12W')",
+  "county": "REQUIRED - string",
+  "state": "Oklahoma",
+
+  "deed_classification": {{
+    "is_correction_deed": "REQUIRED - boolean - explicitly true or false",
+    "correction_info": {{
+      "corrects_document": {{
+        "doc_type": "quit_claim_deed",
+        "recording_reference": "Book 615, Page 2",
+        "recording_date": "1991-03-28",
+        "original_grantor": "Virginia K. Price (now Giles)",
+        "original_grantee": "Virginia K. Price (now Giles), Trustee of the Virginia K. Price Trust"
+      }},
+      "reason_for_correction": "REQUIRED if is_correction_deed - The deed was filed in error. Grantor had no interest to convey.",
+      "what_was_wrong": "Grantor had no individual interest - the mineral interest was already conveyed by the Trust"
+    }}
+  }},
+
+  "grantors": [
+    {{
+      "name": "REQUIRED - Virginia K. Price (now Giles)",
+      "name_variations": ["Virginia K. Price", "Virginia K. Giles", "Virginia K. Price Giles"],
+      "marital_status": "Widow",
+      "address": "123 Main St",
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "capacity": "Individual | Trustee | Successor Trustee | Personal Representative | Executor | Administrator | Attorney-in-Fact | Guardian | Entity",
+      "entity_name": null,
+      "entity_type": null,
+      "trust_date": null
+    }}
+  ],
+
+  "grantees": [
+    {{
+      "name": "REQUIRED - Virginia K. Price (now Giles)",
+      "address": "123 Main St",
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "capacity": "Trustee",
+      "entity_name": "Virginia K. Price Trust",
+      "entity_type": "Trust",
+      "trust_date": "1967-12-27",
+      "tenancy": null
+    }}
+  ],
+
+  "interest_conveyed": {{
+    "type": "all | partial | undivided | specific",
+    "fraction": "ALL",
+    "decimal": 1.0,
+    "interest_description": "all of her right, title and interest in and to the oil, gas, and other minerals",
+    "mineral_surface": "mineral | surface | both | not_specified",
+    "depths": null,
+    "formations": null
+  }},
+
+  "legal_description": {{
+    "section": 27,
+    "township": "15N",
+    "range": "12W",
+    "meridian": "IM",
+    "county": "Blaine",
+    "state": "Oklahoma",
+    "quarters": "SE/4",
+    "gross_acres": 160,
+    "net_acres": 20,
+    "description_verbatim": "The SE/4 of Section 27, Township 15 North, Range 12 West, I.M., Blaine County, Oklahoma"
+  }},
+
+  "consideration": {{
+    "stated": "REQUIRED - One Dollar ($1.00) and other good and valuable consideration",
+    "amount": 1.00,
+    "is_nominal": true,
+    "stamps_required": false,
+    "stamps_amount": null
+  }},
+
+  "granting_clause": {{
+    "granting_words": "quitclaim, grant, bargain",
+    "habendum": "to have and to hold",
+    "purpose_stated": "for estate planning purposes"
+  }},
+
+  "warranties": {{
+    "has_warranty": false,
+    "warranty_type": "quitclaim | none",
+    "warranty_language": "without warranty"
+  }},
+
+  "reservations_exceptions": {{
+    "has_reservations": false,
+    "reserved_interests": [],
+    "exceptions": [],
+    "subject_to": ["existing oil and gas leases"]
+  }},
+
+  "execution_info": {{
+    "execution_date": "REQUIRED - 1991-03-18",
+    "effective_date": null,
+    "execution_location": "Oklahoma County, Oklahoma",
+    "notarized": true,
+    "notary_name": "Jane Smith",
+    "notary_county": "Oklahoma",
+    "notary_state": "Oklahoma",
+    "notary_commission_expires": "1993-05-15",
+    "witnesses": []
+  }},
+
+  "recording_info": {{
+    "recorded": true,
+    "book": "615",
+    "page": "2",
+    "instrument_number": null,
+    "recording_date": "1991-03-28",
+    "filing_date": null,
+    "county": "Blaine",
+    "state": "Oklahoma",
+    "fee": "$5.00",
+    "clerk_name": null,
+    "deputy_name": null
+  }},
+
+  "return_to": {{
+    "name": "Price Oil and Gas Company",
+    "address": "123 Oil Street",
+    "city": "Oklahoma City",
+    "state": "Oklahoma",
+    "zip": "73102"
+  }},
+
+  "chain_of_title_links": {{
+    "grantor_entities": ["Virginia K. Price", "Virginia K. Giles", "Virginia K. Price (now Giles)"],
+    "grantee_entities": ["Virginia K. Price Trust", "Virginia K. Price (now Giles), Trustee"],
+    "prior_documents": [
+      {{
+        "doc_type": "mineral_deed",
+        "description": "Deed from Joel S. Price to Virginia K. Price",
+        "recording_reference": "Book 500, Page 100",
+        "relationship": "source_of_title"
+      }}
+    ],
+    "subsequent_documents": []
+  }},
+
+  "annotations": {{
+    "has_annotations": true,
+    "handwritten_notes": [
+      {{
+        "content": "Didn't have anything to give",
+        "location": "middle of page, over legal description",
+        "significance": "Researcher noted grantor had no actual interest"
+      }},
+      {{
+        "content": "VKP nothing - written a correction deed",
+        "location": "margin",
+        "significance": "Notes that correction deed was filed"
+      }}
+    ],
+    "stamps": ["FILED Mar 28 1991"],
+    "marginal_notes": []
+  }},
+
+  "key_takeaway": "REQUIRED - Quit claim deed from Virginia K. Price (now Giles) to herself as Trustee of the Virginia K. Price Trust for trust funding purposes.",
+
+  "detailed_analysis": "REQUIRED - 2-4 paragraphs covering: (1) who conveyed to whom and in what capacities; (2) what interest was conveyed; (3) why a quit claim was used (trust funding, correction, etc.); (4) chain of title significance; (5) if correction deed, explain what error is being fixed.",
+
+  "field_scores": {{
+    "grantors": 1.0,
+    "grantees": 1.0,
+    "deed_classification": 1.0,
+    "interest_conveyed": 0.95,
+    "legal_description": 1.0,
+    "consideration": 0.95,
+    "execution_info": 1.0
+  }},
+  "document_confidence": "high"
+}}
+
+CORRECTION DEED DETECTION:
+- Look for "Correction", "Corrective", "Corrected" in title
+- Look for language: "to correct", "filed in error", "erroneously filed"
+- If is_correction_deed is true, correction_info MUST be populated
+
+SAME PARTY DIFFERENT CAPACITIES (Trust Funding Pattern):
+- Same person as grantor (Individual) AND grantee (Trustee) = trust funding
+- Example: Virginia K. Price (Individual) → Virginia K. Price (Trustee of VKP Trust)
+- This is NOT a sale - it's an estate planning transaction
+
+NAME VARIATIONS:
+- Capture all: maiden names, "now known as", "formerly", "aka", etc.
+- Example: "Virginia K. Price (now Giles)" = ["Virginia K. Price", "Virginia K. Giles"]
+
+INTEREST TYPE CLASSIFICATION:
+| Type | When to Use |
+| all | "All right, title and interest" |
+| partial | Fractional interest (1/4, 1/8, etc.) |
+| undivided | Undivided interest in acreage |
+| specific | Mineral only, surface only, specific formations |
+
+WARRANTY TYPE (typically false for quit claim):
+{{
+  "warranties": {{
+    "has_warranty": false,
+    "warranty_type": "quitclaim",
+    "warranty_language": "without warranty"
+  }}
+}}
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -2986,7 +3222,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
-- affidavit_of_heirship, trust_funding, limited_partnership, assignment_of_lease, ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
 - tax_record, map
 
 TRUST FUNDING DETECTION:
@@ -2997,6 +3233,9 @@ LIMITED PARTNERSHIP DETECTION:
 
 ASSIGNMENT OF LEASE DETECTION:
 - assignment_of_lease: Look for "ASSIGNMENT OF OIL AND GAS LEASE", "ASSIGNMENT OF LEASEHOLD INTEREST", "PARTIAL ASSIGNMENT OF LEASE", or "ASSIGNMENT OF OPERATING RIGHTS". Key indicators: references an underlying lease (date, lessor, lessee), transfers working interest/operating rights from assignor to assignee, may retain an overriding royalty (ORRI). Contains legal description, consideration, warranty language. NOT trust_funding (which transfers to a trust where assignor is trustee).
+
+QUIT CLAIM DEED DETECTION:
+- quit_claim_deed: Look for "QUIT CLAIM DEED", "QUITCLAIM DEED", "CORRECTION QUIT CLAIM DEED", or "CORRECTIVE QUIT CLAIM DEED". Key indicators: language like "quitclaim, grant, bargain", "remise, release, quitclaim", or "without warranty". Transfers whatever interest grantor MAY have with NO WARRANTY. Common uses: trust funding (individual → own trust), clearing title defects, correction of prior errors, divorce/family transfers. If same person is grantor (individual) AND grantee (trustee of their trust), this is trust funding but still classify as quit_claim_deed due to deed type. NOT mineral_deed (which has warranty). Look for "Correction" in title for correction deeds.
 
 AFFIDAVIT OF HEIRSHIP DETECTION:
 - affidavit_of_heirship: Look for "AFFIDAVIT OF HEIRSHIP" title. Contains decedent (deceased person) name, list of heirs/children/spouses, legal description of mineral property, notarized. Establishes who inherits mineral rights.

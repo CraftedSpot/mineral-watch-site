@@ -6238,6 +6238,16 @@
                 'Proportionate Reduction': ['proportionate_reduction'],
                 'Underlying Lease': ['underlying_lease'],
                 'Warranties': ['warranties'],
+                // Quit Claim Deed sections
+                'Deed Classification': ['deed_classification'],
+                'Grantors': ['grantors'],
+                'Grantees': ['grantees'],
+                'Interest Conveyed': ['interest_conveyed'],
+                'Consideration': ['consideration'],
+                'Granting Clause': ['granting_clause'],
+                'Reservations & Exceptions': ['reservations_exceptions'],
+                'Return To': ['return_to'],
+                'Chain of Title Links': ['chain_of_title_links'],
                 'Annotations': ['annotations'],
                 'Notes': ['notes', 'additional_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
@@ -6535,6 +6545,16 @@
                 'Proportionate Reduction',
                 'Underlying Lease',
                 'Warranties',
+                // Quit Claim Deed sections
+                'Deed Classification',
+                'Grantors',
+                'Grantees',
+                'Interest Conveyed',
+                'Consideration',
+                'Granting Clause',
+                'Reservations & Exceptions',
+                'Return To',
+                'Chain of Title Links',
                 'Annotations',
                 'Other Information'
             ];
@@ -6635,7 +6655,7 @@
                             sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
 
                             if (fieldName === 'grantors' || fieldName === 'grantees') {
-                                // Special handling for grantors/grantees arrays with detailed info (v2 schema)
+                                // Special handling for grantors/grantees arrays with detailed info (v2 schema and quit_claim_deed)
                                 const partyType = fieldName === 'grantors' ? 'Grantor' : 'Grantee';
                                 const bgColor = fieldName === 'grantors' ? '#FEF3C7' : '#F0FDF4';
                                 const borderColor = fieldName === 'grantors' ? '#F59E0B' : '#22C55E';
@@ -6645,13 +6665,22 @@
                                 value.forEach((party, index) => {
                                     if (typeof party === 'object') {
                                         const name = party.name || 'Unknown';
+                                        const nameVariations = party.name_variations || [];
                                         const address = party.address || '';
+                                        const city = party.city || '';
+                                        const state = party.state || '';
                                         const capacity = party.capacity || '';  // Trustee, Personal Representative, etc.
+                                        const entityName = party.entity_name || '';  // Trust/entity name
+                                        const entityType = party.entity_type || '';  // Trust, LLC, etc.
+                                        const trustDate = party.trust_date || '';    // Trust date if trustee
                                         const tenancy = party.tenancy || '';    // joint_tenants_wros, tenants_in_common, etc.
                                         const maritalStatus = party.marital_status || '';
 
                                         // Format tenancy for display
                                         const tenancyDisplay = tenancy ? tenancy.replace(/_/g, ' ').replace(/wros/gi, 'WROS') : '';
+
+                                        // Format full address
+                                        const fullAddress = [address, city, state].filter(Boolean).join(', ');
 
                                         sectionContent += `
                                             <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
@@ -6659,7 +6688,9 @@
                                                     <span style="font-weight: 600; color: ${textColor};">${escapeHtml(name)}</span>
                                                     ${capacity ? `<span style="background: #E5E7EB; color: #374151; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 500;">${escapeHtml(capacity)}</span>` : ''}
                                                 </div>
-                                                ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                                ${entityName ? `<div style="font-size: 12px; color: #7C3AED; margin-top: 4px; font-weight: 500;">${escapeHtml(entityName)}${entityType ? ` (${escapeHtml(entityType)})` : ''}${trustDate ? ` dated ${escapeHtml(trustDate)}` : ''}</div>` : ''}
+                                                ${fullAddress ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(fullAddress)}</div>` : ''}
+                                                ${nameVariations.length > 0 ? `<div style="font-size: 11px; color: #9CA3AF; margin-top: 4px; font-style: italic;">Also known as: ${nameVariations.map(v => escapeHtml(v)).join(', ')}</div>` : ''}
                                                 <div style="display: flex; gap: 12px; margin-top: 4px; flex-wrap: wrap;">
                                                     ${maritalStatus ? `<span style="font-size: 11px; color: #9CA3AF; text-transform: capitalize;">${escapeHtml(maritalStatus)}</span>` : ''}
                                                     ${tenancyDisplay ? `<span style="font-size: 11px; color: #6B7280; text-transform: capitalize;">${escapeHtml(tenancyDisplay)}</span>` : ''}
@@ -7381,14 +7412,18 @@
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'interest_conveyed') {
-                            // Special handling for interest_conveyed object
+                            // Special handling for interest_conveyed object (mineral_deed and quit_claim_deed)
                             hasVisibleFields = true;
                             const interestType = value.type || '';
-                            const fractionText = value.fraction_text || '';
-                            const fractionDecimal = value.fraction_decimal;
+                            // Support both mineral_deed (fraction_text/fraction_decimal) and quit_claim_deed (fraction/decimal) fields
+                            const fractionText = value.fraction_text || value.fraction || '';
+                            const fractionDecimal = value.fraction_decimal !== undefined ? value.fraction_decimal : value.decimal;
                             const netMineralAcres = value.net_mineral_acres;
-                            const depthLimit = value.depth_limitation;
+                            const depthLimit = value.depth_limitation || value.depths || '';
                             const formationLimit = value.formation_limitation;
+                            const formations = value.formations || [];
+                            const interestDescription = value.interest_description || '';
+                            const mineralSurface = value.mineral_surface || '';
 
                             sectionContent += `
                                 <div class="doc-field" style="grid-column: 1 / -1;">
@@ -7396,10 +7431,13 @@
                                     <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 12px;">
                                         ${interestType ? `<div style="font-weight: 600; color: #1E40AF; text-transform: capitalize; margin-bottom: 4px;">${escapeHtml(interestType)} Interest</div>` : ''}
                                         ${fractionText ? `<div style="color: #374151;">${escapeHtml(fractionText)}</div>` : ''}
+                                        ${interestDescription ? `<div style="font-size: 13px; color: #374151; margin-top: 4px; font-style: italic;">"${escapeHtml(interestDescription)}"</div>` : ''}
                                         ${fractionDecimal != null ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Decimal: ${fractionDecimal}</div>` : ''}
+                                        ${mineralSurface && mineralSurface !== 'not_specified' ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px; text-transform: capitalize;">Type: ${escapeHtml(mineralSurface.replace(/_/g, ' '))}</div>` : ''}
                                         ${netMineralAcres != null ? `<div style="font-size: 13px; color: #059669; font-weight: 500; margin-top: 6px;">${netMineralAcres} Net Mineral Acres</div>` : ''}
                                         ${depthLimit ? `<div style="font-size: 12px; color: #92400E; margin-top: 4px;">Depth: ${escapeHtml(depthLimit)}</div>` : ''}
                                         ${formationLimit ? `<div style="font-size: 12px; color: #92400E; margin-top: 2px;">Formation: ${escapeHtml(formationLimit)}</div>` : ''}
+                                        ${formations.length > 0 ? `<div style="font-size: 12px; color: #92400E; margin-top: 2px;">Formations: ${formations.map(f => escapeHtml(f)).join(', ')}</div>` : ''}
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'reservation') {
@@ -8904,8 +8942,195 @@
                                         ${warrantyLanguage ? `<div style="font-size: 13px; color: #374151; font-style: italic;">"${escapeHtml(warrantyLanguage)}"</div>` : ''}
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'annotations' && typeof value === 'object' && data.doc_type === 'assignment_of_lease') {
-                            // Special handling for annotations object (assignment_of_lease schema)
+                        } else if (fieldName === 'deed_classification' && typeof value === 'object') {
+                            // Special handling for deed_classification object (quit_claim_deed)
+                            hasVisibleFields = true;
+                            const isCorrection = value.is_correction_deed;
+                            const correctionInfo = value.correction_info || {};
+                            const correctsDoc = correctionInfo.corrects_document || {};
+                            const reason = correctionInfo.reason_for_correction || '';
+                            const whatWasWrong = correctionInfo.what_was_wrong || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Deed Classification</label>
+                                    <div style="background: ${isCorrection ? '#FEF3C7' : '#F0FDF4'}; border: 1px solid ${isCorrection ? '#F59E0B' : '#22C55E'}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: ${isCorrection ? '12px' : '0'};">
+                                            <span style="font-weight: 600; color: ${isCorrection ? '#92400E' : '#166534'}; font-size: 15px;">
+                                                ${isCorrection ? 'CORRECTION DEED' : 'STANDARD QUIT CLAIM DEED'}
+                                            </span>
+                                            ${isCorrection ? `<span style="color: #92400E;">⚠</span>` : `<span style="color: #166534;">✓</span>`}
+                                        </div>
+                                        ${isCorrection && (correctsDoc.doc_type || correctsDoc.recording_reference) ? `
+                                            <div style="background: white; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px; margin-bottom: 10px;">
+                                                <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 6px;">CORRECTS PRIOR DOCUMENT</div>
+                                                ${correctsDoc.doc_type ? `<div style="color: #374151; text-transform: capitalize;">${escapeHtml(correctsDoc.doc_type.replace(/_/g, ' '))}</div>` : ''}
+                                                ${correctsDoc.recording_reference ? `<div style="font-size: 12px; color: #6B7280;">Recorded: ${escapeHtml(correctsDoc.recording_reference)}</div>` : ''}
+                                                ${correctsDoc.recording_date ? `<div style="font-size: 12px; color: #6B7280;">Date: ${escapeHtml(correctsDoc.recording_date)}</div>` : ''}
+                                                ${correctsDoc.original_grantor ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Original Grantor: ${escapeHtml(correctsDoc.original_grantor)}</div>` : ''}
+                                                ${correctsDoc.original_grantee ? `<div style="font-size: 12px; color: #6B7280;">Original Grantee: ${escapeHtml(correctsDoc.original_grantee)}</div>` : ''}
+                                            </div>
+                                        ` : ''}
+                                        ${reason ? `<div style="font-size: 13px; color: #374151; margin-bottom: 6px;"><strong>Reason:</strong> ${escapeHtml(reason)}</div>` : ''}
+                                        ${whatWasWrong ? `<div style="font-size: 13px; color: #374151;"><strong>Error:</strong> ${escapeHtml(whatWasWrong)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'consideration' && typeof value === 'object') {
+                            // Special handling for consideration object (quit_claim_deed)
+                            hasVisibleFields = true;
+                            const stated = value.stated || '';
+                            const amount = value.amount;
+                            const isNominal = value.is_nominal;
+                            const stampsRequired = value.stamps_required;
+                            const stampsAmount = value.stamps_amount;
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Consideration</label>
+                                    <div style="background: ${isNominal ? '#F0FDF4' : '#EFF6FF'}; border: 1px solid ${isNominal ? '#22C55E' : '#3B82F6'}; border-radius: 6px; padding: 12px;">
+                                        <div style="font-weight: 600; color: ${isNominal ? '#166534' : '#1E40AF'}; margin-bottom: 4px;">
+                                            ${isNominal ? 'Nominal Consideration' : 'Consideration'}
+                                        </div>
+                                        ${stated ? `<div style="color: #374151; font-style: italic;">"${escapeHtml(stated)}"</div>` : ''}
+                                        ${amount != null ? `<div style="font-size: 13px; color: #6B7280; margin-top: 4px;">Amount: $${amount.toLocaleString()}</div>` : ''}
+                                        ${stampsRequired ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Documentary stamps: ${stampsAmount ? `$${stampsAmount}` : 'Required'}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'granting_clause' && typeof value === 'object') {
+                            // Special handling for granting_clause object (quit_claim_deed)
+                            hasVisibleFields = true;
+                            const grantingWords = value.granting_words || '';
+                            const habendum = value.habendum || '';
+                            const purposeStated = value.purpose_stated || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Granting Clause</label>
+                                    <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 12px;">
+                                        ${grantingWords ? `<div style="color: #374151;"><strong>Granting words:</strong> "${escapeHtml(grantingWords)}"</div>` : ''}
+                                        ${habendum ? `<div style="color: #374151; margin-top: 4px;"><strong>Habendum:</strong> "${escapeHtml(habendum)}"</div>` : ''}
+                                        ${purposeStated ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px; font-style: italic;">Purpose: ${escapeHtml(purposeStated)}</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'reservations_exceptions' && typeof value === 'object') {
+                            // Special handling for reservations_exceptions object (quit_claim_deed)
+                            const hasReservations = value.has_reservations;
+                            const reservedInterests = value.reserved_interests || [];
+                            const exceptions = value.exceptions || [];
+                            const subjectTo = value.subject_to || [];
+
+                            if (hasReservations || reservedInterests.length > 0 || exceptions.length > 0 || subjectTo.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Reservations & Exceptions</label>
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 12px;">
+                                            ${reservedInterests.length > 0 ? `
+                                                <div style="margin-bottom: 8px;">
+                                                    <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 4px;">RESERVED INTERESTS</div>
+                                                    <ul style="margin: 0; padding-left: 20px; color: #374151;">
+                                                        ${reservedInterests.map(r => `<li>${escapeHtml(r)}</li>`).join('')}
+                                                    </ul>
+                                                </div>
+                                            ` : ''}
+                                            ${exceptions.length > 0 ? `
+                                                <div style="margin-bottom: 8px;">
+                                                    <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 4px;">EXCEPTIONS</div>
+                                                    <ul style="margin: 0; padding-left: 20px; color: #374151;">
+                                                        ${exceptions.map(e => `<li>${escapeHtml(e)}</li>`).join('')}
+                                                    </ul>
+                                                </div>
+                                            ` : ''}
+                                            ${subjectTo.length > 0 ? `
+                                                <div>
+                                                    <div style="font-size: 11px; color: #92400E; font-weight: 600; margin-bottom: 4px;">SUBJECT TO</div>
+                                                    <ul style="margin: 0; padding-left: 20px; color: #374151;">
+                                                        ${subjectTo.map(s => `<li>${escapeHtml(s)}</li>`).join('')}
+                                                    </ul>
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'return_to' && typeof value === 'object') {
+                            // Special handling for return_to object (quit_claim_deed)
+                            const name = value.name || '';
+                            const address = value.address || '';
+                            const city = value.city || '';
+                            const state = value.state || '';
+                            const zip = value.zip || '';
+
+                            if (name || address) {
+                                hasVisibleFields = true;
+                                const fullAddress = [address, city, state, zip].filter(Boolean).join(', ');
+                                sectionContent += `
+                                    <div class="doc-field">
+                                        <label>Return To</label>
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 10px;">
+                                            ${name ? `<div style="font-weight: 500; color: #374151;">${escapeHtml(name)}</div>` : ''}
+                                            ${fullAddress ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(fullAddress)}</div>` : ''}
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'chain_of_title_links' && typeof value === 'object') {
+                            // Special handling for chain_of_title_links object (quit_claim_deed)
+                            const grantorEntities = value.grantor_entities || [];
+                            const granteeEntities = value.grantee_entities || [];
+                            const priorDocs = value.prior_documents || [];
+                            const subsequentDocs = value.subsequent_documents || [];
+
+                            if (grantorEntities.length > 0 || granteeEntities.length > 0 || priorDocs.length > 0 || subsequentDocs.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Chain of Title Links</label>
+                                        <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 12px;">
+                                            ${grantorEntities.length > 0 ? `
+                                                <div style="margin-bottom: 8px;">
+                                                    <div style="font-size: 11px; color: #1E40AF; font-weight: 600; margin-bottom: 4px;">GRANTOR ENTITIES</div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                                        ${grantorEntities.map(e => `<span style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 4px; padding: 2px 6px; font-size: 12px;">${escapeHtml(e)}</span>`).join('')}
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+                                            ${granteeEntities.length > 0 ? `
+                                                <div style="margin-bottom: 8px;">
+                                                    <div style="font-size: 11px; color: #1E40AF; font-weight: 600; margin-bottom: 4px;">GRANTEE ENTITIES</div>
+                                                    <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+                                                        ${granteeEntities.map(e => `<span style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 4px; padding: 2px 6px; font-size: 12px;">${escapeHtml(e)}</span>`).join('')}
+                                                    </div>
+                                                </div>
+                                            ` : ''}
+                                            ${priorDocs.length > 0 ? `
+                                                <div style="margin-bottom: ${subsequentDocs.length > 0 ? '8px' : '0'};">
+                                                    <div style="font-size: 11px; color: #1E40AF; font-weight: 600; margin-bottom: 4px;">PRIOR DOCUMENTS</div>
+                                                    ${priorDocs.map(doc => `
+                                                        <div style="background: white; border: 1px solid #BFDBFE; border-radius: 4px; padding: 8px; margin-bottom: 4px;">
+                                                            <div style="font-weight: 500; color: #374151; text-transform: capitalize;">${escapeHtml((doc.doc_type || '').replace(/_/g, ' '))}</div>
+                                                            ${doc.description ? `<div style="font-size: 12px; color: #6B7280;">${escapeHtml(doc.description)}</div>` : ''}
+                                                            ${doc.recording_reference ? `<div style="font-size: 11px; color: #9CA3AF;">${escapeHtml(doc.recording_reference)}</div>` : ''}
+                                                            ${doc.relationship ? `<div style="font-size: 11px; color: #3B82F6; text-transform: capitalize;">${escapeHtml(doc.relationship.replace(/_/g, ' '))}</div>` : ''}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
+                                            ${subsequentDocs.length > 0 ? `
+                                                <div>
+                                                    <div style="font-size: 11px; color: #1E40AF; font-weight: 600; margin-bottom: 4px;">SUBSEQUENT DOCUMENTS</div>
+                                                    ${subsequentDocs.map(doc => `
+                                                        <div style="background: white; border: 1px solid #BFDBFE; border-radius: 4px; padding: 8px; margin-bottom: 4px;">
+                                                            <div style="font-weight: 500; color: #374151; text-transform: capitalize;">${escapeHtml((doc.doc_type || '').replace(/_/g, ' '))}</div>
+                                                            ${doc.description ? `<div style="font-size: 12px; color: #6B7280;">${escapeHtml(doc.description)}</div>` : ''}
+                                                            ${doc.recording_reference ? `<div style="font-size: 11px; color: #9CA3AF;">${escapeHtml(doc.recording_reference)}</div>` : ''}
+                                                        </div>
+                                                    `).join('')}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'annotations' && typeof value === 'object' && (data.doc_type === 'assignment_of_lease' || data.doc_type === 'quit_claim_deed')) {
+                            // Special handling for annotations object (assignment_of_lease and quit_claim_deed schemas)
                             if (value.has_annotations) {
                                 hasVisibleFields = true;
                                 const handwrittenNotes = value.handwritten_notes || [];
