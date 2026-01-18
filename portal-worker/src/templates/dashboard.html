@@ -6126,7 +6126,7 @@
                 'Execution Details': ['execution_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type',
                                     'notary_expiration', 'commission_expiration', 'corporate_acknowledgment', 'acknowledgment_date',
                                     'notarization', 'witnesses'],  // notarization object for trust_funding and other docs
-                'Legal Description': ['legal_description', 'tracts', 'section', 'township', 'range', 'county', 'state', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage'],
+                'Legal Description': ['legal_description', 'tracts', 'section', 'township', 'range', 'county', 'state', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage', 'location'],
                 'Parties': ['grantors', 'grantees', 'grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_names', 'grantee_names',
                           'grantor_address', 'grantee_address',
                           'grantor_marital_status', 'lessor_name', 'lessee_name', 'lessor_address', 'lessee_address',
@@ -6212,7 +6212,7 @@
                 'Additional Parties': ['additional_parties', 'respondents_with_known_addresses',
                     'respondents_with_unknown_addresses', 'respondents_dismissed'],
                 'Pooling Order Details': ['order_info', 'commissioners'],
-                'Well Details': ['well_info'],
+                'Well Details': ['well_info', 'well_orientation'],
                 'Unit Information': ['unit_info'],
                 // Trust Funding sections
                 'Assignment Flags': ['is_blanket_assignment', 'includes_future_acquired', 'includes_mineral_interests'],
@@ -6564,6 +6564,14 @@
                 'Return To',
                 'Chain of Title Links',
                 'Annotations',
+                // Location Exception Order sections
+                'Order Information',
+                'Exception Details',
+                'Lateral Path',
+                'Vertical Well Location',
+                'Allowable',
+                'Offset Impact',
+                'Conditions',
                 'Other Information'
             ];
             
