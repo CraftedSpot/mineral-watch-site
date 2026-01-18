@@ -218,6 +218,52 @@ export async function linkDocumentToEntities(
     }
   }
 
+  // Add sections from location.sections array (for location exception orders, especially horizontals)
+  // For horizontal wells, only use sections where is_target_section is true (not surface location)
+  const locationObj = getValue(extractedFields.location);
+  const locationSections = locationObj?.sections;
+  if (Array.isArray(locationSections)) {
+    console.log(`[LinkDocuments] Found ${locationSections.length} location.sections to check`);
+    for (const locSection of locationSections) {
+      // Skip surface-only locations for horizontal wells - we want target sections for property matching
+      const isTargetSection = locSection.is_target_section;
+      const isSurfaceLocation = locSection.is_surface_location;
+
+      // Include section if: it's a target section, OR if is_target_section is not specified (backwards compat)
+      if (isTargetSection === false && isSurfaceLocation === true) {
+        console.log(`[LinkDocuments] Skipping surface-only section ${locSection.section} (not a target section)`);
+        continue;
+      }
+
+      const locSectionNum = normalizeSection(getValue(locSection.section));
+      let locTownship = normalizeTownship(getValue(locSection.township));
+      let locRange = normalizeRange(getValue(locSection.range));
+
+      // FALLBACK: If section has no township/range, inherit from primary
+      if (locSectionNum && (!locTownship || !locRange)) {
+        if (!locTownship && township) {
+          locTownship = township;
+          console.log(`[LinkDocuments] Location section ${locSectionNum} missing township, inheriting: ${township}`);
+        }
+        if (!locRange && range) {
+          locRange = range;
+          console.log(`[LinkDocuments] Location section ${locSectionNum} missing range, inheriting: ${range}`);
+        }
+      }
+
+      if (locSectionNum && locTownship && locRange) {
+        // Avoid duplicates
+        const isDuplicate = sectionsToCheck.some(
+          s => s.section === locSectionNum && s.township === locTownship && s.range === locRange
+        );
+        if (!isDuplicate) {
+          sectionsToCheck.push({ section: locSectionNum, township: locTownship, range: locRange });
+          console.log(`[LinkDocuments] Added location section: ${locSectionNum}-${locTownship}-${locRange} (target: ${isTargetSection})`);
+        }
+      }
+    }
+  }
+
   console.log(`[LinkDocuments] Total sections to check for property matching: ${sectionsToCheck.length}`);
 
   // Match properties by legal description - find ALL matching properties across ALL sections
