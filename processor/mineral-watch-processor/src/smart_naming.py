@@ -1706,6 +1706,36 @@ def name_trust_funding(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_limited_partnership(data: Dict[str, Any]) -> str:
+    """Limited Partnership - {Entity Name} - {Formation Date}
+
+    For limited partnership certificate/agreement documents.
+    Uses entity_info.name, entity_info.formation_date from schema.
+    """
+    parts = ["Limited Partnership"]
+
+    # Get entity name from entity_info
+    entity_info = data.get('entity_info', {})
+    entity_name = None
+    if isinstance(entity_info, dict):
+        entity_name = entity_info.get('name')
+
+    if entity_name:
+        parts.append(entity_name)
+
+    # Get formation date
+    formation_date = None
+    if isinstance(entity_info, dict):
+        formation_date = entity_info.get('formation_date')
+
+    if formation_date:
+        parts.append(str(formation_date))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 # ============================================================================
 # MAIN DISPATCHER
 # ============================================================================
@@ -1745,6 +1775,7 @@ NAMING_FUNCTIONS = {
     'joint_operating_agreement': name_joa,
     'ownership_entity': name_ownership_entity,
     'trust_funding': name_trust_funding,
+    'limited_partnership': name_limited_partnership,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,
     'tax_record': name_tax_record,

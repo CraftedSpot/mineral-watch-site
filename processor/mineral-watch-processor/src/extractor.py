@@ -2194,6 +2194,219 @@ CHAIN OF TITLE LINKING:
 - For blanket + future_acquired: Flag for ongoing linkage to newly acquired properties
 - For specific only: Link only to enumerated properties
 
+For LIMITED PARTNERSHIP (Certificate of Limited Partnership or LP Agreement):
+NOTE: This is an entity formation document critical for chain of title.
+The partnership structure determines how mineral interests are owned and what happens on death/transfer.
+
+EXTRACTION PRIORITY:
+1. Entity name and formation date - links to all documents naming this entity
+2. ALL partners with their percentages - determines ownership allocation
+3. Succession provisions - what happens when a partner dies
+4. Assignment restrictions - can interests be transferred
+
+SAME PARTY DIFFERENT CAPACITIES:
+- One person may appear multiple times (e.g., as individual AND as custodian for minors)
+- Extract each appearance as a SEPARATE partner entry
+- Include `custodian_for` field when acting as custodian
+
+{{
+  "doc_type": "limited_partnership",
+
+  "entity_info": {{
+    "entity_name": "REQUIRED - Price Oil and Gas Company",
+    "formation_date": "REQUIRED - 1980-01-20",
+    "governing_law": "Oklahoma Uniform Limited Partnership Act, Title 54 O.S. 1971 § 141",
+    "jurisdiction": "Oklahoma"
+  }},
+
+  "term": {{
+    "duration_type": "fixed",
+    "years": 50,
+    "expiration_date": "2030-01-20",
+    "termination_events": ["majority of General Partners vote to terminate", "expiration of term"]
+  }},
+
+  "principal_office": {{
+    "address": "6801 North Country Club Drive",
+    "city": "Oklahoma City",
+    "state": "Oklahoma",
+    "zip": "73116"
+  }},
+
+  "general_partners": [
+    {{
+      "name": "REQUIRED - Montine Price Foerster Sprehe",
+      "address": "7520 Nichols Road",
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "zip": "73120",
+      "capacity": "Individual",
+      "contribution_interest": {{
+        "fraction": "25%",
+        "decimal": 0.25
+      }},
+      "profit_interest": {{
+        "fraction": "25%",
+        "decimal": 0.25
+      }}
+    }}
+  ],
+
+  "limited_partners": [
+    {{
+      "name": "REQUIRED - Gudbjorg Price",
+      "address": "1416 Brighton",
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "zip": "73120",
+      "capacity": "Individual",
+      "custodian_for": null,
+      "contribution_interest": {{
+        "fraction": "8-1/3%",
+        "decimal": 0.083333
+      }},
+      "profit_interest": {{
+        "fraction": "8-1/3%",
+        "decimal": 0.083333
+      }}
+    }},
+    {{
+      "name": "Gudbjorg Price",
+      "address": "1416 Brighton",
+      "city": "Oklahoma City",
+      "state": "Oklahoma",
+      "zip": "73120",
+      "capacity": "Custodian",
+      "custodian_for": "Siri Montine Price",
+      "contribution_interest": {{
+        "fraction": "8-1/3%",
+        "decimal": 0.083333
+      }},
+      "profit_interest": {{
+        "fraction": "8-1/3%",
+        "decimal": 0.083333
+      }}
+    }}
+  ],
+
+  "business_purpose": {{
+    "stated_purpose": "ownership of real property, including oil and gas royalties and leasehold estates, the conduct of farming operations, the exploration and exploitation of oil and gas properties, and the owning and holding of other types of investment",
+    "includes_mineral_interests": true,
+    "includes_oil_gas_operations": true,
+    "includes_real_property": true,
+    "purpose_categories": ["mineral_interests", "royalties", "working_interests", "leasehold", "farming", "real_property", "investments"]
+  }},
+
+  "contribution_provisions": {{
+    "types_accepted": ["cash", "accounts_receivable", "mineral_interests", "royalty_interests", "working_interests", "oil_gas_ventures", "personal_property", "real_property"],
+    "additional_contributions_required": false,
+    "return_of_contributions_guaranteed": false
+  }},
+
+  "distribution_provisions": {{
+    "method": "per_interest",
+    "in_kind_allowed": false,
+    "description": "Profits distributed per contribution percentages. LPs can only receive cash unless proportionate distribution to all partners."
+  }},
+
+  "management_provisions": {{
+    "gp_voting": "equal_voice",
+    "gp_voting_description": "All General Partners have equal voice regardless of contribution amounts",
+    "majority_binds_all": true,
+    "if_two_gps_both_required": true,
+    "lp_can_participate_in_management": false,
+    "lp_inspection_rights": true,
+    "gp_compensation_allowed": true,
+    "gp_expense_reimbursement": true
+  }},
+
+  "assignment_provisions": {{
+    "lp_can_assign": true,
+    "assignment_to_existing_partners": true,
+    "assignment_to_third_parties": true,
+    "third_party_requires_gp_approval": true,
+    "new_lp_admission_requires_gp_consent": true,
+    "family_relationship_required": true,
+    "family_relationship_type": "blood or marriage to a General Partner"
+  }},
+
+  "succession_provisions": {{
+    "survives_death_of_gp": true,
+    "survives_retirement_of_gp": true,
+    "survives_insanity_of_gp": true,
+    "on_death_interest_descends_to_heirs": true,
+    "gp_interest_converts_to_lp_on_death": true,
+    "conversion_description": "The interest of any General Partner passing to a legatee or other beneficiary shall automatically become a Limited Partnership interest"
+  }},
+
+  "liability_provisions": {{
+    "lp_liability_limited_to_contribution": true,
+    "gp_liability_unlimited": true
+  }},
+
+  "dissolution_provisions": {{
+    "triggers": ["expiration of term", "agreement of majority of General Partners"],
+    "liquidation_priority": ["liabilities and obligations to creditors", "remaining assets to partners per capital accounts"]
+  }},
+
+  "recording_info": {{
+    "recorded": false,
+    "book": null,
+    "page": null,
+    "instrument_number": null,
+    "recording_date": null,
+    "county": null,
+    "state": null
+  }},
+
+  "execution_info": {{
+    "execution_date": "1980-01-20",
+    "notarized": true,
+    "notary_date": "1980-04-23",
+    "notary_county": "Oklahoma",
+    "notary_state": "Oklahoma",
+    "notary_commission_expires": "1980-05-03"
+  }},
+
+  "county": "Oklahoma",
+  "state": "Oklahoma",
+
+  "key_takeaway": "REQUIRED - One sentence: Price Oil and Gas Company is an Oklahoma limited partnership formed January 20, 1980 with a 50-year term, owned 75% by three General Partners (Montine Price Foerster Sprehe, Kelsey Price Walters, William S. Price) and 25% by Limited Partners, with GP interests converting to LP interests upon death.",
+
+  "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) entity structure - who are the partners and what are their percentages; (2) management - how decisions are made, LP restrictions; (3) succession - critical: what happens when partners die, especially the GP-to-LP conversion; (4) assignment restrictions - family-only new LPs, GP approval required.",
+
+  "field_scores": {{
+    "entity_name": 1.0,
+    "formation_date": 1.0,
+    "general_partners": 1.0,
+    "limited_partners": 1.0,
+    "term": 0.95,
+    "succession_provisions": 1.0,
+    "assignment_provisions": 0.95
+  }},
+  "document_confidence": "high"
+}}
+
+PARTNER INTEREST EXTRACTION:
+- MUST include both `fraction` (as stated: "25%", "8-1/3%") and `decimal` (computed: 0.25, 0.083333)
+- Common fractions: 1/3 = 0.333333, 1/4 = 0.25, 8-1/3% = 0.083333, 16-2/3% = 0.166667
+- Preserve full decimal precision
+
+SAME PARTY DIFFERENT CAPACITIES:
+- If Gudbjorg Price appears as Individual AND as Custodian for two minors, create THREE separate entries
+- Set `capacity` to "Individual" or "Custodian"
+- Set `custodian_for` to the minor's name when acting as custodian
+
+SUCCESSION PROVISIONS - CRITICAL:
+- `gp_interest_converts_to_lp_on_death`: Does a GP interest become an LP interest when inherited? This is crucial for control vs ownership.
+- `on_death_interest_descends_to_heirs`: Does interest pass by will/intestacy?
+- `survives_death_of_gp`: Does the partnership continue when a GP dies?
+
+CHAIN OF TITLE LINKING:
+- Entity documents don't have section/township/range
+- Link by entity name matching to division orders, deeds, leases
+- Partner names link to individual deeds/conveyances
+
 For SUSPENSE NOTICES:
 {
   "doc_type": "suspense_notice",
@@ -2579,11 +2792,14 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, title_opinion
 - check_stub, occ_order, suspense_notice, joa
-- affidavit_of_heirship, trust_funding, ownership_entity, legal_document, correspondence
+- affidavit_of_heirship, trust_funding, limited_partnership, ownership_entity, legal_document, correspondence
 - tax_record, map
 
 TRUST FUNDING DETECTION:
 - trust_funding: Look for "GENERAL ASSIGNMENT" or "ASSIGNMENT" that transfers property from an individual to a TRUST. Key indicators: same person appears as both assignor (individual) AND assignee (as trustee), trust name mentioned (e.g., "Virginia K. Price Trust"), language about transferring "all property" or specific categories to a trust. Often includes nominal consideration ($10.00 and other good and valuable consideration). This is an estate planning document, NOT a sale.
+
+LIMITED PARTNERSHIP DETECTION:
+- limited_partnership: Look for "CERTIFICATE OF LIMITED PARTNERSHIP" or "LIMITED PARTNERSHIP AGREEMENT". Contains formation date, term/duration, general partners with management authority, limited partners with capital contributions, percentage interests. Key indicators: "General Partner", "Limited Partner", Article structures defining rights/duties, capital contribution amounts, profit/loss sharing percentages. May include succession provisions for what happens when GP dies (interest converts to LP interest).
 
 AFFIDAVIT OF HEIRSHIP DETECTION:
 - affidavit_of_heirship: Look for "AFFIDAVIT OF HEIRSHIP" title. Contains decedent (deceased person) name, list of heirs/children/spouses, legal description of mineral property, notarized. Establishes who inherits mineral rights.

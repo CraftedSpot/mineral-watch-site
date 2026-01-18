@@ -6218,6 +6218,17 @@
                 'Assignment Flags': ['is_blanket_assignment', 'includes_future_acquired', 'includes_mineral_interests'],
                 'Property Coverage': ['property_categories', 'mineral_interests', 'specific_properties'],
                 'Trustee Acceptance': ['acceptance'],
+                // Limited Partnership sections
+                'Entity Information': ['entity_info'],
+                'Partnership Term': ['term'],
+                'Principal Office': ['principal_office'],
+                'General Partners': ['general_partners'],
+                'Limited Partners': ['limited_partners'],
+                'Business Purpose': ['business_purpose'],
+                'Capital Provisions': ['contribution_provisions', 'distribution_provisions'],
+                'Management & Governance': ['management_provisions', 'voting_provisions', 'liability_provisions'],
+                'Succession & Assignment': ['succession_provisions', 'assignment_provisions'],
+                'Dissolution': ['dissolution_provisions'],
                 'Notes': ['notes', 'additional_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
@@ -8349,6 +8360,239 @@
                                         </div>
                                     </div>
                                 </div>`;
+                        } else if (fieldName === 'entity_info' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for entity_info object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const name = value.name || '';
+                            const formationDate = value.formation_date || '';
+                            const governingLaw = value.governing_law || '';
+                            const jurisdiction = value.jurisdiction || '';
+                            const filedWith = value.filed_with || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Partnership Entity</label>
+                                    <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
+                                        ${name ? `<div style="font-size: 18px; font-weight: 700; color: #1E40AF; margin-bottom: 8px;">${escapeHtml(name)}</div>` : ''}
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; font-size: 13px;">
+                                            ${formationDate ? `<div><span style="color: #6B7280;">Formation Date:</span> <strong>${escapeHtml(formationDate)}</strong></div>` : ''}
+                                            ${jurisdiction ? `<div><span style="color: #6B7280;">Jurisdiction:</span> <strong>${escapeHtml(jurisdiction)}</strong></div>` : ''}
+                                            ${governingLaw ? `<div><span style="color: #6B7280;">Governing Law:</span> <strong>${escapeHtml(governingLaw)}</strong></div>` : ''}
+                                            ${filedWith ? `<div><span style="color: #6B7280;">Filed With:</span> <strong>${escapeHtml(filedWith)}</strong></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'term' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for term object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const durationType = value.duration_type || '';
+                            const years = value.years;
+                            const expirationDate = value.expiration_date || '';
+                            const isPerpetual = durationType === 'perpetual';
+                            const bgColor = isPerpetual ? '#FEF3C7' : '#F3F4F6';
+                            const borderColor = isPerpetual ? '#F59E0B' : '#D1D5DB';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Partnership Term</label>
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 20px; align-items: center;">
+                                            ${durationType ? `<div><span style="color: #6B7280;">Duration:</span> <strong style="font-size: 15px; text-transform: capitalize;">${escapeHtml(durationType)}</strong></div>` : ''}
+                                            ${years ? `<div><span style="color: #6B7280;">Term:</span> <strong style="font-size: 15px;">${years} years</strong></div>` : ''}
+                                            ${expirationDate ? `<div><span style="color: #6B7280;">Expires:</span> <strong style="font-size: 15px;">${escapeHtml(expirationDate)}</strong></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'principal_office' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for principal_office object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const city = value.city || '';
+                            const state = value.state || '';
+                            const registeredAgent = value.registered_agent || '';
+                            const registeredAgentAddress = value.registered_agent_address || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Principal Office</label>
+                                    <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 14px;">
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; font-size: 13px;">
+                                            ${city || state ? `<div><span style="color: #6B7280;">Location:</span> <strong>${city ? escapeHtml(city) : ''}${city && state ? ', ' : ''}${state ? escapeHtml(state) : ''}</strong></div>` : ''}
+                                            ${registeredAgent ? `<div><span style="color: #6B7280;">Registered Agent:</span> <strong>${escapeHtml(registeredAgent)}</strong></div>` : ''}
+                                            ${registeredAgentAddress ? `<div style="grid-column: 1 / -1;"><span style="color: #6B7280;">Agent Address:</span> <strong>${escapeHtml(registeredAgentAddress)}</strong></div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'general_partners' && Array.isArray(value) && data.doc_type === 'limited_partnership') {
+                            // Special handling for general_partners array (limited_partnership schema)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>General Partners (${value.length})</label>
+                                        <div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(partner => {
+                                    const name = partner.name || '';
+                                    const address = partner.address || '';
+                                    const interestFraction = partner.interest_fraction || '';
+                                    const interestDecimal = partner.interest_decimal;
+                                    const capacity = partner.capacity || '';
+                                    const contribution = partner.capital_contribution || '';
+
+                                    sectionContent += `
+                                        <div style="background: #DBEAFE; border: 1px solid #3B82F6; border-radius: 8px; padding: 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                                                <div style="flex: 1; min-width: 200px;">
+                                                    <div style="font-weight: 600; color: #1E40AF; font-size: 15px;">${escapeHtml(name)}</div>
+                                                    ${capacity ? `<div style="font-size: 12px; color: #3B82F6; margin-top: 2px;">${escapeHtml(capacity)}</div>` : ''}
+                                                    ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    ${interestFraction ? `<div style="font-weight: 700; color: #1E40AF; font-size: 16px;">${escapeHtml(interestFraction)}</div>` : ''}
+                                                    ${interestDecimal !== undefined && interestDecimal !== null ? `<div style="font-size: 12px; color: #6B7280;">(${(interestDecimal * 100).toFixed(4)}%)</div>` : ''}
+                                                    ${contribution ? `<div style="font-size: 12px; color: #059669; margin-top: 4px;">Contribution: ${escapeHtml(contribution)}</div>` : ''}
+                                                </div>
+                                            </div>
+                                        </div>`;
+                                });
+                                sectionContent += `</div></div>`;
+                            }
+                        } else if (fieldName === 'limited_partners' && Array.isArray(value) && data.doc_type === 'limited_partnership') {
+                            // Special handling for limited_partners array (limited_partnership schema)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Limited Partners (${value.length})</label>
+                                        <div style="display: flex; flex-direction: column; gap: 10px;">`;
+                                value.forEach(partner => {
+                                    const name = partner.name || '';
+                                    const address = partner.address || '';
+                                    const interestFraction = partner.interest_fraction || '';
+                                    const interestDecimal = partner.interest_decimal;
+                                    const capacity = partner.capacity || '';
+                                    const custodianFor = partner.custodian_for || '';
+                                    const contribution = partner.capital_contribution || '';
+
+                                    // Different background if acting as custodian
+                                    const bgColor = custodianFor ? '#FEF3C7' : '#F0FDF4';
+                                    const borderColor = custodianFor ? '#F59E0B' : '#22C55E';
+                                    const nameColor = custodianFor ? '#92400E' : '#166534';
+
+                                    sectionContent += `
+                                        <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 12px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap;">
+                                                <div style="flex: 1; min-width: 200px;">
+                                                    <div style="font-weight: 600; color: ${nameColor}; font-size: 15px;">${escapeHtml(name)}</div>
+                                                    ${capacity ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(capacity)}</div>` : ''}
+                                                    ${custodianFor ? `<div style="font-size: 12px; color: #B45309; margin-top: 2px; font-weight: 500;">Custodian for: ${escapeHtml(custodianFor)}</div>` : ''}
+                                                    ${address ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">${escapeHtml(address)}</div>` : ''}
+                                                </div>
+                                                <div style="text-align: right;">
+                                                    ${interestFraction ? `<div style="font-weight: 700; color: ${nameColor}; font-size: 16px;">${escapeHtml(interestFraction)}</div>` : ''}
+                                                    ${interestDecimal !== undefined && interestDecimal !== null ? `<div style="font-size: 12px; color: #6B7280;">(${(interestDecimal * 100).toFixed(4)}%)</div>` : ''}
+                                                    ${contribution ? `<div style="font-size: 12px; color: #059669; margin-top: 4px;">Contribution: ${escapeHtml(contribution)}</div>` : ''}
+                                                </div>
+                                            </div>
+                                        </div>`;
+                                });
+                                sectionContent += `</div></div>`;
+                            }
+                        } else if (fieldName === 'succession_provisions' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for succession_provisions object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const survives = value.survives_death_of_gp;
+                            const converts = value.gp_interest_converts_to_lp_on_death;
+                            const language = value.succession_language || '';
+
+                            // This is critical info for chain of title
+                            const bgColor = converts ? '#FEF3C7' : '#F3F4F6';
+                            const borderColor = converts ? '#F59E0B' : '#D1D5DB';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Succession Provisions</label>
+                                    <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: ${language ? '10px' : '0'};">
+                                            ${survives !== undefined ? `
+                                                <div style="background: ${survives ? '#DCFCE7' : '#FEE2E2'}; border-radius: 6px; padding: 8px 14px;">
+                                                    <div style="font-size: 11px; color: #6B7280;">Survives GP Death</div>
+                                                    <div style="font-weight: 600; color: ${survives ? '#166534' : '#DC2626'};">${survives ? '✓ Yes' : '✗ No'}</div>
+                                                </div>` : ''}
+                                            ${converts !== undefined ? `
+                                                <div style="background: ${converts ? '#FEF3C7' : '#F3F4F6'}; border-radius: 6px; padding: 8px 14px;">
+                                                    <div style="font-size: 11px; color: #6B7280;">GP Interest → LP on Death</div>
+                                                    <div style="font-weight: 600; color: ${converts ? '#92400E' : '#374151'};">${converts ? '✓ Converts' : '✗ Does Not Convert'}</div>
+                                                </div>` : ''}
+                                        </div>
+                                        ${language ? `<div style="font-size: 13px; color: #374151; font-style: italic; border-top: 1px solid #E5E7EB; padding-top: 10px;">"${escapeHtml(language)}"</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'assignment_provisions' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for assignment_provisions object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const familyRequired = value.family_relationship_required;
+                            const writtenConsent = value.requires_written_consent;
+                            const language = value.general_language || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Assignment Restrictions</label>
+                                    <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: ${language ? '10px' : '0'};">
+                                            ${familyRequired !== undefined ? `
+                                                <div style="background: ${familyRequired ? '#FEE2E2' : '#DCFCE7'}; border-radius: 6px; padding: 8px 14px;">
+                                                    <div style="font-size: 11px; color: #6B7280;">Family Relationship Required</div>
+                                                    <div style="font-weight: 600; color: ${familyRequired ? '#DC2626' : '#166534'};">${familyRequired ? '✓ Yes - Restricted' : '✗ Not Required'}</div>
+                                                </div>` : ''}
+                                            ${writtenConsent !== undefined ? `
+                                                <div style="background: ${writtenConsent ? '#FEF3C7' : '#F3F4F6'}; border-radius: 6px; padding: 8px 14px;">
+                                                    <div style="font-size: 11px; color: #6B7280;">Written Consent Required</div>
+                                                    <div style="font-weight: 600; color: ${writtenConsent ? '#92400E' : '#374151'};">${writtenConsent ? '✓ Required' : '✗ Not Required'}</div>
+                                                </div>` : ''}
+                                        </div>
+                                        ${language ? `<div style="font-size: 13px; color: #374151; font-style: italic; border-top: 1px solid #E5E7EB; padding-top: 10px;">"${escapeHtml(language)}"</div>` : ''}
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'management_provisions' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for management_provisions object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const lpCanParticipate = value.lp_can_participate_in_management;
+                            const gpAuthority = value.gp_authority || '';
+
+                            sectionContent += `
+                                <div class="doc-field" style="grid-column: 1 / -1;">
+                                    <label>Management Provisions</label>
+                                    <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 14px;">
+                                        <div style="display: flex; flex-wrap: wrap; gap: 16px;">
+                                            ${lpCanParticipate !== undefined ? `
+                                                <div style="background: ${lpCanParticipate ? '#FEF3C7' : '#DCFCE7'}; border-radius: 6px; padding: 8px 14px;">
+                                                    <div style="font-size: 11px; color: #6B7280;">LP Can Participate in Management</div>
+                                                    <div style="font-weight: 600; color: ${lpCanParticipate ? '#92400E' : '#166534'};">${lpCanParticipate ? '✓ Yes - May Affect LP Status' : '✗ No - Limited Partner Protected'}</div>
+                                                </div>` : ''}
+                                            ${gpAuthority ? `
+                                                <div style="flex: 1; min-width: 200px;">
+                                                    <div style="font-size: 11px; color: #6B7280; margin-bottom: 4px;">GP Authority</div>
+                                                    <div style="font-size: 13px; color: #374151;">${escapeHtml(gpAuthority)}</div>
+                                                </div>` : ''}
+                                        </div>
+                                    </div>
+                                </div>`;
+                        } else if (fieldName === 'dissolution_provisions' && typeof value === 'object' && data.doc_type === 'limited_partnership') {
+                            // Special handling for dissolution_provisions object (limited_partnership schema)
+                            hasVisibleFields = true;
+                            const triggers = value.triggers || [];
+
+                            if (triggers.length > 0) {
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>Dissolution Triggers</label>
+                                        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 14px;">
+                                            <ul style="margin: 0; padding-left: 20px; color: #991B1B;">
+                                                ${triggers.map(t => `<li style="margin-bottom: 4px;">${escapeHtml(t)}</li>`).join('')}
+                                            </ul>
+                                        </div>
+                                    </div>`;
+                            }
                         } else if ((fieldName === 'respondents_with_known_addresses' ||
                                    fieldName.toLowerCase().includes('respondents') && fieldName.toLowerCase().includes('known')) &&
                                    Array.isArray(value)) {
