@@ -2359,33 +2359,35 @@ HORIZONTAL WELL EXAMPLE:
     "notes": "Well drilled and completed - order remains in effect"
   },
 
-  "prior_orders": [
-    {
-      "order_number": "647505",
-      "order_date": "2015-06-30",
-      "relationship": "establishes_unit"
-    },
-    {
-      "order_number": "747579",
-      "relationship": "interim_order"
-    }
-  ],
+  "related_orders": {
+    "references": [
+      {
+        "order_number": "647505",
+        "order_date": "2015-06-30",
+        "description": "Establishes drilling unit"
+      },
+      {
+        "order_number": "747579",
+        "description": "Interim order for this cause"
+      }
+    ]
+  },
 
   "companion_causes": [
     {
       "cause_number": "CD2024-003803",
       "cause_type": "increased_density",
-      "relationship": "authorizes additional well in unit"
+      "description": "Authorizes additional well in unit"
     },
     {
       "cause_number": "CD2024-003807",
       "cause_type": "multiunit_horizontal",
-      "relationship": "establishes multiunit horizontal well"
+      "description": "Establishes multiunit horizontal well"
     },
     {
       "cause_number": "CD2024-003811",
       "cause_type": "600_foot_rule",
-      "relationship": "600-foot rule exception for lateral"
+      "description": "600-foot rule exception for lateral"
     }
   ],
 
@@ -2394,24 +2396,19 @@ HORIZONTAL WELL EXAMPLE:
     "Operator shall comply with all other applicable rules and regulations"
   ],
 
-  "commissioners": [
-    {"name": "Bob Anthony", "vote": "aye"},
-    {"name": "Todd Hiett", "vote": "aye"},
-    {"name": "Kim David", "vote": "aye"}
-  ],
-
   "key_takeaway": "Horizontal location exception for the Lohmeyer 1708 2H-26X well allowing the lateral to pass within 147 feet of the north section line (vs 165 ft standard). The lateral runs from Section 26 through Section 35, with surface location in Section 23. Engineering testimony confirmed no adverse impact on offset wells.",
 
   "detailed_analysis": "This post-drill location exception addresses an inadvertent surveying error that placed the lateral toe 18 feet closer to the north line than the 165-foot standard setback. Ovintiv operates Mississippian wells in the north offset Section 23 and presented engineering testimony that fractures run east-west with minimal damage around the toe. No pressure communication with adjacent Lohmeyer 1708 2H-26X and 3H-26X wells was observed. The Commission found no offset would be adversely affected. This is part of a larger development package including increased density (CD2024-003803), multiunit horizontal (CD2024-003807), and 600-foot rule exception (CD2024-003811) causes.",
 
   "field_scores": {
-    "occ_identifiers": "high",
+    "order_info": "high",
+    "officials": "high",
     "well_info": "high",
     "target_formations": "high",
     "location": "high",
     "exception_details": "high",
     "lateral_path": "high",
-    "prior_orders": "medium",
+    "related_orders": "medium",
     "companion_causes": "medium"
   },
 
@@ -2428,18 +2425,22 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
   "county": "Grady",
   "state": "Oklahoma",
 
-  "occ_identifiers": {
+  "order_info": {
+    "cause_number": "CD2015-001234",
     "order_number": "647505",
-    "cause_cd_number": "CD2015-001234"
+    "order_date": "2015-06-30",
+    "effective_date": "2015-06-30",
+    "hearing_date": "2015-06-15"
   },
 
-  "effective_date": "2015-06-30",
-  "order_date": "2015-06-30",
-
-  "hearing_info": {
-    "hearing_date": "2015-06-15",
-    "alj_name": "Keith Thomas",
-    "hearing_location": "Jim Thorpe Building, Oklahoma City"
+  "officials": {
+    "administrative_law_judge": "Keith Thomas",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City",
+    "commissioners": [
+      {"name": "Bob Anthony", "vote": "aye"},
+      {"name": "Todd Hiett", "vote": "aye"},
+      {"name": "Dana Murphy", "vote": "aye"}
+    ]
   },
 
   "applicant": {
@@ -2460,7 +2461,8 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
 
   "target_formations": [
     {
-      "formation_name": "Hoxbar"
+      "formation_name": "Hoxbar",
+      "is_primary": true
     }
   ],
 
@@ -2504,22 +2506,18 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
     "expiration_date": "2016-06-30"
   },
 
-  "prior_orders": [
-    {
-      "order_number": "456789",
-      "relationship": "establishes_unit"
-    }
-  ],
+  "related_orders": {
+    "references": [
+      {
+        "order_number": "456789",
+        "description": "Establishes drilling unit"
+      }
+    ]
+  },
 
   "conditions": [
     "Exception granted for specific well location only",
     "Does not alter established spacing pattern"
-  ],
-
-  "commissioners": [
-    {"name": "Bob Anthony", "vote": "aye"},
-    {"name": "Todd Hiett", "vote": "aye"},
-    {"name": "Dana Murphy", "vote": "aye"}
   ],
 
   "key_takeaway": "Re-entry location exception for the Sanders 1-17 well, allowing completion 330 feet from the south line (vs 660 ft standard) to access the Hoxbar formation. This well previously produced from the Hunton formation which is now depleted.",
@@ -2527,13 +2525,14 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
   "detailed_analysis": "This is a re-entry location exception allowing Triad Energy to recomplete an existing Hunton well into the Hoxbar formation. The well is located 330 feet from the south line and 990 feet from the east line of Section 17. Because this is an existing wellbore, the operator cannot move the location to meet standard setbacks. The exception expires in one year if drilling/recompletion has not commenced. The Commission found no offset would be adversely affected by this exception.",
 
   "field_scores": {
-    "occ_identifiers": "high",
+    "order_info": "high",
+    "officials": "high",
     "well_info": "high",
     "target_formations": "high",
     "location": "high",
     "exception_details": "high",
     "vertical_well_location": "high",
-    "prior_orders": "medium"
+    "related_orders": "medium"
   },
 
   "document_confidence": "high"

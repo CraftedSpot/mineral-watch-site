@@ -915,14 +915,14 @@ def name_location_exception_order(data: Dict[str, Any]) -> str:
 
     parts = [prefix]
 
-    # Order number (preferred) or cause number - check occ_identifiers first, then flat fields
-    occ_ids = data.get('occ_identifiers', {}) or {}
-    order_number = occ_ids.get('order_number') or data.get('order_number')
+    # Order number (preferred) or cause number - check order_info first, then flat fields
+    order_info = data.get('order_info', {}) or {}
+    order_number = order_info.get('order_number') or data.get('order_number')
     if order_number:
         parts.append(str(order_number))
     else:
         cd_num = clean_cd_number(
-            occ_ids.get('cause_cd_number') or
+            order_info.get('cause_number') or
             data.get('cause_number') or
             data.get('cd_number') or
             data.get('case_number')
@@ -1007,8 +1007,8 @@ def name_location_exception_order(data: Dict[str, Any]) -> str:
             if formation_name:
                 parts.append(formation_name)
 
-    # Order date (prefer over year)
-    order_date = data.get('order_date')
+    # Order date (prefer over year) - check order_info first
+    order_date = order_info.get('order_date') or data.get('order_date')
     if order_date:
         parts.append(str(order_date))
     elif data.get('year'):
