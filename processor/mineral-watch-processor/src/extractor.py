@@ -1304,6 +1304,256 @@ EXTRACTION NOTES FOR FORM 1000:
 - For VERTICAL wells: omit bottom_hole_location, section_crossings, lateral_direction, lateral_length_ft
 - BHL coordinates are CRITICAL for mapping lateral wellbore paths
 
+For COMPLETION REPORTS (Form 1002A - documents that a well has been drilled and completed):
+NOTE: Completion Reports contain the official record of well location, depth, target formation, initial production test results, and regulatory approval status.
+Focus on: well ID, location, formation, production data, status. Skip operational/engineering detail like casing specs and treatment volumes.
+
+CONDITIONAL REQUIREMENTS:
+- IF drill_type is "HORIZONTAL HOLE": bottom_hole_location, lateral_details, and affected_sections[] are REQUIRED
+- IF drill_type is "DIRECTIONAL HOLE": bottom_hole_location is REQUIRED
+- IF surface and bottom hole are in different sections: affected_sections[] MUST include both
+- IF well_class is "DRY": OMIT initial_production entirely
+
+{{
+  "doc_type": "completion_report",
+
+  "section": 22,
+  "township": "18N",
+  "range": "14W",
+  "county": "Dewey",
+  "state": "Oklahoma",
+
+  "well_identification": {{
+    "api_number": "35043236860000",
+    "well_name": "NEWLEY 15-22-1XH",
+    "well_number": "15-22-1XH",
+    "otc_prod_unit_no": "043-226597-0-0000",
+    "permit_number": "PD-2018-001234"
+  }},
+
+  "operator": {{
+    "name": "Derby Exploration, LLC",
+    "operator_number": "24143",
+    "address": "P.O. Box 779, 100 Park Ave Ste 400",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "zip": "73101-0779"
+  }},
+
+  "dates": {{
+    "spud_date": "2019-02-01",
+    "drilling_finished_date": "2019-06-22",
+    "completion_date": "2019-11-27",
+    "first_production_date": "2019-11-27",
+    "initial_test_date": "2019-12-27"
+  }},
+
+  "well_type": {{
+    "drill_type": "HORIZONTAL HOLE",
+    "completion_type": "Single Zone",
+    "well_class": "GAS"
+  }},
+
+  "surface_location": {{
+    "section": 22,
+    "township": "18N",
+    "range": "14W",
+    "county": "Dewey",
+    "quarters": "W2 SW SE SW",
+    "footage_ns": "330 FSL",
+    "footage_ew": "1485 FWL",
+    "latitude": 36.01550178,
+    "longitude": -98.68457972,
+    "ground_elevation_ft": 1880
+  }},
+
+  "bottom_hole_location": {{
+    "section": 15,
+    "township": "18N",
+    "range": "14W",
+    "county": "Dewey",
+    "quarters": "NE NW NE NW",
+    "footage_ns": "52 FNL",
+    "footage_ew": "1974 FWL",
+    "measured_depth_ft": 20783,
+    "true_vertical_depth_ft": 10180,
+    "distance_from_unit_line_ft": 52
+  }},
+
+  "lateral_details": {{
+    "depth_of_deviation_ft": 9917,
+    "radius_of_turn_ft": 760,
+    "direction_degrees": 11,
+    "lateral_length_ft": 10106
+  }},
+
+  "target_formation": {{
+    "name": "Mississippian",
+    "code": "359MSSP"
+  }},
+
+  "perforated_intervals": [
+    {{ "from_ft": 10797, "to_ft": 15414 }},
+    {{ "from_ft": 15451, "to_ft": 20068 }}
+  ],
+  "total_perforated_length_ft": 9234,
+
+  "initial_production": {{
+    "test_date": "2019-12-27",
+    "oil_bbl_per_day": 186.9,
+    "oil_gravity_api": 52.2,
+    "gas_mcf_per_day": 3490,
+    "gas_oil_ratio": 18672,
+    "water_bbl_per_day": 1359,
+    "flow_method": "FLOWING",
+    "initial_shut_in_pressure_psi": 2950,
+    "choke_size": "28/64",
+    "flow_tubing_pressure_psi": 2127
+  }},
+
+  "related_orders": {{
+    "references": [
+      {{ "order_number": "685493", "type": "spacing_order", "unit_size_acres": 640 }},
+      {{ "order_number": "687876", "type": "spacing_order", "unit_size_acres": 640 }},
+      {{ "order_number": "708745", "type": "multiunit", "description": "Multiunit horizontal authorization" }},
+      {{ "order_number": "708632", "type": "location_exception" }}
+    ]
+  }},
+
+  "formation_tops": [
+    {{ "name": "Big Lime", "depth_ft": 8312 }},
+    {{ "name": "Verdigris", "depth_ft": 8570 }},
+    {{ "name": "Inola", "depth_ft": 8870 }},
+    {{ "name": "Chester", "depth_ft": 9497 }}
+  ],
+
+  "purchaser": "ONEOK",
+
+  "status": "Accepted",
+  "occ_file_number": "1144764",
+
+  "affected_sections": [
+    {{
+      "section": 22,
+      "township": "18N",
+      "range": "14W",
+      "county": "Dewey",
+      "is_surface_location": true,
+      "is_target_section": true
+    }},
+    {{
+      "section": 15,
+      "township": "18N",
+      "range": "14W",
+      "county": "Dewey",
+      "is_surface_location": false,
+      "is_target_section": true
+    }}
+  ],
+
+  "key_takeaway": "Derby Exploration completed the NEWLEY 15-22-1XH horizontal Mississippian well in Dewey County with initial production of 187 BOPD, 3,490 MCFD gas, and 1,359 BWPD, with the lateral extending from Section 22 to Section 15.",
+
+  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud on February 1, 2019 and completed on November 27, 2019. The surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W.\n\nThe well has a total measured depth of 20,783 feet with a true vertical depth of 10,180 feet. The lateral length is approximately 10,106 feet. Two perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated interval of roughly 9,234 feet.\n\nInitial production test on December 27, 2019 showed 186.9 barrels of oil per day (52.2 API gravity), 3,490 MCF of gas per day, and 1,359 barrels of water per day, flowing naturally with a gas-oil ratio of 18,672 cubic feet per barrel. The high GOR and gas classification indicate this is primarily a gas well with condensate.\n\nMineral owners in both Section 22 and Section 15 should expect to see this well on their division orders. The well operates under spacing orders 685493 and 687876 (both 640-acre units) and multiunit order 708745.",
+
+  "field_scores": {{
+    "well_identification": "high",
+    "operator": "high",
+    "dates": "high",
+    "well_type": "high",
+    "surface_location": "high",
+    "bottom_hole_location": "high",
+    "lateral_details": "high",
+    "target_formation": "high",
+    "perforated_intervals": "high",
+    "initial_production": "high",
+    "affected_sections": "high"
+  }},
+  "document_confidence": "high"
+}}
+
+VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
+{{
+  "doc_type": "completion_report",
+
+  "section": 14,
+  "township": "9N",
+  "range": "4W",
+  "county": "Grady",
+  "state": "Oklahoma",
+
+  "well_identification": {{
+    "api_number": "35051123450000",
+    "well_name": "SMITH 1-14",
+    "well_number": "1-14"
+  }},
+
+  "operator": {{
+    "name": "ABC Energy, LLC",
+    "operator_number": "12345"
+  }},
+
+  "dates": {{
+    "spud_date": "2020-03-15",
+    "completion_date": "2020-04-20",
+    "first_production_date": "2020-04-25",
+    "initial_test_date": "2020-04-28"
+  }},
+
+  "well_type": {{
+    "drill_type": "STRAIGHT HOLE",
+    "completion_type": "Single Zone",
+    "well_class": "OIL"
+  }},
+
+  "surface_location": {{
+    "section": 14,
+    "township": "9N",
+    "range": "4W",
+    "county": "Grady",
+    "quarters": "SE NW",
+    "footage_ns": "660 FSL",
+    "footage_ew": "660 FWL",
+    "latitude": 35.123456,
+    "longitude": -97.654321,
+    "ground_elevation_ft": 1250
+  }},
+
+  "target_formation": {{
+    "name": "Hunton",
+    "code": "410HNTN"
+  }},
+
+  "perforated_intervals": [
+    {{ "from_ft": 8450, "to_ft": 8520 }}
+  ],
+  "total_perforated_length_ft": 70,
+
+  "initial_production": {{
+    "test_date": "2020-04-28",
+    "oil_bbl_per_day": 125,
+    "oil_gravity_api": 42.0,
+    "gas_mcf_per_day": 150,
+    "gas_oil_ratio": 1200,
+    "water_bbl_per_day": 45,
+    "flow_method": "PUMPING"
+  }},
+
+  "status": "Accepted",
+
+  "key_takeaway": "ABC Energy completed the SMITH 1-14 vertical Hunton well in Grady County with initial production of 125 BOPD and 150 MCFD.",
+
+  "detailed_analysis": "This completion report documents the SMITH 1-14, a vertical well targeting the Hunton formation in Section 14-9N-4W, Grady County. The well was drilled to a single perforation interval at 8,450-8,520 feet.\n\nInitial production test showed 125 barrels of oil per day (42 API gravity), 150 MCF of gas per day, and 45 barrels of water per day on pump. This is a straightforward single-section vertical well with no horizontal component.",
+
+  "field_scores": {{
+    "well_identification": "high",
+    "operator": "high",
+    "surface_location": "high",
+    "target_formation": "high",
+    "initial_production": "high"
+  }},
+  "document_confidence": "high"
+}}
+
 For DIVISION ORDERS:
 Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
 this is critical for verifying payments match your records.
@@ -4823,7 +5073,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
 - pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
-- drilling_permit, title_opinion
+- drilling_permit, completion_report, title_opinion
 - check_stub, occ_order, suspense_notice, joa
 - affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
 - tax_record, map
@@ -4845,6 +5095,9 @@ AFFIDAVIT OF HEIRSHIP DETECTION:
 
 DEATH CERTIFICATE DETECTION:
 - death_certificate: Look for "CERTIFICATE OF DEATH", "DEATH CERTIFICATE", "STANDARD CERTIFICATE OF DEATH", "CONSULAR REPORT OF DEATH". Key indicators: state/county health department or vital records header, certificate number, cause of death, date of death, place of death, decedent personal information (birth date, occupation, SSN), informant details, funeral home/disposition info. Also includes "REPORT OF DEATH OF AN AMERICAN CITIZEN ABROAD" (consular reports). NOT affidavit_of_heirship (which lists heirs and establishes inheritance). Death certificates document the death itself, not who inherits.
+
+COMPLETION REPORT DETECTION:
+- completion_report: Look for "COMPLETION REPORT", "FORM 1002A", "1002-A", or "WELL COMPLETION". Key indicators: API number, spud date, completion date, initial production test data (oil/gas/water rates), perforated intervals, formation tops, total depth, surface location coordinates, bottom hole location (for horizontal wells). Contains well status (Accepted/Pending/Rejected). NOT drilling_permit (which is Form 1000 submitted BEFORE drilling). Completion reports document that drilling is FINISHED and report initial production.
 
 OCC ORDER TYPE DETECTION - be specific:
 - horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.
