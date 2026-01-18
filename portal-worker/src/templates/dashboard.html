@@ -6117,6 +6117,7 @@
                 'Parties': ['grantors', 'grantees', 'grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_names', 'grantee_names',
                           'grantor_address', 'grantee_address',
                           'grantor_marital_status', 'lessor_name', 'lessee_name', 'lessor_address', 'lessee_address',
+                          'lessor', 'lessee',  // oil_gas_lease v2 schema nested objects
                           'assignor_name', 'assignee_name', 'assignor_address', 'assignee_address',
                           'releasor', 'ratifying_party', 'original_party', 'principal_name', 'agent_name',
                           'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name',
@@ -6124,8 +6125,16 @@
                           'president', 'vice_president', 'secretary', 'assistant_secretary', 'treasurer', 'corporate_officer'],
                 'Interest & Consideration': ['interest_conveyed', 'interest_type', 'interest_assigned', 'consideration',
                                            'consideration_amount', 'consideration_description', 'bonus_amount',
-                                           'net_mineral_acres', 'reservation', 'minerals_covered', 'mineral_types_conveyed'],
-                'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions'],
+                                           'net_mineral_acres', 'reservation', 'minerals_covered', 'mineral_types_conveyed',
+                                           'royalty'],  // oil_gas_lease v2 royalty object
+                'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions',
+                               'lease_form', 'effective_date', 'habendum_clause', 'pooling_provisions',
+                               'shut_in_provisions', 'force_majeure', 'surface_use', 'assignment_status',
+                               'top_lease_provision', 'continuous_development_clause', 'notarization'],
+                // Oil & Gas Lease Protective Clauses (v2 schema)
+                'Lease Clauses': ['depth_clause', 'pugh_clause', 'deductions_clause', 'exhibit_a'],
+                // Lease Tracts (v2 schema with tracts[] array)
+                'Lease Tracts': ['tracts'],
                 'Well Information': ['operator', 'purchaser', 'owner_number', 'unit_name'],
                 'Order Details': ['cd_number', 'order_number', 'cause_number', 'case_number', 'order_sub_type',
                                'order_date', 'effective_date', 'hearing_date', 'reopen_date', 'reopen_purpose',
@@ -6452,6 +6461,8 @@
                 'Title & Warranties',
                 'Restrictions & Provisions',
                 'Lease Terms',
+                'Lease Clauses',
+                'Lease Tracts',
                 'Well Information',
                 'Order Details',
                 'Hearing Details',
