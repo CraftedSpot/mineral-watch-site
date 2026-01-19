@@ -154,7 +154,8 @@ import {
   handleGetProductionStats,
   // Completion reports handlers
   handleGetCompletionReports,
-  handleAnalyzeCompletion
+  handleAnalyzeCompletion,
+  handleGetProductionSummary
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
