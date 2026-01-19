@@ -14634,6 +14634,150 @@
             `;
         }
 
+        // Render completion report item (1002A/1002C forms)
+        function renderCompletionReport(report, apiNumber) {
+            const isRecompletion = report.formType === '1002C';
+            const typeClass = isRecompletion ? 'recompletion' : 'completion';
+            const typeLabel = isRecompletion ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A';
+            const dateDisplay = formatCompletionDate(report.effectiveDate);
+            const buttonId = `completion-btn-${report.entryId}`;
+
+            // Render action button based on status
+            let actionButton = '';
+            switch (report.status) {
+                case 'available':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn"
+                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)">
+                            Analyze
+                        </button>`;
+                    break;
+                case 'fetching':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn analyzing" disabled>
+                            <span class="spinner-sm"></span>Analyzing...
+                        </button>`;
+                    break;
+                case 'fetched':
+                    actionButton = `
+                        <span class="completion-analyze-btn analyzed">✓ Analyzed</span>
+                        ${report.documentId ? `<a href="/documents/${report.documentId}" target="_blank" class="completion-view-doc">View Doc ↗</a>` : ''}`;
+                    break;
+                case 'error':
+                    actionButton = `
+                        <button id="${buttonId}" class="completion-analyze-btn error"
+                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
+                                title="${escapeHtml(report.errorMessage || 'Error occurred')}">
+                            Retry
+                        </button>`;
+                    break;
+                default:
+                    actionButton = '<span style="color: #888; font-size: 12px;">—</span>';
+            }
+
+            return `
+                <div class="completion-report-item">
+                    <div class="completion-report-main">
+                        <div>
+                            <span class="completion-report-type ${typeClass}">${typeLabel}</span>
+                            <span class="completion-report-location">${escapeHtml(report.location || '')}</span>
+                        </div>
+                        <div class="completion-report-details">
+                            ${report.county ? `<span>${escapeHtml(report.county)} County</span>` : ''}
+                            ${report.wellName ? `<span>• ${escapeHtml(report.wellName)}</span>` : ''}
+                            ${report.pun ? `<span class="completion-report-pun">PUN: ${escapeHtml(report.pun)}</span>` : ''}
+                        </div>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <div class="occ-filing-actions">
+                            ${actionButton}
+                        </div>
+                        <div class="completion-report-date">${dateDisplay}</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Format completion report date (e.g., "8/10/2011" -> "Aug 2011")
+        function formatCompletionDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                // Handle various date formats
+                const parts = dateStr.split('/');
+                if (parts.length >= 2) {
+                    const month = parseInt(parts[0]);
+                    const year = parts.length === 3 ? parts[2] : parts[1];
+                    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? '19' + year : '20' + year) : year;
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return `${monthNames[month - 1]} ${fullYear}`;
+                }
+                return dateStr;
+            } catch {
+                return dateStr;
+            }
+        }
+
+        // Analyze completion report - fetch and process 1002A/1002C form
+        async function analyzeCompletion(apiNumber, entryId, buttonEl) {
+            console.log(`[CompletionReports] Analyzing ${apiNumber} entryId ${entryId}`);
+
+            // Update button to analyzing state
+            const originalHtml = buttonEl.innerHTML;
+            buttonEl.disabled = true;
+            buttonEl.classList.add('analyzing');
+            buttonEl.innerHTML = '<span class="spinner-sm"></span>Analyzing...';
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/analyze-completion`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ entryId })
+                });
+
+                const result = await response.json();
+
+                if (response.status === 401) {
+                    showToast('Please log in to analyze completion reports', 'error');
+                    buttonEl.disabled = false;
+                    buttonEl.classList.remove('analyzing');
+                    buttonEl.innerHTML = originalHtml;
+                    return;
+                }
+
+                if (result.success) {
+                    // Update button to analyzed state
+                    buttonEl.classList.remove('analyzing');
+                    buttonEl.classList.add('analyzed');
+                    buttonEl.innerHTML = '✓ Analyzed';
+
+                    // Add view document link if available
+                    const docResult = result.results?.[0];
+                    if (docResult?.documentId) {
+                        const viewLink = document.createElement('a');
+                        viewLink.href = `/documents/${docResult.documentId}`;
+                        viewLink.target = '_blank';
+                        viewLink.className = 'completion-view-doc';
+                        viewLink.textContent = 'View Doc ↗';
+                        buttonEl.parentNode.appendChild(viewLink);
+                    }
+
+                    showToast('Completion report analyzed successfully!', 'success');
+                } else {
+                    throw new Error(result.error || 'Analysis failed');
+                }
+            } catch (error) {
+                console.error('[CompletionReports] Error:', error);
+                buttonEl.disabled = false;
+                buttonEl.classList.remove('analyzing');
+                buttonEl.classList.add('error');
+                buttonEl.innerHTML = 'Retry';
+                buttonEl.title = error.message;
+                showToast('Failed to analyze: ' + error.message, 'error');
+            }
+        }
+        window.analyzeCompletion = analyzeCompletion;
+
         function getOccStatusClass(status) {
             const statusMap = {
                 'HEARD': 'heard',
