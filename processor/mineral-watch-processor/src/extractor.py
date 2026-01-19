@@ -267,14 +267,12 @@ START_INDICATORS = [
 ]
 
 # Patterns that indicate this is a CONTINUATION page, NOT a new document start
-# If any of these match, override is_document_start to False
+# These are checked ONLY if no strong title match was found (confidence < 0.8)
+# Be conservative - only include patterns that NEVER appear on page 1
 CONTINUATION_PATTERNS = [
-    r"FORMATION\s+RECORD",  # Page 2 of Form 1002A Completion Report
-    r"PAGE\s+\d+\s+OF\s+\d+",  # Explicit pagination
-    r"^\s*APPROVED\s*$",  # Approval stamp (end of completion report)
-    r"^\s*DISAPPROVED\s*$",  # Disapproval stamp
-    r"APPROVED\s*/\s*DISAPPROVED",  # Combined stamp
-    r"CONSERVATION\s+DIVISION\s+CHIEF",  # Signature line on completion report approval
+    r"FORMATION\s+RECORD",  # Page 2 of Form 1002A Completion Report - never on page 1
+    # Note: Removed PAGE X OF Y - "PAGE 1 OF 2" appears on page 1
+    # Note: Removed APPROVED stamps - can appear on page 1 of single-page docs
 ]
 
 
@@ -319,17 +317,16 @@ def heuristic_page_check(page_text: str) -> dict:
                 result["confidence"] = 0.5
             break
 
-    # CRITICAL: Check for continuation patterns that OVERRIDE document start
-    # These indicate the page is a continuation/middle page, not a new document
-    for pattern in CONTINUATION_PATTERNS:
-        if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
-            if result["heuristic_is_start"]:
-                logger.debug(f"Continuation pattern '{pattern}' overrides document start detection")
-            result["heuristic_is_start"] = False
-            result["is_continuation"] = True
-            # Lower confidence since this is clearly a middle page
-            result["confidence"] = min(result["confidence"], 0.3)
-            break
+    # Check for continuation patterns ONLY if we don't have a strong title match
+    # If we found a clear document title (e.g., "COMPLETION REPORT"), don't override
+    if result["confidence"] < 0.8:
+        for pattern in CONTINUATION_PATTERNS:
+            if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
+                logger.debug(f"Continuation pattern '{pattern}' detected - marking as continuation page")
+                result["heuristic_is_start"] = False
+                result["is_continuation"] = True
+                result["confidence"] = min(result["confidence"], 0.3)
+                break
 
     return result
 
