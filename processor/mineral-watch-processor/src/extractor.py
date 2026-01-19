@@ -335,6 +335,18 @@ def heuristic_page_check(page_text: str) -> dict:
     # Normalize text for matching (but preserve original for title extraction)
     text_upper = page_text.upper()
 
+    # CRITICAL: Check for continuation patterns FIRST, before checking titles
+    # This ensures "FORMATION RECORD" on page 2 of Form 1002A is caught
+    # even if other title-like text exists on the same page
+    for pattern in CONTINUATION_PATTERNS:
+        if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
+            logger.info(f"Continuation pattern '{pattern}' detected - marking as continuation page")
+            result["heuristic_is_start"] = False
+            result["is_continuation"] = True
+            result["heuristic_type"] = "permit"  # Form 1002A continuation pages are permits
+            result["confidence"] = 0.9  # High confidence this is NOT a start
+            return result  # Return immediately - continuation takes priority
+
     # Check for document titles
     for pattern, doc_type in TITLE_PATTERNS:
         match = re.search(pattern, text_upper, re.IGNORECASE)
@@ -352,17 +364,6 @@ def heuristic_page_check(page_text: str) -> dict:
             if result["confidence"] < 0.5:
                 result["confidence"] = 0.5
             break
-
-    # Check for continuation patterns ONLY if we don't have a strong title match
-    # If we found a clear document title (e.g., "COMPLETION REPORT"), don't override
-    if result["confidence"] < 0.8:
-        for pattern in CONTINUATION_PATTERNS:
-            if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
-                logger.debug(f"Continuation pattern '{pattern}' detected - marking as continuation page")
-                result["heuristic_is_start"] = False
-                result["is_continuation"] = True
-                result["confidence"] = min(result["confidence"], 0.3)
-                break
 
     return result
 
