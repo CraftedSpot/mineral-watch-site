@@ -236,13 +236,28 @@ export async function handleGetProductionSummary(
       LIMIT 10
     `).bind(punNormalized).all();
 
-    // Get last 12 months totals
+    // Find the most recent data month for this well to calculate relative ranges
+    const maxMonthResult = await env.WELLS_DB.prepare(`
+      SELECT MAX(year_month) as max_month
+      FROM otc_production
+      WHERE REPLACE(pun, '-', '') = ?
+    `).bind(punNormalized).first() as { max_month: string | null } | null;
+
+    const wellMaxMonth = maxMonthResult?.max_month || currentYearMonth;
+
+    // Calculate 12 months before the well's most recent data
+    const [maxYear, maxMonth] = wellMaxMonth.split('-').map(Number);
+    const wellTwelveMonthsAgo = new Date(maxYear, maxMonth - 1);
+    wellTwelveMonthsAgo.setMonth(wellTwelveMonthsAgo.getMonth() - 11); // -11 to include the max month
+    const wellTwelveMonthsAgoYM = `${wellTwelveMonthsAgo.getFullYear()}-${String(wellTwelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+    // Get last 12 months totals (relative to well's most recent data)
     const last12MoResult = await env.WELLS_DB.prepare(`
       SELECT product_code, SUM(gross_volume) as volume
       FROM otc_production
       WHERE REPLACE(pun, '-', '') = ? AND year_month >= ?
       GROUP BY product_code
-    `).bind(punNormalized, twelveMonthsAgoYM).all();
+    `).bind(punNormalized, wellTwelveMonthsAgoYM).all();
 
     // Get lifetime totals
     const lifetimeResult = await env.WELLS_DB.prepare(`
@@ -320,13 +335,24 @@ export async function handleGetProductionSummary(
       .map(r => Math.round(r.volume || 0))
       .reverse();
 
-    // Determine status based on most recent production
+    // Determine status based on most recent production relative to well's data range
+    // Active = most recent month IS the latest data month (or within last 3 months of data)
+    // Stale = has data but not in last 3 months of data range
+    // Inactive = no production data at all
     const mostRecentMonth = lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || '';
     let status: 'active' | 'stale' | 'inactive' = 'inactive';
-    if (mostRecentMonth >= threeMonthsAgoYM) {
-      status = 'active';
-    } else if (mostRecentMonth >= twelveMonthsAgoYM) {
-      status = 'stale';
+
+    if (mostRecentMonth) {
+      // Calculate 3 months before the well's most recent data
+      const wellThreeMonthsAgo = new Date(maxYear, maxMonth - 1);
+      wellThreeMonthsAgo.setMonth(wellThreeMonthsAgo.getMonth() - 2); // -2 to give 3 month window
+      const wellThreeMonthsAgoYM = `${wellThreeMonthsAgo.getFullYear()}-${String(wellThreeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+      if (mostRecentMonth >= wellThreeMonthsAgoYM) {
+        status = 'active';
+      } else if (mostRecentMonth >= wellTwelveMonthsAgoYM) {
+        status = 'stale';
+      }
     }
 
     // Calculate YoY change (based on oil production)
@@ -339,9 +365,9 @@ export async function handleGetProductionSummary(
       direction = yoyChange > 5 ? 'up' : yoyChange < -5 ? 'down' : 'flat';
     }
 
-    // Format PUN for display (with dashes if not already)
+    // Format PUN for display in 3-5-1-5 format (XXX-XXXXX-X-XXXXX)
     const punDisplay = pun.includes('-') ? pun :
-      `${pun.substring(0, 3)}-${pun.substring(3, 9)}-${pun.substring(9, 10)}-${pun.substring(10)}`;
+      `${pun.substring(0, 3)}-${pun.substring(3, 8)}-${pun.substring(8, 9)}-${pun.substring(9)}`;
 
     return jsonResponse({
       success: true,
