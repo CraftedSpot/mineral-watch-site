@@ -218,7 +218,8 @@ async def process_document(client: APIClient, doc: dict) -> dict:
 
             # Set variables for logging at end of function
             display_name = original_filename
-            status = 'complete'
+            # "other" documents go to unprocessed - no credit charged, user can review/reclassify
+            status = 'unprocessed'
 
             # Minimal result for "other" documents
             result = {
