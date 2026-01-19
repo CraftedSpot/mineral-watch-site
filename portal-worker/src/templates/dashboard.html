@@ -13676,10 +13676,16 @@
                 modalStack.push({ type: 'well', id: wellId, element: wellModal });
             }
             
-            // Load linked properties and OCC filings after modal is shown
+            // Load linked properties, production summary, and OCC filings after modal is shown
             setTimeout(() => {
                 loadLinkedProperties(wellId);
                 loadLinkedDocuments(wellId, 'well', f['API Number']);
+                // Load production summary from OTC data
+                if (f['API Number']) {
+                    loadProductionSummary(f['API Number']);
+                } else {
+                    renderNoProductionData('No API number available');
+                }
                 // Load OCC filings using section/township/range/meridian
                 const wellSection = f['Section'];
                 const wellTownship = f['Township'];
