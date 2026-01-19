@@ -267,12 +267,18 @@ START_INDICATORS = [
 ]
 
 # Patterns that indicate this is a CONTINUATION page, NOT a new document start
-# These are checked ONLY if no strong title match was found (confidence < 0.8)
-# Be conservative - only include patterns that NEVER appear on page 1
+# These are checked FIRST, before title patterns - if matched, page is immediately marked as continuation
+# Be conservative - only include patterns that NEVER appear on page 1 of a document
 CONTINUATION_PATTERNS = [
-    r"FORMATION\s+RECORD",  # Page 2 of Form 1002A Completion Report - never on page 1
-    # Note: Removed PAGE X OF Y - "PAGE 1 OF 2" appears on page 1
-    # Note: Removed APPROVED stamps - can appear on page 1 of single-page docs
+    # Form 1002A Completion Report back pages (various layouts)
+    r"FORMATION\s+RECORD",  # Classic 1002A page 2 header
+    r"FOR\s+COMMISSION\s+USE\s+ONLY",  # Modern 1002A page 2 - OCC internal section
+    r"Initial\s+Test\s+Data",  # Horizontal completion 1002A page 2
+    r"Completion\s+and\s+Test\s+Data\s+by\s+Producing\s+Formation",  # Another 1002A page 2 variant
+    r"Status:\s*Accepted",  # OCC acceptance stamp - only on processed page 2
+    # Page 2 of 2 indicator (but NOT page 1 of 2)
+    r"\b2\s+of\s+2\b",  # "2 of 2" - definitively page 2
+    r"\bPage\s+2\s+of\s+2\b",  # "Page 2 of 2"
 ]
 
 
