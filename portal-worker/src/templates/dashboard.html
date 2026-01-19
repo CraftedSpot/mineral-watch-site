@@ -9636,11 +9636,10 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'wells' && Array.isArray(value) && (data.doc_type === 'well_transfer' || sectionName === 'Wells Transferred')) {
+                        } else if (fieldName === 'wells' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && (data.doc_type === 'well_transfer' || sectionName === 'Wells Transferred' || (sectionName && sectionName.toLowerCase().includes('wells transferred')))) {
                             // Special handling for wells array (well transfer)
-                            if (value.length > 0) {
-                                hasVisibleFields = true;
-                                const statusLabels = {
+                            hasVisibleFields = true;
+                            const statusLabels = {
                                     'AC': 'Active', 'TA': 'Temp Abandoned', 'SP': 'Spudded',
                                     'ND': 'Not Drilled', 'TM': 'Temp Shut-in', 'PA': 'Perm Abandoned', 'CM': 'Commingled'
                                 };
@@ -9687,7 +9686,6 @@
                                         <div style="margin-top: 8px; font-size: 12px; color: #6B7280;">${value.length} well${value.length !== 1 ? 's' : ''} transferred</div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
-                            }
                         } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
                             // Generic handler for arrays of objects (catch-all for respondents, etc.)
                             hasVisibleFields = true;
@@ -10253,8 +10251,8 @@
                         } else if (fieldName === 'summary' && typeof value === 'object' && (data.doc_type === 'well_transfer' || sectionName === 'Transfer Summary')) {
                             // Special handling for summary object (well transfer)
                             // Filter out placeholder values like "Unknown", "Not specified", etc.
-                            const placeholders = ['unknown', 'not specified', 'n/a', 'none', 'not available'];
-                            const counties = (value.counties_affected || []).filter(c => c && !placeholders.includes(String(c).toLowerCase()));
+                            const placeholders = ['unknown', 'not specified', 'n/a', 'none', 'not available', 'unknown-not specified in document', 'not specified in document'];
+                            const counties = (value.counties_affected || []).filter(c => c && !placeholders.includes(String(c).toLowerCase().trim()));
                             const wellTypes = value.well_types || {};
                             const oilCount = wellTypes.oil_count || 0;
                             const gasCount = wellTypes.gas_count || 0;
