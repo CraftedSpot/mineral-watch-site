@@ -173,3 +173,9 @@ export {
   handleUploadProductionData,
   handleGetProductionStats
 } from './otc-production-upload.js';
+
+// Completion reports handlers
+export {
+  handleGetCompletionReports,
+  handleAnalyzeCompletion
+} from './completion-reports.js';

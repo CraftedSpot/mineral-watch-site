@@ -151,7 +151,10 @@ import {
   handleRecordOtcFile,
   // OTC production upload handlers
   handleUploadProductionData,
-  handleGetProductionStats
+  handleGetProductionStats,
+  // Completion reports handlers
+  handleGetCompletionReports,
+  handleAnalyzeCompletion
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
