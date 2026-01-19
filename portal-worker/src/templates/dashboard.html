@@ -524,6 +524,52 @@
         .occ-hearing-warning { color: #dc3545; margin-right: 4px; }
         .occ-adjacent-note { font-size: 11px; color: #888; font-style: italic; margin-left: 4px; }
 
+        /* Completion Report Styles (in OCC Filings section) */
+        .completion-report-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .completion-report-item:last-child { border-bottom: none; }
+        .completion-report-main { flex: 1; }
+        .completion-report-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-right: 8px; }
+        .completion-report-type.completion { background: #dbeafe; color: #1e40af; }
+        .completion-report-type.recompletion { background: #fef3c7; color: #92400e; }
+        .completion-report-location { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+        .completion-report-details { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; color: #666; flex-wrap: wrap; align-items: center; }
+        .completion-report-details span { display: inline-flex; align-items: center; }
+        .completion-report-pun { font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
+        .completion-report-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+
+        /* Completion Report Analyze Button */
+        .completion-analyze-btn {
+            background: #2563eb;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .completion-analyze-btn:hover { background: #1d4ed8; }
+        .completion-analyze-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .completion-analyze-btn.analyzing { background: #8b5cf6; }
+        .completion-analyze-btn.analyzed { background: #10b981; cursor: default; }
+        .completion-analyze-btn.error { background: #f59e0b; }
+        .completion-analyze-btn .spinner-sm {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .completion-view-doc { color: #2563eb; text-decoration: none; font-size: 12px; margin-left: 8px; }
+        .completion-view-doc:hover { text-decoration: underline; }
+        .completion-separator { display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px; }
+
         /* Process & Extract Button */
         .occ-filing-actions { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
         .occ-process-btn {
@@ -13516,8 +13562,9 @@
                 const wellTownship = f['Township'];
                 const wellRange = f['Range'];
                 const wellMeridian = f['Meridian'] || 'IM'; // Default to Indian Meridian
+                const wellApiNumber = f['API Number'];
                 if (wellSection && wellTownship && wellRange) {
-                    loadOccFilings(wellSection, wellTownship, wellRange, 'well', wellMeridian);
+                    loadOccFilings(wellSection, wellTownship, wellRange, 'well', wellMeridian, wellApiNumber);
                 }
             }, 100);
             
@@ -14371,8 +14418,8 @@
         }
         window.toggleOccFilings = toggleOccFilings;
 
-        async function loadOccFilings(section, township, range, type = 'property', meridian = 'IM') {
-            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range} ${meridian} (${type})`);
+        async function loadOccFilings(section, township, range, type = 'property', meridian = 'IM', apiNumber = null) {
+            console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range} ${meridian} (${type})${apiNumber ? ` API: ${apiNumber}` : ''}`);
 
             const prefix = type === 'property' ? 'property' : 'well';
             const directContainer = document.getElementById(`${prefix}-occ-direct`);
@@ -14390,11 +14437,23 @@
             countBadge.textContent = '—';
 
             try {
-                const response = await fetch(
+                // Fetch docket entries and completion reports in parallel for wells
+                const docketPromise = fetch(
                     `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
                     { credentials: 'include' }
-                );
-                const data = await response.json();
+                ).then(r => r.json());
+
+                let completionPromise = Promise.resolve({ success: false, completionReports: [] });
+                if (type === 'well' && apiNumber) {
+                    completionPromise = fetch(`/api/wells/${apiNumber}/completion-reports`, { credentials: 'include' })
+                        .then(r => r.json())
+                        .catch(err => {
+                            console.log('[OccFilings] Error fetching completion reports:', err);
+                            return { success: false, completionReports: [] };
+                        });
+                }
+
+                const [data, completionData] = await Promise.all([docketPromise, completionPromise]);
 
                 if (!data.success) {
                     throw new Error(data.error || 'Failed to load filings');
@@ -14402,23 +14461,46 @@
 
                 const directFilings = data.direct || [];
                 const adjacentFilings = data.adjacent || [];
+                const completionReports = completionData.completionReports || [];
 
-                // Update count badge
-                const totalCount = directFilings.length + adjacentFilings.length;
+                // Update count badge (include completion reports for wells)
+                const totalCount = directFilings.length + adjacentFilings.length + completionReports.length;
                 countBadge.textContent = String(totalCount);
 
-                if (directFilings.length === 0 && adjacentFilings.length === 0) {
+                if (directFilings.length === 0 && adjacentFilings.length === 0 && completionReports.length === 0) {
                     directContainer.innerHTML = '';
                     emptyMessage.style.display = 'block';
                     return;
                 }
 
+                // Build the content HTML
+                let contentHtml = '';
+
+                // Render completion reports first (for wells only)
+                if (completionReports.length > 0) {
+                    contentHtml += `<div class="completion-separator">
+                        <span>Completion Reports</span>
+                        <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${completionReports.length}</span>
+                    </div>`;
+                    contentHtml += completionReports.map(report => renderCompletionReport(report, apiNumber)).join('');
+                }
+
+                // Add separator before OCC filings if we have both
+                if (completionReports.length > 0 && directFilings.length > 0) {
+                    contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
+                        <span>OCC Filings</span>
+                        <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${directFilings.length}</span>
+                    </div>`;
+                }
+
                 // Render direct filings
                 if (directFilings.length > 0) {
-                    directContainer.innerHTML = directFilings.map(filing => renderOccFiling(filing, false)).join('');
-                } else {
-                    directContainer.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
+                    contentHtml += directFilings.map(filing => renderOccFiling(filing, false)).join('');
+                } else if (completionReports.length === 0) {
+                    contentHtml = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
                 }
+
+                directContainer.innerHTML = contentHtml;
 
                 // Render adjacent filings
                 if (adjacentFilings.length > 0) {
