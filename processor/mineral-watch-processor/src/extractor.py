@@ -6299,9 +6299,29 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         
         try:
             final_json_str = json_str.strip()
+
+            # Final cleanup - ensure no markdown fences remain
+            if final_json_str.startswith("```"):
+                # Remove opening fence (could be ```json or just ```)
+                first_newline = final_json_str.find("\n")
+                if first_newline != -1:
+                    final_json_str = final_json_str[first_newline + 1:]
+            if final_json_str.endswith("```"):
+                final_json_str = final_json_str[:-3]
+            final_json_str = final_json_str.strip()
+
+            # Also try to extract just the JSON object if there's extra content
+            if not final_json_str.startswith("{"):
+                brace_start = final_json_str.find("{")
+                if brace_start != -1:
+                    final_json_str = final_json_str[brace_start:]
+            if not final_json_str.endswith("}"):
+                brace_end = final_json_str.rfind("}")
+                if brace_end != -1:
+                    final_json_str = final_json_str[:brace_end + 1]
+
             print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
             print(f"[DEBUG] JSON first 300 chars: {repr(final_json_str[:300])}", flush=True)
-            print(f"[DEBUG] JSON last 300 chars: {repr(final_json_str[-300:]) if len(final_json_str) > 300 else 'same as first'}", flush=True)
             extracted_data = json.loads(final_json_str)
             print(f"[DEBUG] Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}", flush=True)
 
@@ -6446,9 +6466,28 @@ If these pages don't contain significant new information, return: {{"additional_
         
         try:
             final_batch_json = json_str.strip()
+
+            # Final cleanup - ensure no markdown fences remain
+            if final_batch_json.startswith("```"):
+                first_newline = final_batch_json.find("\n")
+                if first_newline != -1:
+                    final_batch_json = final_batch_json[first_newline + 1:]
+            if final_batch_json.endswith("```"):
+                final_batch_json = final_batch_json[:-3]
+            final_batch_json = final_batch_json.strip()
+
+            # Extract just the JSON object
+            if not final_batch_json.startswith("{"):
+                brace_start = final_batch_json.find("{")
+                if brace_start != -1:
+                    final_batch_json = final_batch_json[brace_start:]
+            if not final_batch_json.endswith("}"):
+                brace_end = final_batch_json.rfind("}")
+                if brace_end != -1:
+                    final_batch_json = final_batch_json[:brace_end + 1]
+
             print(f"[DEBUG-BATCH] Attempting to parse batch JSON, length: {len(final_batch_json)}", flush=True)
             print(f"[DEBUG-BATCH] JSON first 300 chars: {repr(final_batch_json[:300])}", flush=True)
-            print(f"[DEBUG-BATCH] JSON last 300 chars: {repr(final_batch_json[-300:]) if len(final_batch_json) > 300 else 'same as first'}", flush=True)
             batch_data = json.loads(final_batch_json)
             print(f"[DEBUG-BATCH] Successfully parsed batch JSON, doc_type: {batch_data.get('doc_type')}", flush=True)
 
