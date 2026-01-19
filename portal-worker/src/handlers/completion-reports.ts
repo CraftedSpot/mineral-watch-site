@@ -335,24 +335,17 @@ export async function handleGetProductionSummary(
       .map(r => Math.round(r.volume || 0))
       .reverse();
 
-    // Determine status based on most recent production relative to well's data range
-    // Active = most recent month IS the latest data month (or within last 3 months of data)
-    // Stale = has data but not in last 3 months of data range
-    // Inactive = no production data at all
+    // Determine status based on most recent production vs TODAY's date
+    // Active = produced in last 3 months (from today)
+    // Stale = produced in last 12 months but not last 3
+    // Inactive = no production in last 12 months (or no data)
     const mostRecentMonth = lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || '';
     let status: 'active' | 'stale' | 'inactive' = 'inactive';
 
-    if (mostRecentMonth) {
-      // Calculate 3 months before the well's most recent data
-      const wellThreeMonthsAgo = new Date(maxYear, maxMonth - 1);
-      wellThreeMonthsAgo.setMonth(wellThreeMonthsAgo.getMonth() - 2); // -2 to give 3 month window
-      const wellThreeMonthsAgoYM = `${wellThreeMonthsAgo.getFullYear()}-${String(wellThreeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
-
-      if (mostRecentMonth >= wellThreeMonthsAgoYM) {
-        status = 'active';
-      } else if (mostRecentMonth >= wellTwelveMonthsAgoYM) {
-        status = 'stale';
-      }
+    if (mostRecentMonth >= threeMonthsAgoYM) {
+      status = 'active';
+    } else if (mostRecentMonth >= twelveMonthsAgoYM) {
+      status = 'stale';
     }
 
     // Calculate YoY change (based on oil production)
