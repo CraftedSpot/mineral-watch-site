@@ -9688,56 +9688,6 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName.toLowerCase() === 'wells' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0].api_number !== undefined) {
-                            // Special handling for wells array (well transfer) - match on field name + structure
-                            hasVisibleFields = true;
-                            const statusLabels = {
-                                    'AC': 'Active', 'TA': 'Temp Abandoned', 'SP': 'Spudded',
-                                    'ND': 'Not Drilled', 'TM': 'Temp Shut-in', 'PA': 'Perm Abandoned', 'CM': 'Commingled'
-                                };
-                                let wellsHtml = value.map(well => {
-                                    const api = well.api_number || '';
-                                    const name = well.well_name || '';
-                                    const num = well.well_number || '';
-                                    const type = well.well_type || '';
-                                    const status = well.well_status || '';
-                                    const statusLabel = statusLabels[status] || status;
-                                    const section = well.section || '';
-                                    const township = well.township || '';
-                                    const range = well.range || '';
-                                    const county = well.county || '';
-                                    const comments = well.comments || '';
-                                    const typeColor = type === 'OIL' ? '#92400E' : (type === 'GAS' ? '#1E40AF' : '#6B7280');
-                                    const statusColor = status === 'AC' ? '#16A34A' : (status === 'TA' || status === 'TM' ? '#F59E0B' : '#6B7280');
-                                    return `<tr style="border-bottom: 1px solid #E5E7EB;">
-                                        <td style="padding: 10px 8px;"><span style="font-family: monospace; font-size: 12px; color: #6B7280;">${escapeHtml(api)}</span></td>
-                                        <td style="padding: 10px 8px; font-weight: 600;">${escapeHtml(name)} ${num ? `<span style="font-weight: 400; color: #6B7280;">${escapeHtml(num)}</span>` : ''}</td>
-                                        <td style="padding: 10px 8px;"><span style="background: ${typeColor}15; color: ${typeColor}; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${escapeHtml(type)}</span></td>
-                                        <td style="padding: 10px 8px;"><span style="color: ${statusColor}; font-size: 12px;">${escapeHtml(statusLabel)}</span></td>
-                                        <td style="padding: 10px 8px; font-family: monospace; font-size: 12px;">${section ? `S${section}` : ''}-${escapeHtml(String(township))}-${escapeHtml(String(range))}</td>
-                                        <td style="padding: 10px 8px; font-size: 12px; color: #6B7280;">${escapeHtml(county)}</td>
-                                    </tr>${comments ? `<tr style="background: #FEF3C7;"><td colspan="6" style="padding: 4px 8px 4px 20px; font-size: 11px; color: #92400E;">⚠️ ${escapeHtml(comments)}</td></tr>` : ''}`;
-                                }).join('');
-                                sectionContent += `
-                                    <div class="doc-field" style="grid-column: 1 / -1;">
-                                        <div style="overflow-x: auto;">
-                                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; min-width: 700px;">
-                                                <thead style="background: #F3F4F6;">
-                                                    <tr>
-                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">API</th>
-                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Well Name</th>
-                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Type</th>
-                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Status</th>
-                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Location</th>
-                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">County</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody>${wellsHtml}</tbody>
-                                            </table>
-                                        </div>
-                                        <div style="margin-top: 8px; font-size: 12px; color: #6B7280;">${value.length} well${value.length !== 1 ? 's' : ''} transferred</div>
-                                        ${getConfidenceIndicator(fieldName, fieldScores)}
-                                    </div>`;
                         } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
                             // Generic handler for arrays of objects (catch-all for respondents, etc.)
                             hasVisibleFields = true;
