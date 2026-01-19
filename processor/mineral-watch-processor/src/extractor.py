@@ -429,6 +429,28 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
                 "classification_method": "heuristic"
             }
 
+        # CRITICAL: If continuation pattern matched, return immediately - don't let Haiku override
+        # This catches cases like "FORMATION RECORD" (page 2 of Form 1002A) where we KNOW it's a continuation
+        if heuristic_result.get("is_continuation"):
+            logger.debug(f"Page {page_index}: Continuation pattern matched - NOT a document start")
+            return {
+                "page_index": page_index,
+                "coarse_type": "permit",  # Form 1002A continuation pages are permits
+                "is_document_start": False,
+                "start_confidence": 0.9,  # High confidence this is NOT a start
+                "detected_title": None,
+                "features": {
+                    "has_title_phrase": False,
+                    "has_granting_clause": False,
+                    "has_signature_block": False,
+                    "has_notary_block": False,
+                    "has_exhibit_label": False,
+                    "has_legal_description": False,
+                    "has_recording_stamp": False
+                },
+                "classification_method": "heuristic_continuation"
+            }
+
     # Fall back to Haiku for classification
     try:
         with open(image_path, 'rb') as img:
