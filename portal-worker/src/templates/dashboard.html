@@ -7086,6 +7086,87 @@
                                     }
                                 });
                                 sectionContent += `</div>`;
+                            } else if (fieldName === 'tracts' && data.doc_type === 'unitization_order') {
+                                // Special handling for unitization order tracts (participation percentages)
+                                hasVisibleFields = true;
+
+                                const tractCount = value.length;
+                                const showCollapsed = tractCount > 10;
+                                const tableId = `tracts-table-${Date.now()}`;
+                                const searchId = `tracts-search-${Date.now()}`;
+
+                                // Check for split tracts (A/B designations)
+                                const hasSplitTracts = value.some(t => /[AB]$/.test(t.tract_number || ''));
+
+                                let tableRows = value.map(tract => {
+                                    const tractNum = tract.tract_number || '';
+                                    const isSplit = /[AB]$/.test(tractNum);
+                                    const section = tract.section || '';
+                                    const twp = tract.township || '';
+                                    const rng = tract.range || '';
+                                    const county = tract.county || '';
+                                    const acres = tract.acres;
+                                    const participation = tract.participation_percent;
+                                    const qualifier = tract.formation_qualifier || '';
+
+                                    // Format participation as percentage
+                                    const partDisplay = participation ? participation.toFixed(6) + '%' : '';
+
+                                    return `
+                                        <tr class="tract-row" data-search="${escapeHtml((tractNum + ' ' + section + ' ' + twp + ' ' + rng + ' ' + county + ' ' + qualifier).toLowerCase())}" style="border-bottom: 1px solid #E5E7EB;">
+                                            <td style="padding: 8px 12px; font-weight: ${isSplit ? '500' : '400'}; ${isSplit ? 'background: #FEF3C7;' : ''}">${escapeHtml(tractNum)}</td>
+                                            <td style="padding: 8px 12px;">${section ? section + '-' : ''}${escapeHtml(twp)}-${escapeHtml(rng)}</td>
+                                            <td style="padding: 8px 12px;">${escapeHtml(county)}</td>
+                                            <td style="padding: 8px 12px; text-align: right;">${acres ? acres.toLocaleString() : ''}</td>
+                                            <td style="padding: 8px 12px; text-align: right; font-family: monospace; font-size: 0.875rem;">${partDisplay}</td>
+                                            ${hasSplitTracts ? `<td style="padding: 8px 12px; font-size: 0.75rem; color: #6B7280;">${qualifier ? escapeHtml(qualifier) : ''}</td>` : ''}
+                                        </tr>
+                                    `;
+                                }).join('');
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
+                                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #F9FAFB; border-bottom: 1px solid #E5E7EB;">
+                                                <div>
+                                                    <span style="font-weight: 600;">${tractCount} Tracts</span>
+                                                    ${hasSplitTracts ? '<span style="margin-left: 8px; font-size: 0.75rem; color: #D97706; background: #FEF3C7; padding: 2px 8px; border-radius: 4px;">Contains Split Tracts</span>' : ''}
+                                                </div>
+                                                <div style="position: relative;">
+                                                    <input type="text" id="${searchId}" placeholder="Search tracts..."
+                                                        style="padding: 6px 12px 6px 32px; border: 1px solid #D1D5DB; border-radius: 6px; font-size: 0.875rem; width: 200px;"
+                                                        onkeyup="filterTracts('${tableId}', '${searchId}')">
+                                                    <svg style="position: absolute; left: 10px; top: 50%; transform: translateY(-50%); width: 16px; height: 16px; color: #9CA3AF;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                                    </svg>
+                                                </div>
+                                            </div>
+                                            <div style="max-height: ${showCollapsed ? '400px' : 'none'}; overflow-y: auto;">
+                                                <table id="${tableId}" style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                                                    <thead style="position: sticky; top: 0; background: #F3F4F6;">
+                                                        <tr>
+                                                            <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #E5E7EB; font-weight: 600;">Tract</th>
+                                                            <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #E5E7EB; font-weight: 600;">Location</th>
+                                                            <th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #E5E7EB; font-weight: 600;">County</th>
+                                                            <th style="padding: 10px 12px; text-align: right; border-bottom: 2px solid #E5E7EB; font-weight: 600;">Acres</th>
+                                                            <th style="padding: 10px 12px; text-align: right; border-bottom: 2px solid #E5E7EB; font-weight: 600;">Participation %</th>
+                                                            ${hasSplitTracts ? '<th style="padding: 10px 12px; text-align: left; border-bottom: 2px solid #E5E7EB; font-weight: 600;">Formation</th>' : ''}
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        ${tableRows}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                            ${hasSplitTracts ? `
+                                                <div style="padding: 12px 16px; background: #FFFBEB; border-top: 1px solid #FCD34D; font-size: 0.75rem; color: #92400E;">
+                                                    <strong>Split Tracts:</strong> Tracts ending in A/B represent the same surface acreage split between different formation intervals.
+                                                    You may have interests in both sub-tracts if you own minerals in that section.
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
                             } else if (fieldName === 'tracts') {
                                 // Special handling for tracts array (mineral deed v2 and oil_gas_lease v2 schemas)
                                 // Mineral deed: tract.legal, tract.interest
