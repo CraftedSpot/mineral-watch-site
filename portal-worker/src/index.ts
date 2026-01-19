@@ -864,6 +864,12 @@ var index_default = {
         return handleAnalyzeCompletion(analyzeCompletionMatch[1], request, env);
       }
 
+      // Production summary endpoint
+      const productionSummaryMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/production-summary$/);
+      if (productionSummaryMatch && request.method === "GET") {
+        return handleGetProductionSummary(productionSummaryMatch[1], env);
+      }
+
       // Nearby wells endpoints (D1 database queries)
       if (path === "/api/nearby-wells" && (request.method === "GET" || request.method === "POST")) {
         return handleNearbyWells(request, env);
