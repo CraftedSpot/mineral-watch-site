@@ -635,16 +635,24 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         coarse_type = page.get("coarse_type", "other")
         is_start = page.get("is_document_start", False)
         start_conf = page.get("start_confidence", 0.0)
+        is_continuation = page.get("is_continuation", False)
 
         should_start_new = False
         split_reason = None
+
+        # Rule 0 (VETO): If page is marked as continuation, ALWAYS attach to current document
+        # This overrides all other rules including type_change
+        if is_continuation and current_chunk is not None:
+            logger.info(f"Page {page_idx}: is_continuation=True - forcing attachment to current document")
+            current_chunk["page_end"] = page_idx
+            continue
 
         # Rule 1: First page always starts a document
         if current_chunk is None:
             should_start_new = True
             split_reason = "first_page"
 
-        # Rule 2: High-confidence document start
+        # Rule 2: High-confidence document start (but NOT if is_continuation)
         elif is_start and start_conf >= 0.7:
             should_start_new = True
             split_reason = "title_detected"
