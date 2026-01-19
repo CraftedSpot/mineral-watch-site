@@ -1147,6 +1147,53 @@ def name_multi_unit_horizontal_order(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_unitization_order(data: Dict[str, Any]) -> str:
+    """Unitization Order - [Unit Name] - {County} - {order_date}
+
+    Format: Unitization Order - Carter Knox Subthrusted Morrow Operating Unit - Grady County - 2023-01-31
+    """
+    parts = ["Unitization Order"]
+
+    # Unit name from nested unit_info (preferred) or flat fields
+    unit_info = data.get('unit_info', {}) or {}
+    unit_name = unit_info.get('unit_name') or data.get('unit_name')
+    if unit_name:
+        parts.append(truncate_name(str(unit_name), 50))
+    else:
+        # Fallback to order number
+        order_info = data.get('order_info', {}) or {}
+        order_number = order_info.get('order_number') or data.get('order_number')
+        if order_number:
+            parts.append(f"Order {order_number}")
+
+    # County - may be multiple for unitization orders
+    location = data.get('location', {}) or {}
+    counties = location.get('counties') or []
+    if counties and isinstance(counties, list):
+        if len(counties) == 1:
+            parts.append(f"{counties[0]} County")
+        elif len(counties) == 2:
+            parts.append(f"{counties[0]} & {counties[1]} Counties")
+        else:
+            parts.append(f"{counties[0]} + {len(counties)-1} Counties")
+    elif data.get('county'):
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
+
+    # Order date from nested order_info or flat fields
+    order_info = data.get('order_info', {}) or {}
+    order_date = order_info.get('order_date') or data.get('order_date')
+
+    if order_date:
+        parts.append(str(order_date))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 def name_lease_amendment(data: Dict[str, Any]) -> str:
     """Lease Amendment - {County} - {Legal} - {Operator/Lessee} - {Year}"""
     parts = ["Lease Amendment"]
@@ -2102,6 +2149,7 @@ NAMING_FUNCTIONS = {
     'tax_record': name_tax_record,
     'map': name_map,
     'multi_document': name_multi_document,
+    'unitization_order': name_unitization_order,
     'other': name_other,
 }
 
