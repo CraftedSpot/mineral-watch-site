@@ -1557,7 +1557,91 @@ export default {
                 console.log('[DEBUG] extracted_data sample:', JSON.stringify(extracted_data).substring(0, 200));
               }
             }
-            
+
+            // Auto-populate pun_api_crosswalk for completion reports
+            if (doc_type === 'completion_report' && extracted_data) {
+              try {
+                // Get API - prefer normalized version
+                const apiNumber = extracted_data.api_number_normalized || extracted_data.api_number;
+
+                if (!apiNumber) {
+                  console.log('[PUN Crosswalk] Skipping - no API number in extracted data');
+                } else {
+                  const insertedPuns = new Set<string>(); // Track to avoid duplicates
+
+                  // Helper function to insert a PUN mapping
+                  const insertCrosswalk = async (pun: string, sectionCounty?: string) => {
+                    if (!pun || insertedPuns.has(pun)) return;
+                    insertedPuns.add(pun);
+
+                    console.log('[PUN Crosswalk] Inserting PUN mapping:', pun, '->', apiNumber);
+                    await env.WELLS_DB.prepare(`
+                      INSERT INTO pun_api_crosswalk (pun, api_number, well_name, county, operator, effective_date, source_document_id)
+                      VALUES (?, ?, ?, ?, ?, ?, ?)
+                      ON CONFLICT(pun, api_number) DO UPDATE SET
+                        updated_at = CURRENT_TIMESTAMP,
+                        source_document_id = excluded.source_document_id,
+                        well_name = COALESCE(excluded.well_name, well_name),
+                        operator = COALESCE(excluded.operator, operator),
+                        effective_date = COALESCE(excluded.effective_date, effective_date)
+                    `).bind(
+                      pun,
+                      apiNumber,
+                      extracted_data.well_name || null,
+                      sectionCounty || extracted_data.county || county || null,
+                      extracted_data.operator?.name || null,
+                      extracted_data.dates?.completion_date || null,
+                      docId
+                    ).run();
+                  };
+
+                  // Single well PUN (vertical wells, or primary PUN for horizontal)
+                  if (extracted_data.otc_prod_unit_no) {
+                    const pun = extracted_data.otc_prod_unit_no_normalized || extracted_data.otc_prod_unit_no;
+                    await insertCrosswalk(pun);
+                  }
+
+                  // Multi-section horizontal wells (multiple PUNs in allocation_factors)
+                  if (extracted_data.allocation_factors?.length) {
+                    for (const factor of extracted_data.allocation_factors) {
+                      if (factor.pun) {
+                        const pun = factor.pun_normalized || factor.pun;
+                        await insertCrosswalk(pun, factor.county);
+                      }
+                    }
+                  }
+
+                  if (insertedPuns.size > 0) {
+                    console.log('[PUN Crosswalk] Successfully inserted', insertedPuns.size, 'PUN mapping(s)');
+
+                    // Also update wells.otc_prod_unit_no if not already set
+                    // Use the 10-digit API for matching (without sequence number)
+                    const api10 = apiNumber.substring(0, 10);
+                    const primaryPun = extracted_data.otc_prod_unit_no || Array.from(insertedPuns)[0];
+                    const updateResult = await env.WELLS_DB.prepare(`
+                      UPDATE wells
+                      SET otc_prod_unit_no = ?
+                      WHERE (api_number = ? OR api_number LIKE ? || '%')
+                        AND (otc_prod_unit_no IS NULL OR otc_prod_unit_no = '')
+                    `).bind(
+                      primaryPun,
+                      api10,
+                      api10
+                    ).run();
+
+                    if (updateResult.meta.changes > 0) {
+                      console.log('[PUN Crosswalk] Updated wells.otc_prod_unit_no for API:', api10);
+                    }
+                  } else {
+                    console.log('[PUN Crosswalk] No PUNs found in extracted data');
+                  }
+                }
+              } catch (crosswalkError) {
+                // Don't fail the request if crosswalk insert fails
+                console.error('[PUN Crosswalk] Failed to insert crosswalk:', crosswalkError);
+              }
+            }
+
             // Track document usage and deduct credit (only for successful processing)
             if (status !== 'failed') {
               try {
