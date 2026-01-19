@@ -1554,6 +1554,262 @@ VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
   "document_confidence": "high"
 }}
 
+For WELL TRANSFERS (Form 1073 / 1073MW):
+Well Transfer documents record the official change of operatorship for oil and gas wells. When wells change
+operators, mineral owners receive new division orders and must contact a different company for royalty questions.
+
+CRITICAL: This doc type covers MULTIPLE wells potentially in DIFFERENT locations.
+- Top-level section/township/range are NOT used
+- Each well in the wells[] array has its own location
+- Property linking happens via the wells[] array, not top-level fields
+
+EXTRACTION REQUIREMENTS:
+- Extract ALL wells listed - missing wells breaks property linking
+- Each well needs: api_number, well_name, section, township, range
+- well_type: OIL | GAS | DRY
+- well_status: AC (Active) | TA (Temp Abandoned) | SP (Spudded) | ND (Not Drilled) | TM (Temp Shut-in) | PA (Permanently Abandoned)
+- Use comments field to flag discrepancies (e.g., well number doesn't match section)
+
+OMIT: Notary signatures, commission expiration, form payment info, OCC stamps, instructions text.
+
+MULTI-WELL TRANSFER EXAMPLE (Form 1073MW - 13 wells):
+{{
+  "doc_type": "well_transfer",
+
+  "transfer_info": {{
+    "form_number": "1073MW",
+    "transfer_date": "2022-01-05",
+    "approval_date": "2022-01-07",
+    "wells_transferred_count": 13
+  }},
+
+  "former_operator": {{
+    "name": "Tessera Energy, LLC",
+    "occ_number": "21803",
+    "address": "P.O. Box 20359, Oklahoma City, OK 73156-0359",
+    "phone": "405-254-3673"
+  }},
+
+  "new_operator": {{
+    "name": "WestStar Oil & Gas, Inc.",
+    "occ_number": "18035",
+    "address": "1601 East 19th, Edmond, OK 73013",
+    "phone": "405-341-2338",
+    "email": "mkrenger@wsog.org",
+    "contact_name": "Michael C. Krenger - President"
+  }},
+
+  "wells": [
+    {{
+      "api_number": "09321476",
+      "well_name": "Augusta Rother",
+      "well_number": "1-28",
+      "well_type": "GAS",
+      "well_status": "AC",
+      "section": 28,
+      "township": "21N",
+      "range": "15W",
+      "quarters": "SE SE SW"
+    }},
+    {{
+      "api_number": "09322686",
+      "well_name": "Baustert",
+      "well_number": "2-21",
+      "well_type": "GAS",
+      "well_status": "AC",
+      "section": 21,
+      "township": "21N",
+      "range": "15W",
+      "quarters": "C SW"
+    }},
+    {{
+      "api_number": "09323213",
+      "well_name": "Boehs",
+      "well_number": "2-28",
+      "well_type": "GAS",
+      "well_status": "AC",
+      "section": 28,
+      "township": "21N",
+      "range": "15W",
+      "quarters": "S2 N2 SW"
+    }}
+  ],
+
+  "summary": {{
+    "counties_affected": ["Dewey", "Blaine", "Major"],
+    "well_types": {{
+      "oil_count": 0,
+      "gas_count": 13,
+      "dry_count": 0
+    }}
+  }},
+
+  "key_takeaway": "Tessera Energy transferred 13 gas wells to WestStar Oil & Gas across Dewey, Blaine, and Major counties, effective January 7, 2022.",
+
+  "detailed_analysis": "This transfer moves operatorship of 13 gas wells from Tessera Energy, LLC to WestStar Oil & Gas, Inc. All wells are classified as active (AC) gas wells. The transfer was approved by the Oklahoma Corporation Commission on January 7, 2022.\n\nMineral owners with interests in any of these wells should expect to receive new division orders from WestStar Oil & Gas. Future royalty payments will come from the new operator, and any questions about production or payments should be directed to WestStar at 405-341-2338 or mkrenger@wsog.org.",
+
+  "field_scores": {{
+    "transfer_info": 0.95,
+    "former_operator": 0.95,
+    "new_operator": 0.95,
+    "wells": 0.95
+  }},
+  "document_confidence": "high"
+}}
+
+MIXED WELL TYPES EXAMPLE (Form 1073MW - 17 wells, oil + gas, multiple statuses):
+{{
+  "doc_type": "well_transfer",
+
+  "transfer_info": {{
+    "form_number": "1073MW",
+    "transfer_date": "2018-10-17",
+    "approval_date": "2018-11-07",
+    "wells_transferred_count": 17
+  }},
+
+  "former_operator": {{
+    "name": "Jolen Operating Company",
+    "occ_number": "11403",
+    "address": "100 N. Broadway, Ste 2460, OKC, OK 73102",
+    "phone": "405-235-8448",
+    "email": "OPERATIONS@JOLEN.COM",
+    "contact_name": "C. Brad Williams, VP"
+  }},
+
+  "new_operator": {{
+    "name": "Kirkpatrick Oil Company, Inc.",
+    "occ_number": "19792",
+    "address": "1001 W. Wilshire Blvd, OKC, OK 73116",
+    "phone": "405-840-2946",
+    "email": "mmcginnis@kirkpatrickoil.com",
+    "contact_name": "Mike McGinnis, VP Operations"
+  }},
+
+  "wells": [
+    {{
+      "api_number": "00721231",
+      "well_name": "Traxler",
+      "well_number": "1-6",
+      "well_type": "GAS",
+      "well_status": "AC",
+      "section": 6,
+      "township": "3N",
+      "range": "23E",
+      "county": "Adair",
+      "quarters": "C SW"
+    }},
+    {{
+      "api_number": "04321546",
+      "well_name": "Hutton",
+      "well_number": "2-14",
+      "well_type": "OIL",
+      "well_status": "AC",
+      "section": 14,
+      "township": "17N",
+      "range": "15W",
+      "county": "Dewey",
+      "quarters": "N2 S2 NW SW"
+    }},
+    {{
+      "api_number": "09324773",
+      "well_name": "Cheval",
+      "well_number": "15-7",
+      "well_type": "OIL",
+      "well_status": "AC",
+      "section": 8,
+      "township": "21N",
+      "range": "14W",
+      "county": "Major",
+      "quarters": "SW SW NW NW",
+      "comments": "Well number 15-7 but located in Section 8 per document"
+    }},
+    {{
+      "api_number": "05921174",
+      "well_name": "Litz",
+      "well_number": "1R-2",
+      "well_type": "GAS",
+      "well_status": "TA",
+      "section": 2,
+      "township": "26N",
+      "range": "23W",
+      "county": "Harper",
+      "quarters": "SW SW NE SE"
+    }}
+  ],
+
+  "summary": {{
+    "counties_affected": ["Adair", "Dewey", "Ellis", "Harper", "Major", "Woodward"],
+    "well_types": {{
+      "oil_count": 8,
+      "gas_count": 9,
+      "dry_count": 0
+    }}
+  }},
+
+  "key_takeaway": "Jolen Operating Company transferred 17 wells (8 oil, 9 gas) to Kirkpatrick Oil Company across six counties, effective November 7, 2018.",
+
+  "detailed_analysis": "This transfer moves operatorship of 17 wells from Jolen Operating Company to Kirkpatrick Oil Company, Inc. The portfolio includes 8 oil wells and 9 gas wells spread across six Oklahoma counties: Adair, Dewey, Ellis, Harper, Major, and Woodward.\n\nThe largest concentration is the Cheval field in Major County with 8 oil wells. Three wells are temporarily abandoned. Mineral owners should expect new division orders from Kirkpatrick Oil Company. Contact Mike McGinnis at 405-840-2946 or mmcginnis@kirkpatrickoil.com.",
+
+  "field_scores": {{
+    "transfer_info": 0.95,
+    "former_operator": 0.95,
+    "new_operator": 0.95,
+    "wells": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+SINGLE WELL TRANSFER EXAMPLE (Form 1073):
+{{
+  "doc_type": "well_transfer",
+
+  "transfer_info": {{
+    "form_number": "1073",
+    "transfer_date": "2023-06-15",
+    "approval_date": "2023-06-20",
+    "wells_transferred_count": 1
+  }},
+
+  "former_operator": {{
+    "name": "Smith Energy Co.",
+    "occ_number": "15432",
+    "address": "123 Main St, Tulsa, OK 74101"
+  }},
+
+  "new_operator": {{
+    "name": "Jones Petroleum LLC",
+    "occ_number": "18976",
+    "address": "456 Oak Ave, Oklahoma City, OK 73102",
+    "phone": "405-555-1234"
+  }},
+
+  "wells": [
+    {{
+      "api_number": "04320156",
+      "well_name": "Miller",
+      "well_number": "1-15",
+      "well_type": "OIL",
+      "well_status": "AC",
+      "section": 15,
+      "township": "18N",
+      "range": "12W"
+    }}
+  ],
+
+  "key_takeaway": "Smith Energy transferred the Miller 1-15 oil well to Jones Petroleum in Section 15-18N-12W, effective June 20, 2023.",
+
+  "detailed_analysis": "This single well transfer moves the Miller 1-15 from Smith Energy to Jones Petroleum. Mineral owners in Section 15-18N-12W should expect new division orders from Jones Petroleum.",
+
+  "field_scores": {{
+    "transfer_info": 0.95,
+    "former_operator": 0.90,
+    "new_operator": 0.95,
+    "wells": 1.0
+  }},
+  "document_confidence": "high"
+}}
+
 For DIVISION ORDERS:
 Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
 this is critical for verifying payments match your records.
@@ -5073,7 +5329,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
 - pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
-- drilling_permit, completion_report, title_opinion
+- drilling_permit, completion_report, well_transfer, title_opinion
 - check_stub, occ_order, suspense_notice, joa
 - affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
 - tax_record, map
@@ -5106,6 +5362,9 @@ OCC ORDER TYPE DETECTION - be specific:
 - pooling_order: Contains election options for mineral owners (participate, cash bonus, royalty conversion, non-consent penalties).
 - increased_density_order: Look for "INCREASED DENSITY" or "INCREASED WELL DENSITY" - authorizes additional wells in existing units.
 - change_of_operator_order: Look for "CHANGE OF OPERATOR" or "TRANSFER OF OPERATORSHIP" in the title. Key indicators: identifies previous operator and new operator, transfers operational responsibility, may modify prior orders to reflect new operator. NOT a pooling order (which creates new drilling units).
+
+WELL TRANSFER DETECTION:
+- well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
 - multi_unit_horizontal_order: Look for "MULTIUNIT HORIZONTAL" or "MULTI-UNIT HORIZONTAL" or "MULTIUNIT WELL" in the title. Key indicators: horizontal well crossing multiple section boundaries, allocation percentages per section, completion interval lengths, production split between units. Contains tables showing section-by-section allocation factors. NOT horizontal_drilling_and_spacing_order (which establishes spacing rules, not production allocation).
 - occ_order: ONLY use this for OCC orders that don't fit the specific types above.
 

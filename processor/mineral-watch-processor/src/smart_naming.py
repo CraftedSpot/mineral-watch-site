@@ -1939,6 +1939,52 @@ def name_completion_report(data: Dict[str, Any]) -> str:
     return " - ".join(parts)
 
 
+def name_well_transfer(data: Dict[str, Any]) -> str:
+    """Well Transfer - {Former Operator} to {New Operator} - {Date}
+
+    For well transfer documents (Form 1073/1073MW).
+    Uses former_operator, new_operator, transfer_info from schema.
+    """
+    parts = ["Well Transfer"]
+
+    # Get former operator name
+    former_op = data.get('former_operator', {})
+    former_name = None
+    if isinstance(former_op, dict):
+        former_name = former_op.get('name')
+
+    # Get new operator name
+    new_op = data.get('new_operator', {})
+    new_name = None
+    if isinstance(new_op, dict):
+        new_name = new_op.get('name')
+
+    # Build the "from -> to" part
+    if former_name and new_name:
+        # Truncate long names
+        former_short = truncate_name(str(former_name), 25)
+        new_short = truncate_name(str(new_name), 25)
+        parts.append(f"{former_short} to {new_short}")
+    elif new_name:
+        parts.append(f"to {truncate_name(str(new_name), 30)}")
+    elif former_name:
+        parts.append(f"from {truncate_name(str(former_name), 30)}")
+
+    # Get date from transfer_info
+    transfer_info = data.get('transfer_info', {})
+    transfer_date = None
+    if isinstance(transfer_info, dict):
+        # Prefer approval_date over transfer_date
+        transfer_date = transfer_info.get('approval_date') or transfer_info.get('transfer_date')
+
+    if transfer_date:
+        parts.append(str(transfer_date))
+    elif data.get('year'):
+        parts.append(str(data['year']))
+
+    return " - ".join(parts)
+
+
 def name_quit_claim_deed(data: Dict[str, Any]) -> str:
     """Quit Claim Deed - {Grantor} to {Grantee} - {Legal} - {Date}
 
@@ -2050,6 +2096,7 @@ NAMING_FUNCTIONS = {
     'assignment_of_lease': name_assignment_of_lease,
     'quit_claim_deed': name_quit_claim_deed,
     'completion_report': name_completion_report,
+    'well_transfer': name_well_transfer,
     'legal_document': name_legal_document,
     'correspondence': name_correspondence,
     'tax_record': name_tax_record,

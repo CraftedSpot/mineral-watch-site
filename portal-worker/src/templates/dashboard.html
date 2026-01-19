@@ -6291,6 +6291,12 @@
                 'Affected Sections': ['affected_sections'],
                 'Purchaser': ['purchaser'],
                 'Status': ['status', 'status_date', 'occ_file_number'],
+                // Well Transfer sections
+                'Transfer Information': ['transfer_info'],
+                'Former Operator': ['former_operator'],
+                'New Operator': ['new_operator'],
+                'Wells Transferred': ['wells'],
+                'Transfer Summary': ['summary'],
                 'Notes': ['notes', 'additional_info'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
@@ -6643,6 +6649,12 @@
                 'Affected Sections',
                 'Purchaser',
                 'Status',
+                // Well Transfer sections
+                'Transfer Information',
+                'Former Operator',
+                'New Operator',
+                'Wells Transferred',
+                'Transfer Summary',
                 'Other Information'
             ];
             
@@ -9628,6 +9640,58 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
+                        } else if (fieldName === 'wells' && Array.isArray(value) && data.doc_type === 'well_transfer') {
+                            // Special handling for wells array (well transfer)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                const statusLabels = {
+                                    'AC': 'Active', 'TA': 'Temp Abandoned', 'SP': 'Spudded',
+                                    'ND': 'Not Drilled', 'TM': 'Temp Shut-in', 'PA': 'Perm Abandoned', 'CM': 'Commingled'
+                                };
+                                let wellsHtml = value.map(well => {
+                                    const api = well.api_number || '';
+                                    const name = well.well_name || '';
+                                    const num = well.well_number || '';
+                                    const type = well.well_type || '';
+                                    const status = well.well_status || '';
+                                    const statusLabel = statusLabels[status] || status;
+                                    const section = well.section || '';
+                                    const township = well.township || '';
+                                    const range = well.range || '';
+                                    const county = well.county || '';
+                                    const comments = well.comments || '';
+                                    const typeColor = type === 'OIL' ? '#92400E' : (type === 'GAS' ? '#1E40AF' : '#6B7280');
+                                    const statusColor = status === 'AC' ? '#16A34A' : (status === 'TA' || status === 'TM' ? '#F59E0B' : '#6B7280');
+                                    return `<tr style="border-bottom: 1px solid #E5E7EB;">
+                                        <td style="padding: 10px 8px;"><span style="font-family: monospace; font-size: 12px; color: #6B7280;">${escapeHtml(api)}</span></td>
+                                        <td style="padding: 10px 8px; font-weight: 600;">${escapeHtml(name)} ${num ? `<span style="font-weight: 400; color: #6B7280;">${escapeHtml(num)}</span>` : ''}</td>
+                                        <td style="padding: 10px 8px;"><span style="background: ${typeColor}15; color: ${typeColor}; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600;">${escapeHtml(type)}</span></td>
+                                        <td style="padding: 10px 8px;"><span style="color: ${statusColor}; font-size: 12px;">${escapeHtml(statusLabel)}</span></td>
+                                        <td style="padding: 10px 8px; font-family: monospace; font-size: 12px;">${section ? `S${section}` : ''}-${escapeHtml(String(township))}-${escapeHtml(String(range))}</td>
+                                        <td style="padding: 10px 8px; font-size: 12px; color: #6B7280;">${escapeHtml(county)}</td>
+                                    </tr>${comments ? `<tr style="background: #FEF3C7;"><td colspan="6" style="padding: 4px 8px 4px 20px; font-size: 11px; color: #92400E;">⚠️ ${escapeHtml(comments)}</td></tr>` : ''}`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="overflow-x: auto;">
+                                            <table style="width: 100%; border-collapse: collapse; font-size: 13px; background: white; border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden; min-width: 700px;">
+                                                <thead style="background: #F3F4F6;">
+                                                    <tr>
+                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">API</th>
+                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Well Name</th>
+                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Type</th>
+                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Status</th>
+                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">Location</th>
+                                                        <th style="padding: 10px 8px; text-align: left; font-weight: 600; color: #374151;">County</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>${wellsHtml}</tbody>
+                                            </table>
+                                        </div>
+                                        <div style="margin-top: 8px; font-size: 12px; color: #6B7280;">${value.length} well${value.length !== 1 ? 's' : ''} transferred</div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
                         } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
                             // Generic handler for arrays of objects (catch-all for respondents, etc.)
                             hasVisibleFields = true;
@@ -10104,6 +10168,112 @@
                                                 ${casingPressure ? `<span>Casing: ${casingPressure.toLocaleString()} psi</span>` : ''}
                                             </div>
                                             ${remarks ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; opacity: 0.9;">${escapeHtml(remarks)}</div>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'transfer_info' && typeof value === 'object' && data.doc_type === 'well_transfer') {
+                            // Special handling for transfer_info object (well transfer)
+                            const formNumber = value.form_number || '';
+                            const transferDate = value.transfer_date || '';
+                            const approvalDate = value.approval_date || '';
+                            const wellsCount = value.wells_transferred_count;
+
+                            if (formNumber || transferDate || approvalDate || wellsCount) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+                                                ${formNumber ? `<div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #E5E7EB;"><span style="color: #6B7280; font-size: 11px;">Form</span><div style="font-weight: 600;">${escapeHtml(formNumber)}</div></div>` : ''}
+                                                ${transferDate ? `<div style="background: white; padding: 8px 12px; border-radius: 6px; border: 1px solid #E5E7EB;"><span style="color: #6B7280; font-size: 11px;">Transfer Date</span><div style="font-weight: 600;">${escapeHtml(transferDate)}</div></div>` : ''}
+                                                ${approvalDate ? `<div style="background: #DCFCE7; padding: 8px 12px; border-radius: 6px; border: 1px solid #22C55E;"><span style="color: #16A34A; font-size: 11px;">Approval Date</span><div style="font-weight: 600; color: #166534;">${escapeHtml(approvalDate)}</div></div>` : ''}
+                                                ${wellsCount ? `<div style="background: #DBEAFE; padding: 8px 12px; border-radius: 6px; border: 1px solid #3B82F6;"><span style="color: #1E40AF; font-size: 11px;">Wells Transferred</span><div style="font-weight: 700; font-size: 18px; color: #1E40AF;">${wellsCount}</div></div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'former_operator' && typeof value === 'object' && data.doc_type === 'well_transfer') {
+                            // Special handling for former_operator object (well transfer)
+                            const name = value.name || '';
+                            const occNumber = value.occ_number || '';
+                            const address = value.address || '';
+                            const phone = value.phone || '';
+                            const email = value.email || '';
+                            const contact = value.contact_name || '';
+
+                            if (name || occNumber) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F9FAFB; border: 1px solid #D1D5DB; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                                <span style="font-size: 16px;">📤</span>
+                                                <span style="font-size: 11px; color: #6B7280; text-transform: uppercase; letter-spacing: 0.5px;">Transferring From</span>
+                                            </div>
+                                            <div style="font-size: 16px; font-weight: 700; color: #374151;">${escapeHtml(name)}</div>
+                                            ${occNumber ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">OCC #${escapeHtml(occNumber)}</div>` : ''}
+                                            ${address ? `<div style="font-size: 13px; color: #4B5563; margin-top: 8px;">${escapeHtml(address)}</div>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; font-size: 12px;">
+                                                ${phone ? `<span style="color: #6B7280;">📞 ${escapeHtml(phone)}</span>` : ''}
+                                                ${email ? `<span style="color: #6B7280;">✉️ ${escapeHtml(email)}</span>` : ''}
+                                                ${contact ? `<span style="color: #6B7280;">👤 ${escapeHtml(contact)}</span>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'new_operator' && typeof value === 'object' && data.doc_type === 'well_transfer') {
+                            // Special handling for new_operator object (well transfer) - HIGHLIGHTED
+                            const name = value.name || '';
+                            const occNumber = value.occ_number || '';
+                            const address = value.address || '';
+                            const phone = value.phone || '';
+                            const email = value.email || '';
+                            const contact = value.contact_name || '';
+
+                            if (name || occNumber) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: linear-gradient(135deg, #065F46 0%, #047857 100%); border-radius: 8px; padding: 14px; color: white;">
+                                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                                <span style="font-size: 16px;">📥</span>
+                                                <span style="font-size: 11px; opacity: 0.9; text-transform: uppercase; letter-spacing: 0.5px;">New Operator - Contact for Royalties</span>
+                                            </div>
+                                            <div style="font-size: 18px; font-weight: 700;">${escapeHtml(name)}</div>
+                                            ${occNumber ? `<div style="font-size: 12px; opacity: 0.9; margin-top: 2px;">OCC #${escapeHtml(occNumber)}</div>` : ''}
+                                            ${address ? `<div style="font-size: 13px; opacity: 0.95; margin-top: 8px;">${escapeHtml(address)}</div>` : ''}
+                                            <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 10px; font-size: 13px;">
+                                                ${phone ? `<span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px;">📞 ${escapeHtml(phone)}</span>` : ''}
+                                                ${email ? `<span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px;">✉️ ${escapeHtml(email)}</span>` : ''}
+                                                ${contact ? `<span style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px;">👤 ${escapeHtml(contact)}</span>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'summary' && typeof value === 'object' && data.doc_type === 'well_transfer') {
+                            // Special handling for summary object (well transfer)
+                            const counties = value.counties_affected || [];
+                            const wellTypes = value.well_types || {};
+                            const oilCount = wellTypes.oil_count || 0;
+                            const gasCount = wellTypes.gas_count || 0;
+                            const dryCount = wellTypes.dry_count || 0;
+
+                            if (counties.length > 0 || oilCount || gasCount || dryCount) {
+                                hasVisibleFields = true;
+                                const countiesHtml = counties.map(c => `<span style="background: #E5E7EB; color: #374151; padding: 3px 10px; border-radius: 12px; font-size: 12px;">${escapeHtml(c)}</span>`).join(' ');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 14px;">
+                                            ${counties.length > 0 ? `<div style="margin-bottom: 12px;"><span style="font-size: 12px; color: #6B7280; margin-right: 8px;">Counties:</span>${countiesHtml}</div>` : ''}
+                                            <div style="display: flex; gap: 16px;">
+                                                ${oilCount ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #92400E;">${oilCount}</div><div style="font-size: 11px; color: #6B7280;">Oil Wells</div></div>` : ''}
+                                                ${gasCount ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #1E40AF;">${gasCount}</div><div style="font-size: 11px; color: #6B7280;">Gas Wells</div></div>` : ''}
+                                                ${dryCount ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #6B7280;">${dryCount}</div><div style="font-size: 11px; color: #6B7280;">Dry Wells</div></div>` : ''}
+                                            </div>
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
