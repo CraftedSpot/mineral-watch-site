@@ -5327,7 +5327,7 @@ If you see evidence of multiple documents, set is_multi_document: true and estim
 
 DOCUMENT TYPES (if not one of these, return "other"):
 - mineral_deed, royalty_deed, lease, division_order, assignment
-- pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order
+- pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order, unitization_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, completion_report, well_transfer, title_opinion
 - check_stub, occ_order, suspense_notice, joa
@@ -5362,6 +5362,7 @@ OCC ORDER TYPE DETECTION - be specific:
 - pooling_order: Contains election options for mineral owners (participate, cash bonus, royalty conversion, non-consent penalties).
 - increased_density_order: Look for "INCREASED DENSITY" or "INCREASED WELL DENSITY" - authorizes additional wells in existing units.
 - change_of_operator_order: Look for "CHANGE OF OPERATOR" or "TRANSFER OF OPERATORSHIP" in the title. Key indicators: identifies previous operator and new operator, transfers operational responsibility, may modify prior orders to reflect new operator. NOT a pooling order (which creates new drilling units).
+- unitization_order: Look for "UNITIZATION", "OPERATING UNIT", "ENHANCED RECOVERY UNIT", "SECONDARY RECOVERY UNIT", or "WATERFLOOD UNIT" in the title. Key indicators: creates a named unit spanning multiple sections/tracts (e.g., "Carter Knox Subthrusted Morrow Operating Unit"), contains participation percentages for each tract, authorizes enhanced/secondary recovery operations (waterflooding, nitrogen injection, pressure maintenance), often supersedes prior spacing orders in the unit area. Has allocation formula (surface acres, cumulative production, net acre-feet). NOT pooling_order (which creates drilling units with election options) or multi_unit_horizontal_order (which allocates production for a single horizontal well).
 
 WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
@@ -5371,7 +5372,7 @@ WELL TRANSFER DETECTION:
 Examples of "other" documents (oil and gas docs that don't fit defined categories):
 - Farmout agreements, surface use agreements, pipeline agreements
 - AFEs, payout statements, salt water disposal agreements
-- Seismic permits, unitization agreements, general operator correspondence
+- Seismic permits, general operator correspondence
 """
     }]
     
