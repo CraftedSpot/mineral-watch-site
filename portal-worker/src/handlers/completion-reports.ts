@@ -117,6 +117,270 @@ export async function handleGetCompletionReports(
 }
 
 /**
+ * GET /api/wells/{api}/production-summary
+ *
+ * Returns aggregated production data for a well:
+ * - Last month production (oil/gas)
+ * - Last 12 months totals
+ * - Lifetime totals
+ * - Status (active/stale/inactive)
+ * - YoY trend
+ * - Sparkline data (last 6 months)
+ */
+export async function handleGetProductionSummary(
+  apiNumber: string,
+  env: Env
+): Promise<Response> {
+  if (!env.WELLS_DB) {
+    return jsonResponse({ error: 'Database not available' }, 500);
+  }
+
+  try {
+    // Normalize API number (remove dashes, get 10-digit version)
+    const apiNormalized = apiNumber.replace(/-/g, '');
+    const api10 = apiNormalized.substring(0, 10);
+
+    // Try to find PUN via multiple paths
+    let pun: string | null = null;
+
+    // Path A: Direct from wells table
+    const wellResult = await env.WELLS_DB.prepare(`
+      SELECT otc_prod_unit_no, well_name, formation_name
+      FROM wells
+      WHERE api_number = ? OR api_number = ? OR api_number LIKE ?
+      LIMIT 1
+    `).bind(apiNumber, api10, `${api10}%`).first() as { otc_prod_unit_no: string | null; well_name: string | null; formation_name: string | null } | null;
+
+    if (wellResult?.otc_prod_unit_no) {
+      pun = wellResult.otc_prod_unit_no.replace(/-/g, ''); // Normalize
+    }
+
+    // Path B: Via pun_api_crosswalk (document-sourced)
+    if (!pun) {
+      const crosswalkResult = await env.WELLS_DB.prepare(`
+        SELECT pun FROM pun_api_crosswalk
+        WHERE api_number = ? OR api_number = ? OR api_number LIKE ?
+        LIMIT 1
+      `).bind(apiNumber, apiNormalized, `${api10}%`).first() as { pun: string } | null;
+
+      if (crosswalkResult?.pun) {
+        pun = crosswalkResult.pun.replace(/-/g, '');
+      }
+    }
+
+    // Path C: Via otc_leases
+    if (!pun) {
+      const leaseResult = await env.WELLS_DB.prepare(`
+        SELECT pun FROM otc_leases
+        WHERE api_number = ? OR api_number = ? OR api_number LIKE ?
+        LIMIT 1
+      `).bind(apiNumber, api10, `${api10}%`).first() as { pun: string } | null;
+
+      if (leaseResult?.pun) {
+        pun = leaseResult.pun.replace(/-/g, '');
+      }
+    }
+
+    // If no PUN found, return empty response with hasPun: false
+    if (!pun) {
+      // Check if 1002A is available for this well (CTA opportunity)
+      let has1002aAvailable = false;
+      try {
+        const occPath = `/get-1002a-forms?api=${apiNumber}`;
+        const occResponse = await fetchFromOccFetcher(occPath, env);
+        const occData = await occResponse.json() as { success: boolean; forms?: any[] };
+        has1002aAvailable = (occData.forms?.length || 0) > 0;
+      } catch {
+        // Ignore OCC errors
+      }
+
+      return jsonResponse({
+        success: true,
+        hasPun: false,
+        pun: null,
+        production: null,
+        has1002aAvailable,
+        message: 'No PUN linked to this well'
+      });
+    }
+
+    // Calculate date ranges
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // 3 months ago for "active" status
+    const threeMonthsAgo = new Date(now);
+    threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+    const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+    // 12 months ago for "stale" vs "inactive"
+    const twelveMonthsAgo = new Date(now);
+    twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
+    const twelveMonthsAgoYM = `${twelveMonthsAgo.getFullYear()}-${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+    // Same month last year for YoY comparison
+    const lastYearSameMonth = new Date(now);
+    lastYearSameMonth.setFullYear(lastYearSameMonth.getFullYear() - 1);
+    const lastYearYM = `${lastYearSameMonth.getFullYear()}-${String(lastYearSameMonth.getMonth() + 1).padStart(2, '0')}`;
+
+    // Query production data - normalize PUN for matching
+    const punNormalized = pun.replace(/-/g, '');
+
+    // Get last month's production (most recent month with data)
+    const lastMonthResult = await env.WELLS_DB.prepare(`
+      SELECT year_month, product_code, SUM(gross_volume) as volume
+      FROM otc_production
+      WHERE REPLACE(pun, '-', '') = ?
+      GROUP BY year_month, product_code
+      ORDER BY year_month DESC
+      LIMIT 10
+    `).bind(punNormalized).all();
+
+    // Get last 12 months totals
+    const last12MoResult = await env.WELLS_DB.prepare(`
+      SELECT product_code, SUM(gross_volume) as volume
+      FROM otc_production
+      WHERE REPLACE(pun, '-', '') = ? AND year_month >= ?
+      GROUP BY product_code
+    `).bind(punNormalized, twelveMonthsAgoYM).all();
+
+    // Get lifetime totals
+    const lifetimeResult = await env.WELLS_DB.prepare(`
+      SELECT product_code, SUM(gross_volume) as volume
+      FROM otc_production
+      WHERE REPLACE(pun, '-', '') = ?
+      GROUP BY product_code
+    `).bind(punNormalized).all();
+
+    // Get last 6 months for sparkline (oil only)
+    const sparklineResult = await env.WELLS_DB.prepare(`
+      SELECT year_month, SUM(gross_volume) as volume
+      FROM otc_production
+      WHERE REPLACE(pun, '-', '') = ? AND product_code IN ('OIL', 'COND', '01', '02')
+      GROUP BY year_month
+      ORDER BY year_month DESC
+      LIMIT 6
+    `).bind(punNormalized).all();
+
+    // Get same month last year for YoY comparison
+    const lastYearResult = await env.WELLS_DB.prepare(`
+      SELECT product_code, SUM(gross_volume) as volume
+      FROM otc_production
+      WHERE REPLACE(pun, '-', '') = ? AND year_month = ?
+      GROUP BY product_code
+    `).bind(punNormalized, lastYearYM).all();
+
+    // Process results
+    const lastMonthData: { [key: string]: { yearMonth: string; volume: number } } = {};
+    const last12MoData: { [key: string]: number } = { oil: 0, gas: 0 };
+    const lifetimeData: { [key: string]: number } = { oil: 0, gas: 0 };
+    const lastYearData: { [key: string]: number } = { oil: 0, gas: 0 };
+
+    // Process last month (get most recent month per product type)
+    for (const row of lastMonthResult.results as any[]) {
+      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      const type = isOil ? 'oil' : 'gas';
+      if (!lastMonthData[type] || row.year_month > lastMonthData[type].yearMonth) {
+        lastMonthData[type] = { yearMonth: row.year_month, volume: Math.round(row.volume || 0) };
+      }
+    }
+
+    // Process last 12 months
+    for (const row of last12MoResult.results as any[]) {
+      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      if (isOil) {
+        last12MoData.oil += Math.round(row.volume || 0);
+      } else {
+        last12MoData.gas += Math.round(row.volume || 0);
+      }
+    }
+
+    // Process lifetime
+    for (const row of lifetimeResult.results as any[]) {
+      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      if (isOil) {
+        lifetimeData.oil += Math.round(row.volume || 0);
+      } else {
+        lifetimeData.gas += Math.round(row.volume || 0);
+      }
+    }
+
+    // Process last year same month
+    for (const row of lastYearResult.results as any[]) {
+      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      if (isOil) {
+        lastYearData.oil += Math.round(row.volume || 0);
+      } else {
+        lastYearData.gas += Math.round(row.volume || 0);
+      }
+    }
+
+    // Process sparkline (reverse to get chronological order)
+    const sparkline = (sparklineResult.results as any[])
+      .map(r => Math.round(r.volume || 0))
+      .reverse();
+
+    // Determine status based on most recent production
+    const mostRecentMonth = lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || '';
+    let status: 'active' | 'stale' | 'inactive' = 'inactive';
+    if (mostRecentMonth >= threeMonthsAgoYM) {
+      status = 'active';
+    } else if (mostRecentMonth >= twelveMonthsAgoYM) {
+      status = 'stale';
+    }
+
+    // Calculate YoY change (based on oil production)
+    let yoyChange: number | null = null;
+    let direction: 'up' | 'down' | 'flat' = 'flat';
+    const currentOil = lastMonthData.oil?.volume || 0;
+    const lastYearOil = lastYearData.oil || 0;
+    if (lastYearOil > 0 && currentOil > 0) {
+      yoyChange = Math.round(((currentOil - lastYearOil) / lastYearOil) * 100);
+      direction = yoyChange > 5 ? 'up' : yoyChange < -5 ? 'down' : 'flat';
+    }
+
+    // Format PUN for display (with dashes if not already)
+    const punDisplay = pun.includes('-') ? pun :
+      `${pun.substring(0, 3)}-${pun.substring(3, 9)}-${pun.substring(9, 10)}-${pun.substring(10)}`;
+
+    return jsonResponse({
+      success: true,
+      hasPun: true,
+      pun: punDisplay,
+      formation: wellResult?.formation_name || null,
+      production: {
+        lastMonth: {
+          oil: lastMonthData.oil?.volume || 0,
+          gas: lastMonthData.gas?.volume || 0,
+          yearMonth: lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || null
+        },
+        last12Mo: {
+          oil: last12MoData.oil,
+          gas: last12MoData.gas
+        },
+        lifetime: {
+          oil: lifetimeData.oil,
+          gas: lifetimeData.gas
+        }
+      },
+      status,
+      trend: {
+        yoyChange,
+        direction
+      },
+      sparkline
+    });
+
+  } catch (error) {
+    console.error('Error in handleGetProductionSummary:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
  * POST /api/wells/{api}/analyze-completion
  *
  * Requires authentication. Triggers:
