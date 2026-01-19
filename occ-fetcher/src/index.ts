@@ -101,6 +101,389 @@ interface OCCOrder {
   pdfUrl: string;
 }
 
+// ============================================================================
+// 1002A Completion Report Types and Helpers
+// ============================================================================
+
+const WELL_RECORDS_COOKIE_KEY = 'occ-well-records-session';
+const COOKIE_TTL_SECONDS = 600; // 10 minutes
+
+interface Form1002A {
+  entryId: number;
+  name: string;
+  formNumber: string;
+  apiNumber: string;
+  wellName: string;
+  county: string;
+  location: string;
+  effectiveDate: string;
+  scanDate: string;
+  docId: string;
+  downloadUrl: string;
+}
+
+/**
+ * Get session cookies from OCC Well Records system with KV caching.
+ * Sessions last 15-30 minutes, so we cache for 10 minutes to reduce latency.
+ */
+async function getWellRecordsSessionCookies(env?: Env): Promise<string> {
+  // Try to get cached cookies from KV
+  if (env?.OCC_CACHE) {
+    const cached = await env.OCC_CACHE.get(WELL_RECORDS_COOKIE_KEY);
+    if (cached) {
+      console.log('[1002A] Using cached session cookies');
+      return cached;
+    }
+  }
+
+  const cookieJar = new Map<string, string>();
+
+  const extractCookies = (response: Response) => {
+    const setCookieHeader = response.headers.get('set-cookie');
+    if (setCookieHeader) {
+      const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
+      for (const cookie of cookies) {
+        const match = cookie.match(/^([^=]+)=([^;]*)/);
+        if (match) {
+          cookieJar.set(match[1].trim(), match[2]);
+        }
+      }
+    }
+  };
+
+  const browserHeaders = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+  };
+
+  let response = await fetch(
+    'https://public.occ.ok.gov/OGCDWellRecords/Welcome.aspx?dbid=0&repo=OCC',
+    { method: 'GET', headers: browserHeaders, redirect: 'manual' }
+  );
+  extractCookies(response);
+
+  let location = response.headers.get('location');
+  let maxRedirects = 5;
+  while (location && response.status >= 300 && response.status < 400 && maxRedirects > 0) {
+    if (!location.startsWith('http')) {
+      location = 'https://public.occ.ok.gov' + location;
+    }
+    response = await fetch(location, {
+      method: 'GET',
+      headers: { ...browserHeaders, Cookie: Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ') },
+      redirect: 'manual',
+    });
+    extractCookies(response);
+    location = response.headers.get('location');
+    maxRedirects--;
+  }
+
+  const cookies = Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+
+  // Cache the cookies in KV
+  if (env?.OCC_CACHE && cookies) {
+    await env.OCC_CACHE.put(WELL_RECORDS_COOKIE_KEY, cookies, { expirationTtl: COOKIE_TTL_SECONDS });
+    console.log('[1002A] Cached session cookies for 10 minutes');
+  }
+
+  return cookies;
+}
+
+/**
+ * Search OCC Well Records for documents by API number.
+ * Supports pagination and optional form number filtering.
+ */
+async function searchWellRecords(
+  apiNumber: string,
+  cookies: string,
+  formNumberFilter?: string
+): Promise<Form1002A[]> {
+  const PAGE_SIZE = 100;
+  let startIdx = 0;
+  const allForms: Form1002A[] = [];
+
+  while (true) {
+    const searchPayload = {
+      repoName: 'OCC',
+      searchSyn: `{[OG Well Records]:[API Number]="${apiNumber}*"}`,
+      searchUuid: '',
+      sortColumn: '',
+      startIdx,
+      endIdx: startIdx + PAGE_SIZE,
+      getNewListing: startIdx === 0,
+      sortOrder: 2,
+      displayInGridView: false,
+    };
+
+    const searchResponse = await fetch(
+      'https://public.occ.ok.gov/OGCDWellRecords/SearchService.aspx/GetSearchListing',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+          Cookie: cookies,
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          Origin: 'https://public.occ.ok.gov',
+          Referer: 'https://public.occ.ok.gov/OGCDWellRecords/Search.aspx',
+        },
+        body: JSON.stringify(searchPayload),
+      }
+    );
+
+    if (!searchResponse.ok) {
+      throw new Error(`Search failed: ${searchResponse.status}`);
+    }
+
+    const searchData = await searchResponse.json() as any;
+    const results = searchData?.data?.results || [];
+
+    for (const result of results) {
+      const metadata: Record<string, string> = {};
+      for (const item of result.metadata || []) {
+        if (item.name && item.values && item.values.length > 0) {
+          metadata[item.name] = item.values[0];
+        }
+      }
+
+      const formNumber = metadata['Form Number'] || '';
+
+      if (formNumberFilter && formNumber !== formNumberFilter) {
+        continue;
+      }
+
+      allForms.push({
+        entryId: result.entryId,
+        name: result.name,
+        formNumber,
+        apiNumber: metadata['API Number'] || '',
+        wellName: metadata['Well Name'] || '',
+        county: metadata['County'] || '',
+        location: metadata['Location'] || '',
+        effectiveDate: metadata['Effective Date'] || '',
+        scanDate: metadata['Scan Date'] || '',
+        docId: metadata['DocID'] || '',
+        downloadUrl: `https://public.occ.ok.gov/OGCDWellRecords/ElectronicFile.aspx?docid=${result.entryId}&dbid=0&repo=OCC`,
+      });
+    }
+
+    // If we got fewer results than page size, we've reached the end
+    if (results.length < PAGE_SIZE) {
+      break;
+    }
+
+    startIdx += PAGE_SIZE;
+
+    // Safety limit: don't fetch more than 500 records
+    if (startIdx >= 500) {
+      console.log('[1002A] Hit pagination safety limit');
+      break;
+    }
+  }
+
+  return allForms;
+}
+
+/**
+ * GET /get-1002a-forms - List all 1002A forms for an API number
+ */
+async function handleGet1002AForms(request: Request, env: Env): Promise<Response> {
+  const url = new URL(request.url);
+  const apiNumber = url.searchParams.get('api');
+
+  if (!apiNumber) {
+    return jsonResponse({ error: 'api parameter required' }, 400);
+  }
+
+  try {
+    const cookies = await getWellRecordsSessionCookies(env);
+    const forms = await searchWellRecords(apiNumber, cookies, '1002A');
+
+    return jsonResponse({
+      success: true,
+      apiNumber,
+      count: forms.length,
+      forms,
+    });
+  } catch (error) {
+    console.error('[1002A] Search error:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+}
+
+/**
+ * POST /download-1002a-forms - Download all 1002A forms, store in R2, register with documents-worker
+ */
+async function handleDownload1002AForms(request: Request, env: Env): Promise<Response> {
+  let body: any;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: 'Invalid JSON body' }, 400);
+  }
+
+  const { apiNumber, userId, userPlan, organizationId, wellApiNumber } = body;
+
+  if (!apiNumber || !userId) {
+    return jsonResponse({ error: 'apiNumber and userId required' }, 400);
+  }
+
+  try {
+    const cookies = await getWellRecordsSessionCookies(env);
+    const forms = await searchWellRecords(apiNumber, cookies, '1002A');
+
+    if (forms.length === 0) {
+      return jsonResponse({
+        success: false,
+        error: 'No 1002A forms found',
+        apiNumber,
+      });
+    }
+
+    console.log(`[1002A] Found ${forms.length} forms for API ${apiNumber}`);
+
+    const results: any[] = [];
+
+    for (let i = 0; i < forms.length; i++) {
+      const form = forms[i];
+
+      // Rate limiting: 200ms delay between downloads (skip first)
+      if (i > 0) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+
+      try {
+        console.log(`[1002A] Downloading form ${i + 1}/${forms.length}: ${form.name}`);
+
+        // Download PDF with retry on server errors
+        let pdfResponse = await fetch(form.downloadUrl, {
+          headers: {
+            Cookie: cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+          },
+        });
+
+        // Retry once on 5xx errors
+        if (!pdfResponse.ok && pdfResponse.status >= 500) {
+          console.log(`[1002A] Retrying download for ${form.name} after ${pdfResponse.status} error`);
+          await new Promise(r => setTimeout(r, 1000));
+          pdfResponse = await fetch(form.downloadUrl, {
+            headers: {
+              Cookie: cookies,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            },
+          });
+        }
+
+        if (!pdfResponse.ok) {
+          results.push({ success: false, form, error: `HTTP ${pdfResponse.status}` });
+          continue;
+        }
+
+        const pdfBuffer = await pdfResponse.arrayBuffer();
+        const filename = `1002A-${form.apiNumber}-${form.wellName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
+        const r2Key = `uploads/${userId}/${Date.now()}-${filename}`;
+
+        console.log(`[1002A] Uploading ${pdfBuffer.byteLength} bytes to R2 as ${r2Key}`);
+
+        // Store in R2
+        if (env.UPLOADS_BUCKET) {
+          await env.UPLOADS_BUCKET.put(r2Key, pdfBuffer, {
+            httpMetadata: {
+              contentType: 'application/pdf',
+              contentDisposition: `attachment; filename="${filename}"`,
+            },
+            customMetadata: {
+              source: 'occ-1002a-fetcher',
+              apiNumber: form.apiNumber,
+              formNumber: '1002A',
+              wellName: form.wellName,
+              county: form.county,
+              effectiveDate: form.effectiveDate,
+              entryId: String(form.entryId),
+            },
+          });
+        }
+
+        // Register with documents-worker
+        let documentId: string | undefined;
+        if (env.DOCUMENTS_WORKER) {
+          try {
+            const registerResponse = await env.DOCUMENTS_WORKER.fetch(
+              new Request('https://internal/api/documents/register-external', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'X-API-Key': env.PROCESSING_API_KEY,
+                },
+                body: JSON.stringify({
+                  r2Key,
+                  userId,
+                  userPlan,
+                  organizationId,
+                  filename,
+                  fileSize: pdfBuffer.byteLength,
+                  contentType: 'application/pdf',
+                  sourceType: 'occ_1002a',
+                  sourceApi: wellApiNumber || form.apiNumber,
+                  originalUrl: form.downloadUrl,
+                  metadata: {
+                    formNumber: '1002A',
+                    apiNumber: form.apiNumber,
+                    wellName: form.wellName,
+                    county: form.county,
+                    location: form.location,
+                    effectiveDate: form.effectiveDate,
+                    entryId: form.entryId,
+                  },
+                }),
+              })
+            );
+            if (registerResponse.ok) {
+              const result = await registerResponse.json() as any;
+              documentId = result.document?.id;
+              console.log(`[1002A] Registered document: ${documentId}`);
+            } else {
+              console.error(`[1002A] Registration failed: ${registerResponse.status}`);
+            }
+          } catch (e) {
+            console.error('[1002A] Document registration failed:', e);
+          }
+        }
+
+        results.push({ success: true, form, r2Key, documentId });
+      } catch (error) {
+        console.error(`[1002A] Error processing form ${form.name}:`, error);
+        results.push({
+          success: false,
+          form,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        });
+      }
+    }
+
+    return jsonResponse({
+      success: results.some(r => r.success),
+      apiNumber,
+      summary: {
+        total: forms.length,
+        downloaded: results.filter(r => r.success).length,
+        failed: results.filter(r => !r.success).length,
+      },
+      results,
+    });
+  } catch (error) {
+    console.error('[1002A] Error:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    }, 500);
+  }
+}
+
 async function handleFetchOrder(request: Request, env: Env): Promise<Response> {
   let body: FetchOrderRequest;
 
