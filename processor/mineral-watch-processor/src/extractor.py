@@ -6254,12 +6254,17 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         # Try to find JSON in the response - multiple strategies
         # Strategy 1: Look for ```json blocks
         if "```json" in json_str:
-            start = json_str.find("```json") + 7
+            json_start_pos = json_str.find("```json")
+            start = json_start_pos + 7
             end = json_str.find("```", start)
-            logger.info(f"Strategy 1: found ```json at 0, searching for closing ``` from pos {start}, found at {end}")
+            logger.info(f"Strategy 1: found ```json at {json_start_pos}, searching for closing ``` from pos {start}, found at {end}")
             if end != -1:
-                json_str = json_str[start:end].strip()
-                logger.info(f"Extracted JSON from ```json block, length: {len(json_str)}, first 100 chars: {repr(json_str[:100])}")
+                extracted = json_str[start:end].strip()
+                logger.info(f"Strategy 1 extracted length: {len(extracted)}, first 100 chars: {repr(extracted[:100])}")
+                logger.info(f"Strategy 1 extracted last 100 chars: {repr(extracted[-100:]) if len(extracted) > 100 else repr(extracted)}")
+                json_str = extracted
+            else:
+                logger.warning(f"Strategy 1: No closing ``` found after position {start}")
         # Strategy 2: Look for ``` blocks (without json specifier)
         elif json_str.startswith("```"):
             lines = json_str.split("\n")
@@ -6293,8 +6298,11 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                 logger.debug(f"Extracted JSON by brace matching, length: {len(json_str)}")
         
         try:
-            logger.info(f"Attempting to parse JSON, length: {len(json_str)}, first 200 chars: {repr(json_str[:200])}")
-            extracted_data = json.loads(json_str.strip())
+            final_json_str = json_str.strip()
+            logger.info(f"Attempting to parse JSON, length: {len(final_json_str)}")
+            logger.info(f"JSON first 300 chars: {repr(final_json_str[:300])}")
+            logger.info(f"JSON last 300 chars: {repr(final_json_str[-300:]) if len(final_json_str) > 300 else 'same as first'}")
+            extracted_data = json.loads(final_json_str)
             logger.info(f"Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}")
 
             # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections after the JSON
