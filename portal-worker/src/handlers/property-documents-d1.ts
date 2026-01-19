@@ -16,7 +16,8 @@ const PROPERTY_DOC_TYPES = [
   'affidavit', 'probate', 'power_of_attorney', 'judgment',
   'division_order', 'transfer_order', 'revenue_statement',
   // OCC Orders
-  'pooling_order', 'spacing_order', 'occ_order', 'increased_density_order', 'location_exception_order'
+  'pooling_order', 'spacing_order', 'occ_order', 'increased_density_order', 'location_exception_order',
+  'unitization_order', 'multi_unit_horizontal_order', 'change_of_operator_order', 'well_transfer'
 ];
 
 // Document types that show on well modals (snake_case format)

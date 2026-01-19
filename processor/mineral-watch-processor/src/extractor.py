@@ -211,6 +211,13 @@ TITLE_PATTERNS = [
     (r"LOCATION\s+EXCEPTION", "order"),
     (r"CHANGE\s+OF\s+OPERATOR", "order"),
     (r"MULTI[- ]?UNIT\s+HORIZONTAL", "order"),
+    (r"UNITIZATION\s+ORDER", "order"),
+    (r"UNIT\s+ORDER", "order"),
+    (r"OPERATING\s+UNIT", "order"),
+    (r"ENHANCED\s+RECOVERY\s+UNIT", "order"),
+    (r"SECONDARY\s+RECOVERY\s+UNIT", "order"),
+    (r"WATERFLOOD\s+UNIT", "order"),
+    (r"PRESSURE\s+MAINTENANCE\s+UNIT", "order"),
     (r"CAUSE\s+CD\s+NO", "order"),
     (r"BEFORE\s+THE\s+CORPORATION\s+COMMISSION", "order"),
     (r"ORDER\s+NO\.\s*\d+", "order"),
@@ -5567,10 +5574,10 @@ OCC ORDER TYPE DETECTION - be specific:
 - horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.
 - drilling_and_spacing_order: Look for "DRILLING AND SPACING" without "HORIZONTAL". Establishes vertical well units with setback distances (like 660ft from boundary). Often 160-acre or 640-acre units for vertical wells.
 - location_exception_order: Look for "LOCATION EXCEPTION" - allows wells closer to boundaries than standard setbacks. Shows specific footage from boundary lines.
-- pooling_order: Contains election options for mineral owners (participate, cash bonus, royalty conversion, non-consent penalties).
+- unitization_order: PRIORITY CHECK - Look for "UNITIZATION", "UNIT ORDER", "OPERATING UNIT", "ENHANCED RECOVERY", "SECONDARY RECOVERY", "WATERFLOOD UNIT", or "PRESSURE MAINTENANCE UNIT" in the title or order text. CRITICAL DISTINGUISHING FEATURES: (1) Creates a NAMED unit (e.g., "Carter Knox Subthrusted Morrow Operating Unit"), (2) Contains TRACT PARTICIPATION PERCENTAGES like "Tract 1: 0.99004430%", (3) Lists MULTIPLE TRACTS with percentage allocations, (4) Authorizes EOR/IOR operations (waterflooding, nitrogen injection, CO2 injection, pressure maintenance), (5) Often SUPERSEDES prior spacing orders, (6) Has ALLOCATION FORMULA with weighted factors (surface acreage, cumulative production, net acre-feet). This is NOT a pooling_order - pooling orders have ELECTION OPTIONS for mineral owners, unitization orders have PARTICIPATION PERCENTAGES for tracts.
+- pooling_order: Contains ELECTION OPTIONS for mineral owners to choose: participate (go working interest), cash bonus, royalty conversion, or accept non-consent penalties. Look for election deadline, bonus amounts per acre, and penalty provisions. Does NOT have tract participation percentages or enhanced recovery authorization. NOT unitization_order (which has participation percentages, not election options).
 - increased_density_order: Look for "INCREASED DENSITY" or "INCREASED WELL DENSITY" - authorizes additional wells in existing units.
 - change_of_operator_order: Look for "CHANGE OF OPERATOR" or "TRANSFER OF OPERATORSHIP" in the title. Key indicators: identifies previous operator and new operator, transfers operational responsibility, may modify prior orders to reflect new operator. NOT a pooling order (which creates new drilling units).
-- unitization_order: Look for "UNITIZATION", "OPERATING UNIT", "ENHANCED RECOVERY UNIT", "SECONDARY RECOVERY UNIT", or "WATERFLOOD UNIT" in the title. Key indicators: creates a named unit spanning multiple sections/tracts (e.g., "Carter Knox Subthrusted Morrow Operating Unit"), contains participation percentages for each tract, authorizes enhanced/secondary recovery operations (waterflooding, nitrogen injection, pressure maintenance), often supersedes prior spacing orders in the unit area. Has allocation formula (surface acres, cumulative production, net acre-feet). NOT pooling_order (which creates drilling units with election options) or multi_unit_horizontal_order (which allocates production for a single horizontal well).
 
 WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.

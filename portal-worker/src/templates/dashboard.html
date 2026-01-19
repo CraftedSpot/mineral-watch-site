@@ -5614,6 +5614,7 @@
             { value: 'tax_records', label: 'Tax Records' },
             { value: 'title_opinions', label: 'Title Opinions' },
             { value: 'trust', label: 'Trust Documents' },
+            { value: 'unitization_orders', label: 'Unitization Orders' },
             { value: 'well_completion_reports', label: 'Well Completion Reports' },
             { value: 'other', label: 'Other' }
         ];
@@ -5742,6 +5743,7 @@
                         'increased_density_order': 'increased_density',
                         'change_of_operator_order': 'change_of_operator',
                         'multi_unit_horizontal_order': 'multi_unit_horizontal',
+                        'unitization_order': 'unitization_orders',
                         'occ_order': 'other',  // Generic OCC orders go to other
 
                         // Well documents
@@ -6319,6 +6321,7 @@
                 'All Tracts': [],  // Uses 'tracts' but needs different rendering for unitization
                 'Exhibits': ['exhibits'],
                 'Reference Well': ['reference_well'],
+                'Unit Parties': ['parties'],  // Unitization order parties (applicant + other_parties)
                 'Other Information': []  // Catch-all for fields not in other groups
             };
             
@@ -6686,6 +6689,7 @@
                 'Ratification',
                 'All Tracts',
                 'Exhibits',
+                'Unit Parties',
                 'Other Information'
             ];
             
@@ -8359,6 +8363,44 @@
                                     </div>
                                     ${getConfidenceIndicator(fieldName, fieldScores)}
                                 </div>`;
+                        } else if (fieldName === 'parties' && typeof value === 'object' && data.doc_type === 'unitization_order') {
+                            // Special handling for parties (unitization orders)
+                            const applicant = value.applicant || {};
+                            const otherParties = value.other_parties || [];
+
+                            if (applicant.name || otherParties.length > 0) {
+                                hasVisibleFields = true;
+
+                                let applicantHtml = applicant.name ? `
+                                    <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+                                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #0369A1; margin-bottom: 6px;">Applicant</div>
+                                        <div style="font-weight: 600; color: #0C4A6E;">${escapeHtml(applicant.name)}</div>
+                                        ${applicant.attorneys && applicant.attorneys.length > 0 ? `
+                                            <div style="font-size: 0.875rem; color: #6B7280; margin-top: 6px;">
+                                                Attorneys: ${applicant.attorneys.map(a => escapeHtml(a)).join(', ')}
+                                            </div>
+                                        ` : ''}
+                                    </div>
+                                ` : '';
+
+                                let otherPartiesHtml = otherParties.length > 0 ? `
+                                    <div style="font-size: 0.75rem; text-transform: uppercase; color: #6B7280; margin-bottom: 8px;">Other Parties</div>
+                                    ${otherParties.map(p => `
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 6px; padding: 10px; margin-bottom: 8px;">
+                                            <div style="font-weight: 500; color: #374151;">${escapeHtml(p.name || '')}</div>
+                                            ${p.role ? `<div style="font-size: 0.875rem; color: #6B7280;">${escapeHtml(p.role)}</div>` : ''}
+                                            ${p.attorney ? `<div style="font-size: 0.875rem; color: #9CA3AF;">Attorney: ${escapeHtml(p.attorney)}</div>` : ''}
+                                        </div>
+                                    `).join('')}
+                                ` : '';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        ${applicantHtml}
+                                        ${otherPartiesHtml}
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
                         } else if (fieldName === 'location' && typeof value === 'object' && data.doc_type === 'unitization_order') {
                             // Special handling for location (unit boundaries for unitization orders)
                             const counties = value.counties || [];
@@ -10226,8 +10268,8 @@
                                 });
                                 sectionContent += `</div></div>`;
                             }
-                        } else if ((fieldName === 'notes' || fieldName === 'additional_info') && value) {
-                            // Special handling for notes/additional info
+                        } else if ((fieldName === 'notes' || fieldName === 'additional_info') && value && typeof value !== 'object') {
+                            // Special handling for notes/additional info (skip if object - needs custom handler)
                             hasVisibleFields = true;
                             const noteText = String(value).trim();
                             sectionContent += `
