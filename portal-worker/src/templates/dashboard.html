@@ -14256,7 +14256,138 @@
             // Manual property linking to wells - feature coming soon
             showToast('Manual property linking coming soon', 'info');
         }
-        
+
+        // Production Summary Functions (OTC data)
+        async function loadProductionSummary(apiNumber) {
+            console.log('[ProductionSummary] Loading for API:', apiNumber);
+            const container = document.getElementById('wellProductionSummary');
+
+            // Show loading state
+            container.innerHTML = `
+                <div class="production-summary-loading" style="text-align: center; padding: 20px; color: var(--slate-blue);">
+                    <div style="font-size: 14px;">Loading production data...</div>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/production-summary`, { credentials: 'include' });
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        renderNoProductionData('No production data available for this well');
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('[ProductionSummary] Data received:', data);
+
+                if (!data.hasPun || !data.production) {
+                    renderNoProductionData('No PUN linked - production data unavailable');
+                    return;
+                }
+
+                renderProductionSummary(data);
+
+            } catch (error) {
+                console.error('[ProductionSummary] Error:', error);
+                renderNoProductionData('Failed to load production data');
+            }
+        }
+
+        function renderNoProductionData(message) {
+            const container = document.getElementById('wellProductionSummary');
+            container.innerHTML = `
+                <div class="no-production-data">
+                    <div class="icon">📊</div>
+                    <div class="message">${escapeHtml(message)}</div>
+                    <div class="sub-message">Production summary requires PUN linkage via completion report</div>
+                </div>
+            `;
+        }
+
+        function renderProductionSummary(data) {
+            const container = document.getElementById('wellProductionSummary');
+            const prod = data.production;
+
+            // Format numbers with commas
+            const formatNum = (num) => num != null ? Number(num).toLocaleString() : '—';
+
+            // Determine status class
+            const statusClass = data.status?.toLowerCase() || 'inactive';
+
+            // Determine trend class and symbol
+            let trendClass = 'flat';
+            let trendSymbol = '→';
+            let trendText = '';
+            if (data.trend && data.trend !== 0) {
+                if (data.trend > 0) {
+                    trendClass = 'up';
+                    trendSymbol = '↑';
+                    trendText = `+${Math.round(data.trend)}% YoY`;
+                } else {
+                    trendClass = 'down';
+                    trendSymbol = '↓';
+                    trendText = `${Math.round(data.trend)}% YoY`;
+                }
+            }
+
+            // Build sparkline SVG if data available
+            let sparklineHtml = '';
+            if (data.sparkline && data.sparkline.length > 0) {
+                const points = data.sparkline;
+                const maxVal = Math.max(...points, 1);
+                const height = 32;
+                const width = 120;
+                const step = width / (points.length - 1 || 1);
+                const coords = points.map((val, i) => {
+                    const x = i * step;
+                    const y = height - (val / maxVal) * (height - 4);
+                    return `${x},${y}`;
+                }).join(' ');
+                sparklineHtml = `
+                    <svg class="sparkline-svg" width="${width}" height="${height}">
+                        <polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${coords}"/>
+                    </svg>
+                `;
+            }
+
+            // Build the HTML
+            container.innerHTML = `
+                <div class="production-summary-header">
+                    <div class="production-summary-title">Production Summary</div>
+                    ${data.pun ? `<span class="pun-badge">✓ PUN: ${escapeHtml(data.pun)}</span>` : ''}
+                </div>
+
+                <div class="production-data-grid">
+                    <div></div>
+                    <div class="grid-header">Last Month</div>
+                    <div class="grid-header">Last 12 Mo</div>
+                    <div class="grid-header">Lifetime</div>
+
+                    <div class="row-label oil">OIL</div>
+                    <div class="value-cell">${formatNum(prod.lastMonth?.oil)} <span>BBL</span></div>
+                    <div class="value-cell">${formatNum(prod.last12Mo?.oil)} <span>BBL</span></div>
+                    <div class="value-cell">${formatNum(prod.lifetime?.oil)} <span>BBL</span></div>
+
+                    <div class="row-label gas">GAS</div>
+                    <div class="value-cell">${formatNum(prod.lastMonth?.gas)} <span>MCF</span></div>
+                    <div class="value-cell">${formatNum(prod.last12Mo?.gas)} <span>MCF</span></div>
+                    <div class="value-cell">${formatNum(prod.lifetime?.gas)} <span>MCF</span></div>
+                </div>
+
+                <div class="status-trend-row">
+                    <div class="status-indicator">
+                        <span class="status-dot ${statusClass}"></span>
+                        <span class="status-text">${data.status || 'Unknown'}</span>
+                        ${trendText ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${trendText}</span>` : ''}
+                    </div>
+                    ${sparklineHtml}
+                </div>
+            `;
+        }
+
         // Linked Documents Functions
         function toggleLinkedDocuments(type) {
             const content = document.getElementById(type === 'property' ? 'linked-documents-content' : 'linked-documents-content-well');
