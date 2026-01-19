@@ -254,6 +254,9 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             
             # 7. Build result payload
             legal = extraction_result.get('legal_description', {})
+            # Handle case where LLM returns string instead of dict
+            if not isinstance(legal, dict):
+                legal = {}
             
             # Extract recording info for database columns
             recording_book = extraction_result.get('recording_book')
@@ -363,6 +366,9 @@ async def handle_multi_document(
             status = 'manual_review' if doc_confidence == 'low' else 'complete'
         
         legal = doc_data.get('legal_description', {})
+        # Handle case where LLM returns string instead of dict
+        if not isinstance(legal, dict):
+            legal = {}
 
         # Extract TRS - check both legal_description (deeds) and top-level (division orders)
         county = legal.get('county') or doc_data.get('county')
@@ -377,6 +383,11 @@ async def handle_multi_document(
         # Try old format as fallback
         if not recording_book or not recording_page:
             recording_info = doc_data.get('recording_info', {})
+            # Handle case where LLM returns string or list instead of dict
+            if isinstance(recording_info, list) and len(recording_info) > 0:
+                recording_info = recording_info[0] if isinstance(recording_info[0], dict) else {}
+            elif not isinstance(recording_info, dict):
+                recording_info = {}
             recording_book = recording_book or recording_info.get('book')
             recording_page = recording_page or recording_info.get('page')
 
