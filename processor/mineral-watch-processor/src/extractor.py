@@ -312,12 +312,13 @@ def extract_text_from_pdf(pdf_path: str) -> list[str]:
         return []
 
 
-def heuristic_page_check(page_text: str) -> dict:
+def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
     """
     Quick regex-based pre-classification of a page.
 
     Args:
         page_text: OCR or extracted text from a single page
+        page_index: Page index for logging purposes
 
     Returns:
         dict with heuristic_type, heuristic_is_start, matched_title
@@ -330,21 +331,30 @@ def heuristic_page_check(page_text: str) -> dict:
     }
 
     if not page_text:
+        logger.info(f"Page {page_index}: heuristic_page_check - NO TEXT (empty)")
         return result
 
     # Normalize text for matching (but preserve original for title extraction)
     text_upper = page_text.upper()
 
+    # DEBUG: Log text length and check for literal "FORMATION RECORD"
+    logger.info(f"Page {page_index}: heuristic_page_check - text length: {len(page_text)}")
+    has_formation_record_literal = "FORMATION RECORD" in text_upper
+    logger.info(f"Page {page_index}: Literal 'FORMATION RECORD' in text: {has_formation_record_literal}")
+
     # CRITICAL: Check for continuation patterns FIRST, before checking titles
     # This ensures "FORMATION RECORD" on page 2 of Form 1002A is caught
     # even if other title-like text exists on the same page
     for pattern in CONTINUATION_PATTERNS:
-        if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
-            logger.info(f"Continuation pattern '{pattern}' detected - marking as continuation page")
+        match = re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE)
+        logger.info(f"Page {page_index}: Checking continuation pattern '{pattern}' -> match: {match is not None}")
+        if match:
+            logger.info(f"Page {page_index}: CONTINUATION MATCHED '{pattern}' - returning is_continuation=True")
             result["heuristic_is_start"] = False
             result["is_continuation"] = True
             result["heuristic_type"] = "permit"  # Form 1002A continuation pages are permits
             result["confidence"] = 0.9  # High confidence this is NOT a start
+            logger.info(f"Page {page_index}: heuristic result: {result}")
             return result  # Return immediately - continuation takes priority
 
     # Check for document titles
@@ -355,6 +365,7 @@ def heuristic_page_check(page_text: str) -> dict:
             result["matched_title"] = match.group(0).strip()
             result["heuristic_is_start"] = True
             result["confidence"] = 0.8
+            logger.info(f"Page {page_index}: Title pattern matched: '{match.group(0)}' -> type: {doc_type}")
             break
 
     # Check for start indicators (even if we didn't find a title)
@@ -365,6 +376,7 @@ def heuristic_page_check(page_text: str) -> dict:
                 result["confidence"] = 0.5
             break
 
+    logger.info(f"Page {page_index}: heuristic result: {result}")
     return result
 
 
@@ -442,12 +454,14 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
     # First try heuristics if we have text
     heuristic_result = None
     if page_text:
-        heuristic_result = heuristic_page_check(page_text)
+        logger.info(f"Page {page_index}: Running heuristic check (text length: {len(page_text)})")
+        heuristic_result = heuristic_page_check(page_text, page_index)
+        logger.info(f"Page {page_index}: Heuristic result: {heuristic_result}")
 
         # If heuristics found a high-confidence match, use it
         if heuristic_result["confidence"] >= 0.8 and heuristic_result["heuristic_type"]:
-            logger.debug(f"Page {page_index}: Heuristic match - {heuristic_result['heuristic_type']} "
-                        f"(title: {heuristic_result['matched_title']})")
+            logger.info(f"Page {page_index}: Using heuristic match - {heuristic_result['heuristic_type']} "
+                        f"(title: {heuristic_result['matched_title']}) - SKIPPING HAIKU")
             return {
                 "page_index": page_index,
                 "coarse_type": heuristic_result["heuristic_type"],
@@ -469,7 +483,7 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
         # CRITICAL: If continuation pattern matched, return immediately - don't let Haiku override
         # This catches cases like "FORMATION RECORD" (page 2 of Form 1002A) where we KNOW it's a continuation
         if heuristic_result.get("is_continuation"):
-            logger.debug(f"Page {page_index}: Continuation pattern matched - NOT a document start")
+            logger.info(f"Page {page_index}: CONTINUATION detected - returning is_document_start=False - SKIPPING HAIKU")
             return {
                 "page_index": page_index,
                 "coarse_type": "permit",  # Form 1002A continuation pages are permits
@@ -485,10 +499,14 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
                     "has_legal_description": False,
                     "has_recording_stamp": False
                 },
-                "classification_method": "heuristic_continuation"
+                "classification_method": "heuristic_continuation",
+                "is_continuation": True  # Propagate this flag
             }
+    else:
+        logger.info(f"Page {page_index}: NO page_text provided - will use Haiku")
 
     # Fall back to Haiku for classification
+    logger.info(f"Page {page_index}: Calling Haiku for classification (heuristic didn't match)")
     try:
         with open(image_path, 'rb') as img:
             img_data = base64.b64encode(img.read()).decode()
@@ -6486,8 +6504,26 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # This is critical for detecting "FORMATION RECORD" on page 2 of Form 1002A
     page_texts = extract_text_from_pdf(pdf_path) if pdf_path else None
 
+    # Log extracted text info
+    if page_texts:
+        logger.info(f"Extracted text from {len(page_texts)} pages")
+        for i, text in enumerate(page_texts):
+            logger.info(f"Page {i}: text length = {len(text)} chars")
+            # Log first 200 chars to see what we got
+            preview = text[:200].replace('\n', ' ').strip() if text else "(empty)"
+            logger.info(f"Page {i}: text preview: {preview}...")
+    else:
+        logger.warning(f"NO page_texts extracted from PDF - heuristics will not run!")
+
     # Get page-level classifications using heuristics first, then Haiku if needed
     page_classifications = await classify_pages(image_paths, page_texts)
+
+    # Log final page classifications before splitting
+    logger.info(f"Final page classifications before split:")
+    for pc in page_classifications:
+        logger.info(f"  Page {pc.get('page_index')}: is_document_start={pc.get('is_document_start')}, "
+                   f"start_confidence={pc.get('start_confidence')}, coarse_type={pc.get('coarse_type')}, "
+                   f"is_continuation={pc.get('is_continuation')}, method={pc.get('classification_method')}")
 
     # Split into logical documents
     split_result = split_pages_into_documents(page_classifications)
