@@ -720,7 +720,123 @@
         .date-item { text-align: center; }
         .date-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px; }
         .date-value { font-size: 12px; font-weight: 600; color: var(--oil-navy); }
-        
+
+        /* Production Summary Box (OTC data) */
+        .production-summary-box {
+            background: var(--paper);
+            border-radius: 8px;
+            padding: 16px;
+            margin: 16px 0;
+            border: 1px solid var(--border);
+        }
+        .production-summary-box.loading {
+            min-height: 120px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .production-summary-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .production-summary-title {
+            font-weight: 600;
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--oil-navy);
+        }
+        .pun-badge {
+            background: rgba(22, 101, 52, 0.1);
+            color: #166534;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .production-data-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+        .production-data-grid .grid-header {
+            color: var(--slate-blue);
+            text-align: right;
+            font-size: 10px;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        .production-data-grid .row-label {
+            font-weight: 600;
+        }
+        .production-data-grid .row-label.oil { color: #166534; }
+        .production-data-grid .row-label.gas { color: #dc2626; }
+        .production-data-grid .value-cell {
+            text-align: right;
+            font-weight: 600;
+        }
+        .production-data-grid .value-cell span {
+            color: var(--slate-blue);
+            font-weight: 400;
+        }
+        .status-trend-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+        }
+        .status-dot.active { background: #22c55e; }
+        .status-dot.stale { background: #f59e0b; }
+        .status-dot.inactive { background: #ef4444; }
+        .status-text {
+            font-weight: 500;
+            font-size: 13px;
+        }
+        .trend-indicator {
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .trend-indicator.down { color: #dc2626; }
+        .trend-indicator.up { color: #166534; }
+        .trend-indicator.flat { color: var(--slate-blue); }
+        .sparkline-svg { display: block; }
+        .no-production-data {
+            text-align: center;
+            padding: 20px;
+            color: var(--slate-blue);
+        }
+        .no-production-data .icon { font-size: 24px; margin-bottom: 8px; opacity: 0.5; }
+        .no-production-data .message { font-size: 14px; margin-bottom: 4px; }
+        .no-production-data .sub-message { font-size: 12px; opacity: 0.7; }
+        .analyze-cta {
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: var(--slate-blue);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .analyze-cta:hover { background: var(--oil-navy); }
+
         /* Card Footer Actions */
         .card-footer { padding: 16px 24px 24px; display: flex; gap: 12px; }
         .action-btn { flex: 1; padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; }
