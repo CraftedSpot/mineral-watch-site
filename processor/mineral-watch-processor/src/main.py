@@ -227,10 +227,18 @@ async def process_document(client: APIClient, doc: dict) -> dict:
 
         logger.info(f"Prepared {page_count} image(s) for extraction")
 
-        # 3. Extract with Claude Vision
-        # Pass PDF path for deterministic splitting (only for actual PDFs)
-        pdf_path_for_splitting = file_path if content_type == 'application/pdf' else None
-        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting)
+        # 3. Determine pipeline type
+        # Use flexible pipeline for images, phone uploads, or scan-only PDFs
+        use_flexible = should_use_flexible_pipeline(doc, content_type)
+        if use_flexible:
+            logger.info(f"Using FLEXIBLE pipeline for {content_type} (phone/image upload)")
+        else:
+            logger.info(f"Using STRICT pipeline for {content_type}")
+
+        # 4. Extract with Claude Vision
+        # Pass PDF path for deterministic splitting (only for strict PDFs)
+        pdf_path_for_splitting = file_path if (content_type == 'application/pdf' and not use_flexible) else None
+        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible)
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):
@@ -275,9 +283,15 @@ async def process_document(client: APIClient, doc: dict) -> dict:
             display_name = generate_display_name(extraction_result)
             logger.info(f"Generated display_name for {doc_id}: {display_name}")
             
-            # 6. Determine status based on confidence
+            # 6. Determine status based on confidence and pipeline type
             doc_confidence = extraction_result.get('document_confidence', 'medium')
-            if doc_confidence == 'low':
+            pipeline_type = extraction_result.get('_pipeline_type', 'strict')
+
+            # Flexible pipeline always goes to manual_review (user should verify)
+            if pipeline_type == 'flexible':
+                status = 'manual_review'
+                logger.info(f"Flexible pipeline: marking for review")
+            elif doc_confidence == 'low':
                 status = 'manual_review'
             else:
                 status = 'complete'
@@ -321,7 +335,8 @@ async def process_document(client: APIClient, doc: dict) -> dict:
                 'field_scores': extraction_result.get('field_scores'),
                 'fields_needing_review': extraction_result.get('fields_needing_review', []),
                 'extraction_error': None,  # No error for successful extractions
-                'rotation_applied': extraction_result.get('rotation_applied', 0)
+                'rotation_applied': extraction_result.get('rotation_applied', 0),
+                'pipeline_type': pipeline_type  # 'strict' or 'flexible'
             }
         
         # 8. Update database
