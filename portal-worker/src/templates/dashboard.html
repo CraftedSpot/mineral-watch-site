@@ -6291,10 +6291,8 @@
                 'Affected Sections': ['affected_sections'],
                 'Purchaser': ['purchaser'],
                 'Status': ['status', 'status_date', 'occ_file_number'],
-                // Well Transfer sections
+                // Well Transfer sections (Former Operator, New Operator already defined in Change of Operator section)
                 'Transfer Information': ['transfer_info'],
-                'Former Operator': ['former_operator'],
-                'New Operator': ['new_operator'],
                 'Wells Transferred': ['wells'],
                 'Transfer Summary': ['summary'],
                 'Notes': ['notes', 'additional_info'],
@@ -6649,10 +6647,8 @@
                 'Affected Sections',
                 'Purchaser',
                 'Status',
-                // Well Transfer sections
+                // Well Transfer sections (Former Operator, New Operator already defined above for Change of Operator)
                 'Transfer Information',
-                'Former Operator',
-                'New Operator',
                 'Wells Transferred',
                 'Transfer Summary',
                 'Other Information'
@@ -7928,8 +7924,8 @@
                                         ${initialCost ? `<div style="font-size: 13px; color: #92400E; font-weight: 500; margin-top: 8px;">Est. Well Cost: $${initialCost.toLocaleString()}</div>` : ''}
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'former_operator' && typeof value === 'object') {
-                            // Special handling for former operator (change of operator orders)
+                        } else if (fieldName === 'former_operator' && typeof value === 'object' && data.doc_type !== 'well_transfer') {
+                            // Special handling for former operator (change of operator orders) - NOT for well_transfer
                             hasVisibleFields = true;
                             const name = value.name || '';
                             const address = value.address || '';
@@ -7951,8 +7947,8 @@
                                         </div>
                                     </div>
                                 </div>`;
-                        } else if (fieldName === 'new_operator' && typeof value === 'object') {
-                            // Special handling for new operator (change of operator orders)
+                        } else if (fieldName === 'new_operator' && typeof value === 'object' && data.doc_type !== 'well_transfer') {
+                            // Special handling for new operator (change of operator orders) - NOT for well_transfer
                             hasVisibleFields = true;
                             const name = value.name || '';
                             const address = value.address || '';
@@ -9640,7 +9636,7 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'wells' && Array.isArray(value) && data.doc_type === 'well_transfer') {
+                        } else if (fieldName === 'wells' && Array.isArray(value) && (data.doc_type === 'well_transfer' || sectionName === 'Wells Transferred')) {
                             // Special handling for wells array (well transfer)
                             if (value.length > 0) {
                                 hasVisibleFields = true;
@@ -10172,7 +10168,7 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'transfer_info' && typeof value === 'object' && data.doc_type === 'well_transfer') {
+                        } else if (fieldName === 'transfer_info' && typeof value === 'object' && (data.doc_type === 'well_transfer' || sectionName === 'Transfer Information')) {
                             // Special handling for transfer_info object (well transfer)
                             const formNumber = value.form_number || '';
                             const transferDate = value.transfer_date || '';
@@ -10254,9 +10250,11 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'summary' && typeof value === 'object' && data.doc_type === 'well_transfer') {
+                        } else if (fieldName === 'summary' && typeof value === 'object' && (data.doc_type === 'well_transfer' || sectionName === 'Transfer Summary')) {
                             // Special handling for summary object (well transfer)
-                            const counties = value.counties_affected || [];
+                            // Filter out placeholder values like "Unknown", "Not specified", etc.
+                            const placeholders = ['unknown', 'not specified', 'n/a', 'none', 'not available'];
+                            const counties = (value.counties_affected || []).filter(c => c && !placeholders.includes(String(c).toLowerCase()));
                             const wellTypes = value.well_types || {};
                             const oilCount = wellTypes.oil_count || 0;
                             const gasCount = wellTypes.gas_count || 0;
@@ -10753,7 +10751,8 @@
                     // Confidence Section with collapsible details
                     if (fieldScores && Object.keys(fieldScores).length > 0) {
                         const overallScore = calculateOverallScore(fieldScores);
-                        const confidenceLevel = doc.confidence || 'medium';
+                        // Derive confidence level from calculated score for consistency with displayed percentage
+                        const confidenceLevel = overallScore >= 0.85 ? 'high' : overallScore >= 0.70 ? 'medium' : 'low';
                         const confidenceText = confidenceLevel.charAt(0).toUpperCase() + confidenceLevel.slice(1);
                         
                         content += '<div class="confidence-section">';
