@@ -281,6 +281,11 @@ CONTINUATION_PATTERNS = [
     r"\bPage\s+2\s+of\s+2\b",  # "Page 2 of 2"
 ]
 
+# Minimum text length required for certain patterns to be treated as document start
+# If text is shorter than this AND only matches certain patterns (like "ORDER NO."),
+# the page is treated as continuation (likely a scanned page with only header extracted)
+MIN_TEXT_FOR_ORDER_START = 100  # Characters - "ORDER NO. XXXXX" alone is ~17 chars
+
 
 def extract_text_from_pdf(pdf_path: str) -> list[str]:
     """
@@ -362,6 +367,23 @@ def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
             result["confidence"] = 0.9  # High confidence this is NOT a start
             logger.info(f"Page {page_index}: heuristic result: {result}")
             return result  # Return immediately - continuation takes priority
+
+    # Check for short pages with only "ORDER NO." header
+    # Multi-page OCC orders have "ORDER NO. XXXXX" on every page as a header
+    # If extracted text is very short and only contains this header, it's a continuation
+    # (The actual content is scanned/image-based and didn't extract as text)
+    if len(page_text.strip()) < MIN_TEXT_FOR_ORDER_START:
+        order_no_match = re.search(r"ORDER\s+NO\.\s*\d+", text_upper)
+        # Check if "ORDER NO." is present but NOT "BEFORE THE CORPORATION COMMISSION" (which indicates page 1)
+        has_commission_header = re.search(r"BEFORE\s+THE\s+CORPORATION\s+COMMISSION", text_upper)
+        if order_no_match and not has_commission_header:
+            logger.info(f"Page {page_index}: Short page ({len(page_text)} chars) with only ORDER NO. header - treating as continuation")
+            result["heuristic_is_start"] = False
+            result["is_continuation"] = True
+            result["heuristic_type"] = "order"  # It's part of an order
+            result["confidence"] = 0.85
+            logger.info(f"Page {page_index}: heuristic result: {result}")
+            return result
 
     # Check for document titles
     for pattern, doc_type in TITLE_PATTERNS:
