@@ -6518,7 +6518,7 @@ If these pages don't contain significant new information, return: {{"additional_
     return extracted_data or {"error": "Failed to extract data from document"}
 
 
-async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False) -> dict:
     """
     Main entry point for document extraction.
     Uses two-stage pipeline: Stage 1 (page-level classification + splitting) and Stage 2 (per-document extraction).
@@ -6527,6 +6527,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         image_paths: List of paths to page images
         _rotation_attempted: Internal flag to prevent infinite rotation loops
         pdf_path: Optional path to original PDF for deterministic text-based splitting
+        flexible_pipeline: If True, skip rigid splitting and let Sonnet handle everything in one pass.
+                          Use for phone images, direct image uploads, or when strict splitting fails.
 
     Returns:
         Combined extraction results
@@ -6586,9 +6588,42 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 rotated_paths.append(img_path)
 
         logger.info(f"Re-running extraction with {len(rotated_paths)} rotated image(s)")
-        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path)
+        result = await extract_document_data(rotated_paths, _rotation_attempted=True, pdf_path=pdf_path, flexible_pipeline=flexible_pipeline)
         result["rotation_applied"] = rotation_needed
         return result
+
+    # =========================================================================
+    # FLEXIBLE PIPELINE: Skip rigid splitting, let Sonnet handle everything
+    # =========================================================================
+    if flexible_pipeline:
+        logger.info(f"Using FLEXIBLE pipeline - skipping rigid splitting, sending all {len(image_paths)} pages to Sonnet")
+
+        try:
+            # Go directly to Sonnet extraction without page classification or splitting
+            result = await extract_single_document(image_paths, 1, len(image_paths))
+            result["_pipeline_type"] = "flexible"
+            result["_page_count"] = len(image_paths)
+
+            # Flexible pipeline is more forgiving - if we got a result, it's usable
+            # Mark for review but don't fail
+            if result.get("doc_type") in (None, "other", "unknown"):
+                result["document_confidence"] = "low"
+
+            logger.info(f"Flexible pipeline complete: doc_type={result.get('doc_type')}, confidence={result.get('document_confidence')}")
+            return result
+
+        except Exception as e:
+            # Flexible pipeline should never fail - return partial result
+            logger.error(f"Flexible pipeline extraction failed: {e}")
+            return {
+                "doc_type": "other",
+                "document_confidence": "low",
+                "_pipeline_type": "flexible",
+                "_page_count": len(image_paths),
+                "_extraction_error": str(e),
+                "ai_observations": f"Extraction failed: {str(e)}. Please review manually.",
+                "skip_extraction": False  # Still create a document record
+            }
 
     # =========================================================================
     # STAGE 1: Page-level classification and splitting (Two-Stage Pipeline)
