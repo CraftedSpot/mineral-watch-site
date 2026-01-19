@@ -47,6 +47,45 @@ function errorResponse(message: string, status: number, env: Env) {
   return jsonResponse({ error: message }, status, env);
 }
 
+/**
+ * Normalize OTC Production Unit Number for database crosswalk joins.
+ * Preserves leading zeros (they likely encode county/district info).
+ *
+ * Examples:
+ *   "049-14039-1" → "049140391"
+ *   "059-205781" → "059205781"
+ *   "123-059319-0-1244" → "12305931901244"
+ */
+function normalizeOtcPun(pun: string | null | undefined): string | null {
+  if (!pun) return null;
+  return pun.replace(/[-\s]/g, '');  // Remove dashes and spaces
+}
+
+/**
+ * Post-process extracted data to add normalized fields for database joins.
+ * Called after extraction, before storing to D1.
+ */
+function postProcessExtractedData(extractedData: any): any {
+  if (!extractedData) return extractedData;
+
+  // Normalize OTC PUN if present
+  if (extractedData.otc_prod_unit_no) {
+    extractedData.otc_prod_unit_no_normalized = normalizeOtcPun(extractedData.otc_prod_unit_no);
+    console.log(`[Normalize] OTC PUN: "${extractedData.otc_prod_unit_no}" → "${extractedData.otc_prod_unit_no_normalized}"`);
+  }
+
+  // Handle allocation_factors array (completion reports may have PUN per section)
+  if (Array.isArray(extractedData.allocation_factors)) {
+    for (const factor of extractedData.allocation_factors) {
+      if (factor.otc_prod_unit_no) {
+        factor.otc_prod_unit_no_normalized = normalizeOtcPun(factor.otc_prod_unit_no);
+      }
+    }
+  }
+
+  return extractedData;
+}
+
 // Allowed file types for document uploads
 const ALLOWED_FILE_TYPES: Record<string, { extension: string; canViewInline: boolean }> = {
   'application/pdf': { extension: 'pdf', canViewInline: true },
@@ -1384,7 +1423,7 @@ export default {
         
         const {
           status,
-          extracted_data,
+          extracted_data: raw_extracted_data,
           doc_type,
           county,
           section,
@@ -1400,6 +1439,9 @@ export default {
           fields_needing_review,
           rotation_applied
         } = data;
+
+        // Post-process extracted data (normalize PUNs, etc.)
+        const extracted_data = postProcessExtractedData(raw_extracted_data);
 
         // Update the document with extraction results
         // Handle both success and failure cases
@@ -1602,6 +1644,11 @@ export default {
         for (const child of children) {
           const childId = 'doc_' + Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
           childIds.push(childId);
+
+          // Post-process extracted data for child (normalize PUNs, etc.)
+          if (child.extracted_data) {
+            child.extracted_data = postProcessExtractedData(child.extracted_data);
+          }
 
           await env.WELLS_DB.prepare(`
             INSERT INTO documents (
