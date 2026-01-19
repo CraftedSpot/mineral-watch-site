@@ -3573,6 +3573,214 @@ SECOND MULTI-UNIT HORIZONTAL ORDER EXAMPLE (Two sections, simpler case):
   "document_confidence": "high"
 }
 
+For UNITIZATION ORDER (OCC order creating an enhanced recovery or secondary recovery unit):
+NOTE: Unitization orders create operating units spanning multiple sections/tracts for enhanced recovery operations
+(waterflooding, nitrogen injection, pressure maintenance). Each tract has a participation percentage that determines
+its share of unit production. These orders often supersede prior spacing orders in the unit area.
+
+CRITICAL - TRACTS EXTRACTION:
+- MUST extract ALL tracts with their participation percentages
+- These percentages are how mineral owners get paid - missing tracts breaks revenue calculation
+- Watch for split tracts (7A, 7B) which represent same acreage split between formation intervals
+- Preserve full precision on participation_percent (e.g., 0.99004430, not 0.99)
+
+PROPERTY LINKING:
+- Each tract in the tracts[] array links to the document for that legal description
+- The sections[] in location provide the overall unit boundary
+- Counties array shows all counties the unit spans
+
+{
+  "doc_type": "unitization_order",
+  "doc_type_display": "Unitization Order",
+
+  "order_info": {
+    "cause_number": "CD 2022-002035",
+    "order_number": "731833",
+    "applicant": "Mack Energy Co.",
+    "hearing_date": "2022-12-15",
+    "order_date": "2023-01-31",
+    "effective_date": "2022-12-15",
+    "alj_name": "Michael Norris"
+  },
+
+  "unit_info": {
+    "unit_name": "Carter Knox Subthrusted Morrow Operating Unit",
+    "unit_type": "Enhanced Recovery Unit",
+    "unit_subtype": "enhanced_recovery",
+    "unit_operator": "Mack Energy Co.",
+    "total_acres": 5026,
+    "tract_count": 40
+  },
+
+  "location": {
+    "counties": ["Grady", "Stephens"],
+    "state": "Oklahoma",
+    "sections": [
+      {
+        "section": 5,
+        "township": "3N",
+        "range": "5W",
+        "county": "Grady",
+        "quarters": "all",
+        "acres_in_unit": 378.19
+      },
+      {
+        "section": 6,
+        "township": "3N",
+        "range": "5W",
+        "county": "Grady",
+        "quarters": "NW/4 portions",
+        "acres_in_unit": 86.22
+      },
+      {
+        "section": 2,
+        "township": "2N",
+        "range": "5W",
+        "county": "Stephens",
+        "quarters": "portions",
+        "acres_in_unit": 320.00
+      }
+    ]
+  },
+
+  "target_formations": [
+    {
+      "name": "Subthrusted Morrow",
+      "is_primary": true,
+      "depth_top_ft": 9900,
+      "depth_bottom_ft": 10628,
+      "includes": ["Primrose", "1st Repeated Morrow", "2nd Repeated Morrow", "Downthrusted Morrow", "Deep Morrow", "Deep Primrose", "Subthrusted Morrow"]
+    }
+  ],
+
+  "reference_well": {
+    "well_name": "Harrison Deep 1",
+    "api_number": "051-22408",
+    "section": 28,
+    "township": "3N",
+    "range": "5W",
+    "county": "Grady",
+    "quarters": "NE/4 NE/4",
+    "depth_interval_top_ft": 9900,
+    "depth_interval_bottom_ft": 10628
+  },
+
+  "authorized_operations": {
+    "primary_recovery": false,
+    "secondary_recovery": true,
+    "enhanced_recovery": true,
+    "injection_wells_permitted": true,
+    "specific_methods": ["pressure maintenance", "waterflooding", "cycling", "nitrogen injection"]
+  },
+
+  "allocation_formula": {
+    "factors": [
+      {"factor_name": "Useable Wellbores", "weight_percent": 20},
+      {"factor_name": "Remaining Primary (BOE)", "weight_percent": 20},
+      {"factor_name": "Surface Acreage", "weight_percent": 20},
+      {"factor_name": "Net Acre-Ft", "weight_percent": 20},
+      {"factor_name": "Cumulative Production", "weight_percent": 20}
+    ],
+    "as_of_date": "2021-05-31"
+  },
+
+  "tracts": [
+    {
+      "tract_number": "1",
+      "description": "NW4 Section 6-T3N-R5W, save and except 86.22 acres",
+      "section": 6,
+      "township": "3N",
+      "range": "5W",
+      "county": "Grady",
+      "acres": 86.22,
+      "participation_percent": 0.99004430
+    },
+    {
+      "tract_number": "7A",
+      "description": "Section 8-T3N-R5W, save and except 581.50 acres, limited to the Repeated Morrow portion",
+      "section": 8,
+      "township": "3N",
+      "range": "5W",
+      "county": "Grady",
+      "acres": 581.50,
+      "participation_percent": 2.66164432,
+      "formation_qualifier": "limited to Repeated Morrow portion of the Subthrusted Morrow"
+    },
+    {
+      "tract_number": "7B",
+      "description": "Section 8-T3N-R5W, save and except 581.50 acres, Subthrusted Morrow less the Repeated Morrow",
+      "section": 8,
+      "township": "3N",
+      "range": "5W",
+      "county": "Grady",
+      "acres": 581.50,
+      "participation_percent": 6.69121198,
+      "formation_qualifier": "Subthrusted Morrow less the Repeated Morrow"
+    }
+  ],
+
+  "ratification": {
+    "lessee_percent": 66.28,
+    "owner_percent": 64.97,
+    "required_percent": 63,
+    "effective_method": "voluntary ratification"
+  },
+
+  "related_orders": [
+    {"order_number": "163830", "relationship": "supersedes"},
+    {"order_number": "270590", "relationship": "supersedes"},
+    {"order_number": "307260", "relationship": "supersedes"},
+    {"order_number": "439779", "relationship": "supersedes"},
+    {"order_number": "431164", "relationship": "supersedes", "description": "modified by Orders Nunc Pro Tunc"},
+    {"order_number": "432585", "relationship": "supersedes", "description": "modified by Orders Nunc Pro Tunc"}
+  ],
+
+  "exhibits": [
+    {"exhibit_letter": "A", "description": "Unit Boundary Map"},
+    {"exhibit_letter": "B", "description": "Tracts and Tract Participation Schedule"}
+  ],
+
+  "termination_provisions": {
+    "lease_extension_days": 90,
+    "salvage_period_months": 6,
+    "temporarily_abandoned_months": 6
+  },
+
+  "parties": {
+    "applicant": {
+      "name": "Mack Energy Co.",
+      "attorneys": ["John Smith", "Jane Doe"]
+    },
+    "other_parties": [
+      {
+        "name": "XYZ Oil Company",
+        "role": "Working Interest Owner",
+        "attorney": "Robert Jones"
+      }
+    ]
+  },
+
+  "commissioners": {
+    "chairman": "Dana L. Murphy",
+    "vice_chairman": "Bob Anthony",
+    "commissioner": "J. Todd Hiett"
+  },
+
+  "key_takeaway": "Mack Energy Co. created the Carter Knox Subthrusted Morrow Operating Unit covering 5,026 acres across 40 tracts in Grady and Stephens Counties. If your minerals are in one of the included sections, your share of unit production is determined by your tract's participation percentage shown in Exhibit B. This unit supersedes all prior Morrow spacing orders in the area.",
+
+  "ai_observations": "This is an enhanced recovery unit for the Subthrusted Morrow formation, authorizing nitrogen injection to increase oil and gas recovery. The unit spans two counties and 40 tracts with a sophisticated 5-factor allocation formula.\n\nFor mineral owners: Your participation percentage determines your share of ALL unit production, regardless of which specific well produces it. If you own minerals in Section 8-T3N-R5W, note that tracts 7A and 7B split the same acreage between different Morrow intervals - you may have interests in both.\n\nThe 90-day lease extension provision means if unit operations cease, your lease gets a 90-day extension to allow the lessee to resume operations before the lease terminates.\n\nAll prior Morrow spacing orders in the unit area (over 30 orders listed) are superseded by this unit.",
+
+  "field_scores": {
+    "order_info": "high",
+    "unit_info": "high",
+    "location": "high",
+    "target_formations": "high",
+    "tracts": "high",
+    "allocation_formula": "high"
+  },
+  "document_confidence": "high"
+}
+
 For AFFIDAVIT OF HEIRSHIP (sworn statement identifying heirs of deceased mineral owner):
 NOTE: Analyze this document as a title attorney would when building a chain of title for a client.
 This document establishes who inherits mineral rights when someone dies - it is a critical link in the ownership chain.
