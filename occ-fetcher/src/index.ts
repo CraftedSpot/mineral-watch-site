@@ -14,17 +14,26 @@ export default {
       return new Response(null, {
         headers: {
           'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST, OPTIONS',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
           'Access-Control-Allow-Headers': 'Content-Type, X-API-Key'
         }
       });
     }
 
+    const url = new URL(request.url);
+
+    // GET endpoints
+    if (request.method === 'GET') {
+      if (url.pathname === '/get-1002a-forms') {
+        return handleGet1002AForms(request, env);
+      }
+      return jsonResponse({ error: 'Not found' }, 404);
+    }
+
+    // POST endpoints
     if (request.method !== 'POST') {
       return jsonResponse({ error: 'Method not allowed' }, 405);
     }
-
-    const url = new URL(request.url);
 
     if (url.pathname === '/fetch-order') {
       return handleFetchOrder(request, env);
@@ -45,6 +54,11 @@ export default {
       return handleTestWellRecords(request);
     }
 
+    // 1002A Completion Report endpoints
+    if (url.pathname === '/download-1002a-forms') {
+      return handleDownload1002AForms(request, env);
+    }
+
     return jsonResponse({ error: 'Not found' }, 404);
   }
 };
@@ -54,6 +68,7 @@ interface Env {
   DOCUMENTS_WORKER_URL: string;
   UPLOADS_BUCKET: R2Bucket;
   DOCUMENTS_WORKER: Fetcher;
+  OCC_CACHE?: KVNamespace;
 }
 
 interface FetchOrderRequest {
