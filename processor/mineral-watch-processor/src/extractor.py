@@ -1449,20 +1449,26 @@ EXTRACTION NOTES FOR FORM 1000:
 - For VERTICAL wells: omit bottom_hole_location, section_crossings, lateral_direction, lateral_length_ft
 - BHL coordinates are CRITICAL for mapping lateral wellbore paths
 
-For COMPLETION REPORTS (Form 1002A - documents that a well has been drilled and completed):
+For COMPLETION REPORTS (Form 1002A/1002C - documents that a well has been drilled and completed):
 
 DOCUMENT IDENTIFICATION:
-- Title contains "COMPLETION REPORT" or "FORM 1002A"
+- Title contains "COMPLETION REPORT" or "FORM 1002A" (initial) or "FORM 1002C" (recompletion)
 - Has "LEASE NAME" and "WELL NO" fields
 - Shows perforation intervals, formations, and production test results
 - Contains OCC file number and approval stamps
 
+REPORT TYPE DETECTION:
+- Form 1002A or title says "COMPLETION REPORT" without "RECOMPLETION" → report_type: "initial"
+- Form 1002C or title says "RECOMPLETION REPORT" → report_type: "recompletion"
+- This helps users distinguish original completions from later recompletions to new zones
+
 EXTRACTION PRIORITIES:
 1. Well identification (API, name, PUN for OTC crosswalk)
-2. Location (surface, and bottom hole if horizontal)
-3. Formation zones with per-zone data (CRITICAL for commingled wells)
-4. Initial production test results
-5. Key dates (spud, completion, first production)
+2. Report type (initial vs recompletion)
+3. Location (surface, and bottom hole if horizontal)
+4. Formation zones with per-zone data (CRITICAL for commingled wells)
+5. Initial production test results
+6. Key dates (spud, completion, first production)
 
 WELL NAME EXTRACTION (CRITICAL):
 - Form 1002A has separate fields: "LEASE NAME" and "WELL NO"
@@ -1503,6 +1509,7 @@ OMIT: Casing program details, cement volumes, mud weights, BOP test data, detail
 COMMINGLED VERTICAL WELL EXAMPLE (multiple formations with separate spacing orders):
 {{
   "doc_type": "completion_report",
+  "report_type": "initial",
 
   "section": 14,
   "township": "17N",
@@ -1648,6 +1655,7 @@ COMMINGLED VERTICAL WELL EXAMPLE (multiple formations with separate spacing orde
 SINGLE-ZONE VERTICAL WELL EXAMPLE (one formation, simple case):
 {{
   "doc_type": "completion_report",
+  "report_type": "initial",
 
   "section": 22,
   "township": "9N",
@@ -1761,6 +1769,7 @@ SINGLE-ZONE VERTICAL WELL EXAMPLE (one formation, simple case):
 HORIZONTAL MULTIUNIT WELL EXAMPLE (lateral crossing sections):
 {{
   "doc_type": "completion_report",
+  "report_type": "initial",
 
   "section": 22,
   "township": "18N",
