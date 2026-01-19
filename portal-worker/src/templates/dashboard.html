@@ -8625,6 +8625,45 @@
                                         </div>
                                     </div>`;
                             }
+                        } else if (fieldName === 'related_orders' && Array.isArray(value) && value.length > 0) {
+                            // Special handling for related orders array (unitization orders, v4 format)
+                            // Format: [{order_number, relationship, cause_number, description}]
+                            const superseded = value.filter(o => o.relationship === 'supersedes');
+
+                            if (superseded.length > 0) {
+                                hasVisibleFields = true;
+                                const showScrollable = superseded.length > 10;
+
+                                let orderList = superseded.map(order => {
+                                    const orderNum = order.order_number || '';
+                                    const desc = order.description || '';
+                                    return `
+                                        <div style="display: inline-flex; align-items: center; background: #FEE2E2; color: #991B1B; padding: 4px 10px; border-radius: 4px; font-size: 0.875rem; margin: 2px;">
+                                            <span style="font-weight: 500;">${escapeHtml(orderNum)}</span>
+                                            ${desc ? `<span style="margin-left: 6px; font-size: 0.75rem; color: #B91C1C;">(${escapeHtml(desc)})</span>` : ''}
+                                        </div>
+                                    `;
+                                }).join('');
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px;">
+                                            <div style="display: flex; align-items: center; margin-bottom: 12px;">
+                                                <svg style="width: 20px; height: 20px; color: #DC2626; margin-right: 8px;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                                                </svg>
+                                                <span style="font-weight: 600; color: #991B1B;">${superseded.length} Prior Spacing Order${superseded.length > 1 ? 's' : ''} Superseded</span>
+                                            </div>
+                                            <div style="font-size: 0.875rem; color: #7F1D1D; margin-bottom: 12px;">
+                                                The following spacing orders no longer control production allocation within this unit area:
+                                            </div>
+                                            <div style="${showScrollable ? 'max-height: 200px; overflow-y: auto;' : ''} display: flex; flex-wrap: wrap; gap: 4px;">
+                                                ${orderList}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
                         } else if (fieldName === 'related_orders' && typeof value === 'object') {
                             // Special handling for related orders object
                             // Supports v1 (increased density), v2 (drilling/spacing), and v3 (location exception) structures
