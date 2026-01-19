@@ -6299,11 +6299,11 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         
         try:
             final_json_str = json_str.strip()
-            logger.info(f"Attempting to parse JSON, length: {len(final_json_str)}")
-            logger.info(f"JSON first 300 chars: {repr(final_json_str[:300])}")
-            logger.info(f"JSON last 300 chars: {repr(final_json_str[-300:]) if len(final_json_str) > 300 else 'same as first'}")
+            print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
+            print(f"[DEBUG] JSON first 300 chars: {repr(final_json_str[:300])}", flush=True)
+            print(f"[DEBUG] JSON last 300 chars: {repr(final_json_str[-300:]) if len(final_json_str) > 300 else 'same as first'}", flush=True)
             extracted_data = json.loads(final_json_str)
-            logger.info(f"Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}")
+            print(f"[DEBUG] Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}", flush=True)
 
             # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections after the JSON
             key_takeaway = None
@@ -6445,7 +6445,12 @@ If these pages don't contain significant new information, return: {{"additional_
                 json_str = json_str[start:end]
         
         try:
-            batch_data = json.loads(json_str.strip())
+            final_batch_json = json_str.strip()
+            print(f"[DEBUG-BATCH] Attempting to parse batch JSON, length: {len(final_batch_json)}", flush=True)
+            print(f"[DEBUG-BATCH] JSON first 300 chars: {repr(final_batch_json[:300])}", flush=True)
+            print(f"[DEBUG-BATCH] JSON last 300 chars: {repr(final_batch_json[-300:]) if len(final_batch_json) > 300 else 'same as first'}", flush=True)
+            batch_data = json.loads(final_batch_json)
+            print(f"[DEBUG-BATCH] Successfully parsed batch JSON, doc_type: {batch_data.get('doc_type')}", flush=True)
 
             if batch_num == 0:
                 # First batch becomes our base data
