@@ -464,7 +464,30 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
         heuristic_result = heuristic_page_check(page_text, page_index)
         logger.info(f"Page {page_index}: Heuristic result: {heuristic_result}")
 
-        # If heuristics found a high-confidence match, use it
+        # CRITICAL: Check continuation FIRST - this is a veto that overrides everything else
+        # If continuation pattern matched, return immediately - don't let title patterns or Haiku override
+        if heuristic_result.get("is_continuation"):
+            logger.info(f"Page {page_index}: CONTINUATION VETO - is_continuation=True - SKIPPING HAIKU")
+            return {
+                "page_index": page_index,
+                "coarse_type": heuristic_result.get("heuristic_type", "permit"),
+                "is_document_start": False,
+                "start_confidence": heuristic_result["confidence"],
+                "detected_title": None,
+                "features": {
+                    "has_title_phrase": False,
+                    "has_granting_clause": False,
+                    "has_signature_block": False,
+                    "has_notary_block": False,
+                    "has_exhibit_label": False,
+                    "has_legal_description": False,
+                    "has_recording_stamp": False
+                },
+                "classification_method": "heuristic_continuation",
+                "is_continuation": True  # Propagate this flag for splitter
+            }
+
+        # If heuristics found a high-confidence title match (and NOT continuation), use it
         if heuristic_result["confidence"] >= 0.8 and heuristic_result["heuristic_type"]:
             logger.info(f"Page {page_index}: Using heuristic match - {heuristic_result['heuristic_type']} "
                         f"(title: {heuristic_result['matched_title']}) - SKIPPING HAIKU")
@@ -483,30 +506,8 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
                     "has_legal_description": False,
                     "has_recording_stamp": False
                 },
-                "classification_method": "heuristic"
-            }
-
-        # CRITICAL: If continuation pattern matched, return immediately - don't let Haiku override
-        # This catches cases like "FORMATION RECORD" (page 2 of Form 1002A) where we KNOW it's a continuation
-        if heuristic_result.get("is_continuation"):
-            logger.info(f"Page {page_index}: CONTINUATION detected - returning is_document_start=False - SKIPPING HAIKU")
-            return {
-                "page_index": page_index,
-                "coarse_type": "permit",  # Form 1002A continuation pages are permits
-                "is_document_start": False,
-                "start_confidence": 0.9,  # High confidence this is NOT a start
-                "detected_title": None,
-                "features": {
-                    "has_title_phrase": False,
-                    "has_granting_clause": False,
-                    "has_signature_block": False,
-                    "has_notary_block": False,
-                    "has_exhibit_label": False,
-                    "has_legal_description": False,
-                    "has_recording_stamp": False
-                },
-                "classification_method": "heuristic_continuation",
-                "is_continuation": True  # Propagate this flag
+                "classification_method": "heuristic",
+                "is_continuation": False  # Explicitly not a continuation
             }
     else:
         logger.info(f"Page {page_index}: NO page_text provided - will use Haiku")
