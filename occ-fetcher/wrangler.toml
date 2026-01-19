@@ -15,4 +15,9 @@ bucket_name = "mineral-watch-uploads"
 binding = "DOCUMENTS_WORKER"
 service = "documents-worker"
 
+# KV namespace for caching session cookies (shared with portal-worker)
+[[kv_namespaces]]
+binding = "OCC_CACHE"
+id = "0988b6413183413bb4f1d1731ced4ed8"
+
 # Add secret via: wrangler secret put PROCESSING_API_KEY
