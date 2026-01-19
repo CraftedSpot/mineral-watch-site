@@ -28,6 +28,11 @@ service = "auth-worker"
 binding = "DOCUMENTS_WORKER"
 service = "documents-worker"
 
+# Service binding to occ-fetcher
+[[services]]
+binding = "OCC_FETCHER"
+service = "occ-fetcher"
+
 # D1 Database for Oklahoma Wells
 [[d1_databases]]
 binding = "WELLS_DB"

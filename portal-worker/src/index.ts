@@ -852,7 +852,17 @@ var index_default = {
       if (wellNotesMatch && request.method === "PATCH") {
         return handleUpdateWellNotes(wellNotesMatch[1], request, env);
       }
-      
+
+      // Completion reports endpoints
+      const completionReportsMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/completion-reports$/);
+      if (completionReportsMatch && request.method === "GET") {
+        return handleGetCompletionReports(completionReportsMatch[1], env);
+      }
+      const analyzeCompletionMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/analyze-completion$/);
+      if (analyzeCompletionMatch && request.method === "POST") {
+        return handleAnalyzeCompletion(analyzeCompletionMatch[1], request, env);
+      }
+
       // Nearby wells endpoints (D1 database queries)
       if (path === "/api/nearby-wells" && (request.method === "GET" || request.method === "POST")) {
         return handleNearbyWells(request, env);

@@ -17,6 +17,7 @@ export interface Env {
   // Service Bindings
   AUTH_WORKER: Fetcher;
   DOCUMENTS_WORKER?: Fetcher;
+  OCC_FETCHER?: Fetcher;
 
   // D1 Database
   WELLS_DB?: D1Database;

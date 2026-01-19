@@ -13,6 +13,21 @@ import type { Env } from '../types/env.js';
 const OCC_FETCHER_URL = 'https://occ-fetcher.photog12.workers.dev';
 
 /**
+ * Helper to fetch from occ-fetcher using service binding if available
+ */
+async function fetchFromOccFetcher(
+  path: string,
+  env: Env,
+  options?: RequestInit
+): Promise<Response> {
+  // Use service binding if available, otherwise fall back to public URL
+  if (env.OCC_FETCHER) {
+    return env.OCC_FETCHER.fetch(`https://occ-fetcher.photog12.workers.dev${path}`, options);
+  }
+  return fetch(`${OCC_FETCHER_URL}${path}`, options);
+}
+
+/**
  * GET /api/wells/{api}/completion-reports
  *
  * Public endpoint that returns:
@@ -39,13 +54,17 @@ export async function handleGetCompletionReports(
 
     // 2. Check OCC for available 1002A forms
     let occData: { success: boolean; forms?: any[]; error?: string } = { success: false, forms: [] };
+    let occDebug: { url?: string; status?: number; error?: string; useServiceBinding?: boolean } = {};
     try {
-      const occResponse = await fetch(
-        `${OCC_FETCHER_URL}/get-1002a-forms?api=${apiNumber}`
-      );
+      const occPath = `/get-1002a-forms?api=${apiNumber}`;
+      occDebug.url = `${OCC_FETCHER_URL}${occPath}`;
+      occDebug.useServiceBinding = !!env.OCC_FETCHER;
+      const occResponse = await fetchFromOccFetcher(occPath, env);
+      occDebug.status = occResponse.status;
       occData = await occResponse.json() as typeof occData;
     } catch (occError) {
       console.error('Error fetching OCC forms:', occError);
+      occDebug.error = occError instanceof Error ? occError.message : String(occError);
       // Continue with empty forms - we can still return RBDMS data
     }
 
@@ -90,6 +109,11 @@ export async function handleGetCompletionReports(
         formation: (wellResult as any)?.formation_name,
         wellStatus: (wellResult as any)?.well_status,
         existingPun: (wellResult as any)?.otc_prod_unit_no
+      },
+      _debug: {
+        occFetch: occDebug,
+        occDataSuccess: occData.success,
+        occFormsCount: occData.forms?.length || 0
       }
     });
 
@@ -152,8 +176,9 @@ export async function handleAnalyzeCompletion(
     }
 
     // 2. Call occ-fetcher to download forms
-    const fetchResponse = await fetch(
-      `${OCC_FETCHER_URL}/download-1002a-forms`,
+    const fetchResponse = await fetchFromOccFetcher(
+      '/download-1002a-forms',
+      env,
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
