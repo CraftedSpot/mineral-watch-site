@@ -6200,14 +6200,18 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         # Extract JSON from response
         json_str = response_text.strip()
 
+        # Log raw response details for debugging
+        logger.info(f"Raw response length: {len(json_str)}, first 100 chars: {repr(json_str[:100])}")
+
         # Try to find JSON in the response - multiple strategies
         # Strategy 1: Look for ```json blocks
         if "```json" in json_str:
             start = json_str.find("```json") + 7
             end = json_str.find("```", start)
+            logger.info(f"Strategy 1: found ```json at 0, searching for closing ``` from pos {start}, found at {end}")
             if end != -1:
                 json_str = json_str[start:end].strip()
-                logger.debug(f"Extracted JSON from ```json block, length: {len(json_str)}")
+                logger.info(f"Extracted JSON from ```json block, length: {len(json_str)}, first 100 chars: {repr(json_str[:100])}")
         # Strategy 2: Look for ``` blocks (without json specifier)
         elif json_str.startswith("```"):
             lines = json_str.split("\n")
@@ -6241,8 +6245,10 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                 logger.debug(f"Extracted JSON by brace matching, length: {len(json_str)}")
         
         try:
+            logger.info(f"Attempting to parse JSON, length: {len(json_str)}, first 200 chars: {repr(json_str[:200])}")
             extracted_data = json.loads(json_str.strip())
-            
+            logger.info(f"Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}")
+
             # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections after the JSON
             key_takeaway = None
             detailed_analysis = None
@@ -6293,7 +6299,9 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             return extracted_data
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse extraction response: {e}")
-            logger.error(f"Response was: {response_text}")
+            logger.error(f"Error at position {e.pos}, line {e.lineno}, col {e.colno}")
+            logger.error(f"JSON string being parsed (first 500 chars): {repr(json_str[:500])}")
+            logger.error(f"Full response was: {response_text}")
             return {"error": "Failed to parse response", "raw_response": response_text}
     
     # For larger documents, we need to process in batches
