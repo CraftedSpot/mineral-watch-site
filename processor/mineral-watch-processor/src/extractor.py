@@ -6063,6 +6063,8 @@ If these pages don't contain significant new information, return: {{"additional_
         
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse batch {batch_num + 1} response: {e}")
+            logger.error(f"Raw response_text (first 2000 chars): {response_text[:2000] if response_text else 'EMPTY'}")
+            logger.error(f"Extracted json_str (first 500 chars): {json_str[:500] if json_str else 'EMPTY'}")
         
         # Add delay between batches to avoid rate limits
         if i + PAGES_PER_BATCH < total_pages:
