@@ -10272,9 +10272,13 @@
                             }
                         } else if (fieldName === 'summary' && typeof value === 'object' && (data.doc_type === 'well_transfer' || sectionName === 'Transfer Summary')) {
                             // Special handling for summary object (well transfer)
-                            // Filter out placeholder values like "Unknown", "Not specified", etc.
-                            const placeholders = ['unknown', 'not specified', 'n/a', 'none', 'not available', 'unknown-not specified in document', 'not specified in document'];
-                            const counties = (value.counties_affected || []).filter(c => c && !placeholders.includes(String(c).toLowerCase().trim()));
+                            // Filter out placeholder values - normalize by replacing hyphens/underscores with spaces
+                            const placeholders = ['unknown', 'not specified', 'n a', 'none', 'not available', 'unknown not specified in document', 'not specified in document'];
+                            const counties = (value.counties_affected || []).filter(c => {
+                                if (!c) return false;
+                                const normalized = String(c).toLowerCase().trim().replace(/[-_]/g, ' ').replace(/\s+/g, ' ');
+                                return !placeholders.includes(normalized);
+                            });
                             const wellTypes = value.well_types || {};
                             const oilCount = wellTypes.oil_count || 0;
                             const gasCount = wellTypes.gas_count || 0;
