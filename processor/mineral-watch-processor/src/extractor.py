@@ -276,6 +276,42 @@ CONTINUATION_PATTERNS = [
 ]
 
 
+def extract_text_from_pdf(pdf_path: str) -> list[str]:
+    """
+    Extract text from each page of a PDF using PyMuPDF.
+
+    Args:
+        pdf_path: Path to the PDF file
+
+    Returns:
+        List of text strings, one per page. Empty strings if extraction fails.
+    """
+    if not pdf_path:
+        return []
+
+    try:
+        import fitz  # PyMuPDF
+
+        text_by_page = []
+        doc = fitz.open(pdf_path)
+
+        for page_num in range(len(doc)):
+            page = doc[page_num]
+            text = page.get_text()
+            text_by_page.append(text)
+
+        doc.close()
+        logger.debug(f"Extracted text from {len(text_by_page)} pages of {pdf_path}")
+        return text_by_page
+
+    except ImportError:
+        logger.warning("PyMuPDF (fitz) not installed. Heuristic checks will be skipped.")
+        return []
+    except Exception as e:
+        logger.warning(f"Failed to extract text from PDF {pdf_path}: {e}")
+        return []
+
+
 def heuristic_page_check(page_text: str) -> dict:
     """
     Quick regex-based pre-classification of a page.
@@ -6445,8 +6481,12 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # =========================================================================
     logger.info(f"Stage 1: Running page-level classification for {len(image_paths)} pages")
 
-    # Get page-level classifications using Haiku
-    page_classifications = await classify_pages(image_paths)
+    # Extract text from PDF for heuristic checks (continuation patterns, etc.)
+    # This is critical for detecting "FORMATION RECORD" on page 2 of Form 1002A
+    page_texts = extract_text_from_pdf(pdf_path) if pdf_path else None
+
+    # Get page-level classifications using heuristics first, then Haiku if needed
+    page_classifications = await classify_pages(image_paths, page_texts)
 
     # Split into logical documents
     split_result = split_pages_into_documents(page_classifications)
