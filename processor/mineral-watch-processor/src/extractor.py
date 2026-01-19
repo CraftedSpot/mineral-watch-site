@@ -5961,10 +5961,11 @@ If these pages don't contain significant new information, return: {{"additional_
             })
         
         # Make API call with retry logic
+        # Use higher token limit for first batch to handle complex documents like unitization orders
         async def make_batch_call():
             return client.messages.create(
                 model=CONFIG.CLAUDE_MODEL,
-                max_tokens=4096 if batch_num == 0 else 2048,
+                max_tokens=16384 if batch_num == 0 else 4096,
                 messages=[
                     {"role": "user", "content": content}
                 ]
@@ -5984,6 +5985,17 @@ If these pages don't contain significant new information, return: {{"additional_
             end = json_str.find("```", start)
             if end != -1:
                 json_str = json_str[start:end].strip()
+            else:
+                # Truncated response - no closing ```, try to extract JSON by braces
+                logger.warning("Response appears truncated (no closing ```), attempting brace extraction")
+                if "{" in json_str:
+                    brace_start = json_str.find("{")
+                    brace_end = json_str.rfind("}") + 1
+                    if brace_start != -1 and brace_end > brace_start:
+                        json_str = json_str[brace_start:brace_end]
+                    else:
+                        # Really truncated - no closing brace either
+                        logger.error("Response severely truncated - no closing brace found")
         # Otherwise, look for the first { and last }
         elif "{" in json_str and "}" in json_str:
             # Find the first { and last } to extract just the JSON
