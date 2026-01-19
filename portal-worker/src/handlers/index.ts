@@ -177,5 +177,6 @@ export {
 // Completion reports handlers
 export {
   handleGetCompletionReports,
-  handleAnalyzeCompletion
+  handleAnalyzeCompletion,
+  handleGetProductionSummary
 } from './completion-reports.js';
