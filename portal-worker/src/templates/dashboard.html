@@ -9636,8 +9636,8 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'wells' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && (data.doc_type === 'well_transfer' || sectionName === 'Wells Transferred' || (sectionName && sectionName.toLowerCase().includes('wells transferred')))) {
-                            // Special handling for wells array (well transfer)
+                        } else if (fieldName.toLowerCase() === 'wells' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && value[0].api_number !== undefined) {
+                            // Special handling for wells array (well transfer) - match on field name + structure
                             hasVisibleFields = true;
                             const statusLabels = {
                                     'AC': 'Active', 'TA': 'Temp Abandoned', 'SP': 'Spudded',
