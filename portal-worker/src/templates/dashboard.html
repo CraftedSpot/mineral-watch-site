@@ -6303,6 +6303,7 @@
                 'Initial Production': ['initial_production'],
                 'First Sales': ['first_sales'],
                 'Stimulation': ['stimulation'],
+                'Formation Zones': ['formation_zones'],
                 'Formation Tops': ['formation_tops'],
                 'Status': ['status', 'status_date', 'occ_file_number'],
                 // Well Transfer sections (Former Operator, New Operator already defined in Change of Operator section)
@@ -10291,6 +10292,92 @@
                                         <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px;">
                                             ${formationsHtml}
                                         </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'formation_zones' && Array.isArray(value)) {
+                            // Special handling for formation_zones array (v2 completion reports - commingled wells)
+                            if (value.length > 0) {
+                                hasVisibleFields = true;
+                                let zonesHtml = value.map((zone, idx) => {
+                                    const formationName = zone.formation_name || `Zone ${idx + 1}`;
+                                    const formationCode = zone.formation_code || '';
+                                    const spacingOrder = zone.spacing_order || '';
+                                    const unitSize = zone.unit_size_acres ? `${zone.unit_size_acres}-acre unit` : '';
+                                    const perfs = zone.perforated_intervals || [];
+                                    const stim = zone.stimulation || null;
+
+                                    // Build perforated intervals mini-table
+                                    let perfsHtml = '';
+                                    if (perfs.length > 0) {
+                                        const perfsRows = perfs.map(interval => {
+                                            const top = interval.from_ft || interval.top_md_ft;
+                                            const bottom = interval.to_ft || interval.bottom_md_ft;
+                                            const length = interval.interval_length_ft || (top && bottom ? Math.abs(bottom - top) : null);
+                                            return `<tr>
+                                                <td style="padding: 4px 8px; font-family: monospace; text-align: right;">${top ? Number(top).toLocaleString() : '-'}</td>
+                                                <td style="padding: 4px 8px; font-family: monospace; text-align: right;">${bottom ? Number(bottom).toLocaleString() : '-'}</td>
+                                                <td style="padding: 4px 8px; font-family: monospace; text-align: right; font-weight: 500;">${length ? Number(length).toLocaleString() : '-'}</td>
+                                            </tr>`;
+                                        }).join('');
+                                        perfsHtml = `
+                                            <div style="margin-top: 8px;">
+                                                <div style="font-size: 11px; color: #6B7280; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Perforated Intervals</div>
+                                                <table style="width: 100%; font-size: 12px; border-collapse: collapse;">
+                                                    <thead style="background: #F3F4F6;">
+                                                        <tr>
+                                                            <th style="padding: 4px 8px; text-align: right; font-weight: 600; color: #374151;">Top (ft)</th>
+                                                            <th style="padding: 4px 8px; text-align: right; font-weight: 600; color: #374151;">Bottom (ft)</th>
+                                                            <th style="padding: 4px 8px; text-align: right; font-weight: 600; color: #374151;">Length</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>${perfsRows}</tbody>
+                                                </table>
+                                            </div>`;
+                                    }
+
+                                    // Build stimulation summary
+                                    let stimHtml = '';
+                                    if (stim) {
+                                        const stimParts = [];
+                                        if (stim.method) stimParts.push(stim.method);
+                                        if (stim.stages) stimParts.push(`${stim.stages} stages`);
+                                        if (stim.total_proppant_lbs) stimParts.push(`${Number(stim.total_proppant_lbs).toLocaleString()} lbs proppant`);
+                                        if (stim.total_fluid_bbls) stimParts.push(`${Number(stim.total_fluid_bbls).toLocaleString()} bbls fluid`);
+                                        if (stimParts.length > 0) {
+                                            stimHtml = `
+                                                <div style="margin-top: 8px;">
+                                                    <div style="font-size: 11px; color: #6B7280; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px;">Stimulation</div>
+                                                    <div style="font-size: 13px; color: #374151;">${stimParts.join(' | ')}</div>
+                                                </div>`;
+                                        }
+                                    }
+
+                                    // Build spacing order info
+                                    let spacingHtml = '';
+                                    if (spacingOrder || unitSize) {
+                                        const spacingParts = [];
+                                        if (spacingOrder) spacingParts.push(`Order ${spacingOrder}`);
+                                        if (unitSize) spacingParts.push(unitSize);
+                                        spacingHtml = `<div style="font-size: 12px; color: #6B7280;">${spacingParts.join(' | ')}</div>`;
+                                    }
+
+                                    return `
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+                                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px;">
+                                                <div>
+                                                    <span style="font-weight: 600; font-size: 14px; color: #1F2937;">${escapeHtml(formationName)}</span>
+                                                    ${formationCode ? `<span style="font-size: 12px; color: #6B7280; margin-left: 8px;">(${escapeHtml(formationCode)})</span>` : ''}
+                                                </div>
+                                            </div>
+                                            ${spacingHtml}
+                                            ${perfsHtml}
+                                            ${stimHtml}
+                                        </div>`;
+                                }).join('');
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        ${zonesHtml}
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
