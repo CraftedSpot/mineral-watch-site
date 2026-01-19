@@ -3277,6 +3277,18 @@
                 .replace(/'/g, '&#039;');
         }
 
+        // Filter tracts table by search term (unitization orders)
+        function filterTracts(tableId, searchId) {
+            const searchTerm = document.getElementById(searchId).value.toLowerCase();
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody .tract-row');
+
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search') || '';
+                row.style.display = searchData.includes(searchTerm) ? '' : 'none';
+            });
+        }
+
         // Format analysis text: escape HTML then convert markdown bold to HTML
         function formatAnalysisText(text) {
             if (!text) return '';
@@ -8347,6 +8359,55 @@
                                     </div>
                                     ${getConfidenceIndicator(fieldName, fieldScores)}
                                 </div>`;
+                        } else if (fieldName === 'location' && typeof value === 'object' && data.doc_type === 'unitization_order') {
+                            // Special handling for location (unit boundaries for unitization orders)
+                            const counties = value.counties || [];
+                            const sections = value.sections || [];
+
+                            if (counties.length > 0 || sections.length > 0) {
+                                hasVisibleFields = true;
+
+                                let countiesHtml = counties.length > 0 ? `
+                                    <div style="margin-bottom: 16px;">
+                                        <span style="font-size: 0.875rem; color: #6B7280;">Counties:</span>
+                                        ${counties.map(c => `<span style="background: #DBEAFE; color: #1D4ED8; padding: 4px 10px; border-radius: 4px; margin-left: 8px; font-weight: 500;">${escapeHtml(c)}</span>`).join('')}
+                                    </div>
+                                ` : '';
+
+                                let sectionsTable = sections.length > 0 ? `
+                                    <table style="width: 100%; border-collapse: collapse; font-size: 0.875rem;">
+                                        <thead style="background: #F3F4F6;">
+                                            <tr>
+                                                <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #E5E7EB;">Section</th>
+                                                <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #E5E7EB;">Twp-Rng</th>
+                                                <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #E5E7EB;">County</th>
+                                                <th style="padding: 8px 12px; text-align: left; border-bottom: 2px solid #E5E7EB;">Quarters</th>
+                                                <th style="padding: 8px 12px; text-align: right; border-bottom: 2px solid #E5E7EB;">Acres</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            ${sections.map(s => `
+                                                <tr style="border-bottom: 1px solid #E5E7EB;">
+                                                    <td style="padding: 8px 12px;">${s.section || ''}</td>
+                                                    <td style="padding: 8px 12px;">${escapeHtml(s.township || '')}-${escapeHtml(s.range || '')}</td>
+                                                    <td style="padding: 8px 12px;">${escapeHtml(s.county || '')}</td>
+                                                    <td style="padding: 8px 12px;">${escapeHtml(s.quarters || '')}</td>
+                                                    <td style="padding: 8px 12px; text-align: right;">${s.acres_in_unit ? s.acres_in_unit.toLocaleString() : ''}</td>
+                                                </tr>
+                                            `).join('')}
+                                        </tbody>
+                                    </table>
+                                ` : '';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px;">
+                                            ${countiesHtml}
+                                            ${sectionsTable}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
                         } else if (fieldName === 'well_info' && typeof value === 'object') {
                             // Special handling for well information object
                             // Supports pooling orders (proposed_well_name) and location exception orders (well_name)
