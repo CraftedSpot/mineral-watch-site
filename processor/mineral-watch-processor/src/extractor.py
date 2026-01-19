@@ -1500,6 +1500,10 @@ CONDITIONAL REQUIREMENTS:
 - IF drill_type is "HORIZONTAL HOLE": bottom_hole_location, lateral_details, and allocation_factors[] are REQUIRED
 - IF drill_type is "DIRECTIONAL HOLE": bottom_hole_location is REQUIRED
 - IF well spans multiple sections: allocation_factors[] MUST include ALL sections with PUN for each
+- PUN FORMAT (CRITICAL): OTC Production Unit Numbers follow format XXX-XXXXX-X-XXXXX (3-5-1-5 digits with dashes)
+  Example: 043-22659-7-00000 = County(043) - Lease(22659) - Segment(7) - Well(00000)
+  The pun_normalized field removes dashes for 14-digit format: 04322659700000
+  NEVER merge the segment digit with the lease number (wrong: 043-226597-0-0000)
 - IF well_class is "DRY": OMIT initial_production and first_sales entirely
 - IF first_sales information is visible: first_sales is REQUIRED
 - IF stimulation/frac summary data is visible: Include in formation_zones[].stimulation OR top-level stimulation
@@ -1884,7 +1888,7 @@ HORIZONTAL MULTIUNIT WELL EXAMPLE (lateral crossing sections):
       "township": "18N",
       "range": "14W",
       "county": "Dewey",
-      "pun": "043-226597-0-0000",
+      "pun": "043-22659-7-00000",
       "pun_normalized": "04322659700000",
       "percentage": 54.5,
       "decimal": 0.545,
@@ -1896,7 +1900,7 @@ HORIZONTAL MULTIUNIT WELL EXAMPLE (lateral crossing sections):
       "township": "18N",
       "range": "14W",
       "county": "Dewey",
-      "pun": "043-226597-0-0001",
+      "pun": "043-22659-7-00001",
       "pun_normalized": "04322659700001",
       "percentage": 45.5,
       "decimal": 0.455,
@@ -1926,7 +1930,7 @@ HORIZONTAL MULTIUNIT WELL EXAMPLE (lateral crossing sections):
 
   "key_takeaway": "Derby Exploration completed the NEWLEY 15-22-1XH horizontal Mississippian well in Dewey County with initial production of 187 BOPD, 3,490 MCFD gas, and 1,359 BWPD, with the lateral extending from Section 22 (54.5%) to Section 15 (45.5%).",
 
-  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud February 1, 2019 and completed November 27, 2019.\n\nThe surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W. Total measured depth is 20,783 feet with a true vertical depth of 10,180 feet and lateral length of approximately 10,106 feet.\n\nTwo perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated length of roughly 9,234 feet. The well was stimulated with 45 frac stages using approximately 12.5 million pounds of proppant.\n\nInitial production test on December 27, 2019 showed 186.9 BOPD (52.2 API gravity), 3,490 MCFD gas, and 1,359 BWPD, flowing naturally with a GOR of 18,672.\n\nProduction is allocated 54.5% to Section 22 (PUN 043-226597-0-0000) and 45.5% to Section 15 (PUN 043-226597-0-0001). Mineral owners in both sections should expect to see this well on their division orders.",
+  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud February 1, 2019 and completed November 27, 2019.\n\nThe surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W. Total measured depth is 20,783 feet with a true vertical depth of 10,180 feet and lateral length of approximately 10,106 feet.\n\nTwo perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated length of roughly 9,234 feet. The well was stimulated with 45 frac stages using approximately 12.5 million pounds of proppant.\n\nInitial production test on December 27, 2019 showed 186.9 BOPD (52.2 API gravity), 3,490 MCFD gas, and 1,359 BWPD, flowing naturally with a GOR of 18,672.\n\nProduction is allocated 54.5% to Section 22 (PUN 043-22659-7-00000) and 45.5% to Section 15 (PUN 043-22659-7-00001). Mineral owners in both sections should expect to see this well on their division orders.",
 
   "field_scores": {{
     "api_number": 0.95,
