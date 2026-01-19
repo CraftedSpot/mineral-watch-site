@@ -54,17 +54,12 @@ export async function handleGetCompletionReports(
 
     // 2. Check OCC for available 1002A forms
     let occData: { success: boolean; forms?: any[]; error?: string } = { success: false, forms: [] };
-    let occDebug: { url?: string; status?: number; error?: string; useServiceBinding?: boolean } = {};
     try {
       const occPath = `/get-1002a-forms?api=${apiNumber}`;
-      occDebug.url = `${OCC_FETCHER_URL}${occPath}`;
-      occDebug.useServiceBinding = !!env.OCC_FETCHER;
       const occResponse = await fetchFromOccFetcher(occPath, env);
-      occDebug.status = occResponse.status;
       occData = await occResponse.json() as typeof occData;
     } catch (occError) {
       console.error('Error fetching OCC forms:', occError);
-      occDebug.error = occError instanceof Error ? occError.message : String(occError);
       // Continue with empty forms - we can still return RBDMS data
     }
 
@@ -109,11 +104,6 @@ export async function handleGetCompletionReports(
         formation: (wellResult as any)?.formation_name,
         wellStatus: (wellResult as any)?.well_status,
         existingPun: (wellResult as any)?.otc_prod_unit_no
-      },
-      _debug: {
-        occFetch: occDebug,
-        occDataSuccess: occData.success,
-        occFormsCount: occData.forms?.length || 0
       }
     });
 
