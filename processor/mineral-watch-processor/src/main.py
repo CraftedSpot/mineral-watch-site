@@ -116,6 +116,36 @@ def apply_exif_orientation(image_path: str) -> tuple[str, bool]:
         return image_path, False
 
 
+def should_use_flexible_pipeline(doc: dict, content_type: str, text_char_count: int = None) -> bool:
+    """
+    Determine if we should use the flexible (forgiving) pipeline instead of strict.
+
+    Flexible pipeline:
+    - Skips rigid multi-doc splitting
+    - Lets Sonnet handle everything in one pass
+    - Never fails, always returns a result
+    - Marks documents for review instead of erroring
+
+    Use flexible for:
+    - Direct image uploads (JPEG, PNG, HEIC, WebP)
+    - Mobile/phone uploads
+    - PDFs with no/minimal text layer (scan-only)
+    """
+    # Image types always use flexible path
+    if content_type in ('image/jpeg', 'image/png', 'image/heic', 'image/webp', 'image/tiff'):
+        return True
+
+    # Mobile flag from client (if set)
+    if doc.get('source') == 'mobile' or doc.get('phone_upload'):
+        return True
+
+    # PDF with almost no extractable text (scan-only)
+    if content_type == 'application/pdf' and text_char_count is not None and text_char_count < 100:
+        return True
+
+    return False
+
+
 def rotate_image(image_path: str, degrees: int) -> str:
     """
     Rotate an image by the specified degrees clockwise.
