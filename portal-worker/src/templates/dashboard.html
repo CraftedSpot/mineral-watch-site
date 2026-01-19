@@ -6296,6 +6296,17 @@
                 'Wells Transferred': ['wells'],
                 'Transfer Summary': ['summary'],
                 'Notes': ['notes', 'additional_info'],
+                // Unitization Order sections
+                'Unit Summary': ['unit_info'],
+                'Allocation Formula': ['allocation_formula'],
+                'Unit Boundaries': ['location'],
+                'Authorized Operations': ['authorized_operations'],
+                'Superseded Orders': ['related_orders'],
+                'Termination Provisions': ['termination_provisions'],
+                'Ratification': ['ratification'],
+                'All Tracts': [],  // Uses 'tracts' but needs different rendering for unitization
+                'Exhibits': ['exhibits'],
+                'Reference Well': ['reference_well'],
                 'Other Information': []  // Catch-all for fields not in other groups
             };
             
@@ -6651,6 +6662,18 @@
                 'Transfer Information',
                 'Wells Transferred',
                 'Transfer Summary',
+                // Unitization Order sections
+                'Unit Summary',
+                'Allocation Formula',
+                'Target Formations',  // Reuses existing Target Formations handler
+                'Reference Well',
+                'Unit Boundaries',
+                'Authorized Operations',
+                'Superseded Orders',
+                'Termination Provisions',
+                'Ratification',
+                'All Tracts',
+                'Exhibits',
                 'Other Information'
             ];
             
@@ -7942,30 +7965,306 @@
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'unit_info' && typeof value === 'object') {
-                            // Special handling for unit information object (pooling orders and increased density)
+                            // Special handling for unit information object
+                            // Supports: pooling orders (legal_description), increased density, AND unitization orders (unit_name, unit_operator)
+
+                            // Check if this is a unitization order format (has unit_name)
+                            if (value.unit_name || value.unit_operator || value.total_acres) {
+                                // Unitization order format
+                                const unitName = value.unit_name || '';
+                                const unitType = value.unit_type || '';
+                                const unitOperator = value.unit_operator || '';
+                                const totalAcres = value.total_acres;
+                                const tractCount = value.tract_count;
+
+                                if (unitName || unitOperator || totalAcres) {
+                                    hasVisibleFields = true;
+                                    sectionContent += `
+                                        <div class="doc-field" style="grid-column: 1 / -1;">
+                                            <div style="background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%); border-radius: 12px; padding: 20px; color: white;">
+                                                ${unitName ? `<div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 8px;">${escapeHtml(unitName)}</div>` : ''}
+                                                <div style="display: flex; flex-wrap: wrap; gap: 24px; margin-top: 12px;">
+                                                    ${unitType ? `
+                                                        <div>
+                                                            <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Unit Type</div>
+                                                            <div style="font-size: 1rem; font-weight: 500;">${escapeHtml(unitType)}</div>
+                                                        </div>
+                                                    ` : ''}
+                                                    ${unitOperator ? `
+                                                        <div>
+                                                            <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Unit Operator</div>
+                                                            <div style="font-size: 1rem; font-weight: 500;">${escapeHtml(unitOperator)}</div>
+                                                        </div>
+                                                    ` : ''}
+                                                    ${totalAcres ? `
+                                                        <div>
+                                                            <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Total Acres</div>
+                                                            <div style="font-size: 1rem; font-weight: 500;">${Number(totalAcres).toLocaleString()}</div>
+                                                        </div>
+                                                    ` : ''}
+                                                    ${tractCount ? `
+                                                        <div>
+                                                            <div style="font-size: 0.75rem; text-transform: uppercase; opacity: 0.8;">Tracts</div>
+                                                            <div style="font-size: 1rem; font-weight: 500;">${tractCount}</div>
+                                                        </div>
+                                                    ` : ''}
+                                                </div>
+                                            </div>
+                                            ${getConfidenceIndicator(fieldName, fieldScores)}
+                                        </div>`;
+                                }
+                            } else {
+                                // Pooling order format has nested legal_description
+                                hasVisibleFields = true;
+                                const legalDesc = value.legal_description || {};
+                                const unitDesc = value.unit_description || value.description || '';
+                                const unitSize = value.unit_size_acres;
+                                const spacingOrder = value.spacing_order || '';
+                                const section = legalDesc.section || '';
+                                const township = legalDesc.township || '';
+                                const range = legalDesc.range || '';
+                                const county = legalDesc.county || '';
+                                const quarters = legalDesc.quarters || '';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 14px;">
+                                            ${section ? `<div style="font-weight: 600; color: #0369A1; font-size: 15px;">Section ${escapeHtml(section)} - ${escapeHtml(township)}-${escapeHtml(range)}${county ? `, ${escapeHtml(county)} County` : ''}</div>` : ''}
+                                            ${quarters ? `<div style="font-size: 13px; color: #374151; margin-top: 4px;">${escapeHtml(quarters)}</div>` : ''}
+                                            ${unitDesc ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(unitDesc)}</div>` : ''}
+                                            <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 13px;">
+                                                ${unitSize ? `<span style="color: #059669; font-weight: 500;">${unitSize.toLocaleString()} acres</span>` : ''}
+                                                ${spacingOrder ? `<span style="color: #6B7280;">Spacing Order: <strong>${escapeHtml(spacingOrder)}</strong></span>` : ''}
+                                            </div>
+                                        </div>
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'allocation_formula' && typeof value === 'object') {
+                            // Special handling for allocation formula (unitization orders)
+                            const factors = value.factors || [];
+                            const asOfDate = value.as_of_date;
+
+                            if (factors.length > 0) {
+                                hasVisibleFields = true;
+
+                                // Color palette for factor bars
+                                const colors = ['#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
+
+                                let factorBars = factors.map((f, i) => {
+                                    const color = colors[i % colors.length];
+                                    const width = f.weight_percent || 0;
+                                    return `
+                                        <div style="margin-bottom: 12px;">
+                                            <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                                                <span style="font-size: 0.875rem; color: #374151;">${escapeHtml(f.factor_name || 'Unknown Factor')}</span>
+                                                <span style="font-size: 0.875rem; font-weight: 600; color: #374151;">${width}%</span>
+                                            </div>
+                                            <div style="background: #E5E7EB; border-radius: 4px; height: 24px; overflow: hidden;">
+                                                <div style="background: ${color}; height: 100%; width: ${width}%; border-radius: 4px; transition: width 0.3s;"></div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('');
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px;">
+                                            <div style="font-size: 0.875rem; color: #6B7280; margin-bottom: 12px;">
+                                                Participation percentages are calculated using these weighted factors:
+                                            </div>
+                                            ${factorBars}
+                                            ${asOfDate ? `
+                                                <div style="font-size: 0.75rem; color: #9CA3AF; margin-top: 8px;">
+                                                    Cumulative production measured as of ${escapeHtml(asOfDate)}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'authorized_operations' && typeof value === 'object') {
+                            // Special handling for authorized operations (unitization orders)
+                            const methods = value.specific_methods || [];
+                            const hasSecondary = value.secondary_recovery;
+                            const hasEnhanced = value.enhanced_recovery;
+                            const hasInjection = value.injection_wells_permitted;
+
+                            if (methods.length > 0 || hasSecondary || hasEnhanced) {
+                                hasVisibleFields = true;
+
+                                let badges = [];
+                                if (hasEnhanced) badges.push({label: 'Enhanced Recovery', color: '#7C3AED', bg: '#EDE9FE'});
+                                if (hasSecondary) badges.push({label: 'Secondary Recovery', color: '#2563EB', bg: '#DBEAFE'});
+                                if (hasInjection) badges.push({label: 'Injection Wells Permitted', color: '#059669', bg: '#D1FAE5'});
+
+                                let badgeHtml = badges.map(b => `
+                                    <span style="display: inline-block; background: ${b.bg}; color: ${b.color}; padding: 4px 12px; border-radius: 9999px; font-size: 0.875rem; font-weight: 500; margin-right: 8px; margin-bottom: 8px;">
+                                        ${b.label}
+                                    </span>
+                                `).join('');
+
+                                let methodsHtml = methods.length > 0 ? `
+                                    <div style="margin-top: 12px;">
+                                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #6B7280; margin-bottom: 8px;">Specific Methods Authorized</div>
+                                        <div style="display: flex; flex-wrap: wrap; gap: 8px;">
+                                            ${methods.map(m => `<span style="background: #F3F4F6; padding: 4px 10px; border-radius: 4px; font-size: 0.875rem;">${escapeHtml(m)}</span>`).join('')}
+                                        </div>
+                                    </div>
+                                ` : '';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F9FAFB; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px;">
+                                            ${badgeHtml}
+                                            ${methodsHtml}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'termination_provisions' && typeof value === 'object') {
+                            // Special handling for termination provisions (unitization orders)
+                            const leaseExtension = value.lease_extension_days;
+                            const salvagePeriod = value.salvage_period_months;
+                            const taMonths = value.temporarily_abandoned_months;
+
+                            if (leaseExtension || salvagePeriod || taMonths) {
+                                hasVisibleFields = true;
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FFFBEB; border: 1px solid #FCD34D; border-radius: 8px; padding: 16px;">
+                                            <div style="font-size: 0.875rem; color: #92400E; margin-bottom: 12px;">
+                                                <strong>When unit operations cease:</strong>
+                                            </div>
+                                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px;">
+                                                ${leaseExtension ? `
+                                                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #FDE68A;">
+                                                        <div style="font-size: 2rem; font-weight: 700; color: #D97706;">${leaseExtension}</div>
+                                                        <div style="font-size: 0.875rem; color: #92400E;">day lease extension</div>
+                                                        <div style="font-size: 0.75rem; color: #B45309; margin-top: 4px;">to allow lessee to resume operations</div>
+                                                    </div>
+                                                ` : ''}
+                                                ${salvagePeriod ? `
+                                                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #FDE68A;">
+                                                        <div style="font-size: 2rem; font-weight: 700; color: #D97706;">${salvagePeriod}</div>
+                                                        <div style="font-size: 0.875rem; color: #92400E;">month salvage period</div>
+                                                        <div style="font-size: 0.75rem; color: #B45309; margin-top: 4px;">for operator to remove equipment</div>
+                                                    </div>
+                                                ` : ''}
+                                                ${taMonths ? `
+                                                    <div style="background: white; padding: 12px; border-radius: 6px; border: 1px solid #FDE68A;">
+                                                        <div style="font-size: 2rem; font-weight: 700; color: #D97706;">${taMonths}</div>
+                                                        <div style="font-size: 0.875rem; color: #92400E;">months = "temporarily abandoned"</div>
+                                                        <div style="font-size: 0.75rem; color: #B45309; margin-top: 4px;">production cessation threshold</div>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'ratification' && typeof value === 'object') {
+                            // Special handling for ratification (unitization orders)
+                            const lesseePct = value.lessee_percent;
+                            const ownerPct = value.owner_percent;
+                            const requiredPct = value.required_percent;
+                            const method = value.effective_method;
+
+                            if (lesseePct || ownerPct) {
+                                hasVisibleFields = true;
+
+                                const lesseeOk = lesseePct >= (requiredPct || 63);
+                                const ownerOk = ownerPct >= (requiredPct || 63);
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F0FDF4; border: 1px solid #86EFAC; border-radius: 8px; padding: 16px;">
+                                            <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                                                ${lesseePct ? `
+                                                    <div>
+                                                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #166534;">Lessee Ratification</div>
+                                                        <div style="font-size: 1.5rem; font-weight: 700; color: ${lesseeOk ? '#15803D' : '#DC2626'};">
+                                                            ${lesseePct.toFixed(2)}%
+                                                            ${lesseeOk ? '✓' : '✗'}
+                                                        </div>
+                                                    </div>
+                                                ` : ''}
+                                                ${ownerPct ? `
+                                                    <div>
+                                                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #166534;">Owner Ratification</div>
+                                                        <div style="font-size: 1.5rem; font-weight: 700; color: ${ownerOk ? '#15803D' : '#DC2626'};">
+                                                            ${ownerPct.toFixed(2)}%
+                                                            ${ownerOk ? '✓' : '✗'}
+                                                        </div>
+                                                    </div>
+                                                ` : ''}
+                                                ${requiredPct ? `
+                                                    <div>
+                                                        <div style="font-size: 0.75rem; text-transform: uppercase; color: #166534;">Required</div>
+                                                        <div style="font-size: 1.5rem; font-weight: 700; color: #166534;">${requiredPct}%</div>
+                                                    </div>
+                                                ` : ''}
+                                            </div>
+                                            ${method ? `
+                                                <div style="margin-top: 12px; font-size: 0.875rem; color: #166534;">
+                                                    Method: ${escapeHtml(formatFieldName(method))}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'reference_well' && typeof value === 'object') {
+                            // Special handling for reference well (unitization orders)
+                            const wellName = value.well_name;
+                            const api = value.api_number;
+                            const section = value.section;
+                            const twp = value.township;
+                            const rng = value.range;
+                            const county = value.county;
+                            const depthTop = value.depth_interval_top_ft;
+                            const depthBottom = value.depth_interval_bottom_ft;
+
+                            if (wellName || api) {
+                                hasVisibleFields = true;
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F3F4F6; border-radius: 8px; padding: 16px;">
+                                            <div style="font-size: 0.75rem; text-transform: uppercase; color: #6B7280; margin-bottom: 8px;">Reference Well (defines formation interval)</div>
+                                            <div style="display: flex; flex-wrap: wrap; gap: 16px; align-items: center;">
+                                                ${wellName ? `<div style="font-weight: 600; font-size: 1rem;">${escapeHtml(wellName)}</div>` : ''}
+                                                ${api ? `<div style="font-family: monospace; background: #E5E7EB; padding: 4px 8px; border-radius: 4px;">API: ${escapeHtml(api)}</div>` : ''}
+                                                ${(section && twp && rng) ? `<div style="color: #6B7280;">${section}-${escapeHtml(twp)}-${escapeHtml(rng)}${county ? ', ' + escapeHtml(county) : ''}</div>` : ''}
+                                                ${(depthTop && depthBottom) ? `<div style="color: #6B7280;">${depthTop.toLocaleString()}-${depthBottom.toLocaleString()} ft</div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'exhibits' && Array.isArray(value) && value.length > 0) {
+                            // Special handling for exhibits array (unitization orders)
                             hasVisibleFields = true;
-                            // Pooling order format has nested legal_description
-                            const legalDesc = value.legal_description || {};
-                            const unitDesc = value.unit_description || value.description || '';
-                            const unitSize = value.unit_size_acres;
-                            const spacingOrder = value.spacing_order || '';
-                            const section = legalDesc.section || '';
-                            const township = legalDesc.township || '';
-                            const range = legalDesc.range || '';
-                            const county = legalDesc.county || '';
-                            const quarters = legalDesc.quarters || '';
+
+                            let exhibitList = value.map(ex => {
+                                const letter = ex.exhibit_letter || '';
+                                const desc = ex.description || '';
+                                return `
+                                    <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid #E5E7EB;">
+                                        <div style="background: #3B82F6; color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0;">
+                                            ${escapeHtml(letter)}
+                                        </div>
+                                        <div style="color: #374151;">${escapeHtml(desc)}</div>
+                                    </div>
+                                `;
+                            }).join('');
 
                             sectionContent += `
                                 <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 14px;">
-                                        ${section ? `<div style="font-weight: 600; color: #0369A1; font-size: 15px;">Section ${escapeHtml(section)} - ${escapeHtml(township)}-${escapeHtml(range)}${county ? `, ${escapeHtml(county)} County` : ''}</div>` : ''}
-                                        ${quarters ? `<div style="font-size: 13px; color: #374151; margin-top: 4px;">${escapeHtml(quarters)}</div>` : ''}
-                                        ${unitDesc ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(unitDesc)}</div>` : ''}
-                                        <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 13px;">
-                                            ${unitSize ? `<span style="color: #059669; font-weight: 500;">${unitSize.toLocaleString()} acres</span>` : ''}
-                                            ${spacingOrder ? `<span style="color: #6B7280;">Spacing Order: <strong>${escapeHtml(spacingOrder)}</strong></span>` : ''}
-                                        </div>
+                                    <div style="background: white; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px;">
+                                        ${exhibitList}
                                     </div>
+                                    ${getConfidenceIndicator(fieldName, fieldScores)}
                                 </div>`;
                         } else if (fieldName === 'well_info' && typeof value === 'object') {
                             // Special handling for well information object
