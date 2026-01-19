@@ -6509,9 +6509,10 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         logger.info(f"Extracted text from {len(page_texts)} pages")
         for i, text in enumerate(page_texts):
             logger.info(f"Page {i}: text length = {len(text)} chars")
-            # Log first 200 chars to see what we got
-            preview = text[:200].replace('\n', ' ').strip() if text else "(empty)"
-            logger.info(f"Page {i}: text preview: {preview}...")
+            # Log FULL text for debugging (temporarily)
+            logger.info(f"Page {i}: FULL TEXT START ===")
+            logger.info(text if text else "(empty)")
+            logger.info(f"Page {i}: FULL TEXT END ===")
     else:
         logger.warning(f"NO page_texts extracted from PDF - heuristics will not run!")
 
