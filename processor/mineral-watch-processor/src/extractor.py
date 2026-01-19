@@ -2553,36 +2553,56 @@ You MUST use ONLY the exact field names shown in the schema below. Do NOT invent
 - Use "target_formations" NOT "formations" or "Target Formation"
 - Use "recoverable_reserves" NOT "engineering_data" or "reserves"
 - Use "related_orders" NOT "previous_orders" or "companion_orders"
+- Use "cause_number" NOT "case_number" for the CD-202X-XXXXXX format
 If information doesn't fit an existing field, put it in "notes" as a text summary.
 
-REQUIRED FIELDS: order_info.case_number, order_info.order_number, order_info.order_date,
-officials.administrative_law_judge, operator.name, applicant.name, applicant.is_operator,
+TOP-LEVEL LINKING FIELDS (CRITICAL for property linking):
+You MUST include section, township, range, county, state at the ROOT level of the JSON.
+These are duplicated from legal_description to enable property linking.
+
+REQUIRED FIELDS: section, township, range, county, state (at root level),
+order_info.cause_number, order_info.order_number, order_info.order_date,
+officials.administrative_law_judge, operator.name, applicant.name, applicant.role,
 legal_description (all subfields), well_authorization.well_name, well_authorization.well_type,
 target_formations (at least one with is_primary: true), key_takeaway, detailed_analysis
 
 OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
 - operator address fields (address, city, state, zip)
-- applicant.attorney, applicant.attorney_oba, applicant.attorney_address, applicant.attorney_phone
+- applicant.attorney, applicant.attorney_oba
+- officials optional fields (alj_approval_date, technical_reviewer, hearing_location)
 - well_authorization.api_number, well_authorization.well_classification
 - unit_info.description
 - existing_wells (omit entire array if none listed)
 - recoverable_reserves (omit if no engineering data)
 - allocation_factors (REQUIRED for MULTIUNIT wells - these wells cross multiple sections and you MUST extract ALL sections with their allocation percentages. Look carefully in: (1) Appendix A or allocation appendices, (2) tables showing "allocation factors" or "percentage allocation", (3) legal description that lists multiple sections. Extract EVERY section the well crosses - typically 2-4 sections. Each entry needs section, township, range, and percentage. If acres are shown, include those too. Missing sections will break property linking.)
 - allowable_notes
-- related_orders.amends_order, related_orders.companion_cases
+- related_orders.references (omit if no related orders)
+- companion_causes (omit if no companion cases)
 
 {{
   "doc_type": "increased_density_order",
 
+  // TOP-LEVEL LINKING FIELDS (REQUIRED - duplicated from legal_description for property linking)
+  "section": 10,
+  "township": "14N",
+  "range": "14W",
+  "county": "Custer",
+  "state": "Oklahoma",
+
   "order_info": {{
-    "case_number": "CD2023-001229",
+    "cause_number": "CD2023-001229",
     "order_number": "734065",
     "order_date": "2023-05-03",
+    "effective_date": "2023-05-03",
     "hearing_date": "2023-04-25"
   }},
 
   "officials": {{
     "administrative_law_judge": "Jan Preslar",
+    "alj_approval_date": "2023-04-28",
+    "technical_reviewer": "John Smith",
+    "technical_review_date": "2023-04-27",
+    "hearing_location": "Oklahoma City",
     "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
   }},
 
@@ -2596,11 +2616,9 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
 
   "applicant": {{
     "name": "Continental Resources, Inc.",
-    "is_operator": true,
+    "role": "Operator",
     "attorney": "Karl F. Hirsch",
-    "attorney_oba": "4232",
-    "attorney_address": "Two Leadership Square, Oklahoma City, OK 73102",
-    "attorney_phone": "(405) 235-4100"
+    "attorney_oba": "4232"
   }},
 
   "legal_description": {{
@@ -2667,15 +2685,36 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
   "allowable_notes": "Multiunit horizontal allocation factors per Appendix A supplemented by Appendix C; gas per 165:10-3-28(h)(2)",
 
   "expiration": {{
+    "expires": true,
     "period": "1 year",
     "date": "2024-05-03"
   }},
 
   "related_orders": {{
-    "spacing_order": "668920",
-    "amends_order": "720145",
-    "companion_cases": ["CD2023-001228", "CD2023-001230"]
+    "references": [
+      {{
+        "order_number": "668920",
+        "type": "spacing_order",
+        "description": "Original spacing order for this unit"
+      }},
+      {{
+        "order_number": "720145",
+        "type": "amended_order",
+        "description": "Previous increased density order amended by this order"
+      }}
+    ]
   }},
+
+  "companion_causes": [
+    {{
+      "case_number": "CD2023-001228",
+      "cause_type": "Spacing"
+    }},
+    {{
+      "case_number": "CD2023-001230",
+      "cause_type": "Pooling"
+    }}
+  ],
 
   "key_takeaway": "Continental Resources authorized to drill one additional multiunit horizontal well (KO Kipp 4-34-3-10XHW) targeting the Mississippian in Section 10-14N-14W, Custer County.",
 
