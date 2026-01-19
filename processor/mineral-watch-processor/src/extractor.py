@@ -372,7 +372,9 @@ def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
     # Multi-page OCC orders have "ORDER NO. XXXXX" on every page as a header
     # If extracted text is very short and only contains this header, it's a continuation
     # (The actual content is scanned/image-based and didn't extract as text)
-    if len(page_text.strip()) < MIN_TEXT_FOR_ORDER_START:
+    # IMPORTANT: Only apply this rule if page_index > 0 - page 0 should never be marked as continuation
+    # This prevents misclassifying a truncated first page as a continuation
+    if page_index > 0 and len(page_text.strip()) < MIN_TEXT_FOR_ORDER_START:
         order_no_match = re.search(r"ORDER\s+NO\.\s*\d+", text_upper)
         # Check if "ORDER NO." is present but NOT "BEFORE THE CORPORATION COMMISSION" (which indicates page 1)
         has_commission_header = re.search(r"BEFORE\s+THE\s+CORPORATION\s+COMMISSION", text_upper)
