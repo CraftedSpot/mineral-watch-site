@@ -2434,6 +2434,138 @@ export default {
       }
     }
 
+    // Route: POST /api/occ/fetch-1002a - Fetch and process a 1002A completion report
+    // Called from portal UI when user clicks "Analyze" on a completion report
+    if (path === '/api/occ/fetch-1002a' && request.method === 'POST') {
+      const user = await authenticateUser(request, env);
+      if (!user) return errorResponse('Unauthorized', 401, env);
+
+      try {
+        const body = await request.json() as {
+          apiNumber: string;
+          entryId: number;
+        };
+
+        const { apiNumber, entryId } = body;
+
+        if (!apiNumber || !entryId) {
+          return errorResponse('apiNumber and entryId are required', 400, env);
+        }
+
+        console.log(`[1002A Fetch] User ${user.id} requesting API ${apiNumber} entryId ${entryId}`);
+
+        // Get user's plan and organization
+        const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
+        const userOrg = user.fields?.Organization?.[0] || user.organization?.[0] || user.Organization?.[0] || null;
+
+        // Check if already processed (by entryId in source_metadata)
+        const existingQuery = `
+          SELECT id, display_name, status FROM documents
+          WHERE user_id = ?
+          AND deleted_at IS NULL
+          AND json_extract(source_metadata, '$.entryId') = ?
+        `;
+
+        const existing = await env.WELLS_DB.prepare(existingQuery).bind(user.id, entryId).first();
+
+        if (existing) {
+          console.log(`[1002A Fetch] Document already exists: ${existing.id}`);
+
+          // Get current credit balance for UI
+          const creditUserId = user.organizationId || user.id;
+          const usageService = new UsageTrackingService(env.WELLS_DB);
+          const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+
+          return jsonResponse({
+            alreadyProcessed: true,
+            documentId: existing.id,
+            displayName: existing.display_name,
+            status: existing.status,
+            creditsRemaining: creditCheck.totalAvailable
+          }, 200, env);
+        }
+
+        // Check credits before fetching
+        const creditUserId = user.organizationId || user.id;
+        const usageService = new UsageTrackingService(env.WELLS_DB);
+        const creditCheck = await usageService.checkCreditsAvailable(creditUserId, userPlan);
+
+        if (!creditCheck.hasCredits) {
+          console.log(`[1002A Fetch] User ${user.id} has no credits`);
+          return jsonResponse({
+            error: 'no_credits',
+            message: creditCheck.message || 'No credits available. Please purchase a credit pack or upgrade your plan.',
+            creditsRemaining: 0
+          }, 402, env);
+        }
+
+        console.log(`[1002A Fetch] User has ${creditCheck.totalAvailable} credits, calling occ-fetcher`);
+
+        // Call occ-fetcher to download specific 1002A form
+        const occResponse = await env.OCC_FETCHER.fetch(
+          new Request('https://internal/download-1002a-forms', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'X-API-Key': env.PROCESSING_API_KEY
+            },
+            body: JSON.stringify({
+              apiNumber,
+              entryIds: [entryId],
+              userId: user.id,
+              userPlan,
+              organizationId: userOrg
+            })
+          })
+        );
+
+        const occResult = await occResponse.json() as any;
+
+        if (!occResponse.ok || !occResult.success) {
+          console.error('[1002A Fetch] occ-fetcher error:', occResult);
+          return jsonResponse({
+            error: 'fetch_failed',
+            message: occResult.error || 'Failed to fetch 1002A from OCC',
+            creditsRemaining: creditCheck.totalAvailable
+          }, occResponse.status || 500, env);
+        }
+
+        // Find the result for our entryId
+        const formResult = occResult.results?.find((r: any) => r.form?.entryId === entryId);
+
+        if (!formResult?.success || !formResult?.documentId) {
+          console.error('[1002A Fetch] Form not found in results:', occResult.results);
+          return jsonResponse({
+            error: 'fetch_failed',
+            message: formResult?.error || 'Failed to process 1002A form',
+            creditsRemaining: creditCheck.totalAvailable
+          }, 500, env);
+        }
+
+        console.log(`[1002A Fetch] Successfully fetched document ${formResult.documentId}`);
+
+        // Get the document status
+        const doc = await env.WELLS_DB.prepare(
+          'SELECT id, status, display_name FROM documents WHERE id = ?'
+        ).bind(formResult.documentId).first();
+
+        return jsonResponse({
+          success: true,
+          document: {
+            id: formResult.documentId,
+            status: doc?.status || 'pending',
+            displayName: doc?.display_name
+          },
+          form: formResult.form,
+          creditsRemaining: creditCheck.totalAvailable - 1
+        }, 200, env);
+
+      } catch (error) {
+        console.error('[1002A Fetch] Error:', error);
+        return errorResponse('Failed to fetch 1002A document: ' + (error as Error).message, 500, env);
+      }
+    }
+
     return errorResponse('Not found', 404, env);
   },
 };
