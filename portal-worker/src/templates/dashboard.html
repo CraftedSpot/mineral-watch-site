@@ -14717,66 +14717,219 @@
             }
         }
 
+        // State tracking for completion report processing (mirrors OCC filing pattern)
+        const completionProcessingStates = {}; // { entryId: { status, documentId, buttonEl, pollInterval } }
+        const COMPLETION_POLL_INTERVAL = 5000; // 5 seconds
+        const COMPLETION_MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
+
         // Analyze completion report - fetch and process 1002A/1002C form
+        // Uses same pattern as processOccFiling for consistency
         async function analyzeCompletion(apiNumber, entryId, buttonEl) {
             console.log(`[CompletionReports] Analyzing ${apiNumber} entryId ${entryId}`);
 
-            // Update button to analyzing state
-            const originalHtml = buttonEl.innerHTML;
-            buttonEl.disabled = true;
-            buttonEl.classList.add('analyzing');
-            buttonEl.innerHTML = '<span class="spinner-sm"></span>Analyzing...';
+            // Update button to fetching state
+            completionProcessingStates[entryId] = { status: 'fetching', buttonEl };
+            updateCompletionButtonState(buttonEl, 'fetching');
 
             try {
-                const response = await fetch(`/api/wells/${apiNumber}/analyze-completion`, {
+                const response = await fetch('/api/occ/fetch-1002a', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ entryId })
+                    body: JSON.stringify({ apiNumber, entryId })
                 });
 
                 const result = await response.json();
 
                 if (response.status === 401) {
+                    completionProcessingStates[entryId] = { status: 'idle', buttonEl };
+                    updateCompletionButtonState(buttonEl, 'idle');
                     showToast('Please log in to analyze completion reports', 'error');
-                    buttonEl.disabled = false;
-                    buttonEl.classList.remove('analyzing');
-                    buttonEl.innerHTML = originalHtml;
                     return;
                 }
 
-                if (result.success) {
-                    // Update button to analyzed state
-                    buttonEl.classList.remove('analyzing');
-                    buttonEl.classList.add('analyzed');
-                    buttonEl.innerHTML = '✓ Analyzed';
+                if (result.alreadyProcessed) {
+                    console.log(`[CompletionReports] Already processed: ${result.documentId}`);
+                    completionProcessingStates[entryId] = { status: 'complete', documentId: result.documentId, buttonEl };
+                    updateCompletionButtonState(buttonEl, 'complete', result.documentId, result.displayName);
+                } else if (result.success) {
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+                    console.log(`[CompletionReports] Successfully queued: ${docId}, status: ${docStatus}`);
 
-                    // Add view document link if available
-                    const docResult = result.results?.[0];
-                    if (docResult?.documentId) {
-                        const viewLink = document.createElement('a');
-                        viewLink.href = `/documents/${docResult.documentId}`;
-                        viewLink.target = '_blank';
-                        viewLink.className = 'completion-view-doc';
-                        viewLink.textContent = 'View Doc ↗';
-                        buttonEl.parentNode.appendChild(viewLink);
+                    // Update credits display
+                    if (typeof updateCreditsDisplay === 'function') {
+                        updateCreditsDisplay(result.creditsRemaining);
                     }
 
-                    showToast('Completion report analyzed successfully!', 'success');
+                    // Check initial status and start polling if not complete
+                    if (docStatus === 'complete') {
+                        completionProcessingStates[entryId] = { status: 'complete', documentId: docId, buttonEl };
+                        updateCompletionButtonState(buttonEl, 'complete', docId);
+                        showToast('Completion report analyzed!', 'success');
+                    } else {
+                        // Start polling for document status
+                        completionProcessingStates[entryId] = {
+                            status: docStatus === 'processing' ? 'processing' : 'queued',
+                            documentId: docId,
+                            buttonEl,
+                            pollStartTime: Date.now()
+                        };
+                        updateCompletionButtonState(buttonEl, docStatus === 'processing' ? 'processing' : 'queued');
+                        startCompletionDocumentPolling(entryId, docId, buttonEl);
+                    }
+                } else if (result.error === 'no_credits') {
+                    console.log(`[CompletionReports] No credits available`);
+                    completionProcessingStates[entryId] = { status: 'idle', buttonEl };
+                    updateCompletionButtonState(buttonEl, 'idle');
+                    showOutOfCreditsModal();
                 } else {
-                    throw new Error(result.error || 'Analysis failed');
+                    throw new Error(result.message || result.error || 'Unknown error');
                 }
             } catch (error) {
                 console.error('[CompletionReports] Error:', error);
-                buttonEl.disabled = false;
-                buttonEl.classList.remove('analyzing');
-                buttonEl.classList.add('error');
-                buttonEl.innerHTML = 'Retry';
-                buttonEl.title = error.message;
+                completionProcessingStates[entryId] = { status: 'error', buttonEl };
+                updateCompletionButtonState(buttonEl, 'error');
                 showToast('Failed to analyze: ' + error.message, 'error');
             }
         }
         window.analyzeCompletion = analyzeCompletion;
+
+        function startCompletionDocumentPolling(entryId, documentId, buttonEl) {
+            const state = completionProcessingStates[entryId];
+            if (!state || state.pollInterval) return; // Already polling
+
+            console.log(`[CompletionReports Poll] Starting polling for ${documentId}`);
+
+            state.pollInterval = setInterval(async () => {
+                const currentState = completionProcessingStates[entryId];
+                if (!currentState) {
+                    clearInterval(state.pollInterval);
+                    return;
+                }
+
+                // Check if we've exceeded max poll duration
+                if (Date.now() - currentState.pollStartTime > COMPLETION_MAX_POLL_DURATION) {
+                    console.log(`[CompletionReports Poll] Max duration exceeded for ${documentId}`);
+                    clearInterval(currentState.pollInterval);
+                    currentState.pollInterval = null;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${documentId}`, {
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        console.log(`[CompletionReports Poll] Error fetching status for ${documentId}`);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    const doc = data.document;
+
+                    if (!doc) return;
+
+                    console.log(`[CompletionReports Poll] Document ${documentId} status: ${doc.status}`);
+
+                    if (doc.status === 'complete') {
+                        // Document processing complete!
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'complete';
+                        updateCompletionButtonState(buttonEl, 'complete', documentId, doc.display_name);
+                        showToast('Completion report analyzed!', 'success');
+                    } else if (doc.status === 'processing' && currentState.status !== 'processing') {
+                        // Transitioned to processing
+                        currentState.status = 'processing';
+                        updateCompletionButtonState(buttonEl, 'processing');
+                    } else if (doc.status === 'error') {
+                        // Processing failed
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'error';
+                        updateCompletionButtonState(buttonEl, 'error');
+                        showToast('Document processing failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(`[CompletionReports Poll] Error polling ${documentId}:`, err);
+                }
+            }, COMPLETION_POLL_INTERVAL);
+        }
+
+        function updateCompletionButtonState(buttonEl, state, documentId = null, displayName = null) {
+            if (!buttonEl) return;
+
+            // Remove all state classes
+            buttonEl.classList.remove('analyzing', 'analyzed', 'error');
+            buttonEl.disabled = false;
+
+            // Remove any existing view doc link
+            const existingLink = buttonEl.parentNode?.querySelector('.completion-view-doc');
+            if (existingLink) existingLink.remove();
+
+            switch (state) {
+                case 'fetching':
+                    buttonEl.classList.add('analyzing');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Fetching...';
+                    buttonEl.title = 'Downloading from OCC';
+                    break;
+                case 'queued':
+                    buttonEl.classList.add('analyzing');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Queued...';
+                    buttonEl.title = 'Waiting for processing';
+                    break;
+                case 'processing':
+                    buttonEl.classList.add('analyzing');
+                    buttonEl.disabled = true;
+                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Processing...';
+                    buttonEl.title = 'Extracting document data';
+                    break;
+                case 'complete':
+                    buttonEl.classList.add('analyzed');
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = '✓ Analyzed';
+                    buttonEl.title = 'Click to view document';
+                    if (documentId) {
+                        buttonEl.dataset.documentId = documentId;
+                        buttonEl.onclick = function() {
+                            if (typeof openDocumentDetail === 'function') {
+                                openDocumentDetail(documentId);
+                            } else {
+                                window.location.href = `/portal?doc=${documentId}`;
+                            }
+                        };
+                        // Add view doc link
+                        const viewLink = document.createElement('a');
+                        viewLink.href = `/portal?doc=${documentId}`;
+                        viewLink.className = 'completion-view-doc';
+                        viewLink.textContent = 'View ↗';
+                        viewLink.onclick = (e) => {
+                            e.stopPropagation();
+                            if (typeof openDocumentDetail === 'function') {
+                                e.preventDefault();
+                                openDocumentDetail(documentId);
+                            }
+                        };
+                        buttonEl.parentNode.appendChild(viewLink);
+                    }
+                    break;
+                case 'error':
+                    buttonEl.classList.add('error');
+                    buttonEl.disabled = false;
+                    buttonEl.innerHTML = 'Retry';
+                    buttonEl.title = 'Click to retry';
+                    break;
+                case 'idle':
+                default:
+                    buttonEl.innerHTML = 'Analyze';
+                    buttonEl.title = 'Uses 1 document credit';
+                    break;
+            }
+        }
 
         function getOccStatusClass(status) {
             const statusMap = {
