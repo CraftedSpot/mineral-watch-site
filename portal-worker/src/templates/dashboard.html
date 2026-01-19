@@ -10238,15 +10238,16 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'perforated_intervals' && Array.isArray(value) && data.doc_type === 'completion_report') {
-                            // Special handling for perforated_intervals array (completion report)
+                        } else if (fieldName === 'perforated_intervals' && Array.isArray(value)) {
+                            // Special handling for perforated_intervals array (completion reports, permits)
                             if (value.length > 0) {
                                 hasVisibleFields = true;
                                 let intervalsHtml = value.map((interval, idx) => {
                                     const formation = interval.formation || '';
                                     const top = interval.top_md_ft || interval.from_ft;
                                     const bottom = interval.bottom_md_ft || interval.to_ft;
-                                    const length = interval.interval_length_ft;
+                                    // Calculate length if not provided
+                                    const length = interval.interval_length_ft || (top && bottom ? Math.abs(bottom - top) : null);
                                     return `<tr style="border-bottom: 1px solid #E5E7EB;">
                                         <td style="padding: 8px; font-weight: 500;">${escapeHtml(formation) || `Interval ${idx + 1}`}</td>
                                         <td style="padding: 8px; text-align: right; font-family: monospace;">${top ? Number(top).toLocaleString() : '-'}</td>
@@ -10270,8 +10271,8 @@
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
-                        } else if (fieldName === 'formation_tops' && Array.isArray(value) && data.doc_type === 'completion_report') {
-                            // Special handling for formation_tops array (completion report)
+                        } else if (fieldName === 'formation_tops' && Array.isArray(value)) {
+                            // Special handling for formation_tops array (completion reports, permits)
                             if (value.length > 0) {
                                 hasVisibleFields = true;
                                 let formationsHtml = value.map(formation => {
