@@ -348,6 +348,8 @@ CONTINUATION/MIDDLE PAGE INDICATORS (NOT a start page):
 - Notary blocks (usually end of document)
 - "Page 2 of 3" or similar pagination
 - Just exhibits/attachments
+- "FORMATION RECORD" header (this is page 2 of a Completion Report Form 1002A, NOT a new document)
+- APPROVED/DISAPPROVED stamps with signature (end of completion report, not start)
 
 Respond with JSON only:
 {
@@ -1314,6 +1316,12 @@ EXTRACTION NOTES FOR FORM 1000:
 For COMPLETION REPORTS (Form 1002A - documents that a well has been drilled and completed):
 NOTE: Completion Reports contain the official record of well location, depth, target formation, initial production test results, and regulatory approval status.
 Focus on: well ID, location, formation, production data, status. Skip operational/engineering detail like casing specs and treatment volumes.
+
+WELL NAME EXTRACTION (CRITICAL):
+- Form 1002A has separate fields: "LEASE NAME" and "WELL NO"
+- Combine them: well_name = "{LEASE NAME} {WELL NO}" (e.g., "Adams Q" + "1" = "Adams Q-1")
+- well_number = just the WELL NO field (e.g., "1")
+- Do NOT misread letters as numbers (Q is not 0, O is not 0)
 
 PUN CROSSWALK (CRITICAL FOR DATA LINKING):
 - otc_prod_unit_no: Extract EXACTLY as printed (e.g., "043-226597-0-0000")
@@ -5626,8 +5634,10 @@ AFFIDAVIT OF HEIRSHIP DETECTION:
 DEATH CERTIFICATE DETECTION:
 - death_certificate: Look for "CERTIFICATE OF DEATH", "DEATH CERTIFICATE", "STANDARD CERTIFICATE OF DEATH", "CONSULAR REPORT OF DEATH". Key indicators: state/county health department or vital records header, certificate number, cause of death, date of death, place of death, decedent personal information (birth date, occupation, SSN), informant details, funeral home/disposition info. Also includes "REPORT OF DEATH OF AN AMERICAN CITIZEN ABROAD" (consular reports). NOT affidavit_of_heirship (which lists heirs and establishes inheritance). Death certificates document the death itself, not who inherits.
 
-COMPLETION REPORT DETECTION:
-- completion_report: Look for "COMPLETION REPORT", "FORM 1002A", "1002-A", or "WELL COMPLETION". Key indicators: API number, spud date, completion date, initial production test data (oil/gas/water rates), perforated intervals, formation tops, total depth, surface location coordinates, bottom hole location (for horizontal wells). Contains well status (Accepted/Pending/Rejected). NOT drilling_permit (which is Form 1000 submitted BEFORE drilling). Completion reports document that drilling is FINISHED and report initial production.
+DRILLING PERMIT VS COMPLETION REPORT DETECTION (CRITICAL - these are different documents):
+- drilling_permit: Look for "FORM 1000", "NOTICE OF INTENT TO DRILL", "PERMIT TO DRILL", "APPLICATION TO DRILL", "INTENT TO DRILL". This is submitted BEFORE drilling begins. CRITICAL DISTINGUISHING FEATURES: (1) NO production data - well hasn't been drilled yet, (2) NO spud date or completion date in the data fields, (3) NO perforated intervals or formation tops with depths, (4) Contains "Zones of Significance" table showing target formations, (5) Shows proposed well location and planned depths, (6) OCC permit/application number. This is NOT completion_report - drilling permits are filed BEFORE drilling, completion reports are filed AFTER.
+
+- completion_report: Look for "FORM 1002A", "1002-A", "COMPLETION REPORT", "WELL COMPLETION REPORT", "REPORT OF COMPLETION". This is submitted AFTER drilling is FINISHED. CRITICAL DISTINGUISHING FEATURES: (1) HAS initial production test data (oil BOPD, gas MCFD, water BWPD), (2) HAS spud date AND completion date (past dates - drilling already happened), (3) HAS perforated intervals with measured depths, (4) HAS formation tops with actual drilled depths, (5) Status field showing "Accepted", "Pending", or "Rejected", (6) Contains OTC Production Unit Number (PUN) for multiunit wells. This is NOT drilling_permit - completion reports document FINISHED wells with actual production results.
 
 OCC ORDER TYPE DETECTION - be specific:
 - horizontal_drilling_and_spacing_order: Look for "HORIZONTAL DRILLING AND SPACING" or "HORIZONTAL WELL" in the relief/order title. Contains lateral setbacks, completion interval requirements, often 640-acre units.
