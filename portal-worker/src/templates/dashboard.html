@@ -14321,15 +14321,15 @@
             let trendClass = 'flat';
             let trendSymbol = '→';
             let trendText = '';
-            if (data.trend && data.trend !== 0) {
-                if (data.trend > 0) {
+            if (data.trend && data.trend.yoyChange != null && data.trend.yoyChange !== 0) {
+                if (data.trend.direction === 'up') {
                     trendClass = 'up';
                     trendSymbol = '↑';
-                    trendText = `+${Math.round(data.trend)}% YoY`;
-                } else {
+                    trendText = `+${data.trend.yoyChange}% YoY`;
+                } else if (data.trend.direction === 'down') {
                     trendClass = 'down';
                     trendSymbol = '↓';
-                    trendText = `${Math.round(data.trend)}% YoY`;
+                    trendText = `${data.trend.yoyChange}% YoY`;
                 }
             }
 
@@ -14380,7 +14380,7 @@
                 <div class="status-trend-row">
                     <div class="status-indicator">
                         <span class="status-dot ${statusClass}"></span>
-                        <span class="status-text">${data.status || 'Unknown'}</span>
+                        <span class="status-text">${data.status ? data.status.charAt(0).toUpperCase() + data.status.slice(1) : 'Unknown'}</span>
                         ${trendText ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${trendText}</span>` : ''}
                     </div>
                     ${sparklineHtml}
