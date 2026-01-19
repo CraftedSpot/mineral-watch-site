@@ -6304,7 +6304,6 @@
                 'First Sales': ['first_sales'],
                 'Stimulation': ['stimulation'],
                 'Formation Tops': ['formation_tops'],
-                'Section Allocation': ['allocation_factors'],
                 'Status': ['status', 'status_date', 'occ_file_number'],
                 // Well Transfer sections (Former Operator, New Operator already defined in Change of Operator section)
                 'Transfer Information': ['transfer_info'],
@@ -6671,9 +6670,10 @@
                 'Lateral Details',
                 'Perforated Intervals',
                 'Initial Production',
+                'First Sales',
+                'Stimulation',
                 'Formation Tops',
-                'Affected Sections',
-                'Purchaser',
+                // Note: Allocation Factors already in list above - used for both multiunit orders and completion reports
                 'Status',
                 // Well Transfer sections (Former Operator, New Operator already defined above for Change of Operator)
                 'Transfer Information',
@@ -7058,7 +7058,7 @@
                                 });
                                 sectionContent += `</div>`;
                             } else if (fieldName === 'allocation_factors') {
-                                // Special handling for allocation factors array (multiunit wells)
+                                // Special handling for allocation factors array (multiunit wells and completion reports)
                                 sectionContent += `<div style="display: flex; flex-direction: column; gap: 8px;">`;
                                 sectionContent += `<div style="font-size: 12px; color: #6B7280; margin-bottom: 4px;">Production and costs are allocated across these sections:</div>`;
                                 value.forEach(factor => {
@@ -7067,16 +7067,22 @@
                                     const range = factor.range || '';
                                     const percentage = factor.percentage;
                                     const acres = factor.acres;
+                                    const pun = factor.pun || '';
+                                    const isSurface = factor.is_surface_location;
                                     const location = section ? `Section ${section}${township ? ` - ${township}` : ''}${range ? `-${range}` : ''}` : '';
 
                                     if (location) {
                                         sectionContent += `
-                                            <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;">
-                                                <div>
-                                                    <span style="font-weight: 600; color: #0369A1; font-size: 14px;">${escapeHtml(location)}</span>
-                                                    ${acres ? `<span style="color: #6B7280; font-size: 12px; margin-left: 8px;">(${acres.toLocaleString()} acres)</span>` : ''}
+                                            <div style="background: #F0F9FF; border: 1px solid #0EA5E9; border-radius: 8px; padding: 12px 14px;">
+                                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                                    <div>
+                                                        <span style="font-weight: 600; color: #0369A1; font-size: 14px;">${escapeHtml(location)}</span>
+                                                        ${acres ? `<span style="color: #6B7280; font-size: 12px; margin-left: 8px;">(${acres.toLocaleString()} acres)</span>` : ''}
+                                                        ${isSurface ? `<span style="background: #DBEAFE; color: #1E40AF; padding: 2px 6px; border-radius: 4px; font-size: 10px; margin-left: 8px;">SURFACE</span>` : ''}
+                                                    </div>
+                                                    ${percentage !== undefined ? `<span style="background: #0369A1; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 600; font-size: 14px;">${percentage}%</span>` : ''}
                                                 </div>
-                                                ${percentage !== undefined ? `<span style="background: #0369A1; color: white; padding: 4px 12px; border-radius: 6px; font-weight: 600; font-size: 14px;">${percentage}%</span>` : ''}
+                                                ${pun ? `<div style="margin-top: 6px; font-size: 11px; color: #6B7280;">OTC PUN: <span style="font-family: monospace; background: #F3F4F6; padding: 2px 6px; border-radius: 3px;">${escapeHtml(pun)}</span></div>` : ''}
                                             </div>`;
                                     }
                                 });
@@ -10604,6 +10610,7 @@
                             const apiNumber = value.api_number || '';
                             const permitNumber = value.permit_number || '';
                             const operator = value.operator || '';
+                            const otcPun = value.otc_prod_unit_no || '';
 
                             if (wellName || apiNumber || permitNumber || operator) {
                                 hasVisibleFields = true;
@@ -10615,6 +10622,7 @@
                                                 ${apiNumber ? `<div><span style="color: #6B7280;">API:</span> <strong style="font-family: monospace;">${escapeHtml(apiNumber)}</strong></div>` : ''}
                                                 ${permitNumber ? `<div><span style="color: #6B7280;">Permit:</span> <strong>${escapeHtml(permitNumber)}</strong></div>` : ''}
                                                 ${operator ? `<div><span style="color: #6B7280;">Operator:</span> <strong>${escapeHtml(operator)}</strong></div>` : ''}
+                                                ${otcPun ? `<div><span style="color: #6B7280;">OTC PUN:</span> <strong style="font-family: monospace;">${escapeHtml(otcPun)}</strong></div>` : ''}
                                             </div>
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
@@ -10763,6 +10771,49 @@
                                                 ${casingPressure ? `<span>Casing: ${casingPressure.toLocaleString()} psi</span>` : ''}
                                             </div>
                                             ${remarks ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; opacity: 0.9;">${escapeHtml(remarks)}</div>` : ''}
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'first_sales' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for first_sales object (completion report)
+                            const salesDate = value.date || '';
+                            const purchaser = value.purchaser || '';
+                            const purchaserNumber = value.purchaser_number || '';
+                            const gasPlant = value.gas_plant || '';
+
+                            if (salesDate || purchaser) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                                                ${salesDate ? `<div><span style="color: #6B7280; font-size: 12px;">First Sale Date</span><div style="font-weight: 600; color: #166534;">${escapeHtml(salesDate)}</div></div>` : ''}
+                                                ${purchaser ? `<div><span style="color: #6B7280; font-size: 12px;">Purchaser</span><div style="font-weight: 600; color: #166534;">${escapeHtml(purchaser)}${purchaserNumber ? ` <span style="font-weight: 400; color: #6B7280;">(#${escapeHtml(purchaserNumber)})</span>` : ''}</div></div>` : ''}
+                                                ${gasPlant ? `<div><span style="color: #6B7280; font-size: 12px;">Gas Plant</span><div style="font-weight: 500;">${escapeHtml(gasPlant)}</div></div>` : ''}
+                                            </div>
+                                        </div>
+                                        ${getConfidenceIndicator(fieldName, fieldScores)}
+                                    </div>`;
+                            }
+                        } else if (fieldName === 'stimulation' && typeof value === 'object' && data.doc_type === 'completion_report') {
+                            // Special handling for stimulation object (completion report)
+                            const method = value.method || '';
+                            const stages = value.stages;
+                            const proppant = value.total_proppant_lbs;
+                            const fluid = value.total_fluid_bbls;
+
+                            if (method || stages || proppant || fluid) {
+                                hasVisibleFields = true;
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
+                                            <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                                                ${method ? `<div><span style="color: #6B7280; font-size: 12px;">Method</span><div style="font-weight: 600; color: #92400E;">${escapeHtml(method)}</div></div>` : ''}
+                                                ${stages ? `<div><span style="color: #6B7280; font-size: 12px;">Frac Stages</span><div style="font-weight: 600; color: #92400E;">${stages}</div></div>` : ''}
+                                                ${proppant ? `<div><span style="color: #6B7280; font-size: 12px;">Total Proppant</span><div style="font-weight: 500;">${proppant.toLocaleString()} lbs</div></div>` : ''}
+                                                ${fluid ? `<div><span style="color: #6B7280; font-size: 12px;">Total Fluid</span><div style="font-weight: 500;">${fluid.toLocaleString()} bbls</div></div>` : ''}
+                                            </div>
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;

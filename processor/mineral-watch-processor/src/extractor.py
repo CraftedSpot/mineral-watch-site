@@ -1315,11 +1315,19 @@ For COMPLETION REPORTS (Form 1002A - documents that a well has been drilled and 
 NOTE: Completion Reports contain the official record of well location, depth, target formation, initial production test results, and regulatory approval status.
 Focus on: well ID, location, formation, production data, status. Skip operational/engineering detail like casing specs and treatment volumes.
 
+PUN CROSSWALK (CRITICAL FOR DATA LINKING):
+- otc_prod_unit_no: Extract EXACTLY as printed (e.g., "043-226597-0-0000")
+- otc_prod_unit_no_normalized: Remove ALL dashes/hyphens (e.g., "04322659700000")
+  This enables direct database joins with OTC production data.
+- For multiunit wells, extract PUN for EACH section in allocation_factors[]
+
 CONDITIONAL REQUIREMENTS:
-- IF drill_type is "HORIZONTAL HOLE": bottom_hole_location, lateral_details, and affected_sections[] are REQUIRED
+- IF drill_type is "HORIZONTAL HOLE": bottom_hole_location, lateral_details, and allocation_factors[] are REQUIRED
 - IF drill_type is "DIRECTIONAL HOLE": bottom_hole_location is REQUIRED
-- IF surface and bottom hole are in different sections: affected_sections[] MUST include both
-- IF well_class is "DRY": OMIT initial_production entirely
+- IF well spans multiple sections: allocation_factors[] MUST include ALL sections with PUN for each
+- IF well_class is "DRY": OMIT initial_production and first_sales entirely
+- IF first_sales information is visible: first_sales is REQUIRED
+- IF stimulation/frac summary data is visible: stimulation is REQUIRED
 
 {{
   "doc_type": "completion_report",
@@ -1335,6 +1343,7 @@ CONDITIONAL REQUIREMENTS:
     "well_name": "NEWLEY 15-22-1XH",
     "well_number": "15-22-1XH",
     "otc_prod_unit_no": "043-226597-0-0000",
+    "otc_prod_unit_no_normalized": "04322659700000",
     "permit_number": "PD-2018-001234"
   }},
 
@@ -1418,6 +1427,47 @@ CONDITIONAL REQUIREMENTS:
     "flow_tubing_pressure_psi": 2127
   }},
 
+  "first_sales": {{
+    "date": "2019-12-15",
+    "purchaser": "ONEOK",
+    "purchaser_number": "48291",
+    "gas_plant": "Cana Plant"
+  }},
+
+  "stimulation": {{
+    "method": "Hydraulic Fracturing",
+    "stages": 45,
+    "total_proppant_lbs": 12500000,
+    "total_fluid_bbls": 425000
+  }},
+
+  "allocation_factors": [
+    {{
+      "section": 22,
+      "township": "18N",
+      "range": "14W",
+      "county": "Dewey",
+      "pun": "043-226597-0-0000",
+      "pun_normalized": "04322659700000",
+      "percentage": 54.5,
+      "decimal": 0.545,
+      "acres": 348.8,
+      "is_surface_location": true
+    }},
+    {{
+      "section": 15,
+      "township": "18N",
+      "range": "14W",
+      "county": "Dewey",
+      "pun": "043-226597-0-0001",
+      "pun_normalized": "04322659700001",
+      "percentage": 45.5,
+      "decimal": 0.455,
+      "acres": 291.2,
+      "is_surface_location": false
+    }}
+  ],
+
   "related_orders": {{
     "references": [
       {{ "order_number": "685493", "type": "spacing_order", "unit_size_acres": 640 }},
@@ -1434,33 +1484,12 @@ CONDITIONAL REQUIREMENTS:
     {{ "name": "Chester", "depth_ft": 9497 }}
   ],
 
-  "purchaser": "ONEOK",
-
   "status": "Accepted",
   "occ_file_number": "1144764",
 
-  "affected_sections": [
-    {{
-      "section": 22,
-      "township": "18N",
-      "range": "14W",
-      "county": "Dewey",
-      "is_surface_location": true,
-      "is_target_section": true
-    }},
-    {{
-      "section": 15,
-      "township": "18N",
-      "range": "14W",
-      "county": "Dewey",
-      "is_surface_location": false,
-      "is_target_section": true
-    }}
-  ],
+  "key_takeaway": "Derby Exploration completed the NEWLEY 15-22-1XH horizontal Mississippian well in Dewey County with initial production of 187 BOPD, 3,490 MCFD gas, and 1,359 BWPD, with the lateral extending from Section 22 (54.5%) to Section 15 (45.5%).",
 
-  "key_takeaway": "Derby Exploration completed the NEWLEY 15-22-1XH horizontal Mississippian well in Dewey County with initial production of 187 BOPD, 3,490 MCFD gas, and 1,359 BWPD, with the lateral extending from Section 22 to Section 15.",
-
-  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud on February 1, 2019 and completed on November 27, 2019. The surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W.\n\nThe well has a total measured depth of 20,783 feet with a true vertical depth of 10,180 feet. The lateral length is approximately 10,106 feet. Two perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated interval of roughly 9,234 feet.\n\nInitial production test on December 27, 2019 showed 186.9 barrels of oil per day (52.2 API gravity), 3,490 MCF of gas per day, and 1,359 barrels of water per day, flowing naturally with a gas-oil ratio of 18,672 cubic feet per barrel. The high GOR and gas classification indicate this is primarily a gas well with condensate.\n\nMineral owners in both Section 22 and Section 15 should expect to see this well on their division orders. The well operates under spacing orders 685493 and 687876 (both 640-acre units) and multiunit order 708745.",
+  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud on February 1, 2019 and completed on November 27, 2019. The surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W.\n\nThe well has a total measured depth of 20,783 feet with a true vertical depth of 10,180 feet. The lateral length is approximately 10,106 feet. Two perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated interval of roughly 9,234 feet.\n\nInitial production test on December 27, 2019 showed 186.9 barrels of oil per day (52.2 API gravity), 3,490 MCF of gas per day, and 1,359 barrels of water per day, flowing naturally with a gas-oil ratio of 18,672 cubic feet per barrel. The well was stimulated with 45 frac stages using approximately 12.5 million pounds of proppant.\n\nProduction is allocated 54.5% to Section 22 (PUN 043-226597-0-0000) and 45.5% to Section 15 (PUN 043-226597-0-0001). Mineral owners in both sections should expect to see this well on their division orders. First sales commenced December 15, 2019 with ONEOK as the gas purchaser.",
 
   "field_scores": {{
     "well_identification": 0.95,
@@ -1473,7 +1502,9 @@ CONDITIONAL REQUIREMENTS:
     "target_formation": 0.95,
     "perforated_intervals": 0.95,
     "initial_production": 0.95,
-    "affected_sections": 0.95
+    "first_sales": 0.85,
+    "stimulation": 0.80,
+    "allocation_factors": 0.90
   }},
   "document_confidence": "high"
 }}
@@ -1491,23 +1522,27 @@ VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
   "well_identification": {{
     "api_number": "35051123450000",
     "well_name": "SMITH 1-14",
-    "well_number": "1-14"
+    "well_number": "1-14",
+    "otc_prod_unit_no": "051-18234-0-0000",
+    "otc_prod_unit_no_normalized": "0511823400000",
+    "permit_number": "PD-2019-005678"
   }},
 
   "operator": {{
     "name": "ABC Energy, LLC",
-    "operator_number": "12345"
+    "operator_number": "31456"
   }},
 
   "dates": {{
-    "spud_date": "2020-03-15",
-    "completion_date": "2020-04-20",
-    "first_production_date": "2020-04-25",
-    "initial_test_date": "2020-04-28"
+    "spud_date": "2019-03-15",
+    "drilling_finished_date": "2019-04-02",
+    "completion_date": "2019-04-20",
+    "first_production_date": "2019-05-01",
+    "initial_test_date": "2019-05-05"
   }},
 
   "well_type": {{
-    "drill_type": "STRAIGHT HOLE",
+    "drill_type": "VERTICAL HOLE",
     "completion_type": "Single Zone",
     "well_class": "OIL"
   }},
@@ -1517,9 +1552,9 @@ VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
     "township": "9N",
     "range": "4W",
     "county": "Grady",
-    "quarters": "SE NW",
-    "footage_ns": "660 FSL",
-    "footage_ew": "660 FWL",
+    "quarters": "C NE NE",
+    "footage_ns": "660 FNL",
+    "footage_ew": "660 FEL",
     "latitude": 35.123456,
     "longitude": -97.654321,
     "ground_elevation_ft": 1250
@@ -1527,7 +1562,7 @@ VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
 
   "target_formation": {{
     "name": "Hunton",
-    "code": "410HNTN"
+    "code": "400HNTN"
   }},
 
   "perforated_intervals": [
@@ -1536,27 +1571,51 @@ VERTICAL WELL COMPLETION EXAMPLE (simpler case - no lateral, single section):
   "total_perforated_length_ft": 70,
 
   "initial_production": {{
-    "test_date": "2020-04-28",
+    "test_date": "2019-05-05",
     "oil_bbl_per_day": 125,
-    "oil_gravity_api": 42.0,
+    "oil_gravity_api": 42,
     "gas_mcf_per_day": 150,
     "gas_oil_ratio": 1200,
     "water_bbl_per_day": 45,
     "flow_method": "PUMPING"
   }},
 
+  "first_sales": {{
+    "date": "2019-05-10",
+    "purchaser": "Plains Marketing"
+  }},
+
+  "stimulation": {{
+    "method": "Acidize",
+    "total_fluid_bbls": 500
+  }},
+
+  "related_orders": {{
+    "references": [
+      {{ "order_number": "612345", "type": "spacing_order", "unit_size_acres": 160 }}
+    ]
+  }},
+
+  "formation_tops": [
+    {{ "name": "Viola", "depth_ft": 7890 }},
+    {{ "name": "Hunton", "depth_ft": 8400 }}
+  ],
+
   "status": "Accepted",
+  "occ_file_number": "1098765",
 
-  "key_takeaway": "ABC Energy completed the SMITH 1-14 vertical Hunton well in Grady County with initial production of 125 BOPD and 150 MCFD.",
+  "key_takeaway": "ABC Energy completed the SMITH 1-14 vertical Hunton well in Grady County with initial production of 125 BOPD and 150 MCFD on pump.",
 
-  "detailed_analysis": "This completion report documents the SMITH 1-14, a vertical well targeting the Hunton formation in Section 14-9N-4W, Grady County. The well was drilled to a single perforation interval at 8,450-8,520 feet.\n\nInitial production test showed 125 barrels of oil per day (42 API gravity), 150 MCF of gas per day, and 45 barrels of water per day on pump. This is a straightforward single-section vertical well with no horizontal component.",
+  "detailed_analysis": "This completion report documents the SMITH 1-14, a vertical well targeting the Hunton formation in Section 14-9N-4W, Grady County. The well was drilled to a single perforation interval at 8,450-8,520 feet and acidized.\n\nInitial production test showed 125 barrels of oil per day (42 API gravity), 150 MCF of gas per day, and 45 barrels of water per day on pump. First sales commenced May 10, 2019 with Plains Marketing as purchaser.\n\nThis is a straightforward single-section vertical well with no horizontal component. The OTC Production Unit Number (051-18234-0-0000) links this well to Oklahoma Tax Commission production records.",
 
   "field_scores": {{
     "well_identification": 0.95,
     "operator": 0.95,
     "surface_location": 0.95,
     "target_formation": 0.95,
-    "initial_production": 0.95
+    "initial_production": 0.95,
+    "first_sales": 0.85,
+    "stimulation": 0.80
   }},
   "document_confidence": "high"
 }}
