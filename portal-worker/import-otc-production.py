@@ -11,14 +11,13 @@ INPUT_FILE = "/Users/jamesprice/mymineralwatch/OTC Bulk/files (4)/exp_gpland2026
 OUTPUT_DIR = "/Users/jamesprice/mymineralwatch/mineral-watch-site/portal-worker/otc-production-batches"
 
 def format_pun(county, lease, sub, merge):
-    """Format PUN components into standard format: XXX-XXXXX-X-XXXXX
-    Match otc_leases format which uses 5-digit lease numbers.
+    """Format PUN components into standard format: XXX-XXXXXX-X-XXXX
+    OTC uses 6-digit lease numbers (matching 1002A forms).
     """
     county = county.zfill(3)
-    # Take last 5 digits of lease number to match otc_leases format
-    lease = lease[-5:].zfill(5)
+    lease = lease.zfill(6)  # Preserve full 6-digit lease number
     sub = sub.zfill(1)
-    merge = merge.zfill(5)
+    merge = merge.zfill(4)  # OTC uses 4-digit merge
     return f"{county}-{lease}-{sub}-{merge}"
 
 def parse_production_csv():
