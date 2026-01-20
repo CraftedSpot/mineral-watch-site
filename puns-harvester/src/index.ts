@@ -423,10 +423,17 @@ async function processWell(
     return;
   }
 
+  // Create a map of entryId -> formNumber for form_type tracking
+  const formTypeMap = new Map<number, string>();
+  for (const form of forms) {
+    formTypeMap.set(form.entryId, form.formNumber);
+  }
+
   // Step 3: Track each successfully queued form
   for (const result of downloadResult.results || []) {
     if (result.success && result.form?.entryId) {
       results.queued++;
+      const formType = formTypeMap.get(result.form.entryId) || null;
       await updateTracking(env.DB, well.api_number, result.form.entryId, {
         has_1002a: 1,
         status: 'fetched',  // PDF downloaded, waiting for Claude extraction
@@ -434,9 +441,10 @@ async function processWell(
         checked_at: new Date().toISOString(),
         fetched_at: new Date().toISOString(),
         processing_ms: Date.now() - startTime,
-        source: 'harvester'
+        source: 'harvester',
+        form_type: formType  // e.g., "1002A" or "1002C"
       });
-      console.log(`[Harvester] Queued ${well.api_number} entry ${result.form.entryId} for processing`);
+      console.log(`[Harvester] Queued ${well.api_number} entry ${result.form.entryId} (${formType}) for processing`);
     }
   }
 }
