@@ -1,9 +1,14 @@
 /**
  * PUN Harvester Worker
  *
- * Scheduled worker that scrapes 1002A completion reports to extract
- * verified PUN→API mappings. Runs nightly at 2am CT, grows crosswalk
- * coverage over time.
+ * Scheduled worker that discovers wells with 1002A completion reports and
+ * queues them for processing via the existing Claude extraction pipeline.
+ *
+ * This is a QUEUE FEEDER - it:
+ * 1. Finds wells without PUN coverage
+ * 2. Checks OCC for 1002A availability
+ * 3. Calls /download-1002a-forms to queue for Claude extraction
+ * 4. Tracks progress in well_1002a_tracking table
  *
  * BE A GOOD CITIZEN:
  * - 3-5 second delay between requests (mimics human browsing)
@@ -20,8 +25,7 @@ interface Env {
   DAILY_CAP: string;
   TIMEOUT_SAFETY_MS: string;
   OCC_FETCHER_URL: string;
-  USE_CLAUDE_EXTRACTION: string;
-  OCC_FETCHER?: Fetcher; // Service binding for worker-to-worker calls
+  OCC_FETCHER?: Fetcher;
 }
 
 interface WellToCheck {
@@ -51,35 +55,10 @@ interface Form1002A {
 interface HarvestResult {
   checked: number;
   formsFound: number;
-  punsExtracted: number;
+  queued: number;
+  noForms: number;
   errors: number;
-  skipped: number;
 }
-
-interface HarvestLogEntry {
-  has_1002a?: number;
-  entry_id?: number;
-  extraction_method?: string;
-  extracted_pun?: string;
-  confidence?: string;
-  success: number;
-  error_message?: string;
-  processing_ms?: number;
-}
-
-// PUN regex pattern: XXX-XXXXX-X-XXXXX (3-5-1-5 format)
-// Matches with optional leading zeros
-const PUN_PATTERN = /\b(\d{3})-(\d{5})-(\d)-(\d{5})\b/g;
-
-// Alternative patterns that might appear in OCR'd documents
-const PUN_ALT_PATTERNS = [
-  // With spaces instead of dashes
-  /\b(\d{3})\s+(\d{5})\s+(\d)\s+(\d{5})\b/g,
-  // Partial format with less padding
-  /\bPUN[:\s]+(\d{1,3})-(\d{1,5})-(\d)-(\d{1,5})\b/gi,
-  // Production Unit Number label
-  /Production\s+Unit\s+(?:Number|No\.?)[:\s]+(\d{1,3})-(\d{1,5})-(\d)-(\d{1,5})/gi,
-];
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
@@ -92,15 +71,15 @@ export default {
       timeoutSafety: parseInt(env.TIMEOUT_SAFETY_MS) || 540000,
     };
 
-    console.log(`[Harvester] Starting PUN harvest run at ${new Date().toISOString()}`);
+    console.log(`[Harvester] Starting run at ${new Date().toISOString()}`);
     console.log(`[Harvester] Config: batch=${config.batchSize}, cap=${config.dailyCap}, delay=${config.requestDelay}ms`);
 
     const results: HarvestResult = {
       checked: 0,
       formsFound: 0,
-      punsExtracted: 0,
-      errors: 0,
-      skipped: 0
+      queued: 0,
+      noForms: 0,
+      errors: 0
     };
 
     try {
@@ -139,20 +118,23 @@ export default {
           await sleep(delay);
         }
 
+        const wellStartTime = Date.now();
+
         try {
-          await processWell(well, env, results);
+          await processWell(well, env, results, wellStartTime);
         } catch (error) {
           results.errors++;
           console.error(`[Harvester] Error processing ${well.api_number}:`, error);
 
-          await logHarvest(env.DB, well.api_number, {
-            success: 0,
+          await updateTracking(env.DB, well.api_number, 0, {
+            status: 'error',
             error_message: error instanceof Error ? error.message : 'Unknown error',
-            processing_ms: Date.now() - startTime,
+            processing_ms: Date.now() - wellStartTime,
+            source: 'harvester'
           });
 
           // Exponential backoff on repeated errors
-          if (results.errors >= 3) {
+          if (results.errors >= 5) {
             console.log('[Harvester] Too many errors, stopping run');
             break;
           }
@@ -176,7 +158,6 @@ export default {
     const url = new URL(request.url);
 
     if (url.pathname === '/trigger' && request.method === 'POST') {
-      // Trigger a harvest run manually
       const event = { scheduledTime: Date.now(), cron: 'manual' } as ScheduledEvent;
       const ctx = { waitUntil: () => {} } as ExecutionContext;
       await this.scheduled(event, env, ctx);
@@ -186,7 +167,6 @@ export default {
     }
 
     if (url.pathname === '/stats') {
-      // Return harvest statistics
       const stats = await getHarvestStats(env.DB);
       return new Response(JSON.stringify(stats, null, 2), {
         headers: { 'Content-Type': 'application/json' },
@@ -194,7 +174,6 @@ export default {
     }
 
     if (url.pathname === '/test' && request.method === 'POST') {
-      // Test a single API number
       const body = await request.json() as { api_number?: string };
       if (!body.api_number) {
         return new Response(JSON.stringify({ error: 'api_number required' }), { status: 400 });
@@ -206,7 +185,16 @@ export default {
       });
     }
 
-    return new Response('PUN Harvester\n\nEndpoints:\n- POST /trigger - Trigger harvest run\n- GET /stats - View harvest statistics\n- POST /test {api_number} - Test single well', {
+    return new Response(`PUN Harvester
+
+Endpoints:
+- POST /trigger - Trigger harvest run
+- GET /stats - View harvest statistics
+- POST /test {api_number} - Test single well
+
+This worker discovers wells with 1002A forms and queues them
+for Claude extraction via the existing document pipeline.
+`, {
       headers: { 'Content-Type': 'text/plain' },
     });
   },
@@ -222,7 +210,6 @@ async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToChe
   const wells: WellToCheck[] = [];
 
   // Priority 1: Monitored wells with no coverage
-  // Check if monitored_sections table exists first
   try {
     const priority1 = await db.prepare(`
       SELECT DISTINCT w.api_number, w.well_name, w.county, w.section, w.township, w.range, 1 as priority
@@ -232,7 +219,7 @@ async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToChe
         AND w.township = ms.township
         AND w.range = ms.range
       WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
-        AND NOT EXISTS (SELECT 1 FROM puns_harvest_log h WHERE h.api_number = w.api_number)
+        AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
         AND w.well_status IN ('AC', 'NEW', 'Active')
       LIMIT ?
     `).bind(Math.ceil(limit / 3)).all();
@@ -243,7 +230,6 @@ async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToChe
       }
     }
   } catch (e) {
-    // monitored_sections table may not exist, skip this priority
     console.log('[Harvester] monitored_sections table not found, skipping priority 1');
   }
 
@@ -253,7 +239,7 @@ async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToChe
       SELECT api_number, well_name, county, section, township, range, 2 as priority
       FROM wells w
       WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
-        AND NOT EXISTS (SELECT 1 FROM puns_harvest_log h WHERE h.api_number = w.api_number)
+        AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
         AND completion_date > date('now', '-2 years')
         AND well_status IN ('AC', 'Active')
       ORDER BY completion_date DESC
@@ -273,7 +259,7 @@ async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToChe
       SELECT api_number, well_name, county, section, township, range, 3 as priority
       FROM wells w
       WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
-        AND NOT EXISTS (SELECT 1 FROM puns_harvest_log h WHERE h.api_number = w.api_number)
+        AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
         AND well_status IN ('AC', 'Active')
       ORDER BY county, api_number
       LIMIT ?
@@ -290,24 +276,24 @@ async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToChe
 }
 
 /**
- * Process a single well: fetch 1002A forms and extract PUN
+ * Process a single well:
+ * 1. Check OCC for 1002A availability
+ * 2. If found, call /download-1002a-forms to queue for processing
+ * 3. Track status in well_1002a_tracking
  */
-async function processWell(well: WellToCheck, env: Env, results: HarvestResult): Promise<void> {
-  const startTime = Date.now();
+async function processWell(
+  well: WellToCheck,
+  env: Env,
+  results: HarvestResult,
+  startTime: number
+): Promise<void> {
   console.log(`[Harvester] Processing ${well.api_number} (${well.well_name})`);
 
-  // Step 1: Check OCC for 1002A availability via occ-fetcher
-  // Use service binding if available, otherwise fall back to HTTP
-  let formsResponse: Response;
-  if (env.OCC_FETCHER) {
-    formsResponse = await env.OCC_FETCHER.fetch(
-      new Request(`https://internal/get-1002a-forms?api=${encodeURIComponent(well.api_number)}`)
-    );
-  } else {
-    formsResponse = await fetch(
-      `${env.OCC_FETCHER_URL}/get-1002a-forms?api=${encodeURIComponent(well.api_number)}`
-    );
-  }
+  // Step 1: Check OCC for 1002A availability
+  const formsResponse = await fetchFromOccFetcher(
+    `/get-1002a-forms?api=${encodeURIComponent(well.api_number)}`,
+    env
+  );
 
   if (!formsResponse.ok) {
     throw new Error(`OCC fetcher error: ${formsResponse.status}`);
@@ -326,12 +312,14 @@ async function processWell(well: WellToCheck, env: Env, results: HarvestResult):
   const forms = formsData.forms || [];
 
   if (forms.length === 0) {
-    // No 1002A forms found for this well
-    await logHarvest(env.DB, well.api_number, {
+    // No 1002A forms found - mark as checked but no form
+    results.noForms++;
+    await updateTracking(env.DB, well.api_number, 0, {
       has_1002a: 0,
-      extraction_method: 'no_form',
-      success: 1,
+      status: 'no_form',
+      checked_at: new Date().toISOString(),
       processing_ms: Date.now() - startTime,
+      source: 'harvester'
     });
     console.log(`[Harvester] No 1002A forms for ${well.api_number}`);
     return;
@@ -340,221 +328,138 @@ async function processWell(well: WellToCheck, env: Env, results: HarvestResult):
   results.formsFound++;
   console.log(`[Harvester] Found ${forms.length} 1002A form(s) for ${well.api_number}`);
 
-  // Step 2: Get the most recent form (by effective date or scan date)
-  const form = forms.sort((a, b) => {
-    const dateA = new Date(a.effectiveDate || a.scanDate || 0);
-    const dateB = new Date(b.effectiveDate || b.scanDate || 0);
-    return dateB.getTime() - dateA.getTime();
-  })[0];
-
-  // Step 3: Download and extract PUN
-  const extractionResult = await extractPunFromForm(form, env);
-
-  if (extractionResult.pun) {
-    results.punsExtracted++;
-
-    // Step 4: Insert into well_pun_links
-    await env.DB.prepare(`
-      INSERT OR IGNORE INTO well_pun_links
-      (api_number, pun, match_method, confidence, verified)
-      VALUES (?, ?, '1002a_extraction', ?, 1)
-    `).bind(well.api_number, extractionResult.pun, extractionResult.confidence).run();
-
-    // Step 5: Update pun_metadata if new PUN
-    await env.DB.prepare(`
-      INSERT INTO pun_metadata (pun, is_multi_well, well_count, county)
-      VALUES (?, 0, 1, ?)
-      ON CONFLICT(pun) DO UPDATE SET
-        well_count = well_count + 1,
-        is_multi_well = CASE WHEN well_count > 0 THEN 1 ELSE 0 END
-    `).bind(extractionResult.pun, well.county).run();
-
-    console.log(`[Harvester] Extracted PUN ${extractionResult.pun} for ${well.api_number}`);
-  }
-
-  // Log the harvest attempt
-  await logHarvest(env.DB, well.api_number, {
-    has_1002a: 1,
-    entry_id: form.entryId,
-    extraction_method: extractionResult.method,
-    extracted_pun: extractionResult.pun || undefined,
-    confidence: extractionResult.confidence,
-    success: extractionResult.pun ? 1 : 0,
-    error_message: extractionResult.error,
-    processing_ms: Date.now() - startTime,
-  });
-}
-
-/**
- * Extract PUN from a 1002A form using lightweight OCR + regex
- */
-async function extractPunFromForm(
-  form: Form1002A,
-  env: Env
-): Promise<{ pun: string | null; method: string; confidence: string; error?: string }> {
-
-  // The OCC forms metadata often contains location info that may include PUN
-  // First try to find it in the metadata
-  const locationPun = extractPunFromText(form.location || '');
-  if (locationPun) {
-    return { pun: locationPun, method: 'metadata_regex', confidence: 'high' };
-  }
-
-  // Try the document name
-  const namePun = extractPunFromText(form.name || '');
-  if (namePun) {
-    return { pun: namePun, method: 'name_regex', confidence: 'medium' };
-  }
-
-  // For now, we'll need to download and OCR the PDF to get the PUN
-  // This is more expensive, so we'll mark these for manual review or Claude fallback
-  try {
-    // Get session cookies first
-    const cookies = await getWellRecordsSessionCookies();
-
-    // Download the PDF
-    const pdfResponse = await fetch(form.downloadUrl, {
-      headers: {
-        Cookie: cookies,
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      },
-    });
-
-    if (!pdfResponse.ok) {
-      return {
-        pun: null,
-        method: 'failed',
-        confidence: 'none',
-        error: `PDF download failed: ${pdfResponse.status}`
-      };
+  // Step 2: Queue for processing via /download-1002a-forms
+  // This downloads the PDF, stores in R2, and registers with documents-worker
+  const downloadResponse = await fetchFromOccFetcher(
+    '/download-1002a-forms',
+    env,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiNumber: well.api_number,
+        userId: 'system_harvester',
+        userPlan: 'system'
+      })
     }
-
-    // For now, we can't OCR in a worker environment without external service
-    // Mark for manual review or future Claude extraction
-    return {
-      pun: null,
-      method: 'needs_ocr',
-      confidence: 'none',
-      error: 'PDF downloaded but OCR not available in worker'
-    };
-
-  } catch (error) {
-    return {
-      pun: null,
-      method: 'failed',
-      confidence: 'none',
-      error: error instanceof Error ? error.message : 'Unknown error'
-    };
-  }
-}
-
-/**
- * Extract PUN from text using regex patterns
- */
-function extractPunFromText(text: string): string | null {
-  if (!text) return null;
-
-  // Try main pattern first
-  const mainMatch = text.match(PUN_PATTERN);
-  if (mainMatch) {
-    return mainMatch[0];
-  }
-
-  // Try alternative patterns
-  for (const pattern of PUN_ALT_PATTERNS) {
-    const match = text.match(pattern);
-    if (match) {
-      // Reconstruct the PUN in standard format
-      const county = match[1].padStart(3, '0');
-      const lease = match[2].padStart(5, '0');
-      const sub = match[3];
-      const merge = match[4].padStart(5, '0');
-      return `${county}-${lease}-${sub}-${merge}`;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Get session cookies from OCC Well Records system
- */
-async function getWellRecordsSessionCookies(): Promise<string> {
-  const cookieJar = new Map<string, string>();
-
-  const extractCookies = (response: Response) => {
-    const setCookieHeader = response.headers.get('set-cookie');
-    if (setCookieHeader) {
-      const cookies = setCookieHeader.split(/,(?=\s*\w+=)/);
-      for (const cookie of cookies) {
-        const match = cookie.match(/^([^=]+)=([^;]*)/);
-        if (match) {
-          cookieJar.set(match[1].trim(), match[2]);
-        }
-      }
-    }
-  };
-
-  const browserHeaders = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-  };
-
-  let response = await fetch(
-    'https://public.occ.ok.gov/OGCDWellRecords/Welcome.aspx?dbid=0&repo=OCC',
-    { method: 'GET', headers: browserHeaders, redirect: 'manual' }
   );
-  extractCookies(response);
 
-  let location = response.headers.get('location');
-  let maxRedirects = 5;
-  while (location && response.status >= 300 && response.status < 400 && maxRedirects > 0) {
-    if (!location.startsWith('http')) {
-      location = 'https://public.occ.ok.gov' + location;
-    }
-    response = await fetch(location, {
-      method: 'GET',
-      headers: { ...browserHeaders, Cookie: Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ') },
-      redirect: 'manual',
+  const downloadResult = await downloadResponse.json() as {
+    success: boolean;
+    error?: string;
+    results?: Array<{
+      success: boolean;
+      form: { entryId: number };
+      documentId?: string;
+      error?: string;
+    }>;
+  };
+
+  if (!downloadResult.success) {
+    // Track error but don't throw - this well has forms, just failed to download
+    await updateTracking(env.DB, well.api_number, forms[0].entryId, {
+      has_1002a: 1,
+      status: 'error',
+      error_message: downloadResult.error || 'Download failed',
+      checked_at: new Date().toISOString(),
+      processing_ms: Date.now() - startTime,
+      source: 'harvester'
     });
-    extractCookies(response);
-    location = response.headers.get('location');
-    maxRedirects--;
+    console.log(`[Harvester] Download failed for ${well.api_number}: ${downloadResult.error}`);
+    return;
   }
 
-  return Array.from(cookieJar.entries()).map(([k, v]) => `${k}=${v}`).join('; ');
+  // Step 3: Track each successfully queued form
+  for (const result of downloadResult.results || []) {
+    if (result.success && result.form?.entryId) {
+      results.queued++;
+      await updateTracking(env.DB, well.api_number, result.form.entryId, {
+        has_1002a: 1,
+        status: 'fetched',  // PDF downloaded, waiting for Claude extraction
+        document_id: result.documentId || null,
+        checked_at: new Date().toISOString(),
+        fetched_at: new Date().toISOString(),
+        processing_ms: Date.now() - startTime,
+        source: 'harvester'
+      });
+      console.log(`[Harvester] Queued ${well.api_number} entry ${result.form.entryId} for processing`);
+    }
+  }
 }
 
 /**
- * Log a harvest attempt to the database
+ * Helper to fetch from occ-fetcher using service binding if available
  */
-async function logHarvest(db: D1Database, apiNumber: string, data: HarvestLogEntry): Promise<void> {
+async function fetchFromOccFetcher(
+  path: string,
+  env: Env,
+  options?: RequestInit
+): Promise<Response> {
+  if (env.OCC_FETCHER) {
+    return env.OCC_FETCHER.fetch(
+      new Request(`https://occ-fetcher${path}`, options)
+    );
+  }
+  return fetch(`${env.OCC_FETCHER_URL}${path}`, options);
+}
+
+/**
+ * Update or insert tracking record
+ */
+async function updateTracking(
+  db: D1Database,
+  apiNumber: string,
+  entryId: number,
+  data: {
+    has_1002a?: number;
+    status?: string;
+    document_id?: string | null;
+    extracted_pun?: string | null;
+    extraction_method?: string | null;
+    confidence?: string | null;
+    error_message?: string | null;
+    checked_at?: string;
+    fetched_at?: string;
+    processed_at?: string;
+    processing_ms?: number;
+    source?: string;
+    triggered_by?: string | null;
+  }
+): Promise<void> {
   await db.prepare(`
-    INSERT INTO puns_harvest_log
-    (api_number, has_1002a, entry_id, extraction_method, extracted_pun, confidence, success, error_message, processing_ms)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ON CONFLICT(api_number) DO UPDATE SET
-      checked_at = CURRENT_TIMESTAMP,
+    INSERT INTO well_1002a_tracking
+    (api_number, entry_id, has_1002a, status, document_id, extracted_pun, extraction_method,
+     confidence, error_message, checked_at, fetched_at, processed_at, processing_ms, source, triggered_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(api_number, entry_id) DO UPDATE SET
       has_1002a = COALESCE(excluded.has_1002a, has_1002a),
-      entry_id = COALESCE(excluded.entry_id, entry_id),
-      extraction_method = COALESCE(excluded.extraction_method, extraction_method),
+      status = COALESCE(excluded.status, status),
+      document_id = COALESCE(excluded.document_id, document_id),
       extracted_pun = COALESCE(excluded.extracted_pun, extracted_pun),
+      extraction_method = COALESCE(excluded.extraction_method, extraction_method),
       confidence = COALESCE(excluded.confidence, confidence),
-      success = excluded.success,
       error_message = excluded.error_message,
-      processing_ms = excluded.processing_ms,
-      retry_count = retry_count + 1,
-      last_retry_at = CURRENT_TIMESTAMP
+      checked_at = COALESCE(excluded.checked_at, checked_at),
+      fetched_at = COALESCE(excluded.fetched_at, fetched_at),
+      processed_at = COALESCE(excluded.processed_at, processed_at),
+      processing_ms = COALESCE(excluded.processing_ms, processing_ms),
+      updated_at = CURRENT_TIMESTAMP
   `).bind(
     apiNumber,
+    entryId,
     data.has_1002a ?? null,
-    data.entry_id ?? null,
-    data.extraction_method ?? null,
+    data.status ?? null,
+    data.document_id ?? null,
     data.extracted_pun ?? null,
+    data.extraction_method ?? null,
     data.confidence ?? null,
-    data.success,
     data.error_message ?? null,
-    data.processing_ms ?? null
+    data.checked_at ?? null,
+    data.fetched_at ?? null,
+    data.processed_at ?? null,
+    data.processing_ms ?? null,
+    data.source ?? 'harvester',
+    data.triggered_by ?? null
   ).run();
 }
 
@@ -564,8 +469,9 @@ async function logHarvest(db: D1Database, apiNumber: string, data: HarvestLogEnt
 async function getTodaysCount(db: D1Database): Promise<number> {
   const result = await db.prepare(`
     SELECT COUNT(*) as count
-    FROM puns_harvest_log
+    FROM well_1002a_tracking
     WHERE date(checked_at) = date('now')
+      AND source = 'harvester'
   `).first<{ count: number }>();
 
   return result?.count || 0;
@@ -584,7 +490,7 @@ async function updateDailyStats(db: D1Database, results: HarvestResult): Promise
       puns_extracted = puns_extracted + excluded.puns_extracted,
       errors = errors + excluded.errors,
       run_count = run_count + 1
-  `).bind(results.checked, results.formsFound, results.punsExtracted, results.errors).run();
+  `).bind(results.checked, results.formsFound, results.queued, results.errors).run();
 }
 
 /**
@@ -594,11 +500,19 @@ async function getHarvestStats(db: D1Database): Promise<object> {
   const totals = await db.prepare(`
     SELECT
       COUNT(*) as total_checked,
-      SUM(has_1002a) as total_with_forms,
-      SUM(CASE WHEN success = 1 AND extracted_pun IS NOT NULL THEN 1 ELSE 0 END) as total_extracted,
-      SUM(CASE WHEN success = 0 THEN 1 ELSE 0 END) as total_failed
-    FROM puns_harvest_log
+      SUM(CASE WHEN has_1002a = 1 THEN 1 ELSE 0 END) as total_with_forms,
+      SUM(CASE WHEN status = 'fetched' THEN 1 ELSE 0 END) as total_queued,
+      SUM(CASE WHEN status = 'processed' THEN 1 ELSE 0 END) as total_processed,
+      SUM(CASE WHEN status = 'error' THEN 1 ELSE 0 END) as total_errors,
+      SUM(CASE WHEN has_1002a = 0 THEN 1 ELSE 0 END) as total_no_form
+    FROM well_1002a_tracking
   `).first();
+
+  const bySource = await db.prepare(`
+    SELECT source, COUNT(*) as count
+    FROM well_1002a_tracking
+    GROUP BY source
+  `).all();
 
   const recent = await db.prepare(`
     SELECT * FROM puns_harvest_daily_stats
@@ -612,8 +526,17 @@ async function getHarvestStats(db: D1Database): Promise<object> {
       (SELECT COUNT(*) FROM wells WHERE well_status IN ('AC', 'Active')) as total_active_wells
   `).first();
 
+  const pipeline = await db.prepare(`
+    SELECT status, COUNT(*) as count
+    FROM well_1002a_tracking
+    WHERE has_1002a = 1
+    GROUP BY status
+  `).all();
+
   return {
     totals,
+    bySource: bySource.results,
+    pipeline: pipeline.results,
     recentDays: recent.results,
     coverage,
     timestamp: new Date().toISOString(),
@@ -621,44 +544,41 @@ async function getHarvestStats(db: D1Database): Promise<object> {
 }
 
 /**
- * Test extraction for a single well (for debugging)
+ * Test single well (for debugging)
  */
 async function testSingleWell(apiNumber: string, env: Env): Promise<object> {
   const startTime = Date.now();
 
   try {
-    // Use service binding if available, otherwise fall back to HTTP
-    let formsResponse: Response;
-    if (env.OCC_FETCHER) {
-      formsResponse = await env.OCC_FETCHER.fetch(
-        new Request(`https://internal/get-1002a-forms?api=${encodeURIComponent(apiNumber)}`)
-      );
-    } else {
-      formsResponse = await fetch(
-        `${env.OCC_FETCHER_URL}/get-1002a-forms?api=${encodeURIComponent(apiNumber)}`
-      );
-    }
+    // Check for 1002A forms
+    const formsResponse = await fetchFromOccFetcher(
+      `/get-1002a-forms?api=${encodeURIComponent(apiNumber)}`,
+      env
+    );
 
     const formsData = await formsResponse.json() as { success: boolean; forms?: Form1002A[]; error?: string };
 
     if (!formsData.success || !formsData.forms?.length) {
       return {
         apiNumber,
-        success: false,
+        has1002a: false,
         forms: [],
         message: 'No 1002A forms found',
         processingMs: Date.now() - startTime,
       };
     }
 
-    const form = formsData.forms[0];
-    const extraction = await extractPunFromForm(form, env);
-
     return {
       apiNumber,
-      success: !!extraction.pun,
-      forms: formsData.forms,
-      extraction,
+      has1002a: true,
+      formCount: formsData.forms.length,
+      forms: formsData.forms.map(f => ({
+        entryId: f.entryId,
+        effectiveDate: f.effectiveDate,
+        wellName: f.wellName,
+        county: f.county
+      })),
+      message: `Found ${formsData.forms.length} form(s). Use POST /download-1002a-forms to queue for processing.`,
       processingMs: Date.now() - startTime,
     };
 

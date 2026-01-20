@@ -63,10 +63,10 @@ export async function handleGetCompletionReports(
       // Continue with empty forms - we can still return RBDMS data
     }
 
-    // 3. Get fetch status from tracking table
+    // 3. Get fetch status from unified tracking table
     const statusResults = await env.WELLS_DB.prepare(`
-      SELECT entry_id, status, document_id, fetched_at, error_message
-      FROM well_1002a_status
+      SELECT entry_id, status, document_id, fetched_at, processed_at, extracted_pun, error_message, source
+      FROM well_1002a_tracking
       WHERE api_number = ?
     `).bind(apiNumber).all();
 
@@ -88,8 +88,11 @@ export async function handleGetCompletionReports(
         status: status?.status || 'available',
         documentId: status?.document_id || null,
         fetchedAt: status?.fetched_at || null,
+        processedAt: status?.processed_at || null,
+        extractedPun: status?.extracted_pun || null,
         errorMessage: status?.error_message || null,
-        pun: (wellResult as any)?.otc_prod_unit_no || null
+        source: status?.source || null,
+        pun: status?.extracted_pun || (wellResult as any)?.otc_prod_unit_no || null
       };
     });
 
@@ -425,15 +428,18 @@ export async function handleAnalyzeCompletion(
   const entryIds = body.entryIds || (body.entryId ? [body.entryId] : []);
 
   try {
-    // 1. Update status to 'fetching' for each entry
+    // 1. Update status to 'fetching' for each entry in unified tracking table
     for (const entryId of entryIds) {
       await env.WELLS_DB.prepare(`
-        INSERT INTO well_1002a_status (api_number, entry_id, status)
-        VALUES (?, ?, 'fetching')
+        INSERT INTO well_1002a_tracking (api_number, entry_id, status, has_1002a, source, triggered_by, checked_at)
+        VALUES (?, ?, 'fetching', 1, 'user', ?, datetime('now'))
         ON CONFLICT(api_number, entry_id) DO UPDATE SET
           status = 'fetching',
-          error_message = NULL
-      `).bind(apiNumber, entryId).run();
+          source = 'user',
+          triggered_by = excluded.triggered_by,
+          error_message = NULL,
+          updated_at = CURRENT_TIMESTAMP
+      `).bind(apiNumber, entryId, userId).run();
     }
 
     // 2. Call occ-fetcher to download forms
