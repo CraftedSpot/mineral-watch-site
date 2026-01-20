@@ -2,9 +2,10 @@ name = "puns-harvester"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
+# DISABLED - waiting for OTC production data re-import with correct 6-digit PUN format
 # Run at 2am CT (8am UTC) - off-peak for OCC servers
-[triggers]
-crons = ["0 8 * * *"]
+# [triggers]
+# crons = ["0 8 * * *"]
 
 [[d1_databases]]
 binding = "DB"
