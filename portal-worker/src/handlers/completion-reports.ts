@@ -474,8 +474,8 @@ export async function handleAnalyzeCompletion(
       // Update status to error for tracked entries
       for (const entryId of entryIds) {
         await env.WELLS_DB.prepare(`
-          UPDATE well_1002a_status
-          SET status = 'error', error_message = ?
+          UPDATE well_1002a_tracking
+          SET status = 'error', error_message = ?, updated_at = CURRENT_TIMESTAMP
           WHERE api_number = ? AND entry_id = ?
         `).bind(fetchResult.error || 'Unknown error', apiNumber, entryId).run();
       }
