@@ -152,7 +152,11 @@ export async function handleGetProductionSummary(
     `).bind(apiNumber, api10, `${api10}%`).first() as { otc_prod_unit_no: string | null; well_name: string | null; formation_name: string | null } | null;
 
     if (wellResult?.otc_prod_unit_no) {
-      pun = wellResult.otc_prod_unit_no.replace(/-/g, ''); // Normalize
+      const rawPun = wellResult.otc_prod_unit_no.replace(/-/g, '');
+      // Only use if it's a complete 14-digit PUN
+      if (rawPun.length >= 14) {
+        pun = rawPun;
+      }
     }
 
     // Path B: Via pun_api_crosswalk (document-sourced)
@@ -178,6 +182,27 @@ export async function handleGetProductionSummary(
 
       if (leaseResult?.pun) {
         pun = leaseResult.pun.replace(/-/g, '');
+      }
+    }
+
+    // Path D: Try to find PUN from production data using partial match
+    // This helps when wells table has incomplete PUN (e.g., 8 digits instead of 14)
+    if (!pun && wellResult?.otc_prod_unit_no) {
+      const partialPun = wellResult.otc_prod_unit_no.replace(/-/g, '');
+      // Pad with leading zero if needed (county codes are 3 digits)
+      const searchPun = partialPun.length === 8 ? `0${partialPun.substring(0, 2)}-${partialPun.substring(2, 7)}%` :
+                        partialPun.length < 14 ? `%${partialPun}%` : null;
+
+      if (searchPun) {
+        const prodResult = await env.WELLS_DB.prepare(`
+          SELECT DISTINCT pun FROM otc_production
+          WHERE pun LIKE ?
+          LIMIT 1
+        `).bind(searchPun).first() as { pun: string } | null;
+
+        if (prodResult?.pun) {
+          pun = prodResult.pun.replace(/-/g, '');
+        }
       }
     }
 
@@ -359,8 +384,16 @@ export async function handleGetProductionSummary(
     }
 
     // Format PUN for display in 3-5-1-5 format (XXX-XXXXX-X-XXXXX)
-    const punDisplay = pun.includes('-') ? pun :
-      `${pun.substring(0, 3)}-${pun.substring(3, 8)}-${pun.substring(8, 9)}-${pun.substring(9)}`;
+    // Only format if we have a complete 14-digit PUN, otherwise show as-is
+    let punDisplay: string;
+    if (pun.includes('-')) {
+      punDisplay = pun;
+    } else if (pun.length >= 14) {
+      punDisplay = `${pun.substring(0, 3)}-${pun.substring(3, 8)}-${pun.substring(8, 9)}-${pun.substring(9, 14)}`;
+    } else {
+      // Incomplete PUN - show as-is rather than malforming it
+      punDisplay = pun;
+    }
 
     return jsonResponse({
       success: true,
