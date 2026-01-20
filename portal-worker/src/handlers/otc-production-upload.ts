@@ -181,3 +181,326 @@ export async function handleGetProductionStats(
     );
   }
 }
+
+/**
+ * Handle POST /api/otc-sync/upload-pun-production
+ * Uploads PUN-level production data to D1 otc_production table
+ *
+ * D1 Schema (otc_production):
+ * - pun: TEXT (XXX-XXXXXX-X-XXXX)
+ * - year_month: TEXT (YYYYMM)
+ * - product_code: TEXT (1=Oil, 3=Condensate, 5=CasingheadGas, 6=NaturalGas)
+ * - gross_volume: REAL
+ * - gross_value: REAL
+ */
+export async function handleUploadPunProductionData(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    const body = (await request.json()) as PunUploadRequest;
+
+    if (!body.records || !Array.isArray(body.records)) {
+      return jsonResponse({ error: "Missing or invalid 'records' array" }, 400);
+    }
+
+    if (body.records.length === 0) {
+      return jsonResponse({ message: "No records to upload", inserted: 0 }, 200);
+    }
+
+    // Validate records
+    for (const record of body.records) {
+      if (
+        typeof record.pun !== "string" ||
+        typeof record.year_month !== "string" ||
+        typeof record.product_code !== "string" ||
+        typeof record.gross_volume !== "number"
+      ) {
+        return jsonResponse(
+          {
+            error: "Invalid record format",
+            expected: {
+              pun: "string (XXX-XXXXXX-X-XXXX)",
+              year_month: "string (YYYYMM)",
+              product_code: "string (1, 3, 5, or 6)",
+              gross_volume: "number",
+              gross_value: "number (optional)",
+            },
+          },
+          400
+        );
+      }
+    }
+
+    // Process in batches of 100 to avoid hitting D1 limits
+    const BATCH_SIZE = 100;
+    let totalInserted = 0;
+
+    for (let i = 0; i < body.records.length; i += BATCH_SIZE) {
+      const batch = body.records.slice(i, i + BATCH_SIZE);
+
+      // Use INSERT OR REPLACE to handle upserts
+      const statements = batch.map((record) => {
+        return env.WELLS_DB!.prepare(
+          `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value)
+           VALUES (?, ?, ?, ?, ?)
+           ON CONFLICT(pun, year_month, product_code) DO UPDATE SET
+             gross_volume = excluded.gross_volume,
+             gross_value = excluded.gross_value`
+        ).bind(
+          record.pun,
+          record.year_month,
+          record.product_code,
+          record.gross_volume,
+          record.gross_value || 0
+        );
+      });
+
+      // Execute batch
+      const results = await env.WELLS_DB!.batch(statements);
+
+      for (const result of results) {
+        if (result.meta.changes > 0) {
+          totalInserted += result.meta.changes;
+        }
+      }
+    }
+
+    return jsonResponse({
+      success: true,
+      message: `Processed ${body.records.length} PUN production records`,
+      inserted: totalInserted,
+      batches: Math.ceil(body.records.length / BATCH_SIZE),
+    });
+  } catch (error) {
+    console.error("Error uploading PUN production data:", error);
+    return jsonResponse(
+      {
+        error: "Failed to upload PUN production data",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
+}
+
+/**
+ * Handle POST /api/otc-sync/compute-pun-rollups
+ * Recomputes aggregate fields on the puns table from otc_production data
+ *
+ * Updates:
+ * - first_prod_month, last_prod_month
+ * - total_oil_bbl, total_gas_mcf
+ * - peak_month, peak_month_oil_bbl, peak_month_gas_mcf
+ * - decline_rate_12m, months_since_production, is_stale
+ */
+export async function handleComputePunRollups(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    const startTime = Date.now();
+
+    // Step 1: Update first/last production months and totals
+    console.log("[PunRollup] Step 1: Updating first/last months and totals...");
+    const aggregateResult = await env.WELLS_DB!.prepare(`
+      UPDATE puns SET
+        first_prod_month = (
+          SELECT MIN(year_month) FROM otc_production WHERE otc_production.pun = puns.pun
+        ),
+        last_prod_month = (
+          SELECT MAX(year_month) FROM otc_production WHERE otc_production.pun = puns.pun
+        ),
+        total_oil_bbl = (
+          SELECT COALESCE(SUM(gross_volume), 0) FROM otc_production
+          WHERE otc_production.pun = puns.pun AND product_code IN ('1', '3')
+        ),
+        total_gas_mcf = (
+          SELECT COALESCE(SUM(gross_volume), 0) FROM otc_production
+          WHERE otc_production.pun = puns.pun AND product_code IN ('5', '6')
+        )
+      WHERE EXISTS (SELECT 1 FROM otc_production WHERE otc_production.pun = puns.pun)
+    `).run();
+    const step1Changes = aggregateResult.meta.changes;
+
+    // Step 2: Update peak month (month with highest oil production)
+    console.log("[PunRollup] Step 2: Updating peak month...");
+    const peakResult = await env.WELLS_DB!.prepare(`
+      UPDATE puns SET
+        peak_month = (
+          SELECT year_month FROM otc_production
+          WHERE otc_production.pun = puns.pun AND product_code IN ('1', '3')
+          GROUP BY year_month
+          ORDER BY SUM(gross_volume) DESC
+          LIMIT 1
+        ),
+        peak_month_oil_bbl = (
+          SELECT SUM(gross_volume) FROM otc_production
+          WHERE otc_production.pun = puns.pun AND product_code IN ('1', '3')
+          GROUP BY year_month
+          ORDER BY SUM(gross_volume) DESC
+          LIMIT 1
+        )
+      WHERE EXISTS (SELECT 1 FROM otc_production WHERE otc_production.pun = puns.pun AND product_code IN ('1', '3'))
+    `).run();
+    const step2Changes = peakResult.meta.changes;
+
+    // Step 3: Update is_stale and months_since_production
+    console.log("[PunRollup] Step 3: Updating staleness flags...");
+    const currentYearMonth = new Date().toISOString().slice(0, 7).replace("-", "");
+    const sixMonthsAgo = (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 6);
+      return d.toISOString().slice(0, 7).replace("-", "");
+    })();
+
+    const staleResult = await env.WELLS_DB!.prepare(`
+      UPDATE puns SET
+        is_stale = CASE WHEN last_prod_month < ? THEN 1 ELSE 0 END,
+        months_since_production = CASE
+          WHEN last_prod_month IS NULL THEN NULL
+          ELSE (
+            (CAST(SUBSTR(?, 1, 4) AS INTEGER) - CAST(SUBSTR(last_prod_month, 1, 4) AS INTEGER)) * 12 +
+            (CAST(SUBSTR(?, 5, 2) AS INTEGER) - CAST(SUBSTR(last_prod_month, 5, 2) AS INTEGER))
+          )
+        END
+      WHERE last_prod_month IS NOT NULL
+    `).bind(sixMonthsAgo, currentYearMonth, currentYearMonth).run();
+    const step3Changes = staleResult.meta.changes;
+
+    // Step 4: Compute decline rate (compare recent 3 months avg to same period last year)
+    // This is complex, so we'll do a simplified version
+    console.log("[PunRollup] Step 4: Updating decline rates...");
+    const recentMonthEnd = currentYearMonth;
+    const recentMonthStart = (() => {
+      const d = new Date();
+      d.setMonth(d.getMonth() - 3);
+      return d.toISOString().slice(0, 7).replace("-", "");
+    })();
+    const yearAgoEnd = (() => {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      return d.toISOString().slice(0, 7).replace("-", "");
+    })();
+    const yearAgoStart = (() => {
+      const d = new Date();
+      d.setFullYear(d.getFullYear() - 1);
+      d.setMonth(d.getMonth() - 3);
+      return d.toISOString().slice(0, 7).replace("-", "");
+    })();
+
+    // Simplified decline rate: compare total of recent 3 months to same period last year
+    const declineResult = await env.WELLS_DB!.prepare(`
+      UPDATE puns SET
+        decline_rate_12m = (
+          SELECT
+            CASE
+              WHEN COALESCE(old_vol, 0) = 0 THEN NULL
+              ELSE ROUND(((COALESCE(new_vol, 0) - old_vol) / old_vol) * 100, 2)
+            END
+          FROM (
+            SELECT
+              (SELECT SUM(gross_volume) FROM otc_production
+               WHERE pun = puns.pun AND product_code IN ('1', '3')
+               AND year_month >= ? AND year_month <= ?) as new_vol,
+              (SELECT SUM(gross_volume) FROM otc_production
+               WHERE pun = puns.pun AND product_code IN ('1', '3')
+               AND year_month >= ? AND year_month <= ?) as old_vol
+          )
+        )
+      WHERE EXISTS (SELECT 1 FROM otc_production WHERE pun = puns.pun AND product_code IN ('1', '3'))
+    `).bind(recentMonthStart, recentMonthEnd, yearAgoStart, yearAgoEnd).run();
+    const step4Changes = declineResult.meta.changes;
+
+    const duration = Date.now() - startTime;
+
+    return jsonResponse({
+      success: true,
+      message: "PUN rollups computed successfully",
+      stats: {
+        step1_aggregates: step1Changes,
+        step2_peak_month: step2Changes,
+        step3_staleness: step3Changes,
+        step4_decline_rate: step4Changes,
+        duration_ms: duration,
+      },
+    });
+  } catch (error) {
+    console.error("Error computing PUN rollups:", error);
+    return jsonResponse(
+      {
+        error: "Failed to compute PUN rollups",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
+}
+
+/**
+ * Handle GET /api/otc-sync/pun-production-stats
+ * Returns statistics about PUN-level production data
+ */
+export async function handleGetPunProductionStats(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    // Get overall stats
+    const statsResult = await env.WELLS_DB!.prepare(
+      `SELECT
+         COUNT(*) as total_records,
+         COUNT(DISTINCT pun) as unique_puns,
+         MIN(year_month) as earliest_month,
+         MAX(year_month) as latest_month,
+         SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as total_oil,
+         SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as total_gas
+       FROM otc_production`
+    ).first();
+
+    // Get record count by product
+    const byProductResult = await env.WELLS_DB!.prepare(
+      `SELECT product_code, COUNT(*) as count, SUM(gross_volume) as volume
+       FROM otc_production
+       GROUP BY product_code`
+    ).all();
+
+    // Get top PUNs by oil production
+    const topPunsResult = await env.WELLS_DB!.prepare(
+      `SELECT pun, SUM(gross_volume) as total_oil
+       FROM otc_production
+       WHERE product_code IN ('1', '3')
+       GROUP BY pun
+       ORDER BY total_oil DESC
+       LIMIT 10`
+    ).all();
+
+    // Get puns table rollup stats
+    const rollupStats = await env.WELLS_DB!.prepare(
+      `SELECT
+         COUNT(*) as total_puns,
+         COUNT(CASE WHEN is_stale = 1 THEN 1 END) as stale_count,
+         COUNT(CASE WHEN decline_rate_12m < 0 THEN 1 END) as declining_count,
+         COUNT(CASE WHEN decline_rate_12m > 0 THEN 1 END) as growing_count,
+         AVG(decline_rate_12m) as avg_decline_rate
+       FROM puns
+       WHERE last_prod_month IS NOT NULL`
+    ).first();
+
+    return jsonResponse({
+      production: statsResult,
+      byProduct: byProductResult.results,
+      topPuns: topPunsResult.results,
+      rollupStats: rollupStats,
+    });
+  } catch (error) {
+    console.error("Error getting PUN production stats:", error);
+    return jsonResponse(
+      {
+        error: "Failed to get PUN production stats",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
+}
