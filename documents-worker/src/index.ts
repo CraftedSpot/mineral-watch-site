@@ -151,14 +151,25 @@ function postProcessExtractedData(extractedData: any): any {
   }
 
   // Handle allocation_factors array (completion reports may have PUN per section)
+  // Note: Extraction may use either 'pun' or 'otc_prod_unit_no' field names
   if (Array.isArray(extractedData.allocation_factors)) {
     for (const factor of extractedData.allocation_factors) {
+      // Handle otc_prod_unit_no field
       if (factor.otc_prod_unit_no) {
         if (!isValidPun(factor.otc_prod_unit_no)) {
           factor.otc_prod_unit_no = null;
           factor.otc_prod_unit_no_normalized = null;
         } else {
           factor.otc_prod_unit_no_normalized = normalizeOtcPun(factor.otc_prod_unit_no);
+        }
+      }
+      // Handle pun field (alternative name used in some extractions)
+      if (factor.pun) {
+        if (!isValidPun(factor.pun)) {
+          factor.pun = null;
+          factor.pun_normalized = null;
+        } else {
+          factor.pun_normalized = normalizeOtcPun(factor.pun);
         }
       }
     }
@@ -1651,43 +1662,60 @@ export default {
                   const insertedPuns = new Set<string>(); // Track to avoid duplicates
 
                   // Helper function to insert a PUN mapping
-                  const insertCrosswalk = async (pun: string, sectionCounty?: string) => {
-                    if (!pun || insertedPuns.has(pun)) return;
-                    insertedPuns.add(pun);
+                  // punOtc: normalized OTC format (3-5-1-5) for production matching
+                  // pun1002a: original 1002A format (3-6-1-4) for provenance
+                  const insertCrosswalk = async (punOtc: string, pun1002a: string | null, sectionCounty?: string) => {
+                    if (!punOtc || insertedPuns.has(punOtc)) return;
+                    insertedPuns.add(punOtc);
 
-                    console.log('[PUN Crosswalk] Inserting PUN mapping:', pun, '->', apiNumber);
+                    console.log('[PUN Crosswalk] Inserting PUN mapping:', pun1002a, '→', punOtc, '->', apiNumber);
+                    // pun_api_crosswalk has api_number as PRIMARY KEY
                     await env.WELLS_DB.prepare(`
-                      INSERT INTO pun_api_crosswalk (pun, api_number, well_name, county, operator, effective_date, source_document_id)
-                      VALUES (?, ?, ?, ?, ?, ?, ?)
-                      ON CONFLICT(pun, api_number) DO UPDATE SET
+                      INSERT INTO pun_api_crosswalk (api_number, pun, pun_1002a, well_name, county, operator, effective_date, source_document_id)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                      ON CONFLICT(api_number) DO UPDATE SET
+                        pun = excluded.pun,
+                        pun_1002a = COALESCE(excluded.pun_1002a, pun_1002a),
                         updated_at = CURRENT_TIMESTAMP,
                         source_document_id = excluded.source_document_id,
                         well_name = COALESCE(excluded.well_name, well_name),
                         operator = COALESCE(excluded.operator, operator),
                         effective_date = COALESCE(excluded.effective_date, effective_date)
                     `).bind(
-                      pun,
                       apiNumber,
+                      punOtc,
+                      pun1002a,
                       extracted_data.well_name || null,
                       sectionCounty || extracted_data.county || county || null,
                       extracted_data.operator?.name || null,
                       extracted_data.dates?.completion_date || null,
                       docId
                     ).run();
+
+                    // Also insert into well_pun_links (used for production matching)
+                    await env.WELLS_DB.prepare(`
+                      INSERT INTO well_pun_links (api_number, pun, pun_1002a, match_method, confidence)
+                      VALUES (?, ?, ?, '1002a_extraction', 'high')
+                      ON CONFLICT(api_number, pun) DO UPDATE SET
+                        pun_1002a = COALESCE(excluded.pun_1002a, pun_1002a),
+                        updated_at = CURRENT_TIMESTAMP
+                    `).bind(apiNumber, punOtc, pun1002a).run();
                   };
 
                   // Single well PUN (vertical wells, or primary PUN for horizontal)
                   if (extracted_data.otc_prod_unit_no) {
-                    const pun = extracted_data.otc_prod_unit_no_normalized || extracted_data.otc_prod_unit_no;
-                    await insertCrosswalk(pun);
+                    const pun1002a = extracted_data.otc_prod_unit_no; // Original from 1002A form
+                    const punOtc = extracted_data.otc_prod_unit_no_normalized || pun1002a; // Normalized for production matching
+                    await insertCrosswalk(punOtc, pun1002a);
                   }
 
                   // Multi-section horizontal wells (multiple PUNs in allocation_factors)
                   if (extracted_data.allocation_factors?.length) {
                     for (const factor of extracted_data.allocation_factors) {
                       if (factor.pun) {
-                        const pun = factor.pun_normalized || factor.pun;
-                        await insertCrosswalk(pun, factor.county);
+                        const pun1002a = factor.pun; // Original from 1002A form
+                        const punOtc = factor.pun_normalized || pun1002a; // Normalized
+                        await insertCrosswalk(punOtc, pun1002a, factor.county);
                       }
                     }
                   }
@@ -1696,16 +1724,16 @@ export default {
                     console.log('[PUN Crosswalk] Successfully inserted', insertedPuns.size, 'PUN mapping(s)');
 
                     // Also update wells.otc_prod_unit_no if not already set
-                    // Use the 10-digit API for matching (without sequence number)
+                    // Use the normalized OTC format for consistency with production data
                     const api10 = apiNumber.substring(0, 10);
-                    const primaryPun = extracted_data.otc_prod_unit_no || Array.from(insertedPuns)[0];
+                    const primaryPunOtc = extracted_data.otc_prod_unit_no_normalized || Array.from(insertedPuns)[0];
                     const updateResult = await env.WELLS_DB.prepare(`
                       UPDATE wells
                       SET otc_prod_unit_no = ?
                       WHERE (api_number = ? OR api_number LIKE ? || '%')
                         AND (otc_prod_unit_no IS NULL OR otc_prod_unit_no = '')
                     `).bind(
-                      primaryPun,
+                      primaryPunOtc,
                       api10,
                       api10
                     ).run();
