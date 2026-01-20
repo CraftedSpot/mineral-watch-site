@@ -48,6 +48,24 @@ function errorResponse(message: string, status: number, env: Env) {
 }
 
 /**
+ * Validate OTC Production Unit Number format.
+ * Valid formats:
+ *   - XXX-XXXXXX-X-XXXX (full format: county-unit-segment-well, e.g., "043-226597-0-0000")
+ *   - XXX-XXXXX-X-XXXX (5-digit unit variant)
+ *   - XXX-XXXXXX (short format without segment/well)
+ *
+ * Invalid (will return false):
+ *   - Short numbers without dashes (e.g., "20347") - likely operator numbers
+ *   - Numbers without county prefix
+ */
+function isValidPun(pun: string | null | undefined): boolean {
+  if (!pun) return false;
+  // Must have at least one dash and start with 3-digit county code
+  // Full format: XXX-XXXXX(X)-X-XXXX or short: XXX-XXXXX(X)
+  return /^\d{3}-\d{5,6}(-\d-\d{4})?$/.test(pun);
+}
+
+/**
  * Normalize OTC Production Unit Number for database crosswalk joins.
  * Preserves leading zeros (they likely encode county/district info).
  *
@@ -58,6 +76,11 @@ function errorResponse(message: string, status: number, env: Env) {
  */
 function normalizeOtcPun(pun: string | null | undefined): string | null {
   if (!pun) return null;
+  // Validate format first - reject invalid PUNs like operator numbers
+  if (!isValidPun(pun)) {
+    console.log(`[PUN Validation] Rejected invalid PUN: "${pun}" (likely operator number or wrong field)`);
+    return null;
+  }
   return pun.replace(/[-\s]/g, '');  // Remove dashes and spaces
 }
 
@@ -68,17 +91,29 @@ function normalizeOtcPun(pun: string | null | undefined): string | null {
 function postProcessExtractedData(extractedData: any): any {
   if (!extractedData) return extractedData;
 
-  // Normalize OTC PUN if present
+  // Validate and normalize OTC PUN if present
   if (extractedData.otc_prod_unit_no) {
-    extractedData.otc_prod_unit_no_normalized = normalizeOtcPun(extractedData.otc_prod_unit_no);
-    console.log(`[Normalize] OTC PUN: "${extractedData.otc_prod_unit_no}" → "${extractedData.otc_prod_unit_no_normalized}"`);
+    if (!isValidPun(extractedData.otc_prod_unit_no)) {
+      // Invalid PUN (e.g., operator number confused as PUN) - clear it
+      console.log(`[PUN Validation] Clearing invalid otc_prod_unit_no: "${extractedData.otc_prod_unit_no}"`);
+      extractedData.otc_prod_unit_no = null;
+      extractedData.otc_prod_unit_no_normalized = null;
+    } else {
+      extractedData.otc_prod_unit_no_normalized = normalizeOtcPun(extractedData.otc_prod_unit_no);
+      console.log(`[Normalize] OTC PUN: "${extractedData.otc_prod_unit_no}" → "${extractedData.otc_prod_unit_no_normalized}"`);
+    }
   }
 
   // Handle allocation_factors array (completion reports may have PUN per section)
   if (Array.isArray(extractedData.allocation_factors)) {
     for (const factor of extractedData.allocation_factors) {
       if (factor.otc_prod_unit_no) {
-        factor.otc_prod_unit_no_normalized = normalizeOtcPun(factor.otc_prod_unit_no);
+        if (!isValidPun(factor.otc_prod_unit_no)) {
+          factor.otc_prod_unit_no = null;
+          factor.otc_prod_unit_no_normalized = null;
+        } else {
+          factor.otc_prod_unit_no_normalized = normalizeOtcPun(factor.otc_prod_unit_no);
+        }
       }
     }
   }

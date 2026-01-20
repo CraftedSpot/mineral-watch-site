@@ -185,12 +185,72 @@ export default {
       });
     }
 
+    // Test batch endpoint - process a small number of wells for testing
+    if (url.pathname === '/test-batch' && request.method === 'POST') {
+      const body = await request.json() as { count?: number };
+      const count = Math.min(body.count || 5, 10); // Max 10 for testing
+
+      const startTime = Date.now();
+      const config = {
+        requestDelay: parseInt(env.REQUEST_DELAY_MS) || 3000,
+        requestJitter: parseInt(env.REQUEST_DELAY_JITTER_MS) || 2000,
+      };
+
+      const results = {
+        checked: 0,
+        formsFound: 0,
+        queued: 0,
+        noForms: 0,
+        errors: 0,
+        wells: [] as Array<{ api: string; status: string; forms: number; error?: string }>
+      };
+
+      const wells = await getWellsToCheck(env.DB, count);
+
+      for (const well of wells) {
+        if (results.checked > 0) {
+          const delay = config.requestDelay + Math.random() * config.requestJitter;
+          await sleep(delay);
+        }
+
+        const wellStart = Date.now();
+        try {
+          await processWell(well, env, results, wellStart);
+          results.wells.push({
+            api: well.api_number,
+            status: 'queued',
+            forms: 1
+          });
+        } catch (error) {
+          results.errors++;
+          results.wells.push({
+            api: well.api_number,
+            status: 'error',
+            forms: 0,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+        results.checked++;
+      }
+
+      return new Response(JSON.stringify({
+        success: true,
+        batchSize: count,
+        processingMs: Date.now() - startTime,
+        results,
+        message: `Processed ${results.checked} wells. Check /stats for pipeline status.`
+      }, null, 2), {
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
     return new Response(`PUN Harvester
 
 Endpoints:
-- POST /trigger - Trigger harvest run
+- POST /trigger - Trigger full harvest run
+- POST /test-batch {"count": 5} - Test small batch (max 10)
 - GET /stats - View harvest statistics
-- POST /test {api_number} - Test single well
+- POST /test {api_number} - Test single well lookup
 
 This worker discovers wells with 1002A forms and queues them
 for Claude extraction via the existing document pipeline.
@@ -201,76 +261,70 @@ for Claude extraction via the existing document pipeline.
 };
 
 /**
- * Get wells to check, prioritized by:
- * 1. Monitored wells (in tracked sections) with no coverage
- * 2. Recent completions (last 2 years) with no coverage
- * 3. Any active wells with no coverage
+ * Get wells to check, prioritized for maximum PUN extraction success:
+ *
+ * STATUS FILTER (only wells that matter to mineral owners):
+ *   - AC (Active): Generating royalties NOW - highest priority
+ *   - NEW: About to produce - high priority
+ *   - DRL (Drilling): Coming soon - medium priority
+ *   - SKIP: PA (Plugged), TA (Temp Abandoned), SI (Shut-in) - no future royalties
+ *
+ * DATE FILTER:
+ *   - Only wells completed >= 2010 (modern forms have PUNs filled in)
+ *   - Pre-2010 forms often have blank "OTC Prod. Unit No." fields
+ *
+ * Rationale: 1997 1002A forms have blank PUN fields,
+ * while 2019+ forms have PUNs clearly filled in (e.g., "043-226597-0-0000")
  */
 async function getWellsToCheck(db: D1Database, limit: number): Promise<WellToCheck[]> {
-  const wells: WellToCheck[] = [];
+  // Single optimized query with proper priority ordering
+  const result = await db.prepare(`
+    SELECT
+      w.api_number,
+      w.well_name,
+      w.county,
+      w.section,
+      w.township,
+      w.range,
+      w.well_status,
+      w.completion_date,
+      CASE w.well_status
+        WHEN 'AC' THEN 1
+        WHEN 'Active' THEN 1
+        WHEN 'NEW' THEN 2
+        WHEN 'DRL' THEN 3
+        ELSE 4
+      END as priority
+    FROM wells w
+    WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
+      AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
+      AND w.well_status IN ('AC', 'Active', 'NEW', 'DRL')
+      AND w.completion_date >= '2010-01-01'
+    ORDER BY
+      CASE w.well_status
+        WHEN 'AC' THEN 1
+        WHEN 'Active' THEN 1
+        WHEN 'NEW' THEN 2
+        WHEN 'DRL' THEN 3
+        ELSE 4
+      END,
+      w.completion_date DESC
+    LIMIT ?
+  `).bind(limit).all();
 
-  // Priority 1: Monitored wells with no coverage
-  try {
-    const priority1 = await db.prepare(`
-      SELECT DISTINCT w.api_number, w.well_name, w.county, w.section, w.township, w.range, 1 as priority
-      FROM wells w
-      INNER JOIN monitored_sections ms
-        ON w.section = ms.section
-        AND w.township = ms.township
-        AND w.range = ms.range
-      WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
-        AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
-        AND w.well_status IN ('AC', 'NEW', 'Active')
-      LIMIT ?
-    `).bind(Math.ceil(limit / 3)).all();
+  const wells = (result.results || []) as unknown as WellToCheck[];
 
-    if (priority1.results) {
-      for (const row of priority1.results) {
-        wells.push(row as unknown as WellToCheck);
-      }
-    }
-  } catch (e) {
-    console.log('[Harvester] monitored_sections table not found, skipping priority 1');
+  // Log breakdown by status
+  const statusCounts: Record<string, number> = {};
+  for (const w of wells) {
+    const status = (w as any).well_status || 'unknown';
+    statusCounts[status] = (statusCounts[status] || 0) + 1;
   }
 
-  // Priority 2: Recent completions with no coverage
-  if (wells.length < limit) {
-    const priority2 = await db.prepare(`
-      SELECT api_number, well_name, county, section, township, range, 2 as priority
-      FROM wells w
-      WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
-        AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
-        AND completion_date > date('now', '-2 years')
-        AND well_status IN ('AC', 'Active')
-      ORDER BY completion_date DESC
-      LIMIT ?
-    `).bind(limit - wells.length).all();
-
-    if (priority2.results) {
-      for (const row of priority2.results) {
-        wells.push(row as unknown as WellToCheck);
-      }
-    }
-  }
-
-  // Priority 3: Any active wells with no coverage
-  if (wells.length < limit) {
-    const priority3 = await db.prepare(`
-      SELECT api_number, well_name, county, section, township, range, 3 as priority
-      FROM wells w
-      WHERE NOT EXISTS (SELECT 1 FROM well_pun_links l WHERE l.api_number = w.api_number)
-        AND NOT EXISTS (SELECT 1 FROM well_1002a_tracking t WHERE t.api_number = w.api_number)
-        AND well_status IN ('AC', 'Active')
-      ORDER BY county, api_number
-      LIMIT ?
-    `).bind(limit - wells.length).all();
-
-    if (priority3.results) {
-      for (const row of priority3.results) {
-        wells.push(row as unknown as WellToCheck);
-      }
-    }
-  }
+  console.log(`[Harvester] Selected ${wells.length} wells (limit: ${limit})`);
+  console.log(`[Harvester] By status:`, statusCounts);
+  console.log(`[Harvester] Filters: status IN (AC, NEW, DRL), completion >= 2010`);
+  console.log(`[Harvester] Skipped: PA, TA, SI, pre-2010 wells`);
 
   return wells;
 }
@@ -424,13 +478,14 @@ async function updateTracking(
     processing_ms?: number;
     source?: string;
     triggered_by?: string | null;
+    form_type?: string | null;
   }
 ): Promise<void> {
   await db.prepare(`
     INSERT INTO well_1002a_tracking
     (api_number, entry_id, has_1002a, status, document_id, extracted_pun, extraction_method,
-     confidence, error_message, checked_at, fetched_at, processed_at, processing_ms, source, triggered_by)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+     confidence, error_message, checked_at, fetched_at, processed_at, processing_ms, source, triggered_by, form_type)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ON CONFLICT(api_number, entry_id) DO UPDATE SET
       has_1002a = COALESCE(excluded.has_1002a, has_1002a),
       status = COALESCE(excluded.status, status),
@@ -443,6 +498,7 @@ async function updateTracking(
       fetched_at = COALESCE(excluded.fetched_at, fetched_at),
       processed_at = COALESCE(excluded.processed_at, processed_at),
       processing_ms = COALESCE(excluded.processing_ms, processing_ms),
+      form_type = COALESCE(excluded.form_type, form_type),
       updated_at = CURRENT_TIMESTAMP
   `).bind(
     apiNumber,
@@ -459,7 +515,8 @@ async function updateTracking(
     data.processed_at ?? null,
     data.processing_ms ?? null,
     data.source ?? 'harvester',
-    data.triggered_by ?? null
+    data.triggered_by ?? null,
+    data.form_type ?? null
   ).run();
 }
 

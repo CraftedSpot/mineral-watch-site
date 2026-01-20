@@ -1479,9 +1479,27 @@ WELL NAME EXTRACTION (CRITICAL):
 API/PUN NORMALIZATION (CRITICAL FOR DATABASE JOINS):
 - api_number: Extract exactly as printed with dashes (e.g., "35-043-23686-0000")
 - api_number_normalized: Remove ALL dashes (e.g., "35043236860000")
-- otc_prod_unit_no: Extract exactly as printed (e.g., "043-226597-0-0000")
-- otc_prod_unit_no_normalized: Remove ALL dashes (e.g., "04322659700000")
+- otc_prod_unit_no: Extract from "OTC PROD UNIT NO" or "OTC Prod. Unit No." field ONLY
+- otc_prod_unit_no_normalized: Remove ALL dashes
 NOTE: Do NOT pad with zeros. Just remove dashes.
+
+OTC PROD UNIT NO EXTRACTION (CRITICAL - READ CAREFULLY):
+Location: Upper left of page 1, just below the API number field.
+Label: "OTC PROD UNIT NO." or "OTC Prod. Unit No."
+Format: XXX-XXXXXX-X-XXXX (e.g., "043-226597-0-0000")
+  - XXX = County code (3 digits, e.g., 043 = Dewey County)
+  - XXXXXX = Unit number (5-6 digits, e.g., 226597)
+  - X = Segment (1 digit, e.g., 0)
+  - XXXX = Sub-unit/well (4 digits, e.g., 0000)
+
+CRITICAL - DO NOT CONFUSE THESE FIELDS:
+- operator_number: A 5-digit code identifying the OPERATOR COMPANY (e.g., "20347")
+  This appears in the "OPERATOR NO" field. It is NOT a PUN - it's just a company ID.
+  A valid operator_number is only 5 digits with NO dashes.
+- otc_prod_unit_no: The OTC Production Unit Number - ALWAYS has dashes and starts with 3-digit county code.
+  A valid PUN is 15-17 characters including dashes (e.g., "043-226597-0-0000").
+  If the "OTC PROD UNIT NO" field is BLANK or NOT VISIBLE, set otc_prod_unit_no to null.
+  If you only see a short number (5-6 digits, no dashes), that's NOT a PUN - set to null.
 
 FORMATION_ZONES[] ARRAY (CRITICAL FOR COMMINGLED WELLS):
 Many vertical wells complete MULTIPLE formations with separate spacing orders and perforation intervals.
@@ -1500,10 +1518,9 @@ CONDITIONAL REQUIREMENTS:
 - IF drill_type is "HORIZONTAL HOLE": bottom_hole_location, lateral_details, and allocation_factors[] are REQUIRED
 - IF drill_type is "DIRECTIONAL HOLE": bottom_hole_location is REQUIRED
 - IF well spans multiple sections: allocation_factors[] MUST include ALL sections with PUN for each
-- PUN FORMAT (CRITICAL): OTC Production Unit Numbers follow format XXX-XXXXX-X-XXXXX (3-5-1-5 digits with dashes)
-  Example: 043-22659-7-00000 = County(043) - Lease(22659) - Segment(7) - Well(00000)
-  The pun_normalized field removes dashes for 14-digit format: 04322659700000
-  NEVER merge the segment digit with the lease number (wrong: 043-226597-0-0000)
+- PUN FORMAT (CRITICAL): OTC Production Unit Numbers follow format XXX-XXXXXX-X-XXXX (3-6-1-4 digits with dashes)
+  Example: 043-226597-0-0000 = County(043) - Unit(226597) - Segment(0) - Well(0000)
+  The pun_normalized field removes dashes: 04322659700000
 - IF well_class is "DRY": OMIT initial_production and first_sales entirely
 - IF first_sales information is visible: first_sales is REQUIRED
 - IF stimulation/frac summary data is visible: Include in formation_zones[].stimulation OR top-level stimulation
