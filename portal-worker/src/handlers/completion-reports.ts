@@ -325,12 +325,12 @@ export async function handleGetProductionSummary(
       .reverse();
 
     // Determine status based on most recent production vs TODAY
-    const mostRecentMonth = lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || '';
+    // mostRecentYM is already calculated above in YYYYMM format
     let status: 'active' | 'stale' | 'inactive' = 'inactive';
 
-    if (mostRecentMonth >= threeMonthsAgoYM) {
+    if (mostRecentYM >= threeMonthsAgoYM) {
       status = 'active';
-    } else if (mostRecentMonth >= twelveMonthsAgoYM) {
+    } else if (mostRecentYM >= twelveMonthsAgoYM) {
       status = 'stale';
     }
 
