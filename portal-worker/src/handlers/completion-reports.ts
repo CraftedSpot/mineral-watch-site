@@ -200,19 +200,19 @@ export async function handleGetProductionSummary(
     // 3. Get all PUNs for production query
     const puns = links.map(l => l.pun);
 
-    // Calculate date ranges
+    // Calculate date ranges - DB stores year_month as YYYYMM (no hyphen)
     const now = new Date();
     const threeMonthsAgo = new Date(now);
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-    const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+    const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
     const twelveMonthsAgo = new Date(now);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
-    const twelveMonthsAgoYM = `${twelveMonthsAgo.getFullYear()}-${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+    const twelveMonthsAgoYM = `${twelveMonthsAgo.getFullYear()}${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
     const lastYearSameMonth = new Date(now);
     lastYearSameMonth.setFullYear(lastYearSameMonth.getFullYear() - 1);
-    const lastYearYM = `${lastYearSameMonth.getFullYear()}-${String(lastYearSameMonth.getMonth() + 1).padStart(2, '0')}`;
+    const lastYearYM = `${lastYearSameMonth.getFullYear()}${String(lastYearSameMonth.getMonth() + 1).padStart(2, '0')}`;
 
     // 4. Query production data for all linked PUNs
     const placeholders = puns.map(() => '?').join(',');
