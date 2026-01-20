@@ -13,6 +13,18 @@ interface UploadRequest {
   records: ProductionRecord[];
 }
 
+interface PunProductionRecord {
+  pun: string;
+  year_month: string;
+  product_code: string;
+  gross_volume: number;
+  gross_value?: number;
+}
+
+interface PunUploadRequest {
+  records: PunProductionRecord[];
+}
+
 /**
  * Handle POST /api/otc-sync/upload-production
  * Uploads processed production data to D1 county_production_monthly table
