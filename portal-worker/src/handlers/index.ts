@@ -171,7 +171,10 @@ export {
 // OTC production upload handlers
 export {
   handleUploadProductionData,
-  handleGetProductionStats
+  handleGetProductionStats,
+  handleUploadPunProductionData,
+  handleComputePunRollups,
+  handleGetPunProductionStats
 } from './otc-production-upload.js';
 
 // Completion reports handlers

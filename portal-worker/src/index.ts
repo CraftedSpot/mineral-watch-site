@@ -152,6 +152,9 @@ import {
   // OTC production upload handlers
   handleUploadProductionData,
   handleGetProductionStats,
+  handleUploadPunProductionData,
+  handleComputePunRollups,
+  handleGetPunProductionStats,
   // Completion reports handlers
   handleGetCompletionReports,
   handleAnalyzeCompletion,
@@ -1008,6 +1011,15 @@ var index_default = {
       }
       if (path === "/api/otc-sync/production-stats" && request.method === "GET") {
         return handleGetProductionStats(request, env);
+      }
+      if (path === "/api/otc-sync/upload-pun-production" && request.method === "POST") {
+        return handleUploadPunProductionData(request, env);
+      }
+      if (path === "/api/otc-sync/compute-pun-rollups" && request.method === "POST") {
+        return handleComputePunRollups(request, env);
+      }
+      if (path === "/api/otc-sync/pun-production-stats" && request.method === "GET") {
+        return handleGetPunProductionStats(request, env);
       }
 
       // Formation backfill endpoints
