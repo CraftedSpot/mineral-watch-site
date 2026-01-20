@@ -243,12 +243,12 @@ export async function handleGetProductionSummary(
       GROUP BY pun, product_code
     `).bind(...puns).all();
 
-    // Get sparkline data (oil only, last 6 months)
+    // Get sparkline data (oil + condensate only, last 6 months)
     // OTC product codes: 1=Oil, 3=Condensate, 5=Gas(casinghead), 6=Gas(natural)
     const sparklineResult = await env.WELLS_DB.prepare(`
       SELECT year_month, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND product_code IN ('1', '3', 'OIL', 'COND', '01', '02')
+      WHERE pun IN (${placeholders}) AND product_code IN ('1', '3')
       GROUP BY year_month
       ORDER BY year_month DESC
       LIMIT 6
