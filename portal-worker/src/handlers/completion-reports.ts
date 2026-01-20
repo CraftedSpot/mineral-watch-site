@@ -244,10 +244,11 @@ export async function handleGetProductionSummary(
     `).bind(...puns).all();
 
     // Get sparkline data (oil only, last 6 months)
+    // OTC product codes: 1=Oil, 3=Condensate, 5=Gas(casinghead), 6=Gas(natural)
     const sparklineResult = await env.WELLS_DB.prepare(`
       SELECT year_month, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND product_code IN ('OIL', 'COND', '01', '02')
+      WHERE pun IN (${placeholders}) AND product_code IN ('1', '3', 'OIL', 'COND', '01', '02')
       GROUP BY year_month
       ORDER BY year_month DESC
       LIMIT 6
@@ -269,7 +270,7 @@ export async function handleGetProductionSummary(
 
     // Process recent production for last month
     for (const row of recentResult.results as any[]) {
-      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
       const type = isOil ? 'oil' : 'gas';
       if (!lastMonthData[type] || row.year_month > lastMonthData[type].yearMonth) {
         lastMonthData[type] = { yearMonth: row.year_month, volume: Math.round(row.volume || 0) };
@@ -278,7 +279,7 @@ export async function handleGetProductionSummary(
 
     // Process last 12 months
     for (const row of last12MoResult.results as any[]) {
-      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
       if (isOil) {
         last12MoData.oil += Math.round(row.volume || 0);
       } else {
@@ -288,7 +289,7 @@ export async function handleGetProductionSummary(
 
     // Process lifetime
     for (const row of lifetimeResult.results as any[]) {
-      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
       if (isOil) {
         lifetimeData.oil += Math.round(row.volume || 0);
       } else {
@@ -298,7 +299,7 @@ export async function handleGetProductionSummary(
 
     // Process last year data
     for (const row of lastYearResult.results as any[]) {
-      const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
+      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
       if (isOil) {
         lastYearData.oil += Math.round(row.volume || 0);
       } else {

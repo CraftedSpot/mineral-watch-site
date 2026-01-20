@@ -17,13 +17,17 @@ import sys
 import os
 
 def parse_pun(pun_raw):
-    """Convert '00300046400000' to '003-00464-0-0000' format"""
+    """Convert '00300046400000' to '003-000464-0-0000' format.
+
+    OTC uses 6-digit lease numbers (matching 1002A forms).
+    Format: XXX-XXXXXX-X-XXXX (county 3, lease 6, sub 1, merge 4 = 14 chars)
+    """
     if len(pun_raw) < 14:
         return pun_raw
-    county = pun_raw[0:3]
-    lease = pun_raw[3:8]
-    sub = pun_raw[8:9]
-    merge = pun_raw[9:14]
+    county = pun_raw[0:3]      # positions 0-2 (3 chars)
+    lease = pun_raw[3:9]       # positions 3-8 (6 chars)
+    sub = pun_raw[9:10]        # position 9 (1 char)
+    merge = pun_raw[10:14]     # positions 10-13 (4 chars)
     return f"{county}-{lease}-{sub}-{merge}"
 
 def parse_legal(code):
