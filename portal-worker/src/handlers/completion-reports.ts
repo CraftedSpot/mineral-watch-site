@@ -119,13 +119,11 @@ export async function handleGetCompletionReports(
 /**
  * GET /api/wells/{api}/production-summary
  *
- * Returns aggregated production data for a well:
- * - Last month production (oil/gas)
- * - Last 12 months totals
- * - Lifetime totals
- * - Status (active/stale/inactive)
- * - YoY trend
- * - Sparkline data (last 6 months)
+ * Returns aggregated production data for a well using well_pun_links.
+ * Handles three scenarios:
+ * - single: Simple 1:1 well-to-PUN mapping
+ * - multi_pun: Well has multiple PUNs (multi-formation)
+ * - multi_well_pun: PUN shared by multiple wells (lease-level)
  */
 export async function handleGetProductionSummary(
   apiNumber: string,
@@ -136,78 +134,32 @@ export async function handleGetProductionSummary(
   }
 
   try {
-    // Normalize API number (remove dashes, get 10-digit version)
+    // Normalize API number
     const apiNormalized = apiNumber.replace(/-/g, '');
     const api10 = apiNormalized.substring(0, 10);
 
-    // Try to find PUN via multiple paths
-    let pun: string | null = null;
+    // 1. Get all PUN links for this well from well_pun_links
+    const linksResult = await env.WELLS_DB.prepare(`
+      SELECT l.pun, l.confidence, l.match_method, l.formation,
+             m.lease_name, m.is_multi_well, m.well_count, m.county
+      FROM well_pun_links l
+      LEFT JOIN pun_metadata m ON l.pun = m.pun
+      WHERE l.api_number = ? OR l.api_number = ?
+    `).bind(apiNumber, api10).all();
 
-    // Path A: Direct from wells table
-    const wellResult = await env.WELLS_DB.prepare(`
-      SELECT otc_prod_unit_no, well_name, formation_name
-      FROM wells
-      WHERE api_number = ? OR api_number = ? OR api_number LIKE ?
-      LIMIT 1
-    `).bind(apiNumber, api10, `${api10}%`).first() as { otc_prod_unit_no: string | null; well_name: string | null; formation_name: string | null } | null;
+    const links = linksResult.results as Array<{
+      pun: string;
+      confidence: string;
+      match_method: string;
+      formation: string | null;
+      lease_name: string | null;
+      is_multi_well: number;
+      well_count: number;
+      county: string | null;
+    }>;
 
-    if (wellResult?.otc_prod_unit_no) {
-      const rawPun = wellResult.otc_prod_unit_no.replace(/-/g, '');
-      // Only use if it's a complete 14-digit PUN
-      if (rawPun.length >= 14) {
-        pun = rawPun;
-      }
-    }
-
-    // Path B: Via pun_api_crosswalk (document-sourced)
-    if (!pun) {
-      const crosswalkResult = await env.WELLS_DB.prepare(`
-        SELECT pun FROM pun_api_crosswalk
-        WHERE api_number = ? OR api_number = ? OR api_number LIKE ?
-        LIMIT 1
-      `).bind(apiNumber, apiNormalized, `${api10}%`).first() as { pun: string } | null;
-
-      if (crosswalkResult?.pun) {
-        pun = crosswalkResult.pun.replace(/-/g, '');
-      }
-    }
-
-    // Path C: Via otc_leases
-    if (!pun) {
-      const leaseResult = await env.WELLS_DB.prepare(`
-        SELECT pun FROM otc_leases
-        WHERE api_number = ? OR api_number = ? OR api_number LIKE ?
-        LIMIT 1
-      `).bind(apiNumber, api10, `${api10}%`).first() as { pun: string } | null;
-
-      if (leaseResult?.pun) {
-        pun = leaseResult.pun.replace(/-/g, '');
-      }
-    }
-
-    // Path D: Try to find PUN from production data using partial match
-    // This helps when wells table has incomplete PUN (e.g., 8 digits instead of 14)
-    if (!pun && wellResult?.otc_prod_unit_no) {
-      const partialPun = wellResult.otc_prod_unit_no.replace(/-/g, '');
-      // Pad with leading zero if needed (county codes are 3 digits)
-      const searchPun = partialPun.length === 8 ? `0${partialPun.substring(0, 2)}-${partialPun.substring(2, 7)}%` :
-                        partialPun.length < 14 ? `%${partialPun}%` : null;
-
-      if (searchPun) {
-        const prodResult = await env.WELLS_DB.prepare(`
-          SELECT DISTINCT pun FROM otc_production
-          WHERE pun LIKE ?
-          LIMIT 1
-        `).bind(searchPun).first() as { pun: string } | null;
-
-        if (prodResult?.pun) {
-          pun = prodResult.pun.replace(/-/g, '');
-        }
-      }
-    }
-
-    // If no PUN found, return empty response with hasPun: false
-    if (!pun) {
+    // If no links found, return hasPun: false
+    if (!links?.length) {
       // Check if 1002A is available for this well (CTA opportunity)
       let has1002aAvailable = false;
       try {
@@ -229,95 +181,91 @@ export async function handleGetProductionSummary(
       });
     }
 
+    // 2. Determine link type/scenario
+    const punCount = links.length;
+    const hasMultiWellPun = links.some(l => l.is_multi_well === 1);
+
+    let linkType: 'single' | 'multi_pun' | 'multi_well_pun';
+    if (punCount === 1 && !hasMultiWellPun) {
+      linkType = 'single';
+    } else if (punCount > 1) {
+      linkType = 'multi_pun';
+    } else {
+      linkType = 'multi_well_pun';
+    }
+
+    // 3. Get all PUNs for production query
+    const puns = links.map(l => l.pun);
+
     // Calculate date ranges
     const now = new Date();
-    const currentYearMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-
-    // 3 months ago for "active" status
     const threeMonthsAgo = new Date(now);
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}-${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-    // 12 months ago for "stale" vs "inactive"
     const twelveMonthsAgo = new Date(now);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     const twelveMonthsAgoYM = `${twelveMonthsAgo.getFullYear()}-${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-    // Same month last year for YoY comparison
     const lastYearSameMonth = new Date(now);
     lastYearSameMonth.setFullYear(lastYearSameMonth.getFullYear() - 1);
     const lastYearYM = `${lastYearSameMonth.getFullYear()}-${String(lastYearSameMonth.getMonth() + 1).padStart(2, '0')}`;
 
-    // Query production data - normalize PUN for matching
-    const punNormalized = pun.replace(/-/g, '');
+    // 4. Query production data for all linked PUNs
+    const placeholders = puns.map(() => '?').join(',');
 
-    // Get last month's production (most recent month with data)
-    const lastMonthResult = await env.WELLS_DB.prepare(`
-      SELECT year_month, product_code, SUM(gross_volume) as volume
+    // Get recent production (for last month and status)
+    const recentResult = await env.WELLS_DB.prepare(`
+      SELECT pun, year_month, product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE REPLACE(pun, '-', '') = ?
-      GROUP BY year_month, product_code
+      WHERE pun IN (${placeholders})
+      GROUP BY pun, year_month, product_code
       ORDER BY year_month DESC
-      LIMIT 10
-    `).bind(punNormalized).all();
+      LIMIT 50
+    `).bind(...puns).all();
 
-    // Find the most recent data month for this well to calculate relative ranges
-    const maxMonthResult = await env.WELLS_DB.prepare(`
-      SELECT MAX(year_month) as max_month
-      FROM otc_production
-      WHERE REPLACE(pun, '-', '') = ?
-    `).bind(punNormalized).first() as { max_month: string | null } | null;
-
-    const wellMaxMonth = maxMonthResult?.max_month || currentYearMonth;
-
-    // Calculate 12 months before the well's most recent data
-    const [maxYear, maxMonth] = wellMaxMonth.split('-').map(Number);
-    const wellTwelveMonthsAgo = new Date(maxYear, maxMonth - 1);
-    wellTwelveMonthsAgo.setMonth(wellTwelveMonthsAgo.getMonth() - 11); // -11 to include the max month
-    const wellTwelveMonthsAgoYM = `${wellTwelveMonthsAgo.getFullYear()}-${String(wellTwelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
-
-    // Get last 12 months totals (relative to well's most recent data)
+    // Get last 12 months totals
     const last12MoResult = await env.WELLS_DB.prepare(`
-      SELECT product_code, SUM(gross_volume) as volume
+      SELECT pun, product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE REPLACE(pun, '-', '') = ? AND year_month >= ?
-      GROUP BY product_code
-    `).bind(punNormalized, wellTwelveMonthsAgoYM).all();
+      WHERE pun IN (${placeholders}) AND year_month >= ?
+      GROUP BY pun, product_code
+    `).bind(...puns, twelveMonthsAgoYM).all();
 
     // Get lifetime totals
     const lifetimeResult = await env.WELLS_DB.prepare(`
-      SELECT product_code, SUM(gross_volume) as volume
+      SELECT pun, product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE REPLACE(pun, '-', '') = ?
-      GROUP BY product_code
-    `).bind(punNormalized).all();
+      WHERE pun IN (${placeholders})
+      GROUP BY pun, product_code
+    `).bind(...puns).all();
 
-    // Get last 6 months for sparkline (oil only)
+    // Get sparkline data (oil only, last 6 months)
     const sparklineResult = await env.WELLS_DB.prepare(`
       SELECT year_month, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE REPLACE(pun, '-', '') = ? AND product_code IN ('OIL', 'COND', '01', '02')
+      WHERE pun IN (${placeholders}) AND product_code IN ('OIL', 'COND', '01', '02')
       GROUP BY year_month
       ORDER BY year_month DESC
       LIMIT 6
-    `).bind(punNormalized).all();
+    `).bind(...puns).all();
 
-    // Get same month last year for YoY comparison
+    // Get YoY comparison data
     const lastYearResult = await env.WELLS_DB.prepare(`
       SELECT product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE REPLACE(pun, '-', '') = ? AND year_month = ?
+      WHERE pun IN (${placeholders}) AND year_month = ?
       GROUP BY product_code
-    `).bind(punNormalized, lastYearYM).all();
+    `).bind(...puns, lastYearYM).all();
 
-    // Process results
+    // 5. Process results - aggregate across all PUNs
     const lastMonthData: { [key: string]: { yearMonth: string; volume: number } } = {};
     const last12MoData: { [key: string]: number } = { oil: 0, gas: 0 };
     const lifetimeData: { [key: string]: number } = { oil: 0, gas: 0 };
     const lastYearData: { [key: string]: number } = { oil: 0, gas: 0 };
 
-    // Process last month (get most recent month per product type)
-    for (const row of lastMonthResult.results as any[]) {
+    // Process recent production for last month
+    for (const row of recentResult.results as any[]) {
       const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
       const type = isOil ? 'oil' : 'gas';
       if (!lastMonthData[type] || row.year_month > lastMonthData[type].yearMonth) {
@@ -345,7 +293,7 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // Process last year same month
+    // Process last year data
     for (const row of lastYearResult.results as any[]) {
       const isOil = ['OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
       if (isOil) {
@@ -355,15 +303,12 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // Process sparkline (reverse to get chronological order)
+    // Process sparkline
     const sparkline = (sparklineResult.results as any[])
       .map(r => Math.round(r.volume || 0))
       .reverse();
 
-    // Determine status based on most recent production vs TODAY's date
-    // Active = produced in last 3 months (from today)
-    // Stale = produced in last 12 months but not last 3
-    // Inactive = no production in last 12 months (or no data)
+    // Determine status based on most recent production vs TODAY
     const mostRecentMonth = lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || '';
     let status: 'active' | 'stale' | 'inactive' = 'inactive';
 
@@ -373,7 +318,7 @@ export async function handleGetProductionSummary(
       status = 'stale';
     }
 
-    // Calculate YoY change (based on oil production)
+    // Calculate YoY change
     let yoyChange: number | null = null;
     let direction: 'up' | 'down' | 'flat' = 'flat';
     const currentOil = lastMonthData.oil?.volume || 0;
@@ -383,23 +328,32 @@ export async function handleGetProductionSummary(
       direction = yoyChange > 5 ? 'up' : yoyChange < -5 ? 'down' : 'flat';
     }
 
-    // Format PUN for display in 3-5-1-5 format (XXX-XXXXX-X-XXXXX)
-    // Only format if we have a complete 14-digit PUN, otherwise show as-is
-    let punDisplay: string;
-    if (pun.includes('-')) {
-      punDisplay = pun;
-    } else if (pun.length >= 14) {
-      punDisplay = `${pun.substring(0, 3)}-${pun.substring(3, 8)}-${pun.substring(8, 9)}-${pun.substring(9, 14)}`;
-    } else {
-      // Incomplete PUN - show as-is rather than malforming it
-      punDisplay = pun;
+    // Format primary PUN for display (use first link's PUN)
+    const primaryPun = links[0].pun;
+
+    // Generate disclaimer based on link type
+    let disclaimer: string | null = null;
+    if (linkType === 'multi_pun') {
+      disclaimer = `This well reports to ${punCount} production units (PUNs). Production shown is aggregated.`;
+    } else if (linkType === 'multi_well_pun') {
+      const wellCount = links[0].well_count;
+      disclaimer = `Production reported at lease level (PUN includes ${wellCount} wells).`;
     }
 
     return jsonResponse({
       success: true,
       hasPun: true,
-      pun: punDisplay,
-      formation: wellResult?.formation_name || null,
+      pun: primaryPun,
+      linkType,
+      links: links.map(l => ({
+        pun: l.pun,
+        leaseName: l.lease_name,
+        confidence: l.confidence,
+        matchMethod: l.match_method,
+        formation: l.formation,
+        isMultiWell: l.is_multi_well === 1,
+        wellCount: l.well_count
+      })),
       production: {
         lastMonth: {
           oil: lastMonthData.oil?.volume || 0,
@@ -420,7 +374,8 @@ export async function handleGetProductionSummary(
         yoyChange,
         direction
       },
-      sparkline
+      sparkline,
+      disclaimer
     });
 
   } catch (error) {
