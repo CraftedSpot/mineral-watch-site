@@ -61,18 +61,64 @@ function errorResponse(message: string, status: number, env: Env) {
 function isValidPun(pun: string | null | undefined): boolean {
   if (!pun) return false;
   // Must have at least one dash and start with 3-digit county code
-  // Full format: XXX-XXXXX(X)-X-XXXX or short: XXX-XXXXX(X)
-  return /^\d{3}-\d{5,6}(-\d-\d{4})?$/.test(pun);
+  // 1002A format: XXX-XXXXXX-X-XXXX (3-6-1-4)
+  // OTC format:   XXX-XXXXX-X-XXXXX (3-5-1-5)
+  // Short format: XXX-XXXXX or XXX-XXXXXX
+  return /^\d{3}-\d{5,6}(-\d-\d{4,5})?$/.test(pun);
+}
+
+/**
+ * Convert 1002A PUN format (3-6-1-4) to OTC production format (3-5-1-5).
+ *
+ * 1002A forms use: XXX-XXXXXX-X-XXXX (county-unit-segment-merge)
+ *   - 3-digit county code
+ *   - 6-digit unit number
+ *   - 1-digit segment
+ *   - 4-digit merge/well
+ *
+ * OTC production data uses: XXX-XXXXX-X-XXXXX
+ *   - 3-digit county code
+ *   - 5-digit lease number (last 5 of unit)
+ *   - 1-digit segment (sub)
+ *   - 5-digit merge number
+ *
+ * Examples:
+ *   "017-231497-0-0000" → "017-31497-0-00000"
+ *   "043-226597-0-0000" → "043-26597-0-00000"
+ */
+function convertPunToOtcFormat(pun: string | null | undefined): string | null {
+  if (!pun) return null;
+
+  // Parse the PUN - handle both full and partial formats
+  const fullMatch = pun.match(/^(\d{3})-(\d{5,6})-(\d)-(\d{4,5})$/);
+  if (fullMatch) {
+    const [, county, unit, segment, merge] = fullMatch;
+    // Take last 5 digits of unit, pad merge to 5 digits
+    const unit5 = unit.slice(-5).padStart(5, '0');
+    const merge5 = merge.padEnd(5, '0');
+    return `${county}-${unit5}-${segment}-${merge5}`;
+  }
+
+  // Handle short format (no segment/merge): XXX-XXXXX or XXX-XXXXXX
+  const shortMatch = pun.match(/^(\d{3})-(\d{5,6})$/);
+  if (shortMatch) {
+    const [, county, unit] = shortMatch;
+    const unit5 = unit.slice(-5).padStart(5, '0');
+    return `${county}-${unit5}-0-00000`;
+  }
+
+  // If format doesn't match, return as-is (might already be in OTC format)
+  console.log(`[PUN Convert] Format not recognized, returning as-is: "${pun}"`);
+  return pun;
 }
 
 /**
  * Normalize OTC Production Unit Number for database crosswalk joins.
- * Preserves leading zeros (they likely encode county/district info).
+ * Converts 1002A format to OTC production format for matching.
  *
  * Examples:
- *   "049-14039-1" → "049140391"
- *   "059-205781" → "059205781"
- *   "123-059319-0-1244" → "12305931901244"
+ *   "017-231497-0-0000" → "017-31497-0-00000" (1002A → OTC format)
+ *   "017-31497-0-00000" → "017-31497-0-00000" (already OTC format)
  */
 function normalizeOtcPun(pun: string | null | undefined): string | null {
   if (!pun) return null;
@@ -81,7 +127,7 @@ function normalizeOtcPun(pun: string | null | undefined): string | null {
     console.log(`[PUN Validation] Rejected invalid PUN: "${pun}" (likely operator number or wrong field)`);
     return null;
   }
-  return pun.replace(/[-\s]/g, '');  // Remove dashes and spaces
+  return convertPunToOtcFormat(pun);
 }
 
 /**
