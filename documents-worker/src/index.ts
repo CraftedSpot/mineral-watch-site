@@ -1640,6 +1640,28 @@ export default {
                 // Don't fail the request if crosswalk insert fails
                 console.error('[PUN Crosswalk] Failed to insert crosswalk:', crosswalkError);
               }
+
+              // Update well_1002a_tracking to mark as processed
+              try {
+                const extractedPun = extracted_data.otc_prod_unit_no_normalized || extracted_data.otc_prod_unit_no || null;
+                await env.WELLS_DB.prepare(`
+                  UPDATE well_1002a_tracking
+                  SET status = 'processed',
+                      extracted_pun = COALESCE(?, extracted_pun),
+                      extraction_method = 'claude',
+                      confidence = 'high',
+                      processed_at = datetime('now'),
+                      updated_at = CURRENT_TIMESTAMP
+                  WHERE api_number = ? OR api_number = ?
+                `).bind(
+                  extractedPun,
+                  apiNumber,
+                  apiNumber.substring(0, 10)
+                ).run();
+                console.log('[1002A Tracking] Marked as processed:', apiNumber);
+              } catch (trackingError) {
+                console.error('[1002A Tracking] Failed to update tracking:', trackingError);
+              }
             }
 
             // Track document usage and deduct credit (only for successful processing)
