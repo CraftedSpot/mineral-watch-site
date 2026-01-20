@@ -1,0 +1,17 @@
+{
+  "name": "puns-harvester",
+  "version": "1.0.0",
+  "description": "Scheduled worker to harvest PUN mappings from 1002A completion reports",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "tail": "wrangler tail",
+    "migrate": "wrangler d1 execute oklahoma-wells --remote --file=migrations/001_create_harvest_log.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.22.1"
+  }
+}
