@@ -490,19 +490,20 @@ export async function handleAnalyzeCompletion(
     for (const result of fetchResult.results || []) {
       if (result.success && result.form?.entryId) {
         await env.WELLS_DB.prepare(`
-          INSERT INTO well_1002a_status (api_number, entry_id, status, document_id, fetched_at)
-          VALUES (?, ?, 'fetched', ?, datetime('now'))
+          INSERT INTO well_1002a_tracking (api_number, entry_id, status, has_1002a, document_id, fetched_at, source, triggered_by)
+          VALUES (?, ?, 'fetched', 1, ?, datetime('now'), 'user', ?)
           ON CONFLICT(api_number, entry_id) DO UPDATE SET
             status = 'fetched',
             document_id = excluded.document_id,
             fetched_at = excluded.fetched_at,
-            error_message = NULL
-        `).bind(apiNumber, result.form.entryId, result.documentId || null).run();
+            error_message = NULL,
+            updated_at = CURRENT_TIMESTAMP
+        `).bind(apiNumber, result.form.entryId, result.documentId || null, userId).run();
       } else if (!result.success && result.form?.entryId) {
         // Track individual form errors
         await env.WELLS_DB.prepare(`
-          UPDATE well_1002a_status
-          SET status = 'error', error_message = ?
+          UPDATE well_1002a_tracking
+          SET status = 'error', error_message = ?, updated_at = CURRENT_TIMESTAMP
           WHERE api_number = ? AND entry_id = ?
         `).bind(result.error || 'Download failed', apiNumber, result.form.entryId).run();
       }
@@ -521,8 +522,8 @@ export async function handleAnalyzeCompletion(
     for (const entryId of entryIds) {
       try {
         await env.WELLS_DB.prepare(`
-          UPDATE well_1002a_status
-          SET status = 'error', error_message = ?
+          UPDATE well_1002a_tracking
+          SET status = 'error', error_message = ?, updated_at = CURRENT_TIMESTAMP
           WHERE api_number = ? AND entry_id = ?
         `).bind(
           error instanceof Error ? error.message : 'Unknown error',
