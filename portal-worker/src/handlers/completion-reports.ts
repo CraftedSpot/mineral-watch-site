@@ -347,6 +347,15 @@ export async function handleGetProductionSummary(
     // Format primary PUN for display (use first link's PUN)
     const primaryPun = links[0].pun;
 
+    // Format last production date for display
+    let lastProductionFormatted: string | null = null;
+    if (mostRecentYM) {
+      const year = mostRecentYM.substring(0, 4);
+      const month = parseInt(mostRecentYM.substring(4, 6), 10);
+      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      lastProductionFormatted = `${monthNames[month - 1]} ${year}`;
+    }
+
     // Generate disclaimer based on link type
     let disclaimer: string | null = null;
     if (linkType === 'multi_pun') {
@@ -374,7 +383,8 @@ export async function handleGetProductionSummary(
         lastMonth: {
           oil: lastMonthData.oil?.volume || 0,
           gas: lastMonthData.gas?.volume || 0,
-          yearMonth: lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || null
+          yearMonth: lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || null,
+          formatted: lastProductionFormatted
         },
         last12Mo: {
           oil: last12MoData.oil,
