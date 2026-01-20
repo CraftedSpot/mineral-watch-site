@@ -268,19 +268,33 @@ export async function handleGetProductionSummary(
     const lifetimeData: { [key: string]: number } = { oil: 0, gas: 0 };
     const lastYearData: { [key: string]: number } = { oil: 0, gas: 0 };
 
+    // Helper to determine if product code is oil/condensate
+    // OTC codes: 1=Oil, 3=Condensate, 5=Casinghead Gas, 6=Natural Gas
+    const isOilProduct = (code: string) => ['1', '3'].includes(code);
+
     // Process recent production for last month
+    // Find the single most recent month across all products first
+    let mostRecentYM = '';
     for (const row of recentResult.results as any[]) {
-      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
-      const type = isOil ? 'oil' : 'gas';
-      if (!lastMonthData[type] || row.year_month > lastMonthData[type].yearMonth) {
-        lastMonthData[type] = { yearMonth: row.year_month, volume: Math.round(row.volume || 0) };
+      if (row.year_month > mostRecentYM) {
+        mostRecentYM = row.year_month;
+      }
+    }
+
+    // Now aggregate production for that most recent month
+    for (const row of recentResult.results as any[]) {
+      if (row.year_month === mostRecentYM) {
+        const type = isOilProduct(row.product_code) ? 'oil' : 'gas';
+        if (!lastMonthData[type]) {
+          lastMonthData[type] = { yearMonth: row.year_month, volume: 0 };
+        }
+        lastMonthData[type].volume += Math.round(row.volume || 0);
       }
     }
 
     // Process last 12 months
     for (const row of last12MoResult.results as any[]) {
-      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
-      if (isOil) {
+      if (isOilProduct(row.product_code)) {
         last12MoData.oil += Math.round(row.volume || 0);
       } else {
         last12MoData.gas += Math.round(row.volume || 0);
@@ -289,8 +303,7 @@ export async function handleGetProductionSummary(
 
     // Process lifetime
     for (const row of lifetimeResult.results as any[]) {
-      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
-      if (isOil) {
+      if (isOilProduct(row.product_code)) {
         lifetimeData.oil += Math.round(row.volume || 0);
       } else {
         lifetimeData.gas += Math.round(row.volume || 0);
@@ -299,8 +312,7 @@ export async function handleGetProductionSummary(
 
     // Process last year data
     for (const row of lastYearResult.results as any[]) {
-      const isOil = ['1', '3', 'OIL', 'COND', '01', '02'].includes(row.product_code?.toUpperCase());
-      if (isOil) {
+      if (isOilProduct(row.product_code)) {
         lastYearData.oil += Math.round(row.volume || 0);
       } else {
         lastYearData.gas += Math.round(row.volume || 0);
