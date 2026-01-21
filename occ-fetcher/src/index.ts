@@ -325,7 +325,7 @@ async function handleDownload1002AForms(request: Request, env: Env): Promise<Res
     return jsonResponse({ error: 'Invalid JSON body' }, 400);
   }
 
-  const { apiNumber, userId, userPlan, organizationId, wellApiNumber } = body;
+  const { apiNumber, userId, userPlan, organizationId, wellApiNumber, entryIds } = body;
 
   if (!apiNumber || !userId) {
     return jsonResponse({ error: 'apiNumber and userId required' }, 400);
@@ -333,7 +333,7 @@ async function handleDownload1002AForms(request: Request, env: Env): Promise<Res
 
   try {
     const cookies = await getWellRecordsSessionCookies(env);
-    const forms = await searchWellRecords(apiNumber, cookies, '1002A');
+    let forms = await searchWellRecords(apiNumber, cookies, '1002A');
 
     if (forms.length === 0) {
       return jsonResponse({
@@ -344,6 +344,22 @@ async function handleDownload1002AForms(request: Request, env: Env): Promise<Res
     }
 
     console.log(`[1002A] Found ${forms.length} forms for API ${apiNumber}`);
+
+    // Filter to only requested entryIds if provided
+    if (entryIds && Array.isArray(entryIds) && entryIds.length > 0) {
+      const requestedIds = new Set(entryIds.map(id => Number(id)));
+      forms = forms.filter(f => requestedIds.has(f.entryId));
+      console.log(`[1002A] Filtered to ${forms.length} requested forms (entryIds: ${entryIds.join(', ')})`);
+
+      if (forms.length === 0) {
+        return jsonResponse({
+          success: false,
+          error: 'Requested forms not found',
+          apiNumber,
+          requestedEntryIds: entryIds,
+        });
+      }
+    }
 
     const results: any[] = [];
 
