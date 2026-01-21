@@ -262,6 +262,13 @@ export async function handleGetProductionSummary(
       GROUP BY product_code
     `).bind(...puns, lastYearYM).all();
 
+    // Get months produced count and first production month
+    const monthsProducedResult = await env.WELLS_DB.prepare(`
+      SELECT COUNT(DISTINCT year_month) as months_count, MIN(year_month) as first_month
+      FROM otc_production
+      WHERE pun IN (${placeholders})
+    `).bind(...puns).first() as { months_count: number; first_month: string } | null;
+
     // 5. Process results - aggregate across all PUNs
     const lastMonthData: { [key: string]: { yearMonth: string; volume: number } } = {};
     const last12MoData: { [key: string]: number } = { oil: 0, gas: 0 };
@@ -281,9 +288,13 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // Now aggregate production for that most recent month
+    // "Last Month" should only show data if it's within the last 3 months (accounting for reporting lag)
+    // Otherwise show 0 - the well hasn't produced recently
+    const isRecentProduction = mostRecentYM >= threeMonthsAgoYM;
+
+    // Now aggregate production for that most recent month (only if recent)
     for (const row of recentResult.results as any[]) {
-      if (row.year_month === mostRecentYM) {
+      if (row.year_month === mostRecentYM && isRecentProduction) {
         const type = isOilProduct(row.product_code) ? 'oil' : 'gas';
         if (!lastMonthData[type]) {
           lastMonthData[type] = { yearMonth: row.year_month, volume: 0 };
@@ -347,13 +358,30 @@ export async function handleGetProductionSummary(
     // Format primary PUN for display (use first link's PUN)
     const primaryPun = links[0].pun;
 
-    // Format last production date for display
+    // Format dates for display
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+    const formatYearMonth = (ym: string | null): string | null => {
+      if (!ym) return null;
+      const year = ym.substring(0, 4);
+      const month = parseInt(ym.substring(4, 6), 10);
+      return `${monthNames[month - 1]} ${year}`;
+    };
+
     let lastProductionFormatted: string | null = null;
+    let lastMonthFormatted: string | null = null;
+    let firstProductionFormatted: string | null = null;
+
     if (mostRecentYM) {
-      const year = mostRecentYM.substring(0, 4);
-      const month = parseInt(mostRecentYM.substring(4, 6), 10);
-      const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      lastProductionFormatted = `${monthNames[month - 1]} ${year}`;
+      lastProductionFormatted = formatYearMonth(mostRecentYM);
+      // Only set lastMonthFormatted if it's recent production
+      if (isRecentProduction) {
+        lastMonthFormatted = lastProductionFormatted;
+      }
+    }
+
+    if (monthsProducedResult?.first_month) {
+      firstProductionFormatted = formatYearMonth(monthsProducedResult.first_month);
     }
 
     // Generate disclaimer based on link type
@@ -384,7 +412,7 @@ export async function handleGetProductionSummary(
           oil: lastMonthData.oil?.volume || 0,
           gas: lastMonthData.gas?.volume || 0,
           yearMonth: lastMonthData.oil?.yearMonth || lastMonthData.gas?.yearMonth || null,
-          formatted: lastProductionFormatted
+          formatted: lastMonthFormatted
         },
         last12Mo: {
           oil: last12MoData.oil,
@@ -393,7 +421,16 @@ export async function handleGetProductionSummary(
         lifetime: {
           oil: lifetimeData.oil,
           gas: lifetimeData.gas
-        }
+        },
+        lastProduction: mostRecentYM ? {
+          yearMonth: mostRecentYM,
+          formatted: lastProductionFormatted
+        } : null,
+        firstProduction: monthsProducedResult?.first_month ? {
+          yearMonth: monthsProducedResult.first_month,
+          formatted: firstProductionFormatted
+        } : null,
+        monthsProduced: monthsProducedResult?.months_count || 0
       },
       status,
       trend: {
