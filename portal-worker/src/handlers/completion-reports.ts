@@ -348,13 +348,16 @@ export async function handleGetProductionSummary(
 
     // Generate the last 6 months in order (oldest to newest)
     const sparkline: number[] = [];
+    const sparklineMonths: string[] = [];
     let sparklineTotal = 0;
+    const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now);
       d.setMonth(d.getMonth() - i);
       const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
       const boe = sparklineMap.get(ym) || 0;
       sparkline.push(boe);
+      sparklineMonths.push(`${shortMonths[d.getMonth()]} ${d.getFullYear()}`);
       sparklineTotal += boe;
     }
 
@@ -461,6 +464,7 @@ export async function handleGetProductionSummary(
         direction
       },
       sparkline,
+      sparklineMonths,
       sparklineBOE: sparklineTotal,
       disclaimer
     });
