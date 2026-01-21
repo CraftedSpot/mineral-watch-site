@@ -13552,7 +13552,7 @@
             
             const f = well.fields;
 
-            // Enrich with D1/RBDMS data if available (additive - only fills missing fields)
+            // Enrich with D1/RBDMS data - D1 is authoritative for well metadata
             const apiNumber = f['API Number'];
             console.log('[openWellDetailsModal] Starting enrichment for API:', apiNumber);
             if (apiNumber) {
@@ -13566,19 +13566,20 @@
                         console.log('[openWellDetailsModal] Enrichment data:', enrichData);
                         if (enrichData.success && enrichData.data) {
                             const d = enrichData.data;
-                            // Only fill in missing fields
-                            if (!f['Formation Name'] && d.formation_name) {
+                            // D1 is the authoritative source for these fields - always use if available
+                            if (d.formation_name) {
                                 f['Formation Name'] = d.formation_name;
-                                console.log('[openWellDetailsModal] Added formation:', d.formation_name);
+                                console.log('[openWellDetailsModal] Set formation from D1:', d.formation_name);
                             }
-                            if (!f['Completion Date'] && d.completion_date) {
+                            if (d.completion_date) {
                                 f['Completion Date'] = d.completion_date;
-                                console.log('[openWellDetailsModal] Added completion date:', d.completion_date);
+                                console.log('[openWellDetailsModal] Set completion date from D1:', d.completion_date);
                             }
-                            if (!f['First Production Date'] && d.first_production_date) {
+                            if (d.first_production_date) {
                                 f['First Production Date'] = d.first_production_date;
-                                console.log('[openWellDetailsModal] Added first prod date:', d.first_production_date);
+                                console.log('[openWellDetailsModal] Set first prod date from D1:', d.first_production_date);
                             }
+                            // Depth - fill if missing
                             if (!f['Formation Depth'] && (d.measured_total_depth || d.true_vertical_depth)) {
                                 f['Formation Depth'] = d.measured_total_depth || d.true_vertical_depth;
                             }
