@@ -41,11 +41,12 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
 
     // Query D1 for enrichment data
     const query = `
-      SELECT 
+      SELECT
         formation_name,
         measured_total_depth,
         true_vertical_depth,
         completion_date,
+        first_production_date,
         spud_date,
         ip_oil_bbl,
         ip_gas_mcf,
@@ -59,7 +60,7 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
         well_name,
         well_type,
         operator
-      FROM wells 
+      FROM wells
       WHERE api_number = ?
       LIMIT 1
     `;
@@ -100,6 +101,7 @@ export async function handleWellEnrichment(request: Request, env: Env, apiNumber
         
         // Date data
         completion_date: result.completion_date || null,
+        first_production_date: result.first_production_date || null,
         spud_date: result.spud_date || null,
         
         // Initial production data
