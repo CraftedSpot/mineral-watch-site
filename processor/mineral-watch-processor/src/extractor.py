@@ -6763,6 +6763,30 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     else:
         logger.warning(f"NO page_texts extracted from PDF - heuristics will not run!")
 
+    # =========================================================================
+    # SCANNED PDF FIX: If OCR extracted no text AND quick classification says
+    # single document, trust it and skip page-level classification.
+    # This prevents Haiku's visual classification from incorrectly splitting
+    # scanned completion reports (e.g., Form 1002A page 1 vs page 2).
+    # =========================================================================
+    has_any_text = page_texts and any(text.strip() for text in page_texts)
+    quick_says_single = (
+        classification.get("is_multi_document") == False and
+        classification.get("estimated_doc_count", 1) == 1
+    )
+
+    if not has_any_text and quick_says_single:
+        logger.info(f"SCANNED PDF FIX: No OCR text + quick classification says single document")
+        logger.info(f"  is_multi_document={classification.get('is_multi_document')}, estimated_doc_count={classification.get('estimated_doc_count')}")
+        logger.info(f"  Skipping page-level classification - treating as single {len(image_paths)}-page document")
+
+        # Skip Stage 1 and go directly to Stage 2 extraction
+        result = await extract_single_document(image_paths, 1, len(image_paths))
+        result["_pipeline_type"] = "scanned_single_doc"
+        result["_page_count"] = len(image_paths)
+        result["_quick_classification"] = classification.get("doc_type")
+        return result
+
     # Get page-level classifications using heuristics first, then Haiku if needed
     page_classifications = await classify_pages(image_paths, page_texts)
 
