@@ -137,12 +137,16 @@ OCC Data Freshness:
   - Completions: newest ${dataFreshness.completions?.newestDate || 'N/A'} (${dataFreshness.completions?.daysSinceNewest ?? '?'} days ago)${dataFreshness.completions?.isStale ? ' ⚠️ STALE' : ''}`;
   }
 
+  // Calculate totals for context
+  const totalPermitsInFile = (permitsProcessed || 0) + (permitsSkippedAsProcessed || 0);
+  const totalCompletionsInFile = (completionsProcessed || 0) + (completionsSkippedAsProcessed || 0);
+
   const body = `
 Daily Monitor Run Complete
 ==========================
 
-Permits Processed: ${permitsProcessed || 0}
-Completions Processed: ${completionsProcessed || 0}
+Permits: ${permitsProcessed || 0} new / ${totalPermitsInFile} total in OCC file (${permitsSkippedAsProcessed || 0} already processed)
+Completions: ${completionsProcessed || 0} new / ${totalCompletionsInFile} total in OCC file (${completionsSkippedAsProcessed || 0} already processed)
 Status Changes Detected: ${statusChanges || 0}
 Alerts Sent: ${alertsSent || 0}
 Emails Failed: ${failedEmails.reduce((sum, f) => sum + f.totalCount, 0)}
@@ -211,9 +215,23 @@ ACTION REQUIRED: Check worker logs in Cloudflare dashboard.
 }
 
 /**
- * Send sanity check warnings
+ * Send sanity check warnings (with deduplication - max once per 24 hours per issue)
  */
 export async function sendSanityWarning(env, issue, details) {
+  // Create a cache key to deduplicate warnings
+  const cacheKey = `sanity-warning:${issue.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`;
+
+  // Check if we've already warned about this issue in the last 24 hours
+  try {
+    const lastWarning = await env.MINERAL_CACHE.get(cacheKey);
+    if (lastWarning) {
+      console.log(`[AdminAlert] Skipping duplicate sanity warning for: ${issue} (last sent: ${lastWarning})`);
+      return;
+    }
+  } catch (err) {
+    console.warn('[AdminAlert] Failed to check sanity warning cache:', err.message);
+  }
+
   const body = `
 Sanity Check Warning
 ====================
@@ -224,6 +242,15 @@ ${details}
 
 This may indicate a problem with OCC data files or worker configuration.
   `.trim();
-  
+
   await sendAdminAlert(env, issue, body, 'warning');
+
+  // Mark this warning as sent (expires in 24 hours)
+  try {
+    await env.MINERAL_CACHE.put(cacheKey, new Date().toISOString(), {
+      expirationTtl: 24 * 60 * 60 // 24 hours
+    });
+  } catch (err) {
+    console.warn('[AdminAlert] Failed to cache sanity warning:', err.message);
+  }
 }
