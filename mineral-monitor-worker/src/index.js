@@ -12,6 +12,7 @@ import { runDailyDigest, runWeeklyDigest } from './monitors/digest.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
 import { sendDailySummary, sendWeeklySummary, sendFailureAlert } from './services/adminAlerts.js';
 import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning } from './backfill/dockets.js';
+import { backfillNewProperty, backfillUserProperties } from './services/historicalBackfill.js';
 
 // Helper for JSON responses
 function jsonResponse(data, status = 200) {
@@ -736,14 +737,152 @@ export default {
       }
     }
 
+    // Cache status endpoint - view processed APIs cache
+    if (url.pathname === '/cache/status') {
+      try {
+        const cached = await env.COMPLETIONS_CACHE.get('processed-apis', { type: 'json' });
+
+        if (!cached || !cached.apis) {
+          return jsonResponse({
+            status: 'empty',
+            message: 'No processed APIs in cache',
+            cacheKey: 'processed-apis'
+          });
+        }
+
+        // Parse the cache to show stats
+        const apis = cached.apis;
+        const permitKeys = apis.filter(k => k.includes('|permit'));
+        const completionKeys = apis.filter(k => k.includes('|completion'));
+
+        return jsonResponse({
+          status: 'populated',
+          totalEntries: apis.length,
+          permits: permitKeys.length,
+          completions: completionKeys.length,
+          updatedAt: cached.updatedAt,
+          sampleEntries: apis.slice(0, 20),
+          note: 'Cache has 8-day TTL. Entries prevent reprocessing of same permits/completions.'
+        });
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
+    // Cache clear endpoint - force reprocessing on next run
+    if (url.pathname === '/cache/clear') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      try {
+        // Get current cache state for reporting
+        const cached = await env.COMPLETIONS_CACHE.get('processed-apis', { type: 'json' });
+        const previousCount = cached?.apis?.length || 0;
+
+        // Clear the cache
+        await env.COMPLETIONS_CACHE.delete('processed-apis');
+
+        return jsonResponse({
+          success: true,
+          message: 'Processed APIs cache cleared. Next daily run will reprocess all current OCC records.',
+          previousEntries: previousCount,
+          action: 'Cleared processed-apis cache key',
+          nextSteps: [
+            'Wait for next scheduled daily run (14:00 UTC / 8 AM CT)',
+            'Or trigger manually via /trigger/daily with auth header'
+          ]
+        });
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
+    // Historical backfill for a single property
+    if (url.pathname.startsWith('/backfill/property/')) {
+      const propertyId = url.pathname.split('/').pop();
+
+      if (!propertyId || propertyId === 'property') {
+        return jsonResponse({ error: 'Property ID required' }, 400);
+      }
+
+      try {
+        const result = await backfillNewProperty(env, propertyId);
+        return jsonResponse(result);
+      } catch (error) {
+        return jsonResponse({ error: error.message, stack: error.stack }, 500);
+      }
+    }
+
+    // Historical backfill for all properties of a user
+    if (url.pathname.startsWith('/backfill/user/')) {
+      const userId = url.pathname.split('/').pop();
+
+      if (!userId || userId === 'user') {
+        return jsonResponse({ error: 'User ID required' }, 400);
+      }
+
+      // This can take a while, so run in background if requested
+      const runInBackground = url.searchParams.get('background') === 'true';
+
+      if (runInBackground) {
+        ctx.waitUntil(backfillUserProperties(env, userId));
+        return jsonResponse({
+          status: 'started',
+          message: 'Backfill running in background',
+          userId
+        });
+      }
+
+      try {
+        const result = await backfillUserProperties(env, userId);
+        return jsonResponse(result);
+      } catch (error) {
+        return jsonResponse({ error: error.message, stack: error.stack }, 500);
+      }
+    }
+
+    // Force reprocess endpoint - clear cache AND run daily monitor
+    if (url.pathname === '/cache/reprocess') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return jsonResponse({ error: 'Unauthorized' }, 401);
+      }
+
+      try {
+        // Clear the cache first
+        const cached = await env.COMPLETIONS_CACHE.get('processed-apis', { type: 'json' });
+        const previousCount = cached?.apis?.length || 0;
+        await env.COMPLETIONS_CACHE.delete('processed-apis');
+
+        // Run daily monitor in background
+        ctx.waitUntil(runDailyMonitor(env));
+
+        return jsonResponse({
+          success: true,
+          message: 'Cache cleared and daily monitor started',
+          previousCacheEntries: previousCount,
+          status: 'Daily monitor running in background. Check /health for results.'
+        });
+      } catch (error) {
+        return jsonResponse({ error: error.message }, 500);
+      }
+    }
+
     // Default response
     return jsonResponse({
       service: 'Mineral Watch Oklahoma',
-      version: '2.2.0',
+      version: '2.4.0',
       endpoints: [
         '/health',
         '/trigger/daily',
         '/trigger/weekly',
+        '/cache/status - View processed APIs cache',
+        '/cache/clear - Clear cache (requires auth)',
+        '/cache/reprocess - Clear cache and run daily monitor (requires auth)',
+        '/backfill/property/:id - Backfill historical alerts for a property',
+        '/backfill/user/:id - Backfill historical alerts for all user properties',
         '/test/rbdms-status',
         '/test/weekly-transfers',
         '/test/status-change',

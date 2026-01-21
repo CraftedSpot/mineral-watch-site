@@ -149,6 +149,38 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
       }
     }
 
+    // Drill type and horizontal/directional flags
+    if (completionData.Drill_Type) {
+      updates.push('drill_type = COALESCE(drill_type, ?)');
+      values.push(completionData.Drill_Type);
+      fieldsUpdated.push('drill_type');
+
+      // Only true horizontal wells (HH) get is_horizontal = 1
+      if (completionData.Drill_Type === 'HORIZONTAL HOLE' ||
+          completionData.Location_Type_Sub === 'HH') {
+        updates.push('is_horizontal = 1');
+        fieldsUpdated.push('is_horizontal');
+      }
+
+      // Directional wells get their own flag
+      if (completionData.Drill_Type === 'DIRECTIONAL' ||
+          completionData.Location_Type_Sub === 'DH') {
+        updates.push('is_directional = 1');
+        fieldsUpdated.push('is_directional');
+      }
+    }
+
+    // lateral_length > 0 is a strong indicator of true horizontal
+    if (completionData.Length || completionData.Lateral_Length) {
+      const lateralLen = parseInt(completionData.Length || completionData.Lateral_Length, 10);
+      if (lateralLen > 0) {
+        updates.push('is_horizontal = 1');
+        if (!fieldsUpdated.includes('is_horizontal')) {
+          fieldsUpdated.push('is_horizontal');
+        }
+      }
+    }
+
     // Skip if nothing to update
     if (updates.length === 0) {
       return { success: true, updated: false, fields: [] };
