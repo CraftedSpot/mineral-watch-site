@@ -756,6 +756,27 @@
             font-size: 11px;
             font-weight: 500;
         }
+        .production-meta {
+            display: flex;
+            gap: 20px;
+        }
+        .meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+        .meta-label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--slate-blue);
+            letter-spacing: 0.3px;
+        }
+        .meta-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: var(--oil-navy);
+        }
         .production-data-grid {
             display: grid;
             grid-template-columns: 80px 1fr 1fr 1fr;
@@ -14371,9 +14392,21 @@
             }
 
             // Build the HTML
+            const lastProd = prod.lastProduction?.formatted || 'N/A';
+            const monthsProduced = prod.monthsProduced || 0;
+
             container.innerHTML = `
                 <div class="production-summary-header">
-                    <div class="production-summary-title">Production Summary</div>
+                    <div class="production-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Production</span>
+                            <span class="meta-value">${lastProd}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Months Produced</span>
+                            <span class="meta-value">${monthsProduced.toLocaleString()}</span>
+                        </div>
+                    </div>
                     ${data.pun ? `<span class="pun-badge">✓ PUN: ${escapeHtml(data.pun)}</span>` : ''}
                 </div>
 
