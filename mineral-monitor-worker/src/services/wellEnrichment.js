@@ -85,6 +85,13 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
       fieldsUpdated.push('bh_range');
     }
 
+    // Meridian (PM field)
+    if (completionData.PM || completionData.BH_PM) {
+      updates.push('meridian = COALESCE(meridian, ?)');
+      values.push(completionData.PM || completionData.BH_PM);
+      fieldsUpdated.push('meridian');
+    }
+
     // Depth measurements
     if (completionData.Measured_Total_Depth) {
       updates.push('measured_total_depth = COALESCE(measured_total_depth, ?)');
@@ -149,6 +156,22 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
       }
     }
 
+    // First production date
+    if (completionData.First_Prod) {
+      let firstProdDate = completionData.First_Prod;
+      // Handle various date formats
+      if (firstProdDate instanceof Date) {
+        firstProdDate = firstProdDate.toISOString().split('T')[0];
+      } else if (typeof firstProdDate === 'string') {
+        firstProdDate = firstProdDate.substring(0, 10); // YYYY-MM-DD
+      }
+      if (firstProdDate && firstProdDate !== 'null' && firstProdDate.length >= 10) {
+        updates.push('first_production_date = COALESCE(first_production_date, ?)');
+        values.push(firstProdDate);
+        fieldsUpdated.push('first_production_date');
+      }
+    }
+
     // Drill type and horizontal/directional flags
     if (completionData.Drill_Type) {
       updates.push('drill_type = COALESCE(drill_type, ?)');
@@ -179,6 +202,16 @@ export async function enrichWellFromCompletion(env, apiNumber, completionData) {
           fieldsUpdated.push('is_horizontal');
         }
       }
+    }
+
+    // horizontal_source - provenance tracking for horizontal wells
+    // Set when we identify a well as horizontal from completion data
+    const isHorizontalWell = completionData.Drill_Type === 'HORIZONTAL HOLE' ||
+                             completionData.Location_Type_Sub === 'HH' ||
+                             (parseInt(completionData.Length || completionData.Lateral_Length, 10) > 0);
+    if (isHorizontalWell) {
+      updates.push("horizontal_source = COALESCE(horizontal_source, 'completions_daily')");
+      fieldsUpdated.push('horizontal_source');
     }
 
     // Skip if nothing to update

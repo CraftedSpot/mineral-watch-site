@@ -3206,27 +3206,27 @@
                         <span class="status-label">Direction</span>
                         <span class="status-badge horizontal" id="wellDetailsDirection">Horizontal</span>
                     </div>
+                    <div class="status-item" id="wellDetailsFormationItem" style="display: none;">
+                        <span class="status-label">Formation</span>
+                        <span class="status-badge formation" id="wellDetailsFormationBadge" style="background: #FEF3C7; color: #92400E;">Woodford</span>
+                    </div>
                 </div>
                 
-                <!-- Operator & Location Card -->
-                <div class="info-section-card">
-                    <div class="info-section" style="margin-bottom: 12px;">
+                <!-- Operator & Location - Side by Side -->
+                <div class="info-section-row" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <!-- Operator Box -->
+                    <div class="info-section-card" style="flex: 1; margin-bottom: 0;">
                         <div class="section-label">Operator</div>
-                        <div class="section-value" id="wellDetailsOperator">Validus Energy II Midcon LLC</div>
-                        <div class="contact-line" id="wellDetailsContact">
-                            <a href="tel:7209742084" id="wellDetailsPhoneLink">(720) 974-2084</a> • <span id="wellDetailsContactPerson">Michelle Pettifor</span>
+                        <div class="section-value" id="wellDetailsOperator" style="margin-bottom: 4px;">Validus Energy II Midcon LLC</div>
+                        <div class="contact-line" id="wellDetailsContact" style="font-size: 13px; color: #64748b;">
+                            <a href="tel:7209742084" id="wellDetailsPhoneLink" style="color: var(--slate-blue);">(720) 974-2084</a> • <span id="wellDetailsContactPerson">Michelle Pettifor</span>
                         </div>
                     </div>
-
-                    <div class="two-col">
-                        <div class="info-section">
-                            <div class="section-label">Location</div>
-                            <div class="section-value" id="wellDetailsLocation">T03N R03W 25</div>
-                        </div>
-                        <div class="info-section">
-                            <div class="section-label">County</div>
-                            <div class="section-value" id="wellDetailsCounty">Garvin County</div>
-                        </div>
+                    <!-- Location Box -->
+                    <div class="info-section-card" style="flex: 1; margin-bottom: 0;">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellDetailsLocation" style="margin-bottom: 4px;">T03N R03W 25</div>
+                        <div id="wellDetailsCounty" style="font-size: 13px; color: #64748b;">Garvin County</div>
                     </div>
                 </div>
 
@@ -3325,8 +3325,9 @@
                     </div>
                 </div>
 
-                <!-- Completion Date (hidden, used by production summary) -->
+                <!-- Dates (hidden, used by production summary) -->
                 <div id="wellDetailsCompletionDate" style="display: none;">—</div>
+                <div id="wellDetailsFirstProdDate" style="display: none;">—</div>
 
                 <!-- Notes Section -->
                 <div class="info-section" style="margin-top: 16px;">
