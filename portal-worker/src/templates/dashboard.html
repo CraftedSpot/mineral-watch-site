@@ -702,7 +702,8 @@
         .contact-line { font-size: 14px; color: var(--slate-blue); margin-top: 2px; }
         
         /* Two Column Grid */
-        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+        .two-col { display: flex; gap: 48px; }
+        .two-col .info-section { flex: 0 0 auto; }
         
         /* Production Section */
         .production-section { background: var(--paper); border-radius: 8px; padding: 16px; margin-top: 16px; }
@@ -882,7 +883,7 @@
         @media (max-width: 480px) {
             .modal-overlay { padding: 10px; align-items: flex-start; padding-top: 20px; }
             .well-card { max-width: 100%; max-height: calc(100vh - 40px); margin: 0; }
-            .two-col { grid-template-columns: 1fr; gap: 12px; }
+            .two-col { flex-direction: column; gap: 12px; }
             .production-grid { grid-template-columns: repeat(2, 1fr); }
             .dates-row { grid-template-columns: 1fr; }
             .card-footer { flex-direction: column; }
@@ -3321,6 +3322,7 @@
                     </div>
                 </div>
                 <div style="display: flex; gap: 10px;">
+                    <button class="action-btn outline" id="wellPrintBtn" onclick="printWellReport()" title="Print Well Report">🖨️</button>
                     <button class="action-btn outline" onclick="closeWellDetailsModal()">Close</button>
                     <button class="action-btn primary well-blue" id="saveWellBtn" onclick="saveWellNotesAndClose()" style="display: none;">Save & Close</button>
                 </div>
@@ -13847,6 +13849,17 @@
             }
         }
         
+        function printWellReport() {
+            // Get the API number from the current well
+            const apiNumber = document.getElementById('wellDetailsAPI')?.textContent;
+            if (apiNumber && apiNumber !== '—') {
+                // Open print-friendly well report in new tab
+                window.open(`/well-report/${apiNumber}`, '_blank');
+            } else {
+                showToast('No API number available for this well', 'error');
+            }
+        }
+
         function closeWellDetailsModal() {
             const modal = document.getElementById('wellDetailsModal');
             modal.style = '';
@@ -14407,6 +14420,10 @@
             const lastProd = prod.lastProduction?.formatted || 'N/A';
             const monthsProduced = prod.monthsProduced || 0;
 
+            // Get completion date from the DOM (already populated by well details)
+            const completionDateEl = document.getElementById('wellDetailsCompletionDate');
+            const completionDate = completionDateEl?.textContent !== '—' ? completionDateEl?.textContent : null;
+
             container.innerHTML = `
                 <div class="production-summary-header">
                     <div class="production-meta">
@@ -14418,6 +14435,12 @@
                             <span class="meta-label">Months Produced</span>
                             <span class="meta-value">${monthsProduced.toLocaleString()}</span>
                         </div>
+                        ${completionDate ? `
+                        <div class="meta-item">
+                            <span class="meta-label">Completed</span>
+                            <span class="meta-value">${completionDate}</span>
+                        </div>
+                        ` : ''}
                     </div>
                     ${data.pun ? `<span class="pun-badge">✓ PUN: ${escapeHtml(data.pun)}</span>` : ''}
                 </div>
