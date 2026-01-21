@@ -460,12 +460,8 @@ export async function handleGetProductionSummary(
         yoyChange,
         direction
       },
-      sparkline: {
-        data: sparkline,
-        total: sparklineTotal,
-        unit: 'BOE',
-        period: '6mo'
-      },
+      sparkline,
+      sparklineBOE: sparklineTotal,
       disclaimer
     });
 
