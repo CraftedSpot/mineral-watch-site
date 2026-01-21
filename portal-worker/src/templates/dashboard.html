@@ -633,7 +633,7 @@
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
         
         /* Well Card Modal Styles */
-        .well-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
+        .well-card { background: #f1f5f9; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
         
         /* Property Card Modal Styles - Orange Theme */
         .property-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
@@ -655,6 +655,15 @@
         
         /* Card Content */
         .card-content { padding: 20px 24px; }
+
+        /* White card sections within gray body */
+        .well-card .info-section-card {
+            background: white;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 16px;
+            border: 1px solid #e2e8f0;
+        }
         
         /* Status Row */
         .status-row { display: flex; gap: 24px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
@@ -724,11 +733,11 @@
 
         /* Production Summary Box (OTC data) */
         .production-summary-box {
-            background: var(--paper);
+            background: white;
             border-radius: 8px;
             padding: 16px;
             margin: 16px 0;
-            border: 1px solid var(--border);
+            border: 1px solid #e2e8f0;
         }
         .production-summary-box.loading {
             min-height: 120px;
@@ -3161,24 +3170,25 @@
                     </div>
                 </div>
                 
-                <!-- Operator -->
-                <div class="info-section">
-                    <div class="section-label">Operator</div>
-                    <div class="section-value" id="wellDetailsOperator">Validus Energy II Midcon LLC</div>
-                    <div class="contact-line" id="wellDetailsContact">
-                        <a href="tel:7209742084" id="wellDetailsPhoneLink">(720) 974-2084</a> • <span id="wellDetailsContactPerson">Michelle Pettifor</span>
+                <!-- Operator & Location Card -->
+                <div class="info-section-card">
+                    <div class="info-section" style="margin-bottom: 12px;">
+                        <div class="section-label">Operator</div>
+                        <div class="section-value" id="wellDetailsOperator">Validus Energy II Midcon LLC</div>
+                        <div class="contact-line" id="wellDetailsContact">
+                            <a href="tel:7209742084" id="wellDetailsPhoneLink">(720) 974-2084</a> • <span id="wellDetailsContactPerson">Michelle Pettifor</span>
+                        </div>
                     </div>
-                </div>
-                
-                <!-- Location / County -->
-                <div class="two-col">
-                    <div class="info-section">
-                        <div class="section-label">Location</div>
-                        <div class="section-value" id="wellDetailsLocation">T03N R03W 25</div>
-                    </div>
-                    <div class="info-section">
-                        <div class="section-label">County</div>
-                        <div class="section-value" id="wellDetailsCounty">Garvin County</div>
+
+                    <div class="two-col">
+                        <div class="info-section">
+                            <div class="section-label">Location</div>
+                            <div class="section-value" id="wellDetailsLocation">T03N R03W 25</div>
+                        </div>
+                        <div class="info-section">
+                            <div class="section-label">County</div>
+                            <div class="section-value" id="wellDetailsCounty">Garvin County</div>
+                        </div>
                     </div>
                 </div>
 
