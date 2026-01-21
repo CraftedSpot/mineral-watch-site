@@ -375,9 +375,13 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
 
 /**
  * Fetch all wells for a user (including organization wells)
+ * Returns minimal data for duplicate checking during bulk upload.
+ *
+ * Note: For full well data with D1 metadata, use /api/wells/v2 endpoint instead.
+ *
  * @param env Worker environment
  * @param userEmail User's email address
- * @returns Array of simplified well objects
+ * @returns Array of simplified well objects (id, apiNumber, wellName)
  */
 export async function fetchUserWells(env: Env, userEmail: string): Promise<SimplifiedWell[]> {
   const user = await findUserByEmail(env, userEmail);

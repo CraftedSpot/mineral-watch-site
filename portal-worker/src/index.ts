@@ -835,9 +835,13 @@ var index_default = {
       }
       
       // Wells endpoints
+      // GET /api/wells - Legacy endpoint (returns raw Airtable data)
+      // Still used by: oklahoma_map.html, account.html
+      // TODO: Migrate these pages to v2, then remove this endpoint
       if (path === "/api/wells" && request.method === "GET") {
         return handleListWells(request, env);
       }
+      // GET /api/wells/v2 - Primary endpoint (D1 metadata + Airtable tracking)
       if (path === "/api/wells/v2" && request.method === "GET") {
         return handleListWellsV2(request, env);
       }

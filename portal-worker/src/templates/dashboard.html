@@ -14810,23 +14810,12 @@
             countBadge.textContent = '—';
 
             try {
-                // Fetch docket entries and completion reports in parallel for wells
-                const docketPromise = fetch(
+                // Fetch docket entries first (fast - from D1)
+                const docketResponse = await fetch(
                     `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
                     { credentials: 'include' }
-                ).then(r => r.json());
-
-                let completionPromise = Promise.resolve({ success: false, completionReports: [] });
-                if (type === 'well' && apiNumber) {
-                    completionPromise = fetch(`/api/wells/${apiNumber}/completion-reports`, { credentials: 'include' })
-                        .then(r => r.json())
-                        .catch(err => {
-                            console.log('[OccFilings] Error fetching completion reports:', err);
-                            return { success: false, completionReports: [] };
-                        });
-                }
-
-                const [data, completionData] = await Promise.all([docketPromise, completionPromise]);
+                );
+                const data = await docketResponse.json();
 
                 if (!data.success) {
                     throw new Error(data.error || 'Failed to load filings');
@@ -14834,46 +14823,48 @@
 
                 const directFilings = data.direct || [];
                 const adjacentFilings = data.adjacent || [];
-                const completionReports = completionData.completionReports || [];
 
-                // Update count badge (include completion reports for wells)
-                const totalCount = directFilings.length + adjacentFilings.length + completionReports.length;
-                countBadge.textContent = String(totalCount);
+                // Show docket entries immediately (don't wait for completion reports)
+                let docketCount = directFilings.length + adjacentFilings.length;
 
-                if (directFilings.length === 0 && adjacentFilings.length === 0 && completionReports.length === 0) {
-                    directContainer.innerHTML = '';
-                    emptyMessage.style.display = 'block';
-                    return;
-                }
-
-                // Build the content HTML
+                // Build docket filings HTML
                 let contentHtml = '';
 
-                // Render completion reports first (for wells only)
-                if (completionReports.length > 0) {
-                    contentHtml += `<div class="completion-separator">
-                        <span>Completion Reports</span>
-                        <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${completionReports.length}</span>
-                    </div>`;
-                    contentHtml += completionReports.map(report => renderCompletionReport(report, apiNumber)).join('');
-                }
-
-                // Add separator before OCC filings if we have both
-                if (completionReports.length > 0 && directFilings.length > 0) {
-                    contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
-                        <span>OCC Filings</span>
-                        <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${directFilings.length}</span>
+                // For wells, add placeholder for completion reports (loading in background)
+                if (type === 'well' && apiNumber) {
+                    contentHtml += `<div id="completion-reports-section">
+                        <div class="completion-separator">
+                            <span>Completion Reports</span>
+                            <span id="completion-reports-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">...</span>
+                        </div>
+                        <div id="completion-reports-content" style="padding: 8px 0; color: #6b7280; font-size: 13px;">
+                            <span class="loading-spinner" style="display: inline-block; width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle;"></span>
+                            Loading completion reports...
+                        </div>
                     </div>`;
                 }
 
-                // Render direct filings
+                // Add OCC filings section
                 if (directFilings.length > 0) {
+                    if (type === 'well' && apiNumber) {
+                        contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
+                            <span>OCC Filings</span>
+                            <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${directFilings.length}</span>
+                        </div>`;
+                    }
                     contentHtml += directFilings.map(filing => renderOccFiling(filing, false)).join('');
-                } else if (completionReports.length === 0) {
+                } else if (type === 'property') {
                     contentHtml = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
                 }
 
-                directContainer.innerHTML = contentHtml;
+                // Show docket entries immediately
+                if (directFilings.length === 0 && adjacentFilings.length === 0 && type === 'property') {
+                    directContainer.innerHTML = '';
+                    emptyMessage.style.display = 'block';
+                } else {
+                    directContainer.innerHTML = contentHtml;
+                    countBadge.textContent = String(docketCount) + (type === 'well' && apiNumber ? '+' : '');
+                }
 
                 // Render adjacent filings
                 if (adjacentFilings.length > 0) {
@@ -14882,62 +14873,104 @@
                     adjacentContainer.innerHTML = adjacentFilings.map(filing => renderOccFiling(filing, true)).join('');
                 }
 
-                // Check which filings have already been analyzed
+                // Check which filings have already been analyzed (don't await - fire and forget)
                 const allFilings = [...directFilings, ...adjacentFilings];
                 const analyzableFilings = allFilings.filter(f =>
                     (f.status === 'HEARD' || f.status === 'RECOMMENDED') && f.caseNumber
                 );
 
                 if (analyzableFilings.length > 0) {
-                    const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
-                    console.log('[OccFilings] Checking analyzed status for:', caseNumbers);
-                    console.log('[OccFilings] Analyzable filings:', analyzableFilings.map(f => ({ caseNumber: f.caseNumber, orderNumber: f.orderNumber, status: f.status })));
-                    try {
-                        const analyzedResponse = await fetch(
-                            `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
-                            { credentials: 'include' }
-                        );
-                        console.log('[OccFilings] Response status:', analyzedResponse.status);
-                        if (!analyzedResponse.ok) {
-                            console.error('[OccFilings] API error:', analyzedResponse.status, analyzedResponse.statusText);
-                            return;
-                        }
-                        const analyzedData = await analyzedResponse.json();
-                        console.log('[OccFilings] Analyzed data:', JSON.stringify(analyzedData, null, 2));
+                    checkAnalyzedFilings(analyzableFilings);
+                }
 
-                        // Update buttons for already-analyzed filings
-                        for (const filing of analyzableFilings) {
-                            // Try multiple matching strategies
-                            const caseNum = filing.caseNumber;
-                            const caseNumClean = caseNum?.replace(/^CD\s*/i, '');
-                            const analyzed = analyzedData[caseNum] ||
-                                           analyzedData[caseNumClean] ||
-                                           analyzedData[`CD${caseNumClean}`];
-
-                            console.log(`[OccFilings] Filing ${caseNum}: analyzed =`, analyzed);
-
-                            if (analyzed) {
-                                const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
-                                const button = document.getElementById(buttonId);
-                                console.log(`[OccFilings] Button ${buttonId}:`, button ? 'found' : 'NOT FOUND');
-                                if (button) {
-                                    // Update in-memory state
-                                    const stateKey = filing.orderNumber || filing.caseNumber;
-                                    occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId, buttonEl: button };
-                                    // Update button to analyzed state
-                                    updateOccButtonState(button, 'complete', analyzed.documentId, analyzed.displayName);
-                                }
-                            }
-                        }
-                    } catch (err) {
-                        console.log('[OccFilings] Could not check analyzed status:', err);
-                    }
+                // Lazy load completion reports in background (for wells only)
+                if (type === 'well' && apiNumber) {
+                    loadCompletionReportsAsync(apiNumber, docketCount, directFilings.length, countBadge);
                 }
 
             } catch (error) {
                 console.error('[OccFilings] Error loading filings:', error);
                 directContainer.innerHTML = '<div style="color: #dc3545; font-size: 13px; padding: 8px 0;">Error loading filings</div>';
                 countBadge.textContent = '0';
+            }
+        }
+
+        // Background loader for completion reports (doesn't block modal)
+        async function loadCompletionReportsAsync(apiNumber, docketCount, directFilingsCount, countBadge) {
+            const reportsSection = document.getElementById('completion-reports-section');
+            const reportsContent = document.getElementById('completion-reports-content');
+            const reportsCountBadge = document.getElementById('completion-reports-count');
+
+            try {
+                console.log('[OccFilings] Fetching completion reports in background for:', apiNumber);
+                const response = await fetch(`/api/wells/${apiNumber}/completion-reports`, { credentials: 'include' });
+                const completionData = await response.json();
+                const completionReports = completionData.completionReports || [];
+
+                console.log('[OccFilings] Completion reports loaded:', completionReports.length);
+
+                // Update the completion reports section
+                if (reportsContent && reportsCountBadge) {
+                    reportsCountBadge.textContent = String(completionReports.length);
+
+                    if (completionReports.length > 0) {
+                        reportsContent.innerHTML = completionReports.map(report => renderCompletionReport(report, apiNumber)).join('');
+                    } else {
+                        reportsContent.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic;">No completion reports found</div>';
+                    }
+
+                    // Update total count badge
+                    const totalCount = docketCount + completionReports.length;
+                    countBadge.textContent = String(totalCount);
+                }
+            } catch (err) {
+                console.log('[OccFilings] Error fetching completion reports:', err);
+                if (reportsContent && reportsCountBadge) {
+                    reportsCountBadge.textContent = '0';
+                    reportsContent.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic;">Could not load completion reports</div>';
+                    countBadge.textContent = String(docketCount);
+                }
+            }
+        }
+
+        // Background checker for analyzed filings status
+        async function checkAnalyzedFilings(analyzableFilings) {
+            const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
+            console.log('[OccFilings] Checking analyzed status for:', caseNumbers);
+
+            try {
+                const analyzedResponse = await fetch(
+                    `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
+                    { credentials: 'include' }
+                );
+
+                if (!analyzedResponse.ok) {
+                    console.error('[OccFilings] API error:', analyzedResponse.status);
+                    return;
+                }
+
+                const analyzedData = await analyzedResponse.json();
+
+                // Update buttons for already-analyzed filings
+                for (const filing of analyzableFilings) {
+                    const caseNum = filing.caseNumber;
+                    const caseNumClean = caseNum?.replace(/^CD\s*/i, '');
+                    const analyzed = analyzedData[caseNum] ||
+                                   analyzedData[caseNumClean] ||
+                                   analyzedData[`CD${caseNumClean}`];
+
+                    if (analyzed) {
+                        const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
+                        const button = document.getElementById(buttonId);
+                        if (button) {
+                            const stateKey = filing.orderNumber || filing.caseNumber;
+                            occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId, buttonEl: button };
+                            updateOccButtonState(button, 'complete', analyzed.documentId, analyzed.displayName);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log('[OccFilings] Could not check analyzed status:', err);
             }
         }
         window.loadOccFilings = loadOccFilings;

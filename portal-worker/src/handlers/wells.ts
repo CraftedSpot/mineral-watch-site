@@ -258,7 +258,13 @@ export async function fetchWellDetailsFromOCC(apiNumber: string, env: Env) {
 }
 
 /**
- * Lookup completion data from KV cache
+ * Lookup completion data from KV cache (COMPLETIONS_CACHE)
+ *
+ * Note: For well list display, D1 is now the primary source via /api/wells/v2.
+ * This function is still used by:
+ * - backfill-formations.ts (background jobs)
+ * - track-well.ts (track this well feature)
+ *
  * @param apiNumber 10-digit API number
  * @param env Worker environment
  * @returns Completion data or null if not found
@@ -282,10 +288,17 @@ export async function lookupCompletionData(apiNumber: string, env: Env): Promise
 }
 
 /**
- * List all wells for the authenticated user
+ * @deprecated Use handleListWellsV2 instead - this returns raw Airtable data
+ *
+ * List all wells for the authenticated user (legacy endpoint)
+ * Still used by: oklahoma_map.html, account.html
+ *
+ * V2 endpoint joins Airtable tracking data with D1 well metadata for better performance.
+ * This v1 endpoint returns the raw Airtable records with all fields.
+ *
  * @param request The incoming request
  * @param env Worker environment
- * @returns JSON response with user wells
+ * @returns JSON response with user wells (Airtable format)
  */
 export async function handleListWells(request: Request, env: Env) {
   const user = await authenticateRequest(request, env);
