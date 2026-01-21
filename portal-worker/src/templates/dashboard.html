@@ -1732,8 +1732,11 @@
                 padding: 15px !important;
             }
             
-            .well-card {
+            .well-cards-grid .well-card {
                 padding: 12px !important;
+            }
+            .well-card.detail-modal {
+                padding: 0 !important;
             }
             
             .well-card-title {
@@ -3234,39 +3237,21 @@
                     </div>
                 </div>
 
-                <!-- Production Section (conditionally shown) -->
+                <!-- Well Data Section (conditionally shown) -->
                 <div class="production-section" id="wellDetailsProduction" style="display: none;">
                     <div class="production-header">
-                        <span class="production-title">Production Data</span>
+                        <span class="production-title">Well Data</span>
                         <span class="formation-badge" id="wellDetailsFormationBadge">Woodford</span>
                     </div>
-                    
-                    <div class="production-grid">
-                        <div class="production-item">
-                            <div class="production-label">IP Gas</div>
-                            <div class="production-value" id="wellDetailsIPGas">2,847</div>
-                            <div class="production-unit">MCF/day</div>
-                        </div>
-                        <div class="production-item">
-                            <div class="production-label">IP Oil</div>
-                            <div class="production-value" id="wellDetailsIPOil">156</div>
-                            <div class="production-unit">BBL/day</div>
-                        </div>
-                        <div class="production-item">
-                            <div class="production-label">Depth</div>
-                            <div class="production-value" id="wellDetailsDepth">15,004</div>
-                            <div class="production-unit">ft</div>
-                        </div>
-                    </div>
-                    
-                    <div class="dates-row">
+
+                    <div class="dates-row" style="margin-top: 12px;">
                         <div class="date-item">
                             <div class="date-label">Completed</div>
-                            <div class="date-value" id="wellDetailsCompleted">2018-07-28</div>
+                            <div class="date-value" id="wellDetailsCompleted">—</div>
                         </div>
                         <div class="date-item">
                             <div class="date-label">First Prod</div>
-                            <div class="date-value" id="wellDetailsFirstProd">2018-08-05</div>
+                            <div class="date-value" id="wellDetailsFirstProd">—</div>
                         </div>
                     </div>
                 </div>
@@ -3340,12 +3325,9 @@
                     </div>
                 </div>
 
-                <!-- Completion Date -->
-                <div class="info-section">
-                    <div class="section-label">Completion Date</div>
-                    <div class="section-value" id="wellDetailsCompletionDate">—</div>
-                </div>
-                
+                <!-- Completion Date (hidden, used by production summary) -->
+                <div id="wellDetailsCompletionDate" style="display: none;">—</div>
+
                 <!-- Notes Section -->
                 <div class="info-section" style="margin-top: 16px;">
                     <div class="section-label">Notes</div>
@@ -13675,29 +13657,17 @@
             // County
             document.getElementById('wellDetailsCounty').textContent = cleanCountyDisplay(f['County']) || '—';
             
-            // Production section - only show if any production data exists
-            const ipGas = f['IP Gas (MCF/day)'];
-            const ipOil = f['IP Oil (BBL/day)'];
+            // Well Data section - show if formation or any dates exist
             const formationName = f['Formation Name'];
-            const formationDepth = f['Formation Depth'];
-            
+
             const productionSection = document.getElementById('wellDetailsProduction');
-            if (ipGas || ipOil || formationName || formationDepth) {
-                // Show production section
+            if (formationName || completionDate || firstProdDate) {
+                // Show well data section
                 productionSection.style.display = 'block';
-                
+
                 // Formation badge
                 document.getElementById('wellDetailsFormationBadge').textContent = formationName || 'Unknown';
-                
-                // IP Gas
-                document.getElementById('wellDetailsIPGas').textContent = ipGas ? Number(ipGas).toLocaleString() : '—';
-                
-                // IP Oil
-                document.getElementById('wellDetailsIPOil').textContent = ipOil ? Number(ipOil).toLocaleString() : '—';
-                
-                // Depth
-                document.getElementById('wellDetailsDepth').textContent = formationDepth ? Number(formationDepth).toLocaleString() : '—';
-                
+
                 // Dates
                 document.getElementById('wellDetailsCompleted').textContent = completionDate || '—';
                 document.getElementById('wellDetailsFirstProd').textContent = firstProdDate || '—';
