@@ -636,16 +636,7 @@
         .well-card { background: #f1f5f9; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
         
         /* Property Card Modal Styles - Orange Theme */
-        .property-card { background: #f1f5f9; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
-
-        /* White card sections within gray body (for both well and property) */
-        .property-card .info-section-card {
-            background: white;
-            border-radius: 8px;
-            padding: 16px;
-            margin-bottom: 16px;
-            border: 1px solid #e2e8f0;
-        }
+        .property-card { background: white; border-radius: 12px; overflow: hidden; max-width: 520px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); max-height: calc(100vh - 40px); overflow-y: auto; }
         
         /* Card Header - Blue for Wells */
         .card-header { background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; }
@@ -3376,7 +3367,7 @@
     
     <!-- Property Details Modal - Orange Card Design -->
     <div class="modal-overlay" id="propertyDetailsModal">
-        <div class="property-card detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #f1f5f9; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+        <div class="property-card detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
             <!-- Header with Orange Gradient (full bleed) -->
             <div class="property-card-header detail-modal-header" style="background: linear-gradient(135deg, var(--red-dirt) 0%, var(--red-dirt-dark) 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
                 <button class="close-btn" onclick="closePropertyDetailsModal()" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
@@ -3393,7 +3384,6 @@
             <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
 
             <!-- Property Info Card -->
-            <div class="info-section-card">
             <div class="details-grid">
                 <div class="details-row">
                     <span class="details-label">Legal</span>
@@ -3422,11 +3412,10 @@
                     <input type="number" id="propertyDetailsWIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0" oninput="updateTotalAcres(); toggleSaveButton('property');">
                 </div>
             </div>
-            </div>
 
                 <!-- Linked Wells Accordion -->
-                <div class="linked-wells-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
-                    <div class="linked-wells-header" onclick="toggleLinkedWells()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
+                <div class="linked-wells-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+                    <div class="linked-wells-header" onclick="toggleLinkedWells()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="linked-wells-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">Linked Wells</span>
@@ -3445,8 +3434,8 @@
                 </div>
                 
                 <!-- Linked Documents Section -->
-                <div class="linked-documents-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
-                    <div class="linked-documents-header" onclick="toggleLinkedDocuments('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
+                <div class="linked-documents-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
+                    <div class="linked-documents-header" onclick="toggleLinkedDocuments('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="linked-documents-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">Linked Documents</span>
@@ -3494,7 +3483,7 @@
                 </div>
 
                 <!-- Notes Section -->
-                <div class="info-section-card" style="margin-top: 16px;">
+                <div class="info-section" style="margin-top: 16px;">
                     <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                         <span class="details-label" style="margin-bottom: 8px;">Notes</span>
                         <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; background: white;" placeholder="Add notes about this property..." onkeyup="toggleSaveButton('property')"></textarea>
@@ -3509,12 +3498,15 @@
             </div>
             
             <!-- Footer Actions (fixed at bottom) -->
-            <div class="card-footer detail-modal-footer property-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; flex-shrink: 0; background: white;">
-                <div class="property-footer-grid">
+            <div class="card-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; background: white;">
+                <div style="display: flex; gap: 10px; flex: 1;">
                     <button class="action-btn primary" id="propertyDetailsMWMapBtn" onclick="viewPropertyOnMapFromModal()" style="background: var(--red-dirt);">MW Map ↗</button>
                     <a href="#" target="_blank" class="action-btn primary" id="propertyDetailsMapLink" style="background: var(--red-dirt);">OCC Map ↗</a>
                 </div>
-                <button class="action-btn primary" id="savePropertyBtn" onclick="savePropertyAndClose()" style="background: var(--red-dirt); display: none; margin-top: 10px; width: 100%;">Save & Close</button>
+                <div style="display: flex; gap: 10px;">
+                    <button class="action-btn outline" onclick="closePropertyDetailsModal()">Close</button>
+                    <button class="action-btn primary" id="savePropertyBtn" onclick="savePropertyAndClose()" style="background: var(--red-dirt); display: none;">Save & Close</button>
+                </div>
             </div>
         </div>
     </div>
