@@ -3232,6 +3232,20 @@
                     </div>
                 </div>
 
+                <!-- Key Dates Row (always visible if data exists) -->
+                <div class="key-dates-row" id="wellKeyDatesRow" style="display: none; background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                        <div class="date-item" id="wellCompletedDateItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">Completed</div>
+                            <div id="wellDetailsCompletedDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                        <div class="date-item" id="wellFirstProdDateItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">First Production</div>
+                            <div id="wellDetailsFirstProdDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Production Summary Box (OTC data) -->
                 <div class="production-summary-box" id="wellProductionSummary">
                     <div class="production-summary-loading" style="text-align: center; padding: 20px; color: var(--slate-blue);">
