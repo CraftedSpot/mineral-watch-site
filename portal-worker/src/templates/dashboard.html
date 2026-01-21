@@ -13561,6 +13561,10 @@
                                 f['Completion Date'] = d.completion_date;
                                 console.log('[openWellDetailsModal] Added completion date:', d.completion_date);
                             }
+                            if (!f['First Production Date'] && d.first_production_date) {
+                                f['First Production Date'] = d.first_production_date;
+                                console.log('[openWellDetailsModal] Added first prod date:', d.first_production_date);
+                            }
                             if (!f['Formation Depth'] && (d.measured_total_depth || d.true_vertical_depth)) {
                                 f['Formation Depth'] = d.measured_total_depth || d.true_vertical_depth;
                             }
