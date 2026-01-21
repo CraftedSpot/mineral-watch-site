@@ -243,16 +243,19 @@ export async function handleGetProductionSummary(
       GROUP BY pun, product_code
     `).bind(...puns).all();
 
-    // Get sparkline data (oil + condensate only, last 6 months)
+    // Get sparkline data (oil + condensate only, last 6 calendar months)
     // OTC product codes: 1=Oil, 3=Condensate, 5=Gas(casinghead), 6=Gas(natural)
+    const sixMonthsAgo = new Date(now);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sixMonthsAgoYM = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
     const sparklineResult = await env.WELLS_DB.prepare(`
       SELECT year_month, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND product_code IN ('1', '3')
+      WHERE pun IN (${placeholders}) AND product_code IN ('1', '3') AND year_month >= ?
       GROUP BY year_month
-      ORDER BY year_month DESC
-      LIMIT 6
-    `).bind(...puns).all();
+      ORDER BY year_month ASC
+    `).bind(...puns, sixMonthsAgoYM).all();
 
     // Get YoY comparison data
     const lastYearResult = await env.WELLS_DB.prepare(`
@@ -330,10 +333,20 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // Process sparkline
-    const sparkline = (sparklineResult.results as any[])
-      .map(r => Math.round(r.volume || 0))
-      .reverse();
+    // Process sparkline - generate last 6 calendar months with zeros for missing data
+    const sparklineMap = new Map<string, number>();
+    for (const row of sparklineResult.results as any[]) {
+      sparklineMap.set(row.year_month, Math.round(row.volume || 0));
+    }
+
+    // Generate the last 6 months in order (oldest to newest)
+    const sparkline: number[] = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now);
+      d.setMonth(d.getMonth() - i);
+      const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+      sparkline.push(sparklineMap.get(ym) || 0);
+    }
 
     // Determine status based on most recent production vs TODAY
     // mostRecentYM is already calculated above in YYYYMM format
