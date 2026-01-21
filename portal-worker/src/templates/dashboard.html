@@ -13625,6 +13625,31 @@
             const firstProdDate = formatDate(f['First Production Date']);
             document.getElementById('wellDetailsCompletionDate').textContent = completionDate || '—';
             document.getElementById('wellDetailsFirstProdDate').textContent = firstProdDate || '—';
+
+            // Populate key dates row (visible section, independent of PUN)
+            const keyDatesRow = document.getElementById('wellKeyDatesRow');
+            const completedDateItem = document.getElementById('wellCompletedDateItem');
+            const firstProdDateItem = document.getElementById('wellFirstProdDateItem');
+
+            if (completionDate || firstProdDate) {
+                keyDatesRow.style.display = 'block';
+
+                if (completionDate) {
+                    document.getElementById('wellDetailsCompletedDisplay').textContent = completionDate;
+                    completedDateItem.style.display = 'block';
+                } else {
+                    completedDateItem.style.display = 'none';
+                }
+
+                if (firstProdDate) {
+                    document.getElementById('wellDetailsFirstProdDisplay').textContent = firstProdDate;
+                    firstProdDateItem.style.display = 'block';
+                } else {
+                    firstProdDateItem.style.display = 'none';
+                }
+            } else {
+                keyDatesRow.style.display = 'none';
+            }
             
             // Status badge
             const status = f['Well Status'] || f['OCC Status'] || '—';
