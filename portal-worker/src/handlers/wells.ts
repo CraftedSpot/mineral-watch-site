@@ -27,59 +27,15 @@ import {
   authenticateRequest
 } from '../utils/auth.js';
 
-import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
+// Operator lookup no longer needed - data comes from D1 via /api/wells/v2
+// import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
 
 import { matchSingleWell } from '../utils/property-well-matching.js';
 
 import type { Env, CompletionData } from '../types/env.js';
 
-/**
- * Convert ISO date to US format for Airtable (YYYY-MM-DD -> M/D/YY)
- * @param isoDate ISO date string like "1965-12-20" 
- * @returns US formatted date like "12/20/65" or null if invalid
- */
-function formatDateForAirtable(isoDate: string): string | null {
-  if (!isoDate) return null;
-  try {
-    const date = new Date(isoDate);
-    if (isNaN(date.getTime())) return null;
-    
-    const month = date.getMonth() + 1; // 0-based to 1-based
-    const day = date.getDate();
-    const year = date.getFullYear() % 100; // Get last 2 digits of year
-    
-    return `${month}/${day}/${year.toString().padStart(2, '0')}`;
-  } catch {
-    return null;
-  }
-}
-
-/**
- * Extract well number from well name (e.g., "2" from "MYRTLE COLLINS ##2")
- * @param wellName The well name string
- * @returns Well number or null if not found
- */
-function extractWellNumber(wellName: string): string | null {
-  if (!wellName) return null;
-  
-  // Match patterns like "#2", "##2", "No. 2", "No.2", " 2" (at end)
-  const patterns = [
-    /##+(\d+)/i,           // ##2, ###2
-    /#(\d+)/i,             // #2
-    /no\.?\s*(\d+)/i,      // No. 2, No.2, no 2
-    /\s+(\d+)$/i,          // ending with space and number
-    /-(\d+)$/i             // ending with dash and number
-  ];
-  
-  for (const pattern of patterns) {
-    const match = wellName.match(pattern);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  
-  return null;
-}
+// Helper functions no longer needed - D1 is now the source for well metadata
+// formatDateForAirtable and extractWellNumber were used when storing data in Airtable
 
 /**
  * Generate OCC map link with coordinates and title
@@ -366,8 +322,173 @@ export async function handleListWells(request: Request, env: Env) {
   }
   
   const records = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
-  
+
   return jsonResponse(records);
+}
+
+/**
+ * Batch query D1 wells by API numbers with operator contact info
+ * @param apiNumbers Array of API numbers to query
+ * @param env Worker environment
+ * @returns Map of API number to well data
+ */
+async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record<string, any>> {
+  if (!env.WELLS_DB || apiNumbers.length === 0) {
+    return {};
+  }
+
+  const results: Record<string, any> = {};
+  const BATCH_SIZE = 100;
+
+  for (let i = 0; i < apiNumbers.length; i += BATCH_SIZE) {
+    const batch = apiNumbers.slice(i, i + BATCH_SIZE);
+    const placeholders = batch.map(() => '?').join(',');
+
+    const query = `
+      SELECT
+        w.api_number, w.well_name, w.operator, w.county,
+        w.section, w.township, w.range, w.meridian,
+        w.well_type, w.well_status, w.latitude, w.longitude,
+        w.formation_name, w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
+        w.spud_date, w.completion_date, w.first_production_date,
+        w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
+        w.bh_latitude, w.bh_longitude,
+        o.phone as operator_phone,
+        o.contact_name as operator_contact
+      FROM wells w
+      LEFT JOIN operators o
+        ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
+      WHERE w.api_number IN (${placeholders})
+    `;
+
+    try {
+      const result = await env.WELLS_DB.prepare(query).bind(...batch).all();
+      for (const row of result.results) {
+        results[row.api_number as string] = row;
+      }
+    } catch (err) {
+      console.error('[batchQueryD1Wells] Error querying batch:', err);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * List wells for authenticated user - V2 with D1 as primary data source
+ * Airtable stores only: User, Organization, API Number, Notes, Status, OCC Filing Link
+ * D1 provides: All well metadata (name, operator, location, formation, dates, etc.)
+ *
+ * @param request The incoming request
+ * @param env Worker environment
+ * @returns JSON response with merged well data
+ */
+export async function handleListWellsV2(request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  // Get full user record to check for organization
+  const userRecord = await getUserFromSession(env, user);
+  if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
+
+  // Build Airtable filter formula (same as v1)
+  let formula: string;
+  const organizationId = userRecord.fields.Organization?.[0];
+
+  if (organizationId) {
+    // User has organization - fetch org name and filter by it
+    const orgResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
+      {
+        headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+      }
+    );
+
+    if (orgResponse.ok) {
+      const org = await orgResponse.json() as any;
+      const orgName = org.fields.Name;
+      formula = `{Organization} = '${orgName}'`;
+    } else {
+      formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+    }
+  } else {
+    formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+  }
+
+  // Fetch tracked wells from Airtable (returns all fields, we'll use minimal)
+  const trackedWells = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
+
+  // Extract API numbers for D1 query
+  const apiNumbers = trackedWells
+    .map((w: any) => w.fields['API Number'])
+    .filter((api: string | undefined) => api && api.length >= 10);
+
+  // Batch query D1 for well metadata
+  const d1Wells = await batchQueryD1Wells(apiNumbers, env);
+
+  // Merge: D1 metadata + Airtable user data
+  const merged = trackedWells.map((t: any) => {
+    const apiNumber = t.fields['API Number'];
+    const d1 = d1Wells[apiNumber] || {};
+
+    // Generate OCC Map Link from D1 coordinates
+    const occMapLink = d1.latitude && d1.longitude
+      ? generateMapLink(d1.latitude, d1.longitude, d1.well_name || 'Well Location')
+      : '#';
+
+    return {
+      // Airtable record info (needed for updates/deletes/links)
+      id: t.id,
+      createdTime: t.createdTime,
+
+      // User data from Airtable
+      apiNumber,
+      notes: t.fields.Notes || '',
+      userStatus: t.fields.Status || 'Active',  // User's tracking status
+      occFilingLink: t.fields['OCC Filing Link'] || null,
+
+      // Well metadata from D1
+      well_name: d1.well_name || t.fields['Well Name'] || '',  // Fallback to Airtable
+      operator: d1.operator || t.fields['Operator'] || '',
+      county: d1.county || t.fields['County'] || '',
+      section: d1.section || t.fields['Section'] || '',
+      township: d1.township || t.fields['Township'] || '',
+      range: d1.range || t.fields['Range'] || '',
+      meridian: d1.meridian || '',
+      well_type: d1.well_type || t.fields['Well Type'] || '',
+      well_status: d1.well_status || t.fields['Well Status'] || '',
+      latitude: d1.latitude || null,
+      longitude: d1.longitude || null,
+
+      // Enrichment data from D1
+      formation_name: d1.formation_name || null,
+      measured_total_depth: d1.measured_total_depth || null,
+      true_vertical_depth: d1.true_vertical_depth || null,
+      lateral_length: d1.lateral_length || null,
+      spud_date: d1.spud_date || null,
+      completion_date: d1.completion_date || null,
+      first_production_date: d1.first_production_date || null,
+      ip_oil_bbl: d1.ip_oil_bbl || null,
+      ip_gas_mcf: d1.ip_gas_mcf || null,
+      ip_water_bbl: d1.ip_water_bbl || null,
+
+      // Bottom hole location (for horizontal wells)
+      bh_latitude: d1.bh_latitude || null,
+      bh_longitude: d1.bh_longitude || null,
+
+      // Operator contact from D1 operators table
+      operator_phone: d1.operator_phone || t.fields['Operator Phone'] || null,
+      operator_contact: d1.operator_contact || t.fields['Contact Name'] || null,
+
+      // Generated links
+      occMapLink,
+
+      // Flag indicating if D1 had data for this well
+      hasD1Data: !!d1.api_number
+    };
+  });
+
+  return jsonResponse(merged);
 }
 
 /**
@@ -426,154 +547,35 @@ export async function handleAddWell(request: Request, env: Env, ctx?: ExecutionC
     return jsonResponse({ error: "You are already monitoring this well API." }, 409);
   }
   
-  // Query OCC API to get well details and coordinates
-  console.log(`Querying OCC for well API: ${cleanApi}`);
+  // Validate well exists in D1 or OCC before allowing tracking
+  // This ensures we have metadata for the well
+  console.log(`[AddWell] Validating well API: ${cleanApi}`);
   const wellDetails = await fetchWellDetailsFromOCC(cleanApi, env);
-  
-  let occMapLink = "#";
-  let suggestedWellName = body.wellName || "";
-  let operator = "";
-  let county = "";
-  let section = "";
-  let township = "";
-  let range = "";
-  let wellType = "";
-  let wellStatus = "";
-  
+
   if (wellDetails) {
-    // Generate proper map link with coordinates
-    occMapLink = generateMapLink(wellDetails.lat, wellDetails.lon, wellDetails.wellName);
-    
-    // If user didn't provide a well name, use the one from OCC
-    if (!suggestedWellName && wellDetails.wellName) {
-      suggestedWellName = wellDetails.wellName;
-    } else if (suggestedWellName && suggestedWellName.includes('#')) {
-      // User provided a well name with # - use it as-is to avoid double hashtags
-      // Don't override with OCC well name
-    } else if (!suggestedWellName || !suggestedWellName.includes('#')) {
-      // User provided no name or name without #, prefer OCC well name if available
-      suggestedWellName = wellDetails.wellName || suggestedWellName;
-    }
-    
-    // Capture all OCC data
-    operator = wellDetails.operator || "";
-    county = wellDetails.county || "";
-    section = wellDetails.section ? String(wellDetails.section) : "";
-    township = wellDetails.township || "";
-    range = wellDetails.range || "";
-    wellType = wellDetails.wellType || "";
-    wellStatus = wellDetails.wellStatus || "";
-    
-    console.log(`OCC well found: ${wellDetails.wellName} - ${operator} - ${county} County`);
-    console.log(`[DEBUG] Raw OCC operator: "${operator}"`);
+    console.log(`[AddWell] Well validated: ${wellDetails.wellName} - ${wellDetails.operator} - ${wellDetails.county} County`);
   } else {
-    console.warn(`Well API ${cleanApi} not found in OCC database - may be pending or invalid`);
-    // Still allow adding, but with placeholder link and empty fields
-  }
-  
-  // Look up operator information from comprehensive operator database
-  let operatorPhone: string | null = null;
-  let contactName: string | null = null;
-  if (operator) {
-    try {
-      const operatorInfo = await findOperatorByName(operator, env);
-      console.log(`[DEBUG] Operator lookup for "${operator}" returned:`, operatorInfo);
-      if (operatorInfo) {
-        operatorPhone = operatorInfo.phone || null;
-        contactName = operatorInfo.contactName || null;
-        console.log(`Found operator info for ${operator}: phone=${operatorPhone}, contact=${contactName}`);
-      } else {
-        console.log(`No operator info found for: ${operator}`);
-        console.log(`[DEBUG] Normalized search name would be: "${operator.trim().toLowerCase()}"`);
-      }
-    } catch (error) {
-      console.warn(`Failed to lookup operator info for ${operator}:`, error);
-      console.warn(`Error details:`, error.message);
-      // Continue without operator info - don't let this block well creation
-    }
-  }
-  
-  // Look up historical completion data from KV cache
-  console.log(`🔍 Looking up completion data for API ${cleanApi}...`);
-  const completionData = await lookupCompletionData(cleanApi, env);
-  
-  // Merge completion data with existing well data (completion data takes precedence)
-  if (completionData) {
-    console.log(`📊 Enriching well with completion data: ${completionData.formationName || 'Unknown formation'}`);
-    console.log(`📊 DEBUG - Completion data details:`, JSON.stringify({
-      formationName: completionData.formationName,
-      ipGas: completionData.ipGas,
-      ipOil: completionData.ipOil,
-      completionDate: completionData.completionDate,
-      spudDate: completionData.spudDate
-    }, null, 2));
-    
-    // Use completion data for better accuracy, fall back to GIS data
-    if (completionData.wellName && !suggestedWellName) {
-      suggestedWellName = completionData.wellName;
-    }
-    if (completionData.operator && !operator) {
-      operator = completionData.operator;
-    }
-    if (completionData.county && !county) {
-      county = completionData.county;
-    }
-    if (completionData.surfaceSection && !section) {
-      section = completionData.surfaceSection;
-    }
-    if (completionData.surfaceTownship && !township) {
-      township = completionData.surfaceTownship;
-    }
-    if (completionData.surfaceRange && !range) {
-      range = completionData.surfaceRange;
-    }
-  } else {
-    console.log(`ℹ️ No completion data found for API ${cleanApi} - well will be created with OCC data only`);
+    console.warn(`[AddWell] Well API ${cleanApi} not found in D1/OCC - may be pending or invalid`);
+    // Still allow adding for very new permits not yet in database
   }
   
   const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`;
-  
-  // Extract well number as fallback if not in completion data
-  const wellNumber = completionData?.wellNumber || extractWellNumber(suggestedWellName);
 
   // Get user's organization if they have one
   const organizationId = userRecord?.fields.Organization?.[0];
 
-  // Build the fields object for Airtable (using record ID for linked field)
+  // Build minimal fields for Airtable - D1 is now the source for well metadata
+  // Airtable only stores: User relationship, tracking status, and user notes
   const airtableFields = {
     User: [user.id],
-    ...(organizationId && { Organization: [organizationId] }), // Link to organization if user has one
+    ...(organizationId && { Organization: [organizationId] }),
     "API Number": cleanApi,
-    "Well Name": suggestedWellName,
-    Status: "Active",
-    "OCC Map Link": occMapLink,
-    ...(body.occLink && { "OCC Filing Link": body.occLink }), // Save the permit PDF URL if provided
-    Operator: operator || "",
-    County: county,
-    Section: section,
-    Township: township,
-    Range: range,
-    "Well Type": wellType,
-    "Well Status": wellStatus,
-    ...(operatorPhone && { "Operator Phone": operatorPhone }),
-    ...(contactName && { "Contact Name": contactName }),
     Notes: body.notes || "",
-    
-    // Enhanced fields from completion data (using exact Airtable field names)
-    ...(completionData?.formationName && { "Formation Name": completionData.formationName }),
-    ...(completionData?.formationDepth && { "Formation Depth": completionData.formationDepth }),
-    ...(completionData?.ipGas && { "IP Gas (MCF/day)": completionData.ipGas }),
-    ...(completionData?.ipOil && { "IP Oil (BBL/day)": completionData.ipOil }),
-    ...(completionData?.ipWater && { "IP Water (BBL/day)": completionData.ipWater }),
-    ...(completionData?.spudDate && { "Spud Date": formatDateForAirtable(completionData.spudDate) }),
-    ...(completionData?.completionDate && { "Completion Date": formatDateForAirtable(completionData.completionDate) }),
-    ...(completionData?.lateralLength && { "Lateral Length": completionData.lateralLength })
-    // Note: BH Location field exists but would need proper formatting for BH coordinates  
-    // Note: Is Multi-Section field exists but would need logic to determine multi-section wells
-    // Note: Removed "Last Updated" field as it doesn't exist in Airtable table
+    Status: "Active",
+    ...(body.occLink && { "OCC Filing Link": body.occLink })
   };
-  
-  console.log(`📤 DEBUG - Sending to Airtable:`, JSON.stringify(airtableFields, null, 2));
+
+  console.log(`📤 Creating well tracking record in Airtable for API: ${cleanApi}`);
   
   console.log(`📤 Creating well in Airtable...`);
   

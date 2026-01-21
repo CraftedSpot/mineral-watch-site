@@ -3679,18 +3679,17 @@
             }
         }
         
-        // View well on Map
+        // View well on Map (V2: flat object)
         function viewWellOnMap(wellId) {
             const well = loadedWells.find(w => w.id === wellId);
             if (well) {
-                const f = well.fields;
                 // Pass well ID and location info for centering
                 const params = new URLSearchParams({
                     well: wellId,
-                    county: f.County,
-                    section: f.Section,
-                    township: f.Township,
-                    range: f.Range
+                    county: well.county,
+                    section: well.section,
+                    township: well.township,
+                    range: well.range
                 });
                 window.open(`/portal/oklahoma-map?${params.toString()}`, '_blank');
             }
@@ -3997,12 +3996,12 @@
                 const addPromises = selectedPropData.map(async (prop) => {
                     const fields = prop.fields;
                     
-                    // Check if well already exists for this property
-                    const existingWell = loadedWells.find(w => 
-                        w.fields.Section === fields.SEC &&
-                        w.fields.Township === fields.TWN &&
-                        w.fields.Range === fields.RNG &&
-                        w.fields.County === fields.COUNTY
+                    // Check if well already exists for this property (V2: flat object)
+                    const existingWell = loadedWells.find(w =>
+                        w.section == fields.SEC &&
+                        w.township === fields.TWN &&
+                        w.range === fields.RNG &&
+                        w.county === fields.COUNTY
                     );
                     
                     if (existingWell) {
@@ -4314,7 +4313,8 @@
 
         async function loadWells() {
             try {
-                const res = await fetch('/api/wells');
+                // Use V2 endpoint with D1 as primary data source
+                const res = await fetch('/api/wells/v2');
                 if (!res.ok) throw new Error('Failed to load');
                 const wells = await res.json();
                 loadedWells = wells; // Store for filtering/sorting
@@ -4611,88 +4611,87 @@
             });
         }
 
-        // Filter wells based on search term
+        // Filter wells based on search term (V2 uses flat object)
         function filterWells(wells) {
             if (!wellsSearchTerm) return wells;
-            
+
             return wells.filter(w => {
-                const f = w.fields;
                 const searchable = [
-                    f['Well Name'] || '',
-                    f['Operator'] || '',
-                    f['API Number'] || '',
-                    f['County'] || ''
+                    w.well_name || '',
+                    w.operator || '',
+                    w.apiNumber || '',
+                    w.county || ''
                 ].join(' ').toLowerCase();
-                
+
                 return searchable.includes(wellsSearchTerm);
             });
         }
 
-        // Sort wells based on selected option
+        // Sort wells based on selected option (V2 uses flat object)
         function sortWells(wells) {
             const [field, direction] = wellsSortBy.split('-');
             const multiplier = direction === 'asc' ? 1 : -1;
-            
+
             return [...wells].sort((a, b) => {
                 if (field === 'legal') {
                     // Legal Description: County → Township → Range → Section
-                    const aCounty = (a.fields['County'] || '').toLowerCase();
-                    const bCounty = (b.fields['County'] || '').toLowerCase();
+                    const aCounty = (a.county || '').toLowerCase();
+                    const bCounty = (b.county || '').toLowerCase();
                     if (aCounty !== bCounty) {
                         return aCounty < bCounty ? -1 * multiplier : 1 * multiplier;
                     }
-                    
-                    // Parse township (e.g., "T24N" -> { num: 24, dir: "N" })
+
+                    // Parse township (e.g., "09N" -> { num: 9, dir: "N" })
                     const parseTownship = (twp) => {
                         const match = (twp || '').match(/T?(\d+)([NS])?/i);
                         return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
                     };
-                    
-                    const aTwp = parseTownship(a.fields['Township']);
-                    const bTwp = parseTownship(b.fields['Township']);
+
+                    const aTwp = parseTownship(a.township);
+                    const bTwp = parseTownship(b.township);
                     if (aTwp.num !== bTwp.num) {
                         return aTwp.num < bTwp.num ? -1 * multiplier : 1 * multiplier;
                     }
                     if (aTwp.dir !== bTwp.dir) {
                         return aTwp.dir < bTwp.dir ? -1 * multiplier : 1 * multiplier;
                     }
-                    
-                    // Parse range (e.g., "R10W" -> { num: 10, dir: "W" })
+
+                    // Parse range (e.g., "05W" -> { num: 5, dir: "W" })
                     const parseRange = (rng) => {
                         const match = (rng || '').match(/R?(\d+)([EW])?/i);
                         return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
                     };
-                    
-                    const aRng = parseRange(a.fields['Range']);
-                    const bRng = parseRange(b.fields['Range']);
+
+                    const aRng = parseRange(a.range);
+                    const bRng = parseRange(b.range);
                     if (aRng.num !== bRng.num) {
                         return aRng.num < bRng.num ? -1 * multiplier : 1 * multiplier;
                     }
                     if (aRng.dir !== bRng.dir) {
                         return aRng.dir < bRng.dir ? -1 * multiplier : 1 * multiplier;
                     }
-                    
+
                     // Section (numeric)
-                    const aSection = parseInt(a.fields['Section']) || 0;
-                    const bSection = parseInt(b.fields['Section']) || 0;
+                    const aSection = parseInt(a.section) || 0;
+                    const bSection = parseInt(b.section) || 0;
                     return aSection < bSection ? -1 * multiplier : (aSection > bSection ? 1 * multiplier : 0);
-                    
+
                 } else if (field === 'date') {
                     // Date Added - use createdTime from Airtable
                     const aDate = new Date(a.createdTime || 0);
                     const bDate = new Date(b.createdTime || 0);
                     return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
-                    
+
                 } else if (field === 'name') {
                     // Well Name
-                    const aVal = (a.fields['Well Name'] || '').toLowerCase();
-                    const bVal = (b.fields['Well Name'] || '').toLowerCase();
+                    const aVal = (a.well_name || '').toLowerCase();
+                    const bVal = (b.well_name || '').toLowerCase();
                     return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
-                    
+
                 } else if (field === 'operator') {
                     // Operator
-                    const aVal = (a.fields['Operator'] || '').toLowerCase();
-                    const bVal = (b.fields['Operator'] || '').toLowerCase();
+                    const aVal = (a.operator || '').toLowerCase();
+                    const bVal = (b.operator || '').toLowerCase();
                     return aVal < bVal ? -1 * multiplier : (aVal > bVal ? 1 * multiplier : 0);
 
                 } else if (field === 'properties') {
@@ -4887,10 +4886,8 @@
             return titles[helpKey] || helpKey;
         }
 
-        // Generate expanded well card HTML
+        // Generate expanded well card HTML (V2: flat object)
         function generateExpandedWellCard(w) {
-            const f = w.fields;
-            
             // Helper functions for formatting
             const formatDate = (dateStr) => {
                 if (!dateStr || dateStr === '—') return null;
@@ -4901,42 +4898,39 @@
                     return null;
                 }
             };
-            
+
             const formatNumber = (num) => {
                 if (!num) return null;
                 return Number(num).toLocaleString();
             };
-            
-            // Prepare data
-            const wellBaseName = f['Well Name'] || '';
-            const wellNumber = f['Well Number'] || '';
-            const wellFullName = wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName;
-            const wellName = wellFullName || 'Unknown Well';
-            const apiNumber = f['API Number'] || '';
-            const operator = f['Operator'] || '—';
-            const operatorPhone = f['Operator Phone'] || '';
-            const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
-            const county = cleanCountyDisplay(f['County']) || '—';
-            const section = f['Section'] || '';
-            const township = f['Township'] || '';
-            const range = f['Range'] || '';
+
+            // Prepare data from V2 flat object
+            const wellName = w.well_name || 'Unknown Well';
+            const apiNumber = w.apiNumber || '';
+            const operator = w.operator || '—';
+            const operatorPhone = w.operator_phone || '';
+            const contactPerson = w.operator_contact || '';
+            const county = cleanCountyDisplay(w.county) || '—';
+            const section = w.section || '';
+            const township = w.township || '';
+            const range = w.range || '';
             const location = (section && township && range) ? `T${township} R${range} ${section}` : '—';
-            
-            const completionDate = formatDate(f['Completion Date']);
-            const firstProdDate = formatDate(f['First Production Date']);
-            
-            const status = f['Well Status'] || f['OCC Status'] || '—';
-            const wellType = f['Well Type'] || '—';
-            const formationName = f['Formation Name'] || '';
-            const formationDepth = f['Formation Depth'];
-            const formationDisplay = formationName && formationDepth 
+
+            const completionDate = formatDate(w.completion_date);
+            const firstProdDate = formatDate(w.first_production_date);
+
+            const status = w.well_status || '—';
+            const wellType = w.well_type || '—';
+            const formationName = w.formation_name || '';
+            const formationDepth = w.measured_total_depth || w.true_vertical_depth;
+            const formationDisplay = formationName && formationDepth
                 ? `${formationName} @ ${formatNumber(formationDepth)} ft`
                 : formationName || '—';
-            
-            const ipGas = f['IP Gas (MCF/day)'] ? formatNumber(f['IP Gas (MCF/day)']) : null;
-            const ipOil = f['IP Oil (BBL/day)'] ? formatNumber(f['IP Oil (BBL/day)']) : null;
-            
-            const notes = f['Notes'] || '';
+
+            const ipGas = w.ip_gas_mcf ? formatNumber(w.ip_gas_mcf) : null;
+            const ipOil = w.ip_oil_bbl ? formatNumber(w.ip_oil_bbl) : null;
+
+            const notes = w.notes || '';
             
             return `
                 <div class="well-expanded-card" style="padding: 20px; background: #fff; border: 1px solid #E5E7EB; border-radius: 8px; margin: 10px;">
@@ -5050,23 +5044,22 @@
             html += '<th>Well Information</th><th>Operator Contact</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
 
             displayWells.forEach(w => {
-                const f = w.fields;
-                const wellBaseName = f['Well Name'] || '';
-                const wellNumber = f['Well Number'] || '';
-                const wellFullName = wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName;
+                // V2 returns flat object with D1 snake_case fields
+                const wellBaseName = w.well_name || '';
+                const wellFullName = wellBaseName;
                 const wellName = wellFullName ? escapeHtml(wellFullName) : '<em style="color: #A0AEC0;">Unknown</em>';
-                const operator = f['Operator'] ? escapeHtml(f['Operator']) : '<em style="color: #A0AEC0;">—</em>';
-                const operatorPhone = f['Operator Phone'] || '';
-                const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
-                const apiNumber = f['API Number'] || '';
-                const status = f['Well Status'] || f['OCC Status'] || '—';
-                const wellType = f['Well Type'] || '';
+                const operator = w.operator ? escapeHtml(w.operator) : '<em style="color: #A0AEC0;">—</em>';
+                const operatorPhone = w.operator_phone || '';
+                const contactPerson = w.operator_contact || '';
+                const apiNumber = w.apiNumber || '';
+                const status = w.well_status || '—';
+                const wellType = w.well_type || '';
 
                 // Format location (county + legal)
-                const county = cleanCountyDisplay(f['County']) || '';
-                const section = f['Section'] || '';
-                const township = f['Township'] || '';
-                const range = f['Range'] || '';
+                const county = cleanCountyDisplay(w.county) || '';
+                const section = w.section || '';
+                const township = w.township || '';
+                const range = w.range || '';
                 let locationDisplay = '';
                 if (county) {
                     locationDisplay = county;
@@ -5285,8 +5278,8 @@
                     }
                     // Track Well last
                     if (shouldShowTrackButton) {
-                        // Check if well is already tracked
-                        const isTracked = loadedWells.some(w => w.fields['API Number'] === apiNumber);
+                        // Check if well is already tracked (V2: flat object)
+                        const isTracked = loadedWells.some(w => w.apiNumber === apiNumber);
                         if (isTracked) {
                             actionsHtml += `<button class="activity-btn track-btn" disabled style="background: #22C55E; color: white; border-color: #22C55E; cursor: default;">Added ✓</button>`;
                         } else {
@@ -13455,9 +13448,9 @@
                 // Disable the button while processing
                 buttonElement.disabled = true;
                 buttonElement.textContent = 'Adding...';
-                
-                // Check if well is already tracked by checking current wells
-                const isAlreadyTracked = loadedWells.some(w => w.fields['API Number'] === apiNumber);
+
+                // Check if well is already tracked (V2: flat object)
+                const isAlreadyTracked = loadedWells.some(w => w.apiNumber === apiNumber);
                 
                 if (isAlreadyTracked) {
                     showToast('Already tracking this well', 'info');
@@ -13519,27 +13512,27 @@
                 propsListEl.style.display = 'none';
             }
             
+            // V2: wells are flat objects with D1 data already merged
             let well = loadedWells.find(w => w.id === wellId);
-            
-            // If not in loaded wells, fetch from API
+
+            // If not in loaded wells, fetch from V2 API
             if (!well) {
                 console.log('[openWellDetailsModal] Well not found in loadedWells:', wellId);
                 console.log('[openWellDetailsModal] Fetching from API...');
-                
+
                 try {
-                    // Fetch all wells and find the one we need
-                    const res = await fetch('/api/wells');
+                    const res = await fetch('/api/wells/v2');
                     if (!res.ok) throw new Error('Failed to fetch wells');
-                    
+
                     const allWells = await res.json();
                     well = allWells.find(w => w.id === wellId);
-                    
+
                     if (!well) {
                         console.error('[openWellDetailsModal] Well not found in API response');
                         alert('Well not found');
                         return;
                     }
-                    
+
                     // Add to loaded wells for future use
                     loadedWells.push(well);
                     console.log('[openWellDetailsModal] Well fetched and added to cache');
@@ -13549,46 +13542,10 @@
                     return;
                 }
             }
-            
-            const f = well.fields;
 
-            // Enrich with D1/RBDMS data - D1 is authoritative for well metadata
-            const apiNumber = f['API Number'];
-            console.log('[openWellDetailsModal] Starting enrichment for API:', apiNumber);
-            if (apiNumber) {
-                try {
-                    const enrichUrl = `/api/well-enrichment/${encodeURIComponent(apiNumber)}`;
-                    console.log('[openWellDetailsModal] Fetching:', enrichUrl);
-                    const enrichRes = await fetch(enrichUrl);
-                    console.log('[openWellDetailsModal] Enrichment response status:', enrichRes.status);
-                    if (enrichRes.ok) {
-                        const enrichData = await enrichRes.json();
-                        console.log('[openWellDetailsModal] Enrichment data:', enrichData);
-                        if (enrichData.success && enrichData.data) {
-                            const d = enrichData.data;
-                            // D1 is the authoritative source for these fields - always use if available
-                            if (d.formation_name) {
-                                f['Formation Name'] = d.formation_name;
-                                console.log('[openWellDetailsModal] Set formation from D1:', d.formation_name);
-                            }
-                            if (d.completion_date) {
-                                f['Completion Date'] = d.completion_date;
-                                console.log('[openWellDetailsModal] Set completion date from D1:', d.completion_date);
-                            }
-                            if (d.first_production_date) {
-                                f['First Production Date'] = d.first_production_date;
-                                console.log('[openWellDetailsModal] Set first prod date from D1:', d.first_production_date);
-                            }
-                            // Depth - fill if missing
-                            if (!f['Formation Depth'] && (d.measured_total_depth || d.true_vertical_depth)) {
-                                f['Formation Depth'] = d.measured_total_depth || d.true_vertical_depth;
-                            }
-                        }
-                    }
-                } catch (enrichErr) {
-                    console.error('[openWellDetailsModal] Enrichment fetch failed:', enrichErr);
-                }
-            }
+            // V2: Data already includes D1 enrichment - no separate enrichment call needed
+            const apiNumber = well.apiNumber;
+            console.log('[openWellDetailsModal] Using V2 data for API:', apiNumber, 'hasD1Data:', well.hasD1Data);
 
             // Helper function to format dates
             const formatDate = (dateStr) => {
@@ -13615,15 +13572,15 @@
             };
             
             // Populate header
-            document.getElementById('wellDetailsTitle').textContent = f['Well Name'] || 'Unknown Well';
-            document.getElementById('wellDetailsApi').textContent = `API: ${f['API Number'] || '—'}`;
-            
+            document.getElementById('wellDetailsTitle').textContent = well.well_name || 'Unknown Well';
+            document.getElementById('wellDetailsApi').textContent = `API: ${well.apiNumber || '—'}`;
+
             // Store well ID
             document.getElementById('wellDetailsId').value = wellId;
-            
+
             // Populate dates (hidden elements used by production summary)
-            const completionDate = formatDate(f['Completion Date']);
-            const firstProdDate = formatDate(f['First Production Date']);
+            const completionDate = formatDate(well.completion_date);
+            const firstProdDate = formatDate(well.first_production_date);
             document.getElementById('wellDetailsCompletionDate').textContent = completionDate || '—';
             document.getElementById('wellDetailsFirstProdDate').textContent = firstProdDate || '—';
 
@@ -13651,28 +13608,28 @@
             } else {
                 keyDatesRow.style.display = 'none';
             }
-            
+
             // Status badge
-            const status = f['Well Status'] || f['OCC Status'] || '—';
+            const status = well.well_status || '—';
             const statusBadge = document.getElementById('wellDetailsStatusBadge');
             statusBadge.textContent = status;
             statusBadge.className = status === 'Active' || status === 'AC' ? 'status-badge' : 'status-badge';
-            
+
             // Well Type
-            document.getElementById('wellDetailsType').textContent = f['Well Type'] || '—';
-            
+            document.getElementById('wellDetailsType').textContent = well.well_type || '—';
+
             // Direction (Horizontal/Vertical)
-            const direction = isHorizontal(f['Well Name']) ? 'Horizontal' : 'Vertical';
+            const direction = isHorizontal(well.well_name) ? 'Horizontal' : 'Vertical';
             const directionEl = document.getElementById('wellDetailsDirection');
             directionEl.textContent = direction;
             directionEl.className = direction === 'Horizontal' ? 'status-badge horizontal' : 'status-badge';
-            
+
             // Operator
-            document.getElementById('wellDetailsOperator').textContent = f['Operator'] || '—';
-            
+            document.getElementById('wellDetailsOperator').textContent = well.operator || '—';
+
             // Contact line - phone + contact person
-            const rawPhone = f['Operator Phone'] || '';
-            const contactPerson = f['Contact Name'] || f['Contact Person'] || '';
+            const rawPhone = well.operator_phone || '';
+            const contactPerson = well.operator_contact || '';
             const contactLine = document.getElementById('wellDetailsContact');
             const phoneLink = document.getElementById('wellDetailsPhoneLink');
             const contactPersonSpan = document.getElementById('wellDetailsContactPerson');
@@ -13710,17 +13667,17 @@
             }
             
             // Location
-            const section = f['Section'] || '';
-            const township = f['Township'] || '';
-            const range = f['Range'] || '';
+            const section = well.section || '';
+            const township = well.township || '';
+            const range = well.range || '';
             const location = (section && township && range) ? `T${township} R${range} ${section}` : '—';
             document.getElementById('wellDetailsLocation').textContent = location;
-            
+
             // County
-            document.getElementById('wellDetailsCounty').textContent = cleanCountyDisplay(f['County']) || '—';
-            
+            document.getElementById('wellDetailsCounty').textContent = cleanCountyDisplay(well.county) || '—';
+
             // Formation badge in status row - show only if formation exists
-            const formationName = f['Formation Name'];
+            const formationName = well.formation_name;
             const formationItem = document.getElementById('wellDetailsFormationItem');
             const formationBadge = document.getElementById('wellDetailsFormationBadge');
             if (formationName) {
@@ -13729,27 +13686,26 @@
             } else {
                 formationItem.style.display = 'none';
             }
-            
-            // Notes
-            document.getElementById('wellDetailsNotes').value = f['Notes'] || '';
-            document.getElementById('wellDetailsOriginalNotes').value = f['Notes'] || '';
-            
+
+            // Notes (from Airtable)
+            document.getElementById('wellDetailsNotes').value = well.notes || '';
+            document.getElementById('wellDetailsOriginalNotes').value = well.notes || '';
+
             // Links
             const mapLink = document.getElementById('wellDetailsMapLink');
-            if (f['OCC Map Link'] && f['OCC Map Link'] !== '#') {
-                mapLink.href = f['OCC Map Link'];
+            if (well.occMapLink && well.occMapLink !== '#') {
+                mapLink.href = well.occMapLink;
                 mapLink.style.display = 'inline-flex';
             } else {
                 mapLink.style.display = 'none';
             }
-            
-            // Well Records link - remove &cr=1 if present
+
+            // Well Records link
             const recordsLink = document.getElementById('wellDetailsRecordsLink');
-            if (f['API Number']) {
-                const apiNumber = f['API Number'];
-                const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`);
+            if (well.apiNumber) {
+                const searchCommand = encodeURIComponent(`{[OG Well Records]:[API Number]="${well.apiNumber}*"}`);
                 const recordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${searchCommand}`;
-                
+
                 recordsLink.href = recordsUrl;
                 recordsLink.style.display = 'inline-flex';
             } else {
@@ -13790,21 +13746,20 @@
             // Load linked properties, production summary, and OCC filings after modal is shown
             setTimeout(() => {
                 loadLinkedProperties(wellId);
-                loadLinkedDocuments(wellId, 'well', f['API Number']);
+                loadLinkedDocuments(wellId, 'well', well.apiNumber);
                 // Load production summary from OTC data
-                if (f['API Number']) {
-                    loadProductionSummary(f['API Number']);
+                if (well.apiNumber) {
+                    loadProductionSummary(well.apiNumber);
                 } else {
                     renderNoProductionData('No API number available');
                 }
                 // Load OCC filings using section/township/range/meridian
-                const wellSection = f['Section'];
-                const wellTownship = f['Township'];
-                const wellRange = f['Range'];
-                const wellMeridian = f['Meridian'] || 'IM'; // Default to Indian Meridian
-                const wellApiNumber = f['API Number'];
+                const wellSection = well.section;
+                const wellTownship = well.township;
+                const wellRange = well.range;
+                const wellMeridian = well.meridian || 'IM'; // Default to Indian Meridian
                 if (wellSection && wellTownship && wellRange) {
-                    loadOccFilings(wellSection, wellTownship, wellRange, 'well', wellMeridian, wellApiNumber);
+                    loadOccFilings(wellSection, wellTownship, wellRange, 'well', wellMeridian, well.apiNumber);
                 }
             }, 100);
             
@@ -13830,83 +13785,83 @@
             const textarea = document.getElementById(`well-notes-${wellId}`);
             const well = loadedWells.find(w => w.id === wellId);
             if (well && textarea) {
-                well.fields['Notes'] = textarea.value;
+                well.notes = textarea.value;  // V2: flat object
             }
         }
 
         async function saveWellNotes(wellId) {
             const textarea = document.getElementById(`well-notes-${wellId}`);
             const notes = textarea ? textarea.value : '';
-            
+
             try {
                 const res = await fetch('/api/wells/' + wellId + '/notes', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notes })
                 });
-                
+
                 if (!res.ok) throw new Error('Failed to save');
-                
-                // Update local data
+
+                // Update local data (V2: flat object)
                 const well = loadedWells.find(w => w.id === wellId);
-                if (well) well.fields['Notes'] = notes;
-                
+                if (well) well.notes = notes;
+
                 showToast('Note saved!', 'success');
             } catch (err) {
                 showToast('Error saving notes', 'error');
             }
         }
-        
+
         async function saveWellNotesFromModal() {
             const wellId = document.getElementById('wellDetailsId').value;
             const notes = document.getElementById('wellDetailsNotes').value;
-            
+
             if (!wellId) {
                 showToast('Error: Well ID not found', 'error');
                 return;
             }
-            
+
             try {
                 const res = await fetch('/api/wells/' + wellId + '/notes', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notes })
                 });
-                
+
                 if (!res.ok) throw new Error('Failed to save');
-                
-                // Update local data
+
+                // Update local data (V2: flat object)
                 const well = loadedWells.find(w => w.id === wellId);
-                if (well) well.fields['Notes'] = notes;
-                
+                if (well) well.notes = notes;
+
                 showToast('Note saved!', 'success');
             } catch (err) {
                 console.error('Save notes error:', err);
                 showToast('Error saving notes', 'error');
             }
         }
-        
+
         async function saveWellNotesAndClose() {
             const wellId = document.getElementById('wellDetailsId').value;
             const notes = document.getElementById('wellDetailsNotes').value;
-            
+
             if (!wellId) {
                 showToast('Error: Well ID not found', 'error');
                 return;
             }
-            
+
             try {
                 const res = await fetch('/api/wells/' + wellId + '/notes', {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ notes })
                 });
-                
+
                 if (!res.ok) throw new Error('Failed to save');
-                
-                // Update local data
+
+                // Update local data (V2: flat object)
                 const well = loadedWells.find(w => w.id === wellId);
-                if (well) well.fields['Notes'] = notes;
+                if (well) well.notes = notes;
                 
                 // Close modal immediately after successful save
                 closeWellDetailsModal();
@@ -15503,19 +15458,19 @@
             
             const headers = ['API Number', 'Well Name', 'Operator', 'County', 'Section', 'Township', 'Range', 'Well Type', 'Well Status', 'Notes', 'OCC Map Link'];
             const rows = loadedWells.map(w => {
-                const f = w.fields;
+                // V2: flat object
                 return [
-                    escapeCSV(f['API Number'] || ''),
-                    escapeCSV(f['Well Name'] || ''),
-                    escapeCSV(f['Operator'] || ''),
-                    escapeCSV(f['County'] || ''),
-                    escapeCSV(f['Section'] || ''),
-                    escapeCSV(f['Township'] || ''),
-                    escapeCSV(f['Range'] || ''),
-                    escapeCSV(f['Well Type'] || ''),
-                    escapeCSV(f['Well Status'] || ''),
-                    escapeCSV(f['Notes'] || ''),
-                    escapeCSV(f['OCC Map Link'] || '')
+                    escapeCSV(w.apiNumber || ''),
+                    escapeCSV(w.well_name || ''),
+                    escapeCSV(w.operator || ''),
+                    escapeCSV(w.county || ''),
+                    escapeCSV(w.section || ''),
+                    escapeCSV(w.township || ''),
+                    escapeCSV(w.range || ''),
+                    escapeCSV(w.well_type || ''),
+                    escapeCSV(w.well_status || ''),
+                    escapeCSV(w.notes || ''),
+                    escapeCSV(w.occMapLink || '')
                 ].join(',');
             });
             

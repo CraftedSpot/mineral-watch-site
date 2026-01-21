@@ -85,6 +85,7 @@ import {
   handleGetPropertyLinkCounts,
   // Wells handlers
   handleListWells,
+  handleListWellsV2,
   handleAddWell,
   handleDeleteWell,
   handleUpdateWellNotes,
@@ -836,6 +837,9 @@ var index_default = {
       // Wells endpoints
       if (path === "/api/wells" && request.method === "GET") {
         return handleListWells(request, env);
+      }
+      if (path === "/api/wells/v2" && request.method === "GET") {
+        return handleListWellsV2(request, env);
       }
       if (path === "/api/wells/link-counts" && request.method === "GET") {
         return handleGetWellLinkCounts(request, env);

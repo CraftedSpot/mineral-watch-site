@@ -28,12 +28,11 @@ import {
   fetchUserWells
 } from '../services/airtable.js';
 
+// fetchWellDetailsFromOCC still needed for validation (checking well exists)
+// lookupCompletionData and findOperatorByName no longer needed - D1 is source for metadata
 import {
-  fetchWellDetailsFromOCC,
-  lookupCompletionData
+  fetchWellDetailsFromOCC
 } from './wells.js';
-
-import { findOperatorByName } from '../services/operators.js';
 
 import { runFullPropertyWellMatching } from '../utils/property-well-matching.js';
 
@@ -1250,69 +1249,14 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   
   console.log(`[BulkUpload] Processing ${toCreate.length} new wells (${results.skipped} skipped: ${results.duplicatesSkipped} duplicates, ${results.skipped - results.duplicatesSkipped} other reasons)`);
   
-  // Fetch OCC data for each well (in parallel batches to speed up)
-  const wellsWithData: any[] = [];
-  const occBatchSize = 5; // Fetch 5 at a time from OCC
-  
-  for (let i = 0; i < toCreate.length; i += occBatchSize) {
-    const occBatch = toCreate.slice(i, i + occBatchSize);
-    const occPromises = occBatch.map(async (well: any) => {
-      // Log 1: Well name received from client
-      console.log(`[BulkUpload] Processing well ${well.apiNumber}:`);
-      console.log(`  - Client provided name: "${well.wellName}"`);
-      
-      const occData = await fetchWellDetailsFromOCC(well.apiNumber, env);
-      
-      // Log 2: Well name after D1/OCC lookup
-      console.log(`  - After D1/OCC lookup: "${occData?.wellName || 'NOT FOUND'}"`);
-      
-      // Look up completion data from KV cache
-      const completionData = await lookupCompletionData(well.apiNumber, env);
-      
-      if (completionData?.wellName) {
-        console.log(`  - Completion data name: "${completionData.wellName}"`);
-      }
-      
-      // Look up operator information if we have an operator
-      let operatorInfo = null;
-      const operator = completionData?.operator || occData?.operator;
-      if (operator) {
-        try {
-          operatorInfo = await findOperatorByName(operator, env);
-        } catch (error) {
-          console.warn(`[Bulk] Failed to lookup operator info for ${operator}:`, error);
-        }
-      }
-      
-      return { ...well, occData, completionData, operatorInfo };
-    });
-    const batchResults = await Promise.all(occPromises);
-    wellsWithData.push(...batchResults);
-    
-    // Small delay between OCC batches
-    if (i + occBatchSize < toCreate.length) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-    }
-  }
-  
-  // Helper function to generate map link - simplified version from wells.ts
-  function generateMapLink(lat: number, lon: number, title: string): string {
-    if (!lat || !lon) return "#"; 
-    const appId = "ba9b8612132f4106be6e3553dc0b827b";
-    const markerTemplate = JSON.stringify({
-      title: title || "Well Location",
-      longitude: lon,
-      latitude: lat,
-      isIncludeShareUrl: true
-    });
-    return `https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=${appId}&marker=${lon},${lat},,,,&markertemplate=${encodeURIComponent(markerTemplate)}&level=19`;
-  }
-  
-  // Create in Airtable batches of 10
+  // Create minimal Airtable records - D1 is now the source for well metadata
+  // Airtable only stores: User relationship, tracking status, and user notes
   const batchSize = 10;
-  for (let i = 0; i < wellsWithData.length; i += batchSize) {
-    const batch = wellsWithData.slice(i, i + batchSize);
-    
+  for (let i = 0; i < toCreate.length; i += batchSize) {
+    const batch = toCreate.slice(i, i + batchSize);
+
+    console.log(`[BulkUpload] Creating batch ${Math.floor(i/batchSize) + 1}: ${batch.length} wells`);
+
     const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`, {
       method: 'POST',
       headers: {
@@ -1321,99 +1265,18 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       },
       body: JSON.stringify({
         records: batch.map((well: any) => {
-          const occ = well.occData || {};
-          const completion = well.completionData || {};
-          const operatorInfo = well.operatorInfo || {};
-          const mapLink = occ.lat && occ.lon ? generateMapLink(occ.lat, occ.lon, occ.wellName) : '#';
-          
-          // Always use OCC/completion data for well name, never the user's input
-          // OCC data should have the authoritative well name
-          // Prefer OCC data if completion data doesn't have a well number (# symbol)
-          let wellName = "";
-          if (completion.wellName && completion.wellName.includes('#')) {
-            // Completion data has a complete well name with number
-            wellName = completion.wellName;
-          } else if (occ.wellName) {
-            // Use OCC data which should have the complete name
-            wellName = occ.wellName;
-          } else if (completion.wellName) {
-            // Fall back to incomplete completion data if that's all we have
-            wellName = completion.wellName;
-          }
-          
-          const operator = completion.operator || occ.operator || "";
-          const county = completion.county || occ.county || "";
-          // Prefer OCC data for location fields if completion data is missing them
-          const section = (completion.surfaceSection || occ.section) ? String(completion.surfaceSection || occ.section) : "";
-          const township = completion.surfaceTownship || occ.township || "";
-          const range = completion.surfaceRange || occ.range || "";
-          
-          // Log location data for debugging
-          if (!section || !township || !range) {
-            console.log(`[BulkUpload] WARNING - Missing location data for ${well.apiNumber}:`);
-            console.log(`  - Section: "${section}" (completion: "${completion.surfaceSection}", occ: "${occ.section}")`);
-            console.log(`  - Township: "${township}" (completion: "${completion.surfaceTownship}", occ: "${occ.township}")`);
-            console.log(`  - Range: "${range}" (completion: "${completion.surfaceRange}", occ: "${occ.range}")`);
-          }
-          
-          // Log 3: Final well name being written to database
-          console.log(`[BulkUpload] Writing to DB - API: ${well.apiNumber}, Final name: "${wellName}"`);
-          let source = 'EMPTY';
-          if (completion.wellName && completion.wellName.includes('#')) {
-            source = 'Completion data (complete)';
-          } else if (occ.wellName && (!completion.wellName || !completion.wellName.includes('#'))) {
-            source = 'OCC/D1 data (completion incomplete)';
-          } else if (completion.wellName) {
-            source = 'Completion data (incomplete - no #)';
-          } else if (occ.wellName) {
-            source = 'OCC/D1 data';
-          }
-          console.log(`  - Source: ${source}`);
-          if (well.wellName !== wellName) {
-            console.log(`  - Name changed from client: "${well.wellName}" → "${wellName}"`);
-          }
-          
           const fields: any = {
             User: [user.id],
             "API Number": well.apiNumber,
-            "Well Name": wellName,
-            Status: "Active",
-            "OCC Map Link": mapLink,
-            Operator: operator,
-            County: county,
-            Section: section,
-            Township: township,
-            Range: range,
-            "Well Type": occ.wellType || "",
-            "Well Status": occ.wellStatus || "",
-            ...(operatorInfo.phone && { "Operator Phone": operatorInfo.phone }),
-            ...(operatorInfo.contactName && { "Contact Name": operatorInfo.contactName }),
             Notes: well.notes || "",
-              
-              // Enhanced fields from completion data
-              ...(completion.formationName && { "Formation Name": completion.formationName }),
-              ...(completion.formationDepth && { "Formation Depth": completion.formationDepth }),
-              ...(completion.ipGas && { "IP Gas (MCF/day)": completion.ipGas }),
-              ...(completion.ipOil && { "IP Oil (BBL/day)": completion.ipOil }),
-              ...(completion.ipWater && { "IP Water (BBL/day)": completion.ipWater }),
-              ...(completion.pumpingFlowing && { "Pumping Flowing": completion.pumpingFlowing }),
-              ...(completion.spudDate && { "Spud Date": completion.spudDate }),
-              ...(completion.completionDate && { "Completion Date": completion.completionDate }),
-              ...(completion.firstProdDate && { "First Production Date": completion.firstProdDate }),
-              ...(completion.drillType && { "Drill Type": completion.drillType }),
-              ...(completion.lateralLength && { "Lateral Length": completion.lateralLength }),
-              ...(completion.totalDepth && { "Total Depth": completion.totalDepth }),
-              ...(completion.bhSection && { "BH Section": completion.bhSection }),
-              ...(completion.bhTownship && { "BH Township": completion.bhTownship }),
-              ...(completion.bhRange && { "BH Range": completion.bhRange }),
-              ...(completion && { "Data Last Updated": new Date().toISOString() })
+            Status: "Active"
           };
-          
+
           // Add organization if user has one
           if (userOrganization) {
             fields.Organization = [userOrganization];
           }
-          
+
           return { fields };
         })
       })
