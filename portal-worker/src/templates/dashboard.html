@@ -891,11 +891,13 @@
         /* Well Footer Grid */
         .well-footer-grid {
             display: flex;
+            justify-content: space-between;
             gap: 10px;
-            flex-wrap: wrap;
         }
-        .well-footer-grid .action-btn { flex: 1; min-width: 100px; }
-        .well-footer-grid .occ-warning { flex: 1; min-width: 100px; }
+        .well-footer-left, .well-footer-right {
+            display: flex;
+            gap: 10px;
+        }
         .well-footer-grid .occ-warning .action-btn { width: 100%; }
 
         /* Property Footer Grid */
@@ -908,7 +910,8 @@
         /* Mobile Responsive */
         @media (max-width: 480px) {
             .modal-overlay { padding: 10px; align-items: flex-start; padding-top: 20px; }
-            .well-card { max-width: 100%; max-height: calc(100vh - 40px); margin: 0; }
+            .well-card { max-width: 100%; max-height: calc(100vh - 40px); margin: 0; border-radius: 12px; }
+            .well-card.detail-modal { border-radius: 12px; }
             .two-col { flex-direction: column; gap: 12px; }
             .production-grid { grid-template-columns: repeat(2, 1fr); }
             .dates-row { grid-template-columns: 1fr; }
@@ -919,8 +922,15 @@
                 grid-template-columns: 1fr 1fr;
                 gap: 8px;
             }
+            .well-footer-left, .well-footer-right {
+                display: contents;
+            }
             .well-footer-grid .action-btn { min-width: unset; padding: 10px 8px; font-size: 13px; }
             .well-footer-grid .occ-warning { min-width: unset; }
+            /* Position tooltip above on mobile to avoid cutoff */
+            .well-footer .occ-tooltip {
+                bottom: calc(100% + 8px);
+            }
             .status-row { flex-wrap: wrap; gap: 16px; }
             .close-btn { top: 12px; right: 12px; width: 36px; height: 36px; font-size: 18px; }
             /* Production summary mobile */
@@ -3346,16 +3356,20 @@
             <!-- Footer Actions (fixed at bottom) -->
             <div class="card-footer detail-modal-footer well-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; flex-shrink: 0; background: white;">
                 <div class="well-footer-grid">
-                    <button class="action-btn primary well-blue" id="wellDetailsMWMapBtn" onclick="viewWellOnMapFromModal()">MW Map ↗</button>
-                    <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsMapLink">OCC Map ↗</a>
-                    <div class="occ-warning" style="position: relative;">
-                        <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
-                        <span class="occ-warning-icon">!</span>
-                        <div class="occ-tooltip">
-                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
-                        </div>
+                    <div class="well-footer-left">
+                        <button class="action-btn primary well-blue" id="wellDetailsMWMapBtn" onclick="viewWellOnMapFromModal()">MW Map ↗</button>
+                        <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsMapLink">OCC Map ↗</a>
                     </div>
-                    <button class="action-btn outline" id="wellPrintBtn" onclick="printWellReport()" title="Print Well Report">🖨️ Print</button>
+                    <div class="well-footer-right">
+                        <div class="occ-warning" style="position: relative;">
+                            <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
+                            <span class="occ-warning-icon">!</span>
+                            <div class="occ-tooltip">
+                                <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                            </div>
+                        </div>
+                        <button class="action-btn outline" id="wellPrintBtn" onclick="printWellReport()" title="Print Well Report">🖨️ Print</button>
+                    </div>
                 </div>
                 <button class="action-btn primary well-blue" id="saveWellBtn" onclick="saveWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
             </div>
@@ -3379,9 +3393,9 @@
                     </div>
                 </div>
             </div>
-            
+
             <!-- Content Body (scrollable) -->
-            <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
+            <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; background: #f1f5f9;">
 
             <!-- Property Info Card -->
             <div class="details-grid">
@@ -3414,8 +3428,8 @@
             </div>
 
                 <!-- Linked Wells Accordion -->
-                <div class="linked-wells-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-                    <div class="linked-wells-header" onclick="toggleLinkedWells()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                <div class="linked-wells-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="linked-wells-header" onclick="toggleLinkedWells()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="linked-wells-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">Linked Wells</span>
@@ -3434,8 +3448,8 @@
                 </div>
                 
                 <!-- Linked Documents Section -->
-                <div class="linked-documents-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; background: #f9fafb;">
-                    <div class="linked-documents-header" onclick="toggleLinkedDocuments('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                <div class="linked-documents-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="linked-documents-header" onclick="toggleLinkedDocuments('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="linked-documents-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">Linked Documents</span>
@@ -3454,8 +3468,8 @@
                 </div>
 
                 <!-- OCC Filings Section -->
-                <div class="occ-filings-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
-                    <div class="occ-filings-header" onclick="toggleOccFilings('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                <div class="occ-filings-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="occ-filings-header" onclick="toggleOccFilings('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
                         <div style="display: flex; align-items: center; gap: 8px;">
                             <span id="property-occ-arrow" style="transition: transform 0.2s;">▶</span>
                             <span style="font-weight: 500;">OCC Filings</span>
@@ -3483,7 +3497,7 @@
                 </div>
 
                 <!-- Notes Section -->
-                <div class="info-section" style="margin-top: 16px;">
+                <div class="info-section" style="margin-top: 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
                     <div class="details-row" style="flex-direction: column; align-items: flex-start;">
                         <span class="details-label" style="margin-bottom: 8px;">Notes</span>
                         <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; background: white;" placeholder="Add notes about this property..." onkeyup="toggleSaveButton('property')"></textarea>
