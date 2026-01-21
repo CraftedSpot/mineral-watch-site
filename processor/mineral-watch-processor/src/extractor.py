@@ -279,6 +279,14 @@ CONTINUATION_PATTERNS = [
     # Page 2 of 2 indicator (but NOT page 1 of 2)
     r"\b2\s+of\s+2\b",  # "2 of 2" - definitively page 2
     r"\bPage\s+2\s+of\s+2\b",  # "Page 2 of 2"
+    # OCR-tolerant 1002A page 2 patterns (handles messy OCR like "tJAlM1ES OF FORMATIONS")
+    r"OF\s+FORMATIONS?\b",  # Catches "NAMES OF FORMATIONS" even with corrupted first word
+    r"PRODUCING\s+FORMATION",  # Common 1002A section header
+    r"CASING\s+RECORD",  # 1002A casing section
+    r"CEMENTING\s+RECORD",  # 1002A cementing section
+    r"PERFORATION\s+RECORD",  # 1002A perforation section
+    r"TREATMENT\s+RECORD",  # 1002A treatment section
+    r"PLUGGING\s+RECORD",  # 1002A plugging section (for plugged wells)
 ]
 
 # Minimum text length required for certain patterns to be treated as document start
@@ -413,52 +421,56 @@ def heuristic_page_check(page_text: str, page_index: int = -1) -> dict:
 PAGE_CLASSIFIER_PROMPT = """You are a document page classifier for oil & gas mineral rights documents.
 
 For this SINGLE PAGE, determine:
-1. What broad document type does this page belong to?
-2. Is this the START of a new document (first page), or a continuation/middle page?
-
-You only see a SINGLE PAGE. Do not guess based on what might be on other pages.
+1. What broad document type this page belongs to.
+2. Whether this page is the START of a new document or a CONTINUATION/middle page.
 
 COARSE DOCUMENT TYPES (pick exactly one):
-- deed: Mineral deeds, quit claim deeds, warranty deeds, correction deeds, conveyances, trust funding assignments
+- deed: Mineral deeds, quit claim deeds, warranty deeds, correction deeds, conveyances
 - lease: Oil & gas leases, assignments of lease, lease ratifications, memoranda of lease
-- order: OCC/Commission orders (pooling, spacing, density, location exception, change of operator)
+- order: OCC/Commission orders (pooling, spacing, density, location exception)
 - permit: Drilling permits, completion reports, well permits (Form 1000, 1002)
 - check: Check stubs, royalty statements, payment statements, division orders
 - tax: Tax records, ad valorem assessments, tax statements
 - title_opinion: Attorney title opinions, title runsheets
-- affidavit: Affidavits of heirship, affidavits of death, identity affidavits, death certificates
-- correspondence: Letters, notices, cover letters, transmittal sheets (contains "Dear Sir or Madam", "Re: [Well Name]")
-- exhibit: Exhibit pages (EXHIBIT A, ATTACHMENT A), attachments, addenda, plat attachments
+- affidavit: Affidavits of heirship, affidavits of death, identity affidavits
+- correspondence: Letters, notices, cover letters, transmittal sheets
+- exhibit: Exhibit pages (EXHIBIT A, ATTACHMENT A), attachments, addenda
 - other: Cannot determine type from this page
 
-DOCUMENT START INDICATORS (high confidence = multiple present):
-- Clear title/heading at top: "MINERAL DEED", "OIL AND GAS LEASE", "POOLING ORDER"
-- Formal opening: "KNOW ALL MEN BY THESE PRESENTS", "STATE OF OKLAHOMA"
-- Case/cause number header: "CAUSE CD NO.", "ORDER NO."
-- Recording stamp/info at top of page
-- Date and parties introduction: "This Agreement made this ___ day of..."
-- Document number or instrument number
+IMPORTANT - BIAS TOWARD CONTINUATION:
+- If you are uncertain, classify the page as a CONTINUATION of the previous document.
+- It is better to keep pages together than to incorrectly split one document into pieces.
+- Only mark is_document_start=true when there is CLEAR evidence of a new document.
 
-CONTINUATION/MIDDLE PAGE INDICATORS (NOT a start page):
+DOCUMENT START - Only mark true if you see CLEAR evidence at TOP of page:
+- A strong title or heading at the TOP: "MINERAL DEED", "OIL AND GAS LEASE", "ORDER NO."
+- A new case/cause number, API number, or recording stamp that looks like beginning of a filing
+- Formal opening block: "KNOW ALL MEN BY THESE PRESENTS", "STATE OF OKLAHOMA"
+- A top-of-page block that clearly looks like the start of a form or letter
+
+CONTINUATION INDICATORS - These mean is_document_start=FALSE:
 - Page starts mid-sentence or mid-paragraph
-- No title or header
-- Continuation of legal description
-- Signature blocks (usually end of document, not start)
-- Notary blocks (usually end of document)
-- "Page 2 of 3" or similar pagination
-- Just exhibits/attachments
-- "FORMATION RECORD" header (this is page 2 of a Completion Report Form 1002A, NOT a new document)
-- APPROVED/DISAPPROVED stamps with signature (end of completion report, not start)
+- First visible content is a table row, data section, or detail section
+- "FORMATION RECORD", "Production data", "CASING RECORD" headers (these are page 2+ of permits)
+- Signature blocks or notary blocks (end of document, not start)
+- "Page X of Y" where X > 1
+- APPROVED/DISAPPROVED stamps with signature
+- No clear title/header visible at the top
+
+CONFIDENCE GUIDELINES:
+- start_confidence >= 0.85: Clear top-of-page title AND strong evidence of new document
+- start_confidence 0.5-0.84: Some evidence but not definitive
+- start_confidence <= 0.4: No clear title, looks like continuation
 
 Respond with JSON only:
 {
   "page_index": <use the provided index>,
   "coarse_type": "<type from list above>",
-  "is_document_start": <true if this is first page of a document>,
-  "start_confidence": <0.0-1.0>,
+  "is_document_start": <true ONLY if clear evidence, false if uncertain>,
+  "start_confidence": <0.0-1.0, see guidelines above>,
   "detected_title": "<exact title text if visible, null if not>",
   "features": {
-    "has_title_phrase": <true/false>,
+    "has_title_phrase": <true only if clear title at TOP of page>,
     "has_granting_clause": <true/false - "KNOW ALL MEN", "WITNESSETH", etc.>,
     "has_signature_block": <true/false>,
     "has_notary_block": <true/false>,
@@ -578,6 +590,20 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
         logger.debug(f"Page {page_index}: Haiku classified as {result.get('coarse_type')} "
                     f"(start: {result.get('is_document_start')}, conf: {result.get('start_confidence')})")
 
+        # POST-HAIKU VETO: Re-check continuation patterns even after Haiku says "start"
+        # This gives our deterministic patterns the final word on pages that look like continuations
+        if page_text and result.get("is_document_start") and page_index > 0:
+            text_upper = page_text.upper()
+            for pattern in CONTINUATION_PATTERNS:
+                if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
+                    logger.info(f"Page {page_index}: POST-HAIKU VETO - continuation pattern '{pattern}' matched, "
+                               f"overriding is_document_start from True to False")
+                    result["is_document_start"] = False
+                    result["start_confidence"] = 0.0
+                    result["classification_method"] = "haiku_vetoed"
+                    result["veto_reason"] = f"continuation_pattern_matched: {pattern}"
+                    break
+
         return result
 
     except Exception as e:
@@ -676,12 +702,19 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
             should_start_new = True
             split_reason = "first_page"
 
-        # Rule 2: High-confidence document start (but NOT if is_continuation)
-        elif is_start and start_conf >= 0.7:
-            should_start_new = True
-            split_reason = "title_detected"
+        # Rule 2 (TIGHTENED): High-confidence document start with COMPOUND conditions
+        # Require: is_document_start=True AND confidence >= 0.85 AND has_title_phrase=True
+        # This prevents splitting on pages that Haiku is uncertain about
+        elif is_start and start_conf >= 0.85:
+            has_title = page.get("features", {}).get("has_title_phrase", False)
+            if has_title:
+                should_start_new = True
+                split_reason = "title_detected"
+            else:
+                # High confidence but no title - only split if there's also a type change
+                logger.info(f"Page {page_idx}: High confidence ({start_conf}) but no title phrase - NOT splitting")
 
-        # Rule 3: Type change (incompatible types)
+        # Rule 3: Type change (incompatible types) - but require some evidence
         elif coarse_type != current_chunk["coarse_type"]:
             # Exhibit/other/correspondence can attach to previous
             if coarse_type in ["exhibit", "correspondence"]:
@@ -699,15 +732,26 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
                 current_chunk["page_end"] = page_idx
                 continue
 
-            # Significant type change = new document
-            should_start_new = True
-            split_reason = "type_change"
+            # Type change with some start evidence = new document
+            # Require at least SOME evidence (is_start or conf >= 0.3)
+            if is_start or start_conf >= 0.3:
+                should_start_new = True
+                split_reason = "type_change"
+            else:
+                logger.info(f"Page {page_idx}: Type change but no start evidence - attaching to current")
+                current_chunk["page_end"] = page_idx
+                continue
 
-        # Rule 4: Medium-confidence start within same type
-        elif is_start and start_conf >= 0.5:
-            # Could be same type repeated (e.g., two mineral deeds)
-            should_start_new = True
-            split_reason = "new_document_same_type"
+        # Rule 4 (REMOVED/TIGHTENED): Only split on same type if VERY high confidence + title
+        # Previously was >= 0.5, now requires >= 0.9 AND has_title_phrase
+        elif is_start and start_conf >= 0.9:
+            has_title = page.get("features", {}).get("has_title_phrase", False)
+            if has_title:
+                should_start_new = True
+                split_reason = "new_document_same_type"
+            # else: don't split, will fall through to default
+
+        # DEFAULT: If nothing matched, attach to current document (bias toward continuation)
 
         if should_start_new:
             # Close previous chunk
