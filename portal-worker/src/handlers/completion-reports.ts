@@ -198,7 +198,29 @@ export async function handleGetProductionSummary(
     }
 
     // 3. Get all PUNs for production query
-    const puns = links.map(l => l.pun);
+    // Handle PUN format mismatch: well_pun_links may have short format (XXX-XXXXXX)
+    // while otc_production uses full format (XXX-XXXXXX-X-XXXX)
+    const rawPuns = links.map(l => l.pun);
+
+    // Check if we have short-format PUNs (length 10-11 vs full format 17)
+    const hasShortPuns = rawPuns.some(p => p && p.length <= 11);
+
+    // Build WHERE clause for PUN matching
+    let punWhereClause: string;
+    let punBindValues: string[];
+
+    if (hasShortPuns) {
+      // Use LIKE matching for short PUNs: "XXX-XXXXXX" matches "XXX-XXXXXX-X-XXXX"
+      // Build: (pun LIKE ? OR pun LIKE ? OR ...)
+      const likeConditions = rawPuns.map(() => 'pun LIKE ?').join(' OR ');
+      punWhereClause = `(${likeConditions})`;
+      punBindValues = rawPuns.map(p => p.length <= 11 ? `${p}%` : p);
+    } else {
+      // Exact match for full-format PUNs
+      const placeholders = rawPuns.map(() => '?').join(',');
+      punWhereClause = `pun IN (${placeholders})`;
+      punBindValues = rawPuns;
+    }
 
     // Calculate date ranges - DB stores year_month as YYYYMM (no hyphen)
     const now = new Date();
@@ -215,33 +237,31 @@ export async function handleGetProductionSummary(
     const lastYearYM = `${lastYearSameMonth.getFullYear()}${String(lastYearSameMonth.getMonth() + 1).padStart(2, '0')}`;
 
     // 4. Query production data for all linked PUNs
-    const placeholders = puns.map(() => '?').join(',');
-
     // Get recent production (for last month and status)
     const recentResult = await env.WELLS_DB.prepare(`
       SELECT pun, year_month, product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders})
+      WHERE ${punWhereClause}
       GROUP BY pun, year_month, product_code
       ORDER BY year_month DESC
       LIMIT 50
-    `).bind(...puns).all();
+    `).bind(...punBindValues).all();
 
     // Get last 12 months totals
     const last12MoResult = await env.WELLS_DB.prepare(`
       SELECT pun, product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND year_month >= ?
+      WHERE ${punWhereClause} AND year_month >= ?
       GROUP BY pun, product_code
-    `).bind(...puns, twelveMonthsAgoYM).all();
+    `).bind(...punBindValues, twelveMonthsAgoYM).all();
 
     // Get lifetime totals
     const lifetimeResult = await env.WELLS_DB.prepare(`
       SELECT pun, product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders})
+      WHERE ${punWhereClause}
       GROUP BY pun, product_code
-    `).bind(...puns).all();
+    `).bind(...punBindValues).all();
 
     // Get sparkline data in BOE (Barrels of Oil Equivalent), last 6 calendar months
     // BOE = Oil + (Gas / 6) - standard industry conversion
@@ -255,25 +275,25 @@ export async function handleGetProductionSummary(
              SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
              SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND year_month >= ?
+      WHERE ${punWhereClause} AND year_month >= ?
       GROUP BY year_month
       ORDER BY year_month ASC
-    `).bind(...puns, sixMonthsAgoYM).all();
+    `).bind(...punBindValues, sixMonthsAgoYM).all();
 
     // Get YoY comparison data
     const lastYearResult = await env.WELLS_DB.prepare(`
       SELECT product_code, SUM(gross_volume) as volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND year_month = ?
+      WHERE ${punWhereClause} AND year_month = ?
       GROUP BY product_code
-    `).bind(...puns, lastYearYM).all();
+    `).bind(...punBindValues, lastYearYM).all();
 
     // Get months produced count and first production month
     const monthsProducedResult = await env.WELLS_DB.prepare(`
       SELECT COUNT(DISTINCT year_month) as months_count, MIN(year_month) as first_month
       FROM otc_production
-      WHERE pun IN (${placeholders})
-    `).bind(...puns).first() as { months_count: number; first_month: string } | null;
+      WHERE ${punWhereClause}
+    `).bind(...punBindValues).first() as { months_count: number; first_month: string } | null;
 
     // 5. Process results - aggregate across all PUNs
     const lastMonthData: { [key: string]: { yearMonth: string; volume: number } } = {};
