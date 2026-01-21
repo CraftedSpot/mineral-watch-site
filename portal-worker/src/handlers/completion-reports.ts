@@ -161,25 +161,14 @@ export async function handleGetProductionSummary(
       county: string | null;
     }>;
 
-    // If no links found, return hasPun: false
+    // If no links found, return hasPun: false immediately (skip slow OCC check)
     if (!links?.length) {
-      // Check if 1002A is available for this well (CTA opportunity)
-      let has1002aAvailable = false;
-      try {
-        const occPath = `/get-1002a-forms?api=${apiNumber}`;
-        const occResponse = await fetchFromOccFetcher(occPath, env);
-        const occData = await occResponse.json() as { success: boolean; forms?: any[] };
-        has1002aAvailable = (occData.forms?.length || 0) > 0;
-      } catch {
-        // Ignore OCC errors
-      }
-
       return jsonResponse({
         success: true,
         hasPun: false,
         pun: null,
         production: null,
-        has1002aAvailable,
+        has1002aAvailable: null, // Skip OCC check for speed - completion reports shown separately
         message: 'No PUN linked to this well'
       });
     }

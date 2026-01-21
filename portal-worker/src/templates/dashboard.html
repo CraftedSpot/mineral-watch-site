@@ -14370,7 +14370,15 @@
             `;
 
             try {
-                const response = await fetch(`/api/wells/${apiNumber}/production-summary`, { credentials: 'include' });
+                // Add timeout to prevent hanging - 8 second limit
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const response = await fetch(`/api/wells/${apiNumber}/production-summary`, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
 
                 if (!response.ok) {
                     if (response.status === 404) {
@@ -14392,7 +14400,11 @@
 
             } catch (error) {
                 console.error('[ProductionSummary] Error:', error);
-                renderNoProductionData('Failed to load production data');
+                if (error.name === 'AbortError') {
+                    renderNoProductionData('Production data request timed out');
+                } else {
+                    renderNoProductionData('Failed to load production data');
+                }
             }
         }
 
