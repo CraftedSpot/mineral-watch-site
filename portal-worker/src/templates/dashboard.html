@@ -15053,6 +15053,7 @@
                         </button>`;
                     break;
                 case 'fetched':
+                case 'processed':
                     actionButton = `
                         <span class="completion-analyze-btn analyzed">✓ Analyzed</span>
                         ${report.documentId ? `<a href="/documents/${report.documentId}" target="_blank" class="completion-view-doc">View Doc ↗</a>` : ''}`;
