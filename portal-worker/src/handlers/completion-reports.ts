@@ -243,16 +243,19 @@ export async function handleGetProductionSummary(
       GROUP BY pun, product_code
     `).bind(...puns).all();
 
-    // Get sparkline data (oil + condensate only, last 6 calendar months)
+    // Get sparkline data in BOE (Barrels of Oil Equivalent), last 6 calendar months
+    // BOE = Oil + (Gas / 6) - standard industry conversion
     // OTC product codes: 1=Oil, 3=Condensate, 5=Gas(casinghead), 6=Gas(natural)
     const sixMonthsAgo = new Date(now);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const sixMonthsAgoYM = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
     const sparklineResult = await env.WELLS_DB.prepare(`
-      SELECT year_month, SUM(gross_volume) as volume
+      SELECT year_month,
+             SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
+             SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
       FROM otc_production
-      WHERE pun IN (${placeholders}) AND product_code IN ('1', '3') AND year_month >= ?
+      WHERE pun IN (${placeholders}) AND year_month >= ?
       GROUP BY year_month
       ORDER BY year_month ASC
     `).bind(...puns, sixMonthsAgoYM).all();
@@ -333,19 +336,26 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // Process sparkline - generate last 6 calendar months with zeros for missing data
+    // Process sparkline - generate last 6 calendar months with BOE values
+    // BOE = Oil + (Gas / 6)
     const sparklineMap = new Map<string, number>();
     for (const row of sparklineResult.results as any[]) {
-      sparklineMap.set(row.year_month, Math.round(row.volume || 0));
+      const oil = row.oil_volume || 0;
+      const gas = row.gas_volume || 0;
+      const boe = Math.round(oil + (gas / 6));
+      sparklineMap.set(row.year_month, boe);
     }
 
     // Generate the last 6 months in order (oldest to newest)
     const sparkline: number[] = [];
+    let sparklineTotal = 0;
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now);
       d.setMonth(d.getMonth() - i);
       const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-      sparkline.push(sparklineMap.get(ym) || 0);
+      const boe = sparklineMap.get(ym) || 0;
+      sparkline.push(boe);
+      sparklineTotal += boe;
     }
 
     // Determine status based on most recent production vs TODAY
@@ -450,7 +460,12 @@ export async function handleGetProductionSummary(
         yoyChange,
         direction
       },
-      sparkline,
+      sparkline: {
+        data: sparkline,
+        total: sparklineTotal,
+        unit: 'BOE',
+        period: '6mo'
+      },
       disclaimer
     });
 
