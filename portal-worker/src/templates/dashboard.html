@@ -13553,7 +13553,41 @@
             }
             
             const f = well.fields;
-            
+
+            // Enrich with D1/RBDMS data if available (additive - only fills missing fields)
+            const apiNumber = f['API Number'];
+            if (apiNumber) {
+                try {
+                    const enrichRes = await fetch(`/api/well-enrichment/${encodeURIComponent(apiNumber)}`);
+                    if (enrichRes.ok) {
+                        const enrichData = await enrichRes.json();
+                        if (enrichData.success && enrichData.data) {
+                            const d = enrichData.data;
+                            // Only fill in missing fields
+                            if (!f['Formation Name'] && d.formation_name) {
+                                f['Formation Name'] = d.formation_name;
+                            }
+                            if (!f['Completion Date'] && d.completion_date) {
+                                f['Completion Date'] = d.completion_date;
+                            }
+                            if (!f['First Production Date'] && d.spud_date) {
+                                // Use spud_date as fallback if no first prod date
+                                // Note: spud_date is drilling start, not first production
+                            }
+                            if (!f['Formation Depth'] && (d.measured_total_depth || d.true_vertical_depth)) {
+                                f['Formation Depth'] = d.measured_total_depth || d.true_vertical_depth;
+                            }
+                            console.log('[openWellDetailsModal] Enriched with D1 data:', {
+                                formation: d.formation_name,
+                                completionDate: d.completion_date
+                            });
+                        }
+                    }
+                } catch (enrichErr) {
+                    console.log('[openWellDetailsModal] Enrichment fetch failed (non-critical):', enrichErr);
+                }
+            }
+
             // Helper function to format dates
             const formatDate = (dateStr) => {
                 if (!dateStr) return null;
