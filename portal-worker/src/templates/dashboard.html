@@ -14502,12 +14502,6 @@
             const lastProd = prod.lastProduction?.formatted || 'N/A';
             const monthsProduced = prod.monthsProduced || 0;
 
-            // Get dates from the DOM (already populated by well details)
-            const completionDateEl = document.getElementById('wellDetailsCompletionDate');
-            const completionDate = completionDateEl?.textContent !== '—' ? completionDateEl?.textContent : null;
-            const firstProdDateEl = document.getElementById('wellDetailsFirstProdDate');
-            const firstProdDate = firstProdDateEl?.textContent !== '—' ? firstProdDateEl?.textContent : null;
-
             container.innerHTML = `
                 <div class="production-summary-header">
                     <div class="production-meta">
@@ -14519,18 +14513,6 @@
                             <span class="meta-label">Months Produced</span>
                             <span class="meta-value">${monthsProduced.toLocaleString()}</span>
                         </div>
-                        ${completionDate ? `
-                        <div class="meta-item">
-                            <span class="meta-label">Completed</span>
-                            <span class="meta-value">${completionDate}</span>
-                        </div>
-                        ` : ''}
-                        ${firstProdDate ? `
-                        <div class="meta-item">
-                            <span class="meta-label">First Prod</span>
-                            <span class="meta-value">${firstProdDate}</span>
-                        </div>
-                        ` : ''}
                     </div>
                     ${data.pun ? `<span class="pun-badge">✓ PUN: ${escapeHtml(data.pun)}</span>` : ''}
                 </div>
