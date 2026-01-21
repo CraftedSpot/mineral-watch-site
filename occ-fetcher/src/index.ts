@@ -372,34 +372,126 @@ async function handleDownload1002AForms(request: Request, env: Env): Promise<Res
       }
 
       try {
-        console.log(`[1002A] Downloading form ${i + 1}/${forms.length}: ${form.name}`);
+        console.log(`[1002A] Downloading form ${i + 1}/${forms.length}: ${form.name} (entryId: ${form.entryId})`);
 
-        // Download PDF with retry on server errors
-        let pdfResponse = await fetch(form.downloadUrl, {
+        // Step 1: Get document info to find page count
+        const docInfoResponse = await fetch('https://public.occ.ok.gov/WebLink/DocumentService.aspx/GetBasicDocumentInfo', {
+          method: 'POST',
           headers: {
-            Cookie: cookies,
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Content-Type': 'application/json',
+            'Cookie': cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
           },
+          body: JSON.stringify({ entryId: form.entryId, repoName: 'OCC' })
         });
 
-        // Retry once on 5xx errors
-        if (!pdfResponse.ok && pdfResponse.status >= 500) {
-          console.log(`[1002A] Retrying download for ${form.name} after ${pdfResponse.status} error`);
-          await new Promise(r => setTimeout(r, 1000));
-          pdfResponse = await fetch(form.downloadUrl, {
-            headers: {
-              Cookie: cookies,
-              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            },
-          });
+        const docInfo = await docInfoResponse.json() as any;
+        const pageCount = docInfo?.data?.pageCount || 10;
+        console.log(`[1002A] Document has ${pageCount} pages`);
+
+        // Step 2: Start PDF generation
+        const pageRange = `1 - ${pageCount}`;
+        const generateUrl = `https://public.occ.ok.gov/WebLink/GeneratePDF10.aspx?key=${form.entryId}&PageRange=${encodeURIComponent(pageRange)}&Watermark=0&repo=OCC`;
+
+        console.log(`[1002A] Starting PDF generation: ${generateUrl}`);
+
+        const generateResponse = await fetch(generateUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Cookie': cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Origin': 'https://public.occ.ok.gov',
+            'Referer': `https://public.occ.ok.gov/WebLink/DocView.aspx?id=${form.entryId}`
+          },
+          body: JSON.stringify({})
+        });
+
+        const generateText = await generateResponse.text();
+        console.log(`[1002A] Generate response: ${generateText.substring(0, 200)}`);
+
+        // Extract the key from the response (first line before newline)
+        const pdfKey = generateText.split('\n')[0].replace('\r', '').trim();
+
+        if (!pdfKey || pdfKey.includes('error')) {
+          console.error(`[1002A] Failed to start PDF generation for ${form.name}`);
+          results.push({ success: false, form, error: 'Failed to start PDF generation' });
+          continue;
         }
 
+        console.log(`[1002A] PDF generation key: ${pdfKey}`);
+
+        // Step 3: Poll for PDF completion
+        let pdfReady = false;
+        let attempts = 0;
+        const maxAttempts = 30; // 30 seconds max
+
+        while (!pdfReady && attempts < maxAttempts) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          attempts++;
+
+          const progressResponse = await fetch('https://public.occ.ok.gov/WebLink/DocumentService.aspx/PDFTransition', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Cookie': cookies,
+              'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            },
+            body: JSON.stringify({ Key: pdfKey })
+          });
+
+          const progress = await progressResponse.json() as any;
+          console.log(`[1002A] PDF progress (attempt ${attempts}): ${JSON.stringify(progress?.data || progress)}`);
+
+          if (progress?.data?.finished) {
+            if (progress.data.success) {
+              pdfReady = true;
+            } else {
+              console.error(`[1002A] PDF generation failed for ${form.name}: ${progress.data.errMsg}`);
+              results.push({ success: false, form, error: `PDF generation failed: ${progress.data.errMsg}` });
+              break;
+            }
+          }
+        }
+
+        if (!pdfReady) {
+          if (attempts >= maxAttempts) {
+            console.error(`[1002A] PDF generation timed out for ${form.name}`);
+            results.push({ success: false, form, error: 'PDF generation timed out' });
+          }
+          continue;
+        }
+
+        // Step 4: Download the generated PDF
+        const pdfUrl = `https://public.occ.ok.gov/WebLink/PDF10/${pdfKey}/${form.entryId}`;
+        console.log(`[1002A] Downloading PDF from: ${pdfUrl}`);
+
+        const pdfResponse = await fetch(pdfUrl, {
+          headers: {
+            'Cookie': cookies,
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+          }
+        });
+
         if (!pdfResponse.ok) {
-          results.push({ success: false, form, error: `HTTP ${pdfResponse.status}` });
+          console.error(`[1002A] Failed to download PDF for ${form.name}: HTTP ${pdfResponse.status}`);
+          results.push({ success: false, form, error: `Failed to download PDF: HTTP ${pdfResponse.status}` });
           continue;
         }
 
         const pdfBuffer = await pdfResponse.arrayBuffer();
+
+        // Validate that the response is actually a PDF (check magic bytes)
+        const pdfBytes = new Uint8Array(pdfBuffer.slice(0, 5));
+        const pdfMagic = String.fromCharCode(...pdfBytes);
+        if (!pdfMagic.startsWith('%PDF-')) {
+          console.error(`[1002A] Downloaded file is not a PDF for ${form.name}. First bytes: ${pdfMagic}`);
+          results.push({ success: false, form, error: 'Downloaded file is not a valid PDF' });
+          continue;
+        }
+
+        console.log(`[1002A] Successfully downloaded ${pdfBuffer.byteLength} bytes for ${form.name}`);
+
         const filename = `1002A-${form.apiNumber}-${form.wellName.replace(/[^a-zA-Z0-9-_]/g, '_')}.pdf`;
         const r2Key = `uploads/${userId}/${Date.now()}-${filename}`;
 
