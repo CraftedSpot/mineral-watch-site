@@ -48,6 +48,7 @@ import {
   getPermitExpirationAlert
 } from '../services/statewideActivity.js';
 import { checkWellStatusChange } from '../services/statusChange.js';
+import { batchEnrichWellsFromCompletions } from '../services/wellEnrichment.js';
 
 /**
  * Check if we're in dry-run mode
@@ -568,6 +569,23 @@ export async function runDailyMonitor(env, options = {}) {
       }
     }
     
+    // Enrich D1 wells table with completion data (formation, BH coords, depths, IP)
+    // This updates the main wells table so enrichment data is available for all queries
+    if (newCompletions.length > 0 && !dryRun) {
+      try {
+        console.log(`[Daily] Enriching D1 wells with ${newCompletions.length} completion records`);
+        const enrichResult = await batchEnrichWellsFromCompletions(env, newCompletions);
+        results.wellsEnriched = enrichResult.updated;
+        console.log(`[Daily] Wells enriched: ${enrichResult.updated}/${newCompletions.length}`);
+        if (Object.keys(enrichResult.fieldsUpdated || {}).length > 0) {
+          console.log(`[Daily] Fields updated:`, enrichResult.fieldsUpdated);
+        }
+      } catch (err) {
+        console.error('[Daily] Error enriching wells:', err.message);
+        results.errors.push({ type: 'well_enrichment', error: err.message });
+      }
+    }
+
     // Save updated processed APIs (skip in test mode to allow re-testing)
     if (!isTestMode) {
       await saveProcessedAPIs(env, processedAPIs);

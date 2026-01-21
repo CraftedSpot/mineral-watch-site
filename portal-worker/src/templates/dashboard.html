@@ -13556,35 +13556,34 @@
 
             // Enrich with D1/RBDMS data if available (additive - only fills missing fields)
             const apiNumber = f['API Number'];
+            console.log('[openWellDetailsModal] Starting enrichment for API:', apiNumber);
             if (apiNumber) {
                 try {
-                    const enrichRes = await fetch(`/api/well-enrichment/${encodeURIComponent(apiNumber)}`);
+                    const enrichUrl = `/api/well-enrichment/${encodeURIComponent(apiNumber)}`;
+                    console.log('[openWellDetailsModal] Fetching:', enrichUrl);
+                    const enrichRes = await fetch(enrichUrl);
+                    console.log('[openWellDetailsModal] Enrichment response status:', enrichRes.status);
                     if (enrichRes.ok) {
                         const enrichData = await enrichRes.json();
+                        console.log('[openWellDetailsModal] Enrichment data:', enrichData);
                         if (enrichData.success && enrichData.data) {
                             const d = enrichData.data;
                             // Only fill in missing fields
                             if (!f['Formation Name'] && d.formation_name) {
                                 f['Formation Name'] = d.formation_name;
+                                console.log('[openWellDetailsModal] Added formation:', d.formation_name);
                             }
                             if (!f['Completion Date'] && d.completion_date) {
                                 f['Completion Date'] = d.completion_date;
-                            }
-                            if (!f['First Production Date'] && d.spud_date) {
-                                // Use spud_date as fallback if no first prod date
-                                // Note: spud_date is drilling start, not first production
+                                console.log('[openWellDetailsModal] Added completion date:', d.completion_date);
                             }
                             if (!f['Formation Depth'] && (d.measured_total_depth || d.true_vertical_depth)) {
                                 f['Formation Depth'] = d.measured_total_depth || d.true_vertical_depth;
                             }
-                            console.log('[openWellDetailsModal] Enriched with D1 data:', {
-                                formation: d.formation_name,
-                                completionDate: d.completion_date
-                            });
                         }
                     }
                 } catch (enrichErr) {
-                    console.log('[openWellDetailsModal] Enrichment fetch failed (non-critical):', enrichErr);
+                    console.error('[openWellDetailsModal] Enrichment fetch failed:', enrichErr);
                 }
             }
 

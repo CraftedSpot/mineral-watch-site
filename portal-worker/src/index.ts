@@ -158,7 +158,10 @@ import {
   // Completion reports handlers
   handleGetCompletionReports,
   handleAnalyzeCompletion,
-  handleGetProductionSummary
+  handleGetProductionSummary,
+  // Completions-to-wells sync handlers
+  handleSyncCompletionsToWells,
+  handleSyncSingleCompletion
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -1048,6 +1051,15 @@ var index_default = {
       // Admin sync endpoint
       if (path === "/api/admin/sync" && request.method === "POST") {
         return handleAirtableSync(request, env);
+      }
+
+      // Completions-to-wells sync endpoints
+      if (path === "/api/admin/sync-completions-to-wells" && request.method === "POST") {
+        return handleSyncCompletionsToWells(request, env);
+      }
+      const syncSingleCompletionMatch = path.match(/^\/api\/admin\/sync-single-completion\/([a-zA-Z0-9-]+)$/);
+      if (syncSingleCompletionMatch && request.method === "POST") {
+        return handleSyncSingleCompletion(request, env, syncSingleCompletionMatch[1]);
       }
       
       // Debug endpoint

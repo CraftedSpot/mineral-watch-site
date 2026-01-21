@@ -183,3 +183,9 @@ export {
   handleAnalyzeCompletion,
   handleGetProductionSummary
 } from './completion-reports.js';
+
+// Completions-to-wells sync handlers
+export {
+  handleSyncCompletionsToWells,
+  handleSyncSingleCompletion
+} from './sync-completions-to-wells.js';
