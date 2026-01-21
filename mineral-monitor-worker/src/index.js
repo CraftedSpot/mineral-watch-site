@@ -41,7 +41,11 @@ export default {
           timestamp: new Date().toISOString(),
           duration_ms: Date.now() - startTime,
           permits_processed: result.permitsProcessed,
+          completions_processed: result.completionsProcessed,
+          permits_skipped: result.permitsSkippedAsProcessed,
+          completions_skipped: result.completionsSkippedAsProcessed,
           alerts_sent: result.alertsSent,
+          data_freshness: result.dataFreshness,
           status: 'success'
         });
 

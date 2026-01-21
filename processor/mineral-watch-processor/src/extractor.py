@@ -6764,28 +6764,53 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         logger.warning(f"NO page_texts extracted from PDF - heuristics will not run!")
 
     # =========================================================================
-    # SCANNED PDF FIX: If OCR extracted no text AND quick classification says
-    # single document, trust it and skip page-level classification.
+    # SCANNED PDF FIX: For SHORT documents with NO usable OCR text where quick
+    # classification says single document, trust it and skip page-level splitting.
     # This prevents Haiku's visual classification from incorrectly splitting
     # scanned completion reports (e.g., Form 1002A page 1 vs page 2).
+    #
+    # TIGHTENED CONDITIONS to handle mixed handwritten/printed stacks:
+    # - Only apply when total_pages is small (≤ 5)
+    # - Only apply when essentially zero pages have usable text
+    # - Large documents or those with ANY usable text still go through Stage 1
     # =========================================================================
-    has_any_text = page_texts and any(text.strip() for text in page_texts)
+    MIN_CHARS_FOR_USABLE_TEXT = 20  # Pages with less than this are "no text"
+    MAX_PAGES_FOR_SCANNED_BYPASS = 5  # Only bypass for small documents
+
+    total_pages = len(image_paths)
+    pages_with_text = 0
+    if page_texts:
+        pages_with_text = sum(1 for text in page_texts if len(text.strip()) >= MIN_CHARS_FOR_USABLE_TEXT)
+    pages_without_text = total_pages - pages_with_text
+
     quick_says_single = (
         classification.get("is_multi_document") == False and
         classification.get("estimated_doc_count", 1) == 1
     )
 
-    if not has_any_text and quick_says_single:
-        logger.info(f"SCANNED PDF FIX: No OCR text + quick classification says single document")
+    # Log OCR coverage for diagnostics (useful for identifying handwritten batches)
+    ocr_failure_ratio = pages_without_text / total_pages if total_pages > 0 else 0
+    if ocr_failure_ratio > 0.7 and total_pages > 5:
+        logger.warning(f"HIGH OCR FAILURE RATE: {pages_without_text}/{total_pages} pages ({ocr_failure_ratio:.0%}) have no usable text - may be handwritten or poor scan quality")
+
+    # Only apply scanned PDF bypass for small documents with zero usable text
+    is_small_document = total_pages <= MAX_PAGES_FOR_SCANNED_BYPASS
+    has_no_usable_text = pages_with_text == 0
+
+    if is_small_document and has_no_usable_text and quick_says_single:
+        logger.info(f"SCANNED PDF FIX: Small doc ({total_pages} pages) + no usable text + quick says single")
+        logger.info(f"  pages_with_text={pages_with_text}, pages_without_text={pages_without_text}")
         logger.info(f"  is_multi_document={classification.get('is_multi_document')}, estimated_doc_count={classification.get('estimated_doc_count')}")
-        logger.info(f"  Skipping page-level classification - treating as single {len(image_paths)}-page document")
+        logger.info(f"  Skipping page-level classification - treating as single {total_pages}-page document")
 
         # Skip Stage 1 and go directly to Stage 2 extraction
         result = await extract_single_document(image_paths, 1, len(image_paths))
         result["_pipeline_type"] = "scanned_single_doc"
-        result["_page_count"] = len(image_paths)
+        result["_page_count"] = total_pages
         result["_quick_classification"] = classification.get("doc_type")
         return result
+    elif has_no_usable_text and not is_small_document:
+        logger.info(f"SCANNED PDF: Large doc ({total_pages} pages) with no usable text - will still run page-level classification")
 
     # Get page-level classifications using heuristics first, then Haiku if needed
     page_classifications = await classify_pages(image_paths, page_texts)
