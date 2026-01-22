@@ -204,9 +204,9 @@ var index_default = {
     const cronExpression = event.cron;
     console.log(`Cron triggered: ${cronExpression}`);
 
-    // Monthly OTC sync (15th of month at 8am UTC)
-    if (cronExpression === '0 8 15 * *') {
-      console.log('Running monthly OTC production sync...');
+    // Daily OTC sync (8am UTC / 2am CT)
+    if (cronExpression === '0 8 * * *') {
+      console.log('Running daily OTC production sync...');
       try {
         await triggerOTCSync(env);
       } catch (error) {

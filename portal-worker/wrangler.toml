@@ -52,5 +52,5 @@ PROCESSING_API_KEY = "mmw-proc-2024-secure-key"
 [triggers]
 crons = [
   "*/15 * * * *",      # Every 15 minutes - Airtable sync
-  "0 8 15 * *"         # 15th of month at 8am UTC - OTC production sync
+  "0 8 * * *"          # Daily at 8am UTC (2am CT) - OTC production sync
 ]
