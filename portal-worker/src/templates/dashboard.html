@@ -14410,7 +14410,7 @@
                 console.log('[ProductionSummary] Data received:', data);
 
                 if (!data.hasPun || !data.production) {
-                    renderNoProductionData('No PUN linked - production data unavailable');
+                    renderNoProductionData('No OTC production data linked to this well');
                     return;
                 }
 
@@ -14432,7 +14432,7 @@
                 <div class="no-production-data">
                     <div class="icon">📊</div>
                     <div class="message">${escapeHtml(message)}</div>
-                    <div class="sub-message">Production summary requires PUN linkage via completion report</div>
+                    <div class="sub-message">Well may not be producing yet or OTC data not yet linked</div>
                 </div>
             `;
         }
@@ -14503,7 +14503,7 @@
                 <div class="production-summary-header">
                     <div class="production-meta">
                         <div class="meta-item">
-                            <span class="meta-label">Last Production</span>
+                            <span class="meta-label">Last Reported</span>
                             <span class="meta-value">${lastProd}</span>
                         </div>
                         <div class="meta-item">
@@ -14534,7 +14534,7 @@
                 <div class="status-trend-row">
                     <div class="status-indicator">
                         <span class="status-dot ${statusClass}"></span>
-                        <span class="status-text">${data.status ? data.status.charAt(0).toUpperCase() + data.status.slice(1) : 'Unknown'}</span>
+                        <span class="status-text">${data.status === 'active' ? 'Active' : data.status === 'stale' ? `Inactive - Last reported: ${lastProd}` : 'Unknown'}</span>
                         ${trendText ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${trendText}</span>` : ''}
                     </div>
                     ${sparklineHtml}

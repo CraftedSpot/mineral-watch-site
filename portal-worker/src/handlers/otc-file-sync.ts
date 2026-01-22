@@ -104,7 +104,8 @@ export async function handleCheckOtcFile(request: Request, env: Env): Promise<Re
 /**
  * Check multiple files at once (for batch operations)
  * POST /api/otc-sync/check-batch
- * Body: { filenames: ["file1.csv", "file2.csv", ...] }
+ * Body: { filenames: ["file1.csv", ...] }  -- legacy format
+ * Body: { files: [{filename: "file1.csv", size: 12345}, ...] }  -- new format with size detection
  */
 export async function handleCheckOtcFilesBatch(request: Request, env: Env): Promise<Response> {
   try {
@@ -112,34 +113,73 @@ export async function handleCheckOtcFilesBatch(request: Request, env: Env): Prom
       return jsonResponse({ error: 'Database not configured' }, 503);
     }
 
-    const body = await request.json() as { filenames?: string[] };
-    const filenames = body.filenames;
+    const body = await request.json() as {
+      filenames?: string[];
+      files?: Array<{ filename: string; size: number }>;
+    };
+
+    // Support both old format (filenames array) and new format (files array with sizes)
+    const filesWithSize = body.files;
+    const filenames = body.filenames || filesWithSize?.map(f => f.filename);
 
     if (!filenames || !Array.isArray(filenames) || filenames.length === 0) {
-      return jsonResponse({ error: 'filenames array required' }, 400);
+      return jsonResponse({ error: 'filenames or files array required' }, 400);
     }
 
-    // Query all files in one go
+    // Query all files in one go (include file_size for comparison)
     const placeholders = filenames.map(() => '?').join(',');
     const result = await env.WELLS_DB.prepare(
-      `SELECT filename, status FROM otc_file_sync WHERE filename IN (${placeholders})`
+      `SELECT filename, status, file_size FROM otc_file_sync WHERE filename IN (${placeholders})`
     ).bind(...filenames).all();
 
-    // Build a map of existing files
-    const existingFiles: Record<string, string> = {};
-    for (const row of (result.results || []) as { filename: string; status: string }[]) {
-      existingFiles[row.filename] = row.status;
+    // Build a map of existing files with their sizes
+    const existingFiles: Record<string, { status: string; size: number | null }> = {};
+    for (const row of (result.results || []) as { filename: string; status: string; file_size: number | null }[]) {
+      existingFiles[row.filename] = { status: row.status, size: row.file_size };
     }
 
     // Determine which files need to be downloaded
-    const needsDownload = filenames.filter(f => !existingFiles[f]);
+    const needsDownload: string[] = [];
+    const sizeChanged: string[] = [];
+
+    if (filesWithSize) {
+      // New format: check both filename existence AND size changes
+      for (const file of filesWithSize) {
+        const existing = existingFiles[file.filename];
+        if (!existing) {
+          // New file - needs download
+          needsDownload.push(file.filename);
+        } else if (existing.size !== null && existing.size !== file.size) {
+          // File exists but size changed - needs re-download
+          needsDownload.push(file.filename);
+          sizeChanged.push(file.filename);
+          console.log(`[OtcSync] Size changed for ${file.filename}: ${existing.size} -> ${file.size}`);
+        }
+        // else: file exists with same size, skip
+      }
+    } else {
+      // Legacy format: just check filename existence
+      for (const filename of filenames) {
+        if (!existingFiles[filename]) {
+          needsDownload.push(filename);
+        }
+      }
+    }
+
+    // Build simplified existing map for response (just status for backwards compatibility)
+    const existingSimple: Record<string, string> = {};
+    for (const [filename, info] of Object.entries(existingFiles)) {
+      existingSimple[filename] = info.status;
+    }
 
     return jsonResponse({
       success: true,
-      existing: existingFiles,
+      existing: existingSimple,
       needs_download: needsDownload,
+      size_changed: sizeChanged,
       existing_count: Object.keys(existingFiles).length,
-      needs_download_count: needsDownload.length
+      needs_download_count: needsDownload.length,
+      size_changed_count: sizeChanged.length
     });
 
   } catch (error) {

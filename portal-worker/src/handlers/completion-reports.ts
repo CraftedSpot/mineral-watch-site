@@ -187,29 +187,11 @@ export async function handleGetProductionSummary(
     }
 
     // 3. Get all PUNs for production query
-    // Handle PUN format mismatch: well_pun_links may have short format (XXX-XXXXXX)
-    // while otc_production uses full format (XXX-XXXXXX-X-XXXX)
-    const rawPuns = links.map(l => l.pun);
-
-    // Check if we have short-format PUNs (length 10-11 vs full format 17)
-    const hasShortPuns = rawPuns.some(p => p && p.length <= 11);
-
-    // Build WHERE clause for PUN matching
-    let punWhereClause: string;
-    let punBindValues: string[];
-
-    if (hasShortPuns) {
-      // Use LIKE matching for short PUNs: "XXX-XXXXXX" matches "XXX-XXXXXX-X-XXXX"
-      // Build: (pun LIKE ? OR pun LIKE ? OR ...)
-      const likeConditions = rawPuns.map(() => 'pun LIKE ?').join(' OR ');
-      punWhereClause = `(${likeConditions})`;
-      punBindValues = rawPuns.map(p => p.length <= 11 ? `${p}%` : p);
-    } else {
-      // Exact match for full-format PUNs
-      const placeholders = rawPuns.map(() => '?').join(',');
-      punWhereClause = `pun IN (${placeholders})`;
-      punBindValues = rawPuns;
-    }
+    // PUNs in well_pun_links should now be full 4-segment format (XXX-XXXXXX-X-XXXX)
+    // matching the format in otc_production for fast exact-match queries
+    const punBindValues = links.map(l => l.pun);
+    const placeholders = punBindValues.map(() => '?').join(',');
+    const punWhereClause = `pun IN (${placeholders})`;
 
     // Calculate date ranges - DB stores year_month as YYYYMM (no hyphen)
     const now = new Date();
