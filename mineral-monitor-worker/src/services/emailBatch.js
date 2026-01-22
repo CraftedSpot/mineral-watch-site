@@ -39,8 +39,9 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
     skippedUsers: []
   };
 
-  // Test mode email filtering
-  const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com', 'james@mymineralwatch.com'];
+  // Test mode email filtering - TEMPORARILY DISABLED to resend missed emails
+  // const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
+  const approvedTestEmails = null; // Disable filtering temporarily
 
   // Process each user's alerts
   for (const [userId, userAlerts] of userAlertMap.entries()) {
