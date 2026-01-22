@@ -33,6 +33,7 @@ export interface Env {
   TRACK_WELL_SECRET: string;
   SYNC_API_KEY?: string;
   PROCESSING_API_KEY?: string;
+  OTC_SYNC_AUTH_TOKEN?: string;  // Auth token for triggering OTC Fly machine
 }
 
 /**

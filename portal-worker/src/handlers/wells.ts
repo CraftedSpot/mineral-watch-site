@@ -359,7 +359,7 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
 
     const query = `
       SELECT
-        w.api_number, w.well_name, w.operator, w.county,
+        w.api_number, w.well_name, w.well_number, w.operator, w.county,
         w.section, w.township, w.range, w.meridian,
         w.well_type, w.well_status, w.latitude, w.longitude,
         w.formation_name, w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
@@ -450,9 +450,15 @@ export async function handleListWellsV2(request: Request, env: Env) {
     const apiNumber = t.fields['API Number'];
     const d1 = d1Wells[apiNumber] || {};
 
+    // Combine well_name and well_number for full display name
+    // e.g., "BENTLEY" + "#1-5" = "BENTLEY #1-5"
+    const fullWellName = d1.well_name && d1.well_number
+      ? `${d1.well_name} ${d1.well_number}`.trim()
+      : d1.well_name || t.fields['Well Name'] || '';
+
     // Generate OCC Map Link from D1 coordinates
     const occMapLink = d1.latitude && d1.longitude
-      ? generateMapLink(d1.latitude, d1.longitude, d1.well_name || 'Well Location')
+      ? generateMapLink(d1.latitude, d1.longitude, fullWellName || 'Well Location')
       : '#';
 
     return {
@@ -467,7 +473,8 @@ export async function handleListWellsV2(request: Request, env: Env) {
       occFilingLink: t.fields['OCC Filing Link'] || null,
 
       // Well metadata from D1
-      well_name: d1.well_name || t.fields['Well Name'] || '',  // Fallback to Airtable
+      well_name: fullWellName,  // Combined name + number (e.g., "BENTLEY #1-5")
+      well_number: d1.well_number || '',  // Just the number part (e.g., "#1-5")
       operator: d1.operator || t.fields['Operator'] || '',
       county: d1.county || t.fields['County'] || '',
       section: d1.section || t.fields['Section'] || '',

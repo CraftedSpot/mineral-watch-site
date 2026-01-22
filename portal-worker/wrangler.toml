@@ -50,4 +50,7 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 PROCESSING_API_KEY = "mmw-proc-2024-secure-key"
 
 [triggers]
-crons = ["*/15 * * * *"]  # Every 15 minutes
+crons = [
+  "*/15 * * * *",      # Every 15 minutes - Airtable sync
+  "0 8 15 * *"         # 15th of month at 8am UTC - OTC production sync
+]

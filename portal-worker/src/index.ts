@@ -172,9 +172,51 @@ import { syncAirtableData } from './sync.js';
 var __defProp = Object.defineProperty;
 var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 
+// OTC Fly machine URL (static IP for OTC allowlist)
+const OTC_FLY_URL = 'https://mineral-watch-otc-fetch.fly.dev';
+
+async function triggerOTCSync(env: Env): Promise<void> {
+  console.log('[OTC Sync] Triggering OTC production sync...');
+
+  try {
+    const response = await fetch(`${OTC_FLY_URL}/sync`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${env.OTC_SYNC_AUTH_TOKEN || ''}`
+      }
+    });
+
+    const result = await response.json() as Record<string, unknown>;
+
+    if (response.ok) {
+      console.log('[OTC Sync] Sync triggered successfully:', result);
+    } else {
+      console.error('[OTC Sync] Failed to trigger sync:', response.status, result);
+    }
+  } catch (error) {
+    console.error('[OTC Sync] Error triggering sync:', error);
+  }
+}
+
 var index_default = {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-    console.log('Cron triggered: Starting Airtable sync');
+    const cronExpression = event.cron;
+    console.log(`Cron triggered: ${cronExpression}`);
+
+    // Monthly OTC sync (15th of month at 8am UTC)
+    if (cronExpression === '0 8 15 * *') {
+      console.log('Running monthly OTC production sync...');
+      try {
+        await triggerOTCSync(env);
+      } catch (error) {
+        console.error('OTC sync trigger failed:', error);
+      }
+      return;
+    }
+
+    // Default: Airtable sync (every 15 minutes)
+    console.log('Running Airtable sync...');
     try {
       const result = await syncAirtableData(env);
       console.log('Sync completed:', result);
@@ -1031,6 +1073,36 @@ var index_default = {
       }
       if (path === "/api/otc-sync/pun-production-stats" && request.method === "GET") {
         return handleGetPunProductionStats(request, env);
+      }
+      // Manual trigger for OTC sync (calls Fly machine)
+      if (path === "/api/otc-sync/trigger" && request.method === "POST") {
+        // Require PROCESSING_API_KEY for manual triggers
+        const authHeader = request.headers.get('Authorization');
+        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+            status: 401,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
+        try {
+          await triggerOTCSync(env);
+          return new Response(JSON.stringify({
+            success: true,
+            message: 'OTC sync triggered on Fly machine',
+            check_status: `${OTC_FLY_URL}/status`
+          }), {
+            status: 200,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({
+            error: 'Failed to trigger sync',
+            details: error instanceof Error ? error.message : String(error)
+          }), {
+            status: 500,
+            headers: { 'Content-Type': 'application/json' }
+          });
+        }
       }
 
       // Formation backfill endpoints
