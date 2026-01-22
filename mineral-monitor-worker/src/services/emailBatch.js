@@ -40,7 +40,7 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
   };
 
   // Test mode email filtering
-  const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
+  const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com', 'james@mymineralwatch.com'];
 
   // Process each user's alerts
   for (const [userId, userAlerts] of userAlertMap.entries()) {
@@ -61,11 +61,22 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
 
       // Get user's notification mode
       const user = await getUserById(env, userId);
-      const organizationId = user?.fields?.Organization?.[0] || null;
+
+      // Use organizationId from alert if available (property/well org),
+      // otherwise fall back to user's own organization field
+      const alertOrgId = userAlerts[0]?.organizationId;
+      const userOrgId = user?.fields?.Organization?.[0] || null;
+      const organizationId = alertOrgId || userOrgId;
+
       const organization = organizationId ? await getOrganizationById(env, organizationId) : null;
       const notificationMode = getEffectiveNotificationMode(user, organization);
 
-      console.log(`[EmailBatch] User ${userEmail} notification mode: ${notificationMode}`);
+      console.log(`[EmailBatch] User ${userEmail} notification mode: ${notificationMode} (orgId: ${organizationId}, via: ${alertOrgId ? 'alert' : 'user'})`);
+
+      // Debug: Log if org lookup might have issues
+      if (alertOrgId && userOrgId && alertOrgId !== userOrgId) {
+        console.log(`[EmailBatch] Note: Alert org (${alertOrgId}) differs from user org (${userOrgId})`);
+      }
 
       // Check if user wants no notifications
       if (notificationMode === 'None') {

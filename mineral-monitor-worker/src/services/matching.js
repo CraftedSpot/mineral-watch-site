@@ -96,6 +96,7 @@ export async function findMatchingProperties(location, env, options = {}) {
                   },
                   alertLevel: 'YOUR PROPERTY',
                   matchedSection: `${normalizedSec}-${township}-${range}`,
+                  organizationId: orgId,
                   viaOrganization: orgName
                 });
               }
