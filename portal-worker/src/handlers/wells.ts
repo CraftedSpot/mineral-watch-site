@@ -367,10 +367,16 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
         w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
         w.bh_latitude, w.bh_longitude,
         o.phone as operator_phone,
-        o.contact_name as operator_contact
+        o.contact_name as operator_contact,
+        p.total_oil_bbl as otc_total_oil,
+        p.total_gas_mcf as otc_total_gas,
+        p.last_prod_month as otc_last_prod_month,
+        p.is_stale as otc_is_stale
       FROM wells w
       LEFT JOIN operators o
         ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
+      LEFT JOIN well_pun_links wpl ON w.api_number = wpl.api_number
+      LEFT JOIN puns p ON wpl.pun = p.pun
       WHERE w.api_number IN (${placeholders})
     `;
 
@@ -492,6 +498,12 @@ export async function handleListWellsV2(request: Request, env: Env) {
       // Operator contact from D1 operators table
       operator_phone: d1.operator_phone || t.fields['Operator Phone'] || null,
       operator_contact: d1.operator_contact || t.fields['Contact Name'] || null,
+
+      // OTC production data from puns table (via well_pun_links)
+      otc_total_oil: d1.otc_total_oil || null,
+      otc_total_gas: d1.otc_total_gas || null,
+      otc_last_prod_month: d1.otc_last_prod_month || null,
+      otc_is_stale: d1.otc_is_stale,  // Don't use || null here, 0 is a valid value
 
       // Generated links
       occMapLink,

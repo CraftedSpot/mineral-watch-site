@@ -2805,10 +2805,17 @@
                 <div id="wells-tab" class="tab-content">
                     <div id="wellsControls" class="table-controls" style="display: none;">
                         <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
+                        <select id="wellsFilter" class="sort-select">
+                            <option value="all" selected>All Wells</option>
+                            <option value="active">Active Only</option>
+                            <option value="inactive">Inactive Only</option>
+                        </select>
                         <select id="wellsSort" class="sort-select">
                             <option value="name-asc" selected>Well Name</option>
                             <option value="legal-asc">Legal Description</option>
                             <option value="operator-asc">Operator</option>
+                            <option value="boe-desc">Lifetime BOE</option>
+                            <option value="lastprod-desc">Last Reported</option>
                             <option value="properties-desc">Properties</option>
                             <option value="documents-desc">Documents</option>
                             <option value="filings-desc">OCC Filings</option>
@@ -4585,8 +4592,9 @@
             updateBulkActionVisibility();
         }
 
-        // Wells Search & Sort State
+        // Wells Search, Filter & Sort State
         let wellsSearchTerm = '';
+        let wellsFilterBy = 'all';
         let wellsSortBy = 'name-asc';
 
         // Initialize Wells Controls (call this after user loads)
@@ -4603,7 +4611,13 @@
                 wellsSearchTerm = e.target.value.toLowerCase().trim();
                 renderWellsTable();
             });
-            
+
+            // Filter select handler (Active/Inactive)
+            document.getElementById('wellsFilter').addEventListener('change', (e) => {
+                wellsFilterBy = e.target.value;
+                renderWellsTable();
+            });
+
             // Sort select handler
             document.getElementById('wellsSort').addEventListener('change', (e) => {
                 wellsSortBy = e.target.value;
@@ -4611,20 +4625,35 @@
             });
         }
 
-        // Filter wells based on search term (V2 uses flat object)
+        // Filter wells based on search term and status filter (V2 uses flat object)
         function filterWells(wells) {
-            if (!wellsSearchTerm) return wells;
+            let filtered = wells;
 
-            return wells.filter(w => {
-                const searchable = [
-                    w.well_name || '',
-                    w.operator || '',
-                    w.apiNumber || '',
-                    w.county || ''
-                ].join(' ').toLowerCase();
+            // Apply status filter (Active/Inactive based on OTC production data)
+            if (wellsFilterBy === 'active') {
+                // Active = has production data AND not stale (produced in last 6 months)
+                // Use loose equality to handle string "0" vs number 0
+                filtered = filtered.filter(w => w.otc_is_stale == 0 && w.otc_is_stale !== null && w.otc_is_stale !== undefined);
+            } else if (wellsFilterBy === 'inactive') {
+                // Inactive = stale (no production in 6+ months) OR no production data
+                filtered = filtered.filter(w => w.otc_is_stale == 1 || w.otc_is_stale === null || w.otc_is_stale === undefined);
+            }
 
-                return searchable.includes(wellsSearchTerm);
-            });
+            // Apply search filter
+            if (wellsSearchTerm) {
+                filtered = filtered.filter(w => {
+                    const searchable = [
+                        w.well_name || '',
+                        w.operator || '',
+                        w.apiNumber || '',
+                        w.county || ''
+                    ].join(' ').toLowerCase();
+
+                    return searchable.includes(wellsSearchTerm);
+                });
+            }
+
+            return filtered;
         }
 
         // Sort wells based on selected option (V2 uses flat object)
@@ -4711,6 +4740,18 @@
                     const aCount = a._linkCounts?.filings || 0;
                     const bCount = b._linkCounts?.filings || 0;
                     return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'boe') {
+                    // Lifetime BOE (oil bbls + gas mcf / 6)
+                    const aBoe = (a.otc_total_oil || 0) + ((a.otc_total_gas || 0) / 6);
+                    const bBoe = (b.otc_total_oil || 0) + ((b.otc_total_gas || 0) / 6);
+                    return aBoe < bBoe ? -1 * multiplier : (aBoe > bBoe ? 1 * multiplier : 0);
+
+                } else if (field === 'lastprod') {
+                    // Last Production Date (YYYY-MM format string)
+                    const aDate = a.otc_last_prod_month || '';
+                    const bDate = b.otc_last_prod_month || '';
+                    return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
                 }
 
                 return 0;
@@ -14475,7 +14516,7 @@
 
                 <div class="production-data-grid">
                     <div></div>
-                    <div class="grid-header">${prod.lastMonth?.formatted || 'Recent'}</div>
+                    <div class="grid-header">${prod.lastMonth?.formatted || 'Last Reported'}</div>
                     <div class="grid-header">Last 12 Mo</div>
                     <div class="grid-header">Lifetime</div>
 
