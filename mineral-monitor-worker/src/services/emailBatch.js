@@ -50,7 +50,8 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
       const userEmail = userAlerts[0]?.user?.email;
 
       // In test mode, filter to approved emails only
-      if (results.testMode && userEmail) {
+      // TEMPORARILY DISABLED - sending to all users for missed email resend
+      if (results.testMode && userEmail && approvedTestEmails) {
         if (!approvedTestEmails.includes(userEmail)) {
           console.log(`[Test Mode] Skipping batched email to: ${userEmail} (${userAlerts.length} alerts)`);
           results.skippedUsers.push({ email: userEmail, alertCount: userAlerts.length });
