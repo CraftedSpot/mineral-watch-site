@@ -13917,11 +13917,23 @@
         }
         
         function printWellReport() {
+            // Get the PUN from production data container
+            const container = document.getElementById('wellProductionSummary');
+            const pun = container?.dataset?.pun;
+
             // Get the API number from the current well
-            const apiNumber = document.getElementById('wellDetailsAPI')?.textContent;
-            if (apiNumber && apiNumber !== '—') {
-                // Open print-friendly well report in new tab
-                window.open(`/well-report/${apiNumber}`, '_blank');
+            const apiEl = document.getElementById('wellDetailsApi');
+            const apiText = apiEl?.textContent || '';
+            const apiMatch = apiText.match(/API:\s*(\d+)/);
+            const apiNumber = apiMatch ? apiMatch[1] : '';
+
+            if (pun) {
+                // Open unit print report with PUN and current well API highlighted
+                const url = `/print/unit?pun=${encodeURIComponent(pun)}&wellApi=${encodeURIComponent(apiNumber)}`;
+                window.open(url, '_blank');
+            } else if (apiNumber) {
+                // Fallback: no PUN but have API - show message
+                showToast('No production unit (PUN) linked to this well. Production report unavailable.', 'warning');
             } else {
                 showToast('No API number available for this well', 'error');
             }
@@ -14428,6 +14440,8 @@
 
         function renderNoProductionData(message) {
             const container = document.getElementById('wellProductionSummary');
+            // Clear PUN when no production data
+            container.dataset.pun = '';
             container.innerHTML = `
                 <div class="no-production-data">
                     <div class="icon">📊</div>
@@ -14440,6 +14454,9 @@
         function renderProductionSummary(data) {
             const container = document.getElementById('wellProductionSummary');
             const prod = data.production;
+
+            // Store PUN for use by print function
+            container.dataset.pun = data.pun || '';
 
             // Format numbers with commas
             const formatNum = (num) => num != null ? Number(num).toLocaleString() : '—';
@@ -14463,7 +14480,7 @@
                 }
             }
 
-            // Build sparkline SVG if data available (with tooltips)
+            // Build sparkline SVG if data available (sparse - only reported months)
             let sparklineHtml = '';
             if (data.sparkline && data.sparkline.length > 0) {
                 const points = data.sparkline;
@@ -14471,24 +14488,27 @@
                 const maxVal = Math.max(...points, 1);
                 const height = 32;
                 const width = 120;
-                const step = width / (points.length - 1 || 1);
+                // For single point, center it; otherwise spread evenly
+                const step = points.length === 1 ? 0 : width / (points.length - 1);
                 const coordPairs = points.map((val, i) => {
-                    const x = i * step;
+                    const x = points.length === 1 ? width / 2 : i * step;
                     const y = height - (val / maxVal) * (height - 4);
                     return { x, y, val, month: months[i] || '' };
                 });
                 const lineCoords = coordPairs.map(p => `${p.x},${p.y}`).join(' ');
-                // Create hover circles with tooltips
+                // Visible data point circles + larger hover targets with tooltips
                 const circles = coordPairs.map(p =>
-                    `<circle cx="${p.x}" cy="${p.y}" r="6" fill="transparent" stroke="none" style="cursor:pointer">
+                    `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#3b82f6"/>
+                     <circle cx="${p.x}" cy="${p.y}" r="8" fill="transparent" stroke="none" style="cursor:pointer">
                         <title>${p.month}: ${p.val.toLocaleString()} BOE</title>
                     </circle>`
                 ).join('');
                 const totalBOE = data.sparklineBOE || points.reduce((a, b) => a + b, 0);
+                const monthCount = points.length;
                 sparklineHtml = `
-                    <div class="sparkline-container" title="Last 6 months: ${totalBOE.toLocaleString()} BOE">
+                    <div class="sparkline-container" title="${monthCount} reported month${monthCount !== 1 ? 's' : ''}: ${totalBOE.toLocaleString()} BOE">
                         <svg class="sparkline-svg" width="${width}" height="${height}">
-                            <polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${lineCoords}"/>
+                            ${points.length > 1 ? `<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${lineCoords}"/>` : ''}
                             ${circles}
                         </svg>
                     </div>

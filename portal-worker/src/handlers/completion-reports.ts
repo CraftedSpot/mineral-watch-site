@@ -337,7 +337,8 @@ export async function handleGetProductionSummary(
       sparklineMap.set(row.year_month, boe);
     }
 
-    // Generate the last 6 months in order (oldest to newest)
+    // Generate sparkline with only months that have reported data (sparse)
+    // This avoids misleading "flatline" appearance when OTC data lags 2-3 months
     const sparkline: number[] = [];
     const sparklineMonths: string[] = [];
     let sparklineTotal = 0;
@@ -347,9 +348,12 @@ export async function handleGetProductionSummary(
       d.setMonth(d.getMonth() - i);
       const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
       const boe = sparklineMap.get(ym) || 0;
-      sparkline.push(boe);
-      sparklineMonths.push(`${shortMonths[d.getMonth()]} ${d.getFullYear()}`);
-      sparklineTotal += boe;
+      // Only include months with actual reported production
+      if (boe > 0) {
+        sparkline.push(boe);
+        sparklineMonths.push(`${shortMonths[d.getMonth()]} ${d.getFullYear()}`);
+        sparklineTotal += boe;
+      }
     }
 
     // Determine status based on most recent production vs TODAY

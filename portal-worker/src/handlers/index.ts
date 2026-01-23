@@ -190,3 +190,9 @@ export {
   handleSyncCompletionsToWells,
   handleSyncSingleCompletion
 } from './sync-completions-to-wells.js';
+
+// Unit print report handlers
+export {
+  handleUnitPrint,
+  handleUnitPrintData
+} from './unit-print.js';

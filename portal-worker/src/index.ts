@@ -162,7 +162,10 @@ import {
   handleGetProductionSummary,
   // Completions-to-wells sync handlers
   handleSyncCompletionsToWells,
-  handleSyncSingleCompletion
+  handleSyncSingleCompletion,
+  // Unit print report handlers
+  handleUnitPrint,
+  handleUnitPrintData
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -1230,6 +1233,15 @@ var index_default = {
       // TEMPORARY: Domain bridge for testing
       if (path === "/test-upgrade" && request.method === "GET") {
         return Response.redirect(`https://portal-worker.photog12.workers.dev/portal/upgrade`, 302);
+      }
+
+      // Unit Print Report - printable production report by PUN
+      if (path === "/print/unit" && request.method === "GET") {
+        return handleUnitPrint(request, env);
+      }
+      // Unit Print Data API - JSON data for unit print report
+      if (path === "/api/unit-print-data" && request.method === "GET") {
+        return handleUnitPrintData(request, env);
       }
 
       // Track This Well endpoint
