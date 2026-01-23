@@ -143,7 +143,7 @@ export async function handleGetProductionSummary(
 
     // 1. Get all PUN links for this well from well_pun_links
     const linksResult = await env.WELLS_DB.prepare(`
-      SELECT l.pun, l.confidence, l.match_method, l.formation,
+      SELECT l.pun, l.base_pun, l.confidence, l.match_method, l.formation,
              m.lease_name, m.is_multi_well, m.well_count, m.county
       FROM well_pun_links l
       LEFT JOIN pun_metadata m ON l.pun = m.pun
@@ -152,6 +152,7 @@ export async function handleGetProductionSummary(
 
     const links = linksResult.results as Array<{
       pun: string;
+      base_pun: string | null;
       confidence: string;
       match_method: string;
       formation: string | null;
@@ -186,20 +187,18 @@ export async function handleGetProductionSummary(
       linkType = 'multi_well_pun';
     }
 
-    // 3. Get all PUNs for production query
-    // PUNs in well_pun_links use 4-segment format (XXX-XXXXXX-X-XXXX)
-    // But otc_production may have 3-segment format (XXX-XXXXXX-X), so query both
-    const punBindValues: string[] = [];
+    // 3. Get all base_puns for production query
+    // Use base_pun (10-char: XXX-XXXXXX county-lease) for matching
+    const basePunBindValues: string[] = [];
     for (const link of links) {
-      punBindValues.push(link.pun); // 4-segment
-      // Also add 3-segment version
-      const parts = link.pun.split('-');
-      if (parts.length >= 3) {
-        punBindValues.push(`${parts[0]}-${parts[1]}-${parts[2]}`);
+      if (link.base_pun) {
+        basePunBindValues.push(link.base_pun);
       }
     }
-    const placeholders = punBindValues.map(() => '?').join(',');
-    const punWhereClause = `pun IN (${placeholders})`;
+    // Deduplicate base_puns (multiple full PUNs may have same base)
+    const uniqueBasePuns = [...new Set(basePunBindValues)];
+    const placeholders = uniqueBasePuns.map(() => '?').join(',');
+    const punWhereClause = `base_pun IN (${placeholders})`;
 
     // Calculate date ranges - DB stores year_month as YYYYMM (no hyphen)
     const now = new Date();
@@ -224,7 +223,7 @@ export async function handleGetProductionSummary(
       GROUP BY pun, year_month, product_code
       ORDER BY year_month DESC
       LIMIT 50
-    `).bind(...punBindValues).all();
+    `).bind(...uniqueBasePuns).all();
 
     // Get last 12 months totals
     const last12MoResult = await env.WELLS_DB.prepare(`
@@ -232,7 +231,7 @@ export async function handleGetProductionSummary(
       FROM otc_production
       WHERE ${punWhereClause} AND year_month >= ?
       GROUP BY pun, product_code
-    `).bind(...punBindValues, twelveMonthsAgoYM).all();
+    `).bind(...uniqueBasePuns, twelveMonthsAgoYM).all();
 
     // Get lifetime totals
     const lifetimeResult = await env.WELLS_DB.prepare(`
@@ -240,7 +239,7 @@ export async function handleGetProductionSummary(
       FROM otc_production
       WHERE ${punWhereClause}
       GROUP BY pun, product_code
-    `).bind(...punBindValues).all();
+    `).bind(...uniqueBasePuns).all();
 
     // Get sparkline data in BOE (Barrels of Oil Equivalent), last 6 calendar months
     // BOE = Oil + (Gas / 6) - standard industry conversion
@@ -257,7 +256,7 @@ export async function handleGetProductionSummary(
       WHERE ${punWhereClause} AND year_month >= ?
       GROUP BY year_month
       ORDER BY year_month ASC
-    `).bind(...punBindValues, sixMonthsAgoYM).all();
+    `).bind(...uniqueBasePuns, sixMonthsAgoYM).all();
 
     // Get YoY comparison data
     const lastYearResult = await env.WELLS_DB.prepare(`
@@ -265,14 +264,14 @@ export async function handleGetProductionSummary(
       FROM otc_production
       WHERE ${punWhereClause} AND year_month = ?
       GROUP BY product_code
-    `).bind(...punBindValues, lastYearYM).all();
+    `).bind(...uniqueBasePuns, lastYearYM).all();
 
     // Get months produced count and first production month
     const monthsProducedResult = await env.WELLS_DB.prepare(`
       SELECT COUNT(DISTINCT year_month) as months_count, MIN(year_month) as first_month
       FROM otc_production
       WHERE ${punWhereClause}
-    `).bind(...punBindValues).first() as { months_count: number; first_month: string } | null;
+    `).bind(...uniqueBasePuns).first() as { months_count: number; first_month: string } | null;
 
     // 5. Process results - aggregate across all PUNs
     const lastMonthData: { [key: string]: { yearMonth: string; volume: number } } = {};

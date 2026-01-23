@@ -129,29 +129,27 @@ async function fetchUnitPrintData(
   twentyFourMonthsAgo.setMonth(twentyFourMonthsAgo.getMonth() - 24);
   const twentyFourMonthsAgoYM = `${twentyFourMonthsAgo.getFullYear()}${String(twentyFourMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-  // PUN formats: OTC uses 3-segment (059-125197-0), well_pun_links uses 4-segment (059-125197-0-0000)
-  // Extract 3-segment version for OTC queries
-  const punParts = pun.split('-');
-  const pun3Segment = punParts.length >= 3 ? `${punParts[0]}-${punParts[1]}-${punParts[2]}` : pun;
+  // Use base_pun (10-char: XXX-XXXXXX county-lease) for matching
+  const basePun = pun.substring(0, 10);
 
-  // Get monthly production for last 24 months (try both PUN formats)
+  // Get monthly production for last 24 months using base_pun
   const monthlyResult = await env.WELLS_DB.prepare(`
     SELECT year_month,
            SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
            SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
     FROM otc_production
-    WHERE (pun = ? OR pun = ?) AND year_month >= ?
+    WHERE base_pun = ? AND year_month >= ?
     GROUP BY year_month
     ORDER BY year_month DESC
-  `).bind(pun, pun3Segment, twentyFourMonthsAgoYM).all();
+  `).bind(basePun, twentyFourMonthsAgoYM).all();
 
-  // Get lifetime totals (try both PUN formats)
+  // Get lifetime totals using base_pun
   const lifetimeResult = await env.WELLS_DB.prepare(`
     SELECT product_code, SUM(gross_volume) as volume
     FROM otc_production
-    WHERE pun = ? OR pun = ?
+    WHERE base_pun = ?
     GROUP BY product_code
-  `).bind(pun, pun3Segment).all();
+  `).bind(basePun).all();
 
   // Process monthly data
   const monthlyMap = new Map<string, { oil: number; gas: number }>();
