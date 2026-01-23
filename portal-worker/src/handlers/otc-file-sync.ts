@@ -149,6 +149,10 @@ export async function handleCheckOtcFilesBatch(request: Request, env: Env): Prom
         if (!existing) {
           // New file - needs download
           needsDownload.push(file.filename);
+        } else if (existing.status === 'pending') {
+          // File marked for re-download
+          needsDownload.push(file.filename);
+          console.log(`[OtcSync] Re-downloading pending file: ${file.filename}`);
         } else if (existing.size !== null && existing.size !== file.size) {
           // File exists but size changed - needs re-download
           needsDownload.push(file.filename);

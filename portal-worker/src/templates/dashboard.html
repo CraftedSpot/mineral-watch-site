@@ -834,14 +834,21 @@
             align-items: center;
             gap: 8px;
         }
-        .status-dot {
+        /* Production status dots - override display:none from document list styles */
+        .status-indicator .status-dot {
+            display: inline-block;
             width: 8px;
             height: 8px;
             border-radius: 50%;
+            flex-shrink: 0;
         }
-        .status-dot.active { background: #22c55e; }
-        .status-dot.stale { background: #f59e0b; }
-        .status-dot.inactive { background: #ef4444; }
+        .status-indicator .status-dot.active { background: #22c55e; }
+        .status-indicator .status-dot.recently-idle { background: #f59e0b; }
+        .status-indicator .status-dot.extended-idle { background: #f97316; }
+        .status-indicator .status-dot.no-recent { background: #ef4444; }
+        /* Legacy support */
+        .status-indicator .status-dot.stale { background: #f59e0b; }
+        .status-indicator .status-dot.inactive { background: #ef4444; }
         .status-text {
             font-weight: 500;
             font-size: 13px;
@@ -14461,8 +14468,17 @@
             // Format numbers with commas
             const formatNum = (num) => num != null ? Number(num).toLocaleString() : '—';
 
-            // Determine status class
-            const statusClass = data.status?.toLowerCase() || 'inactive';
+            // Determine status class and display text
+            // Status categories: active, recently_idle, extended_idle, no_recent_production
+            // Using "reported" to clarify this is OTC reported data, not necessarily actual production
+            const statusMap = {
+                'active': { class: 'active', text: 'Active', suffix: '(Last Reported: Within 3 Months)' },
+                'recently_idle': { class: 'recently-idle', text: 'Recently Idle', suffix: '' },
+                'extended_idle': { class: 'extended-idle', text: 'Extended Idle', suffix: '' },
+                'no_recent_production': { class: 'no-recent', text: '⚠️ No Recent Reported Production', suffix: '' }
+            };
+            const statusInfo = statusMap[data.status] || statusMap['no_recent_production'];
+            const statusClass = statusInfo.class;
 
             // Determine trend class and symbol
             let trendClass = 'flat';
@@ -14480,7 +14496,9 @@
                 }
             }
 
-            // Build sparkline SVG if data available (sparse - only reported months)
+            // Build sparkline SVG if data available
+            // Active wells: sparse data (only reported months) to avoid misleading flatline from OTC lag
+            // Inactive/stale wells: full 6 months including zeros to show production actually stopped
             let sparklineHtml = '';
             if (data.sparkline && data.sparkline.length > 0) {
                 const points = data.sparkline;
@@ -14488,6 +14506,7 @@
                 const maxVal = Math.max(...points, 1);
                 const height = 32;
                 const width = 120;
+                const isActive = data.status === 'active';
                 // For single point, center it; otherwise spread evenly
                 const step = points.length === 1 ? 0 : width / (points.length - 1);
                 const coordPairs = points.map((val, i) => {
@@ -14498,15 +14517,19 @@
                 const lineCoords = coordPairs.map(p => `${p.x},${p.y}`).join(' ');
                 // Visible data point circles + larger hover targets with tooltips
                 const circles = coordPairs.map(p =>
-                    `<circle cx="${p.x}" cy="${p.y}" r="3" fill="#3b82f6"/>
+                    `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${p.val > 0 ? '#3b82f6' : '#cbd5e1'}"/>
                      <circle cx="${p.x}" cy="${p.y}" r="8" fill="transparent" stroke="none" style="cursor:pointer">
-                        <title>${p.month}: ${p.val.toLocaleString()} BOE</title>
+                        <title>${p.month}: ${p.val > 0 ? p.val.toLocaleString() + ' BOE' : 'No report'}</title>
                     </circle>`
                 ).join('');
                 const totalBOE = data.sparklineBOE || points.reduce((a, b) => a + b, 0);
-                const monthCount = points.length;
+                const reportedCount = points.filter(p => p > 0).length;
+                // Different tooltip for active (sparse) vs inactive (full) wells
+                const tooltipText = isActive
+                    ? `${reportedCount} reported month${reportedCount !== 1 ? 's' : ''}: ${totalBOE.toLocaleString()} BOE`
+                    : `Last 6 months: ${totalBOE.toLocaleString()} BOE`;
                 sparklineHtml = `
-                    <div class="sparkline-container" title="${monthCount} reported month${monthCount !== 1 ? 's' : ''}: ${totalBOE.toLocaleString()} BOE">
+                    <div class="sparkline-container" title="${tooltipText}">
                         <svg class="sparkline-svg" width="${width}" height="${height}">
                             ${points.length > 1 ? `<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${lineCoords}"/>` : ''}
                             ${circles}
@@ -14554,7 +14577,7 @@
                 <div class="status-trend-row">
                     <div class="status-indicator">
                         <span class="status-dot ${statusClass}"></span>
-                        <span class="status-text">${data.status === 'active' ? 'Active' : data.status === 'stale' ? `Inactive - Last reported: ${lastProd}` : 'Unknown'}</span>
+                        <span class="status-text">${statusInfo.text} ${data.status === 'active' ? statusInfo.suffix : (lastProd !== 'N/A' ? `(Last Reported: ${lastProd})` : '')}</span>
                         ${trendText ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${trendText}</span>` : ''}
                     </div>
                     ${sparklineHtml}

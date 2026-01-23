@@ -187,9 +187,17 @@ export async function handleGetProductionSummary(
     }
 
     // 3. Get all PUNs for production query
-    // PUNs in well_pun_links should now be full 4-segment format (XXX-XXXXXX-X-XXXX)
-    // matching the format in otc_production for fast exact-match queries
-    const punBindValues = links.map(l => l.pun);
+    // PUNs in well_pun_links use 4-segment format (XXX-XXXXXX-X-XXXX)
+    // But otc_production may have 3-segment format (XXX-XXXXXX-X), so query both
+    const punBindValues: string[] = [];
+    for (const link of links) {
+      punBindValues.push(link.pun); // 4-segment
+      // Also add 3-segment version
+      const parts = link.pun.split('-');
+      if (parts.length >= 3) {
+        punBindValues.push(`${parts[0]}-${parts[1]}-${parts[2]}`);
+      }
+    }
     const placeholders = punBindValues.map(() => '?').join(',');
     const punWhereClause = `pun IN (${placeholders})`;
 
@@ -337,33 +345,51 @@ export async function handleGetProductionSummary(
       sparklineMap.set(row.year_month, boe);
     }
 
-    // Generate sparkline with only months that have reported data (sparse)
-    // This avoids misleading "flatline" appearance when OTC data lags 2-3 months
+    // Determine status based on most recent production vs TODAY
+    // mostRecentYM is already calculated above in YYYYMM format
+    // Status categories account for OTC's typical 2-3 month reporting lag:
+    // - active: reported in last 3 months (current)
+    // - recently_idle: no reports 3-6 months (may be normal lag or short shutdown)
+    // - extended_idle: no reports 6-12 months (concerning, may need verification)
+    // - no_recent_production: 12+ months (likely shut-in or data issue, verify with operator)
+    let status: 'active' | 'recently_idle' | 'extended_idle' | 'no_recent_production' = 'no_recent_production';
+
+    if (mostRecentYM >= threeMonthsAgoYM) {
+      status = 'active';
+    } else if (mostRecentYM >= sixMonthsAgoYM) {
+      status = 'recently_idle';
+    } else if (mostRecentYM >= twelveMonthsAgoYM) {
+      status = 'extended_idle';
+    }
+
+    // Generate sparkline data for last 6 months
+    // For ACTIVE wells: use sparse data (only reported months) to avoid misleading flatline from OTC lag
+    // For IDLE/NO_RECENT wells: show all months including zeros to show production trend/stoppage
     const sparkline: number[] = [];
     const sparklineMonths: string[] = [];
     let sparklineTotal = 0;
     const shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const useSparseData = status === 'active';
+
     for (let i = 5; i >= 0; i--) {
       const d = new Date(now);
       d.setMonth(d.getMonth() - i);
       const ym = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
       const boe = sparklineMap.get(ym) || 0;
-      // Only include months with actual reported production
-      if (boe > 0) {
+
+      if (useSparseData) {
+        // Active wells: only include months with actual reported production
+        if (boe > 0) {
+          sparkline.push(boe);
+          sparklineMonths.push(`${shortMonths[d.getMonth()]} ${d.getFullYear()}`);
+          sparklineTotal += boe;
+        }
+      } else {
+        // Inactive/stale wells: show all months including zeros
         sparkline.push(boe);
         sparklineMonths.push(`${shortMonths[d.getMonth()]} ${d.getFullYear()}`);
         sparklineTotal += boe;
       }
-    }
-
-    // Determine status based on most recent production vs TODAY
-    // mostRecentYM is already calculated above in YYYYMM format
-    let status: 'active' | 'stale' | 'inactive' = 'inactive';
-
-    if (mostRecentYM >= threeMonthsAgoYM) {
-      status = 'active';
-    } else if (mostRecentYM >= twelveMonthsAgoYM) {
-      status = 'stale';
     }
 
     // Calculate YoY change

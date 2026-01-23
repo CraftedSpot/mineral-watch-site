@@ -13,6 +13,9 @@ import type { Env } from '../types/env.js';
 const BASE_ID = 'appIX0OpR1mxMZMX2';
 const PROPERTIES_TABLE = 'tblKrZhI2b0lIVE1O';
 
+// Reporting status categories (matches dashboard)
+type ReportingStatus = 'active' | 'recently_idle' | 'extended_idle' | 'no_recent_production';
+
 interface UnitPrintData {
   pun: string;
   operator: string;
@@ -21,6 +24,8 @@ interface UnitPrintData {
   location: string;
   county: string;
   lastReported: string | null;
+  lastReportedYearMonth: string | null; // YYYYMM format for calculations
+  reportingStatus: ReportingStatus;
   wells: Array<{
     api: string;
     name: string;
@@ -38,7 +43,7 @@ interface UnitPrintData {
     last12: { oil: number; gas: number };
     lifetime: { oil: number; gas: number };
   };
-  monthlyHistory: Array<{ month: string; oil: number; gas: number }>;
+  monthlyHistory: Array<{ month: string; oil: number; gas: number; yearMonth: string }>;
   linkedProperties: Array<{
     name: string;
     section: string;
@@ -46,6 +51,13 @@ interface UnitPrintData {
     range: string;
     county: string;
     nra: string;
+    group: string | null;
+  }>;
+  occFilings: Array<{
+    formType: string;
+    description: string;
+    date: string;
+    wellName: string;
   }>;
 }
 
@@ -117,24 +129,29 @@ async function fetchUnitPrintData(
   twentyFourMonthsAgo.setMonth(twentyFourMonthsAgo.getMonth() - 24);
   const twentyFourMonthsAgoYM = `${twentyFourMonthsAgo.getFullYear()}${String(twentyFourMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-  // Get monthly production for last 24 months
+  // PUN formats: OTC uses 3-segment (059-125197-0), well_pun_links uses 4-segment (059-125197-0-0000)
+  // Extract 3-segment version for OTC queries
+  const punParts = pun.split('-');
+  const pun3Segment = punParts.length >= 3 ? `${punParts[0]}-${punParts[1]}-${punParts[2]}` : pun;
+
+  // Get monthly production for last 24 months (try both PUN formats)
   const monthlyResult = await env.WELLS_DB.prepare(`
     SELECT year_month,
            SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
            SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
     FROM otc_production
-    WHERE pun = ? AND year_month >= ?
+    WHERE (pun = ? OR pun = ?) AND year_month >= ?
     GROUP BY year_month
     ORDER BY year_month DESC
-  `).bind(pun, twentyFourMonthsAgoYM).all();
+  `).bind(pun, pun3Segment, twentyFourMonthsAgoYM).all();
 
-  // Get lifetime totals
+  // Get lifetime totals (try both PUN formats)
   const lifetimeResult = await env.WELLS_DB.prepare(`
     SELECT product_code, SUM(gross_volume) as volume
     FROM otc_production
-    WHERE pun = ?
+    WHERE pun = ? OR pun = ?
     GROUP BY product_code
-  `).bind(pun).all();
+  `).bind(pun, pun3Segment).all();
 
   // Process monthly data
   const monthlyMap = new Map<string, { oil: number; gas: number }>();
@@ -147,7 +164,7 @@ async function fetchUnitPrintData(
 
   // Generate 24 months of history (most recent first)
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const monthlyHistory: Array<{ month: string; oil: number; gas: number }> = [];
+  const monthlyHistory: Array<{ month: string; oil: number; gas: number; yearMonth: string }> = [];
   for (let i = 0; i < 24; i++) {
     const d = new Date(now);
     d.setMonth(d.getMonth() - i);
@@ -155,13 +172,15 @@ async function fetchUnitPrintData(
     const data = monthlyMap.get(ym) || { oil: 0, gas: 0 };
     monthlyHistory.push({
       month: `${monthNames[d.getMonth()]} ${d.getFullYear()}`,
+      yearMonth: ym,
       oil: data.oil,
       gas: data.gas
     });
   }
 
-  // Calculate production summaries
-  const recent = monthlyHistory[0] || { oil: 0, gas: 0 };
+  // Calculate production summaries - use last REPORTED month, not current month (which has no data due to OTC lag)
+  const recentEntry = monthlyHistory.find(m => m.oil > 0 || m.gas > 0);
+  const recent = recentEntry || { oil: 0, gas: 0, month: '', yearMonth: '' };
   const last12 = { oil: 0, gas: 0 };
   for (let i = 0; i < 12 && i < monthlyHistory.length; i++) {
     last12.oil += monthlyHistory[i].oil;
@@ -178,33 +197,79 @@ async function fetchUnitPrintData(
     }
   }
 
-  // Last reported month
-  const lastReported = monthlyHistory.find(m => m.oil > 0 || m.gas > 0)?.month || null;
+  // Last reported month and reporting status
+  const lastReportedEntry = monthlyHistory.find(m => m.oil > 0 || m.gas > 0);
+  const lastReported = lastReportedEntry?.month || null;
+  const lastReportedYearMonth = lastReportedEntry?.yearMonth || null;
+
+  // Calculate reporting status thresholds
+  const threeMonthsAgo = new Date(now);
+  threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+  const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+  const sixMonthsAgo = new Date(now);
+  sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+  const sixMonthsAgoYM = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
+
+  // Note: twelveMonthsAgoYM is already calculated above for production query
+
+  // Determine reporting status
+  let reportingStatus: ReportingStatus = 'no_recent_production';
+  if (lastReportedYearMonth) {
+    if (lastReportedYearMonth >= threeMonthsAgoYM) {
+      reportingStatus = 'active';
+    } else if (lastReportedYearMonth >= sixMonthsAgoYM) {
+      reportingStatus = 'recently_idle';
+    } else if (lastReportedYearMonth >= twelveMonthsAgoYM) {
+      reportingStatus = 'extended_idle';
+    }
+  }
 
   // 3. Get linked properties via property_well_links
   const linkedProperties: UnitPrintData['linkedProperties'] = [];
 
-  // Get well Airtable IDs for property lookups
-  // First, get the Airtable IDs for wells by API number from client_wells
-  const wellApiNumbers = formattedWells.map(w => w.api);
+  // Get well API numbers (use first 10 digits for matching since client_wells may have 10 or 14 digit APIs)
+  const wellApiNumbers = formattedWells.map(w => w.api.substring(0, 10));
   if (wellApiNumbers.length > 0) {
-    const placeholders = wellApiNumbers.map(() => '?').join(',');
+    // Build conditions for partial API matching (first 10 digits)
+    const conditions = wellApiNumbers.map(() => 'SUBSTR(cw.api_number, 1, 10) = ?').join(' OR ');
 
     // Join client_wells to get Airtable IDs, then join property_well_links
+    // Use GROUP BY to deduplicate (same property can be linked to multiple wells in unit)
     const linksResult = await env.WELLS_DB.prepare(`
-      SELECT DISTINCT pwl.property_airtable_id
+      SELECT
+        p.airtable_record_id,
+        p.section,
+        p.township,
+        p.range,
+        p.county,
+        p.group_name
       FROM client_wells cw
       JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
-      WHERE cw.api_number IN (${placeholders})
+      JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+      WHERE (${conditions})
         AND pwl.status = 'Active'
+      GROUP BY p.airtable_record_id
+      ORDER BY p.county, p.section
     `).bind(...wellApiNumbers).all();
 
-    const propertyIds = (linksResult.results || []).map((r: any) => r.property_airtable_id).filter(Boolean);
+    // Get unique property IDs (deduplicate here since GROUP BY may not be enough)
+    const seenPropertyIds = new Set<string>();
+    const uniqueResults: any[] = [];
+    for (const row of (linksResult.results || []) as any[]) {
+      if (!seenPropertyIds.has(row.airtable_record_id)) {
+        seenPropertyIds.add(row.airtable_record_id);
+        uniqueResults.push(row);
+      }
+    }
 
-    // Fetch property details from Airtable
+    const propertyIds = uniqueResults.map((r: any) => r.airtable_record_id).filter(Boolean);
+
+    // Fetch RI Acres + WI Acres from Airtable to calculate NMA (not synced to D1)
+    const nmaMap = new Map<string, number>();
     if (propertyIds.length > 0) {
       const formula = `OR(${propertyIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
-      const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${PROPERTIES_TABLE}?filterByFormula=${encodeURIComponent(formula)}`;
+      const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${PROPERTIES_TABLE}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=RI%20Acres&fields%5B%5D=WI%20Acres`;
 
       try {
         const response = await fetch(airtableUrl, {
@@ -214,22 +279,43 @@ async function fetchUnitPrintData(
         if (response.ok) {
           const data = await response.json() as { records: Array<{ id: string; fields: any }> };
           for (const record of data.records) {
-            const f = record.fields;
-            linkedProperties.push({
-              name: f['Property Name'] || f['Name'] || 'Unknown',
-              section: f['Section'] || '',
-              township: f['Township'] || '',
-              range: f['Range'] || '',
-              county: f['County'] || '',
-              nra: String(f['Total Acres'] || f['NRA'] || '0')
-            });
+            const riAcres = parseFloat(record.fields['RI Acres'] || 0);
+            const wiAcres = parseFloat(record.fields['WI Acres'] || 0);
+            const nma = riAcres + wiAcres;
+            nmaMap.set(record.id, nma);
           }
         }
       } catch (err) {
-        console.error('Error fetching properties from Airtable:', err);
+        console.error('Error fetching NMA from Airtable:', err);
       }
     }
+
+    // Format results from deduplicated list
+    for (const row of uniqueResults) {
+      const cleanCounty = row.county ? row.county.replace(/^\d+-/, '') : '';
+      const nma = nmaMap.get(row.airtable_record_id) || 0;
+      linkedProperties.push({
+        name: row.group_name || `S${row.section}-T${row.township}-R${row.range}`,
+        section: row.section || '',
+        township: row.township || '',
+        range: row.range || '',
+        county: cleanCounty,
+        nra: nma > 0 ? nma.toFixed(2) : '—',
+        group: row.group_name || null
+      });
+    }
   }
+
+  // 4. Get OCC filings (1002A forms) for wells in this unit
+  // TODO: Re-enable OCC fetcher once we verify page loads
+  const occFilings: UnitPrintData['occFilings'] = [];
+
+  // Sort filings by date (most recent first)
+  occFilings.sort((a, b) => {
+    if (!a.date) return 1;
+    if (!b.date) return -1;
+    return b.date.localeCompare(a.date);
+  });
 
   return {
     pun,
@@ -239,10 +325,13 @@ async function fetchUnitPrintData(
     location,
     county,
     lastReported,
+    lastReportedYearMonth,
+    reportingStatus,
     wells: formattedWells,
     production: { recent, last12, lifetime },
     monthlyHistory,
-    linkedProperties
+    linkedProperties,
+    occFilings
   };
 }
 
@@ -337,6 +426,15 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
   const fmt = (n: number) => n.toLocaleString();
   const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+  // Reporting status display config
+  const statusConfig: Record<ReportingStatus, { class: string; text: string; suffix: string }> = {
+    'active': { class: 'active', text: 'Active', suffix: '(Last Reported: Within 3 Months)' },
+    'recently_idle': { class: 'recently-idle', text: 'Recently Idle', suffix: '(No Reported Production: 3-6 Months)' },
+    'extended_idle': { class: 'extended-idle', text: 'Extended Idle', suffix: '(No Reported Production: 6-12 Months)' },
+    'no_recent_production': { class: 'no-recent', text: 'No Recent Reported Production', suffix: '(12+ Months)' }
+  };
+  const statusInfo = statusConfig[data.reportingStatus];
+
   // Generate wells HTML
   const wellsHtml = data.wells.map((well, i) => {
     const rowClass = well.currentWell ? 'current' : (i % 2 !== 0 ? 'alt' : '');
@@ -348,7 +446,7 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
           <div class="well-api">API: ${escapeHtml(well.api)}</div>
         </div>
         <span class="badge badge-direction">${escapeHtml(well.direction)}</span>
-        <span class="badge badge-status">${escapeHtml(well.status)}</span>
+        <span class="badge badge-status">${escapeHtml(well.status)} (OCC)</span>
         <span class="badge badge-type">${escapeHtml(well.wellType)}</span>
         ${well.formation ? `<span class="badge badge-formation">${escapeHtml(well.formation)}</span>` : ''}
         <div class="well-dates">
@@ -379,9 +477,12 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       <div class="totals-gas">${fmt(data.production.lifetime.gas)} <span class="totals-unit">MCF</span></div>
     </div>
     <div class="totals-item">
-      <div class="totals-label">WELLS</div>
-      <div class="totals-wells">${data.wells.length} <span class="totals-unit">total</span></div>
-      <div class="totals-active">${activeCount} active</div>
+      <div class="totals-label">WELLS (OCC)</div>
+      <div class="totals-wells">${data.wells.length} <span class="totals-unit">total</span> • ${activeCount} <span class="totals-unit">active</span></div>
+      <div class="totals-active" style="display: flex; align-items: center; gap: 6px;">
+        <span class="status-dot ${statusInfo.class}" style="width: 8px; height: 8px;"></span>
+        <span>${statusInfo.text}</span>
+      </div>
     </div>
   `;
 
@@ -415,17 +516,29 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     `;
   }
 
-  // Generate properties HTML
+  // Generate properties HTML - show County, TRS, Net Acres, Group
   const propertiesHtml = data.linkedProperties.length > 0
     ? data.linkedProperties.map((prop, i) => `
         <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
-          <td class="bold">${escapeHtml(prop.name)}</td>
-          <td>Sec ${escapeHtml(prop.section)}, T${escapeHtml(prop.township)}, R${escapeHtml(prop.range)}</td>
           <td>${escapeHtml(prop.county)}</td>
+          <td>S${escapeHtml(prop.section)}-T${escapeHtml(prop.township)}-R${escapeHtml(prop.range)}</td>
           <td class="right bold">${escapeHtml(prop.nra)}</td>
+          <td>${prop.group ? escapeHtml(prop.group) : '—'}</td>
         </tr>
       `).join('')
     : '<tr><td colspan="4" style="color: #64748b; font-style: italic;">No linked properties</td></tr>';
+
+  // Generate OCC filings HTML
+  const occFilingsHtml = data.occFilings.length > 0
+    ? data.occFilings.map((filing, i) => `
+        <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
+          <td class="bold">${escapeHtml(filing.formType)}</td>
+          <td>${escapeHtml(filing.description)}</td>
+          <td>${escapeHtml(filing.wellName)}</td>
+          <td class="right">${escapeHtml(filing.date)}</td>
+        </tr>
+      `).join('')
+    : '<tr><td colspan="4" style="color: #64748b; font-style: italic;">No OCC filings found</td></tr>';
 
   // Calculate trend
   const oldest = data.monthlyHistory[data.monthlyHistory.length - 1];
@@ -494,6 +607,20 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .badge-status { background: rgba(5, 150, 105, 0.1); color: #059669; }
     .badge-type { background: #fef3c7; color: #92400e; }
     .badge-formation { background: #f1f5f9; color: #475569; font-style: italic; font-weight: 500; }
+    .reporting-status-box { padding: 10px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; display: flex; align-items: center; gap: 10px; margin-top: 12px; }
+    .status-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .status-dot.active { background: #22c55e; }
+    .status-dot.recently-idle { background: #f59e0b; }
+    .status-dot.extended-idle { background: #f97316; }
+    .status-dot.no-recent { background: #ef4444; }
+    .status-text { font-size: 11px; font-weight: 600; color: #1C2B36; }
+    .status-subtext { font-size: 10px; color: #64748b; }
+    .warning-box { padding: 12px 16px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 6px; margin-top: 12px; }
+    .warning-box.severe { background: #fee2e2; border-color: #fca5a5; }
+    .warning-title { font-size: 10px; font-weight: 600; color: #92400e; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+    .warning-box.severe .warning-title { color: #991b1b; }
+    .warning-text { font-size: 9px; color: #78350f; line-height: 1.4; }
+    .warning-box.severe .warning-text { color: #7f1d1d; }
     .well-row.current .badge-direction, .well-row.current .badge-formation { background: rgba(255,255,255,0.15); color: white; }
     .well-row.current .badge-status { background: rgba(5, 150, 105, 0.3); color: #86efac; }
     .well-row.current .badge-type { background: rgba(255,255,255,0.15); color: white; }
@@ -592,6 +719,25 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     <div class="section">
       <div class="section-title">WELLS IN THIS UNIT (${data.wells.length})</div>
       <div class="wells-container">${wellsHtml}</div>
+      <div class="reporting-status-box">
+        <span class="status-dot ${statusInfo.class}"></span>
+        <div>
+          <div class="status-text">${statusInfo.text}</div>
+          <div class="status-subtext">${statusInfo.suffix}${data.lastReported ? ` — Last reported: ${data.lastReported}` : ''}</div>
+        </div>
+      </div>
+      ${data.reportingStatus === 'extended_idle' ? `
+      <div class="warning-box">
+        <div class="warning-title">⚠️ Extended Idle Period</div>
+        <div class="warning-text">This unit has not reported production to OTC in 6-12 months. This may indicate temporary shut-in, operator transition, or delayed reporting. Consider verifying current status with the operator.</div>
+      </div>
+      ` : ''}
+      ${data.reportingStatus === 'no_recent_production' ? `
+      <div class="warning-box severe">
+        <div class="warning-title">⚠️ No Recent Reported Production</div>
+        <div class="warning-text">This unit has not reported production to OTC in over 12 months. Wells may be plugged, abandoned, or in extended shut-in. Recommend contacting the operator to verify current status and future plans.</div>
+      </div>
+      ` : ''}
     </div>
 
     <div class="section">
@@ -626,17 +772,25 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       </div>
     </div>
 
-    ${data.linkedProperties.length > 0 ? `
     <div class="section" style="padding: 14px 24px;">
       <div class="section-title" style="margin-bottom: 8px;">LINKED MINERAL INTERESTS</div>
       <table class="data-table">
         <thead>
-          <tr><th>Property</th><th>Location</th><th>County</th><th class="right">NRA</th></tr>
+          <tr><th>County</th><th>TRS</th><th class="right">NMA</th><th>Group</th></tr>
         </thead>
         <tbody>${propertiesHtml}</tbody>
       </table>
     </div>
-    ` : ''}
+
+    <div class="section" style="padding: 14px 24px;">
+      <div class="section-title" style="margin-bottom: 8px;">OCC FILINGS (ALL WELLS)</div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Form</th><th>Description</th><th>Well</th><th class="right">Date</th></tr>
+        </thead>
+        <tbody>${occFilingsHtml}</tbody>
+      </table>
+    </div>
 
     <div class="footer">
       <span>Generated by Mineral Watch • mymineralwatch.com • ${new Date().toLocaleDateString()}</span>
