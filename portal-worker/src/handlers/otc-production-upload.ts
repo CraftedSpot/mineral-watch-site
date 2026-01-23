@@ -460,7 +460,7 @@ export async function handleComputePunRollups(
 /**
  * Handle POST /api/otc-sync/truncate-pun-production
  * Truncates the otc_production table before a full reload
- * This prevents double-counting from partial/failed runs
+ * Uses batched deletes to avoid D1 timeout on large tables
  */
 export async function handleTruncatePunProduction(
   request: Request,
@@ -472,13 +472,45 @@ export async function handleTruncatePunProduction(
       `SELECT COUNT(*) as count FROM otc_production`
     ).first() as { count: number };
 
-    // Truncate the table
-    await env.WELLS_DB!.prepare(`DELETE FROM otc_production`).run();
+    const totalRecords = countBefore?.count || 0;
+    if (totalRecords === 0) {
+      return jsonResponse({
+        success: true,
+        message: "Table already empty",
+        records_deleted: 0,
+      });
+    }
+
+    // Delete in batches of 50K to avoid timeout
+    // D1 can handle about 50K deletes per operation
+    const BATCH_SIZE = 50000;
+    let totalDeleted = 0;
+    let iterations = 0;
+    const maxIterations = Math.ceil(totalRecords / BATCH_SIZE) + 5; // Safety limit
+
+    console.log(`[Truncate] Starting batched delete of ${totalRecords} records`);
+
+    while (iterations < maxIterations) {
+      iterations++;
+      const result = await env.WELLS_DB!.prepare(
+        `DELETE FROM otc_production WHERE rowid IN (SELECT rowid FROM otc_production LIMIT ?)`
+      ).bind(BATCH_SIZE).run();
+
+      const deleted = result.meta.changes || 0;
+      totalDeleted += deleted;
+
+      console.log(`[Truncate] Batch ${iterations}: deleted ${deleted}, total ${totalDeleted}`);
+
+      if (deleted < BATCH_SIZE) {
+        // Last batch - we're done
+        break;
+      }
+    }
 
     return jsonResponse({
       success: true,
-      message: "otc_production table truncated",
-      records_deleted: countBefore?.count || 0,
+      message: `otc_production table truncated in ${iterations} batches`,
+      records_deleted: totalDeleted,
     });
   } catch (error) {
     console.error("Error truncating PUN production data:", error);
