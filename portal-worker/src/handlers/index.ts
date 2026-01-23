@@ -175,7 +175,8 @@ export {
   handleGetProductionStats,
   handleUploadPunProductionData,
   handleComputePunRollups,
-  handleGetPunProductionStats
+  handleGetPunProductionStats,
+  handleTruncatePunProduction
 } from './otc-production-upload.js';
 
 // Completion reports handlers

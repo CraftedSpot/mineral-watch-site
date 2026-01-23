@@ -156,6 +156,7 @@ import {
   handleUploadPunProductionData,
   handleComputePunRollups,
   handleGetPunProductionStats,
+  handleTruncatePunProduction,
   // Completion reports handlers
   handleGetCompletionReports,
   handleAnalyzeCompletion,
@@ -1070,6 +1071,9 @@ var index_default = {
       }
       if (path === "/api/otc-sync/upload-pun-production" && request.method === "POST") {
         return handleUploadPunProductionData(request, env);
+      }
+      if (path === "/api/otc-sync/truncate-pun-production" && request.method === "POST") {
+        return handleTruncatePunProduction(request, env);
       }
       if (path === "/api/otc-sync/compute-pun-rollups" && request.method === "POST") {
         return handleComputePunRollups(request, env);

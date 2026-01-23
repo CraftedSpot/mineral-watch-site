@@ -23,6 +23,7 @@ interface PunProductionRecord {
 
 interface PunUploadRequest {
   records: PunProductionRecord[];
+  mode?: 'replace' | 'add';  // 'replace' = overwrite, 'add' = increment (for streaming)
 }
 
 /**
@@ -235,25 +236,44 @@ export async function handleUploadPunProductionData(
     // Process in batches of 100 to avoid hitting D1 limits
     const BATCH_SIZE = 100;
     let totalInserted = 0;
+    const mode = body.mode || 'replace';
 
     for (let i = 0; i < body.records.length; i += BATCH_SIZE) {
       const batch = body.records.slice(i, i + BATCH_SIZE);
 
-      // Use INSERT OR REPLACE to handle upserts
+      // Use INSERT with ON CONFLICT - either replace or add based on mode
       const statements = batch.map((record) => {
-        return env.WELLS_DB!.prepare(
-          `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value)
-           VALUES (?, ?, ?, ?, ?)
-           ON CONFLICT(pun, year_month, product_code) DO UPDATE SET
-             gross_volume = excluded.gross_volume,
-             gross_value = excluded.gross_value`
-        ).bind(
-          record.pun,
-          record.year_month,
-          record.product_code,
-          record.gross_volume,
-          record.gross_value || 0
-        );
+        if (mode === 'add') {
+          // Add mode: increment existing values (for streaming uploads)
+          return env.WELLS_DB!.prepare(
+            `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(pun, year_month, product_code) DO UPDATE SET
+               gross_volume = gross_volume + excluded.gross_volume,
+               gross_value = gross_value + excluded.gross_value`
+          ).bind(
+            record.pun,
+            record.year_month,
+            record.product_code,
+            record.gross_volume,
+            record.gross_value || 0
+          );
+        } else {
+          // Replace mode: overwrite existing values (default, for full reloads)
+          return env.WELLS_DB!.prepare(
+            `INSERT INTO otc_production (pun, year_month, product_code, gross_volume, gross_value)
+             VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(pun, year_month, product_code) DO UPDATE SET
+               gross_volume = excluded.gross_volume,
+               gross_value = excluded.gross_value`
+          ).bind(
+            record.pun,
+            record.year_month,
+            record.product_code,
+            record.gross_volume,
+            record.gross_value || 0
+          );
+        }
       });
 
       // Execute batch
@@ -430,6 +450,41 @@ export async function handleComputePunRollups(
     return jsonResponse(
       {
         error: "Failed to compute PUN rollups",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      500
+    );
+  }
+}
+
+/**
+ * Handle POST /api/otc-sync/truncate-pun-production
+ * Truncates the otc_production table before a full reload
+ * This prevents double-counting from partial/failed runs
+ */
+export async function handleTruncatePunProduction(
+  request: Request,
+  env: Env
+): Promise<Response> {
+  try {
+    // Get count before truncate
+    const countBefore = await env.WELLS_DB!.prepare(
+      `SELECT COUNT(*) as count FROM otc_production`
+    ).first() as { count: number };
+
+    // Truncate the table
+    await env.WELLS_DB!.prepare(`DELETE FROM otc_production`).run();
+
+    return jsonResponse({
+      success: true,
+      message: "otc_production table truncated",
+      records_deleted: countBefore?.count || 0,
+    });
+  } catch (error) {
+    console.error("Error truncating PUN production data:", error);
+    return jsonResponse(
+      {
+        error: "Failed to truncate PUN production data",
         details: error instanceof Error ? error.message : String(error),
       },
       500
