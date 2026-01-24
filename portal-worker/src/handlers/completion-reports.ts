@@ -52,12 +52,34 @@ export async function handleGetCompletionReports(
       WHERE api_number = ? OR api_number LIKE ?
     `).bind(apiNumber, `${apiNumber}%`).first();
 
-    // 2. Check OCC for available 1002A forms
+    // 2. Check OCC for available 1002A forms (with caching)
     let occData: { success: boolean; forms?: any[]; error?: string } = { success: false, forms: [] };
+    const cacheKey = `1002a-forms:${apiNumber}`;
+    const CACHE_TTL = 3600; // 1 hour
+
     try {
-      const occPath = `/get-1002a-forms?api=${apiNumber}`;
-      const occResponse = await fetchFromOccFetcher(occPath, env);
-      occData = await occResponse.json() as typeof occData;
+      // Check cache first
+      if (env.COMPLETIONS_CACHE) {
+        const cached = await env.COMPLETIONS_CACHE.get(cacheKey);
+        if (cached) {
+          console.log(`[CompletionReports] Cache hit for ${apiNumber}`);
+          occData = JSON.parse(cached);
+        }
+      }
+
+      // If not cached, fetch from OCC
+      if (!occData.success || !occData.forms) {
+        console.log(`[CompletionReports] Cache miss, fetching from OCC for ${apiNumber}`);
+        const occPath = `/get-1002a-forms?api=${apiNumber}`;
+        const occResponse = await fetchFromOccFetcher(occPath, env);
+        occData = await occResponse.json() as typeof occData;
+
+        // Cache the result if successful
+        if (occData.success && env.COMPLETIONS_CACHE) {
+          await env.COMPLETIONS_CACHE.put(cacheKey, JSON.stringify(occData), { expirationTtl: CACHE_TTL });
+          console.log(`[CompletionReports] Cached forms for ${apiNumber} (TTL: ${CACHE_TTL}s)`);
+        }
+      }
     } catch (occError) {
       console.error('Error fetching OCC forms:', occError);
       // Continue with empty forms - we can still return RBDMS data

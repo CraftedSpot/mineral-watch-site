@@ -197,3 +197,9 @@ export {
   handleUnitPrint,
   handleUnitPrintData
 } from './unit-print.js';
+
+// PLSS sections handlers
+export {
+  handleGetPlssSection,
+  handleGetPlssSectionsBatch
+} from './plss-sections.js';

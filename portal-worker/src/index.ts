@@ -166,7 +166,10 @@ import {
   handleSyncSingleCompletion,
   // Unit print report handlers
   handleUnitPrint,
-  handleUnitPrintData
+  handleUnitPrintData,
+  // PLSS sections handlers
+  handleGetPlssSection,
+  handleGetPlssSectionsBatch
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -827,8 +830,8 @@ var index_default = {
         }
       }
 
-      // Proxy OCC fetch endpoint to documents-worker
-      if (path.startsWith("/api/occ")) {
+      // Proxy OCC fetch endpoint to documents-worker (except /api/occ-proxy which is handled separately)
+      if (path.startsWith("/api/occ") && path !== "/api/occ-proxy") {
         console.log(`[Portal] Proxying OCC request: ${path}`);
         if (!env.DOCUMENTS_WORKER) {
           return jsonResponse({ error: 'Documents service not available' }, 503);
@@ -1019,7 +1022,11 @@ var index_default = {
       
       // OCC proxy endpoint
       if (path === "/api/occ-proxy" && request.method === "GET") {
+        console.log('[Portal] OCC proxy route matched!');
         return handleOccProxy(request, env);
+      }
+      if (path === "/api/occ-proxy") {
+        console.log(`[Portal] OCC proxy path matched but method was ${request.method}, not GET`);
       }
       
       // Docket entries endpoint
@@ -1054,6 +1061,14 @@ var index_default = {
       // Docket heatmap endpoint (OCC applications for map visualization)
       if (path === "/api/docket-heatmap" && request.method === "GET") {
         return handleGetDocketHeatmap(request, env);
+      }
+
+      // PLSS section geometry endpoints (for map section boundaries from D1)
+      if (path === "/api/plss-section" && request.method === "GET") {
+        return handleGetPlssSection(request, env);
+      }
+      if (path === "/api/plss-sections/batch" && request.method === "POST") {
+        return handleGetPlssSectionsBatch(request, env);
       }
 
       // OTC file sync endpoints (for Fly.io automation)

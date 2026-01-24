@@ -938,13 +938,15 @@
             display: flex;
             gap: 10px;
         }
-        /* Consistent button sizing in well footer - override flex:1 */
+        /* Consistent button sizing in well footer - all buttons same width */
         .well-footer-grid .action-btn {
             flex: none;
             padding: 10px 14px;
             font-size: 13px;
+            min-width: 110px;
+            justify-content: center;
         }
-        .well-footer-grid .occ-warning .action-btn { width: auto; }
+        .well-footer-grid .occ-warning .action-btn { min-width: 110px; }
 
         /* Property Footer Grid */
         .property-footer-grid {
@@ -3410,13 +3412,13 @@
                     </div>
                     <div class="well-footer-right">
                         <div class="occ-warning" style="position: relative;">
-                            <a href="#" target="_blank" class="action-btn outline" id="wellDetailsRecordsLink">Well Records ↗</a>
+                            <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsRecordsLink">Well Records ↗</a>
                             <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
                             <div class="occ-tooltip">
                                 <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
                             </div>
                         </div>
-                        <button class="action-btn outline" id="wellPrintBtn" onclick="printWellReport()" title="View Unit Report">Unit Report ↗</button>
+                        <button class="action-btn primary well-blue" id="wellPrintBtn" onclick="printWellReport()" title="View Unit Report">Unit Report ↗</button>
                     </div>
                 </div>
                 <button class="action-btn primary well-blue" id="saveWellBtn" onclick="saveWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
@@ -6425,9 +6427,9 @@
             if (score === null || score === undefined) return '';
             
             const percentage = Math.round(score * 100);
-            const symbol = score >= 0.85 ? '✓' : score >= 0.50 ? '⚠' : '✕';
-            const className = score >= 0.85 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
-            const title = score >= 0.85 ? 'High confidence' : score >= 0.50 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
+            const symbol = score >= 0.90 ? '✓' : score >= 0.50 ? '⚠' : '✕';
+            const className = score >= 0.90 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
+            const title = score >= 0.90 ? 'High confidence' : score >= 0.50 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
             
             // Always include both symbol and percentage, use CSS to control visibility
             let html = `<span class="confidence-indicator ${className}" title="${title}">${symbol}`;
@@ -11611,8 +11613,19 @@
             
             // Update subtitle with filename and status
             let subtitleText = doc.display_name || doc.filename;
-            if (doc.status === 'complete' && doc.confidence) {
-                subtitleText += ` • ${doc.confidence} confidence`;
+            if (doc.status === 'complete') {
+                // Calculate confidence from field_scores if available, otherwise use stored value
+                const fieldScores = doc.extracted_data?.field_scores || doc.field_scores;
+                let confidenceText = doc.confidence; // fallback to stored value
+                if (fieldScores && Object.keys(fieldScores).length > 0) {
+                    const overallScore = calculateOverallScore(fieldScores);
+                    if (overallScore !== null) {
+                        confidenceText = overallScore >= 0.90 ? 'high' : overallScore >= 0.50 ? 'medium' : 'low';
+                    }
+                }
+                if (confidenceText) {
+                    subtitleText += ` • ${confidenceText} confidence`;
+                }
             }
             document.getElementById('documentModalSubtitle').textContent = subtitleText;
             
@@ -11814,7 +11827,24 @@
                                     <div class="doc-value">${formatDocType(data.category || data.doc_type || doc.category || doc.doc_type)}</div>
                                 </div>`;
                         }
-                        
+
+                        // Schema Type (for debugging/transparency)
+                        const schemaValidation = data._schema_validation;
+                        if (schemaValidation && schemaValidation.schema) {
+                            const schemaType = schemaValidation.schema.schema_type;
+                            const docType = schemaValidation.schema.doc_type;
+                            if (schemaType || docType) {
+                                const schemaDisplay = schemaType
+                                    ? formatDocType(schemaType) + (schemaType !== docType ? ` (doc: ${docType})` : '')
+                                    : docType;
+                                content += `
+                                    <div class="doc-field">
+                                        <label>Schema Used</label>
+                                        <div class="doc-value" style="font-size: 12px; color: #6B7280;">${schemaDisplay}</div>
+                                    </div>`;
+                            }
+                        }
+
                         content += '</div>';
                     
                     // Add linked items sections (Properties and Wells as separate collapsibles)
@@ -11824,7 +11854,7 @@
                     if (fieldScores && Object.keys(fieldScores).length > 0) {
                         const overallScore = calculateOverallScore(fieldScores);
                         // Derive confidence level from calculated score for consistency with displayed percentage
-                        const confidenceLevel = overallScore >= 0.85 ? 'high' : overallScore >= 0.50 ? 'medium' : 'low';
+                        const confidenceLevel = overallScore >= 0.90 ? 'high' : overallScore >= 0.50 ? 'medium' : 'low';
                         const confidenceText = confidenceLevel.charAt(0).toUpperCase() + confidenceLevel.slice(1);
                         
                         content += '<div class="confidence-section">';
@@ -11891,8 +11921,8 @@
                         sortedFields.forEach(([field, score]) => {
                             const displayName = fieldMapping[field] || field;
                             const percentage = Math.round(score * 100);
-                            const indicator = score >= 0.85 ? '✓' : score >= 0.50 ? '⚠' : '✕';
-                            const indicatorClass = score >= 0.85 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
+                            const indicator = score >= 0.90 ? '✓' : score >= 0.50 ? '⚠' : '✕';
+                            const indicatorClass = score >= 0.90 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
                             
                             content += `
                                 <div class="confidence-detail-item">
@@ -12749,7 +12779,10 @@
         
         // Document Usage Tracking
         let currentUsageStats = null;
-        let rollingCreditsBaseline = null; // Track initial rolling credits for progress bar
+        // Track rolling credits baseline in localStorage so it persists across page refreshes
+        let rollingCreditsBaseline = localStorage.getItem('rollingCreditsBaseline')
+            ? parseInt(localStorage.getItem('rollingCreditsBaseline'), 10)
+            : null;
         
         async function loadUsageStats() {
             try {
@@ -12810,6 +12843,13 @@
                 // Track baseline on first load (or if credits increased, e.g., purchased more)
                 if (rollingCreditsBaseline === null || rollingCredits > rollingCreditsBaseline) {
                     rollingCreditsBaseline = rollingCredits;
+                    localStorage.setItem('rollingCreditsBaseline', rollingCredits.toString());
+                }
+
+                // If rolling credits hit 0, clear baseline so it resets on next purchase
+                if (rollingCredits === 0 && rollingCreditsBaseline !== null) {
+                    rollingCreditsBaseline = null;
+                    localStorage.removeItem('rollingCreditsBaseline');
                 }
 
                 // Rolling bar - show percentage relative to baseline
@@ -13331,9 +13371,16 @@
                 html += `<td><strong>${escapeHtml(doc.display_name || doc.filename)}</strong></td>`;
                 html += `<td>${(doc.category || doc.doc_type) ? formatDocType(doc.category || doc.doc_type) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 // Check doc.county first, then fall back to extracted_data.county
+                // For deeds, county is nested in tracts[0].legal.county
                 // Don't show county for multi_document parents (their county is often wrong - use children's counties instead)
                 const isParentMultiDoc = doc.doc_type === 'multi_document' || doc.category === 'multi_document';
-                const displayCounty = isParentMultiDoc ? null : (doc.county || doc.parsedExtractedData?.county);
+                let displayCounty = null;
+                if (!isParentMultiDoc) {
+                    displayCounty = doc.county
+                        || doc.parsedExtractedData?.county
+                        || doc.parsedExtractedData?.tracts?.[0]?.legal?.county  // Deed schema
+                        || doc.parsedExtractedData?.recording?.county;  // Recording info fallback
+                }
                 html += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 // Status: text badge for desktop, dot for mobile
                 html += `<td>

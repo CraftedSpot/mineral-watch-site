@@ -412,6 +412,82 @@ SPACING_ORDER_SCHEMA = {
     }
 }
 
+MINERAL_DEED_SCHEMA = {
+    "required": {
+        "doc_type", "deed_type", "grantors", "grantees", "tracts"
+    },
+    "expected": {
+        "execution_date", "consideration", "recording",
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
+    },
+    "known": {
+        # Core deed fields
+        "doc_type", "deed_type", "grantors", "grantees", "tracts",
+        "execution_date", "consideration", "recording", "reservation",
+        "prior_instruments", "extraction_notes",
+        # Analysis fields
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
+        "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason"
+    }
+}
+
+OIL_GAS_LEASE_SCHEMA = {
+    "required": {
+        "doc_type", "lessor", "lessee", "tracts"
+    },
+    "expected": {
+        "execution_date", "primary_term_years", "royalty_fraction",
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
+    },
+    "known": {
+        # Core lease fields
+        "doc_type", "lessor", "lessee", "tracts", "execution_date",
+        "primary_term_years", "commencement_date", "expiration_date",
+        "royalty_fraction", "royalty_decimal", "bonus_paid", "delay_rental",
+        "recording", "special_provisions", "depth_clause", "pugh_clause",
+        "shut_in_clause", "no_deductions_clause", "pooling_clause",
+        "exhibit_a_provisions", "extraction_notes",
+        # Analysis fields
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
+        "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason"
+    }
+}
+
+DIVISION_ORDER_SCHEMA = {
+    "required": {
+        "doc_type", "well_name", "interest_owners"
+    },
+    "expected": {
+        "operator", "effective_date", "county",
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
+    },
+    "known": {
+        # Core division order fields
+        "doc_type", "well_name", "well_number", "api_number", "operator",
+        "effective_date", "county", "state", "legal_description",
+        "section", "township", "range", "meridian",
+        "interest_owners", "total_decimal_interest", "extraction_notes",
+        # Analysis fields
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
+        "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason"
+    }
+}
+
 # Map doc_type to schema
 DOC_TYPE_SCHEMAS = {
     "completion_report": COMPLETION_REPORT_SCHEMA,
@@ -419,6 +495,18 @@ DOC_TYPE_SCHEMAS = {
     "spacing_order": SPACING_ORDER_SCHEMA,
     "increased_density_order": SPACING_ORDER_SCHEMA,  # Similar to spacing
     "horizontal_drilling_and_spacing_order": SPACING_ORDER_SCHEMA,
+    # Deed types
+    "mineral_deed": MINERAL_DEED_SCHEMA,
+    "royalty_deed": MINERAL_DEED_SCHEMA,
+    "warranty_deed": MINERAL_DEED_SCHEMA,
+    "quitclaim_deed": MINERAL_DEED_SCHEMA,
+    "gift_deed": MINERAL_DEED_SCHEMA,
+    "assignment": MINERAL_DEED_SCHEMA,
+    # Lease types
+    "oil_gas_lease": OIL_GAS_LEASE_SCHEMA,
+    "lease": OIL_GAS_LEASE_SCHEMA,
+    # Division orders
+    "division_order": DIVISION_ORDER_SCHEMA,
 }
 
 
@@ -456,6 +544,8 @@ def validate_schema(extracted_data: dict) -> dict:
         logger.info(f"No schema defined for doc_type '{doc_type}' - skipping schema validation")
         return {
             "valid": True,
+            "schema_type": None,
+            "doc_type": doc_type,
             "missing_required": [],
             "missing_expected": [],
             "unexpected_fields": [],
@@ -463,6 +553,15 @@ def validate_schema(extracted_data: dict) -> dict:
             "skipped": True,
             "reason": f"No schema for doc_type '{doc_type}'"
         }
+
+    # Determine schema type name (the key in DOC_TYPE_SCHEMAS that maps to this schema)
+    schema_type = None
+    for schema_name, schema_def in DOC_TYPE_SCHEMAS.items():
+        if schema_def is schema:
+            schema_type = schema_name
+            break
+    if not schema_type:
+        schema_type = doc_type  # Fallback to doc_type
 
     # Get all top-level keys (excluding None values for missing check)
     present_keys = {k for k, v in extracted_data.items() if v is not None}
@@ -495,6 +594,8 @@ def validate_schema(extracted_data: dict) -> dict:
 
     return {
         "valid": len(missing_required) == 0,
+        "schema_type": schema_type,
+        "doc_type": doc_type,
         "missing_required": sorted(list(missing_required)),
         "missing_expected": sorted(list(missing_expected)),
         "unexpected_fields": sorted(list(unexpected_fields)),
@@ -757,22 +858,68 @@ def compute_review_flags(extracted_data: dict, ocr_quality: float, is_handwritte
             "message": "PUN needed correction"
         }
 
-    # === Missing Fields ===
-    key_fields = ["api_number", "well_name", "operator", "section", "township", "range"]
+    # === Missing Fields (document-type aware) ===
+    doc_type = extracted_data.get("doc_type", "")
 
-    # Handle nested operator field
-    operator = extracted_data.get("operator")
-    if isinstance(operator, dict):
-        operator = operator.get("name")
+    # Deed types have different required fields than well documents
+    deed_types = {"mineral_deed", "royalty_deed", "warranty_deed", "quitclaim_deed",
+                  "gift_deed", "assignment", "deed"}
+    lease_types = {"oil_gas_lease", "lease"}
 
-    field_values = {
-        "api_number": extracted_data.get("api_number") or extracted_data.get("api_number_normalized"),
-        "well_name": extracted_data.get("well_name"),
-        "operator": operator,
-        "section": extracted_data.get("section"),
-        "township": extracted_data.get("township"),
-        "range": extracted_data.get("range"),
-    }
+    if doc_type in deed_types:
+        # For deeds: check grantors, grantees, tracts, deed_type, execution_date
+        grantors = extracted_data.get("grantors", [])
+        grantees = extracted_data.get("grantees", [])
+        tracts = extracted_data.get("tracts", [])
+
+        # Get county from first tract's legal description if available
+        tract_county = None
+        if tracts and isinstance(tracts, list) and len(tracts) > 0:
+            legal = tracts[0].get("legal", {}) if isinstance(tracts[0], dict) else {}
+            tract_county = legal.get("county")
+
+        field_values = {
+            "grantors": len(grantors) > 0 if isinstance(grantors, list) else bool(grantors),
+            "grantees": len(grantees) > 0 if isinstance(grantees, list) else bool(grantees),
+            "tracts": len(tracts) > 0 if isinstance(tracts, list) else bool(tracts),
+            "deed_type": extracted_data.get("deed_type"),
+            "execution_date": extracted_data.get("execution_date"),
+            "county": tract_county,
+        }
+        key_field_count = 6
+
+    elif doc_type in lease_types:
+        # For leases: check lessor, lessee, tracts, royalty
+        lessor = extracted_data.get("lessor", [])
+        lessee = extracted_data.get("lessee", [])
+        tracts = extracted_data.get("tracts", [])
+
+        field_values = {
+            "lessor": len(lessor) > 0 if isinstance(lessor, list) else bool(lessor),
+            "lessee": len(lessee) > 0 if isinstance(lessee, list) else bool(lessee),
+            "tracts": len(tracts) > 0 if isinstance(tracts, list) else bool(tracts),
+            "royalty_fraction": extracted_data.get("royalty_fraction") or extracted_data.get("royalty_decimal"),
+            "primary_term": extracted_data.get("primary_term_years"),
+            "execution_date": extracted_data.get("execution_date"),
+        }
+        key_field_count = 6
+
+    else:
+        # Well documents: api_number, well_name, operator, section, township, range
+        # Handle nested operator field
+        operator = extracted_data.get("operator")
+        if isinstance(operator, dict):
+            operator = operator.get("name")
+
+        field_values = {
+            "api_number": extracted_data.get("api_number") or extracted_data.get("api_number_normalized"),
+            "well_name": extracted_data.get("well_name"),
+            "operator": operator,
+            "section": extracted_data.get("section"),
+            "township": extracted_data.get("township"),
+            "range": extracted_data.get("range"),
+        }
+        key_field_count = 6
 
     missing_fields = [f for f, v in field_values.items() if not v]
     null_count = len(missing_fields)
@@ -783,7 +930,7 @@ def compute_review_flags(extracted_data: dict, ocr_quality: float, is_handwritte
             "severity": "major",
             "missing": missing_fields,
             "count": null_count,
-            "message": f"Missing {null_count}/6 key fields: {', '.join(missing_fields)}"
+            "message": f"Missing {null_count}/{key_field_count} key fields: {', '.join(missing_fields)}"
         }
     elif null_count >= 2:
         flags.append("some_missing_fields")
@@ -791,7 +938,7 @@ def compute_review_flags(extracted_data: dict, ocr_quality: float, is_handwritte
             "severity": "minor",
             "missing": missing_fields,
             "count": null_count,
-            "message": f"Missing {null_count}/6 key fields: {', '.join(missing_fields)}"
+            "message": f"Missing {null_count}/{key_field_count} key fields: {', '.join(missing_fields)}"
         }
 
     # === Document Age ===
@@ -1991,6 +2138,15 @@ CRITICAL EXTRACTION RULES:
 9. Look for any amendment or correction references
 10. Always format dates as "YYYY-MM-DD" if possible
 
+SOURCE OF TRUTH RULES - CRITICAL:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+- Do NOT flag "discrepancies" between document content and filenames/headers.
+- If the legal description in the document body says "Section 11, Township 6 North, Range 27 East"
+  but the filename says "S27-27N-8W", extract S11-T6N-R27E. The document is correct, the filename is wrong.
+- Recording stamps typically only show instrument number, book/page, date, and county - NOT TRS info.
+- Your job is to extract what the document states, not to verify it against external sources.
+
 FIELD READING RULES (especially for Division Orders):
 - Read all fields EXACTLY as printed - do not infer or correct values based on context
 - For "Type of Interest" field: extract the literal value shown (Working Interest, Royalty, Override, ORRI, etc.)
@@ -2059,6 +2215,13 @@ DEED TYPE DETECTION (for the "deed_type" field - this is the LEGAL type of conve
 MULTI-TRACT DEEDS: If a deed conveys interests in MULTIPLE sections or tracts, include each as a separate entry in the tracts array. Each tract has its own legal description and interest details.
 
 OMIT fields that don't apply - do NOT include null values or empty objects.
+
+CRITICAL - POPULATE STRUCTURED FIELDS:
+You MUST populate the structured JSON fields (grantors, grantees, tracts, etc.) with the actual extracted values.
+DO NOT just describe the information in key_takeaway or detailed_analysis without also populating the structured fields.
+If you mention "the grantor is John Smith" in your analysis, there MUST be a grantors array with {{"name": "John Smith"}}.
+If you mention "Section 11, Township 6N, Range 27E", there MUST be a tract with legal.section, legal.township, legal.range populated.
+The structured fields are what the system uses - key_takeaway is just a summary for humans.
 
 REQUIRED FIELDS: doc_type, deed_type, grantors, grantees, tracts (with at least one), execution_date, consideration
 

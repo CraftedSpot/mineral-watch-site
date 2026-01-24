@@ -125,45 +125,57 @@ export async function linkDocumentToEntities(
   const getValue = (field: any): any => {
     return field?.value !== undefined ? field.value : field;
   };
-  
+
   // Check if legal description is nested in an object
   const legalDescObj = getValue(extractedFields.legal_description);
-  
-  // Extract from nested legal_description object first, then fallback to top-level fields
-  const rawSection = getValue(legalDescObj?.section) ||
-                     getValue(extractedFields.section) || 
-                     getValue(extractedFields.legal_section) || 
+
+  // Check for tracts array (mineral deed schema) - get first tract's legal info
+  const tractsArray = getValue(extractedFields.tracts);
+  const firstTractLegal = Array.isArray(tractsArray) && tractsArray.length > 0
+    ? getValue(tractsArray[0]?.legal)
+    : null;
+
+  // Extract from: tracts[0].legal (deeds), legal_description object, or top-level fields
+  const rawSection = getValue(firstTractLegal?.section) ||
+                     getValue(legalDescObj?.section) ||
+                     getValue(extractedFields.section) ||
+                     getValue(extractedFields.legal_section) ||
                      getValue(extractedFields.Section) ||
                      getValue(extractedFields.SEC) ||
                      getValue(extractedFields.sec);
-                  
-  const rawTownship = getValue(legalDescObj?.township) ||
-                      getValue(extractedFields.township) || 
-                      getValue(extractedFields.legal_township) || 
+
+  const rawTownship = getValue(firstTractLegal?.township) ||
+                      getValue(legalDescObj?.township) ||
+                      getValue(extractedFields.township) ||
+                      getValue(extractedFields.legal_township) ||
                       getValue(extractedFields.Township) ||
                       getValue(extractedFields.TWN) ||
                       getValue(extractedFields.twn) ||
                       getValue(extractedFields.TWP);
-                   
-  const rawRange = getValue(legalDescObj?.range) ||
-                   getValue(extractedFields.range) || 
-                   getValue(extractedFields.legal_range) || 
+
+  const rawRange = getValue(firstTractLegal?.range) ||
+                   getValue(legalDescObj?.range) ||
+                   getValue(extractedFields.range) ||
+                   getValue(extractedFields.legal_range) ||
                    getValue(extractedFields.Range) ||
                    getValue(extractedFields.RNG) ||
                    getValue(extractedFields.rng);
-                
+
   // Check location object for county (used by location_exception_order schema)
   const locationObjForCounty = getValue(extractedFields.location);
 
-  const county = getValue(legalDescObj?.county) ||
+  const county = getValue(firstTractLegal?.county) ||
+                 getValue(legalDescObj?.county) ||
                  getValue(locationObjForCounty?.county) ||
                  getValue(extractedFields.county) ||
                  getValue(extractedFields.County) ||
                  getValue(extractedFields.COUNTY) ||
-                 getValue(extractedFields.recording_county);
-                 
-  const meridian = getValue(legalDescObj?.meridian) ||
-                   getValue(extractedFields.meridian) || 
+                 getValue(extractedFields.recording_county) ||
+                 getValue(extractedFields.recording?.county);  // Recording info fallback
+
+  const meridian = getValue(firstTractLegal?.meridian) ||
+                   getValue(legalDescObj?.meridian) ||
+                   getValue(extractedFields.meridian) ||
                    getValue(extractedFields.Meridian) ||
                    getValue(extractedFields.MERIDIAN) ||
                    getValue(extractedFields.MER) ||
@@ -187,6 +199,30 @@ export async function linkDocumentToEntities(
   // Add primary section if available
   if (section && township && range) {
     sectionsToCheck.push({ section, township, range });
+  }
+
+  // Add sections from tracts array (mineral deed schema - multi-tract deeds)
+  if (Array.isArray(tractsArray) && tractsArray.length > 0) {
+    console.log(`[LinkDocuments] Found ${tractsArray.length} tracts to check for property linking`);
+    for (const tract of tractsArray) {
+      const tractLegal = getValue(tract?.legal);
+      if (!tractLegal) continue;
+
+      const tractSection = normalizeSection(getValue(tractLegal.section));
+      const tractTownship = normalizeTownship(getValue(tractLegal.township));
+      const tractRange = normalizeRange(getValue(tractLegal.range));
+
+      if (tractSection && tractTownship && tractRange) {
+        // Avoid duplicates
+        const isDuplicate = sectionsToCheck.some(
+          s => s.section === tractSection && s.township === tractTownship && s.range === tractRange
+        );
+        if (!isDuplicate) {
+          sectionsToCheck.push({ section: tractSection, township: tractTownship, range: tractRange });
+          console.log(`[LinkDocuments] Added tract: ${tractSection}-${tractTownship}-${tractRange}`);
+        }
+      }
+    }
   }
 
   // Add sections from unit_sections array (for multi-section horizontal wells / Division Orders)

@@ -225,11 +225,11 @@ export async function createActivityLog(env, data) {
     console.log(`[Airtable] MyMineralWatch Map Link set for API ${data.apiNumber}`);
   }
   
-  // Add Organization if provided
-  if (data.organizationId) {
-    fields['Organization'] = [data.organizationId]; // Linked record array
-    console.log(`[Airtable] Organization set for activity log: ${data.organizationId}`);
-  }
+  // Note: Organization field removed - doesn't exist in Activity table yet
+  // If you want to track org on activities, add "Organization" linked field to Activity table in Airtable first
+  // if (data.organizationId) {
+  //   fields['Organization'] = [data.organizationId];
+  // }
   
   const response = await fetch(url, {
     method: 'POST',
