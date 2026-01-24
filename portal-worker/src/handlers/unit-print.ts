@@ -337,7 +337,7 @@ async function fetchUnitPrintData(
       const cleanCounty = row.county ? row.county.replace(/^\d+-/, '') : '';
       const nma = nmaMap.get(row.airtable_record_id) || 0;
       linkedProperties.push({
-        name: row.group_name || `S${row.section}-T${row.township}-R${row.range}`,
+        name: row.group_name || `${row.township}-${row.range}-${row.section}`,
         section: row.section || '',
         township: row.township || '',
         range: row.range || '',
@@ -437,7 +437,7 @@ async function fetchUnitPrintData(
         formType: row.case_number || 'Unknown',
         description: reliefTypeMap[row.relief_type] || row.relief_type || 'Filing',
         date: row.hearing_date ? formatDate(row.hearing_date) : (row.docket_date ? formatDate(row.docket_date) : ''),
-        wellName: matchingWell?.well_name || `S${row.section}-T${row.township}-R${row.range}`,
+        wellName: matchingWell?.well_name || `${row.township}-${row.range}-${row.section}`,
         currentWell: !!isCurrentWell
       });
     }
@@ -656,7 +656,7 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     ? data.linkedProperties.map((prop, i) => `
         <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
           <td>${escapeHtml(prop.county)}</td>
-          <td>S${escapeHtml(prop.section)}-T${escapeHtml(prop.township)}-R${escapeHtml(prop.range)}</td>
+          <td>${escapeHtml(prop.township)}-${escapeHtml(prop.range)}-${escapeHtml(prop.section)}</td>
           <td class="right bold">${escapeHtml(prop.nra)}</td>
           <td>${prop.group ? escapeHtml(prop.group) : '—'}</td>
         </tr>
@@ -1051,8 +1051,8 @@ function generateSparseProductionChart(reportedMonths: Array<{ month: string; oi
 
   const data = [...reportedMonths].reverse(); // Oldest to newest for chart
   const padding = { top: 25, right: 55, bottom: 40, left: 50 };
-  // Fixed width of 650px fits nicely on 8.5" printed page
-  const width = 650;
+  // 770px aligns MCF label with totals above
+  const width = 770;
   const height = 160;
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;

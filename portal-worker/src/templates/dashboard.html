@@ -12749,6 +12749,7 @@
         
         // Document Usage Tracking
         let currentUsageStats = null;
+        let rollingCreditsBaseline = null; // Track initial rolling credits for progress bar
         
         async function loadUsageStats() {
             try {
@@ -12806,11 +12807,26 @@
                 rollingRow.style.display = 'grid';
                 document.getElementById('rollingRemaining').textContent = rollingCredits.toLocaleString();
 
-                // Rolling bar - show percentage based on a visual scale (100 = full)
-                // This makes the bar deplete visually as rolling credits are used
+                // Track baseline on first load (or if credits increased, e.g., purchased more)
+                if (rollingCreditsBaseline === null || rollingCredits > rollingCreditsBaseline) {
+                    rollingCreditsBaseline = rollingCredits;
+                }
+
+                // Rolling bar - show percentage relative to baseline
+                // This makes the bar deplete visually as rolling credits are used during the session
                 const rollingBarFill = document.getElementById('rollingBarFill');
-                const rollingPercentage = Math.min(100, rollingCredits);
+                const rollingPercentage = rollingCreditsBaseline > 0
+                    ? Math.min(100, (rollingCredits / rollingCreditsBaseline) * 100)
+                    : 0;
                 rollingBarFill.style.width = rollingPercentage + '%';
+
+                // Color coding for rolling bar (when low)
+                rollingBarFill.classList.remove('warning', 'danger');
+                if (rollingCredits === 0) {
+                    rollingBarFill.classList.add('danger');
+                } else if (rollingCredits <= rollingCreditsBaseline * 0.2) {
+                    rollingBarFill.classList.add('warning');
+                }
             } else {
                 rollingRow.style.display = 'none';
             }

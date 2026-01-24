@@ -7110,8 +7110,9 @@ Examples of "other" documents (oil and gas docs that don't fit defined categorie
 """
     }]
     
-    # Add images
-    for path in image_paths[:3]:  # Max 3 pages for quick classification
+    # Add images - max 5 pages to properly detect multi-document stacks
+    # (The scanned PDF bypass applies to docs ≤5 pages, so we need to see all of them)
+    for path in image_paths[:5]:  # Max 5 pages for quick classification
         try:
             with open(path, 'rb') as img:
                 img_data = base64.b64encode(img.read()).decode()
@@ -7886,11 +7887,6 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         pages_with_text = sum(1 for text in page_texts if len(text.strip()) >= MIN_CHARS_FOR_USABLE_TEXT)
     pages_without_text = total_pages - pages_with_text
 
-    quick_says_single = (
-        classification.get("is_multi_document") == False and
-        classification.get("estimated_doc_count", 1) == 1
-    )
-
     # Log OCR coverage for diagnostics (useful for identifying handwritten batches)
     ocr_failure_ratio = pages_without_text / total_pages if total_pages > 0 else 0
     if ocr_failure_ratio > 0.7 and total_pages > 5:
@@ -7899,6 +7895,23 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     # Only apply scanned PDF bypass for small documents with zero usable text
     is_small_document = total_pages <= MAX_PAGES_FOR_SCANNED_BYPASS
     has_no_usable_text = pages_with_text == 0
+
+    # For small scanned documents with multiple pages, re-run quick classification on ALL pages
+    # to properly detect multi-document stacks (e.g., 3 handwritten deeds).
+    # The initial classification only looked at page 1 for rotation detection.
+    if is_small_document and has_no_usable_text and total_pages > 1:
+        logger.info(f"SCANNED MULTI-PAGE: Re-running quick classification on all {total_pages} pages to detect multi-document stacks")
+        full_classification = await quick_classify_document(image_paths)
+        logger.info(f"Full classification result: is_multi_document={full_classification.get('is_multi_document')}, "
+                   f"estimated_doc_count={full_classification.get('estimated_doc_count')}, "
+                   f"doc_type={full_classification.get('doc_type')}")
+        # Use the full classification for bypass decision
+        classification = full_classification
+
+    quick_says_single = (
+        classification.get("is_multi_document") == False and
+        classification.get("estimated_doc_count", 1) == 1
+    )
 
     if is_small_document and has_no_usable_text and quick_says_single:
         logger.info(f"SCANNED PDF FIX: Small doc ({total_pages} pages) + no usable text + quick says single")
@@ -7919,10 +7932,46 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         result["_quick_classification"] = classification.get("doc_type")
         return result
     elif has_no_usable_text and not is_small_document:
-        logger.info(f"SCANNED PDF: Large doc ({total_pages} pages) with no usable text - will still run page-level classification")
+        logger.info(f"SCANNED PDF: Large doc ({total_pages} pages) with no usable text - using visual document detection")
 
-    # Get page-level classifications using heuristics first, then Haiku if needed
-    page_classifications = await classify_pages(image_paths, page_texts)
+    # For scanned PDFs with no usable text, use visual document detection
+    # Text-based heuristics won't work, so we need Sonnet to look at the page images
+    if has_no_usable_text and total_pages > 1:
+        logger.info(f"VISUAL DETECTION: No usable text in {total_pages} pages - using detect_documents() for boundary detection")
+        detection_result = await detect_documents(image_paths)
+        logger.info(f"Visual detection result: {detection_result}")
+
+        # Convert detection result to page classifications format
+        if detection_result.get("is_multi_document") and detection_result.get("documents"):
+            # Build page classifications from detected boundaries
+            page_classifications = []
+            doc_starts = set()
+
+            for doc in detection_result.get("documents", []):
+                start_page = doc.get("start_page", 1) - 1  # Convert to 0-indexed
+                doc_starts.add(start_page)
+
+            for page_idx in range(total_pages):
+                is_start = page_idx in doc_starts
+                page_classifications.append({
+                    "page_index": page_idx,
+                    "coarse_type": "unknown",  # Sonnet will determine during extraction
+                    "is_document_start": is_start,
+                    "start_confidence": 0.85 if is_start else 0.2,
+                    "detected_title": None,
+                    "features": {"has_title_phrase": is_start},
+                    "classification_method": "visual_detection",
+                    "is_continuation": not is_start and page_idx > 0
+                })
+
+            logger.info(f"Visual detection found {len(doc_starts)} document starts at pages: {sorted(doc_starts)}")
+        else:
+            # Single document or detection failed - use default classification
+            logger.info(f"Visual detection says single document or no boundaries found")
+            page_classifications = await classify_pages(image_paths, page_texts)
+    else:
+        # Has usable text - use text-based heuristics
+        page_classifications = await classify_pages(image_paths, page_texts)
 
     # Log final page classifications before splitting
     logger.info(f"Final page classifications before split:")
