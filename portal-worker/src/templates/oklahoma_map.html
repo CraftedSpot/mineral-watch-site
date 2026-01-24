@@ -2830,6 +2830,22 @@
                     </div>
                 </div>
 
+                <!-- Formation & Depth / Initial Production Row -->
+                <div class="operator-location-row" id="wellModalFormationIPRow" style="display: none;">
+                    <!-- Formation & Depth Box -->
+                    <div class="info-box" id="wellModalFormationBox" style="display: none;">
+                        <div class="section-label">Formation & Depth</div>
+                        <div class="section-value" id="wellModalFormation" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalDepth" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                    <!-- Initial Production Box -->
+                    <div class="info-box" id="wellModalIPBox" style="display: none;">
+                        <div class="section-label">Initial Production</div>
+                        <div class="section-value" id="wellModalIP" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalIPType" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                </div>
+
                 <!-- OTC Production Summary Section -->
                 <div id="wellModalOTCProduction" class="production-section" style="display: none; margin-top: 16px;">
                     <div class="production-header">
@@ -4627,6 +4643,22 @@
                     </div>
                 </div>
 
+                <!-- Formation & Depth / Initial Production Row -->
+                <div class="operator-location-row" id="wellModalFormationIPRow" style="display: none;">
+                    <!-- Formation & Depth Box -->
+                    <div class="info-box" id="wellModalFormationBox" style="display: none;">
+                        <div class="section-label">Formation & Depth</div>
+                        <div class="section-value" id="wellModalFormation" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalDepth" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                    <!-- Initial Production Box -->
+                    <div class="info-box" id="wellModalIPBox" style="display: none;">
+                        <div class="section-label">Initial Production</div>
+                        <div class="section-value" id="wellModalIP" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalIPType" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                </div>
+
                 <!-- OTC Production Summary Section -->
                 <div id="wellModalOTCProduction" class="production-section" style="display: none; margin-top: 16px;">
                     <div class="production-header">
@@ -4855,6 +4887,64 @@
             // Location and County
             document.getElementById('wellModalLocation').textContent = locationStr;
             document.getElementById('wellModalCounty').textContent = county ? `${county} County` : '—';
+
+            // Formation & Depth / Initial Production Row
+            const formationIPRow = document.getElementById('wellModalFormationIPRow');
+            const formationBox = document.getElementById('wellModalFormationBox');
+            const ipBox = document.getElementById('wellModalIPBox');
+
+            // Get IP data from fields
+            const ipOil = fields['IP Oil'] || fields['IP Oil BBL'] || null;
+            const ipGas = fields['IP Gas'] || fields['IP Gas MCF'] || null;
+            const displayDepth = totalDepth || fields['Formation Depth'] || fields['True Vertical Depth'] || null;
+
+            // Check if we have any data to show
+            const hasFormationData = (formation && formation.trim()) || (displayDepth && displayDepth > 0);
+            const hasIPData = ipOil || ipGas;
+
+            if (hasFormationData || hasIPData) {
+                formationIPRow.style.display = 'flex';
+
+                // Formation & Depth Box
+                if (hasFormationData) {
+                    formationBox.style.display = 'block';
+                    document.getElementById('wellModalFormation').textContent = formation && formation.trim() ? formation : 'N/A';
+                    const depthEl = document.getElementById('wellModalDepth');
+                    if (displayDepth && displayDepth > 0) {
+                        depthEl.textContent = `${Number(displayDepth).toLocaleString()} ft`;
+                        depthEl.style.display = 'block';
+                    } else {
+                        depthEl.style.display = 'none';
+                    }
+                } else {
+                    formationBox.style.display = 'none';
+                }
+
+                // Initial Production Box
+                if (hasIPData) {
+                    ipBox.style.display = 'block';
+                    let ipText = '';
+                    let ipTypeText = '';
+                    if (ipOil) {
+                        ipText += `${Number(ipOil).toLocaleString()} BBL/day`;
+                        ipTypeText = 'Oil';
+                    }
+                    if (ipOil && ipGas) {
+                        ipText += ' • ';
+                        ipTypeText += ' & ';
+                    }
+                    if (ipGas) {
+                        ipText += `${Number(ipGas).toLocaleString()} MCF/day`;
+                        ipTypeText += 'Gas';
+                    }
+                    document.getElementById('wellModalIP').textContent = ipText;
+                    document.getElementById('wellModalIPType').textContent = ipTypeText;
+                } else {
+                    ipBox.style.display = 'none';
+                }
+            } else {
+                formationIPRow.style.display = 'none';
+            }
 
             // OCC Map link
             const mapLink = document.getElementById('wellModalMapLink');
