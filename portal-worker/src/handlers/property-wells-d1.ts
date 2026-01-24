@@ -5,7 +5,7 @@
  * with fallback to Airtable for transition period
  */
 
-import { BASE_ID } from '../constants.js';
+import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById } from '../services/airtable.js';
@@ -160,7 +160,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
       
       // Query linked properties from D1 - ownership already verified at well list level
       const d1Results = await env.WELLS_DB.prepare(`
-        SELECT 
+        SELECT
           pwl.id as link_id,
           pwl.match_reason,
           pwl.confidence_score,
@@ -171,7 +171,8 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
           p.county,
           p.acres,
           p.net_acres,
-          p.meridian
+          p.meridian,
+          p.group_name
         FROM property_well_links pwl
         JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
         WHERE pwl.well_airtable_id = ?
@@ -180,31 +181,71 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
       `).bind(wellId).all();
       
       console.log(`[GetLinkedProperties-D1] D1 query: ${d1Results.results.length} properties in ${Date.now() - start}ms`);
-      
+
+      // Fetch NMA (RI Acres + WI Acres) from Airtable for each property
+      const propertyIds = d1Results.results.map((r: any) => r.property_id).filter(Boolean);
+      const nmaMap = new Map<string, number>();
+
+      if (propertyIds.length > 0) {
+        try {
+          const formula = `OR(${propertyIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
+          const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=RI%20Acres&fields%5B%5D=WI%20Acres`;
+
+          console.log(`[GetLinkedProperties-D1] Fetching NMA for ${propertyIds.length} properties: ${propertyIds.join(', ')}`);
+
+          const airtableResponse = await fetch(airtableUrl, {
+            headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+          });
+
+          if (airtableResponse.ok) {
+            const data = await airtableResponse.json() as { records: Array<{ id: string; fields: any }> };
+            console.log(`[GetLinkedProperties-D1] Airtable returned ${data.records.length} records`);
+            for (const record of data.records) {
+              const riAcres = parseFloat(record.fields['RI Acres'] || 0);
+              const wiAcres = parseFloat(record.fields['WI Acres'] || 0);
+              const nma = riAcres + wiAcres;
+              console.log(`[GetLinkedProperties-D1] Property ${record.id}: RI=${riAcres}, WI=${wiAcres}, NMA=${nma}`);
+              if (nma > 0) {
+                nmaMap.set(record.id, nma);
+              }
+            }
+          } else {
+            const errorText = await airtableResponse.text();
+            console.error(`[GetLinkedProperties-D1] Airtable error ${airtableResponse.status}: ${errorText}`);
+          }
+        } catch (nmaError) {
+          console.error('[GetLinkedProperties-D1] Error fetching NMA from Airtable:', nmaError);
+        }
+      }
+
       // Format results to match the expected API response
       const properties = d1Results.results.map((row: any) => {
-        // Format location
-        const location = `S${row.section}-T${row.township}-R${row.range}`;
-        
+        // Format location as Township-Range-Section (e.g., "03N-03W-23")
+        const location = `${row.township}-${row.range}-${row.section}`;
+
         // Clean county display
         const cleanCounty = row.county ? row.county.replace(/^\d+-/, '') : 'Unknown County';
-        
-        // Get acres (prioritize net acres over gross acres)
+
+        // Get acres (prioritize net acres over gross acres for display)
         const acres = row.net_acres || row.acres || 0;
-        
+
+        // Get NMA from Airtable fetch
+        const nma = nmaMap.get(row.property_id) || null;
+
         return {
           linkId: row.link_id,
           propertyId: row.property_id,
           location,
           county: cleanCounty,
           acres: acres > 0 ? acres : null,
-          group: null, // Group field not in D1 yet
+          nma,
+          group: row.group_name || null,
           matchReason: row.match_reason || 'Manual',
           meridian: row.meridian || 'IM',
           confidenceScore: row.confidence_score
         };
       });
-      
+
       return jsonResponse({
         success: true,
         properties,

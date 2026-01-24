@@ -14407,8 +14407,12 @@
                     listEl.innerHTML = data.properties.map(p => `
                         <div class="linked-property-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
                             <div style="flex: 1; cursor: pointer;" onclick="openPropertyFromWell('${p.propertyId}')">
-                                <div style="font-weight: 500; color: #2563eb;">${escapeHtml(p.location)}</div>
-                                <div style="font-size: 12px; color: #6b7280;">${escapeHtml(p.county)}${p.acres ? ' • ' + p.acres + ' acres' : ''}${p.group ? ' • ' + escapeHtml(p.group) : ''}</div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-weight: 500; color: #2563eb;">${escapeHtml(p.location)}</span>
+                                    ${p.group ? `<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">${escapeHtml(p.group)}</span>` : ''}
+                                    ${p.nma ? `<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">${p.nma % 1 === 0 ? p.nma : p.nma.toFixed(4)} NMA</span>` : ''}
+                                </div>
+                                <div style="font-size: 12px; color: #6b7280;">${escapeHtml(p.county)}${p.acres && !p.nma ? ' • ' + p.acres + ' acres' : ''}</div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
@@ -14730,6 +14734,12 @@
         const OCC_POLL_INTERVAL = 5000; // 5 seconds
         const OCC_MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
 
+        // Client-side cache for analyzed filings (persists across modal opens)
+        // OCC filings: { caseNumber: { documentId, displayName } }
+        // Completion reports: { entryId: { documentId, displayName } }
+        const analyzedFilingsCache = {};
+        const analyzedCompletionsCache = {};
+
         async function processOccFiling(caseNumber, orderNumber, buttonEl) {
             const stateKey = orderNumber || caseNumber;
             console.log(`[OCC Process] Processing ${caseNumber} (order: ${orderNumber})`);
@@ -14755,6 +14765,11 @@
                 if (result.alreadyProcessed) {
                     console.log(`[OCC Process] Already processed: ${result.documentId}`);
                     occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'complete', documentId: result.documentId };
+                    // Cache for future modal opens
+                    const caseNumClean = caseNumber?.replace(/^CD\s*/i, '');
+                    const cacheEntry = { documentId: result.documentId, displayName: result.displayName };
+                    analyzedFilingsCache[caseNumber] = cacheEntry;
+                    analyzedFilingsCache[caseNumClean] = cacheEntry;
                     updateOccButtonState(currentBtn, 'complete', result.documentId, result.displayName);
                 } else if (result.success) {
                     const docId = result.document.id;
@@ -14769,6 +14784,11 @@
                     // Check initial status and start polling if not complete
                     if (docStatus === 'complete') {
                         occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'complete', documentId: docId };
+                        // Cache for future modal opens
+                        const caseNumClean = caseNumber?.replace(/^CD\s*/i, '');
+                        const cacheEntry = { documentId: docId, displayName: result.document.display_name };
+                        analyzedFilingsCache[caseNumber] = cacheEntry;
+                        analyzedFilingsCache[caseNumClean] = cacheEntry;
                         updateOccButtonState(currentBtn, 'complete', docId);
                     } else {
                         // Start polling for document status
@@ -14853,6 +14873,11 @@
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;
                         currentState.status = 'complete';
+                        // Cache for future modal opens (stateKey is caseNumber or orderNumber)
+                        const caseNumClean = stateKey?.replace(/^CD\s*/i, '');
+                        const cacheEntry = { documentId: documentId, displayName: doc.display_name };
+                        analyzedFilingsCache[stateKey] = cacheEntry;
+                        analyzedFilingsCache[caseNumClean] = cacheEntry;
                         updateOccButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
                         showToast('Document analysis complete!', 'success');
                         loadUsageStats(); // Refresh credits after processing complete
@@ -15126,6 +15151,14 @@
                             const dateB = parseCompletionDate(b.effectiveDate);
                             return dateB - dateA; // Most recent first
                         });
+
+                        // Populate cache for already-analyzed reports
+                        for (const report of sortedReports) {
+                            if (report.documentId && (report.status === 'fetched' || report.status === 'processed')) {
+                                analyzedCompletionsCache[report.entryId] = { documentId: report.documentId, displayName: report.wellName };
+                            }
+                        }
+
                         reportsContent.innerHTML = sortedReports.map((report, index) => renderCompletionReport(report, apiNumber, index === 0)).join('');
                     } else {
                         reportsContent.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic;">No completion reports found</div>';
@@ -15163,7 +15196,7 @@
 
                 const analyzedData = await analyzedResponse.json();
 
-                // Update buttons for already-analyzed filings
+                // Update buttons for already-analyzed filings and populate cache
                 for (const filing of analyzableFilings) {
                     const caseNum = filing.caseNumber;
                     const caseNumClean = caseNum?.replace(/^CD\s*/i, '');
@@ -15172,6 +15205,12 @@
                                    analyzedData[`CD${caseNumClean}`];
 
                     if (analyzed) {
+                        // Populate cache for future renders (use all case number variants)
+                        const cacheEntry = { documentId: analyzed.documentId, displayName: analyzed.displayName };
+                        analyzedFilingsCache[caseNum] = cacheEntry;
+                        analyzedFilingsCache[caseNumClean] = cacheEntry;
+                        analyzedFilingsCache[`CD${caseNumClean}`] = cacheEntry;
+
                         const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
                         const button = document.getElementById(buttonId);
                         if (button) {
@@ -15207,8 +15246,27 @@
             // Generate unique ID for the button
             const buttonId = `occ-btn-${(orderNumber || caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
 
+            // Check cache for already-analyzed filings
+            const caseNumClean = caseNumber?.replace(/^CD\s*/i, '');
+            const cached = analyzedFilingsCache[caseNumber] || analyzedFilingsCache[caseNumClean] || analyzedFilingsCache[`CD${caseNumClean}`];
+
             let processButton = '';
-            if (hasFinalOrder && caseNumber) {
+            if (hasFinalOrder && caseNumber && cached) {
+                // Already analyzed - show Re-analyze + View Doc immediately
+                processButton = `
+                    <div class="occ-filing-actions">
+                        <button
+                            id="${buttonId}"
+                            class="occ-reanalyze-btn"
+                            data-case-number="${escapeHtml(caseNumber)}"
+                            data-order-number="${escapeHtml(orderNumber)}"
+                            onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
+                            title="Re-process this document"
+                        >Re-analyze</button>
+                        <button class="occ-view-doc-btn" onclick="openDocumentDetail('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>
+                    </div>
+                `;
+            } else if (hasFinalOrder && caseNumber) {
                 processButton = `
                     <div class="occ-filing-actions">
                         <button
@@ -15263,9 +15321,21 @@
             const buttonId = `completion-btn-${report.entryId}`;
             const currentBadge = isCurrent ? '<span class="completion-current-badge">Current</span>' : '';
 
-            // Render action button based on status
+            // Check client-side cache first (for instant display on modal reopen)
+            const cached = analyzedCompletionsCache[report.entryId];
+
+            // Render action button based on status (or cache)
             let actionButton = '';
-            switch (report.status) {
+            if (cached && cached.documentId) {
+                // Cached as analyzed - show Re-analyze + View Doc immediately
+                actionButton = `
+                    <button class="occ-reanalyze-btn"
+                            data-api-number="${apiNumber}"
+                            data-entry-id="${report.entryId}"
+                            onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
+                            title="Re-process this document">Re-analyze</button>
+                    <button class="occ-view-doc-btn" onclick="openDocumentDetail('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>`;
+            } else switch (report.status) {
                 case 'available':
                     actionButton = `
                         <button id="${buttonId}" class="completion-analyze-btn"
@@ -15416,6 +15486,8 @@
                     // Check initial status and start polling if not complete
                     if (docStatus === 'complete') {
                         completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'complete', documentId: docId };
+                        // Cache for future modal opens
+                        analyzedCompletionsCache[entryId] = { documentId: docId, displayName: result.document?.display_name };
                         updateCompletionButtonState(currentBtn, 'complete', docId);
                         showToast('Completion report analyzed!', 'success');
                         loadUsageStats(); // Refresh credits after processing complete
@@ -15494,6 +15566,8 @@
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;
                         currentState.status = 'complete';
+                        // Cache for future modal opens
+                        analyzedCompletionsCache[entryId] = { documentId: documentId, displayName: doc.display_name };
                         updateCompletionButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
                         showToast('Completion report analyzed!', 'success');
                         loadUsageStats(); // Refresh credits after processing complete
