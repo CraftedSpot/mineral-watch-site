@@ -12905,14 +12905,17 @@
 
         // Called after document processing to update credits display
         // Can be called with a number (remaining credits) or without args to refresh
-        function updateCreditsDisplay(creditsRemaining) {
+        function updateCreditsDisplay(creditsRemaining, refreshFromServer = false) {
             if (typeof creditsRemaining === 'number') {
-                // Quick update: just refresh the main number and re-fetch full stats
+                // Optimistic update: immediately show the new credit count
                 const creditsEl = document.getElementById('creditsAvailable');
                 if (creditsEl) creditsEl.textContent = creditsRemaining.toLocaleString();
             }
-            // Refresh full stats to get accurate breakdown
-            loadUsageStats();
+            // Only refresh from server when explicitly requested (e.g., when processing completes)
+            // Don't refresh immediately after queuing - credit hasn't been deducted yet
+            if (refreshFromServer) {
+                loadUsageStats();
+            }
         }
         
         // Auto-update usage after document processing
@@ -14852,6 +14855,7 @@
                         currentState.status = 'complete';
                         updateOccButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
                         showToast('Document analysis complete!', 'success');
+                        loadUsageStats(); // Refresh credits after processing complete
                     } else if (doc.status === 'processing' && currentState.status !== 'processing') {
                         // Transitioned to processing
                         currentState.status = 'processing';
@@ -15414,6 +15418,7 @@
                         completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'complete', documentId: docId };
                         updateCompletionButtonState(currentBtn, 'complete', docId);
                         showToast('Completion report analyzed!', 'success');
+                        loadUsageStats(); // Refresh credits after processing complete
                     } else {
                         // Start polling for document status
                         completionProcessingStates[entryId] = {
@@ -15491,6 +15496,7 @@
                         currentState.status = 'complete';
                         updateCompletionButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
                         showToast('Completion report analyzed!', 'success');
+                        loadUsageStats(); // Refresh credits after processing complete
                     } else if (doc.status === 'processing' && currentState.status !== 'processing') {
                         // Transitioned to processing
                         currentState.status = 'processing';
