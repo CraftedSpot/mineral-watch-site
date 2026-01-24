@@ -1028,6 +1028,12 @@ var index_default = {
         return handleGetDocketEntries(request, env);
       }
 
+      // Docket entries by well (PUN-scoped, no adjacent)
+      if (path === "/api/docket-entries-by-well" && request.method === "GET") {
+        const { handleGetDocketEntriesByWell } = await import('./handlers/docket-entries.js');
+        return handleGetDocketEntriesByWell(request, env);
+      }
+
       // Map data endpoints
       if (path === "/api/map/counties" && request.method === "GET") {
         return handleGetCounties(request, env);

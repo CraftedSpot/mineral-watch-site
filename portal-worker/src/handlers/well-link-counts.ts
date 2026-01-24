@@ -349,7 +349,8 @@ async function fetchDocumentCounts(
 }
 
 /**
- * Fetch OCC filing counts from D1 (direct + adjacent sections)
+ * Fetch OCC filing counts from D1 (direct section only - no adjacent)
+ * This matches the well modal behavior which now uses PUN-based queries
  */
 async function fetchOCCFilingCounts(
   env: Env,
@@ -364,9 +365,8 @@ async function fetchOCCFilingCounts(
     filingCounts.set(wstr.wellId, 0);
   }
 
-  // Build maps for direct and adjacent STR lookups
+  // Build map for direct STR lookups only (no adjacent)
   const directSTRMap: Map<string, string[]> = new Map();
-  const adjacentSTRMap: Map<string, string[]> = new Map();
 
   for (const wstr of wellSTRs) {
     const directKey = `${wstr.sec}|${wstr.twn}|${wstr.rng}`;
@@ -375,25 +375,15 @@ async function fetchOCCFilingCounts(
       directSTRMap.set(directKey, []);
     }
     directSTRMap.get(directKey)!.push(wstr.wellId);
-
-    const adjacentLocations = getAdjacentLocations(wstr.sec, wstr.twn, wstr.rng);
-    for (const loc of adjacentLocations) {
-      const adjKey = `${loc.section}|${loc.township}|${loc.range}`;
-      if (!adjacentSTRMap.has(adjKey)) {
-        adjacentSTRMap.set(adjKey, []);
-      }
-      adjacentSTRMap.get(adjKey)!.push(wstr.wellId);
-    }
   }
 
-  // Get all unique STR keys
-  const allSTRKeys = new Set([...directSTRMap.keys(), ...adjacentSTRMap.keys()]);
-  const allSTRList = Array.from(allSTRKeys).map(key => {
+  // Get all unique direct STR keys
+  const allSTRList = Array.from(directSTRMap.keys()).map(key => {
     const [sec, twn, rng] = key.split('|');
     return { sec: parseInt(sec), twn, rng, key };
   });
 
-  console.log('[WellLinkCounts] Querying', directSTRMap.size, 'direct +', adjacentSTRMap.size, 'adjacent STR locations');
+  console.log('[WellLinkCounts] Querying', directSTRMap.size, 'direct STR locations (no adjacent)');
 
   // Query OCC entries in batches (parallelized)
   const strBatches = chunk(allSTRList, BATCH_SIZE_D1);
@@ -404,13 +394,13 @@ async function fetchOCCFilingCounts(
       ).join(' OR ');
 
       const query = `
-        SELECT section as sec, township as twn, range as rng, relief_type, COUNT(*) as count
+        SELECT section as sec, township as twn, range as rng, COUNT(*) as count
         FROM occ_docket_entries
         WHERE (${whereConditions})
-        GROUP BY section, township, range, relief_type
+        GROUP BY section, township, range
       `;
       const result = await env.WELLS_DB.prepare(query).all();
-      return result.results as { sec: string; twn: string; rng: string; relief_type: string; count: number }[] || [];
+      return result.results as { sec: string; twn: string; rng: string; count: number }[] || [];
     } catch (err) {
       console.error('[WellLinkCounts] Error querying OCC filings:', err);
       return [];
@@ -419,7 +409,7 @@ async function fetchOCCFilingCounts(
 
   const strResults = await Promise.all(strBatchPromises);
 
-  // Process results
+  // Process results - direct matches only
   for (const rows of strResults) {
     for (const row of rows) {
       const normSec = normalizeSection(row.sec);
@@ -429,22 +419,11 @@ async function fetchOCCFilingCounts(
       if (normSec === null || !normTwn || !normRng) continue;
 
       const strKey = `${normSec}|${normTwn}|${normRng}`;
-      const reliefType = row.relief_type;
 
-      // Direct matches: count ALL relief types
+      // Direct matches only
       const directWells = directSTRMap.get(strKey) || [];
       for (const wellId of directWells) {
         filingCounts.set(wellId, (filingCounts.get(wellId) || 0) + row.count);
-      }
-
-      // Adjacent matches: only specific relief types
-      if (['HORIZONTAL_WELL', 'INCREASED_DENSITY', 'POOLING'].includes(reliefType)) {
-        const adjacentWells = adjacentSTRMap.get(strKey) || [];
-        for (const wellId of adjacentWells) {
-          if (!directWells.includes(wellId)) {
-            filingCounts.set(wellId, (filingCounts.get(wellId) || 0) + row.count);
-          }
-        }
       }
     }
   }

@@ -16,6 +16,1025 @@ logger = logging.getLogger(__name__)
 
 
 # ============================================================================
+# OCR QUALITY DETECTION AND CONFIDENCE CALIBRATION
+# ============================================================================
+
+def ocr_quality_to_max_confidence(quality_score: float) -> float:
+    """
+    Calibration curve mapping OCR quality to maximum allowed confidence.
+
+    This enforces a ceiling on confidence scores based on document quality.
+    The model is told about this ceiling, and we also enforce it in post-processing.
+
+    Calibration curve:
+    - OCR >= 0.9  → max_conf = 0.98 (excellent quality, trust high confidence)
+    - OCR 0.7-0.9 → max_conf = 0.90 (good quality, allow high confidence)
+    - OCR 0.5-0.7 → max_conf = 0.75 (marginal quality, cap confidence)
+    - OCR 0.3-0.5 → max_conf = 0.60 (poor quality, significant cap)
+    - OCR < 0.3   → max_conf = 0.45 (very poor, low ceiling)
+    """
+    if quality_score >= 0.9:
+        return 0.98
+    elif quality_score >= 0.7:
+        return 0.90
+    elif quality_score >= 0.5:
+        return 0.75
+    elif quality_score >= 0.3:
+        return 0.60
+    else:
+        return 0.45
+
+
+def clamp_confidence_scores(extracted_data: dict, max_confidence: float) -> dict:
+    """
+    Post-processing: Clamp all confidence scores to the maximum allowed.
+
+    This ensures the model can't report confidence higher than what the
+    document quality supports, regardless of what the prompt said.
+
+    Args:
+        extracted_data: The extraction result dict
+        max_confidence: Maximum allowed confidence (from calibration curve)
+
+    Returns:
+        Modified extracted_data with clamped confidence scores
+    """
+    if not extracted_data:
+        return extracted_data
+
+    # Clamp field_scores if present
+    field_scores = extracted_data.get("field_scores", {})
+    if field_scores:
+        clamped_scores = {}
+        for field, score in field_scores.items():
+            if isinstance(score, (int, float)):
+                original = score
+                clamped = min(score, max_confidence)
+                clamped_scores[field] = clamped
+                if clamped < original:
+                    logger.debug(f"Clamped {field} confidence: {original:.2f} → {clamped:.2f}")
+            else:
+                clamped_scores[field] = score
+        extracted_data["field_scores"] = clamped_scores
+        extracted_data["_confidence_clamped"] = True
+        extracted_data["_max_confidence_allowed"] = max_confidence
+
+    # Also adjust document_confidence if it's inconsistent
+    doc_conf = extracted_data.get("document_confidence")
+    if doc_conf == "high" and max_confidence < 0.75:
+        extracted_data["document_confidence"] = "medium"
+        extracted_data["_document_confidence_adjusted"] = True
+    elif doc_conf == "high" and max_confidence < 0.60:
+        extracted_data["document_confidence"] = "low"
+        extracted_data["_document_confidence_adjusted"] = True
+
+    return extracted_data
+
+
+# ============================================================================
+# API AND PUN VALIDATION
+# ============================================================================
+
+def validate_api_number(api: str) -> dict:
+    """
+    Validate and normalize Oklahoma API number format.
+
+    Oklahoma API format: 35CCCWWWWW (10 digits)
+    - 35 = Oklahoma state code
+    - CCC = County code (001-152)
+    - WWWWW = Well number (5 digits)
+
+    Extended format: 35CCCWWWWW0000 (14 digits with sidetrack)
+
+    API numbers NEVER contain letters.
+
+    Returns:
+        dict with:
+        - valid: bool
+        - normalized: str (10 or 14 digit numeric, or None if invalid)
+        - corrected: bool (if we fixed a common OCR error)
+        - confidence_penalty: float (how much to reduce confidence if issues found)
+        - issues: list of str (what was wrong)
+    """
+    if not api:
+        return {"valid": False, "normalized": None, "issues": ["No API number provided"]}
+
+    issues = []
+    original = api
+
+    # Strip whitespace and common separators
+    cleaned = re.sub(r'[\s\-\.]', '', str(api).upper())
+
+    # Check for letters (API numbers are ALWAYS numeric)
+    if re.search(r'[A-Z]', cleaned):
+        issues.append(f"Contains letters (invalid): {original}")
+        # Try to extract just the numeric portion
+        numeric_only = re.sub(r'[^0-9]', '', cleaned)
+    else:
+        numeric_only = cleaned
+
+    # Handle various lengths
+    if len(numeric_only) == 14:
+        # Full API with sidetrack: 35CCCWWWWW0000
+        if numeric_only.startswith('35'):
+            return {
+                "valid": True,
+                "normalized": numeric_only,
+                "corrected": len(issues) > 0,
+                "confidence_penalty": 0.1 if issues else 0.0,
+                "issues": issues
+            }
+    elif len(numeric_only) == 10:
+        # Standard API: 35CCCWWWWW
+        if numeric_only.startswith('35'):
+            return {
+                "valid": True,
+                "normalized": numeric_only,
+                "corrected": len(issues) > 0,
+                "confidence_penalty": 0.1 if issues else 0.0,
+                "issues": issues
+            }
+    elif len(numeric_only) == 8:
+        # Missing state prefix - try adding 35
+        with_prefix = "35" + numeric_only
+        issues.append(f"Added state prefix 35 to {numeric_only}")
+        return {
+            "valid": True,
+            "normalized": with_prefix,
+            "corrected": True,
+            "confidence_penalty": 0.15,
+            "issues": issues
+        }
+    elif len(numeric_only) == 12:
+        # Missing state prefix on full API
+        with_prefix = "35" + numeric_only
+        issues.append(f"Added state prefix 35 to {numeric_only}")
+        return {
+            "valid": True,
+            "normalized": with_prefix,
+            "corrected": True,
+            "confidence_penalty": 0.15,
+            "issues": issues
+        }
+
+    # Invalid format
+    issues.append(f"Invalid length: {len(numeric_only)} digits (expected 8, 10, 12, or 14)")
+    return {
+        "valid": False,
+        "normalized": None,
+        "corrected": False,
+        "confidence_penalty": 0.3,
+        "issues": issues
+    }
+
+
+def validate_pun(pun: str) -> dict:
+    """
+    Validate and normalize Oklahoma PUN (Production Unit Number) format.
+
+    PUN format: CCC-UUUUUU-S-WWWW (with dashes) or CCCUUUUUUSWWWW (14 digits normalized)
+    - CCC = County code (3 digits)
+    - UUUUUU = Unit number (6 digits)
+    - S = Segment (1 digit)
+    - WWWW = Well sequence (4 digits)
+
+    Example: 043-226597-0-0000 → 04322659700000
+
+    PUN numbers NEVER contain letters.
+
+    Returns:
+        dict with:
+        - valid: bool
+        - normalized: str (14 digit numeric, or None if invalid)
+        - formatted: str (with dashes: CCC-UUUUUU-S-WWWW)
+        - corrected: bool
+        - confidence_penalty: float
+        - issues: list of str
+    """
+    if not pun:
+        return {"valid": False, "normalized": None, "formatted": None, "issues": ["No PUN provided"]}
+
+    issues = []
+    original = pun
+
+    # Strip whitespace and dashes
+    cleaned = re.sub(r'[\s\-\.]', '', str(pun).upper())
+
+    # Check for letters (PUN numbers are ALWAYS numeric)
+    if re.search(r'[A-Z]', cleaned):
+        issues.append(f"Contains letters (invalid): {original}")
+        numeric_only = re.sub(r'[^0-9]', '', cleaned)
+    else:
+        numeric_only = cleaned
+
+    # Valid PUN should be exactly 14 digits
+    if len(numeric_only) == 14:
+        # Format as CCC-UUUUUU-S-WWWW
+        formatted = f"{numeric_only[:3]}-{numeric_only[3:9]}-{numeric_only[9]}-{numeric_only[10:]}"
+        return {
+            "valid": True,
+            "normalized": numeric_only,
+            "formatted": formatted,
+            "corrected": len(issues) > 0,
+            "confidence_penalty": 0.1 if issues else 0.0,
+            "issues": issues
+        }
+
+    # Invalid length
+    issues.append(f"Invalid length: {len(numeric_only)} digits (expected 14)")
+    return {
+        "valid": False,
+        "normalized": None,
+        "formatted": None,
+        "corrected": False,
+        "confidence_penalty": 0.3,
+        "issues": issues
+    }
+
+
+def validate_and_correct_extracted_data(extracted_data: dict) -> dict:
+    """
+    Post-processing: Validate and correct common extraction errors.
+
+    - Validates API number format
+    - Validates PUN format
+    - Applies confidence penalties for corrections
+    - Logs validation issues
+
+    Returns:
+        Modified extracted_data with validation results
+    """
+    if not extracted_data:
+        return extracted_data
+
+    validation_issues = []
+
+    # Validate API number
+    api = extracted_data.get("api_number") or extracted_data.get("api_number_normalized")
+    if api:
+        api_result = validate_api_number(api)
+        if api_result["valid"]:
+            if api_result["corrected"]:
+                logger.info(f"API number corrected: {api} → {api_result['normalized']}")
+                extracted_data["api_number_normalized"] = api_result["normalized"]
+                extracted_data["_api_corrected"] = True
+                validation_issues.extend(api_result["issues"])
+
+                # Apply confidence penalty
+                if "field_scores" in extracted_data and "api_number" in extracted_data["field_scores"]:
+                    original_conf = extracted_data["field_scores"]["api_number"]
+                    penalty = api_result["confidence_penalty"]
+                    extracted_data["field_scores"]["api_number"] = max(0.3, original_conf - penalty)
+                    logger.info(f"API confidence penalized: {original_conf:.2f} → {extracted_data['field_scores']['api_number']:.2f}")
+        else:
+            logger.warning(f"Invalid API number: {api} - {api_result['issues']}")
+            extracted_data["_api_invalid"] = True
+            extracted_data["_api_issues"] = api_result["issues"]
+            validation_issues.extend(api_result["issues"])
+
+            # Heavy confidence penalty for invalid API
+            if "field_scores" in extracted_data and "api_number" in extracted_data["field_scores"]:
+                extracted_data["field_scores"]["api_number"] = 0.3
+
+    # Validate PUN (otc_prod_unit_no)
+    pun = extracted_data.get("otc_prod_unit_no") or extracted_data.get("otc_prod_unit_no_normalized")
+    if pun:
+        pun_result = validate_pun(pun)
+        if pun_result["valid"]:
+            if pun_result["corrected"]:
+                logger.info(f"PUN corrected: {pun} → {pun_result['normalized']}")
+                extracted_data["otc_prod_unit_no_normalized"] = pun_result["normalized"]
+                extracted_data["otc_prod_unit_no"] = pun_result["formatted"]
+                extracted_data["_pun_corrected"] = True
+                validation_issues.extend(pun_result["issues"])
+        else:
+            logger.warning(f"Invalid PUN: {pun} - {pun_result['issues']}")
+            extracted_data["_pun_invalid"] = True
+            extracted_data["_pun_issues"] = pun_result["issues"]
+            validation_issues.extend(pun_result["issues"])
+
+    # Validate PUNs in allocation_factors for multi-unit wells
+    allocation_factors = extracted_data.get("allocation_factors", [])
+    for i, factor in enumerate(allocation_factors):
+        pun = factor.get("pun") or factor.get("pun_normalized")
+        if pun:
+            pun_result = validate_pun(pun)
+            if pun_result["valid"]:
+                if pun_result["corrected"]:
+                    factor["pun_normalized"] = pun_result["normalized"]
+                    factor["pun"] = pun_result["formatted"]
+                    logger.info(f"Allocation factor {i} PUN corrected: {pun} → {pun_result['normalized']}")
+            else:
+                logger.warning(f"Invalid PUN in allocation_factors[{i}]: {pun}")
+                factor["_pun_invalid"] = True
+
+    if validation_issues:
+        extracted_data["_validation_issues"] = validation_issues
+        logger.info(f"Validation found {len(validation_issues)} issues")
+
+    return extracted_data
+
+
+# ============================================================================
+# SCHEMA VALIDATION - Ensures extracted data follows expected structure
+# ============================================================================
+
+# Define expected schemas for each document type
+# Required = must be present, Expected = should be present, Known = all valid keys
+
+COMPLETION_REPORT_SCHEMA = {
+    "required": {
+        "doc_type", "well_name", "section", "township", "range", "county"
+    },
+    "expected": {
+        "api_number", "api_number_normalized", "well_number", "operator",
+        "dates", "well_type", "surface_location", "formation_zones",
+        "initial_production", "formation_tops", "field_scores", "document_confidence"
+    },
+    "known": {
+        # All valid keys for completion reports
+        "doc_type", "report_type", "section", "township", "range", "county", "state",
+        "api_number", "api_number_normalized", "well_name", "well_number",
+        "otc_prod_unit_no", "otc_prod_unit_no_normalized", "permit_number",
+        "operator", "dates", "well_type", "surface_location", "bottom_hole_location",
+        "lateral_details", "formation_zones", "initial_production", "first_sales",
+        "allocation_factors", "related_orders", "formation_tops", "stimulation",
+        "status", "occ_file_number", "key_takeaway", "detailed_analysis",
+        "field_scores", "document_confidence", "ai_observations",
+        # Internal fields (prefixed with _)
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_api_corrected", "_api_invalid", "_api_issues", "_pun_corrected", "_pun_invalid",
+        "_pun_issues", "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason", "_attachment_pages"
+    }
+}
+
+DRILLING_PERMIT_SCHEMA = {
+    "required": {
+        "doc_type", "well_name", "section", "township", "range", "county"
+    },
+    "expected": {
+        "api_number", "permit_number", "operator", "proposed_depth_ft",
+        "surface_location", "field_scores", "document_confidence"
+    },
+    "known": {
+        "doc_type", "section", "township", "range", "county", "state",
+        "api_number", "api_number_normalized", "well_name", "well_number",
+        "permit_number", "operator", "proposed_depth_ft", "proposed_formation",
+        "surface_location", "bottom_hole_location", "spacing_order",
+        "unit_size_acres", "dates", "well_type", "status", "occ_file_number",
+        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
+        "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_api_corrected",
+        "_api_invalid", "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type"
+    }
+}
+
+SPACING_ORDER_SCHEMA = {
+    "required": {
+        "doc_type", "order_number", "section", "township", "range", "county"
+    },
+    "expected": {
+        "unit_size_acres", "formation", "effective_date", "applicant",
+        "field_scores", "document_confidence"
+    },
+    "known": {
+        "doc_type", "order_number", "cause_number", "section", "township", "range",
+        "county", "state", "unit_size_acres", "formation", "formation_code",
+        "effective_date", "order_date", "applicant", "well_setbacks",
+        "related_orders", "lands_description", "key_takeaway", "detailed_analysis",
+        "field_scores", "document_confidence", "ai_observations",
+        "_confidence_clamped", "_max_confidence_allowed", "_validation_issues",
+        "_review_flags", "_schema_validation", "_pipeline_type", "_page_count"
+    }
+}
+
+# Map doc_type to schema
+DOC_TYPE_SCHEMAS = {
+    "completion_report": COMPLETION_REPORT_SCHEMA,
+    "drilling_permit": DRILLING_PERMIT_SCHEMA,
+    "spacing_order": SPACING_ORDER_SCHEMA,
+    "increased_density_order": SPACING_ORDER_SCHEMA,  # Similar to spacing
+    "horizontal_drilling_and_spacing_order": SPACING_ORDER_SCHEMA,
+}
+
+
+def validate_schema(extracted_data: dict) -> dict:
+    """
+    Validate extracted data against expected schema for the document type.
+
+    This catches:
+    - Missing required fields (critical)
+    - Missing expected fields (informational)
+    - Unexpected/invented fields (schema drift warning)
+
+    Returns:
+        dict with:
+        - valid: bool (True if all required fields present)
+        - missing_required: set of missing required field names
+        - missing_expected: set of missing expected field names
+        - unexpected_fields: set of fields not in known schema (potential drift)
+        - issues: list of issue strings
+    """
+    if not extracted_data:
+        return {
+            "valid": False,
+            "missing_required": set(),
+            "missing_expected": set(),
+            "unexpected_fields": set(),
+            "issues": ["No extracted data to validate"]
+        }
+
+    doc_type = extracted_data.get("doc_type", "unknown")
+    schema = DOC_TYPE_SCHEMAS.get(doc_type)
+
+    if not schema:
+        # Unknown doc type - can't validate schema
+        logger.info(f"No schema defined for doc_type '{doc_type}' - skipping schema validation")
+        return {
+            "valid": True,
+            "missing_required": set(),
+            "missing_expected": set(),
+            "unexpected_fields": set(),
+            "issues": [],
+            "skipped": True,
+            "reason": f"No schema for doc_type '{doc_type}'"
+        }
+
+    # Get all top-level keys (excluding None values for missing check)
+    present_keys = {k for k, v in extracted_data.items() if v is not None}
+    all_keys = set(extracted_data.keys())
+
+    # Check required fields
+    missing_required = schema["required"] - present_keys
+
+    # Check expected fields (informational, not critical)
+    missing_expected = schema["expected"] - present_keys
+
+    # Check for unexpected fields (schema drift)
+    # Exclude internal fields (starting with _) from drift detection
+    public_keys = {k for k in all_keys if not k.startswith("_")}
+    known_public = {k for k in schema["known"] if not k.startswith("_")}
+    unexpected_fields = public_keys - known_public
+
+    issues = []
+
+    if missing_required:
+        issues.append(f"MISSING REQUIRED: {', '.join(sorted(missing_required))}")
+        logger.warning(f"Schema validation: missing required fields for {doc_type}: {missing_required}")
+
+    if missing_expected:
+        logger.info(f"Schema validation: missing expected fields for {doc_type}: {missing_expected}")
+
+    if unexpected_fields:
+        issues.append(f"UNEXPECTED FIELDS (schema drift?): {', '.join(sorted(unexpected_fields))}")
+        logger.warning(f"Schema validation: unexpected fields for {doc_type}: {unexpected_fields}")
+
+    return {
+        "valid": len(missing_required) == 0,
+        "missing_required": missing_required,
+        "missing_expected": missing_expected,
+        "unexpected_fields": unexpected_fields,
+        "issues": issues
+    }
+
+
+def validate_formation_zones(extracted_data: dict) -> dict:
+    """
+    Validate formation_zones array has expected structure.
+
+    Each formation zone should have:
+    - formation_name (required)
+    - unit_size_acres (expected for mineral owners)
+    - perforated_intervals (expected)
+    - spacing_order (expected if visible on document)
+    """
+    if extracted_data.get("doc_type") != "completion_report":
+        return {"valid": True, "issues": []}
+
+    formation_zones = extracted_data.get("formation_zones", [])
+    issues = []
+
+    if not formation_zones:
+        # Check if there's formation data elsewhere that should be in formation_zones
+        if extracted_data.get("formation_tops"):
+            issues.append("Has formation_tops but no formation_zones - may be missing completion data")
+        return {"valid": True, "issues": issues, "zones_found": 0}
+
+    zones_missing_name = []
+    zones_missing_acres = []
+
+    for i, zone in enumerate(formation_zones):
+        if not zone.get("formation_name"):
+            zones_missing_name.append(i)
+        if not zone.get("unit_size_acres"):
+            zones_missing_acres.append(i)
+
+    if zones_missing_name:
+        issues.append(f"formation_zones[{zones_missing_name}] missing formation_name")
+
+    if zones_missing_acres:
+        # This is common - unit size isn't always on the form
+        logger.info(f"formation_zones[{zones_missing_acres}] missing unit_size_acres (may not be on document)")
+
+    return {
+        "valid": len(zones_missing_name) == 0,
+        "issues": issues,
+        "zones_found": len(formation_zones),
+        "zones_missing_name": zones_missing_name,
+        "zones_missing_acres": zones_missing_acres
+    }
+
+
+def validate_extracted_schema(extracted_data: dict) -> dict:
+    """
+    Full schema validation combining all checks.
+
+    Returns combined validation result to be stored in extracted_data["_schema_validation"]
+    """
+    schema_result = validate_schema(extracted_data)
+    formation_result = validate_formation_zones(extracted_data)
+
+    all_issues = schema_result["issues"] + formation_result["issues"]
+
+    return {
+        "valid": schema_result["valid"] and formation_result["valid"],
+        "schema": schema_result,
+        "formation_zones": formation_result,
+        "total_issues": len(all_issues),
+        "all_issues": all_issues
+    }
+
+
+# ============================================================================
+# REVIEW FLAG SYSTEM - Determines if document needs enhanced review
+# ============================================================================
+
+# Flag severity levels
+FLAG_SEVERITY = {
+    # Critical - almost certainly needs review
+    "invalid_api_format": "critical",
+    "invalid_pun_format": "critical",
+    "impossible_dates": "critical",
+    "missing_required_fields": "critical",  # Schema: missing required fields
+
+    # Major - likely needs review
+    "poor_ocr_quality": "major",
+    "handwritten_content": "major",
+    "many_missing_fields": "major",
+    "very_old_document": "major",  # pre-1980
+    "schema_drift": "major",  # Schema: unexpected/invented fields
+
+    # Minor - worth noting but not alarming alone
+    "api_needed_correction": "minor",
+    "pun_needed_correction": "minor",
+    "old_document": "minor",  # 1980-1990
+    "some_missing_fields": "minor",
+    "suspicious_date_pattern": "minor",
+    "missing_expected_fields": "minor",  # Schema: missing expected (but not required) fields
+}
+
+# Severity weights for scoring
+SEVERITY_WEIGHTS = {
+    "critical": 10,
+    "major": 5,
+    "minor": 2,
+}
+
+
+def extract_document_year(extracted_data: dict) -> int | None:
+    """
+    Extract the document year from dates in the extracted data.
+    Tries completion_date, spud_date, initial_test_date, etc.
+    """
+    dates = extracted_data.get("dates", {})
+
+    # Try various date fields
+    date_fields = [
+        dates.get("completion_date"),
+        dates.get("spud_date"),
+        dates.get("initial_test_date"),
+        dates.get("first_production_date"),
+        extracted_data.get("effective_date"),
+        extracted_data.get("filing_date"),
+        extracted_data.get("order_date"),
+    ]
+
+    for date_str in date_fields:
+        if date_str:
+            try:
+                # Handle various formats: YYYY-MM-DD, MM/DD/YYYY, etc.
+                if isinstance(date_str, str):
+                    # Try to extract 4-digit year
+                    year_match = re.search(r'\b(19\d{2}|20\d{2})\b', date_str)
+                    if year_match:
+                        return int(year_match.group(1))
+            except (ValueError, AttributeError):
+                continue
+
+    return None
+
+
+def check_date_sanity(extracted_data: dict) -> list[str]:
+    """
+    Check for impossible or suspicious date patterns.
+    Returns list of issues found.
+    """
+    issues = []
+    current_year = datetime.now().year
+
+    dates = extracted_data.get("dates", {})
+
+    for field_name, date_str in dates.items():
+        if not date_str:
+            continue
+
+        try:
+            year_match = re.search(r'\b(1[89]\d{2}|20\d{2})\b', str(date_str))
+            if year_match:
+                year = int(year_match.group(1))
+
+                # Future dates are impossible
+                if year > current_year:
+                    issues.append(f"future_date:{field_name}={year}")
+
+                # Pre-statehood (Oklahoma became state in 1907)
+                if year < 1907:
+                    issues.append(f"pre_statehood_date:{field_name}={year}")
+
+        except (ValueError, AttributeError):
+            continue
+
+    # Check date ordering (spud should be before completion)
+    spud = dates.get("spud_date")
+    completion = dates.get("completion_date")
+    if spud and completion:
+        try:
+            spud_year = int(re.search(r'\b(19\d{2}|20\d{2})\b', spud).group(1))
+            comp_year = int(re.search(r'\b(19\d{2}|20\d{2})\b', completion).group(1))
+            if comp_year < spud_year:
+                issues.append(f"completion_before_spud:{spud_year}>{comp_year}")
+        except (ValueError, AttributeError, TypeError):
+            pass
+
+    return issues
+
+
+def compute_review_flags(extracted_data: dict, ocr_quality: float, is_handwritten: bool = False) -> dict:
+    """
+    Determine if document needs enhanced review based on EXTERNAL signals,
+    not model self-reported confidence.
+
+    Returns:
+        dict with:
+        - needs_review: bool
+        - review_level: "opus_reextract" | "human_review" | "accept_with_warning" | None
+        - flags: list of flag names that triggered
+        - flag_details: dict with severity and details for each flag
+        - review_score: int (weighted score, higher = more concerning)
+        - summary: str (human-readable summary)
+    """
+    flags = []
+    flag_details = {}
+
+    # === OCR Quality Signals ===
+    # Note: OCR=0.0 means "no text layer" (scanned image), not "poor quality"
+    # Sonnet reads images directly, so 0.0 OCR is fine
+    # Only flag as poor quality if OCR is low but non-zero (garbled text)
+    if 0 < ocr_quality < 0.3:
+        flags.append("poor_ocr_quality")
+        flag_details["poor_ocr_quality"] = {
+            "severity": "major",
+            "value": ocr_quality,
+            "message": f"Very poor OCR quality ({ocr_quality:.2f}) - garbled/noisy text"
+        }
+    elif 0.3 <= ocr_quality < 0.5:
+        flags.append("poor_ocr_quality")
+        flag_details["poor_ocr_quality"] = {
+            "severity": "major",
+            "value": ocr_quality,
+            "message": f"Poor OCR quality ({ocr_quality:.2f})"
+        }
+    # OCR=0.0 (scanned image) is NOT flagged - vision model handles it well
+
+    # Handwriting detection
+    if is_handwritten:
+        flags.append("handwritten_content")
+        flag_details["handwritten_content"] = {
+            "severity": "major",
+            "message": "Document contains handwritten content"
+        }
+
+    # === Validation Failures ===
+    if extracted_data.get("_api_invalid"):
+        flags.append("invalid_api_format")
+        flag_details["invalid_api_format"] = {
+            "severity": "critical",
+            "issues": extracted_data.get("_api_issues", []),
+            "message": "API number format is invalid"
+        }
+    elif extracted_data.get("_api_corrected"):
+        flags.append("api_needed_correction")
+        flag_details["api_needed_correction"] = {
+            "severity": "minor",
+            "message": "API number needed correction (missing prefix or contained letters)"
+        }
+
+    if extracted_data.get("_pun_invalid"):
+        flags.append("invalid_pun_format")
+        flag_details["invalid_pun_format"] = {
+            "severity": "critical",
+            "issues": extracted_data.get("_pun_issues", []),
+            "message": "PUN format is invalid"
+        }
+    elif extracted_data.get("_pun_corrected"):
+        flags.append("pun_needed_correction")
+        flag_details["pun_needed_correction"] = {
+            "severity": "minor",
+            "message": "PUN needed correction"
+        }
+
+    # === Missing Fields ===
+    key_fields = ["api_number", "well_name", "operator", "section", "township", "range"]
+
+    # Handle nested operator field
+    operator = extracted_data.get("operator")
+    if isinstance(operator, dict):
+        operator = operator.get("name")
+
+    field_values = {
+        "api_number": extracted_data.get("api_number") or extracted_data.get("api_number_normalized"),
+        "well_name": extracted_data.get("well_name"),
+        "operator": operator,
+        "section": extracted_data.get("section"),
+        "township": extracted_data.get("township"),
+        "range": extracted_data.get("range"),
+    }
+
+    missing_fields = [f for f, v in field_values.items() if not v]
+    null_count = len(missing_fields)
+
+    if null_count >= 4:
+        flags.append("many_missing_fields")
+        flag_details["many_missing_fields"] = {
+            "severity": "major",
+            "missing": missing_fields,
+            "count": null_count,
+            "message": f"Missing {null_count}/6 key fields: {', '.join(missing_fields)}"
+        }
+    elif null_count >= 2:
+        flags.append("some_missing_fields")
+        flag_details["some_missing_fields"] = {
+            "severity": "minor",
+            "missing": missing_fields,
+            "count": null_count,
+            "message": f"Missing {null_count}/6 key fields: {', '.join(missing_fields)}"
+        }
+
+    # === Document Age ===
+    doc_year = extract_document_year(extracted_data)
+    if doc_year:
+        if doc_year < 1980:
+            flags.append("very_old_document")
+            flag_details["very_old_document"] = {
+                "severity": "major",
+                "year": doc_year,
+                "message": f"Very old document ({doc_year}) - likely poor quality scan"
+            }
+        elif doc_year < 1990:
+            flags.append("old_document")
+            flag_details["old_document"] = {
+                "severity": "minor",
+                "year": doc_year,
+                "message": f"Old document ({doc_year}) - may have quality issues"
+            }
+
+    # === Date Sanity ===
+    date_issues = check_date_sanity(extracted_data)
+    if date_issues:
+        # Check if any are impossible (future or pre-statehood)
+        impossible = [i for i in date_issues if "future" in i or "pre_statehood" in i]
+        if impossible:
+            flags.append("impossible_dates")
+            flag_details["impossible_dates"] = {
+                "severity": "critical",
+                "issues": impossible,
+                "message": f"Impossible dates detected: {', '.join(impossible)}"
+            }
+        else:
+            flags.append("suspicious_date_pattern")
+            flag_details["suspicious_date_pattern"] = {
+                "severity": "minor",
+                "issues": date_issues,
+                "message": f"Suspicious date patterns: {', '.join(date_issues)}"
+            }
+
+    # === Schema Validation ===
+    schema_validation = extracted_data.get("_schema_validation")
+    if schema_validation:
+        schema_result = schema_validation.get("schema", {})
+
+        # Missing required fields = critical
+        missing_required = schema_result.get("missing_required", set())
+        if missing_required:
+            flags.append("missing_required_fields")
+            flag_details["missing_required_fields"] = {
+                "severity": "critical",
+                "missing": list(missing_required),
+                "message": f"Missing required schema fields: {', '.join(sorted(missing_required))}"
+            }
+
+        # Unexpected fields = major (schema drift)
+        unexpected = schema_result.get("unexpected_fields", set())
+        if unexpected:
+            flags.append("schema_drift")
+            flag_details["schema_drift"] = {
+                "severity": "major",
+                "unexpected": list(unexpected),
+                "message": f"Unexpected fields (model invented?): {', '.join(sorted(unexpected))}"
+            }
+
+        # Missing expected fields = minor (informational)
+        missing_expected = schema_result.get("missing_expected", set())
+        if missing_expected and len(missing_expected) >= 3:
+            flags.append("missing_expected_fields")
+            flag_details["missing_expected_fields"] = {
+                "severity": "minor",
+                "missing": list(missing_expected),
+                "message": f"Missing expected fields: {', '.join(sorted(missing_expected))}"
+            }
+
+    # === Calculate Review Score ===
+    review_score = 0
+    for flag in flags:
+        severity = FLAG_SEVERITY.get(flag, "minor")
+        review_score += SEVERITY_WEIGHTS.get(severity, 1)
+
+    # === Determine Review Level ===
+    # Critical flags or high score → opus_reextract
+    # Major flags → human_review
+    # Minor flags only → accept_with_warning
+
+    has_critical = any(flag_details.get(f, {}).get("severity") == "critical" for f in flags)
+    has_major = any(flag_details.get(f, {}).get("severity") == "major" for f in flags)
+
+    if has_critical or review_score >= 15:
+        review_level = "opus_reextract"
+        needs_review = True
+    elif has_major or review_score >= 7:
+        review_level = "human_review"
+        needs_review = True
+    elif flags:
+        review_level = "accept_with_warning"
+        needs_review = False
+    else:
+        review_level = None
+        needs_review = False
+
+    # === Build Summary ===
+    if not flags:
+        summary = "Document passed all quality checks"
+    else:
+        severity_counts = {"critical": 0, "major": 0, "minor": 0}
+        for flag in flags:
+            sev = FLAG_SEVERITY.get(flag, "minor")
+            severity_counts[sev] += 1
+
+        parts = []
+        if severity_counts["critical"]:
+            parts.append(f"{severity_counts['critical']} critical")
+        if severity_counts["major"]:
+            parts.append(f"{severity_counts['major']} major")
+        if severity_counts["minor"]:
+            parts.append(f"{severity_counts['minor']} minor")
+
+        summary = f"Review flags: {', '.join(parts)} issues. Action: {review_level or 'none'}"
+
+    return {
+        "needs_review": needs_review,
+        "review_level": review_level,
+        "flags": flags,
+        "flag_details": flag_details,
+        "review_score": review_score,
+        "summary": summary,
+    }
+
+
+def assess_ocr_quality(page_texts: list[str]) -> dict:
+    """
+    Assess the quality of OCR text extraction.
+
+    Returns:
+        dict with:
+        - quality_score: 0.0-1.0 (0=garbage, 1=excellent)
+        - max_confidence: maximum allowed confidence for this document
+        - is_likely_handwritten: bool
+        - warning_message: str or None (includes confidence ceiling for model)
+    """
+    if not page_texts:
+        # No text layer - likely a scanned image PDF
+        # Sonnet reads images directly, so this is usually fine
+        # Use 0.8 ceiling (not 0.45) since vision model handles scans well
+        max_conf = 0.80
+        return {
+            "quality_score": 0.0,
+            "max_confidence": max_conf,
+            "is_likely_handwritten": False,  # Don't assume - we just have no text layer
+            "is_scanned_image": True,  # Flag this as a scanned image
+            "warning_message": (
+                f"DOCUMENT QUALITY NOTICE: This appears to be a scanned image (no text layer).\n"
+                f"CONFIDENCE CEILING: {max_conf:.0%} - Vision model reads images directly.\n"
+                f"If any text is blurry or unclear, use null instead of guessing."
+            )
+        }
+
+    total_chars = 0
+    alphanumeric_chars = 0
+    noise_chars = 0
+    pages_with_text = 0
+
+    noise_patterns = set('.,;:-~•·')
+
+    for text in page_texts:
+        if text and len(text.strip()) > 50:
+            pages_with_text += 1
+        for char in text:
+            total_chars += 1
+            if char.isalnum():
+                alphanumeric_chars += 1
+            elif char in noise_patterns:
+                noise_chars += 1
+
+    if total_chars == 0:
+        # No text extracted - likely a scanned image PDF without text layer
+        # Sonnet reads images directly, so this is usually fine
+        # Use 0.8 ceiling since vision model handles clean scans well
+        max_conf = 0.80
+        return {
+            "quality_score": 0.0,
+            "max_confidence": max_conf,
+            "is_likely_handwritten": False,  # Don't assume - we just have no text layer
+            "is_scanned_image": True,  # Flag this as a scanned image
+            "warning_message": (
+                f"DOCUMENT QUALITY NOTICE: This appears to be a scanned image (no text layer).\n"
+                f"CONFIDENCE CEILING: {max_conf:.0%} - Vision model reads images directly.\n"
+                f"If any text is blurry or unclear, use null instead of guessing."
+            )
+        }
+
+    # Calculate quality metrics
+    alphanumeric_ratio = alphanumeric_chars / total_chars
+    noise_ratio = noise_chars / total_chars
+    avg_text_per_page = total_chars / max(len(page_texts), 1)
+
+    # Quality score calculation
+    quality_score = alphanumeric_ratio * 0.7 + (1 - noise_ratio) * 0.3
+
+    # Get max confidence from calibration curve
+    max_conf = ocr_quality_to_max_confidence(quality_score)
+
+    # Detect likely handwritten documents
+    is_likely_handwritten = (
+        alphanumeric_ratio < 0.4 or  # Less than 40% alphanumeric
+        noise_ratio > 0.3 or  # More than 30% noise characters
+        avg_text_per_page < 200  # Very little text per page
+    )
+
+    # Build warning message with confidence ceiling
+    warning_message = None
+    if quality_score < 0.5 or is_likely_handwritten:
+        warning_message = (
+            f"DOCUMENT QUALITY NOTICE: Poor OCR quality detected (score: {quality_score:.2f}).\n"
+            f"Document may be handwritten, faded, or poorly scanned.\n"
+            f"CONFIDENCE CEILING: {max_conf:.0%} - Do not assign any field confidence higher than {max_conf:.2f}.\n"
+            f"If you cannot clearly read a value, use null instead of guessing.\n"
+            f"Confidence must reflect how clearly the original text is visible and how unambiguous the content is."
+        )
+    elif quality_score < 0.7:
+        warning_message = (
+            f"DOCUMENT QUALITY NOTICE: Marginal OCR quality (score: {quality_score:.2f}).\n"
+            f"CONFIDENCE CEILING: {max_conf:.0%} - Be conservative with confidence scores.\n"
+            f"Some text may be unclear - lower confidence for any ambiguous fields."
+        )
+    elif quality_score < 0.9:
+        # Good but not excellent - still note the ceiling
+        warning_message = (
+            f"DOCUMENT QUALITY: Good (score: {quality_score:.2f}). "
+            f"Max confidence: {max_conf:.0%}."
+        )
+
+    return {
+        "quality_score": quality_score,
+        "max_confidence": max_conf,
+        "is_likely_handwritten": is_likely_handwritten,
+        "warning_message": warning_message
+    }
+
+
+# ============================================================================
 # NAME NORMALIZATION FOR CHAIN OF TITLE
 # ============================================================================
 
@@ -483,10 +1502,10 @@ Respond with JSON only:
 
 async def classify_single_page(image_path: str, page_index: int, page_text: str = None) -> dict:
     """
-    Classify a single page using heuristics first, then Haiku if needed.
+    Classify a single page using heuristics. Sonnet handles type detection during extraction.
 
     Args:
-        image_path: Path to the page image
+        image_path: Path to the page image (kept for API compatibility)
         page_index: 0-based page index
         page_text: Optional pre-extracted text (for heuristic check)
 
@@ -546,79 +1565,44 @@ async def classify_single_page(image_path: str, page_index: int, page_text: str 
                 "is_continuation": False  # Explicitly not a continuation
             }
     else:
-        logger.info(f"Page {page_index}: NO page_text provided - will use Haiku")
+        logger.info(f"Page {page_index}: NO page_text provided - using default classification")
 
-    # Fall back to Haiku for classification
-    logger.info(f"Page {page_index}: Calling Haiku for classification (heuristic didn't match)")
-    try:
-        with open(image_path, 'rb') as img:
-            img_data = base64.b64encode(img.read()).decode()
+    # SIMPLIFIED PIPELINE: Skip Haiku, use default classification
+    # Sonnet will determine document type during extraction
+    #
+    # Logic:
+    # - Page 0: Always starts a document (is_document_start=True)
+    # - Other pages: Assume continuation unless heuristics said otherwise (is_document_start=False)
+    # - This keeps multi-page documents together for Sonnet to process
+    #
+    # Previously this called Haiku for classification, but:
+    # - Haiku sometimes made mistakes on difficult documents
+    # - Sonnet does the extraction anyway and is better at reading handwritten docs
+    # - Removing Haiku simplifies the pipeline with minimal cost increase
 
-        content = [
-            {"type": "text", "text": f"Page index: {page_index}\n\n{PAGE_CLASSIFIER_PROMPT}"},
-            {
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": img_data
-                }
-            }
-        ]
+    is_first_page = (page_index == 0)
 
-        response = client.messages.create(
-            model="claude-3-5-haiku-20241022",  # Use Haiku for speed/cost
-            max_tokens=512,
-            messages=[{"role": "user", "content": content}]
-        )
+    logger.info(f"Page {page_index}: Using default classification (heuristic didn't match) - "
+                f"is_document_start={is_first_page}, letting Sonnet handle type detection")
 
-        response_text = response.content[0].text.strip()
-
-        # Strip markdown code fences if present
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]
-            if lines and lines[-1].strip() == "```":
-                lines = lines[:-1]
-            response_text = "\n".join(lines)
-
-        result = json.loads(response_text)
-        result["page_index"] = page_index  # Ensure correct index
-        result["classification_method"] = "haiku"
-
-        logger.debug(f"Page {page_index}: Haiku classified as {result.get('coarse_type')} "
-                    f"(start: {result.get('is_document_start')}, conf: {result.get('start_confidence')})")
-
-        # POST-HAIKU VETO: Re-check continuation patterns even after Haiku says "start"
-        # This gives our deterministic patterns the final word on pages that look like continuations
-        if page_text and result.get("is_document_start") and page_index > 0:
-            text_upper = page_text.upper()
-            for pattern in CONTINUATION_PATTERNS:
-                if re.search(pattern, text_upper, re.IGNORECASE | re.MULTILINE):
-                    logger.info(f"Page {page_index}: POST-HAIKU VETO - continuation pattern '{pattern}' matched, "
-                               f"overriding is_document_start from True to False")
-                    result["is_document_start"] = False
-                    result["start_confidence"] = 0.0
-                    result["classification_method"] = "haiku_vetoed"
-                    result["veto_reason"] = f"continuation_pattern_matched: {pattern}"
-                    break
-
-        return result
-
-    except Exception as e:
-        logger.error(f"Failed to classify page {page_index}: {e}")
-        # Return a safe default
-        return {
-            "page_index": page_index,
-            "coarse_type": "other",
-            "is_document_start": page_index == 0,  # Assume first page starts a doc
-            "start_confidence": 0.3,
-            "detected_title": None,
-            "features": {},
-            "classification_method": "fallback",
-            "error": str(e)
-        }
+    return {
+        "page_index": page_index,
+        "coarse_type": "unknown",  # Sonnet will determine actual type during extraction
+        "is_document_start": is_first_page,
+        "start_confidence": 0.5 if is_first_page else 0.2,  # Moderate confidence
+        "detected_title": None,
+        "features": {
+            "has_title_phrase": False,
+            "has_granting_clause": False,
+            "has_signature_block": False,
+            "has_notary_block": False,
+            "has_exhibit_label": False,
+            "has_legal_description": False,
+            "has_recording_stamp": False
+        },
+        "classification_method": "default_sonnet_deferred",
+        "is_continuation": not is_first_page  # Non-first pages treated as continuations
+    }
 
 
 async def classify_pages(image_paths: list[str], page_texts: list[str] = None) -> list[dict]:
@@ -785,8 +1769,8 @@ def split_pages_into_documents(page_classifications: list[dict]) -> dict:
         "chunks": chunks,
         "page_classifications": page_classifications,
         "split_metadata": {
-            "model": "claude-3-5-haiku-20241022",
-            "heuristics_used": any(p.get("classification_method") == "heuristic" for p in page_classifications)
+            "model": "heuristics_only",  # Haiku removed from pipeline - Sonnet handles extraction
+            "heuristics_used": any(p.get("classification_method") in ("heuristic", "heuristic_continuation") for p in page_classifications)
         }
     }
 
@@ -958,6 +1942,42 @@ For EACH field you extract:
 1. Provide the value (or null if not found)
 2. Provide a confidence score (0.0-1.0)
 3. For names, always check for middle initials/names
+
+CONFIDENCE CALIBRATION - CRITICAL FOR HANDWRITTEN/POOR QUALITY DOCUMENTS:
+Use these confidence ranges HONESTLY based on document legibility:
+
+HIGH CONFIDENCE (0.85-1.0): ONLY use when:
+- Text is clearly printed/typed and easily readable
+- Value is unambiguous with no possible alternative interpretations
+- You can see the exact characters without any doubt
+
+MEDIUM CONFIDENCE (0.5-0.84): Use when:
+- Text is readable but has minor issues (slight blur, faded)
+- Most characters are clear but 1-2 are slightly ambiguous
+- Context helps but doesn't guarantee the interpretation
+
+LOW CONFIDENCE (0.2-0.49): Use when:
+- Text is partially illegible (handwritten, faded, blurry)
+- Multiple characters are ambiguous
+- You're making an educated guess based on context
+
+VERY LOW / NULL (0.0-0.19 or null): Use when:
+- Text is mostly illegible or unreadable
+- Handwriting is unclear and you cannot confidently determine the value
+- You would be GUESSING rather than reading
+- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+
+HANDWRITTEN DOCUMENT RULES:
+- Handwritten text requires LOWER confidence than printed text for the same readability
+- If you cannot clearly read handwritten characters, use null with confidence 0.0
+- NEVER hallucinate plausible-sounding values for illegible handwritten text
+- It is BETTER to return null than to guess incorrectly with high confidence
+
+API NUMBER VALIDATION:
+- Oklahoma API numbers start with "35" (state code)
+- Format: 35-CCC-WWWWW or 35CCCWWWWW where CCC=county code (3 digits), WWWWW=well number (5 digits)
+- If you extract an API that doesn't start with 35, double-check
+- If characters are illegible, use null rather than guessing digits
 
 CRITICAL EXTRACTION RULES:
 1. ALWAYS use the doc_type field to specify one of the types above
@@ -5856,15 +6876,25 @@ What to avoid:
 """
 
 
-def get_extraction_prompt() -> str:
+def get_extraction_prompt(ocr_quality_warning: str = None) -> str:
     """
-    Get the extraction prompt with current date injected.
+    Get the extraction prompt with current date and optional OCR quality warning.
+
+    Args:
+        ocr_quality_warning: Optional warning about poor OCR quality
 
     Returns:
         Formatted extraction prompt with today's date
     """
     current_date = datetime.now().strftime("%B %d, %Y")
-    return EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    prompt = EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+
+    if ocr_quality_warning:
+        # Insert warning at the beginning of the prompt, after the first line
+        lines = prompt.split('\n', 1)
+        prompt = lines[0] + f"\n\n{ocr_quality_warning}\n\n" + (lines[1] if len(lines) > 1 else "")
+
+    return prompt
 
 
 async def retry_with_backoff(func, *args, **kwargs):
@@ -6260,37 +7290,46 @@ async def detect_documents(image_paths: list[str]) -> dict:
         }
 
 
-async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None) -> dict:
+async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False) -> dict:
     """
     Extract data from a single document using batching for large documents.
-    
+
     Args:
         image_paths: List of ALL page images from the PDF
         start_page: First page of this document (1-based)
         end_page: Last page of this document (1-based, inclusive)
-    
+        ocr_quality_warning: Optional warning about poor OCR quality to pass to the model
+        max_confidence: Optional maximum confidence ceiling (from OCR quality calibration)
+        ocr_quality_score: Optional OCR quality score (0.0-1.0) for review flag computation
+        is_handwritten: Optional flag indicating document contains handwriting
+
     Returns:
-        Extracted data dictionary with confidence scores
+        Extracted data dictionary with confidence scores (clamped if max_confidence provided)
+        and review flags computed from external signals
     """
     if end_page is None:
         end_page = len(image_paths)
-        
+
     logger.info(f"Extracting single document from pages {start_page} to {end_page}")
-    
+    if ocr_quality_warning:
+        logger.info(f"OCR quality warning will be passed to model: {ocr_quality_warning[:100]}...")
+    if max_confidence and max_confidence < 1.0:
+        logger.info(f"Confidence ceiling: {max_confidence:.2f} (will be enforced in post-processing)")
+
     # Get the pages for this document
     doc_pages = []
     for i in range(start_page - 1, end_page):
         if i < len(image_paths):
             doc_pages.append((i + 1, image_paths[i]))
-    
+
     total_pages = len(doc_pages)
-    
+
     # If document is small enough, process in one batch
     if total_pages <= PAGES_PER_BATCH:
         content = await process_image_batch(doc_pages, f"all {total_pages} pages")
         content.append({
             "type": "text",
-            "text": get_extraction_prompt()
+            "text": get_extraction_prompt(ocr_quality_warning)
         })
 
         # Call Claude for extraction with retry logic
@@ -6436,7 +7475,35 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
                         observations = observations[:-3].strip()
                     if observations:
                         extracted_data["ai_observations"] = observations
-            
+
+            # POST-PROCESSING: Clamp confidence scores based on OCR quality
+            if max_confidence and max_confidence < 1.0:
+                extracted_data = clamp_confidence_scores(extracted_data, max_confidence)
+                logger.info(f"Applied confidence clamping (max: {max_confidence:.2f})")
+
+            # POST-PROCESSING: Validate and correct API/PUN formats
+            extracted_data = validate_and_correct_extracted_data(extracted_data)
+
+            # POST-PROCESSING: Validate schema adherence
+            schema_validation = validate_extracted_schema(extracted_data)
+            extracted_data["_schema_validation"] = schema_validation
+            if schema_validation["total_issues"] > 0:
+                logger.warning(f"Schema validation issues: {schema_validation['all_issues']}")
+            else:
+                logger.info(f"Schema validation passed for doc_type={extracted_data.get('doc_type')}")
+
+            # POST-PROCESSING: Compute review flags based on external signals
+            review_flags = compute_review_flags(
+                extracted_data,
+                ocr_quality=ocr_quality_score if ocr_quality_score is not None else 0.8,
+                is_handwritten=is_handwritten
+            )
+            extracted_data["_review_flags"] = review_flags
+            if review_flags["needs_review"]:
+                logger.warning(f"Document flagged for review: {review_flags['summary']}")
+            else:
+                logger.info(f"Review check passed: {review_flags['summary']}")
+
             return extracted_data
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse extraction response: {e}")
@@ -6465,7 +7532,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             # First batch - full extraction
             content.append({
                 "type": "text",
-                "text": get_extraction_prompt()
+                "text": get_extraction_prompt(ocr_quality_warning)
             })
         else:
             # Subsequent batches - look for additional/missing info
@@ -6631,7 +7698,36 @@ If these pages don't contain significant new information, return: {{"additional_
         if i + PAGES_PER_BATCH < total_pages:
             logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next batch...")
             await asyncio.sleep(BATCH_DELAY_SECONDS)
-    
+
+    # POST-PROCESSING: Clamp confidence scores based on OCR quality
+    if extracted_data and max_confidence and max_confidence < 1.0:
+        extracted_data = clamp_confidence_scores(extracted_data, max_confidence)
+        logger.info(f"Applied confidence clamping (max: {max_confidence:.2f})")
+
+    # POST-PROCESSING: Validate and correct API/PUN formats
+    if extracted_data:
+        extracted_data = validate_and_correct_extracted_data(extracted_data)
+
+        # POST-PROCESSING: Validate schema adherence
+        schema_validation = validate_extracted_schema(extracted_data)
+        extracted_data["_schema_validation"] = schema_validation
+        if schema_validation["total_issues"] > 0:
+            logger.warning(f"Schema validation issues: {schema_validation['all_issues']}")
+        else:
+            logger.info(f"Schema validation passed for doc_type={extracted_data.get('doc_type')}")
+
+        # POST-PROCESSING: Compute review flags based on external signals
+        review_flags = compute_review_flags(
+            extracted_data,
+            ocr_quality=ocr_quality_score if ocr_quality_score is not None else 0.8,
+            is_handwritten=is_handwritten
+        )
+        extracted_data["_review_flags"] = review_flags
+        if review_flags["needs_review"]:
+            logger.warning(f"Document flagged for review: {review_flags['summary']}")
+        else:
+            logger.info(f"Review check passed: {review_flags['summary']}")
+
     return extracted_data or {"error": "Failed to extract data from document"}
 
 
@@ -6763,6 +7859,13 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     else:
         logger.warning(f"NO page_texts extracted from PDF - heuristics will not run!")
 
+    # Assess OCR quality and get warning message if quality is poor
+    ocr_quality = assess_ocr_quality(page_texts or [])
+    ocr_quality_warning = ocr_quality.get("warning_message")
+    logger.info(f"OCR Quality Assessment: score={ocr_quality['quality_score']:.2f}, handwritten={ocr_quality['is_likely_handwritten']}, warning={'YES' if ocr_quality_warning else 'no'}")
+    if ocr_quality_warning:
+        logger.warning(f"OCR Warning to model: {ocr_quality_warning[:150]}...")
+
     # =========================================================================
     # SCANNED PDF FIX: For SHORT documents with NO usable OCR text where quick
     # classification says single document, trust it and skip page-level splitting.
@@ -6804,7 +7907,13 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         logger.info(f"  Skipping page-level classification - treating as single {total_pages}-page document")
 
         # Skip Stage 1 and go directly to Stage 2 extraction
-        result = await extract_single_document(image_paths, 1, len(image_paths))
+        result = await extract_single_document(
+            image_paths, 1, len(image_paths),
+            ocr_quality_warning,
+            ocr_quality.get('max_confidence'),
+            ocr_quality.get('quality_score'),
+            ocr_quality.get('is_likely_handwritten', False)
+        )
         result["_pipeline_type"] = "scanned_single_doc"
         result["_page_count"] = total_pages
         result["_quick_classification"] = classification.get("doc_type")
@@ -6845,7 +7954,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 "doc_type": "other",
                 "category": "other",
                 "document_confidence": "medium",
-                "classification_model": "claude-3-5-haiku-20241022",
+                "classification_model": "heuristics_only",
                 "page_count": len(image_paths),
                 "skip_extraction": True,
                 "ai_observations": "Document type not recognized for automatic extraction.",
@@ -6856,7 +7965,11 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         result = await extract_single_document(
             image_paths,
             chunk["page_start"] + 1,  # Convert to 1-based
-            chunk["page_end"] + 1
+            chunk["page_end"] + 1,
+            ocr_quality_warning,
+            ocr_quality.get('max_confidence'),
+            ocr_quality.get('quality_score'),
+            ocr_quality.get('is_likely_handwritten', False)
         )
         result["_coarse_type"] = coarse_type
         result["_split_metadata"] = split_result.get("split_metadata")
@@ -6902,7 +8015,11 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             doc_data = await extract_single_document(
                 image_paths,
                 page_start + 1,  # Convert to 1-based
-                page_end + 1
+                page_end + 1,
+                ocr_quality_warning,
+                ocr_quality.get('max_confidence'),
+                ocr_quality.get('quality_score'),
+                ocr_quality.get('is_likely_handwritten', False)
             )
 
             # Add metadata from splitting

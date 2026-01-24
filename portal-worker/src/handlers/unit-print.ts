@@ -6,12 +6,9 @@
  */
 
 import { jsonResponse } from '../utils/responses.js';
-import { authenticateRequest } from '../utils/auth.js';
+import { authenticateRequest, SessionPayload } from '../utils/auth.js';
 import type { Env } from '../types/env.js';
-
-// Airtable config
-const BASE_ID = 'appIX0OpR1mxMZMX2';
-const PROPERTIES_TABLE = 'tblKrZhI2b0lIVE1O';
+import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 
 // Reporting status categories (matches dashboard)
 type ReportingStatus = 'active' | 'recently_idle' | 'extended_idle' | 'no_recent_production';
@@ -58,6 +55,7 @@ interface UnitPrintData {
     description: string;
     date: string;
     wellName: string;
+    currentWell: boolean;
   }>;
 }
 
@@ -67,8 +65,12 @@ interface UnitPrintData {
 async function fetchUnitPrintData(
   pun: string,
   wellApi: string | null,
-  env: Env
+  env: Env,
+  session: SessionPayload
 ): Promise<UnitPrintData> {
+  console.log(`[UnitPrint] Starting fetchUnitPrintData for PUN: ${pun}`);
+  console.log(`[UnitPrint] Session user: ${session?.airtableUser?.id || 'NO AIRTABLE USER'}`);
+
   if (!env.WELLS_DB) {
     throw new Error('Database not available');
   }
@@ -89,6 +91,7 @@ async function fetchUnitPrintData(
   `).bind(pun).all();
 
   const wells = (wellsResult.results || []) as Array<any>;
+  console.log(`[UnitPrint] Found ${wells.length} wells for PUN ${pun}`);
 
   // Determine operator info from first well
   const firstWell = wells[0] || {};
@@ -129,27 +132,45 @@ async function fetchUnitPrintData(
   twentyFourMonthsAgo.setMonth(twentyFourMonthsAgo.getMonth() - 24);
   const twentyFourMonthsAgoYM = `${twentyFourMonthsAgo.getFullYear()}${String(twentyFourMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-  // Use base_pun (10-char: XXX-XXXXXX county-lease) for matching
-  const basePun = pun.substring(0, 10);
+  // Get all base_puns associated with wells in this unit (like production-summary does)
+  // Wells can be linked to multiple PUNs, and production may be under a different PUN
+  const wellApis = wells.map(w => w.api_number).filter(Boolean);
+  let allBasePuns: string[] = [pun.substring(0, 10)]; // Start with the requested PUN's base
 
-  // Get monthly production for last 24 months using base_pun
+  if (wellApis.length > 0) {
+    const apiPlaceholders = wellApis.map(() => '?').join(',');
+    const basePunResult = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT base_pun
+      FROM well_pun_links
+      WHERE api_number IN (${apiPlaceholders}) AND base_pun IS NOT NULL
+    `).bind(...wellApis).all();
+
+    const linkedBasePuns = (basePunResult.results || []).map((r: any) => r.base_pun).filter(Boolean);
+    allBasePuns = [...new Set([...allBasePuns, ...linkedBasePuns])];
+    console.log(`[UnitPrint] Found ${allBasePuns.length} base_puns for production query: ${allBasePuns.join(', ')}`);
+  }
+
+  // Build query for all base_puns
+  const basePunPlaceholders = allBasePuns.map(() => '?').join(',');
+
+  // Get monthly production for last 24 months using all base_puns
   const monthlyResult = await env.WELLS_DB.prepare(`
     SELECT year_month,
            SUM(CASE WHEN product_code IN ('1', '3') THEN gross_volume ELSE 0 END) as oil_volume,
            SUM(CASE WHEN product_code IN ('5', '6') THEN gross_volume ELSE 0 END) as gas_volume
     FROM otc_production
-    WHERE base_pun = ? AND year_month >= ?
+    WHERE base_pun IN (${basePunPlaceholders}) AND year_month >= ?
     GROUP BY year_month
     ORDER BY year_month DESC
-  `).bind(basePun, twentyFourMonthsAgoYM).all();
+  `).bind(...allBasePuns, twentyFourMonthsAgoYM).all();
 
-  // Get lifetime totals using base_pun
+  // Get lifetime totals using all base_puns
   const lifetimeResult = await env.WELLS_DB.prepare(`
     SELECT product_code, SUM(gross_volume) as volume
     FROM otc_production
-    WHERE base_pun = ?
+    WHERE base_pun IN (${basePunPlaceholders})
     GROUP BY product_code
-  `).bind(basePun).all();
+  `).bind(...allBasePuns).all();
 
   // Process monthly data
   const monthlyMap = new Map<string, { oil: number; gas: number }>();
@@ -226,14 +247,20 @@ async function fetchUnitPrintData(
   // 3. Get linked properties via property_well_links
   const linkedProperties: UnitPrintData['linkedProperties'] = [];
 
+  // Get current user's Airtable ID for filtering (only show their properties)
+  const currentUserAirtableId = session.airtableUser?.id;
+  console.log(`[UnitPrint] Filtering properties for user Airtable ID: ${currentUserAirtableId}`);
+
   // Get well API numbers (use first 10 digits for matching since client_wells may have 10 or 14 digit APIs)
   const wellApiNumbers = formattedWells.map(w => w.api.substring(0, 10));
-  if (wellApiNumbers.length > 0) {
+  if (wellApiNumbers.length > 0 && currentUserAirtableId) {
     // Build conditions for partial API matching (first 10 digits)
     const conditions = wellApiNumbers.map(() => 'SUBSTR(cw.api_number, 1, 10) = ?').join(' OR ');
 
     // Join client_wells to get Airtable IDs, then join property_well_links
-    // Use GROUP BY to deduplicate (same property can be linked to multiple wells in unit)
+    // Filter to only current user's properties (p.owner matches user's Airtable ID)
+    // Deduplicate: same TRS + same group should only appear once
+    // But if group_name is NULL, keep separate records (user may have multiple interests)
     const linksResult = await env.WELLS_DB.prepare(`
       SELECT
         p.airtable_record_id,
@@ -247,44 +274,61 @@ async function fetchUnitPrintData(
       JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
       WHERE (${conditions})
         AND pwl.status = 'Active'
+        AND p.owner = ?
       GROUP BY p.airtable_record_id
       ORDER BY p.county, p.section
-    `).bind(...wellApiNumbers).all();
+    `).bind(...wellApiNumbers, currentUserAirtableId).all();
 
-    // Get unique property IDs (deduplicate here since GROUP BY may not be enough)
-    const seenPropertyIds = new Set<string>();
+    // Deduplicate: if group_name exists, dedupe by TRS + group
+    // If group_name is NULL, dedupe by record ID only (preserve separate interests)
+    const seenKeys = new Set<string>();
     const uniqueResults: any[] = [];
+    console.log(`[UnitPrint] D1 query returned ${linksResult.results?.length || 0} property rows`);
     for (const row of (linksResult.results || []) as any[]) {
-      if (!seenPropertyIds.has(row.airtable_record_id)) {
-        seenPropertyIds.add(row.airtable_record_id);
+      // For grouped properties, dedupe by TRS + group
+      // For ungrouped properties, dedupe by record ID (effectively no deduplication)
+      const key = row.group_name
+        ? `trs:${row.section}-${row.township}-${row.range}-${row.group_name}`
+        : `id:${row.airtable_record_id}`;
+      console.log(`[UnitPrint] Property row: id=${row.airtable_record_id}, group=${row.group_name}, TRS=${row.section}-${row.township}-${row.range}, key=${key}`);
+      if (!seenKeys.has(key)) {
+        seenKeys.add(key);
         uniqueResults.push(row);
       }
     }
 
     const propertyIds = uniqueResults.map((r: any) => r.airtable_record_id).filter(Boolean);
+    console.log(`[UnitPrint] Unique property IDs: ${propertyIds.length}`);
 
     // Fetch RI Acres + WI Acres from Airtable to calculate NMA (not synced to D1)
     const nmaMap = new Map<string, number>();
+    console.log(`[UnitPrint] Fetching NMA for ${propertyIds.length} properties:`, propertyIds);
     if (propertyIds.length > 0) {
       const formula = `OR(${propertyIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
-      const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${PROPERTIES_TABLE}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=RI%20Acres&fields%5B%5D=WI%20Acres`;
+      const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=RI%20Acres&fields%5B%5D=WI%20Acres`;
 
       try {
         const response = await fetch(airtableUrl, {
           headers: { 'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         });
 
+        console.log(`[UnitPrint] Airtable response status: ${response.status}`);
         if (response.ok) {
           const data = await response.json() as { records: Array<{ id: string; fields: any }> };
+          console.log(`[UnitPrint] Airtable returned ${data.records.length} records`);
           for (const record of data.records) {
             const riAcres = parseFloat(record.fields['RI Acres'] || 0);
             const wiAcres = parseFloat(record.fields['WI Acres'] || 0);
             const nma = riAcres + wiAcres;
+            console.log(`[UnitPrint] Property ${record.id}: RI=${riAcres}, WI=${wiAcres}, NMA=${nma}`);
             nmaMap.set(record.id, nma);
           }
+        } else {
+          const errorText = await response.text();
+          console.error(`[UnitPrint] Airtable error: ${errorText}`);
         }
       } catch (err) {
-        console.error('Error fetching NMA from Airtable:', err);
+        console.error('[UnitPrint] Error fetching NMA from Airtable:', err);
       }
     }
 
@@ -304,9 +348,102 @@ async function fetchUnitPrintData(
     }
   }
 
-  // 4. Get OCC filings (1002A forms) for wells in this unit
-  // TODO: Re-enable OCC fetcher once we verify page loads
+  // 4. Get OCC filings for wells in this unit
+  // Query by all unique TRS combinations from wells in the PUN (not adjacent sections)
   const occFilings: UnitPrintData['occFilings'] = [];
+
+  // Find the "current well" (the one user clicked from) to highlight its filings
+  const currentWellData = wellApi ? wells.find(w =>
+    w.api_number === wellApi ||
+    w.api_number?.startsWith(wellApi) ||
+    wellApi.startsWith(w.api_number)
+  ) : null;
+  const currentWellTRS = currentWellData ? {
+    section: String(currentWellData.section),
+    township: currentWellData.township?.replace(/^0+/, ''),
+    range: currentWellData.range?.replace(/^0+/, '')
+  } : null;
+
+  // Extract unique TRS combinations from wells
+  const uniqueTRS = new Map<string, { section: string; township: string; range: string; meridian: string }>();
+  for (const w of wells) {
+    if (w.section && w.township && w.range) {
+      // Normalize township/range (strip leading zeros)
+      const twpNorm = w.township.replace(/^0+/, '');
+      const rngNorm = w.range.replace(/^0+/, '');
+      const key = `${w.section}-${twpNorm}-${rngNorm}`;
+      if (!uniqueTRS.has(key)) {
+        uniqueTRS.set(key, {
+          section: String(w.section),
+          township: twpNorm,
+          range: rngNorm,
+          meridian: w.meridian || 'IM'
+        });
+      }
+    }
+  }
+
+  console.log(`[UnitPrint] Querying OCC filings for ${uniqueTRS.size} unique TRS locations`);
+
+  if (uniqueTRS.size > 0) {
+    // Build query for all TRS combinations
+    const trsArray = Array.from(uniqueTRS.values());
+    const conditions = trsArray.map(() => '(section = ? AND township = ? AND range = ? AND meridian = ?)').join(' OR ');
+    const params = trsArray.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+
+    const filingsResult = await env.WELLS_DB.prepare(`
+      SELECT
+        case_number,
+        relief_type,
+        applicant,
+        section,
+        township,
+        range,
+        hearing_date,
+        status,
+        docket_date
+      FROM occ_docket_entries
+      WHERE ${conditions}
+      ORDER BY hearing_date DESC
+      LIMIT 20
+    `).bind(...params).all();
+
+    // Format filings
+    const reliefTypeMap: Record<string, string> = {
+      'LOCATION_EXCEPTION': 'Location Exception',
+      'HORIZONTAL_WELL': 'Horizontal Well',
+      'INCREASED_DENSITY': 'Increased Density',
+      'POOLING': 'Pooling',
+      'SPACING': 'Spacing',
+      'OPERATOR_CHANGE': 'Operator Change',
+      'ORDER_MODIFICATION': 'Order Modification'
+    };
+
+    for (const row of (filingsResult.results || []) as any[]) {
+      // Try to match filing to a specific well by section
+      const matchingWell = wells.find(w =>
+        String(w.section) === String(row.section) &&
+        w.township?.replace(/^0+/, '') === row.township &&
+        w.range?.replace(/^0+/, '') === row.range
+      );
+
+      // Check if this filing is for the "current well" (the one user clicked from)
+      const isCurrentWell = currentWellTRS &&
+        String(row.section) === currentWellTRS.section &&
+        row.township === currentWellTRS.township &&
+        row.range === currentWellTRS.range;
+
+      occFilings.push({
+        formType: row.case_number || 'Unknown',
+        description: reliefTypeMap[row.relief_type] || row.relief_type || 'Filing',
+        date: row.hearing_date ? formatDate(row.hearing_date) : (row.docket_date ? formatDate(row.docket_date) : ''),
+        wellName: matchingWell?.well_name || `S${row.section}-T${row.township}-R${row.range}`,
+        currentWell: !!isCurrentWell
+      });
+    }
+
+    console.log(`[UnitPrint] Found ${occFilings.length} OCC filings for unit`);
+  }
 
   // Sort filings by date (most recent first)
   occFilings.sort((a, b) => {
@@ -369,7 +506,7 @@ export async function handleUnitPrint(
 
   try {
     // Fetch all data for the report
-    const data = await fetchUnitPrintData(pun, wellApi, env);
+    const data = await fetchUnitPrintData(pun, wellApi, env, session);
 
     // Return the HTML page with data injected
     const html = generateUnitPrintHtml(data);
@@ -409,7 +546,7 @@ export async function handleUnitPrintData(
   }
 
   try {
-    const data = await fetchUnitPrintData(pun, wellApi, env);
+    const data = await fetchUnitPrintData(pun, wellApi, env, session);
     return jsonResponse({ success: true, data });
   } catch (error) {
     console.error('Error fetching unit print data:', error);
@@ -528,14 +665,17 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
 
   // Generate OCC filings HTML
   const occFilingsHtml = data.occFilings.length > 0
-    ? data.occFilings.map((filing, i) => `
-        <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
+    ? data.occFilings.map((filing, i) => {
+        const rowClass = filing.currentWell ? 'current-well-filing' : (i % 2 !== 0 ? 'alt' : '');
+        return `
+        <tr class="${rowClass}">
           <td class="bold">${escapeHtml(filing.formType)}</td>
           <td>${escapeHtml(filing.description)}</td>
-          <td>${escapeHtml(filing.wellName)}</td>
+          <td>${escapeHtml(filing.wellName)}${filing.currentWell ? ' <span class="current-indicator">●</span>' : ''}</td>
           <td class="right">${escapeHtml(filing.date)}</td>
         </tr>
-      `).join('')
+      `;
+      }).join('')
     : '<tr><td colspan="4" style="color: #64748b; font-style: italic;">No OCC filings found</td></tr>';
 
   // Calculate trend
@@ -565,10 +705,12 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="format-detection" content="telephone=no">
   <title>Unit Production Report - ${escapeHtml(data.pun)}</title>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
+    a[href^="tel"], a[x-apple-data-detectors] { color: inherit !important; text-decoration: none !important; pointer-events: none; }
     body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background-color: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
     .print-controls { max-width: 8.5in; margin: 0 auto 16px auto; display: flex; justify-content: flex-end; gap: 12px; }
     .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
@@ -579,7 +721,7 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; }
     .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
     .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
-    .header .pun { font-size: 14px; font-weight: 500; opacity: 0.9; margin-bottom: 4px; font-family: monospace; }
+    .header .pun { font-size: 14px; font-weight: 500; opacity: 0.9; margin-bottom: 4px; font-family: monospace; color: white !important; }
     .header .location { font-size: 12px; opacity: 0.8; }
     .header .brand { text-align: right; }
     .header .brand-name { font-size: 20px; font-weight: 700; display: flex; align-items: center; gap: 6px; font-family: 'Merriweather', Georgia, serif; }
@@ -599,7 +741,7 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .well-row:not(.current) .well-arrow { color: transparent; }
     .well-info { flex: 1; min-width: 140px; }
     .well-name { font-size: 12px; font-weight: 600; }
-    .well-api { font-size: 10px; opacity: 0.7; }
+    .well-api { font-size: 10px; opacity: 0.7; color: inherit !important; }
     .badge { font-size: 9px; font-weight: 600; padding: 3px 8px; border-radius: 4px; }
     .badge-direction { background: #e2e8f0; color: #475569; }
     .badge-status { background: rgba(5, 150, 105, 0.1); color: #059669; }
@@ -663,7 +805,52 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .data-table td.bold { font-weight: 600; }
     .data-table td.small { font-size: 9px; color: #64748b; }
     .data-table tr.alt { background: #f8fafc; }
+    .data-table tr.current-well-filing { background: #f0fdf4; }
+    .data-table tr.current-well-filing td { color: #166534; }
+    .current-indicator { color: #22c55e; font-size: 8px; vertical-align: middle; }
     .footer { padding: 10px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+
+    /* Mobile responsive styles */
+    @media screen and (max-width: 900px) {
+      body { padding: 10px; }
+      .print-container { width: 100%; min-height: auto; }
+      .print-controls { flex-direction: column; gap: 8px; }
+      .print-btn { width: 100%; justify-content: center; }
+      .header { flex-direction: column; gap: 12px; padding: 16px; }
+      .header .brand { text-align: left; }
+      .operator-bar { flex-direction: column; align-items: flex-start; gap: 6px; padding: 10px 16px; }
+      .section { padding: 12px 16px; }
+      .well-row { flex-wrap: wrap; gap: 8px; padding: 10px 12px; }
+      .well-info { min-width: 100%; order: 1; }
+      .well-arrow { display: none; }
+      .badge { font-size: 8px; padding: 2px 6px; }
+      .well-dates { min-width: 100%; text-align: left; order: 3; margin-top: 4px; display: flex; gap: 12px; flex-wrap: wrap; }
+      .well-dates div { display: inline; }
+      .totals-grid { flex-wrap: wrap; gap: 16px; padding: 12px; }
+      .totals-item { border-left: none; padding-left: 0; min-width: calc(50% - 8px); }
+      .totals-item:nth-child(odd) { border-left: none; }
+      .chart-container { overflow-x: auto; }
+      .chart-container svg { min-width: 500px; }
+      .monthly-table { font-size: 8px; }
+      .monthly-table th, .monthly-table td { padding: 3px 4px; }
+      .section:has(.monthly-table) { overflow-x: auto; }
+      .data-table { font-size: 9px; }
+      .data-table th, .data-table td { padding: 4px 6px; }
+      .footer { flex-direction: column; gap: 4px; text-align: center; }
+      .reporting-status-box { flex-direction: column; align-items: flex-start; }
+    }
+
+    @media screen and (max-width: 500px) {
+      .header h1 { font-size: 16px; }
+      .header .pun { font-size: 12px; }
+      .header .brand-name { font-size: 16px; }
+      .totals-item { min-width: 100%; }
+      .totals-oil, .totals-gas, .totals-wells { font-size: 12px; }
+      .monthly-table { display: block; overflow-x: auto; white-space: nowrap; }
+      .well-name { font-size: 11px; }
+      .well-api { font-size: 9px; }
+    }
+
     @media print {
       body { background: white; padding: 0; }
       .print-controls { display: none !important; }
@@ -864,13 +1051,33 @@ function generateSparseProductionChart(reportedMonths: Array<{ month: string; oi
     }
   });
 
+  // Calculate 3-month moving average for trend lines
+  const calcMovingAvg = (values: number[], windowSize: number = 3): number[] => {
+    return values.map((_, i) => {
+      const start = Math.max(0, i - Math.floor(windowSize / 2));
+      const end = Math.min(values.length, i + Math.ceil(windowSize / 2));
+      const window = values.slice(start, end);
+      return window.reduce((sum, v) => sum + v, 0) / window.length;
+    });
+  };
+
+  const oilTrend = calcMovingAvg(data.map(d => d.oil));
+  const gasTrend = calcMovingAvg(data.map(d => d.gas));
+
   // Draw lines connecting data points
   if (data.length > 1) {
-    // Oil line (solid green)
+    // Draw trend lines FIRST (behind main lines) - thicker, semi-transparent
+    const oilTrendPath = oilTrend.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${oilScale(v)}`).join(' ');
+    svgContent += `<path d="${oilTrendPath}" fill="none" stroke="#059669" stroke-width="6" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+    const gasTrendPath = gasTrend.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${gasScale(v)}`).join(' ');
+    svgContent += `<path d="${gasTrendPath}" fill="none" stroke="#6366f1" stroke-width="6" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+    // Oil line (solid green) - main line on top
     const oilPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${oilScale(d.oil)}`).join(' ');
     svgContent += `<path d="${oilPath}" fill="none" stroke="#059669" stroke-width="2"/>`;
 
-    // Gas line (dashed purple)
+    // Gas line (dashed purple) - main line on top
     const gasPath = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${gasScale(d.gas)}`).join(' ');
     svgContent += `<path d="${gasPath}" fill="none" stroke="#6366f1" stroke-width="2" stroke-dasharray="5,3"/>`;
   }

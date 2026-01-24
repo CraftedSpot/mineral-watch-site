@@ -531,6 +531,8 @@
         .completion-report-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-right: 8px; }
         .completion-report-type.completion { background: #dbeafe; color: #1e40af; }
         .completion-report-type.recompletion { background: #fef3c7; color: #92400e; }
+        .completion-current-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #dcfce7; color: #166534; margin-right: 8px; }
+        .completion-report-item.is-current { background: #f0fdf4; margin: 0 -16px; padding: 12px 16px; border-radius: 4px; }
         .completion-report-location { font-weight: 600; color: #1a1a2e; font-size: 13px; }
         .completion-report-details { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; color: #666; flex-wrap: wrap; align-items: center; }
         .completion-report-details span { display: inline-flex; align-items: center; }
@@ -620,6 +622,33 @@
             cursor: pointer;
         }
         .occ-process-btn.complete:hover { background: #059669; }
+
+        /* Re-analyze + View Doc button pair */
+        .occ-reanalyze-btn {
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 8px;
+        }
+        .occ-reanalyze-btn:hover { background: #e2e8f0; color: #475569; border-color: #cbd5e1; }
+        .occ-view-doc-btn {
+            background: #10b981;
+            color: white;
+            padding: 5px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .occ-view-doc-btn:hover { background: #059669; }
 
         .result-details { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; color: #64748b; font-size: 13px; margin-bottom: 12px; }
         .result-detail { }
@@ -900,12 +929,19 @@
             display: flex;
             justify-content: space-between;
             gap: 10px;
+            width: 100%;
         }
         .well-footer-left, .well-footer-right {
             display: flex;
             gap: 10px;
         }
-        .well-footer-grid .occ-warning .action-btn { width: 100%; }
+        /* Consistent button sizing in well footer - override flex:1 */
+        .well-footer-grid .action-btn {
+            flex: none;
+            padding: 10px 14px;
+            font-size: 13px;
+        }
+        .well-footer-grid .occ-warning .action-btn { width: auto; }
 
         /* Property Footer Grid */
         .property-footer-grid {
@@ -934,9 +970,17 @@
             }
             .well-footer-grid .action-btn { min-width: unset; padding: 10px 8px; font-size: 13px; }
             .well-footer-grid .occ-warning { min-width: unset; }
-            /* Position tooltip above on mobile to avoid cutoff */
+            /* Position tooltip above and to the left on mobile to avoid cutoff */
             .well-footer .occ-tooltip {
                 bottom: calc(100% + 8px);
+                left: 0;
+                right: auto;
+                transform: none;
+            }
+            .well-footer .occ-tooltip::after {
+                left: 12px;
+                right: auto;
+                transform: none;
             }
             .status-row { flex-wrap: wrap; gap: 16px; }
             .info-section-row { flex-direction: column; gap: 12px; }
@@ -1201,9 +1245,16 @@
             border-top-color: #1F2937;
         }
         
-        .occ-warning:hover .occ-tooltip {
+        .occ-warning:hover .occ-tooltip,
+        .occ-warning:focus-within .occ-tooltip,
+        .occ-warning.show-tooltip .occ-tooltip {
             opacity: 1;
             visibility: visible;
+        }
+
+        /* Make warning icon tappable on mobile */
+        .occ-warning-icon {
+            -webkit-tap-highlight-color: transparent;
         }
         
         /* Toast Notifications */
@@ -3356,13 +3407,13 @@
                     </div>
                     <div class="well-footer-right">
                         <div class="occ-warning" style="position: relative;">
-                            <a href="#" target="_blank" class="action-btn secondary" id="wellDetailsRecordsLink">Well Records ↗</a>
-                            <span class="occ-warning-icon">!</span>
+                            <a href="#" target="_blank" class="action-btn outline" id="wellDetailsRecordsLink">Well Records ↗</a>
+                            <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
                             <div class="occ-tooltip">
-                                <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                                <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
                             </div>
                         </div>
-                        <button class="action-btn outline" id="wellPrintBtn" onclick="printWellReport()" title="Print Well Report">🖨️ Print</button>
+                        <button class="action-btn outline" id="wellPrintBtn" onclick="printWellReport()" title="View Unit Report">Unit Report ↗</button>
                     </div>
                 </div>
                 <button class="action-btn primary well-blue" id="saveWellBtn" onclick="saveWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
@@ -5043,7 +5094,7 @@
                                     <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=${encodeURIComponent(`{[OG Well Records]:[API Number]="${apiNumber}*"}`)}&cr=1" target="_blank" class="details-btn">📂 Well Records</a>
                                     <span class="occ-warning-icon">!</span>
                                     <div class="occ-tooltip">
-                                        <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                                        <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
                                     </div>
                                 </div>
                             ` : ''}
@@ -12752,9 +12803,11 @@
                 rollingRow.style.display = 'grid';
                 document.getElementById('rollingRemaining').textContent = rollingCredits.toLocaleString();
 
-                // Rolling bar - always full since we show remaining (depletes as used)
+                // Rolling bar - show percentage based on a visual scale (100 = full)
+                // This makes the bar deplete visually as rolling credits are used
                 const rollingBarFill = document.getElementById('rollingBarFill');
-                rollingBarFill.style.width = '100%';
+                const rollingPercentage = Math.min(100, rollingCredits);
+                rollingBarFill.style.width = rollingPercentage + '%';
             } else {
                 rollingRow.style.display = 'none';
             }
@@ -12844,6 +12897,18 @@
         }
         
         function refreshUsageStats() {
+            loadUsageStats();
+        }
+
+        // Called after document processing to update credits display
+        // Can be called with a number (remaining credits) or without args to refresh
+        function updateCreditsDisplay(creditsRemaining) {
+            if (typeof creditsRemaining === 'number') {
+                // Quick update: just refresh the main number and re-fetch full stats
+                const creditsEl = document.getElementById('creditsAvailable');
+                if (creditsEl) creditsEl.textContent = creditsRemaining.toLocaleString();
+            }
+            // Refresh full stats to get accurate breakdown
             loadUsageStats();
         }
         
@@ -14807,58 +14872,56 @@
         function updateOccButtonState(buttonEl, state, documentId = null, displayName = null) {
             if (!buttonEl) return;
 
-            // Remove all state classes and reset onclick
-            buttonEl.classList.remove('processing', 'complete', 'error', 'queued', 'fetching');
-            buttonEl.onclick = null;
+            // Get parent container and data attributes (works for both occ-process-btn and occ-reanalyze-btn)
+            const parentContainer = buttonEl.parentElement;
+            const caseNumber = buttonEl.dataset.caseNumber || '';
+            const orderNumber = buttonEl.dataset.orderNumber || '';
+
+            // For states that need a single button (not complete), replace container with occ-process-btn
+            const createProcessButton = (stateClass, disabled, innerHTML, title) => {
+                if (parentContainer) {
+                    parentContainer.innerHTML = `
+                        <button class="occ-process-btn ${stateClass}"
+                                data-case-number="${escapeHtml(caseNumber)}"
+                                data-order-number="${escapeHtml(orderNumber)}"
+                                ${disabled ? 'disabled' : ''}
+                                onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
+                                title="${title}">${innerHTML}</button>
+                    `;
+                }
+            };
 
             switch (state) {
                 case 'fetching':
-                    buttonEl.classList.add('fetching');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Fetching...';
-                    buttonEl.title = 'Downloading from OCC';
+                    createProcessButton('fetching', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
                     break;
                 case 'queued':
-                    buttonEl.classList.add('queued');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Queued...';
-                    buttonEl.title = 'Waiting for processing';
+                    createProcessButton('queued', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
                     break;
                 case 'processing':
-                    buttonEl.classList.add('processing');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Processing...';
-                    buttonEl.title = 'Extracting document data';
+                    createProcessButton('processing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
                     break;
                 case 'complete':
-                    buttonEl.classList.add('complete');
-                    buttonEl.disabled = false;
-                    buttonEl.innerHTML = 'Analyzed ✓';
-                    buttonEl.title = 'Click to view document';
-                    // Store documentId and make clickable to open document detail modal
-                    if (documentId) {
-                        buttonEl.dataset.documentId = documentId;
-                        buttonEl.onclick = function() {
-                            // Open document detail modal
-                            if (typeof openDocumentDetail === 'function') {
-                                openDocumentDetail(documentId);
-                            } else {
-                                // Fallback: reload page with doc param to trigger document view
-                                window.location.href = `/portal?doc=${documentId}`;
-                            }
-                        };
+                    if (parentContainer && documentId) {
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    data-case-number="${escapeHtml(caseNumber)}"
+                                    data-order-number="${escapeHtml(orderNumber)}"
+                                    onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <a href="javascript:void(0)" class="occ-view-doc-btn"
+                               onclick="openDocumentDetail('${documentId}')"
+                               title="View analyzed document">View Doc ↗</a>
+                        `;
+                    } else {
+                        createProcessButton('complete', false, '✓ Analyzed', 'Click to view document');
                     }
                     break;
                 case 'error':
-                    buttonEl.classList.add('error');
-                    buttonEl.disabled = false;
-                    buttonEl.innerHTML = 'Retry';
-                    buttonEl.title = 'Click to retry';
+                    createProcessButton('error', false, 'Retry', 'Click to retry');
                     break;
                 default: // idle
-                    buttonEl.disabled = false;
-                    buttonEl.innerHTML = 'Analyze';
-                    buttonEl.title = 'Uses 1 document credit';
+                    createProcessButton('', false, 'Analyze', 'Uses 1 document credit');
             }
         }
 
@@ -14894,19 +14957,41 @@
             countBadge.textContent = '—';
 
             try {
-                // Fetch docket entries first (fast - from D1)
-                const docketResponse = await fetch(
-                    `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
-                    { credentials: 'include' }
-                );
-                const data = await docketResponse.json();
+                let directFilings = [];
+                let adjacentFilings = [];
+                let punInfo = null;
 
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to load filings');
+                // For wells, use PUN-scoped endpoint (no adjacent sections)
+                // For properties, use TRS-based endpoint with adjacent sections
+                if (type === 'well' && apiNumber) {
+                    const docketResponse = await fetch(
+                        `/api/docket-entries-by-well?api=${encodeURIComponent(apiNumber)}`,
+                        { credentials: 'include' }
+                    );
+                    const data = await docketResponse.json();
+
+                    if (!data.success) {
+                        throw new Error(data.error || 'Failed to load filings');
+                    }
+
+                    directFilings = data.direct || [];
+                    punInfo = data.pun ? `Unit: ${data.pun} (${data.wellCount} wells, ${data.trsCount || 1} sections)` : null;
+                    // No adjacent filings for wells - we show all sections in the unit as "direct"
+                } else {
+                    // Properties: use TRS-based query with adjacent sections
+                    const docketResponse = await fetch(
+                        `/api/docket-entries?section=${section}&township=${encodeURIComponent(township)}&range=${encodeURIComponent(range)}&meridian=${encodeURIComponent(meridian)}&includeAdjacent=true`,
+                        { credentials: 'include' }
+                    );
+                    const data = await docketResponse.json();
+
+                    if (!data.success) {
+                        throw new Error(data.error || 'Failed to load filings');
+                    }
+
+                    directFilings = data.direct || [];
+                    adjacentFilings = data.adjacent || [];
                 }
-
-                const directFilings = data.direct || [];
-                const adjacentFilings = data.adjacent || [];
 
                 // Show docket entries immediately (don't wait for completion reports)
                 let docketCount = directFilings.length + adjacentFilings.length;
@@ -14934,11 +15019,18 @@
                         contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
                             <span>OCC Filings</span>
                             <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${directFilings.length}</span>
+                            ${punInfo ? `<span style="font-size: 10px; color: #6b7280; margin-left: 8px;">${punInfo}</span>` : ''}
                         </div>`;
                     }
                     contentHtml += directFilings.map(filing => renderOccFiling(filing, false)).join('');
                 } else if (type === 'property') {
                     contentHtml = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
+                } else if (type === 'well') {
+                    contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
+                        <span>OCC Filings</span>
+                        <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                    </div>`;
+                    contentHtml += '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No OCC filings found for this unit</div>';
                 }
 
                 // Show docket entries immediately
@@ -14950,7 +15042,7 @@
                     countBadge.textContent = String(docketCount) + (type === 'well' && apiNumber ? '+' : '');
                 }
 
-                // Render adjacent filings
+                // Render adjacent filings (only for properties now)
                 if (adjacentFilings.length > 0) {
                     adjacentWrapper.style.display = 'block';
                     adjacentCountBadge.textContent = String(adjacentFilings.length);
@@ -14998,7 +15090,13 @@
                     reportsCountBadge.textContent = String(completionReports.length);
 
                     if (completionReports.length > 0) {
-                        reportsContent.innerHTML = completionReports.map(report => renderCompletionReport(report, apiNumber)).join('');
+                        // Sort by effective date (most recent first)
+                        const sortedReports = [...completionReports].sort((a, b) => {
+                            const dateA = parseCompletionDate(a.effectiveDate);
+                            const dateB = parseCompletionDate(b.effectiveDate);
+                            return dateB - dateA; // Most recent first
+                        });
+                        reportsContent.innerHTML = sortedReports.map((report, index) => renderCompletionReport(report, apiNumber, index === 0)).join('');
                     } else {
                         reportsContent.innerHTML = '<div style="color: #888; font-size: 13px; font-style: italic;">No completion reports found</div>';
                     }
@@ -15086,6 +15184,8 @@
                         <button
                             id="${buttonId}"
                             class="occ-process-btn"
+                            data-case-number="${escapeHtml(caseNumber)}"
+                            data-order-number="${escapeHtml(orderNumber)}"
                             onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
                             title="Uses 1 document credit"
                         >Analyze</button>
@@ -15125,12 +15225,13 @@
         }
 
         // Render completion report item (1002A/1002C forms)
-        function renderCompletionReport(report, apiNumber) {
+        function renderCompletionReport(report, apiNumber, isCurrent = false) {
             const isRecompletion = report.formType === '1002C';
             const typeClass = isRecompletion ? 'recompletion' : 'completion';
             const typeLabel = isRecompletion ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A';
             const dateDisplay = formatCompletionDate(report.effectiveDate);
             const buttonId = `completion-btn-${report.entryId}`;
+            const currentBadge = isCurrent ? '<span class="completion-current-badge">Current</span>' : '';
 
             // Render action button based on status
             let actionButton = '';
@@ -15138,6 +15239,8 @@
                 case 'available':
                     actionButton = `
                         <button id="${buttonId}" class="completion-analyze-btn"
+                                data-api-number="${apiNumber}"
+                                data-entry-id="${report.entryId}"
                                 onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)">
                             Analyze
                         </button>`;
@@ -15151,8 +15254,12 @@
                 case 'fetched':
                 case 'processed':
                     actionButton = `
-                        <span class="completion-analyze-btn analyzed">✓ Analyzed</span>
-                        ${report.documentId ? `<a href="/documents/${report.documentId}" target="_blank" class="completion-view-doc">View Doc ↗</a>` : ''}`;
+                        <button class="occ-reanalyze-btn"
+                                data-api-number="${apiNumber}"
+                                data-entry-id="${report.entryId}"
+                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
+                                title="Re-process this document">Re-analyze</button>
+                        ${report.documentId ? `<a href="javascript:void(0)" class="occ-view-doc-btn" onclick="openDocumentDetail('${report.documentId}')" title="View analyzed document">View Doc ↗</a>` : ''}`;
                     break;
                 case 'error':
                     actionButton = `
@@ -15167,10 +15274,11 @@
             }
 
             return `
-                <div class="completion-report-item">
+                <div class="completion-report-item${isCurrent ? ' is-current' : ''}">
                     <div class="completion-report-main">
                         <div>
                             <span class="completion-report-type ${typeClass}">${typeLabel}</span>
+                            ${currentBadge}
                             <span class="completion-report-location">${escapeHtml(report.location || '')}</span>
                         </div>
                         <div class="completion-report-details">
@@ -15205,6 +15313,24 @@
                 return dateStr;
             } catch {
                 return dateStr;
+            }
+        }
+
+        // Parse completion date for sorting (returns timestamp, newest dates = higher numbers)
+        function parseCompletionDate(dateStr) {
+            if (!dateStr) return 0;
+            try {
+                const parts = dateStr.split('/');
+                if (parts.length >= 2) {
+                    const month = parseInt(parts[0]) - 1; // 0-indexed for Date
+                    const day = parts.length === 3 ? parseInt(parts[1]) : 1;
+                    const year = parts.length === 3 ? parts[2] : parts[1];
+                    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? 1900 + parseInt(year) : 2000 + parseInt(year)) : parseInt(year);
+                    return new Date(fullYear, month, day).getTime();
+                }
+                return 0;
+            } catch {
+                return 0;
             }
         }
 
@@ -15352,72 +15478,57 @@
         function updateCompletionButtonState(buttonEl, state, documentId = null, displayName = null) {
             if (!buttonEl) return;
 
-            // Remove all state classes
-            buttonEl.classList.remove('analyzing', 'analyzed', 'error');
-            buttonEl.disabled = false;
+            // Get parent container and data attributes (works for both completion-analyze-btn and occ-reanalyze-btn)
+            const parentContainer = buttonEl.parentElement;
+            const apiNum = buttonEl.dataset.apiNumber || '';
+            const entryId = buttonEl.dataset.entryId || '';
 
-            // Remove any existing view doc link
-            const existingLink = buttonEl.parentNode?.querySelector('.completion-view-doc');
-            if (existingLink) existingLink.remove();
+            // For states that need a single button (not complete), replace container with completion-analyze-btn
+            const createAnalyzeButton = (stateClass, disabled, innerHTML, title) => {
+                if (parentContainer) {
+                    parentContainer.innerHTML = `
+                        <button class="completion-analyze-btn ${stateClass}"
+                                data-api-number="${escapeHtml(apiNum)}"
+                                data-entry-id="${escapeHtml(entryId)}"
+                                ${disabled ? 'disabled' : ''}
+                                onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this)"
+                                title="${title}">${innerHTML}</button>
+                    `;
+                }
+            };
 
             switch (state) {
                 case 'fetching':
-                    buttonEl.classList.add('analyzing');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Fetching...';
-                    buttonEl.title = 'Downloading from OCC';
+                    createAnalyzeButton('analyzing', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
                     break;
                 case 'queued':
-                    buttonEl.classList.add('analyzing');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Queued...';
-                    buttonEl.title = 'Waiting for processing';
+                    createAnalyzeButton('analyzing', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
                     break;
                 case 'processing':
-                    buttonEl.classList.add('analyzing');
-                    buttonEl.disabled = true;
-                    buttonEl.innerHTML = '<span class="spinner-sm"></span> Processing...';
-                    buttonEl.title = 'Extracting document data';
+                    createAnalyzeButton('analyzing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
                     break;
                 case 'complete':
-                    buttonEl.classList.add('analyzed');
-                    buttonEl.disabled = false;
-                    buttonEl.innerHTML = '✓ Analyzed';
-                    buttonEl.title = 'Click to view document';
-                    if (documentId) {
-                        buttonEl.dataset.documentId = documentId;
-                        buttonEl.onclick = function() {
-                            if (typeof openDocumentDetail === 'function') {
-                                openDocumentDetail(documentId);
-                            } else {
-                                window.location.href = `/portal?doc=${documentId}`;
-                            }
-                        };
-                        // Add view doc link
-                        const viewLink = document.createElement('a');
-                        viewLink.href = `/portal?doc=${documentId}`;
-                        viewLink.className = 'completion-view-doc';
-                        viewLink.textContent = 'View ↗';
-                        viewLink.onclick = (e) => {
-                            e.stopPropagation();
-                            if (typeof openDocumentDetail === 'function') {
-                                e.preventDefault();
-                                openDocumentDetail(documentId);
-                            }
-                        };
-                        buttonEl.parentNode.appendChild(viewLink);
+                    if (parentContainer && documentId) {
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    data-api-number="${escapeHtml(apiNum)}"
+                                    data-entry-id="${escapeHtml(entryId)}"
+                                    onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this)"
+                                    title="Re-process this document">Re-analyze</button>
+                            <a href="javascript:void(0)" class="occ-view-doc-btn"
+                               onclick="openDocumentDetail('${documentId}')"
+                               title="View analyzed document">View Doc ↗</a>
+                        `;
+                    } else {
+                        createAnalyzeButton('analyzed', false, '✓ Analyzed', 'Analyzed');
                     }
                     break;
                 case 'error':
-                    buttonEl.classList.add('error');
-                    buttonEl.disabled = false;
-                    buttonEl.innerHTML = 'Retry';
-                    buttonEl.title = 'Click to retry';
+                    createAnalyzeButton('error', false, 'Retry', 'Click to retry');
                     break;
                 case 'idle':
                 default:
-                    buttonEl.innerHTML = 'Analyze';
-                    buttonEl.title = 'Uses 1 document credit';
+                    createAnalyzeButton('', false, 'Analyze', 'Uses 1 document credit');
                     break;
             }
         }

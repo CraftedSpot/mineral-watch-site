@@ -401,3 +401,207 @@ export async function handleGetDocketEntries(request: Request, env: Env): Promis
     }, 500);
   }
 }
+
+/**
+ * GET /api/docket-entries-by-well
+ * Fetch docket entries for a well by looking up its PUN and querying all sections in that unit
+ * This provides unit-scoped filings rather than TRS-based + adjacent
+ */
+export async function handleGetDocketEntriesByWell(request: Request, env: Env): Promise<Response> {
+  const start = Date.now();
+
+  try {
+    // Authentication required
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) {
+      return jsonResponse({ error: 'Unauthorized' }, 401);
+    }
+
+    const url = new URL(request.url);
+    const apiNumber = url.searchParams.get('api');
+
+    if (!apiNumber) {
+      return jsonResponse({
+        error: 'Missing required parameter',
+        message: 'api parameter is required'
+      }, 400);
+    }
+
+    // Normalize API number (use first 10 digits for matching)
+    const apiPrefix = apiNumber.substring(0, 10);
+    console.log(`[DocketEntriesByWell] Looking up PUN for API: ${apiPrefix}`);
+
+    // Step 1: Find the PUN for this well
+    const punResult = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT pun
+      FROM well_pun_links
+      WHERE api_number LIKE ? || '%'
+      LIMIT 1
+    `).bind(apiPrefix).all();
+
+    const pun = (punResult.results?.[0] as any)?.pun;
+
+    if (!pun) {
+      // Fallback: just get the well's TRS directly
+      console.log(`[DocketEntriesByWell] No PUN found, falling back to direct TRS lookup`);
+      const wellResult = await env.WELLS_DB.prepare(`
+        SELECT section, township, range, meridian
+        FROM wells
+        WHERE api_number LIKE ? || '%'
+        LIMIT 1
+      `).bind(apiPrefix).all();
+
+      const well = wellResult.results?.[0] as any;
+      if (!well || !well.section || !well.township || !well.range) {
+        return jsonResponse({
+          success: true,
+          direct: [],
+          pun: null,
+          wellCount: 0,
+          queryTime: Date.now() - start
+        });
+      }
+
+      // Query filings for just this well's TRS
+      const twpNorm = normalizeTownship(well.township);
+      const rngNorm = normalizeRange(well.range);
+      const meridianNorm = (well.meridian || 'IM').toUpperCase();
+
+      const filingsResult = await env.WELLS_DB.prepare(`
+        SELECT case_number, relief_type, applicant, county, section, township, range,
+               hearing_date, status, source_url, docket_date, order_number
+        FROM occ_docket_entries
+        WHERE section = ? AND township = ? AND range = ? AND meridian = ?
+        ORDER BY hearing_date DESC
+        LIMIT 30
+      `).bind(String(well.section), twpNorm, rngNorm, meridianNorm).all();
+
+      const direct = (filingsResult.results || []).map((row: any) => ({
+        caseNumber: row.case_number,
+        reliefType: row.relief_type,
+        reliefTypeDisplay: formatReliefType(row.relief_type),
+        applicant: row.applicant,
+        county: row.county,
+        section: row.section,
+        township: row.township,
+        range: row.range,
+        hearingDate: row.hearing_date,
+        status: row.status,
+        statusDisplay: formatStatus(row.status),
+        sourceUrl: row.source_url,
+        docketDate: row.docket_date,
+        orderNumber: row.order_number
+      }));
+
+      return jsonResponse({
+        success: true,
+        direct,
+        pun: null,
+        wellCount: 1,
+        queryTime: Date.now() - start
+      });
+    }
+
+    console.log(`[DocketEntriesByWell] Found PUN: ${pun}`);
+
+    // Step 2: Get all wells in this PUN
+    const wellsResult = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT w.section, w.township, w.range, w.meridian
+      FROM well_pun_links l
+      JOIN wells w ON l.api_number = w.api_number OR l.api_number = SUBSTR(w.api_number, 1, 10)
+      WHERE l.pun = ?
+    `).bind(pun).all();
+
+    const wells = (wellsResult.results || []) as any[];
+    console.log(`[DocketEntriesByWell] Found ${wells.length} wells in PUN`);
+
+    if (wells.length === 0) {
+      return jsonResponse({
+        success: true,
+        direct: [],
+        pun,
+        wellCount: 0,
+        queryTime: Date.now() - start
+      });
+    }
+
+    // Step 3: Get unique TRS combinations
+    const uniqueTRS = new Map<string, { section: string; township: string; range: string; meridian: string }>();
+    for (const w of wells) {
+      if (w.section && w.township && w.range) {
+        const twpNorm = normalizeTownship(w.township);
+        const rngNorm = normalizeRange(w.range);
+        const key = `${w.section}-${twpNorm}-${rngNorm}`;
+        if (!uniqueTRS.has(key)) {
+          uniqueTRS.set(key, {
+            section: String(w.section),
+            township: twpNorm,
+            range: rngNorm,
+            meridian: (w.meridian || 'IM').toUpperCase()
+          });
+        }
+      }
+    }
+
+    console.log(`[DocketEntriesByWell] Querying filings for ${uniqueTRS.size} unique TRS locations`);
+
+    if (uniqueTRS.size === 0) {
+      return jsonResponse({
+        success: true,
+        direct: [],
+        pun,
+        wellCount: wells.length,
+        queryTime: Date.now() - start
+      });
+    }
+
+    // Step 4: Query filings for all TRS values in the unit
+    const trsArray = Array.from(uniqueTRS.values());
+    const conditions = trsArray.map(() => '(section = ? AND township = ? AND range = ? AND meridian = ?)').join(' OR ');
+    const params = trsArray.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+
+    const filingsResult = await env.WELLS_DB.prepare(`
+      SELECT case_number, relief_type, applicant, county, section, township, range,
+             hearing_date, status, source_url, docket_date, order_number
+      FROM occ_docket_entries
+      WHERE ${conditions}
+      ORDER BY hearing_date DESC
+      LIMIT 30
+    `).bind(...params).all();
+
+    const direct = (filingsResult.results || []).map((row: any) => ({
+      caseNumber: row.case_number,
+      reliefType: row.relief_type,
+      reliefTypeDisplay: formatReliefType(row.relief_type),
+      applicant: row.applicant,
+      county: row.county,
+      section: row.section,
+      township: row.township,
+      range: row.range,
+      hearingDate: row.hearing_date,
+      status: row.status,
+      statusDisplay: formatStatus(row.status),
+      sourceUrl: row.source_url,
+      docketDate: row.docket_date,
+      orderNumber: row.order_number
+    }));
+
+    console.log(`[DocketEntriesByWell] Found ${direct.length} filings for unit`);
+
+    return jsonResponse({
+      success: true,
+      direct,
+      pun,
+      wellCount: wells.length,
+      trsCount: uniqueTRS.size,
+      queryTime: Date.now() - start
+    });
+
+  } catch (error) {
+    console.error('[DocketEntriesByWell] Error:', error);
+    return jsonResponse({
+      error: 'Failed to fetch docket entries',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
