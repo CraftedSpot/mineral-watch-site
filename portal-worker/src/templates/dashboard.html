@@ -554,9 +554,12 @@
         }
         .completion-analyze-btn:hover { background: #1d4ed8; }
         .completion-analyze-btn:disabled { background: #94a3b8; cursor: not-allowed; }
-        .completion-analyze-btn.analyzing { background: #8b5cf6; }
+        .completion-analyze-btn.analyzing { background: #8b5cf6; } /* purple - legacy/default */
+        .completion-analyze-btn.fetching { background: #8b5cf6; } /* purple - fetching from OCC */
+        .completion-analyze-btn.queued { background: #f59e0b; } /* amber - waiting in queue */
+        .completion-analyze-btn.processing { background: #6366f1; } /* indigo - processing */
         .completion-analyze-btn.analyzed { background: #10b981; cursor: default; }
-        .completion-analyze-btn.error { background: #f59e0b; }
+        .completion-analyze-btn.error { background: #ef4444; } /* red - error */
         .completion-analyze-btn .spinner-sm {
             display: inline-block;
             width: 12px;
@@ -641,10 +644,10 @@
             background: #10b981;
             color: white;
             padding: 5px 12px;
+            border: none;
             border-radius: 4px;
             font-size: 12px;
             font-weight: 600;
-            text-decoration: none;
             cursor: pointer;
             transition: all 0.2s;
         }
@@ -14728,6 +14731,9 @@
             const stateKey = orderNumber || caseNumber;
             console.log(`[OCC Process] Processing ${caseNumber} (order: ${orderNumber})`);
 
+            // Helper to get current button from state (after DOM updates)
+            const getCurrentButton = () => occProcessingStates[stateKey]?.buttonEl || buttonEl;
+
             // Update button to fetching state
             occProcessingStates[stateKey] = { status: 'fetching', buttonEl };
             updateOccButtonState(buttonEl, 'fetching');
@@ -14741,11 +14747,12 @@
                 });
 
                 const result = await response.json();
+                const currentBtn = getCurrentButton();
 
                 if (result.alreadyProcessed) {
                     console.log(`[OCC Process] Already processed: ${result.documentId}`);
-                    occProcessingStates[stateKey] = { status: 'complete', documentId: result.documentId, buttonEl };
-                    updateOccButtonState(buttonEl, 'complete', result.documentId, result.displayName);
+                    occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'complete', documentId: result.documentId };
+                    updateOccButtonState(currentBtn, 'complete', result.documentId, result.displayName);
                 } else if (result.success) {
                     const docId = result.document.id;
                     const docStatus = result.document.status || 'pending';
@@ -14758,31 +14765,32 @@
 
                     // Check initial status and start polling if not complete
                     if (docStatus === 'complete') {
-                        occProcessingStates[stateKey] = { status: 'complete', documentId: docId, buttonEl };
-                        updateOccButtonState(buttonEl, 'complete', docId);
+                        occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'complete', documentId: docId };
+                        updateOccButtonState(currentBtn, 'complete', docId);
                     } else {
                         // Start polling for document status
                         occProcessingStates[stateKey] = {
+                            ...occProcessingStates[stateKey],
                             status: docStatus === 'processing' ? 'processing' : 'queued',
                             documentId: docId,
-                            buttonEl,
                             pollStartTime: Date.now()
                         };
-                        updateOccButtonState(buttonEl, docStatus === 'processing' ? 'processing' : 'queued');
-                        startOccDocumentPolling(stateKey, docId, buttonEl);
+                        updateOccButtonState(currentBtn, docStatus === 'processing' ? 'processing' : 'queued');
+                        startOccDocumentPolling(stateKey, docId, getCurrentButton());
                     }
                 } else if (result.error === 'no_credits') {
                     console.log(`[OCC Process] No credits available`);
-                    occProcessingStates[stateKey] = { status: 'idle', buttonEl };
-                    updateOccButtonState(buttonEl, 'idle');
+                    occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'idle' };
+                    updateOccButtonState(currentBtn, 'idle');
                     showOutOfCreditsModal();
                 } else {
                     throw new Error(result.message || result.error || 'Unknown error');
                 }
             } catch (error) {
                 console.error('[OCC Process] Error:', error);
-                occProcessingStates[stateKey] = { status: 'error', buttonEl };
-                updateOccButtonState(buttonEl, 'error');
+                const currentBtn = getCurrentButton();
+                occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'error' };
+                updateOccButtonState(currentBtn, 'error');
                 showToast('Failed to process filing: ' + error.message, 'error');
             }
         }
@@ -14807,6 +14815,9 @@
                     clearInterval(state.pollInterval);
                     return;
                 }
+
+                // Always use the fresh button reference from state (it gets updated when DOM changes)
+                const currentButtonEl = currentState.buttonEl;
 
                 // Check if we've exceeded max poll duration
                 if (Date.now() - currentState.pollStartTime > OCC_MAX_POLL_DURATION) {
@@ -14839,18 +14850,18 @@
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;
                         currentState.status = 'complete';
-                        updateOccButtonState(buttonEl, 'complete', documentId, doc.display_name);
+                        updateOccButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
                         showToast('Document analysis complete!', 'success');
                     } else if (doc.status === 'processing' && currentState.status !== 'processing') {
                         // Transitioned to processing
                         currentState.status = 'processing';
-                        updateOccButtonState(buttonEl, 'processing');
+                        updateOccButtonState(currentButtonEl, 'processing');
                     } else if (doc.status === 'error') {
                         // Processing failed
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;
                         currentState.status = 'error';
-                        updateOccButtonState(buttonEl, 'error');
+                        updateOccButtonState(currentButtonEl, 'error');
                         showToast('Document processing failed', 'error');
                     }
                 } catch (err) {
@@ -14872,56 +14883,71 @@
         function updateOccButtonState(buttonEl, state, documentId = null, displayName = null) {
             if (!buttonEl) return;
 
-            // Get parent container and data attributes (works for both occ-process-btn and occ-reanalyze-btn)
-            const parentContainer = buttonEl.parentElement;
-            const caseNumber = buttonEl.dataset.caseNumber || '';
-            const orderNumber = buttonEl.dataset.orderNumber || '';
+            // Get parent container - this stays in the DOM even when we replace innerHTML
+            // If buttonEl is already detached, try to find container via stateKey
+            let parentContainer = buttonEl.parentElement;
+            let caseNumber = buttonEl.dataset?.caseNumber || '';
+            let orderNumber = buttonEl.dataset?.orderNumber || '';
+
+            // If buttonEl is detached (parentElement is null), we can't update
+            if (!parentContainer) {
+                console.warn('[OCC] Button element is detached from DOM, cannot update state');
+                return;
+            }
 
             // For states that need a single button (not complete), replace container with occ-process-btn
             const createProcessButton = (stateClass, disabled, innerHTML, title) => {
-                if (parentContainer) {
-                    parentContainer.innerHTML = `
-                        <button class="occ-process-btn ${stateClass}"
-                                data-case-number="${escapeHtml(caseNumber)}"
-                                data-order-number="${escapeHtml(orderNumber)}"
-                                ${disabled ? 'disabled' : ''}
-                                onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
-                                title="${title}">${innerHTML}</button>
-                    `;
-                }
+                parentContainer.innerHTML = `
+                    <button class="occ-process-btn ${stateClass}"
+                            data-case-number="${escapeHtml(caseNumber)}"
+                            data-order-number="${escapeHtml(orderNumber)}"
+                            ${disabled ? 'disabled' : ''}
+                            onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
+                            title="${title}">${innerHTML}</button>
+                `;
+                // Return the new button for reference updates
+                return parentContainer.querySelector('button');
             };
 
+            let newButton = null;
             switch (state) {
                 case 'fetching':
-                    createProcessButton('fetching', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
+                    newButton = createProcessButton('fetching', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
                     break;
                 case 'queued':
-                    createProcessButton('queued', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
+                    newButton = createProcessButton('queued', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
                     break;
                 case 'processing':
-                    createProcessButton('processing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
+                    newButton = createProcessButton('processing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
                     break;
                 case 'complete':
-                    if (parentContainer && documentId) {
+                    if (documentId) {
                         parentContainer.innerHTML = `
                             <button class="occ-reanalyze-btn"
                                     data-case-number="${escapeHtml(caseNumber)}"
                                     data-order-number="${escapeHtml(orderNumber)}"
                                     onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
                                     title="Re-process this document">Re-analyze</button>
-                            <a href="javascript:void(0)" class="occ-view-doc-btn"
-                               onclick="openDocumentDetail('${documentId}')"
-                               title="View analyzed document">View Doc ↗</a>
+                            <button class="occ-view-doc-btn"
+                                    onclick="openDocumentDetail('${documentId}')"
+                                    title="View analyzed document">View Doc ↗</button>
                         `;
+                        newButton = parentContainer.querySelector('button');
                     } else {
-                        createProcessButton('complete', false, '✓ Analyzed', 'Click to view document');
+                        newButton = createProcessButton('complete', false, '✓ Analyzed', 'Click to view document');
                     }
                     break;
                 case 'error':
-                    createProcessButton('error', false, 'Retry', 'Click to retry');
+                    newButton = createProcessButton('error', false, 'Retry', 'Click to retry');
                     break;
                 default: // idle
-                    createProcessButton('', false, 'Analyze', 'Uses 1 document credit');
+                    newButton = createProcessButton('', false, 'Analyze', 'Uses 1 document credit');
+            }
+
+            // Update the state tracking with the new button reference
+            const stateKey = orderNumber || caseNumber;
+            if (stateKey && occProcessingStates[stateKey] && newButton) {
+                occProcessingStates[stateKey].buttonEl = newButton;
             }
         }
 
@@ -15259,7 +15285,7 @@
                                 data-entry-id="${report.entryId}"
                                 onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
                                 title="Re-process this document">Re-analyze</button>
-                        ${report.documentId ? `<a href="javascript:void(0)" class="occ-view-doc-btn" onclick="openDocumentDetail('${report.documentId}')" title="View analyzed document">View Doc ↗</a>` : ''}`;
+                        ${report.documentId ? `<button class="occ-view-doc-btn" onclick="openDocumentDetail('${report.documentId}')" title="View analyzed document">View Doc ↗</button>` : ''}`;
                     break;
                 case 'error':
                     actionButton = `
@@ -15344,6 +15370,9 @@
         async function analyzeCompletion(apiNumber, entryId, buttonEl) {
             console.log(`[CompletionReports] Analyzing ${apiNumber} entryId ${entryId}`);
 
+            // Helper to get current button from state (after DOM updates)
+            const getCurrentButton = () => completionProcessingStates[entryId]?.buttonEl || buttonEl;
+
             // Update button to fetching state
             completionProcessingStates[entryId] = { status: 'fetching', buttonEl };
             updateCompletionButtonState(buttonEl, 'fetching');
@@ -15357,18 +15386,19 @@
                 });
 
                 const result = await response.json();
+                const currentBtn = getCurrentButton();
 
                 if (response.status === 401) {
-                    completionProcessingStates[entryId] = { status: 'idle', buttonEl };
-                    updateCompletionButtonState(buttonEl, 'idle');
+                    completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'idle' };
+                    updateCompletionButtonState(currentBtn, 'idle');
                     showToast('Please log in to analyze completion reports', 'error');
                     return;
                 }
 
                 if (result.alreadyProcessed) {
                     console.log(`[CompletionReports] Already processed: ${result.documentId}`);
-                    completionProcessingStates[entryId] = { status: 'complete', documentId: result.documentId, buttonEl };
-                    updateCompletionButtonState(buttonEl, 'complete', result.documentId, result.displayName);
+                    completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'complete', documentId: result.documentId };
+                    updateCompletionButtonState(currentBtn, 'complete', result.documentId, result.displayName);
                 } else if (result.success) {
                     const docId = result.document.id;
                     const docStatus = result.document.status || 'pending';
@@ -15381,32 +15411,33 @@
 
                     // Check initial status and start polling if not complete
                     if (docStatus === 'complete') {
-                        completionProcessingStates[entryId] = { status: 'complete', documentId: docId, buttonEl };
-                        updateCompletionButtonState(buttonEl, 'complete', docId);
+                        completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'complete', documentId: docId };
+                        updateCompletionButtonState(currentBtn, 'complete', docId);
                         showToast('Completion report analyzed!', 'success');
                     } else {
                         // Start polling for document status
                         completionProcessingStates[entryId] = {
+                            ...completionProcessingStates[entryId],
                             status: docStatus === 'processing' ? 'processing' : 'queued',
                             documentId: docId,
-                            buttonEl,
                             pollStartTime: Date.now()
                         };
-                        updateCompletionButtonState(buttonEl, docStatus === 'processing' ? 'processing' : 'queued');
-                        startCompletionDocumentPolling(entryId, docId, buttonEl);
+                        updateCompletionButtonState(currentBtn, docStatus === 'processing' ? 'processing' : 'queued');
+                        startCompletionDocumentPolling(entryId, docId, getCurrentButton());
                     }
                 } else if (result.error === 'no_credits') {
                     console.log(`[CompletionReports] No credits available`);
-                    completionProcessingStates[entryId] = { status: 'idle', buttonEl };
-                    updateCompletionButtonState(buttonEl, 'idle');
+                    completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'idle' };
+                    updateCompletionButtonState(currentBtn, 'idle');
                     showOutOfCreditsModal();
                 } else {
                     throw new Error(result.message || result.error || 'Unknown error');
                 }
             } catch (error) {
                 console.error('[CompletionReports] Error:', error);
-                completionProcessingStates[entryId] = { status: 'error', buttonEl };
-                updateCompletionButtonState(buttonEl, 'error');
+                const currentBtn = getCurrentButton();
+                completionProcessingStates[entryId] = { ...completionProcessingStates[entryId], status: 'error' };
+                updateCompletionButtonState(currentBtn, 'error');
                 showToast('Failed to analyze: ' + error.message, 'error');
             }
         }
@@ -15424,6 +15455,9 @@
                     clearInterval(state.pollInterval);
                     return;
                 }
+
+                // Always use the fresh button reference from state (it gets updated when DOM changes)
+                const currentButtonEl = currentState.buttonEl;
 
                 // Check if we've exceeded max poll duration
                 if (Date.now() - currentState.pollStartTime > COMPLETION_MAX_POLL_DURATION) {
@@ -15455,18 +15489,18 @@
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;
                         currentState.status = 'complete';
-                        updateCompletionButtonState(buttonEl, 'complete', documentId, doc.display_name);
+                        updateCompletionButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
                         showToast('Completion report analyzed!', 'success');
                     } else if (doc.status === 'processing' && currentState.status !== 'processing') {
                         // Transitioned to processing
                         currentState.status = 'processing';
-                        updateCompletionButtonState(buttonEl, 'processing');
+                        updateCompletionButtonState(currentButtonEl, 'processing');
                     } else if (doc.status === 'error') {
                         // Processing failed
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;
                         currentState.status = 'error';
-                        updateCompletionButtonState(buttonEl, 'error');
+                        updateCompletionButtonState(currentButtonEl, 'error');
                         showToast('Document processing failed', 'error');
                     }
                 } catch (err) {
@@ -15478,58 +15512,71 @@
         function updateCompletionButtonState(buttonEl, state, documentId = null, displayName = null) {
             if (!buttonEl) return;
 
-            // Get parent container and data attributes (works for both completion-analyze-btn and occ-reanalyze-btn)
-            const parentContainer = buttonEl.parentElement;
-            const apiNum = buttonEl.dataset.apiNumber || '';
-            const entryId = buttonEl.dataset.entryId || '';
+            // Get parent container - this stays in the DOM even when we replace innerHTML
+            let parentContainer = buttonEl.parentElement;
+            let apiNum = buttonEl.dataset?.apiNumber || '';
+            let entryId = buttonEl.dataset?.entryId || '';
+
+            // If buttonEl is detached (parentElement is null), we can't update
+            if (!parentContainer) {
+                console.warn('[Completion] Button element is detached from DOM, cannot update state');
+                return;
+            }
 
             // For states that need a single button (not complete), replace container with completion-analyze-btn
             const createAnalyzeButton = (stateClass, disabled, innerHTML, title) => {
-                if (parentContainer) {
-                    parentContainer.innerHTML = `
-                        <button class="completion-analyze-btn ${stateClass}"
-                                data-api-number="${escapeHtml(apiNum)}"
-                                data-entry-id="${escapeHtml(entryId)}"
-                                ${disabled ? 'disabled' : ''}
-                                onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this)"
-                                title="${title}">${innerHTML}</button>
-                    `;
-                }
+                parentContainer.innerHTML = `
+                    <button class="completion-analyze-btn ${stateClass}"
+                            data-api-number="${escapeHtml(apiNum)}"
+                            data-entry-id="${escapeHtml(entryId)}"
+                            ${disabled ? 'disabled' : ''}
+                            onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this)"
+                            title="${title}">${innerHTML}</button>
+                `;
+                // Return the new button for reference updates
+                return parentContainer.querySelector('button');
             };
 
+            let newButton = null;
             switch (state) {
                 case 'fetching':
-                    createAnalyzeButton('analyzing', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
+                    newButton = createAnalyzeButton('fetching', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
                     break;
                 case 'queued':
-                    createAnalyzeButton('analyzing', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
+                    newButton = createAnalyzeButton('queued', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
                     break;
                 case 'processing':
-                    createAnalyzeButton('analyzing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
+                    newButton = createAnalyzeButton('processing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
                     break;
                 case 'complete':
-                    if (parentContainer && documentId) {
+                    if (documentId) {
                         parentContainer.innerHTML = `
                             <button class="occ-reanalyze-btn"
                                     data-api-number="${escapeHtml(apiNum)}"
                                     data-entry-id="${escapeHtml(entryId)}"
                                     onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this)"
                                     title="Re-process this document">Re-analyze</button>
-                            <a href="javascript:void(0)" class="occ-view-doc-btn"
-                               onclick="openDocumentDetail('${documentId}')"
-                               title="View analyzed document">View Doc ↗</a>
+                            <button class="occ-view-doc-btn"
+                                    onclick="openDocumentDetail('${documentId}')"
+                                    title="View analyzed document">View Doc ↗</button>
                         `;
+                        newButton = parentContainer.querySelector('button');
                     } else {
-                        createAnalyzeButton('analyzed', false, '✓ Analyzed', 'Analyzed');
+                        newButton = createAnalyzeButton('analyzed', false, '✓ Analyzed', 'Analyzed');
                     }
                     break;
                 case 'error':
-                    createAnalyzeButton('error', false, 'Retry', 'Click to retry');
+                    newButton = createAnalyzeButton('error', false, 'Retry', 'Click to retry');
                     break;
                 case 'idle':
                 default:
-                    createAnalyzeButton('', false, 'Analyze', 'Uses 1 document credit');
+                    newButton = createAnalyzeButton('', false, 'Analyze', 'Uses 1 document credit');
                     break;
+            }
+
+            // Update the state tracking with the new button reference
+            if (entryId && completionProcessingStates[entryId] && newButton) {
+                completionProcessingStates[entryId].buttonEl = newButton;
             }
         }
 

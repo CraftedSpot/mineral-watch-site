@@ -442,9 +442,9 @@ def validate_schema(extracted_data: dict) -> dict:
     if not extracted_data:
         return {
             "valid": False,
-            "missing_required": set(),
-            "missing_expected": set(),
-            "unexpected_fields": set(),
+            "missing_required": [],
+            "missing_expected": [],
+            "unexpected_fields": [],
             "issues": ["No extracted data to validate"]
         }
 
@@ -456,9 +456,9 @@ def validate_schema(extracted_data: dict) -> dict:
         logger.info(f"No schema defined for doc_type '{doc_type}' - skipping schema validation")
         return {
             "valid": True,
-            "missing_required": set(),
-            "missing_expected": set(),
-            "unexpected_fields": set(),
+            "missing_required": [],
+            "missing_expected": [],
+            "unexpected_fields": [],
             "issues": [],
             "skipped": True,
             "reason": f"No schema for doc_type '{doc_type}'"
@@ -495,9 +495,9 @@ def validate_schema(extracted_data: dict) -> dict:
 
     return {
         "valid": len(missing_required) == 0,
-        "missing_required": missing_required,
-        "missing_expected": missing_expected,
-        "unexpected_fields": unexpected_fields,
+        "missing_required": sorted(list(missing_required)),
+        "missing_expected": sorted(list(missing_expected)),
+        "unexpected_fields": sorted(list(unexpected_fields)),
         "issues": issues
     }
 
