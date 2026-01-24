@@ -678,26 +678,77 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       }).join('')
     : '<tr><td colspan="4" style="color: #64748b; font-style: italic;">No OCC filings found</td></tr>';
 
-  // Calculate trend
-  const oldest = data.monthlyHistory[data.monthlyHistory.length - 1];
-  const newest = data.monthlyHistory[0];
+  // Calculate trends using only months with actual reported data
+  // Use BOE (Barrel of Oil Equivalent): Oil BBL + Gas MCF / 6
+  const calcBOE = (m: { oil: number; gas: number }) => m.oil + (m.gas / 6);
+  const reportedData = data.monthlyHistory.filter(m => m.oil > 0 || m.gas > 0);
   let trendHtml = '';
-  if (oldest && newest && oldest.oil > 0) {
-    const oilChange = Math.round(((newest.oil - oldest.oil) / oldest.oil) * 100);
-    const isPositive = oilChange >= 0;
-    trendHtml = `
-      <span class="trend-label">24-Mo Change:</span>
-      <span class="${isPositive ? 'trend-positive' : 'trend-negative'}">
-        ${isPositive ? '↑' : '↓'} ${Math.abs(oilChange)}%
-      </span>
-      <span class="trend-detail">
-        (${oldest.month}: ${fmt(oldest.oil)} BBL → ${newest.month}: ${fmt(newest.oil)} BBL)
-      </span>
-    `;
+
+  if (reportedData.length >= 2) {
+    const trendParts: string[] = [];
+
+    // YoY: Compare most recent reported month to same month last year
+    const mostRecent = reportedData[0];
+    const recentYear = parseInt(mostRecent.yearMonth.substring(0, 4));
+    const recentMonth = parseInt(mostRecent.yearMonth.substring(4, 6));
+    const targetYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
+
+    // Find exact same month last year, or nearby month if not available
+    const sameMonthLastYear = reportedData.find(m => m.yearMonth === targetYearMonth) ||
+      reportedData.find(m => {
+        const mYear = parseInt(m.yearMonth.substring(0, 4));
+        const mMonth = parseInt(m.yearMonth.substring(4, 6));
+        // Allow ±1 month from target
+        return mYear === recentYear - 1 && Math.abs(mMonth - recentMonth) <= 1;
+      });
+
+    const recentBOE = calcBOE(mostRecent);
+    const priorBOE = sameMonthLastYear ? calcBOE(sameMonthLastYear) : 0;
+
+    if (sameMonthLastYear && priorBOE > 0) {
+      const yoyChange = Math.round(((recentBOE - priorBOE) / priorBOE) * 100);
+      const yoyPositive = yoyChange >= 0;
+      trendParts.push(`
+        <span class="trend-item">
+          <span class="trend-label">YoY:</span>
+          <span class="${yoyPositive ? 'trend-positive' : 'trend-negative'}">
+            ${yoyPositive ? '↑' : '↓'}${Math.abs(yoyChange)}%
+          </span>
+        </span>
+      `);
+    }
+
+    // 24-Mo Rolling: Compare last 12 months of data vs prior 12 months of data
+    if (reportedData.length >= 12) {
+      const recent12 = reportedData.slice(0, Math.min(12, reportedData.length));
+      const prior12 = reportedData.slice(12, Math.min(24, reportedData.length));
+
+      if (prior12.length >= 6) { // Need at least 6 months of prior data
+        const recent12BOE = recent12.reduce((sum, m) => sum + calcBOE(m), 0);
+        const prior12BOE = prior12.reduce((sum, m) => sum + calcBOE(m), 0);
+
+        if (prior12BOE > 0) {
+          const rollingChange = Math.round(((recent12BOE - prior12BOE) / prior12BOE) * 100);
+          const rollingPositive = rollingChange >= 0;
+          trendParts.push(`
+            <span class="trend-item">
+              <span class="trend-label">24-Mo:</span>
+              <span class="${rollingPositive ? 'trend-positive' : 'trend-negative'}">
+                ${rollingPositive ? '↑' : '↓'}${Math.abs(rollingChange)}%
+              </span>
+            </span>
+          `);
+        }
+      }
+    }
+
+    if (trendParts.length > 0) {
+      trendHtml = `<div class="trend-container">${trendParts.join('<span class="trend-separator">|</span>')}</div>`;
+    }
   }
 
-  // Generate SVG chart - filter to only months with reported data
-  const reportedMonths = data.monthlyHistory.filter(m => m.oil > 0 || m.gas > 0);
+  // Generate SVG chart - filter to only months with reported data, limit to 18 months for print fit
+  const reportedMonths = data.monthlyHistory.filter(m => m.oil > 0 || m.gas > 0).slice(0, 18);
   const chartSvg = generateSparseProductionChart(reportedMonths);
 
   return `<!DOCTYPE html>
@@ -718,7 +769,7 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .print-btn.primary:hover { background: #334E68; }
     .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
     .print-btn.secondary:hover { background: #f8fafc; }
-    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); overflow: hidden; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1); }
     .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
     .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
     .header .pun { font-size: 14px; font-weight: 500; opacity: 0.9; margin-bottom: 4px; font-family: monospace; color: white !important; }
@@ -780,11 +831,14 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .totals-unit { font-size: 10px; font-weight: 400; }
     .totals-wells { font-size: 14px; font-weight: 700; color: #1C2B36; }
     .totals-active { font-size: 12px; font-weight: 600; color: #059669; }
-    .chart-container { margin-bottom: 8px; }
+    .chart-container { margin-bottom: 8px; overflow-x: auto; }
     .trend-line { font-size: 10px; color: #64748b; display: flex; align-items: center; gap: 4px; }
+    .trend-container { display: flex; align-items: center; gap: 6px; font-size: 10px; }
+    .trend-item { display: flex; align-items: center; gap: 3px; }
     .trend-label { font-weight: 600; color: #475569; }
     .trend-positive { color: #059669; font-weight: 600; }
     .trend-negative { color: #dc2626; font-weight: 600; }
+    .trend-separator { color: #cbd5e1; }
     .trend-detail { color: #94a3b8; }
     .monthly-table { width: 100%; border-collapse: collapse; font-size: 9px; }
     .monthly-table th { padding: 5px 6px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; }
@@ -805,8 +859,7 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
     .data-table td.bold { font-weight: 600; }
     .data-table td.small { font-size: 9px; color: #64748b; }
     .data-table tr.alt { background: #f8fafc; }
-    .data-table tr.current-well-filing { background: #f0fdf4; }
-    .data-table tr.current-well-filing td { color: #166534; }
+    .data-table tr.current-well-filing td:first-child { border-left: 3px solid #22c55e; padding-left: 5px; }
     .current-indicator { color: #22c55e; font-size: 8px; vertical-align: middle; }
     .footer { padding: 10px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
 
@@ -829,8 +882,8 @@ function generateUnitPrintHtml(data: UnitPrintData): string {
       .totals-grid { flex-wrap: wrap; gap: 16px; padding: 12px; }
       .totals-item { border-left: none; padding-left: 0; min-width: calc(50% - 8px); }
       .totals-item:nth-child(odd) { border-left: none; }
-      .chart-container { overflow-x: auto; }
-      .chart-container svg { min-width: 500px; }
+      .chart-container { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+      .chart-container svg { min-width: 600px; }
       .monthly-table { font-size: 8px; }
       .monthly-table th, .monthly-table td { padding: 3px 4px; }
       .section:has(.monthly-table) { overflow-x: auto; }
@@ -998,6 +1051,7 @@ function generateSparseProductionChart(reportedMonths: Array<{ month: string; oi
 
   const data = [...reportedMonths].reverse(); // Oldest to newest for chart
   const padding = { top: 25, right: 55, bottom: 40, left: 50 };
+  // Fixed width of 650px fits nicely on 8.5" printed page
   const width = 650;
   const height = 160;
   const chartWidth = width - padding.left - padding.right;
@@ -1102,5 +1156,5 @@ function generateSparseProductionChart(reportedMonths: Array<{ month: string; oi
 
   svgContent += '</g>';
 
-  return `<svg width="${width}" height="${height}" style="display: block; max-width: 100%;">${svgContent}</svg>`;
+  return `<svg width="${width}" height="${height}" style="display: block;">${svgContent}</svg>`;
 }

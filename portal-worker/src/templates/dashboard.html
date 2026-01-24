@@ -14410,7 +14410,7 @@
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <span style="font-weight: 500; color: #2563eb;">${escapeHtml(p.location)}</span>
                                     ${p.group ? `<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">${escapeHtml(p.group)}</span>` : ''}
-                                    ${p.nma ? `<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">${p.nma % 1 === 0 ? p.nma : p.nma.toFixed(4)} NMA</span>` : ''}
+                                    ${p.nma ? `<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">${parseFloat(p.nma.toFixed(4))} NMA</span>` : ''}
                                 </div>
                                 <div style="font-size: 12px; color: #6b7280;">${escapeHtml(p.county)}${p.acres && !p.nma ? ' • ' + p.acres + ' acres' : ''}</div>
                             </div>
