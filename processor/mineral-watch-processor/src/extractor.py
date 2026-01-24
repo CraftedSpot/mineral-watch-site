@@ -7896,24 +7896,14 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
     is_small_document = total_pages <= MAX_PAGES_FOR_SCANNED_BYPASS
     has_no_usable_text = pages_with_text == 0
 
-    # For small scanned documents with multiple pages, re-run quick classification on ALL pages
-    # to properly detect multi-document stacks (e.g., 3 handwritten deeds).
-    # The initial classification only looked at page 1 for rotation detection.
-    if is_small_document and has_no_usable_text and total_pages > 1:
-        logger.info(f"SCANNED MULTI-PAGE: Re-running quick classification on all {total_pages} pages to detect multi-document stacks")
-        full_classification = await quick_classify_document(image_paths)
-        logger.info(f"Full classification result: is_multi_document={full_classification.get('is_multi_document')}, "
-                   f"estimated_doc_count={full_classification.get('estimated_doc_count')}, "
-                   f"doc_type={full_classification.get('doc_type')}")
-        # Use the full classification for bypass decision
-        classification = full_classification
+    # For ALL multi-page documents, use visual detection for splitting
+    # Text heuristics alone aren't reliable - handwritten docs may have some OCR text
+    # but titles like "MINERAL DEED" may not be cleanly extracted
+    if total_pages > 1:
+        logger.info(f"MULTI-PAGE DOC: Will use visual detection for {total_pages} pages (has_text={not has_no_usable_text})")
+        # Don't bypass - fall through to visual detection below
 
-    quick_says_single = (
-        classification.get("is_multi_document") == False and
-        classification.get("estimated_doc_count", 1) == 1
-    )
-
-    if is_small_document and has_no_usable_text and quick_says_single:
+    elif is_small_document and total_pages == 1:
         logger.info(f"SCANNED PDF FIX: Small doc ({total_pages} pages) + no usable text + quick says single")
         logger.info(f"  pages_with_text={pages_with_text}, pages_without_text={pages_without_text}")
         logger.info(f"  is_multi_document={classification.get('is_multi_document')}, estimated_doc_count={classification.get('estimated_doc_count')}")
@@ -7931,13 +7921,10 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         result["_page_count"] = total_pages
         result["_quick_classification"] = classification.get("doc_type")
         return result
-    elif has_no_usable_text and not is_small_document:
-        logger.info(f"SCANNED PDF: Large doc ({total_pages} pages) with no usable text - using visual document detection")
-
-    # For scanned PDFs with no usable text, use visual document detection
-    # Text-based heuristics won't work, so we need Sonnet to look at the page images
-    if has_no_usable_text and total_pages > 1:
-        logger.info(f"VISUAL DETECTION: No usable text in {total_pages} pages - using detect_documents() for boundary detection")
+    # For ALL multi-page documents, use visual document detection
+    # This is more reliable than text heuristics, especially for handwritten/scanned docs
+    if total_pages > 1:
+        logger.info(f"VISUAL DETECTION: Using detect_documents() for {total_pages} pages to find document boundaries")
         detection_result = await detect_documents(image_paths)
         logger.info(f"Visual detection result: {detection_result}")
 

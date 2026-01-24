@@ -6425,9 +6425,9 @@
             if (score === null || score === undefined) return '';
             
             const percentage = Math.round(score * 100);
-            const symbol = score >= 0.9 ? '✓' : score >= 0.6 ? '⚠' : '✕';
-            const className = score >= 0.9 ? 'confidence-high' : score >= 0.6 ? 'confidence-medium' : 'confidence-low';
-            const title = score >= 0.9 ? 'High confidence' : score >= 0.6 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
+            const symbol = score >= 0.85 ? '✓' : score >= 0.50 ? '⚠' : '✕';
+            const className = score >= 0.85 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
+            const title = score >= 0.85 ? 'High confidence' : score >= 0.50 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
             
             // Always include both symbol and percentage, use CSS to control visibility
             let html = `<span class="confidence-indicator ${className}" title="${title}">${symbol}`;
@@ -11824,7 +11824,7 @@
                     if (fieldScores && Object.keys(fieldScores).length > 0) {
                         const overallScore = calculateOverallScore(fieldScores);
                         // Derive confidence level from calculated score for consistency with displayed percentage
-                        const confidenceLevel = overallScore >= 0.85 ? 'high' : overallScore >= 0.70 ? 'medium' : 'low';
+                        const confidenceLevel = overallScore >= 0.85 ? 'high' : overallScore >= 0.50 ? 'medium' : 'low';
                         const confidenceText = confidenceLevel.charAt(0).toUpperCase() + confidenceLevel.slice(1);
                         
                         content += '<div class="confidence-section">';
@@ -11891,8 +11891,8 @@
                         sortedFields.forEach(([field, score]) => {
                             const displayName = fieldMapping[field] || field;
                             const percentage = Math.round(score * 100);
-                            const indicator = score >= 0.9 ? '✓' : score >= 0.6 ? '⚠' : '✕';
-                            const indicatorClass = score >= 0.9 ? 'confidence-high' : score >= 0.6 ? 'confidence-medium' : 'confidence-low';
+                            const indicator = score >= 0.85 ? '✓' : score >= 0.50 ? '⚠' : '✕';
+                            const indicatorClass = score >= 0.85 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
                             
                             content += `
                                 <div class="confidence-detail-item">
