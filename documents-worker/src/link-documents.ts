@@ -569,9 +569,60 @@ export async function linkDocumentToEntities(
           wellId = well.id as string;
           console.log(`[LinkDocuments] Found well by Strategy 3: ${well.well_name} (${wellId})`);
           console.log(`[LinkDocuments] Location: S${well.section}-T${well.township}-R${well.range}`);
-        } else {
-          console.log(`[LinkDocuments] No well match found after all strategies`);
         }
+      }
+
+      // Strategy 4: Check user's Client Wells table (Airtable-synced)
+      // This handles cases where the well exists in the user's tracked wells but not in statewide data
+      if (!wellId && documentUserId) {
+        console.log(`[LinkDocuments] Strategy 4: Checking client_wells for user ${documentUserId}`);
+
+        const query4 = `
+          SELECT airtable_id as id, well_name, operator, section, township, range_val as range
+          FROM client_wells
+          WHERE user_id = ?
+          AND (
+            UPPER(well_name) IN (${nameVariations.map(() => 'UPPER(?)').join(',')})
+            OR UPPER(well_name) LIKE UPPER(?)
+            OR UPPER(well_name) LIKE UPPER(?)
+          )
+          ${section && township && range ? `
+            AND (
+              section IS NULL OR section = '' OR
+              (CAST(section AS INTEGER) = CAST(? AS INTEGER)
+               AND UPPER(township) LIKE UPPER(?))
+            )
+          ` : ''}
+          ORDER BY well_status = 'AC' DESC
+          LIMIT 1
+        `;
+
+        const params4 = [
+          documentUserId,
+          ...nameVariations,
+          `%${baseName || wellName}%`,
+          `%${wellName}%`
+        ];
+        if (section && township && range) {
+          params4.push(section);
+          params4.push(`%${township}%`);
+        }
+
+        console.log(`[LinkDocuments] Client wells query for user:`, documentUserId);
+        console.log(`[LinkDocuments] Name variations:`, nameVariations);
+
+        const clientWell = await db.prepare(query4).bind(...params4).first();
+        if (clientWell) {
+          wellId = clientWell.id as string;
+          console.log(`[LinkDocuments] Found CLIENT WELL by Strategy 4: ${clientWell.well_name} (${wellId})`);
+          console.log(`[LinkDocuments] Location: S${clientWell.section}-T${clientWell.township}-R${clientWell.range}`);
+        } else {
+          console.log(`[LinkDocuments] No well match found in client_wells`);
+        }
+      }
+
+      if (!wellId) {
+        console.log(`[LinkDocuments] No well match found after all strategies (including client_wells)`);
       }
     } catch (error) {
       console.error(`[LinkDocuments] Error in smart well matching:`, error);

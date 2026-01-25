@@ -27,22 +27,22 @@ def ocr_quality_to_max_confidence(quality_score: float) -> float:
     The model is told about this ceiling, and we also enforce it in post-processing.
 
     Calibration curve:
-    - OCR >= 0.9  → max_conf = 0.98 (excellent quality, trust high confidence)
-    - OCR 0.7-0.9 → max_conf = 0.90 (good quality, allow high confidence)
-    - OCR 0.5-0.7 → max_conf = 0.75 (marginal quality, cap confidence)
-    - OCR 0.3-0.5 → max_conf = 0.60 (poor quality, significant cap)
-    - OCR < 0.3   → max_conf = 0.45 (very poor, low ceiling)
+    - OCR >= 0.9  → max_conf = 1.0  (excellent quality, no ceiling)
+    - OCR 0.7-0.9 → max_conf = 0.95 (good quality, minor ceiling)
+    - OCR 0.5-0.7 → max_conf = 0.85 (marginal quality, cap confidence)
+    - OCR 0.3-0.5 → max_conf = 0.70 (poor quality, significant cap)
+    - OCR < 0.3   → max_conf = 0.55 (very poor, low ceiling)
     """
     if quality_score >= 0.9:
-        return 0.98
+        return 1.0
     elif quality_score >= 0.7:
-        return 0.90
+        return 0.95
     elif quality_score >= 0.5:
-        return 0.75
+        return 0.85
     elif quality_score >= 0.3:
-        return 0.60
+        return 0.70
     else:
-        return 0.45
+        return 0.55
 
 
 def clamp_confidence_scores(extracted_data: dict, max_confidence: float) -> dict:
@@ -1086,9 +1086,9 @@ def assess_ocr_quality(page_texts: list[str]) -> dict:
     """
     if not page_texts:
         # No text layer - likely a scanned image PDF
-        # Sonnet reads images directly, so this is usually fine
-        # Use 0.8 ceiling (not 0.45) since vision model handles scans well
-        max_conf = 0.80
+        # Sonnet's vision model reads images directly and does excellent work
+        # Don't penalize just for lacking embedded text - trust the vision model
+        max_conf = 0.95
         return {
             "quality_score": 0.0,
             "max_confidence": max_conf,
@@ -1096,7 +1096,7 @@ def assess_ocr_quality(page_texts: list[str]) -> dict:
             "is_scanned_image": True,  # Flag this as a scanned image
             "warning_message": (
                 f"DOCUMENT QUALITY NOTICE: This appears to be a scanned image (no text layer).\n"
-                f"CONFIDENCE CEILING: {max_conf:.0%} - Vision model reads images directly.\n"
+                f"Vision model reads images directly - confidence ceiling: {max_conf:.0%}.\n"
                 f"If any text is blurry or unclear, use null instead of guessing."
             )
         }
@@ -1120,9 +1120,9 @@ def assess_ocr_quality(page_texts: list[str]) -> dict:
 
     if total_chars == 0:
         # No text extracted - likely a scanned image PDF without text layer
-        # Sonnet reads images directly, so this is usually fine
-        # Use 0.8 ceiling since vision model handles clean scans well
-        max_conf = 0.80
+        # Sonnet's vision model reads images directly and does excellent work
+        # Don't penalize just for lacking embedded text - trust the vision model
+        max_conf = 0.95
         return {
             "quality_score": 0.0,
             "max_confidence": max_conf,
@@ -1130,7 +1130,7 @@ def assess_ocr_quality(page_texts: list[str]) -> dict:
             "is_scanned_image": True,  # Flag this as a scanned image
             "warning_message": (
                 f"DOCUMENT QUALITY NOTICE: This appears to be a scanned image (no text layer).\n"
-                f"CONFIDENCE CEILING: {max_conf:.0%} - Vision model reads images directly.\n"
+                f"Vision model reads images directly - confidence ceiling: {max_conf:.0%}.\n"
                 f"If any text is blurry or unclear, use null instead of guessing."
             )
         }
@@ -8271,6 +8271,1076 @@ Multiple formations means the pooling order covers multiple depth intervals.
 """
 
 # ============================================================================
+# DIVISION ORDER FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+# Document types that should use the DIVISION ORDER focused prompt
+DIVISION_ORDER_DOC_TYPES = ["division_order", "check"]
+
+DIVISION_ORDER_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners verify their division orders and payment information.
+Your task is to extract ownership interest details accurately so owners can verify their payments match their records.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Effective date may be a specific date OR "First Production" - capture exactly as stated
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - State the operator, property/well name, and owner
+   - Note the decimal interest (critical for payment verification)
+   - Mention if this is a multi-section unit
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Explain what this division order means for the owner
+   - Help them understand their decimal interest and how to verify it
+   - Note any multi-section allocation that affects their interest
+   - Mention where to send the signed DO and who to contact for questions
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION:
+
+HIGH CONFIDENCE (0.85-1.0): ONLY use when:
+- Text is clearly printed/typed and easily readable
+- Value is unambiguous with no possible alternative interpretations
+
+MEDIUM CONFIDENCE (0.5-0.84): Use when:
+- Text is readable but has minor issues (slight blur, faded)
+- Most characters are clear but 1-2 are slightly ambiguous
+
+LOW CONFIDENCE (0.2-0.49): Use when:
+- Text is partially illegible (handwritten, faded, blurry)
+- Multiple characters are ambiguous
+
+VERY LOW / NULL (0.0-0.19 or null): Use when:
+- Text is mostly illegible or unreadable
+- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+
+DECIMAL INTEREST - CRITICAL:
+- Extract the decimal interest EXACTLY as shown (e.g., 0.00390625)
+- This is the most important field for payment verification
+- If multiple interest types shown (working, royalty, ORRI), extract each separately
+- Common decimal interests: 0.00390625 (1/256), 0.0078125 (1/128), 0.015625 (1/64)
+
+LEGAL DESCRIPTION (TRS) PARSING:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+IMPORTANT DISTINCTIONS:
+- "Property Name" on the document is the WELL/UNIT NAME (e.g., "Holdings 25-36-1XH"), NOT the legal description
+- Legal description (Section-Township-Range) is usually found in the body text explaining unit allocation
+- If owner is a trust, extract both the trust name AND the trustee name separately
+- ALWAYS extract section/township/range at top level (use the FIRST section for property matching)
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+=============================================================================
+DOCUMENT TYPES FOR THIS PROMPT: division_order
+=============================================================================
+
+DIVISION ORDERS:
+Division Orders certify ownership interest and authorize payment distribution. Extract the decimal interest carefully -
+this is critical for verifying payments match your records.
+
+FOR MULTI-SECTION UNITS (unit_sections):
+If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each section typically shares the SAME township and range.
+- Extract township/range for each section in unit_sections
+- If township/range is not explicitly stated for a secondary section, use the township/range from the primary (first) section
+- Example: If you see "Section 25-T18N-R15W has 640 acres... Section 36 has 640 acres...", Section 36 is also T18N-R15W
+
+DIVISION ORDER EXAMPLE:
+{{
+  "doc_type": "division_order",
+
+  "operator_name": "XYZ Oil Company (the payor - company sending this Division Order)",
+  "operator_address": "PO Box 779, Oklahoma City, OK 73101 (where to mail signed DO back)",
+
+  "property_name": "Smith 1-16H (labeled as 'Property Name' - this is the well/unit name, NOT TRS)",
+  "property_number": "112295 (operator's internal property ID)",
+  "billing_code": "ABC123 (operator's billing code for payment inquiries)",
+
+  "owner_name": "John A. Smith Family Trust (the mineral owner - may be individual or trust name)",
+  "trustee_name": "John A. Smith, Trustee (if owner is a trust, extract trustee separately)",
+  "owner_address": "123 Main St, Oklahoma City, OK 73101",
+  "owner_number": "PRI38 (if shown - operator's internal owner/interest ID like PR16, PRI38, etc.)",
+
+  "working_interest": 0.00000000,
+  "royalty_interest": 0.00390625,
+  "decimal_interest": 0.00390625,
+  "ownership_type": "royalty (or 'working' if working_interest > 0)",
+  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, etc.)",
+
+  "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
+  "payment_minimum": 100.00,
+
+  "api_number": "35-051-12345 (if shown)",
+  "county": "Grady (from County | State field in header)",
+  "state": "OK",
+  "section": "16 (FIRST section mentioned - for property matching)",
+  "township": "12N",
+  "range": "7W",
+
+  "is_multi_section_unit": true,
+  "unit_sections": [
+    {{"section": "16", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.6546}},
+    {{"section": "15", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.3454}}
+  ],
+
+  "key_takeaway": "REQUIRED - One sentence: Division order from [Operator] for [Property Name] well. Owner [Name] has [decimal] interest ([interest type]). [Note if multi-section unit].",
+
+  "detailed_analysis": "REQUIRED - 2-3 paragraphs covering: (1) what this division order means and why the owner received it; (2) the decimal interest and how it relates to their ownership; (3) multi-section allocation if applicable; (4) where to send signed DO and contact info for questions.",
+
+  "field_scores": {{
+    "operator_name": 1.0,
+    "operator_address": 0.95,
+    "property_name": 1.0,
+    "owner_name": 1.0,
+    "working_interest": 1.0,
+    "royalty_interest": 1.0,
+    "effective_date": 0.95,
+    "county": 1.0,
+    "section": 0.95,
+    "township": 0.95,
+    "range": 0.95,
+    "unit_sections": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+EXTRACTION NOTES FOR DIVISION ORDERS:
+=============================================================================
+
+DECIMAL INTEREST VERIFICATION:
+- This is the MOST IMPORTANT field - owners use it to verify their payment is correct
+- Extract to full precision (8 decimal places if shown)
+- If both working_interest and royalty_interest are shown, extract both
+- decimal_interest should be the total (working + royalty)
+
+MULTI-SECTION UNITS:
+- Many horizontal wells span multiple sections
+- Each section should be in unit_sections with its allocation factor
+- The allocation_factor shows what percentage of production comes from that section
+- Top-level section/township/range should be from the FIRST section (for property matching)
+
+TRUST OWNERSHIP:
+- If owner is a trust, extract BOTH:
+  - owner_name: "John A. Smith Family Trust"
+  - trustee_name: "John A. Smith, Trustee"
+- This helps with ownership verification
+
+TOP-LEVEL TRS FIELDS:
+Always include top-level section, township, range, county fields.
+These are REQUIRED for property linking - the dashboard uses these to match documents to properties.
+Use the FIRST section mentioned if multiple sections exist.
+"""
+
+# ============================================================================
+# SPACING/DENSITY ORDER FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+# Document types that should use the SPACING focused prompt
+SPACING_DOC_TYPES = ["spacing_order", "drilling_and_spacing_order",
+                     "horizontal_drilling_and_spacing_order", "increased_density_order"]
+
+SPACING_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma Corporation Commission drilling, spacing, and density orders.
+Your task is to extract key information about well spacing units and authorization for mineral owners.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo
+- Calculate expiration dates if order has time limit
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - State what this order does (establishes units, authorizes wells, etc.)
+   - Note unit size, formations, and key setbacks
+   - Mention if expiration date applies
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Explain what this order means for mineral owners in the affected area
+   - Note if this is informational only vs requires action
+   - Discuss any related orders or companion cases
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION:
+HIGH CONFIDENCE (0.85-1.0): Text is clearly printed and unambiguous
+MEDIUM CONFIDENCE (0.5-0.84): Minor blur or fading but readable
+LOW CONFIDENCE (0.2-0.49): Partially illegible, some characters ambiguous
+VERY LOW / NULL (0.0-0.19): Mostly illegible - use null instead of guessing
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- Township numbers are typically 1-30. Section numbers are 1-36.
+- If you extract township "25N" or "36N", you likely confused section with township
+
+SOURCE OF TRUTH: The DOCUMENT TEXT is the source of truth. Extract what the document says.
+
+=============================================================================
+DOCUMENT TYPES FOR THIS PROMPT
+=============================================================================
+
+1. DRILLING AND SPACING ORDER (Vertical Wells)
+   - Look for: "DRILLING AND SPACING", "SPACING UNIT", no mention of "HORIZONTAL"
+   - Establishes drilling units with well setbacks for VERTICAL wells
+   - Typical unit sizes: 160-acre, 320-acre, 640-acre
+   - Setbacks from unit boundaries (e.g., 660 feet)
+
+2. HORIZONTAL DRILLING AND SPACING ORDER
+   - Look for: "HORIZONTAL DRILLING AND SPACING", "HORIZONTAL WELL"
+   - Establishes drilling units for HORIZONTAL wells
+   - Has LATERAL setback AND COMPLETION INTERVAL setback
+   - May cover multiple sections (640-acre, 1280-acre, 1920-acre units)
+
+3. INCREASED DENSITY ORDER
+   - Look for: "INCREASED DENSITY", "INCREASED WELL DENSITY", "ADDITIONAL WELL"
+   - Authorizes additional wells in EXISTING spacing units
+   - References existing spacing order
+   - Often has expiration date (must drill within 1-2 years)
+   - May specify exact well name and API number
+
+4. SPACING ORDER (Generic)
+   - General spacing orders that don't fit specific categories above
+
+=============================================================================
+ORDER TYPE DETECTION - IMPORTANT
+=============================================================================
+
+Determine order_type from the order's language:
+- "This Order establishes..." (no prior order referenced) → "original"
+- "Amendment of Order No..." or "Amending Order No..." → "amendment"
+- "Extend Order No..." or "Extension of Order No..." → "extension"
+- "Vacate Order No..." or "Vacating Order No..." → "vacation"
+- "Correcting Order No..." (simple fix) → "correction"
+- "Nunc Pro Tunc Correcting Order No..." → "nunc_pro_tunc"
+
+=============================================================================
+JSON SCHEMA
+=============================================================================
+
+For DRILLING AND SPACING ORDER (vertical wells):
+{{
+  "doc_type": "drilling_and_spacing_order",
+
+  // TOP-LEVEL LINKING FIELDS (REQUIRED)
+  "section": 35,
+  "township": "13N",
+  "range": "12E",
+  "county": "Okmulgee",
+  "state": "Oklahoma",
+
+  "order_info": {{
+    "cause_number": "CD 202102682-T",
+    "order_number": "724343",
+    "order_type": "original|amendment|extension|vacation|correction|nunc_pro_tunc",
+    "order_date": "2022-03-21",
+    "effective_date": "2022-03-21",
+    "hearing_date": "2022-01-11"
+  }},
+
+  "officials": {{
+    "administrative_law_judge": "Jan Preslar",
+    "alj_approval_date": "2022-03-18",
+    "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
+  }},
+
+  "applicant": {{
+    "name": "E2 Operating, LLC",
+    "role": "Operator",
+    "attorney": "John Smith"
+  }},
+
+  "units": [
+    {{
+      "legal": {{
+        "section": 35,
+        "township": "13N",
+        "range": "12E",
+        "quarter_calls": ["N/2", "SW/4"],
+        "full_description": "N/2 and SW/4 of Section 35"
+      }},
+      "unit_size_acres": 160,
+      "unit_shape": "governmental quarter section",
+      "well_type": "oil|gas|dewatering",
+      "formations": [
+        {{
+          "name": "Senora",
+          "common_source_of_supply": "Senora common source of supply",
+          "depth_from_ft": 700,
+          "depth_to_ft": 900,
+          "depth_reference": "surface|subsea"
+        }}
+      ],
+      "well_location": {{
+        "unit_boundary_setback_ft": 660,
+        "location_description": "within the unit boundaries"
+      }}
+    }}
+  ],
+
+  "related_orders": {{
+    "corrects": {{ "order_number": "723664", "description": "..." }},
+    "extends": [{{ "order_number": "573354", "formation": "Senora" }}],
+    "vacates": [{{ "order_number": "581177", "formation": "Senora" }}]
+  }},
+
+  "companion_causes": [
+    {{ "case_number": "CD 202102913-T", "cause_type": "Pooling" }}
+  ],
+
+  "pooling_authorized": true,
+
+  "key_takeaway": "...",
+  "detailed_analysis": "...",
+
+  "field_scores": {{
+    "order_info": 0.95,
+    "units": 0.90,
+    "formations": 0.85
+  }},
+  "document_confidence": "high|medium|low"
+}}
+
+For HORIZONTAL DRILLING AND SPACING ORDER:
+{{
+  "doc_type": "horizontal_drilling_and_spacing_order",
+
+  // TOP-LEVEL LINKING FIELDS (REQUIRED)
+  "section": 8,
+  "township": "17N",
+  "range": "17W",
+  "county": "Dewey",
+  "state": "Oklahoma",
+
+  "order_info": {{
+    "cause_number": "CD 2024-002345",
+    "order_number": "748000",
+    "order_type": "original",
+    "order_date": "2024-05-20",
+    "effective_date": "2024-05-20",
+    "hearing_date": "2024-05-06"
+  }},
+
+  "officials": {{
+    "administrative_law_judge": "Melissa Cohlmia",
+    "alj_approval_date": "2024-05-15",
+    "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
+  }},
+
+  "applicant": {{
+    "name": "Mewbourne Oil Company",
+    "role": "Operator",
+    "attorney": "Karl F. Hirsch"
+  }},
+
+  "units": [
+    {{
+      "legal": {{
+        "section": 8,
+        "township": "17N",
+        "range": "17W",
+        "full_description": "All of Section 8"
+      }},
+      "unit_size_acres": 640,
+      "unit_shape": "all of section",
+      "well_type": "oil|gas",
+      "sections_covered": 1,
+      "formations": [
+        {{
+          "name": "Mississippian",
+          "common_source_of_supply": "Mississippian common source of supply",
+          "depth_from_ft": 11890,
+          "depth_to_ft": 12050,
+          "depth_reference": "surface"
+        }},
+        {{
+          "name": "Woodford",
+          "common_source_of_supply": "Woodford common source of supply",
+          "depth_from_ft": 12200,
+          "depth_to_ft": 12400
+        }}
+      ],
+      "well_location": {{
+        "lateral_setback_ft": 330,
+        "completion_interval_setback_ft": 330,
+        "max_wells_per_formation": 4,
+        "special_conditions": "..."
+      }}
+    }}
+  ],
+
+  "key_takeaway": "...",
+  "detailed_analysis": "...",
+
+  "field_scores": {{ ... }},
+  "document_confidence": "high"
+}}
+
+For MULTI-SECTION HORIZONTAL (1280-acre, 1920-acre units):
+Note: Use sections_covered to indicate multi-section units.
+{{
+  "doc_type": "horizontal_drilling_and_spacing_order",
+  "section": 8,
+  "township": "17N",
+  "range": "13W",
+  "county": "Blaine",
+  "state": "Oklahoma",
+  ...
+  "units": [
+    {{
+      "legal": {{
+        "section": 8,
+        "township": "17N",
+        "range": "13W",
+        "full_description": "All of Sections 8 and 17, Township 17 North, Range 13 West"
+      }},
+      "unit_size_acres": 1280,
+      "unit_shape": "1280-acre",
+      "sections_covered": 2,
+      ...
+    }}
+  ]
+}}
+
+For INCREASED DENSITY ORDER:
+{{
+  "doc_type": "increased_density_order",
+
+  // TOP-LEVEL LINKING FIELDS (REQUIRED)
+  "section": 10,
+  "township": "14N",
+  "range": "14W",
+  "county": "Custer",
+  "state": "Oklahoma",
+
+  "order_info": {{
+    "cause_number": "CD2023-001229",
+    "order_number": "734065",
+    "order_date": "2023-05-03",
+    "effective_date": "2023-05-03",
+    "hearing_date": "2023-04-25"
+  }},
+
+  "officials": {{
+    "administrative_law_judge": "Jan Preslar",
+    "alj_approval_date": "2023-04-28",
+    "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
+  }},
+
+  "operator": {{
+    "name": "Continental Resources, Inc.",
+    "address": "20 N Broadway",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "zip": "73102"
+  }},
+
+  "applicant": {{
+    "name": "Continental Resources, Inc.",
+    "role": "Operator",
+    "attorney": "Karl F. Hirsch"
+  }},
+
+  "legal_description": {{
+    "section": 10,
+    "township": "14N",
+    "range": "14W",
+    "meridian": "IM",
+    "county": "Custer",
+    "state": "Oklahoma"
+  }},
+
+  "unit_info": {{
+    "unit_size_acres": 640,
+    "spacing_order": "668920",
+    "description": "All of Section 10, Township 14 North, Range 14 West"
+  }},
+
+  "well_authorization": {{
+    "well_name": "KO Kipp 4-34-3-10XHW",
+    "api_number": "35-039-22605",
+    "well_type": "multiunit_horizontal|vertical|horizontal",
+    "well_classification": "oil|gas",
+    "additional_wells_authorized": 1
+  }},
+
+  "target_formations": [
+    {{
+      "name": "Mississippian",
+      "is_primary": true,
+      "common_source": "Mississippian common source of supply"
+    }}
+  ],
+
+  "existing_wells": [
+    {{
+      "well_name": "KO Kipp 1-34-3-10MXH",
+      "api_number": "35-039-22501",
+      "well_classification": "oil"
+    }}
+  ],
+
+  "recoverable_reserves": {{
+    "oil_mbo": 94,
+    "gas_mmcf": 94391
+  }},
+
+  "allocation_factors": [
+    {{
+      "section": 10,
+      "township": "14N",
+      "range": "14W",
+      "percentage": 45.5,
+      "acres": 291.2
+    }},
+    {{
+      "section": 3,
+      "township": "14N",
+      "range": "14W",
+      "percentage": 54.5,
+      "acres": 348.8
+    }}
+  ],
+
+  "expiration": {{
+    "expires": true,
+    "period": "1 year",
+    "date": "2024-05-03"
+  }},
+
+  "related_orders": {{
+    "references": [
+      {{
+        "order_number": "668920",
+        "type": "spacing_order",
+        "description": "Original spacing order for this unit"
+      }}
+    ]
+  }},
+
+  "companion_causes": [
+    {{ "case_number": "CD2023-001228", "cause_type": "Spacing" }},
+    {{ "case_number": "CD2023-001230", "cause_type": "Pooling" }}
+  ],
+
+  "key_takeaway": "Continental Resources authorized to drill one additional multiunit horizontal well targeting the Mississippian in Section 10-14N-14W, Custer County. Authorization expires May 3, 2024.",
+
+  "detailed_analysis": "This increased density order grants permission to drill an additional horizontal well in an existing 640-acre spacing unit. The Commission found significant recoverable reserves remain that would not be efficiently drained by existing wells alone. This order is informational - no mineral owner action required. Mineral owners in this section may see increased royalty payments once the well is drilled.",
+
+  "field_scores": {{
+    "order_info": 0.95,
+    "operator": 0.95,
+    "well_authorization": 0.90,
+    "target_formations": 0.85,
+    "expiration": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+EXTRACTION NOTES
+=============================================================================
+
+MULTI-UNIT HORIZONTAL WELLS IN INCREASED DENSITY ORDERS:
+- If well_type is "multiunit_horizontal", look for allocation_factors showing production split
+- Each section in the lateral path gets a percentage
+- This is critical for mineral owners to understand their royalty share
+
+EXPIRATION DATES:
+- Increased density orders often expire in 1-2 years if drilling doesn't commence
+- Note the expiration date prominently in key_takeaway
+- After expiration, operator must file new application
+
+RELATED ORDERS:
+- Increased density orders ALWAYS reference a prior spacing order
+- Extract this reference - it helps link documents
+- Note if order amends, extends, or vacates prior orders
+
+COMPANION CAUSES:
+- Orders filed together (same application package)
+- Common pattern: Spacing + Pooling + Increased Density filed together
+- NOT the same as "related orders" (which are historical references)
+
+DETAILED_ANALYSIS REQUIREMENTS:
+- Explain what the order means for mineral owners
+- For increased density: "Informational only - no action required"
+- Note if pooling is authorized (affects how interests are combined)
+- Mention expiration if applicable
+
+TOP-LEVEL TRS FIELDS:
+Always include top-level section, township, range, county fields.
+These are REQUIRED for property linking.
+Use the FIRST section from the first unit if multiple units exist.
+"""
+
+# ============================================================================
+# LOCATION EXCEPTION ORDER FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+# Document types that should use the LOCATION EXCEPTION focused prompt
+LOCATION_EXCEPTION_DOC_TYPES = ["location_exception_order"]
+
+LOCATION_EXCEPTION_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma Corporation Commission location exception orders.
+Your task is to extract key information about wells that are permitted to drill closer to boundaries than standard setbacks allow.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo
+- Calculate expiration dates if order has time limit
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - State what exception was granted (reduced setback distance)
+   - Identify the well and its location
+   - Note if expiration date applies
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Explain what this exception means for mineral owners in the affected area
+   - Note if this is informational only vs requires action
+   - Discuss implications for neighboring mineral owners (offset protection)
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION:
+HIGH CONFIDENCE (0.85-1.0): Text is clearly printed and unambiguous
+MEDIUM CONFIDENCE (0.5-0.84): Minor blur or fading but readable
+LOW CONFIDENCE (0.2-0.49): Partially illegible, some characters ambiguous
+VERY LOW / NULL (0.0-0.19): Mostly illegible - use null instead of guessing
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- Township numbers are typically 1-30. Section numbers are 1-36.
+- If you extract township "25N" or "36N", you likely confused section with township
+
+SOURCE OF TRUTH: The DOCUMENT TEXT is the source of truth. Extract what the document says.
+
+=============================================================================
+UNDERSTANDING LOCATION EXCEPTION ORDERS
+=============================================================================
+
+Location exception orders allow wells to be drilled closer to unit/section boundaries than
+standard setbacks require. This is common for:
+
+1. HORIZONTAL WELLS - The lateral path may need to pass near section lines
+   - Standard lateral setback is typically 165 feet from unit boundary
+   - Exception may grant 0-165 feet depending on offset well protection
+
+2. VERTICAL WELLS - Well may need to be closer to boundary due to surface restrictions
+   - Standard setback is typically 660 feet from unit boundary
+   - Exception may allow 330 feet or closer
+
+KEY TERMINOLOGY:
+- FNL = Feet from North Line
+- FSL = Feet from South Line
+- FEL = Feet from East Line
+- FWL = Feet from West Line
+- Surface Location = Where the wellhead is drilled at surface
+- Target Section = Section where production occurs (may differ from surface location)
+- Lateral Path = Underground horizontal path of wellbore
+
+=============================================================================
+JSON SCHEMA
+=============================================================================
+
+For HORIZONTAL LOCATION EXCEPTION ORDER:
+{{
+  "doc_type": "location_exception_order",
+
+  // TOP-LEVEL LINKING FIELDS (REQUIRED) - Use target section, not surface location
+  "section": 26,
+  "township": "17N",
+  "range": "8W",
+  "county": "Kingfisher",
+  "state": "Oklahoma",
+
+  "order_info": {{
+    "cause_number": "CD2024-003810",
+    "order_number": "754630",
+    "order_date": "2024-11-05",
+    "effective_date": "2024-11-05",
+    "hearing_date": "2024-10-15"
+  }},
+
+  "officials": {{
+    "administrative_law_judge": "Paul E. Porter",
+    "alj_approval_date": "2024-10-28",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City",
+    "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
+  }},
+
+  "applicant": {{
+    "name": "Ovintiv USA Inc.",
+    "role": "Operator",
+    "attorney": "John Smith"
+  }},
+
+  "well_orientation": "horizontal",
+
+  "well_info": {{
+    "well_name": "Lohmeyer 1708 2H-26X",
+    "api_number": "35-073-27140",
+    "operator": "Ovintiv USA Inc.",
+    "well_type": "new_drill|re_entry|re_completion",
+    "spacing_unit_acres": 640
+  }},
+
+  "target_formations": [
+    {{
+      "name": "Mississippian",
+      "qualifier": "less Chester",
+      "is_primary": true
+    }}
+  ],
+
+  "location": {{
+    "sections": [
+      {{
+        "section": 23,
+        "township": "17N",
+        "range": "8W",
+        "is_surface_location": true,
+        "is_target_section": false
+      }},
+      {{
+        "section": 26,
+        "township": "17N",
+        "range": "8W",
+        "is_surface_location": false,
+        "is_target_section": true
+      }},
+      {{
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "is_surface_location": false,
+        "is_target_section": true
+      }}
+    ]
+  }},
+
+  "exception_details": {{
+    "standard_setback_ft": 165,
+    "granted_setback_ft": 147,
+    "actual_setback_ft": 147,
+    "exception_type": "lateral_path|reduced_setback|surface_location",
+    "exception_reason": "Horizontal lateral path through multiple sections"
+  }},
+
+  "lateral_path": {{
+    "surface_location": {{
+      "section": 23,
+      "township": "17N",
+      "range": "8W",
+      "footage_fnl": 200,
+      "footage_fel": 1430
+    }},
+    "lateral_points": [
+      {{
+        "point_type": "first_perforation",
+        "section": 26,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 10540,
+        "true_vertical_depth_ft": 7490,
+        "footage_fnl": 156,
+        "footage_fel": 2326
+      }},
+      {{
+        "point_type": "section_crossing",
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 15348,
+        "true_vertical_depth_ft": 7488,
+        "footage_fsl": 0,
+        "footage_fel": 2241,
+        "line_crossed": "south",
+        "description": "Crosses from Section 26 to Section 35"
+      }},
+      {{
+        "point_type": "last_perforation",
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 20608,
+        "true_vertical_depth_ft": 7537,
+        "footage_fsl": 1316,
+        "footage_fel": 2159
+      }},
+      {{
+        "point_type": "terminus_bhl",
+        "section": 35,
+        "township": "17N",
+        "range": "8W",
+        "measured_depth_ft": 20783,
+        "true_vertical_depth_ft": 7550,
+        "footage_fsl": 1359,
+        "footage_fel": 2155,
+        "description": "Bottom Hole Location"
+      }}
+    ],
+    "total_lateral_length_ft": 10243,
+    "drilling_direction": "north to south"
+  }},
+
+  "allowable": {{
+    "oil_allowable_percent": 100,
+    "gas_allowable_percent": 100
+  }},
+
+  "offset_impact": {{
+    "offsets_adversely_affected": false,
+    "offset_protection_required": false,
+    "offset_wells_identified": []
+  }},
+
+  "expiration": {{
+    "expires": false
+  }},
+
+  "related_orders": {{
+    "references": [
+      {{
+        "order_number": "712345",
+        "type": "spacing_order",
+        "description": "Establishes drilling unit"
+      }}
+    ]
+  }},
+
+  "conditions": [
+    "Exception granted for specific well location only",
+    "Does not establish precedent for future wells"
+  ],
+
+  "key_takeaway": "Location exception granted for Lohmeyer 1708 2H-26X horizontal well, allowing lateral path within 147 feet of section lines (vs 165 ft standard). Well will produce from Sections 26 and 35, T17N-R8W, Kingfisher County.",
+
+  "detailed_analysis": "This location exception allows Ovintiv to drill a horizontal Mississippian well with the lateral passing through multiple sections. The reduced setback (147 ft vs 165 ft standard) was granted because the wellbore trajectory requires proximity to the south line of Section 26 where it crosses into Section 35. No adverse impact to offset wells was found. Mineral owners in Sections 26 and 35 will share in production proportionally.",
+
+  "field_scores": {{
+    "order_info": 0.95,
+    "well_info": 0.95,
+    "exception_details": 0.90,
+    "lateral_path": 0.85,
+    "target_formations": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+For VERTICAL LOCATION EXCEPTION ORDER:
+{{
+  "doc_type": "location_exception_order",
+
+  // TOP-LEVEL LINKING FIELDS (REQUIRED)
+  "section": 17,
+  "township": "9N",
+  "range": "7W",
+  "county": "Grady",
+  "state": "Oklahoma",
+
+  "order_info": {{
+    "cause_number": "CD2015-001234",
+    "order_number": "647505",
+    "order_date": "2015-06-30",
+    "effective_date": "2015-06-30",
+    "hearing_date": "2015-06-15"
+  }},
+
+  "officials": {{
+    "administrative_law_judge": "Keith Thomas",
+    "alj_approval_date": "2015-06-25",
+    "hearing_location": "Jim Thorpe Building, Oklahoma City",
+    "commissioners": ["Bob Anthony", "Todd Hiett", "Dana Murphy"]
+  }},
+
+  "applicant": {{
+    "name": "Triad Energy Corporation",
+    "role": "Operator",
+    "attorney": "Jane Doe"
+  }},
+
+  "well_orientation": "vertical",
+
+  "well_info": {{
+    "well_name": "Sanders 1-17",
+    "api_number": "35-051-20123",
+    "operator": "Triad Energy Corporation",
+    "well_type": "re_entry",
+    "previous_formation": "Hunton",
+    "spacing_unit_acres": 80
+  }},
+
+  "target_formations": [
+    {{
+      "name": "Hoxbar",
+      "is_primary": true
+    }}
+  ],
+
+  "location": {{
+    "sections": [
+      {{
+        "section": 17,
+        "township": "9N",
+        "range": "7W",
+        "is_surface_location": true,
+        "is_target_section": true
+      }}
+    ]
+  }},
+
+  "exception_details": {{
+    "standard_setback_ft": 660,
+    "granted_setback_ft": 330,
+    "exception_type": "reduced_setback",
+    "exception_reason": "Re-entry of existing wellbore to access Hoxbar formation"
+  }},
+
+  "vertical_well_location": {{
+    "footage_from_south": 330,
+    "footage_from_east": 990,
+    "quarter_section": "SE/4",
+    "footages_description": "330 feet FSL and 990 feet FEL of Section 17"
+  }},
+
+  "allowable": {{
+    "oil_allowable_percent": 100,
+    "gas_allowable_percent": 100
+  }},
+
+  "offset_impact": {{
+    "offsets_adversely_affected": false
+  }},
+
+  "expiration": {{
+    "expires": true,
+    "expiration_period": "one year",
+    "expiration_date": "2016-06-30"
+  }},
+
+  "related_orders": {{
+    "references": [
+      {{
+        "order_number": "456789",
+        "type": "spacing_order",
+        "description": "Establishes 80-acre drilling unit"
+      }}
+    ]
+  }},
+
+  "conditions": [
+    "Exception granted for specific well location only",
+    "Does not alter established spacing pattern"
+  ],
+
+  "key_takeaway": "Re-entry location exception for the Sanders 1-17 well, allowing completion 330 feet from the south line (vs 660 ft standard) to access the Hoxbar formation. Authorization expires June 30, 2016.",
+
+  "detailed_analysis": "This location exception allows Triad Energy to re-enter an existing wellbore that previously produced from the depleted Hunton formation. The reduced setback permits targeting the Hoxbar formation which underlies the existing well. The 80-acre spacing unit and one-year expiration are typical for vertical well re-entries. No offset wells were found to be adversely affected.",
+
+  "field_scores": {{
+    "order_info": 0.95,
+    "well_info": 0.95,
+    "exception_details": 0.90,
+    "vertical_well_location": 0.95,
+    "target_formations": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+EXTRACTION NOTES FOR LOCATION EXCEPTION ORDERS
+=============================================================================
+
+HORIZONTAL VS VERTICAL DETECTION:
+- Look for "HORIZONTAL WELL" or "HORIZONTAL DRILLING" → horizontal
+- Look for lateral path, completion interval, section crossings → horizontal
+- Look for vertical footage descriptions (FSL/FEL only) → vertical
+- Surface location different from target section → likely horizontal
+
+SECTION DETERMINATION FOR TOP-LEVEL FIELDS:
+- For HORIZONTAL wells: Use the first TARGET section (where production occurs), not surface location
+- For VERTICAL wells: Surface and target are the same section
+- This ensures property linking connects to where minerals are actually produced
+
+LATERAL PATH EXTRACTION (HORIZONTAL WELLS):
+- Extract ALL lateral points: surface, first perf, section crossings, last perf, terminus
+- Footage references: FNL (from north), FSL (from south), FEL (from east), FWL (from west)
+- Note which section lines are crossed and in what direction
+- Total lateral length is critical for allocation calculations
+
+EXCEPTION TYPES:
+- "lateral_path": Horizontal lateral passes near section boundaries
+- "reduced_setback": Vertical or horizontal well closer to boundary than standard
+- "surface_location": Surface hole location exception (separate from lateral exception)
+
+FORMATION QUALIFIERS:
+- "Mississippian less Chester" means Mississippian formation excluding Chester member
+- Extract the full formation name with qualifiers
+
+EXPIRATION:
+- Vertical re-entries often expire in 1 year
+- Horizontal wells may not have expiration
+- Note expiration prominently in key_takeaway if present
+
+OFFSET PROTECTION:
+- Location exceptions should note if offset wells are adversely affected
+- "No offsets adversely affected" is common finding
+- If affected, may require additional protection measures
+
+TARGET FORMATIONS - FIELD NAME CONSISTENCY:
+- Use "name" (not "formation_name") for formation name field
+- This matches the dashboard handlers for consistent display
+
+TOP-LEVEL TRS FIELDS:
+Always include top-level section, township, range, county fields.
+These are REQUIRED for property linking.
+For horizontal wells, use the FIRST TARGET section (is_target_section=true).
+"""
+
+# ============================================================================
 # DEED FOCUSED EXTRACTION PROMPT
 # ============================================================================
 
@@ -8629,6 +9699,15 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     elif doc_type and doc_type in POOLING_DOC_TYPES:
         logger.info(f"Using FOCUSED POOLING prompt for doc_type={doc_type}")
         prompt = POOLING_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in DIVISION_ORDER_DOC_TYPES:
+        logger.info(f"Using FOCUSED DIVISION ORDER prompt for doc_type={doc_type}")
+        prompt = DIVISION_ORDER_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in SPACING_DOC_TYPES:
+        logger.info(f"Using FOCUSED SPACING prompt for doc_type={doc_type}")
+        prompt = SPACING_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in LOCATION_EXCEPTION_DOC_TYPES:
+        logger.info(f"Using FOCUSED LOCATION EXCEPTION prompt for doc_type={doc_type}")
+        prompt = LOCATION_EXCEPTION_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     elif doc_type and doc_type in DEED_DOC_TYPES:
         logger.info(f"Using FOCUSED DEED prompt for doc_type={doc_type}")
         prompt = DEED_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
@@ -9245,6 +10324,21 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             else:
                 logger.info(f"Schema validation passed for doc_type={extracted_data.get('doc_type')}")
 
+            # POST-PROCESSING: Recalculate document_confidence from field_scores
+            # Override Sonnet's self-reported confidence with our calculation
+            field_scores = extracted_data.get("field_scores", {})
+            if field_scores:
+                calculated_confidence = calculate_document_confidence(
+                    field_scores,
+                    extracted_data.get("doc_type"),
+                    extracted_data
+                )
+                sonnet_confidence = extracted_data.get("document_confidence", "medium")
+                if calculated_confidence != sonnet_confidence:
+                    logger.info(f"Overriding document_confidence: Sonnet said '{sonnet_confidence}', calculated '{calculated_confidence}'")
+                    extracted_data["document_confidence"] = calculated_confidence
+                    extracted_data["_confidence_recalculated"] = True
+
             # POST-PROCESSING: Compute review flags based on external signals
             review_flags = compute_review_flags(
                 extracted_data,
@@ -9468,6 +10562,21 @@ If these pages don't contain significant new information, return: {{"additional_
             logger.warning(f"Schema validation issues: {schema_validation['all_issues']}")
         else:
             logger.info(f"Schema validation passed for doc_type={extracted_data.get('doc_type')}")
+
+        # POST-PROCESSING: Recalculate document_confidence from field_scores
+        # Override Sonnet's self-reported confidence with our calculation
+        field_scores = extracted_data.get("field_scores", {})
+        if field_scores:
+            calculated_confidence = calculate_document_confidence(
+                field_scores,
+                extracted_data.get("doc_type"),
+                extracted_data
+            )
+            sonnet_confidence = extracted_data.get("document_confidence", "medium")
+            if calculated_confidence != sonnet_confidence:
+                logger.info(f"Overriding document_confidence: Sonnet said '{sonnet_confidence}', calculated '{calculated_confidence}'")
+                extracted_data["document_confidence"] = calculated_confidence
+                extracted_data["_confidence_recalculated"] = True
 
         # POST-PROCESSING: Compute review flags based on external signals
         review_flags = compute_review_flags(

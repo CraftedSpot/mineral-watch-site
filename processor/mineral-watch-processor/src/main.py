@@ -317,16 +317,23 @@ async def process_document(client: APIClient, doc: dict) -> dict:
                 recording_book = recording_book or recording_info.get('book')
                 recording_page = recording_page or recording_info.get('page')
             
+            # Get TRS - check top-level first (division orders, pooling orders),
+            # then fall back to legal_description (deeds, leases)
+            county = extraction_result.get('county') or legal.get('county')
+            section = extraction_result.get('section') or legal.get('section')
+            township = extraction_result.get('township') or legal.get('township')
+            range_val = extraction_result.get('range') or legal.get('range')
+
             result = {
                 'status': status,
                 'category': extraction_result.get('doc_type', 'other'),
                 'doc_type': extraction_result.get('doc_type'),
                 'display_name': display_name,
                 'confidence': doc_confidence,
-                'county': legal.get('county'),
-                'section': str(legal.get('section')) if legal.get('section') is not None else None,
-                'township': legal.get('township'),
-                'range': legal.get('range'),
+                'county': county,
+                'section': str(section) if section is not None else None,
+                'township': township,
+                'range': range_val,
                 'recording_book': recording_book,
                 'recording_page': recording_page,
                 'extracted_data': extraction_result,

@@ -499,10 +499,10 @@ def name_lease(data: Dict[str, Any]) -> str:
 
 
 def name_division_order(data: Dict[str, Any]) -> str:
-    """Division Order - {Well Name} - {Operator} - {Interest Type} - {Owner Abbrev or Owner#}
+    """Division Order - {Well Name} - {Operator} - {Interest Type} - {TRS}
 
-    Pattern: Division Order - FRANKS A 1-35 - REDLINE - WI - PO&G
-    This helps differentiate similar documents for the same well with different owners/interest types.
+    Pattern: Division Order - LASSITER 1-20-29XH - CONTINENTAL - RI - S20-16N-13W
+    This helps identify the well and location for linking.
     """
     parts = ["Division Order"]
 
@@ -514,39 +514,33 @@ def name_division_order(data: Dict[str, Any]) -> str:
     operator = data.get('operator') or data.get('operator_name')
     if operator:
         parts.append(extract_last_name(operator))
-    elif not property_name and data.get('county'):
-        # Fallback to county if no property name or operator
-        county = str(data['county']).strip()
-        if not county.lower().endswith('county'):
-            county = f"{county} County"
-        parts.append(county)
 
-    # Add interest type abbreviation
+    # Add interest type abbreviation (short forms)
     interest_type = data.get('interest_type') or data.get('ownership_type')
     if interest_type:
         interest_type_str = str(interest_type).lower()
         if 'working' in interest_type_str or interest_type_str == 'wi':
             parts.append("WI")
         elif 'override' in interest_type_str or 'orri' in interest_type_str:
-            parts.append("Override")
+            parts.append("ORRI")
         elif 'royalty' in interest_type_str:
-            parts.append("Royalty")
+            parts.append("RI")
         else:
             # Use first word if unknown type
             parts.append(str(interest_type).split()[0][:10])
 
-    # Add owner number or abbreviated owner name
-    owner_number = data.get('owner_number')
-    if owner_number:
-        parts.append(str(owner_number))
-    else:
-        # Try to create an abbreviation from owner name
-        owner_name = data.get('owner_name')
-        if owner_name:
-            # Create abbreviation: take initials of key words
-            owner_abbrev = _create_owner_abbreviation(str(owner_name))
-            if owner_abbrev:
-                parts.append(owner_abbrev)
+    # Add TRS for location context (helps with linking)
+    section = data.get('section')
+    township = data.get('township')
+    range_val = data.get('range')
+    if section and township and range_val:
+        parts.append(f"S{section}-{township}-{range_val}")
+    elif data.get('county'):
+        # Fallback to county if no TRS
+        county = str(data['county']).strip()
+        if not county.lower().endswith('county'):
+            county = f"{county} County"
+        parts.append(county)
 
     return " - ".join(parts)
 
@@ -733,30 +727,59 @@ def name_spacing_order(data: Dict[str, Any]) -> str:
 
 
 def name_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
-    """Spacing Order {Order#} - {Applicant} - {Formation} - {Legal} (+N units) - {Date}
+    """Drilling & Spacing - CD# - County - Legal - Acres - Formation - Applicant - Year
 
-    v2 schema: Uses units[] array for multi-unit orders.
+    Format: Drilling & Spacing - CD 202200124 - Cleveland County - S28-T6N-R1W - 160-acre - Senora - E2 Operating - 2022
     """
-    parts = ["Spacing Order"]
+    parts = ["Drilling & Spacing"]
 
-    # Order number (preferred) or case number
-    order_number = data.get('order_number')
-    if order_number:
-        parts.append(str(order_number))
+    # Get order_info if present (new nested schema)
+    order_info = data.get('order_info', {})
+
+    # Case number (CD number) - check order_info first, then top-level
+    case_number = order_info.get('cause_number') or data.get('case_number')
+    cd_num = clean_cd_number(case_number)
+    if cd_num:
+        parts.append(f"CD {cd_num}")
     else:
-        cd_num = clean_cd_number(data.get('case_number'))
-        if cd_num:
-            parts.append(f"CD {cd_num}")
+        order_number = order_info.get('order_number') or data.get('order_number')
+        if order_number:
+            parts.append(str(order_number))
 
-    # Applicant
-    applicant = data.get('applicant')
-    if applicant:
-        parts.append(truncate_name(str(applicant), 30))
+    # County
+    county = data.get('county')
+    if county:
+        county_str = str(county)
+        if not county_str.lower().endswith('county'):
+            county_str = f"{county_str} County"
+        parts.append(county_str)
 
-    # Get first unit's formation and legal (v2 schema uses units[])
+    # Legal description (from top-level or first unit)
+    legal = format_legal_description(
+        data.get('section'),
+        data.get('township'),
+        data.get('range')
+    )
+    if not legal:
+        # Try from first unit
+        units = data.get('units', [])
+        if units and isinstance(units, list) and len(units) > 0:
+            legal_obj = units[0].get('legal', {})
+            legal = format_legal_description(
+                legal_obj.get('section'),
+                legal_obj.get('township'),
+                legal_obj.get('range')
+            )
+    if legal:
+        parts.append(legal)
+
+    # Unit size and formation from first unit
     units = data.get('units', [])
     if units and isinstance(units, list) and len(units) > 0:
         first_unit = units[0]
+        unit_size = first_unit.get('unit_size_acres')
+        if unit_size:
+            parts.append(f"{unit_size}-acre")
 
         # Primary formation from first unit
         formations = first_unit.get('formations', [])
@@ -769,43 +792,26 @@ def name_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
             if formation_name:
                 parts.append(formation_name)
 
-        # Legal from first unit
-        legal_obj = first_unit.get('legal', {})
-        legal = format_legal_description(
-            legal_obj.get('section'),
-            legal_obj.get('township'),
-            legal_obj.get('range')
-        )
-        if legal:
-            parts.append(legal)
-
         # Show additional units count if more than one
         if len(units) > 1:
             parts.append(f"(+{len(units) - 1} units)")
-    else:
-        # Fallback for v1 schema (flat structure)
-        formations = data.get('formations', [])
-        if formations and isinstance(formations, list) and len(formations) > 0:
-            first_formation = formations[0]
-            if isinstance(first_formation, dict):
-                formation_name = first_formation.get('name', '')
-            else:
-                formation_name = str(first_formation)
-            if formation_name:
-                parts.append(formation_name)
 
-        legal = format_legal_description(
-            data.get('section'),
-            data.get('township'),
-            data.get('range')
-        )
-        if legal:
-            parts.append(legal)
+    # Applicant name (handle dict or string)
+    applicant = data.get('applicant')
+    if applicant:
+        if isinstance(applicant, dict):
+            applicant_name = applicant.get('name', '')
+        else:
+            applicant_name = str(applicant)
+        if applicant_name:
+            parts.append(extract_last_name(applicant_name))
 
-    # Order date
-    order_date = data.get('order_date')
+    # Year from order_date - check order_info first, then top-level
+    order_info = data.get('order_info', {})
+    order_date = order_info.get('order_date') or data.get('order_date')
     if order_date:
-        parts.append(str(order_date))
+        year = str(order_date)[:4] if len(str(order_date)) >= 4 else str(order_date)
+        parts.append(year)
     elif data.get('year'):
         parts.append(str(data['year']))
 
@@ -813,81 +819,85 @@ def name_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
 
 
 def name_horizontal_drilling_and_spacing_order(data: Dict[str, Any]) -> str:
-    """Horizontal Spacing {Order#} - {Applicant} - {Formations} - {Legal} - {Date}
+    """Horizontal Drilling & Spacing - CD# - County - Legal - Acres - Formations - Applicant - Year
 
-    v2 schema: Uses units[] array. Shows multiple formations with / separator.
+    Format: Horizontal Drilling & Spacing - CD 202200124 - Cleveland County - S28-T6N-R1W - 640-acre - 7 formations - Capstone - 2022
     """
-    parts = ["Horizontal Spacing"]
+    parts = ["Horizontal Drilling & Spacing"]
 
-    # Order number (preferred) or case number
-    order_number = data.get('order_number')
-    if order_number:
-        parts.append(str(order_number))
+    # Get order_info if present (new nested schema)
+    order_info = data.get('order_info', {})
+
+    # Case number (CD number) - check order_info first, then top-level
+    case_number = order_info.get('cause_number') or data.get('case_number')
+    cd_num = clean_cd_number(case_number)
+    if cd_num:
+        parts.append(f"CD {cd_num}")
     else:
-        cd_num = clean_cd_number(data.get('case_number'))
-        if cd_num:
-            parts.append(f"CD {cd_num}")
+        order_number = order_info.get('order_number') or data.get('order_number')
+        if order_number:
+            parts.append(str(order_number))
 
-    # Applicant
-    applicant = data.get('applicant')
-    if applicant:
-        parts.append(truncate_name(str(applicant), 30))
+    # County
+    county = data.get('county')
+    if county:
+        county_str = str(county)
+        if not county_str.lower().endswith('county'):
+            county_str = f"{county_str} County"
+        parts.append(county_str)
 
-    # Get first unit's formations and legal (v2 schema uses units[])
+    # Legal description (from top-level or first unit)
+    legal = format_legal_description(
+        data.get('section'),
+        data.get('township'),
+        data.get('range')
+    )
+    if not legal:
+        # Try from first unit
+        units = data.get('units', [])
+        if units and isinstance(units, list) and len(units) > 0:
+            legal_obj = units[0].get('legal', {})
+            legal = format_legal_description(
+                legal_obj.get('section'),
+                legal_obj.get('township'),
+                legal_obj.get('range')
+            )
+    if legal:
+        parts.append(legal)
+
+    # Unit size (from first unit)
     units = data.get('units', [])
     if units and isinstance(units, list) and len(units) > 0:
         first_unit = units[0]
+        unit_size = first_unit.get('unit_size_acres')
+        if unit_size:
+            parts.append(f"{unit_size}-acre")
 
-        # Formations from first unit - show multiple with / separator
-        formations = first_unit.get('formations', [])
-        if formations and isinstance(formations, list):
-            formation_names = []
-            for f in formations[:3]:  # Max 3 formations in name
-                if isinstance(f, dict):
-                    name = f.get('name', '')
-                else:
-                    name = str(f)
-                if name:
-                    formation_names.append(name)
-            if formation_names:
-                parts.append('/'.join(formation_names))
+        # Count formations across all units
+        total_formations = 0
+        for unit in units:
+            formations = unit.get('formations', [])
+            if isinstance(formations, list):
+                total_formations += len(formations)
+        if total_formations > 0:
+            parts.append(f"{total_formations} formation{'s' if total_formations > 1 else ''}")
 
-        # Legal from first unit
-        legal_obj = first_unit.get('legal', {})
-        legal = format_legal_description(
-            legal_obj.get('section'),
-            legal_obj.get('township'),
-            legal_obj.get('range')
-        )
-        if legal:
-            parts.append(legal)
-    else:
-        # Fallback for v1 schema (flat structure)
-        formations = data.get('formations', [])
-        if formations and isinstance(formations, list):
-            formation_names = []
-            for f in formations[:3]:
-                if isinstance(f, dict):
-                    name = f.get('name', '')
-                else:
-                    name = str(f)
-                if name:
-                    formation_names.append(name)
-            if formation_names:
-                parts.append('/'.join(formation_names))
+    # Applicant name (handle dict or string)
+    applicant = data.get('applicant')
+    if applicant:
+        if isinstance(applicant, dict):
+            applicant_name = applicant.get('name', '')
+        else:
+            applicant_name = str(applicant)
+        if applicant_name:
+            parts.append(extract_last_name(applicant_name))
 
-        legal = format_legal_description(
-            data.get('section'),
-            data.get('township'),
-            data.get('range')
-        )
-        if legal:
-            parts.append(legal)
-
-    # Order date
-    order_date = data.get('order_date')
+    # Year from order_date - check order_info first, then top-level
+    order_info = data.get('order_info', {})
+    order_date = order_info.get('order_date') or data.get('order_date')
     if order_date:
-        parts.append(str(order_date))
+        year = str(order_date)[:4] if len(str(order_date)) >= 4 else str(order_date)
+        parts.append(year)
     elif data.get('year'):
         parts.append(str(data['year']))
 
@@ -990,7 +1000,8 @@ def name_location_exception_order(data: Dict[str, Any]) -> str:
     if target_formations and isinstance(target_formations, list) and len(target_formations) > 0:
         first_formation = target_formations[0]
         if isinstance(first_formation, dict):
-            formation_name = first_formation.get('formation_name', '')
+            # Check both 'name' and 'formation_name' for compatibility
+            formation_name = first_formation.get('name') or first_formation.get('formation_name', '')
         else:
             formation_name = str(first_formation)
         if formation_name:
@@ -1024,6 +1035,7 @@ def name_increased_density_order(data: Dict[str, Any]) -> str:
     # Case/CD number - check nested order_info first, then flat fields
     order_info = data.get('order_info', {})
     cd_num = clean_cd_number(
+        order_info.get('cause_number') or
         order_info.get('case_number') or
         data.get('cd_number') or
         data.get('cause_number') or
