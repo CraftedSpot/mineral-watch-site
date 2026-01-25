@@ -55,7 +55,7 @@ export async function handleGetCompletionReports(
     // 2. Check OCC for available 1002A forms (with caching)
     let occData: { success: boolean; forms?: any[]; error?: string } = { success: false, forms: [] };
     const cacheKey = `1002a-forms:${apiNumber}`;
-    const CACHE_TTL = 3600; // 1 hour
+    const CACHE_TTL = 86400; // 24 hours - completion reports rarely change, status is tracked separately in D1
 
     try {
       // Check cache first

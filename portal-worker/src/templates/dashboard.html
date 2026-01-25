@@ -732,7 +732,34 @@
             0%, 100% { opacity: 1; transform: scale(1); }
             50% { opacity: 0.6; transform: scale(0.9); }
         }
-        
+
+        /* Loading badge for Well Records section */
+        .loading-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e5e7eb;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #6b7280;
+        }
+        .loading-badge .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: pulse-badge-dot 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse-badge-dot {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+        @keyframes shimmer {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+
         /* Info Sections */
         .info-section { margin-bottom: 16px; }
         .info-section:last-child { margin-bottom: 0; }
@@ -3388,6 +3415,48 @@
                         </div>
                         <div id="well-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
                             No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Well Records Section (Completion Reports) - Loads slower, shown last -->
+                <div class="occ-filings-section-well" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="occ-filings-header-well" onclick="toggleWellRecords()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="well-records-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Well Records</span>
+                            <span id="well-records-count" class="loading-badge"><span class="pulse-dot"></span>Loading</span>
+                        </div>
+                    </div>
+                    <div id="well-records-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="well-records-container" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Skeleton loading UI -->
+                            <div class="skeleton-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 100px; height: 20px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        <div style="width: 150px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                        <div style="width: 100px; height: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 70px; height: 28px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="width: 80px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                </div>
+                            </div>
+                            <div class="skeleton-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 100px; height: 20px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        <div style="width: 120px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                        <div style="width: 90px; height: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 70px; height: 28px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="width: 80px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13746,20 +13815,59 @@
         // Expandable Row Functions
         async function openWellDetailsModal(wellId) {
             console.log('[openWellDetailsModal] Called with wellId:', wellId);
-            
+
             // Reset linked counts and lists immediately to prevent concatenation issues
             const propsCountEl = document.getElementById('well-linked-properties-count');
             if (propsCountEl) {
                 propsCountEl.textContent = '—';
             }
-            
+
             // Also clear the list content to show fresh loading state
             const propsListEl = document.getElementById('linked-properties-list');
             if (propsListEl) {
                 propsListEl.innerHTML = '';
                 propsListEl.style.display = 'none';
             }
-            
+
+            // Reset Well Records section to loading state
+            const wellRecordsCountEl = document.getElementById('well-records-count');
+            if (wellRecordsCountEl) {
+                wellRecordsCountEl.className = 'loading-badge';
+                wellRecordsCountEl.innerHTML = '<span class="pulse-dot"></span>Loading';
+            }
+            const wellRecordsContainer = document.getElementById('well-records-container');
+            if (wellRecordsContainer) {
+                // Restore skeleton loading UI
+                wellRecordsContainer.innerHTML = `
+                    <div class="skeleton-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 100px; height: 20px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="width: 150px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                <div style="width: 100px; height: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 70px; height: 28px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                            <div style="width: 80px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 100px; height: 20px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="width: 120px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                <div style="width: 90px; height: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <div style="width: 70px; height: 28px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                            <div style="width: 80px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                        </div>
+                    </div>
+                `;
+            }
+
             // V2: wells are flat objects with D1 data already merged
             let well = loadedWells.find(w => w.id === wellId);
 
@@ -14001,6 +14109,11 @@
                 } else {
                     renderNoProductionData('No API number available');
                 }
+                // Load Well Records (completion reports) in separate section
+                if (well.apiNumber) {
+                    loadWellRecords(well.apiNumber);
+                }
+
                 // Load OCC filings using section/township/range/meridian
                 const wellSection = well.section;
                 const wellTownship = well.township;
@@ -15122,6 +15235,69 @@
         }
         window.toggleOccFilings = toggleOccFilings;
 
+        // Toggle Well Records section (completion reports)
+        function toggleWellRecords() {
+            const content = document.getElementById('well-records-content');
+            const arrow = document.getElementById('well-records-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        window.toggleWellRecords = toggleWellRecords;
+
+        // Load Well Records (completion reports) - called when well modal opens
+        async function loadWellRecords(apiNumber) {
+            console.log('[WellRecords] Loading completion reports for API:', apiNumber);
+            const countBadge = document.getElementById('well-records-count');
+            const container = document.getElementById('well-records-container');
+
+            try {
+                const response = await fetch(`/api/wells/${apiNumber}/completion-reports`, {
+                    credentials: 'include'
+                });
+                const data = await response.json();
+                const completionReports = data.completionReports || [];
+
+                console.log('[WellRecords] Loaded:', completionReports.length, 'reports');
+
+                // Update count badge (remove loading class, show count)
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                countBadge.textContent = completionReports.length;
+
+                if (completionReports.length === 0) {
+                    container.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No completion reports found</div>';
+                    return;
+                }
+
+                // Sort by effective date (newest first)
+                completionReports.sort((a, b) => {
+                    const dateA = parseCompletionDate(a.effectiveDate);
+                    const dateB = parseCompletionDate(b.effectiveDate);
+                    return dateB - dateA;
+                });
+
+                // Render completion reports
+                const html = completionReports.map((report, idx) => {
+                    const isCurrent = idx === 0; // Most recent is "current"
+                    return renderCompletionReport(report, apiNumber, isCurrent);
+                }).join('');
+
+                container.innerHTML = html;
+            } catch (error) {
+                console.error('[WellRecords] Error loading completion reports:', error);
+                countBadge.className = '';
+                countBadge.style.cssText = 'background: #fecaca; padding: 2px 8px; border-radius: 12px; font-size: 12px; color: #dc2626;';
+                countBadge.textContent = '!';
+                container.innerHTML = '<div style="color: #ef4444; font-size: 13px; padding: 8px 0;">Error loading completion reports</div>';
+            }
+        }
+        window.loadWellRecords = loadWellRecords;
+
         async function loadOccFilings(section, township, range, type = 'property', meridian = 'IM', apiNumber = null) {
             console.log(`[OccFilings] Loading filings for S${section}-T${township}-R${range} ${meridian} (${type})${apiNumber ? ` API: ${apiNumber}` : ''}`);
 
@@ -15177,43 +15353,22 @@
                     adjacentFilings = data.adjacent || [];
                 }
 
-                // Show docket entries immediately (don't wait for completion reports)
+                // Show docket entries immediately (completion reports now handled separately in Well Records section)
                 let docketCount = directFilings.length + adjacentFilings.length;
 
                 // Build docket filings HTML
                 let contentHtml = '';
 
-                // For wells, add placeholder for completion reports (loading in background)
-                if (type === 'well' && apiNumber) {
-                    contentHtml += `<div id="completion-reports-section">
-                        <div class="completion-separator">
-                            <span>Completion Reports</span>
-                            <span id="completion-reports-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">...</span>
-                        </div>
-                        <div id="completion-reports-content" style="padding: 8px 0; color: #6b7280; font-size: 13px;">
-                            <span class="loading-spinner" style="display: inline-block; width: 14px; height: 14px; border: 2px solid #e5e7eb; border-top-color: #3b82f6; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle;"></span>
-                            Loading completion reports...
-                        </div>
-                    </div>`;
-                }
-
-                // Add OCC filings section
+                // Add OCC filings (completion reports are now in separate Well Records section)
                 if (directFilings.length > 0) {
-                    if (type === 'well' && apiNumber) {
-                        contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
-                            <span>OCC Filings</span>
-                            <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">${directFilings.length}</span>
-                            ${punInfo ? `<span style="font-size: 10px; color: #6b7280; margin-left: 8px;">${punInfo}</span>` : ''}
-                        </div>`;
+                    if (type === 'well' && apiNumber && punInfo) {
+                        // Show PUN info for wells
+                        contentHtml += `<div style="font-size: 11px; color: #6b7280; margin-bottom: 8px; padding: 4px 0;">${punInfo}</div>`;
                     }
                     contentHtml += directFilings.map(filing => renderOccFiling(filing, false)).join('');
                 } else if (type === 'property') {
                     contentHtml = '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No direct filings for this section</div>';
                 } else if (type === 'well') {
-                    contentHtml += `<div class="completion-separator" style="margin-top: 16px;">
-                        <span>OCC Filings</span>
-                        <span style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
-                    </div>`;
                     contentHtml += '<div style="color: #888; font-size: 13px; font-style: italic; padding: 8px 0;">No OCC filings found for this unit</div>';
                 }
 
@@ -15223,7 +15378,7 @@
                     emptyMessage.style.display = 'block';
                 } else {
                     directContainer.innerHTML = contentHtml;
-                    countBadge.textContent = String(docketCount) + (type === 'well' && apiNumber ? '+' : '');
+                    countBadge.textContent = String(docketCount);
                 }
 
                 // Render adjacent filings (only for properties now)
@@ -15243,10 +15398,7 @@
                     checkAnalyzedFilings(analyzableFilings);
                 }
 
-                // Lazy load completion reports in background (for wells only)
-                if (type === 'well' && apiNumber) {
-                    loadCompletionReportsAsync(apiNumber, docketCount, directFilings.length, countBadge);
-                }
+                // Note: Completion reports are now loaded separately via loadWellRecords() into the Well Records section
 
             } catch (error) {
                 console.error('[OccFilings] Error loading filings:', error);
