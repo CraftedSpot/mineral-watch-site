@@ -1380,6 +1380,13 @@ TITLE_PATTERNS = [
     (r"LOCATION\s+EXCEPTION", "order"),
     (r"CHANGE\s+OF\s+OPERATOR", "order"),
     (r"MULTI[- ]?UNIT\s+HORIZONTAL", "order"),
+    # Relief Requested patterns (OCC application format)
+    (r"RELIEF\s+REQUESTED[:\s]+POOLING", "order"),
+    (r"RELIEF\s+REQUESTED[:\s]+SPACING", "order"),
+    (r"RELIEF\s+REQUESTED[:\s]+INCREASED\s+DENSITY", "order"),
+    (r"RELIEF\s+REQUESTED[:\s]+LOCATION\s+EXCEPTION", "order"),
+    (r"RELIEF\s+REQUESTED[:\s]+CHANGE\s+OF\s+OPERATOR", "order"),
+    (r"RELIEF\s+REQUESTED[:\s]+MULTI[- ]?UNIT", "order"),
     (r"UNITIZATION\s+ORDER", "order"),
     (r"UNIT\s+ORDER", "order"),
     (r"OPERATING\s+UNIT", "order"),
@@ -7546,6 +7553,727 @@ EXAMPLE:
 }}
 """
 
+# ============================================================================
+# LEASE FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+# Document types that should use the LEASE focused prompt
+LEASE_DOC_TYPES = ["oil_gas_lease", "lease", "lease_amendment", "lease_extension",
+                   "lease_ratification", "memorandum_of_lease"]
+
+LEASE_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights attorney specializing in oil & gas lease review.
+Your task is to extract comprehensive lease terms and identify protective clauses that affect mineral owner rights.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Calculate expiration dates based on primary term + commencement date
+- Note if primary term has already expired as of CURRENT DATE
+
+EXPIRATION DATE CALCULATION - CRITICAL FOR MINERAL OWNERS:
+1. Identify the PRIMARY TERM START DATE:
+   - Usually the execution_date
+   - Sometimes a separate "effective_date" is specified - use that if present
+   - Look for language like "for a term of X years from [date]"
+2. Add the primary term duration (years/months) to get expiration_date
+3. If CURRENT DATE is past expiration_date, check for:
+   - HELD BY PRODUCTION (HBP): "as long thereafter as oil or gas is produced"
+   - Note in detailed_analysis: "Primary term expired [date]. Lease may be HBP if production exists."
+4. Look for EXTENSION or RENEWAL clauses that could modify expiration
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - State lessor, lessee, acreage, county, royalty rate
+   - Note key protective clauses present OR ABSENT
+   - Flag if primary term has expired
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights attorney
+   - Explain implications of each major clause for the mineral owner
+   - EXPLICITLY NOTE ABSENT CLAUSES - this is critical for mineral owners
+   - Discuss current status if primary term has expired
+   - Note any anti-Pugh language that could defeat Pugh clause benefits
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION:
+
+HIGH CONFIDENCE (0.85-1.0): ONLY use when:
+- Text is clearly printed/typed and easily readable
+- Value is unambiguous with no possible alternative interpretations
+
+MEDIUM CONFIDENCE (0.5-0.84): Use when:
+- Text is readable but has minor issues (slight blur, faded)
+- Most characters are clear but 1-2 are slightly ambiguous
+
+LOW CONFIDENCE (0.2-0.49): Use when:
+- Text is partially illegible (handwritten, faded, blurry)
+- Multiple characters are ambiguous
+
+VERY LOW / NULL (0.0-0.19 or null): Use when:
+- Text is mostly illegible or unreadable
+- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+
+BOOLEAN FLAGS FOR ABSENT CLAUSES - CRITICAL:
+For protective clause fields (depth_clause, pugh_clause, deductions_clause):
+- If you search the ENTIRE document and find NO such clause: set has_X_clause: FALSE with HIGH CONFIDENCE
+- Do NOT leave these as null - mineral owners need to know when protection is ABSENT
+- Example: If no Pugh clause exists anywhere in the document, set:
+  "pugh_clause": {{ "has_pugh_clause": false }}  (with field_score 0.95)
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+- QUARTERS: Read from smallest to largest (e.g., "NE/4 SW/4" = NE quarter of the SW quarter)
+
+COMMON MISTAKE TO AVOID:
+- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
+- Township numbers are typically 1-30. Section numbers are 1-36.
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+=============================================================================
+DOCUMENT TYPES FOR THIS PROMPT: oil_gas_lease, lease_amendment, lease_extension
+=============================================================================
+
+For OIL AND GAS LEASES:
+Extract comprehensive lease terms. Pay special attention to Exhibit A or Addendum which may override printed form.
+
+DOCUMENT IDENTIFICATION:
+- Title contains "OIL AND GAS LEASE", "LEASE AGREEMENT", "PAID-UP OIL AND GAS LEASE"
+- May reference a printed form: "Hefner Form", "AAPL Form 675", "Producer's 88"
+- Has LESSOR (mineral owner) and LESSEE (oil company) parties
+- Contains legal description, primary term, royalty provisions
+- May have Exhibit A or Addendum with additional terms
+
+LEASE SUBTYPES:
+- "oil_gas_lease": Standard new lease
+- "lease_amendment": Modifies specific clauses of existing lease (references original by recording info)
+- "lease_extension": Extends primary term of existing lease
+- "lease_ratification": Confirms/ratifies existing lease (often for title curative)
+- "memorandum_of_lease": Short-form recording notice (extract what's stated, note limited info)
+
+CRITICAL INSTRUCTIONS:
+1. CHECK FOR EXHIBIT A - Many leases have an Exhibit A that modifies the printed form. Look for:
+   - "See Exhibit A attached hereto"
+   - Separate page titled "Exhibit A" or "Addendum"
+   - Depth Clause, Pugh Clause, Shut-In Limitation, No Deductions Clause
+2. EXTRACT ALL TRACTS - Missing tracts break property linking
+3. CALCULATE EXPIRATION DATE - Add primary term years to commencement date
+4. NOTE ABSENT CLAUSES - Set has_X_clause: false when clause is NOT present (don't leave null)
+
+ROYALTY EXTRACTION - PROVIDE BOTH FORMATS:
+Extract royalty as BOTH fraction (original document language) AND decimal (for computation):
+| Fraction | Decimal |
+|----------|---------|
+| 1/8 | 0.125 |
+| 1/6 | 0.166667 |
+| 3/16 | 0.1875 |
+| 1/5 | 0.20 |
+| 1/4 | 0.25 |
+| 1/3 | 0.333333 |
+
+EXAMPLE EXTRACTION:
+{{
+  "doc_type": "oil_gas_lease",
+  "lease_form": "Hefner Form or AAPL Form 675 or omit if unknown",
+
+  "lessor": {{
+    "name": "REQUIRED - Price Oil & Gas, Ltd.",
+    "address": "6801 N. Country Club Drive",
+    "city": "Oklahoma City",
+    "state": "OK",
+    "zip": "73116",
+    "capacity": "Mineral Owner|Trustee|Personal Representative|Guardian|Attorney-in-Fact|Manager|President",
+    "signatory": "William S. Price - person who signed if different from entity",
+    "signatory_title": "Manager - title if signing in representative capacity"
+  }},
+
+  "lessee": {{
+    "name": "REQUIRED - Hefner Energy, LLC",
+    "address": "16224 Muirfield Place",
+    "city": "Edmond",
+    "state": "OK",
+    "zip": "73013"
+  }},
+
+  "execution_date": "REQUIRED - 2016-08-09",
+  "effective_date": "omit if same as execution_date",
+
+  "recording_info": {{
+    "book": "L-350",
+    "page": "125",
+    "instrument_number": "2016-12345",
+    "recording_date": "2016-08-15",
+    "county": "REQUIRED - Blaine",
+    "state": "Oklahoma"
+  }},
+
+  "section": "REQUIRED - integer from first tract, e.g. 20",
+  "township": "REQUIRED - string with direction from first tract, e.g. 16N",
+  "range": "REQUIRED - string with direction from first tract, e.g. 13W",
+  "county": "REQUIRED - from first tract or recording_info, e.g. Blaine",
+  "state": "Oklahoma",
+
+  "tracts": [
+    {{
+      "tract_number": 1,
+      "legal_description": {{
+        "section": 20,
+        "township": "16N",
+        "range": "13W",
+        "meridian": "IM",
+        "county": "Blaine",
+        "state": "Oklahoma",
+        "quarters": "SW/4 SE/4"
+      }},
+      "acres": 40.0,
+      "acres_qualifier": "more or less",
+      "depths_limited": false,
+      "formations_limited": null,
+      "mineral_interest_fraction": "1/2 - only if lessor owns partial minerals"
+    }}
+  ],
+
+  "primary_term": {{
+    "years": 3,
+    "months": 0,
+    "commencement_date": "REQUIRED - 2016-08-09",
+    "expiration_date": "REQUIRED - 2019-08-09",
+    "held_by_production": false,
+    "extension_provisions": null
+  }},
+
+  "consideration": {{
+    "bonus_stated": "REQUIRED - $10.00 and other good and valuable consideration",
+    "bonus_per_acre": 500.00,
+    "total_bonus": 20000.00,
+    "is_paid_up": true,
+    "delay_rental": "REQUIRED if is_paid_up is false",
+    "delay_rental_per_acre": 10.00,
+    "delay_rental_due_date": "anniversary of lease"
+  }},
+
+  "royalty": {{
+    "oil": {{
+      "fraction": "REQUIRED - 1/4",
+      "decimal": 0.25
+    }},
+    "gas": {{
+      "fraction": "REQUIRED - 1/4",
+      "decimal": 0.25
+    }},
+    "other_minerals": {{
+      "fraction": "1/10",
+      "decimal": 0.10,
+      "note": "sulphur $1.00 per long ton"
+    }}
+  }},
+
+  "pooling_provisions": {{
+    "lessee_has_pooling_rights": true,
+    "pooling_type": "lessee option|requires lessor consent|OCC only",
+    "vertical_oil_well": {{
+      "max_acres": 80,
+      "tolerance": "10%"
+    }},
+    "gas_or_horizontal_well": {{
+      "max_acres": 640,
+      "tolerance": "10%"
+    }},
+    "governmental_override": true,
+    "allocation_method": "surface acres|net mineral acres",
+    "pugh_clause_limits_pooling": true,
+    "anti_pugh_language": false,
+    "anti_pugh_text": "quote the language if present"
+  }},
+
+  "habendum_clause": {{
+    "cessation_period_days": 180,
+    "continuous_operations": true,
+    "operations_definition": "drilling, reworking, or production"
+  }},
+
+  "shut_in_provisions": {{
+    "shut_in_royalty": "$1.00 per acre",
+    "shut_in_royalty_per_acre": 1.00,
+    "trigger_period_days": 90,
+    "payment_frequency": "annual",
+    "limitation": {{
+      "has_limitation": true,
+      "max_consecutive_years": 2,
+      "source": "Exhibit A"
+    }}
+  }},
+
+  "depth_clause": {{
+    "has_depth_clause": true,
+    "trigger": "extended solely by commercial production beyond primary term",
+    "depth_retained": "100 feet below stratigraphic equivalent of base of deepest penetrated formation",
+    "depth_feet": null,
+    "reference_point": "deepest penetrated formation",
+    "source": "Exhibit A"
+  }},
+
+  "pugh_clause": {{
+    "has_pugh_clause": true,
+    "type": "Corporation Commission unit|production unit|voluntary pooling",
+    "trigger": "expiration of primary term",
+    "releases": "portions not in OCC unit and not producing or drilling",
+    "horizontal_pugh": true,
+    "vertical_pugh": false,
+    "unit_change_provision": "90 days to develop or release if unit boundaries change",
+    "source": "Exhibit A"
+  }},
+
+  "deductions_clause": {{
+    "has_no_deductions_clause": true,
+    "scope": "all post-production costs",
+    "prohibited_deductions": ["producing", "gathering", "storing", "separating", "treating", "dehydrating", "compressing", "processing", "transporting", "marketing"],
+    "exception": "value-enhancing costs if reasonable and based on actual cost",
+    "source": "Exhibit A"
+  }},
+
+  "continuous_development_clause": {{
+    "has_continuous_development": false,
+    "period_between_wells_days": null,
+    "wells_required": null,
+    "penalty_for_breach": null,
+    "applies_after": null
+  }},
+
+  "top_lease_provision": {{
+    "has_top_lease_rofr": true,
+    "response_period_days": 15,
+    "trigger": "bona fide offer during primary term",
+    "matching_required": true,
+    "notice_requirements": null
+  }},
+
+  "force_majeure": {{
+    "has_force_majeure": true,
+    "extension_period": "first anniversary 90+ days after removal of delay",
+    "excluded_causes": ["financial"],
+    "included_causes": ["war", "strikes", "regulations", "acts of God"]
+  }},
+
+  "surface_use": {{
+    "water_use_free_of_royalty": true,
+    "setback_from_house_feet": 200,
+    "setback_from_barn_feet": 200,
+    "no_surface_operations": false,
+    "surface_use_limited_to_acres": null,
+    "designated_drill_site": null,
+    "surface_damage_payment": {{
+      "required": true,
+      "amount": null,
+      "basis": "damages to growing crops and timber"
+    }},
+    "restoration_required": true
+  }},
+
+  "assignment_status": {{
+    "original_lessee": "Hefner Energy, LLC",
+    "current_holder": null,
+    "has_been_assigned": false,
+    "assignment_noted_on_document": false,
+    "note": null
+  }},
+
+  "exhibit_a": {{
+    "has_exhibit_a": true,
+    "provisions": ["Depth Clause", "Pugh Clause", "Shut-In Royalty Limitation (2 years)", "No Deductions Clause"],
+    "controls_over_printed_form": true,
+    "additional_terms": null
+  }},
+
+  "underlying_lease": {{
+    "note": "FOR AMENDMENTS/EXTENSIONS ONLY - reference to original lease",
+    "original_lessor": null,
+    "original_lessee": null,
+    "original_date": null,
+    "recording_book": null,
+    "recording_page": null,
+    "instrument_number": null
+  }},
+
+  "notarization": {{
+    "notary_name": "Jane Doe",
+    "notary_date": "2016-08-09",
+    "commission_number": "12345678",
+    "commission_expires": "2020-03-15"
+  }},
+
+  "notes": "any additional information not captured elsewhere",
+
+  "key_takeaway": "REQUIRED - One sentence: 3-year paid-up lease from [Lessor] to [Lessee] covering [acres] acres in [quarters] of Section [S]-[T]-[R], [County] County, with [royalty] royalty and [key provisions or 'standard form with no protective clauses'].",
+
+  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) parties, date, legal description; (2) primary term and consideration; (3) royalty and economic terms; (4) protective clauses PRESENT and ABSENT - explicitly note if Pugh, depth, no-deductions clauses are missing; (5) current status if primary term has expired.",
+
+  "field_scores": {{
+    "lessor_name": 0.95,
+    "lessee_name": 1.0,
+    "execution_date": 0.90,
+    "recording_info": 1.0,
+    "tracts": 0.95,
+    "primary_term": 1.0,
+    "royalty": 0.98,
+    "depth_clause": 0.90,
+    "pugh_clause": 0.90,
+    "deductions_clause": 0.85,
+    "exhibit_a": 1.0
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+EXTRACTION NOTES FOR OIL AND GAS LEASES:
+=============================================================================
+
+IMPORTANT FOR LEASES WITHOUT PROTECTIVE CLAUSES:
+If no Exhibit A or addendum exists, set these with HIGH CONFIDENCE (not null):
+- depth_clause.has_depth_clause: false
+- pugh_clause.has_pugh_clause: false
+- deductions_clause.has_no_deductions_clause: false
+- exhibit_a.has_exhibit_a: false
+
+ANTI-PUGH LANGUAGE DETECTION:
+Check pooling clauses for language that defeats Pugh clause benefits:
+- "Production from a pooled unit shall maintain this lease as to all lands covered hereby"
+- "Pooling shall extend this lease as to all lands"
+- "Unitization shall have the effect of maintaining this lease in its entirety"
+If found, set pooling_provisions.anti_pugh_language: true and quote in anti_pugh_text.
+
+DETAILED_ANALYSIS REQUIREMENTS:
+For leases WITHOUT protective clauses, detailed_analysis MUST note:
+"This lease uses a standard printed form with NO Exhibit A. Notably absent are: a Pugh clause (non-pooled acreage is NOT automatically released), a depth clause (lessee retains all depths), and a no-deductions clause (post-production costs may be deducted from royalty)."
+
+FOR LEASE AMENDMENTS/EXTENSIONS:
+- Set doc_type to "lease_amendment" or "lease_extension" as appropriate
+- Extract the underlying_lease reference (original recording info)
+- Focus on what's being CHANGED, not restating the entire original lease
+- Note which clauses are modified
+
+TOP-LEVEL TRS FIELDS:
+Always include top-level section, township, range, county fields from the FIRST tract.
+These are REQUIRED for property linking - the dashboard uses these to match documents to properties.
+"""
+
+# ============================================================================
+# POOLING ORDER FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+# Document types that should use the POOLING ORDER focused prompt
+# Includes "order" coarse_type so all OCC orders route here (pooling is most common)
+POOLING_DOC_TYPES = ["order", "pooling_order", "force_pooling_order"]
+
+POOLING_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners understand force pooling orders from the Oklahoma Corporation Commission.
+Your task is to extract comprehensive pooling order terms and explain election options clearly so owners can make informed decisions.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Calculate election deadline based on effective_date + election_period_days
+- CRITICAL: Note if election deadline has PASSED as of CURRENT DATE
+
+ELECTION DEADLINE CALCULATION:
+1. Find the ORDER DATE or EFFECTIVE DATE
+2. Add the election_period_days (typically 20 days)
+3. Calculate election_deadline = effective_date + election_period_days
+4. If CURRENT DATE is past election_deadline, note in key_takeaway: "DEADLINE PASSED - owner likely defaulted to Option [X]"
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - WHO filed it (operator name)
+   - WHAT well and formation(s)
+   - WHERE (section-township-range, county)
+   - WHEN owner needs to respond (election deadline)
+   - DEFAULT consequence if they don't respond (bonus amount, NRI delivered)
+   - Flag if deadline has already passed
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Plain English explanation of what force pooling means for this owner
+   - Compare election options (cash vs participation vs royalty trade-offs)
+   - Explain key deadlines (election period, payment deadlines)
+   - Describe default consequences if owner doesn't respond
+   - Provide operator contact info (name, address, email) for sending elections
+   - Explain subsequent well provisions if applicable
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION:
+
+HIGH CONFIDENCE (0.85-1.0): ONLY use when:
+- Text is clearly printed/typed and easily readable
+- Value is unambiguous with no possible alternative interpretations
+
+MEDIUM CONFIDENCE (0.5-0.84): Use when:
+- Text is readable but has minor issues (slight blur, faded)
+- Most characters are clear but 1-2 are slightly ambiguous
+
+LOW CONFIDENCE (0.2-0.49): Use when:
+- Text is partially illegible (handwritten, faded, blurry)
+- Multiple characters are ambiguous
+
+VERY LOW / NULL (0.0-0.19 or null): Use when:
+- Text is mostly illegible or unreadable
+- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+- QUARTERS: Read from smallest to largest (e.g., "SE/4" = Southeast quarter)
+
+COMMON MISTAKE TO AVOID:
+- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
+- Township numbers are typically 1-30. Section numbers are 1-36.
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+CRITICAL - FIELD NAME ENFORCEMENT:
+You MUST use ONLY the exact field names shown in the schema below. Do NOT invent new field names.
+- Use "attorney_information" NOT "Legal Representation Attorney" or "Attorney Info"
+- Use "order_info.commissioners" NOT "Order Execution Commissioners"
+- Use "additional_parties.respondents_with_known_addresses" NOT "Exhibit A Respondents Known Addresses"
+- Use "subsequent_wells" NOT "Additional Provisions Subsequent Wells"
+- Use "notes" for any additional provisions NOT captured elsewhere
+If information doesn't fit an existing field, put it in "notes" as a text summary. Do NOT create new top-level fields.
+
+=============================================================================
+DOCUMENT TYPES FOR THIS PROMPT: pooling_order, force_pooling_order
+=============================================================================
+
+POOLING ORDERS (Force pooling orders requiring mineral owner response):
+
+Pooling orders compel unleased mineral owners to participate in well development. Extract ALL election options
+with their specific financial terms - this is critical for owners to make informed decisions.
+
+ELECTION OPTION TYPES:
+- "participate" - Working interest participation (owner pays proportionate costs, shares in production)
+- "cash_bonus" - Cash payment per NMA, standard royalty, no excess royalty
+- "cash_bonus_excess_royalty" - Cash payment plus excess royalty (reduced NRI to operator)
+- "no_cash_higher_royalty" - No cash bonus, higher excess royalty
+- "non_consent" - Risk penalty option (150-300% cost recovery before sharing in production)
+- "statutory" - Falls under OCC statutory terms (52 O.S. §87.1)
+
+POOLING ORDER EXAMPLE:
+{{
+  "doc_type": "pooling_order",
+
+  // TOP-LEVEL LINKING FIELDS (REQUIRED - from unit_info.legal_description)
+  "section": "3",
+  "township": "1N",
+  "range": "8E",
+  "county": "Coal",
+  "state": "Oklahoma",
+
+  "order_info": {{
+    "case_number": "CD 201500614-T",
+    "order_number": "639589",
+    "hearing_date": "2015-03-10",
+    "order_date": "2015-03-17",
+    "effective_date": "2015-03-17",
+    "alj_report_date": "2015-03-15",
+    "commissioners": [
+      {{"name": "Bob Anthony", "title": "Chairman"}},
+      {{"name": "Dana L. Murphy", "title": "Vice Chairman"}},
+      {{"name": "J. Todd Hiett", "title": "Commissioner"}}
+    ]
+  }},
+
+  "applicant": {{
+    "name": "Canyon Creek Energy Operating LLC"
+  }},
+
+  "attorney_information": {{
+    "administrative_law_judge": "John Smith",
+    "applicant_attorney": "Jane Doe",
+    "applicant_attorney_firm": "Hall Estill"
+  }},
+
+  "operator": {{
+    "name": "Canyon Creek Energy Operating LLC",
+    "contact_name": "Mr. Blake Gray",
+    "address": "2431 East 61st Street, Suite 400",
+    "city": "Tulsa",
+    "state": "Oklahoma",
+    "zip": "74136",
+    "phone": "918-555-1234",
+    "email": "bgray@cceok.com"
+  }},
+
+  "unit_info": {{
+    "legal_description": {{
+      "section": "3",
+      "township": "1N",
+      "range": "8E",
+      "county": "Coal",
+      "meridian": "IM",
+      "quarters": "SE/4"
+    }},
+    "unit_description": "The SE/4 of Section 3, Township 1 North, Range 8 East, IM, Coal County",
+    "unit_size_acres": 160
+  }},
+
+  "well_info": {{
+    "proposed_well_name": "Hockett 1-3",
+    "well_type": "vertical",
+    "well_status": "new",
+    "api_number": null,
+    "initial_well_cost": 886600
+  }},
+
+  "formations": [
+    {{"name": "Cromwell", "order_number": "591429", "depth_from": 2800, "depth_to": 3200}},
+    {{"name": "Booch", "order_number": "591429", "depth_from": 2200, "depth_to": 2600}}
+  ],
+
+  "election_options": [
+    {{
+      "option_number": 1,
+      "option_type": "participate",
+      "description": "Participate as working interest owner",
+      "bonus_per_nma": null,
+      "cost_per_nma": 5541.25,
+      "royalty_rate": "1/8",
+      "excess_royalty": null,
+      "nri_delivered": null,
+      "risk_penalty_percentage": null,
+      "is_default": false
+    }},
+    {{
+      "option_number": 2,
+      "option_type": "cash_bonus_excess_royalty",
+      "description": "Cash bonus plus excess royalty",
+      "bonus_per_nma": 350,
+      "cost_per_nma": null,
+      "royalty_rate": "1/8",
+      "excess_royalty": "1/16",
+      "nri_delivered": "81.25%",
+      "risk_penalty_percentage": null,
+      "is_default": true
+    }},
+    {{
+      "option_number": 3,
+      "option_type": "no_cash_higher_royalty",
+      "description": "No cash, higher royalty",
+      "bonus_per_nma": null,
+      "cost_per_nma": null,
+      "royalty_rate": "1/8",
+      "excess_royalty": "1/8",
+      "nri_delivered": "75%",
+      "risk_penalty_percentage": null,
+      "is_default": false
+    }}
+  ],
+
+  "deadlines": {{
+    "election_period_days": 20,
+    "election_deadline": "2015-04-06",
+    "participation_payment_days": 25,
+    "bonus_payment_days": 30,
+    "operator_commencement_days": 180
+  }},
+
+  "default_election": {{
+    "option_number": 2,
+    "description": "If owner fails to respond within 20 days, deemed to have elected Option 2 ($350/NMA, 81.25% NRI)"
+  }},
+
+  "subsequent_wells": {{
+    "has_provision": true,
+    "notice_period_days": 20,
+    "payment_deadline_days": 25,
+    "bonus_payment_deadline_days": 30,
+    "operator_commencement_days": 180,
+    "participation_options": ["Participate", "Cash bonus with excess royalty", "No cash, higher royalty"],
+    "excludes_replacement_wells": true
+  }},
+
+  "notes": "Additional provisions such as operator's lien, dispute resolution, etc.",
+
+  "additional_parties": {{
+    "respondents_with_known_addresses": [
+      {{"name": "Osage Exploration and Development, Inc.", "address": "2445 Fifth Ave., Suite 310, San Diego, CA 92101"}}
+    ],
+    "respondents_with_unknown_addresses": 5,
+    "respondents_dismissed": 2
+  }},
+
+  "key_takeaway": "REQUIRED - One sentence: Force pooling order filed by [Operator] for the [Well Name] well in [quarters] of Section [S]-[T]-[R], [County] County. Election deadline is [date] (or PASSED if in the past). Default is Option [X] ($[bonus]/NMA, [NRI] NRI delivered).",
+
+  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) what this order means for the mineral owner in plain English; (2) comparison of election options with pros/cons; (3) key deadlines and consequences of missing them; (4) subsequent wells provisions if applicable; (5) how to respond and who to contact.",
+
+  "field_scores": {{
+    "case_number": 1.0,
+    "order_number": 0.95,
+    "operator": 1.0,
+    "applicant": 0.95,
+    "attorney_information": 0.85,
+    "legal_description": 1.0,
+    "election_options": 0.90,
+    "deadlines": 0.95,
+    "additional_parties": 0.80
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+EXTRACTION NOTES FOR POOLING ORDERS:
+=============================================================================
+
+ELECTION OPTIONS - EXTRACT ALL:
+- Each option should have option_number, option_type, and is_default
+- Extract ALL financial terms: bonus_per_nma, cost_per_nma, royalty_rate, excess_royalty, nri_delivered
+- The DEFAULT option is critical - this is what happens if the owner doesn't respond
+
+DEADLINES - CALCULATE WHEN POSSIBLE:
+- election_deadline = effective_date + election_period_days
+- If only "20 days from date of order" is stated, calculate the actual date
+
+SUBSEQUENT WELLS PROVISION:
+- This is critical for mineral owners - does this order cover future wells?
+- Extract notice period and payment deadlines for subsequent wells
+- Note if replacement wells are excluded
+
+TOP-LEVEL TRS FIELDS:
+Always include top-level section, township, range, county, state fields.
+These are REQUIRED for property linking - the dashboard uses these to match documents to properties.
+
+FORMATIONS:
+Extract all formation names and any associated depth ranges or order numbers.
+Multiple formations means the pooling order covers multiple depth intervals.
+"""
+
+# ============================================================================
+# DEED FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
 # Document types that should use the DEED focused prompt
 DEED_DOC_TYPES = ["mineral_deed", "royalty_deed", "warranty_deed", "quitclaim_deed",
                   "quit_claim_deed", "gift_deed", "assignment", "trust_funding",
@@ -7895,6 +8623,12 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     if doc_type and doc_type in PERMIT_DOC_TYPES:
         logger.info(f"Using FOCUSED PERMIT prompt for doc_type={doc_type}")
         prompt = PERMIT_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in LEASE_DOC_TYPES:
+        logger.info(f"Using FOCUSED LEASE prompt for doc_type={doc_type}")
+        prompt = LEASE_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in POOLING_DOC_TYPES:
+        logger.info(f"Using FOCUSED POOLING prompt for doc_type={doc_type}")
+        prompt = POOLING_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     elif doc_type and doc_type in DEED_DOC_TYPES:
         logger.info(f"Using FOCUSED DEED prompt for doc_type={doc_type}")
         prompt = DEED_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
