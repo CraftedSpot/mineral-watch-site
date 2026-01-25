@@ -78,8 +78,12 @@ async function fetchDocumentPrintData(
   }
 
   // Extract key takeaway and detailed analysis from AI response
-  const keyTakeaway = extractedData.key_takeaway || extractedData.summary || null;
-  const detailedAnalysis = extractedData.detailed_analysis || extractedData.analysis || null;
+  // Check multiple possible field names for compatibility
+  const keyTakeaway = extractedData.key_takeaway || extractedData.summary ||
+                      extractedData.executive_summary || null;
+  const detailedAnalysis = extractedData.detailed_analysis || extractedData.analysis ||
+                           extractedData.full_analysis || extractedData.analysis_text ||
+                           extractedData.document_analysis || null;
 
   // Format linked properties
   const linkedProperties = (doc.linked_properties || []).map((p: any) => ({
@@ -300,7 +304,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Document Summary - ${escapeHtml(data.displayName)}</title>
+  <title>${escapeHtml(data.displayName)} - Summary</title>
   <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -315,7 +319,8 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       max-width: 8.5in;
       margin: 0 auto 16px auto;
       display: flex;
-      justify-content: flex-end;
+      justify-content: space-between;
+      align-items: center;
       gap: 12px;
     }
     .print-btn {
@@ -579,14 +584,24 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
 <body>
   <div class="print-controls">
     <button class="print-btn secondary" onclick="window.close()">Back to Dashboard</button>
-    <button class="print-btn primary" onclick="window.print()">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polyline points="6 9 6 2 18 2 18 9"></polyline>
-        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
-        <rect x="6" y="14" width="12" height="8"></rect>
-      </svg>
-      Print / Save PDF
-    </button>
+    <div style="display: flex; gap: 12px;">
+      <a href="/api/documents/${escapeHtml(data.id)}/download" class="print-btn secondary" style="text-decoration: none;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="7 10 12 15 17 10"></polyline>
+          <line x1="12" y1="15" x2="12" y2="3"></line>
+        </svg>
+        Download Original
+      </a>
+      <button class="print-btn primary" onclick="window.print()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 6 2 18 2 18 9"></polyline>
+          <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+          <rect x="6" y="14" width="12" height="8"></rect>
+        </svg>
+        Print Summary
+      </button>
+    </div>
   </div>
 
   <div class="print-container">
@@ -636,7 +651,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     }
 
     <div class="section">
-      <div class="section-title">EXTRACTED INFORMATION</div>
+      <div class="section-title">EXTRACTED INFORMATION (KEY POINTS)</div>
       ${extractedFieldsHtml}
     </div>
 
@@ -871,103 +886,263 @@ function generatePoolingFields(data: any): string {
 }
 
 function generateDivisionOrderFields(data: any): string {
-  const operator = data.operator || {};
+  // Division order uses flat field names (not nested objects)
+  // property_name = well/unit name
+  // operator_name, operator_address at top level
+  // owner_name, owner_address at top level
+
+  const operatorName = data.operator_name || data.operator || '';
+  const operatorAddress = data.operator_address || '';
+
+  // property_name is the well/unit name in division orders
+  const propertyName = data.property_name || data.well_name || data.unit_name || '';
+  const propertyNumber = data.property_number || '';
+
+  const ownerName = data.owner_name || '';
+  const ownerAddress = data.owner_address || '';
+  const trusteeName = data.trustee_name || '';
+
+  // Interest fields
+  const decimalInterest = data.decimal_interest || '';
+  const royaltyInterest = data.royalty_interest || '';
+  const workingInterest = data.working_interest || '';
+  const interestType = data.interest_type || data.ownership_type || '';
+
+  // Payment info
+  const paymentMinimum = data.payment_minimum || '';
+
+  // Effective date
+  const effectiveDate = data.effective_date || '';
+
+  // API number
+  const apiNumber = data.api_number || '';
+
+  // Build operator party box
+  const operatorHtml = operatorName ? `
+    <div class="party-box">
+      <div class="party-label">Operator (Payor)</div>
+      <div class="party-name">${escapeHtml(operatorName)}</div>
+      ${operatorAddress ? `<div class="party-detail">${escapeHtml(operatorAddress)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Build owner party box
+  const ownerHtml = ownerName ? `
+    <div class="party-box">
+      <div class="party-label">Interest Owner</div>
+      <div class="party-name">${escapeHtml(ownerName)}</div>
+      ${trusteeName ? `<div class="party-detail">Trustee: ${escapeHtml(trusteeName)}</div>` : ''}
+      ${ownerAddress ? `<div class="party-detail">${escapeHtml(ownerAddress)}</div>` : ''}
+    </div>
+  ` : '';
 
   return `
+    ${operatorHtml || ownerHtml ? `
+    <div class="parties-grid" style="margin-bottom: 16px;">
+      ${operatorHtml}
+      ${ownerHtml}
+    </div>
+    ` : ''}
+
     <div class="field-grid">
       <div class="field-item">
-        <div class="field-label">Operator</div>
-        <div class="field-value">${escapeHtml(operator.name || data.operator_name) || 'Not specified'}</div>
+        <div class="field-label">Property/Well Name</div>
+        <div class="field-value">${escapeHtml(propertyName) || 'Not specified'}</div>
       </div>
+      ${propertyNumber ? `
+      <div class="field-item">
+        <div class="field-label">Property Number</div>
+        <div class="field-value mono">${escapeHtml(propertyNumber)}</div>
+      </div>
+      ` : ''}
+      ${apiNumber ? `
+      <div class="field-item">
+        <div class="field-label">API Number</div>
+        <div class="field-value mono">${escapeHtml(apiNumber)}</div>
+      </div>
+      ` : ''}
       <div class="field-item">
         <div class="field-label">Effective Date</div>
-        <div class="field-value">${formatDate(data.effective_date) || 'Not specified'}</div>
-      </div>
-      <div class="field-item">
-        <div class="field-label">Well/Unit Name</div>
-        <div class="field-value">${escapeHtml(data.well_name || data.unit_name) || 'Not specified'}</div>
+        <div class="field-value">${formatDate(effectiveDate) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Decimal Interest</div>
-        <div class="field-value highlight">${escapeHtml(data.decimal_interest) || 'Not specified'}</div>
+        <div class="field-value highlight">${decimalInterest ? escapeHtml(String(decimalInterest)) : 'Not specified'}</div>
       </div>
+      ${interestType ? `
       <div class="field-item">
-        <div class="field-label">Product Type</div>
-        <div class="field-value">${escapeHtml(data.product_type) || 'Oil & Gas'}</div>
+        <div class="field-label">Interest Type</div>
+        <div class="field-value">${escapeHtml(interestType)}</div>
       </div>
-    </div>
-
-    ${
-      data.owner_info
-        ? `
-    <div style="margin-top: 16px;">
-      <div class="party-box">
-        <div class="party-label">Interest Owner</div>
-        <div class="party-name">${escapeHtml(data.owner_info.name || data.owner_name)}</div>
-        ${data.owner_info.address ? `<div class="party-detail">${escapeHtml(data.owner_info.address)}</div>` : ''}
+      ` : ''}
+      ${royaltyInterest ? `
+      <div class="field-item">
+        <div class="field-label">Royalty Interest</div>
+        <div class="field-value">${escapeHtml(String(royaltyInterest))}</div>
       </div>
+      ` : ''}
+      ${workingInterest && Number(workingInterest) > 0 ? `
+      <div class="field-item">
+        <div class="field-label">Working Interest</div>
+        <div class="field-value">${escapeHtml(String(workingInterest))}</div>
+      </div>
+      ` : ''}
+      ${paymentMinimum ? `
+      <div class="field-item">
+        <div class="field-label">Minimum Payment</div>
+        <div class="field-value">$${escapeHtml(String(paymentMinimum))}</div>
+      </div>
+      ` : ''}
     </div>
-    `
-        : ''
-    }
   `;
 }
 
 function generateSpacingFields(data: any): string {
   const orderInfo = data.order_info || {};
   const applicant = data.applicant || {};
-  const spacingUnit = data.spacing_unit || data.unit || {};
+  const units = data.units || [];
+
+  // Extract all unique formations from all units
+  const allFormations: string[] = [];
+  let unitSizes: number[] = [];
+  let wellTypes: string[] = [];
+  let setbackParts: string[] = [];
+
+  // Helper to extract setbacks from well_location object
+  const extractSetbacks = (wellLoc: any) => {
+    if (!wellLoc || typeof wellLoc !== 'object') return;
+    if (typeof wellLoc.unit_boundary_setback_ft === 'number') {
+      setbackParts.push(`${wellLoc.unit_boundary_setback_ft}' unit boundary`);
+    }
+    if (typeof wellLoc.lateral_setback_ft === 'number') {
+      setbackParts.push(`${wellLoc.lateral_setback_ft}' lateral`);
+    }
+    if (typeof wellLoc.completion_interval_setback_ft === 'number') {
+      setbackParts.push(`${wellLoc.completion_interval_setback_ft}' completion interval`);
+    }
+    if (typeof wellLoc.lease_line_setback_ft === 'number') {
+      setbackParts.push(`${wellLoc.lease_line_setback_ft}' lease line`);
+    }
+  };
+
+  units.forEach((unit: any) => {
+    // Get unit size
+    if (unit.unit_size_acres) {
+      unitSizes.push(unit.unit_size_acres);
+    }
+    // Get well type
+    if (unit.well_type) {
+      wellTypes.push(unit.well_type);
+    }
+    // Get setbacks from well_location
+    extractSetbacks(unit.well_location);
+    // Get formations from unit
+    const formations = unit.formations || [];
+    formations.forEach((f: any) => {
+      const name = f.name || f.formation_name || '';
+      if (name && !allFormations.includes(name)) {
+        allFormations.push(name);
+      }
+    });
+  });
+
+  // Fallback to old structure if no units array
+  if (allFormations.length === 0 || unitSizes.length === 0) {
+    // Check spacing_units (alternate structure)
+    const spacingUnits = data.spacing_units || [];
+    spacingUnits.forEach((su: any) => {
+      const formations = su.formations || [];
+      formations.forEach((f: any) => {
+        const name = typeof f === 'string' ? f : (f.name || f.formation_name || '');
+        if (name && !allFormations.includes(name)) {
+          allFormations.push(name);
+        }
+      });
+      if (su.unit_size_acres) unitSizes.push(su.unit_size_acres);
+      extractSetbacks(su.well_location);
+    });
+    // Check top-level formation
+    if (allFormations.length === 0 && data.formation) {
+      allFormations.push(data.formation);
+    }
+    // Check top-level well_setbacks
+    if (data.well_setbacks) {
+      extractSetbacks(data.well_setbacks);
+    }
+    // Check top-level unit_size_acres
+    if (unitSizes.length === 0 && data.unit_size_acres) {
+      unitSizes.push(data.unit_size_acres);
+    }
+  }
+
+  // Format unit size (show range if multiple different sizes)
+  const uniqueSizes = [...new Set(unitSizes)].sort((a, b) => a - b);
+  let unitSizeStr = '';
+  if (uniqueSizes.length === 1) {
+    unitSizeStr = `${uniqueSizes[0]} acres`;
+  } else if (uniqueSizes.length > 1) {
+    unitSizeStr = `${uniqueSizes[0]}-${uniqueSizes[uniqueSizes.length - 1]} acres`;
+  }
+
+  // Format well type
+  const uniqueWellTypes = [...new Set(wellTypes)];
+  const wellTypeStr = uniqueWellTypes.join(', ') || data.well_type || '';
+
+  // Format formations as comma-separated list
+  const formationsStr = allFormations.join(', ');
+
+  // Format setbacks - dedupe and join
+  const uniqueSetbacks = [...new Set(setbackParts)];
+  const setbackStr = uniqueSetbacks.join('; ');
+
+  // Get cause/order info - check both nested and top-level
+  const causeNumber = orderInfo.cause_number || data.case_number || data.cause_number || '';
+  const orderDate = orderInfo.order_date || data.order_date || '';
+  const effectiveDate = orderInfo.effective_date || data.effective_date || '';
+  const applicantName = applicant.name || data.applicant || '';
 
   return `
     <div class="field-grid">
       <div class="field-item">
         <div class="field-label">Cause Number</div>
-        <div class="field-value mono">${escapeHtml(orderInfo.cause_number) || 'Not specified'}</div>
+        <div class="field-value mono">${escapeHtml(causeNumber) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Order Date</div>
-        <div class="field-value">${formatDate(orderInfo.order_date) || 'Not specified'}</div>
-      </div>
-      <div class="field-item">
-        <div class="field-label">Effective Date</div>
-        <div class="field-value">${formatDate(orderInfo.effective_date) || 'Not specified'}</div>
+        <div class="field-value">${formatDate(orderDate) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Applicant/Operator</div>
-        <div class="field-value">${escapeHtml(applicant.name) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(applicantName) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Unit Size</div>
-        <div class="field-value highlight">${spacingUnit.size ? escapeHtml(spacingUnit.size) + ' acres' : 'Not specified'}</div>
-      </div>
-      <div class="field-item">
-        <div class="field-label">Unit Configuration</div>
-        <div class="field-value">${escapeHtml(spacingUnit.configuration || spacingUnit.shape) || 'Not specified'}</div>
-      </div>
-      <div class="field-item">
-        <div class="field-label">Formation/Zone</div>
-        <div class="field-value">${escapeHtml(data.formation || spacingUnit.formation) || 'Not specified'}</div>
+        <div class="field-value highlight">${escapeHtml(unitSizeStr) || 'Not specified'}</div>
       </div>
       ${
-        data.well_type
+        wellTypeStr
           ? `
       <div class="field-item">
         <div class="field-label">Well Type</div>
-        <div class="field-value">${escapeHtml(data.well_type)}</div>
+        <div class="field-value">${escapeHtml(wellTypeStr)}</div>
       </div>
       `
           : ''
       }
       ${
-        data.wells_allowed
+        setbackStr
           ? `
       <div class="field-item">
-        <div class="field-label">Wells Allowed</div>
-        <div class="field-value">${escapeHtml(data.wells_allowed)}</div>
+        <div class="field-label">Setbacks</div>
+        <div class="field-value">${escapeHtml(setbackStr)}</div>
       </div>
       `
           : ''
       }
+      <div class="field-item full-width">
+        <div class="field-label">Formations</div>
+        <div class="field-value">${escapeHtml(formationsStr) || 'Not specified'}</div>
+      </div>
     </div>
   `;
 }
@@ -979,16 +1154,40 @@ function generateLocationExceptionFields(data: any): string {
   const lateralPath = data.lateral_path || {};
   const exceptionDetails = data.exception_details || {};
 
-  // Get primary formation from target_formations array
+  // Get primary formation - check multiple possible locations/formats
+  let formationName = '';
+  // 1. Check target_formations array (new schema) - can be .name or .formation_name
   const targetFormations = data.target_formations || [];
-  const primaryFormation = targetFormations.find((f: any) => f.is_primary) || targetFormations[0];
-  const formationName = primaryFormation?.name || data.formation || '';
+  if (targetFormations.length > 0) {
+    const primaryFormation = targetFormations.find((f: any) => f.is_primary) || targetFormations[0];
+    formationName = primaryFormation?.name || primaryFormation?.formation_name || '';
+  }
+  // 2. Check target_formation singular (string like "Woodford (Primary)")
+  if (!formationName && data.target_formation) {
+    // Extract just the formation name, strip "(Primary)" suffix if present
+    formationName = String(data.target_formation).replace(/\s*\(Primary\)\s*$/i, '').trim();
+  }
+  // 3. Check well_info.target_formation
+  if (!formationName && wellInfo.target_formation) {
+    formationName = String(wellInfo.target_formation).replace(/\s*\(Primary\)\s*$/i, '').trim();
+  }
+  // 4. Fallback to generic formation field
+  if (!formationName) {
+    formationName = data.formation || wellInfo.formation || '';
+  }
 
   // Get well name from well_info or top-level
   const wellName = wellInfo.well_name || data.well_name || '';
 
   // Get unit size from well_info
-  const unitSize = wellInfo.spacing_unit_acres || data.unit_size_acres || '';
+  const unitSize = wellInfo.spacing_unit_acres || data.unit_size_acres || data.spacing_unit_acres || '';
+
+  // Get exception reason
+  const exceptionReason = exceptionDetails.exception_reason || data.exception_reason || '';
+
+  // Get granted setback (only if it's a real number)
+  const grantedSetback = exceptionDetails.granted_setback_ft;
+  const hasGrantedSetback = grantedSetback !== null && grantedSetback !== undefined && !isNaN(Number(grantedSetback));
 
   // Format surface location from lateral_path
   const surfaceLocation = lateralPath.surface_location;
@@ -1018,7 +1217,7 @@ function generateLocationExceptionFields(data: any): string {
         <div class="field-value">${escapeHtml(wellName) || 'Not specified'}</div>
       </div>
       <div class="field-item">
-        <div class="field-label">Target Formation</div>
+        <div class="field-label">Target Formation (Primary)</div>
         <div class="field-value">${escapeHtml(formationName) || 'Not specified'}</div>
       </div>
       <div class="field-item">
@@ -1036,15 +1235,21 @@ function generateLocationExceptionFields(data: any): string {
           : ''
       }
       ${
-        exceptionDetails.granted_setback_ft !== undefined
+        hasGrantedSetback
           ? `
       <div class="field-item">
-        <div class="field-label">Standard Setback</div>
-        <div class="field-value">${escapeHtml(String(exceptionDetails.standard_setback_ft || 165))} ft</div>
-      </div>
-      <div class="field-item">
         <div class="field-label">Granted Setback</div>
-        <div class="field-value highlight">${escapeHtml(String(exceptionDetails.granted_setback_ft))} ft</div>
+        <div class="field-value highlight">${escapeHtml(String(grantedSetback))} ft</div>
+      </div>
+      `
+          : ''
+      }
+      ${
+        exceptionReason
+          ? `
+      <div class="field-item full-width">
+        <div class="field-label">Exception Reason</div>
+        <div class="field-value">${escapeHtml(exceptionReason)}</div>
       </div>
       `
           : ''
