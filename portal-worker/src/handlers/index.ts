@@ -198,6 +198,11 @@ export {
   handleUnitPrintData
 } from './unit-print.js';
 
+// Document print report handler
+export {
+  handleDocumentPrint
+} from './document-print.js';
+
 // PLSS sections handlers
 export {
   handleGetPlssSection,

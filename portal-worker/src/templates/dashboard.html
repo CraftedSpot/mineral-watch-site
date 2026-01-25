@@ -12665,6 +12665,15 @@
             if (saveBtn) {
                 saveBtn.style.display = 'none';
             }
+
+            // Show/hide print button based on whether document has extractable content
+            // Hide for parent documents (split PDFs) and documents without extracted data
+            const printBtn = document.getElementById('printDocBtn');
+            if (printBtn) {
+                const isParentDocument = doc.children && doc.children.length > 0;
+                const hasExtractedData = doc.extracted_data && doc.status === 'complete';
+                printBtn.style.display = (hasExtractedData && !isParentDocument) ? 'flex' : 'none';
+            }
             } catch (error) {
                 console.error('Error loading document details:', error);
                 alert('Failed to load document details');
@@ -12688,6 +12697,13 @@
             if (currentDocumentId) {
                 viewDocumentInModal(currentDocumentId, currentDocumentFilename || '', true, currentDocumentContentType || 'application/pdf', currentDocumentRotation || 0);
                 // Don't close the detail modal - keep it in the background
+            }
+        }
+
+        function printDocumentSummary() {
+            if (currentDocumentId) {
+                // Open print page in new tab
+                window.open(`/print/document?id=${currentDocumentId}`, '_blank');
             }
         }
 
@@ -12861,6 +12877,7 @@
         window.openDocumentDetail = openDocumentDetail;
         window.closeDocumentDetailModal = closeDocumentDetailModal;
         window.viewDocumentPDF = viewDocumentPDF;
+        window.printDocumentSummary = printDocumentSummary;
         window.formatDocType = formatDocType;
         window.getConfidenceIndicator = getConfidenceIndicator;
         window.enableSaveButton = enableSaveButton;
@@ -16679,12 +16696,22 @@
         
         <!-- Modal Footer (fixed at bottom) -->
         <div class="modal-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; background: white;">
-            <button onclick="viewDocumentPDF()" id="viewOriginalBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
-                <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                </svg>
-                <span id="viewOriginalBtnText">View Original</span>
-            </button>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="viewDocumentPDF()" id="viewOriginalBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    <span id="viewOriginalBtnText">View Original</span>
+                </button>
+                <button onclick="printDocumentSummary()" id="printDocBtn" style="background: white; color: #1D6F5C; border: 1px solid #1D6F5C; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;" title="Print or save as PDF">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    <span>Print Summary</span>
+                </button>
+            </div>
             <div style="display: flex; gap: 10px;">
                 <button onclick="closeDocumentDetailModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
                 <button onclick="saveAndCloseDocumentNotes()" id="saveDocNotesBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: none;">Save & Close</button>

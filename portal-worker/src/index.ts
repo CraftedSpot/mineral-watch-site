@@ -167,6 +167,8 @@ import {
   // Unit print report handlers
   handleUnitPrint,
   handleUnitPrintData,
+  // Document print report handler
+  handleDocumentPrint,
   // PLSS sections handlers
   handleGetPlssSection,
   handleGetPlssSectionsBatch
@@ -1267,6 +1269,11 @@ var index_default = {
       // Unit Print Data API - JSON data for unit print report
       if (path === "/api/unit-print-data" && request.method === "GET") {
         return handleUnitPrintData(request, env);
+      }
+
+      // Document Print Report - printable document summary
+      if (path === "/print/document" && request.method === "GET") {
+        return handleDocumentPrint(request, env);
       }
 
       // Track This Well endpoint
