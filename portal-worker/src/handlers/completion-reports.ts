@@ -314,13 +314,11 @@ export async function handleGetProductionSummary(
       }
     }
 
-    // "Last Month" should only show data if it's within the last 3 months (accounting for reporting lag)
-    // Otherwise show 0 - the well hasn't produced recently
-    const isRecentProduction = mostRecentYM >= threeMonthsAgoYM;
-
-    // Now aggregate production for that most recent month (only if recent)
+    // "Last Reported" shows actual last production regardless of age
+    // The status indicator already shows if the well is idle/stale
+    // Now aggregate production for the most recent month with data
     for (const row of recentResult.results as any[]) {
-      if (row.year_month === mostRecentYM && isRecentProduction) {
+      if (row.year_month === mostRecentYM) {
         const type = isOilProduct(row.product_code) ? 'oil' : 'gas';
         if (!lastMonthData[type]) {
           lastMonthData[type] = { yearMonth: row.year_month, volume: 0 };
@@ -442,10 +440,8 @@ export async function handleGetProductionSummary(
 
     if (mostRecentYM) {
       lastProductionFormatted = formatYearMonth(mostRecentYM);
-      // Only set lastMonthFormatted if it's recent production
-      if (isRecentProduction) {
-        lastMonthFormatted = lastProductionFormatted;
-      }
+      // Always show actual last reported month
+      lastMonthFormatted = lastProductionFormatted;
     }
 
     if (monthsProducedResult?.first_month) {

@@ -2871,7 +2871,7 @@
                         <select id="wellsFilter" class="sort-select">
                             <option value="all" selected>All Wells</option>
                             <option value="active">Active Only</option>
-                            <option value="inactive">Inactive Only</option>
+                            <option value="idle">Idle Only</option>
                         </select>
                         <select id="wellsSort" class="sort-select">
                             <option value="name-asc" selected>Well Name</option>
@@ -4692,14 +4692,34 @@
         function filterWells(wells) {
             let filtered = wells;
 
-            // Apply status filter (Active/Inactive based on OTC production data)
+            // Apply status filter (Active/Idle based on OTC production data)
+            // Helper to calculate production status (matches completion-reports.ts logic)
+            const getProductionStatus = (w) => {
+                if (!w.otc_last_prod_month) return 'no_data';
+
+                const now = new Date();
+                const threeMonthsAgo = (() => {
+                    const d = new Date(now);
+                    d.setMonth(d.getMonth() - 3);
+                    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+                })();
+                const sixMonthsAgo = (() => {
+                    const d = new Date(now);
+                    d.setMonth(d.getMonth() - 6);
+                    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
+                })();
+
+                if (w.otc_last_prod_month >= threeMonthsAgo) return 'active';
+                if (w.otc_last_prod_month >= sixMonthsAgo) return 'recently_idle';
+                return 'extended_idle';
+            };
+
             if (wellsFilterBy === 'active') {
-                // Active = has production data AND not stale (produced in last 6 months)
-                // Use loose equality to handle string "0" vs number 0
-                filtered = filtered.filter(w => w.otc_is_stale == 0 && w.otc_is_stale !== null && w.otc_is_stale !== undefined);
-            } else if (wellsFilterBy === 'inactive') {
-                // Inactive = stale (no production in 6+ months) OR no production data
-                filtered = filtered.filter(w => w.otc_is_stale == 1 || w.otc_is_stale === null || w.otc_is_stale === undefined);
+                // Active = produced in last 3 months
+                filtered = filtered.filter(w => getProductionStatus(w) === 'active');
+            } else if (wellsFilterBy === 'idle') {
+                // Idle = recently_idle, extended_idle, or no_data (anything NOT active)
+                filtered = filtered.filter(w => getProductionStatus(w) !== 'active');
             }
 
             // Apply search filter
@@ -6784,7 +6804,12 @@
                     fieldLower === 'notary' ||
                     fieldLower === 'recording_info' ||
                     fieldLower === 'adopted_stepchildren' ||
-                    fieldLower === 'grandchildren_of_predeceased') {
+                    fieldLower === 'grandchildren_of_predeceased' ||
+                    // Skip internal validation/review metadata (causes [object Object] display)
+                    fieldLower === '_schema_validation' ||
+                    fieldLower === '_review_flags' ||
+                    fieldLower === '_validation_issues' ||
+                    fieldLower === '_flag_details') {
                     continue;
                 }
                 
@@ -11614,8 +11639,17 @@
             // Update subtitle with filename and status
             let subtitleText = doc.display_name || doc.filename;
             if (doc.status === 'complete') {
+                // Parse extracted_data if it's a JSON string
+                let parsedData = doc.extracted_data;
+                if (typeof doc.extracted_data === 'string') {
+                    try {
+                        parsedData = JSON.parse(doc.extracted_data);
+                    } catch (e) {
+                        parsedData = {};
+                    }
+                }
                 // Calculate confidence from field_scores if available, otherwise use stored value
-                const fieldScores = doc.extracted_data?.field_scores || doc.field_scores;
+                const fieldScores = parsedData?.field_scores || doc.field_scores;
                 let confidenceText = doc.confidence; // fallback to stored value
                 if (fieldScores && Object.keys(fieldScores).length > 0) {
                     const overallScore = calculateOverallScore(fieldScores);
@@ -13348,18 +13382,43 @@
             
             displayDocuments.forEach(doc => {
                 const uploadDate = new Date(doc.upload_date).toLocaleDateString('en-US', { timeZone: 'America/Chicago' });
-                const statusColor = doc.status === 'complete' ? 'var(--success)' :
-                                   doc.status === 'failed' ? 'var(--error)' :
-                                   doc.status === 'manual_review' ? '#D97706' :
-                                   '#F59E0B';
-                const statusText = doc.status === 'complete' ? 'Complete' :
-                                  doc.status === 'failed' ? 'Failed' :
-                                  doc.status === 'manual_review' ? 'Needs Review' :
-                                  doc.status === 'pending' ? 'Queued' :
-                                  'Processing';
 
-                // Status class for dot (matches CSS)
-                const statusClass = doc.status || 'processing';
+                // Calculate confidence score for complete documents
+                let confidenceScore = null;
+                if (doc.status === 'complete' && doc.parsedExtractedData?.field_scores) {
+                    confidenceScore = calculateOverallScore(doc.parsedExtractedData.field_scores);
+                }
+
+                // Derive status display from confidence when complete
+                let statusColor, statusText, statusClass;
+                if (doc.status === 'complete') {
+                    if (confidenceScore !== null && confidenceScore < 0.70) {
+                        // Low confidence - needs review
+                        statusColor = '#D97706';
+                        statusText = 'Review';
+                        statusClass = 'manual_review';
+                    } else {
+                        statusColor = 'var(--success)';
+                        statusText = 'Complete';
+                        statusClass = 'complete';
+                    }
+                } else if (doc.status === 'failed') {
+                    statusColor = 'var(--error)';
+                    statusText = 'Failed';
+                    statusClass = 'failed';
+                } else if (doc.status === 'manual_review') {
+                    statusColor = '#D97706';
+                    statusText = 'Review';
+                    statusClass = 'manual_review';
+                } else if (doc.status === 'pending') {
+                    statusColor = '#F59E0B';
+                    statusText = 'Queued';
+                    statusClass = 'pending';
+                } else {
+                    statusColor = '#F59E0B';
+                    statusText = 'Processing';
+                    statusClass = 'processing';
+                }
 
                 // Add pulsing animation for processing documents
                 const statusStyle = (doc.status === 'processing' || doc.status === 'pending')
@@ -13383,9 +13442,16 @@
                 }
                 html += `<td>${displayCounty ? escapeHtml(displayCounty) : '<em style="color: #A0AEC0;">—</em>'}</td>`;
                 // Status: text badge for desktop, dot for mobile
+                // Show confidence % for complete documents
+                const confidenceDisplay = (doc.status === 'complete' && confidenceScore !== null)
+                    ? ` <span style="opacity: 0.7; font-weight: 500;">${Math.round(confidenceScore * 100)}%</span>`
+                    : '';
+                const dotTitle = (doc.status === 'complete' && confidenceScore !== null)
+                    ? `${statusText} (${Math.round(confidenceScore * 100)}% confidence)`
+                    : statusText;
                 html += `<td>
-                    <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}</span>
-                    <span class="status-dot ${statusClass}" title="${statusText}"></span>
+                    <span class="status-text" style="padding: 2px 8px; border-radius: 12px; font-size: 12px; font-weight: 600; background: ${statusColor}20; color: ${statusColor}; ${statusStyle}">${statusText}${confidenceDisplay}</span>
+                    <span class="status-dot ${statusClass}" title="${dotTitle}"></span>
                 </td>`;
                 html += `<td>${uploadDate}</td>`;
                 html += `<td style="text-align: right;" onclick="event.stopPropagation()">

@@ -425,6 +425,9 @@ MINERAL_DEED_SCHEMA = {
         "doc_type", "deed_type", "grantors", "grantees", "tracts",
         "execution_date", "consideration", "recording", "reservation",
         "prior_instruments", "extraction_notes",
+        # Root-level TRS fields (model sometimes flattens these from tracts[].legal)
+        "section", "township", "range", "county", "state", "meridian",
+        "quarter_calls", "gross_acres",
         # Analysis fields
         "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
         "ai_observations",
@@ -7039,18 +7042,867 @@ What to avoid:
 """
 
 
-def get_extraction_prompt(ocr_quality_warning: str = None) -> str:
+# ============================================================================
+# FOCUSED EXTRACTION PROMPTS
+# These are targeted prompts for specific document type groups, ~500 lines each
+# vs the ~5000 line mega-prompt. Used when classification provides a doc_type.
+# ============================================================================
+
+# Document types that should use each focused prompt
+PERMIT_DOC_TYPES = ["completion_report", "drilling_permit", "well_transfer"]
+
+PERMIT_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma oil & gas well permits and completion reports.
+Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Only comment on dates if they conflict with OTHER dates in the SAME document
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Lead with actions needed, if any
+   - Answer: what does this mean for the mineral owner?
+   - Mention county when relevant for geographic context
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Focus on what's genuinely significant or actionable
+   - Only reference information explicitly stated in the document
+   - DO NOT list specific data already extracted - focus on insight
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION - CRITICAL FOR HANDWRITTEN/POOR QUALITY DOCUMENTS:
+
+HIGH CONFIDENCE (0.85-1.0): ONLY use when:
+- Text is clearly printed/typed and easily readable
+- Value is unambiguous with no possible alternative interpretations
+
+MEDIUM CONFIDENCE (0.5-0.84): Use when:
+- Text is readable but has minor issues (slight blur, faded)
+- Most characters are clear but 1-2 are slightly ambiguous
+
+LOW CONFIDENCE (0.2-0.49): Use when:
+- Text is partially illegible (handwritten, faded, blurry)
+- Multiple characters are ambiguous
+
+VERY LOW / NULL (0.0-0.19 or null): Use when:
+- Text is mostly illegible or unreadable
+- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+
+HANDWRITTEN DOCUMENT RULES:
+- Handwritten text requires LOWER confidence than printed text
+- If you cannot clearly read handwritten characters, use null with confidence 0.0
+- NEVER hallucinate plausible-sounding values for illegible handwritten text
+- It is BETTER to return null than to guess incorrectly with high confidence
+
+API NUMBER VALIDATION:
+- Oklahoma API numbers start with "35" (state code)
+- Format: 35-CCC-WWWWW or 35CCCWWWWW where CCC=county code (3 digits), WWWWW=well number (5 digits)
+- If you extract an API that doesn't start with 35, double-check
+- If characters are illegible, use null rather than guessing digits
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
+- Township numbers are typically 1-30. Section numbers are 1-36.
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+=============================================================================
+DOCUMENT TYPES FOR THIS PROMPT: drilling_permit, completion_report, well_transfer
+=============================================================================
+
+For DRILLING PERMITS (Form 1000 - Intent to Drill):
+DOCUMENT IDENTIFICATION:
+- Title contains "DRILLING PERMIT", "INTENT TO DRILL", "FORM 1000", "APPLICATION TO DRILL"
+- This is submitted BEFORE drilling begins
+- NO production data (well hasn't been drilled yet)
+- NO spud date or completion date
+- Contains "Zones of Significance" showing target formations
+- Shows proposed well location and planned depths
+
+EXTRACT:
+{{
+  "doc_type": "drilling_permit",
+
+  "api_number": "3500900005",
+  "well_name": "Hutson",
+  "well_number": "30-31H",
+  "operator_name": "KING ENERGY LLC",
+  "operator_address": "7025 N ROBINSON AVE, OKLAHOMA CITY, OK 73116",
+  "section": 19,
+  "township": "11N",
+  "range": "23W",
+  "county": "Beckham",
+  "issue_date": "2025-11-26",
+  "expiration_date": "2027-05-26",
+  "permit_type": "New Drill",
+  "well_type": "Horizontal",
+
+  "surface_location": {{
+    "section": 19,
+    "township": "11N",
+    "range": "23W",
+    "latitude": 35.408369,
+    "longitude": -99.666761
+  }},
+
+  "bottom_hole_location": {{
+    "section": 31,
+    "township": "11N",
+    "range": "23W",
+    "latitude": 35.378663,
+    "longitude": -99.666866
+  }},
+
+  "target_formation": "VIRGIL",
+  "target_depth_top": 8400,
+  "target_depth_bottom": 9100,
+  "lateral_length_ft": 10891,
+  "unit_size_acres": 640,
+  "spacing_order": "83283",
+
+  "field_scores": {{
+    "api_number": 1.0,
+    "well_name": 1.0,
+    "operator_name": 1.0,
+    "surface_location": 1.0,
+    "bottom_hole_location": 0.95,
+    "target_formation": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+EXTRACTION NOTES FOR FORM 1000:
+- Parse legal description: "19-11N-23W-IM" -> section=19, township="11N", range="23W"
+- Longitude should be NEGATIVE (west of prime meridian)
+- Well numbers ending in "H" indicate horizontal wells
+- Permit type options: "New Drill", "New Drill - Multi Unit", "Re-Entry", "Deepen", "Sidetrack", "Workover"
+- Well type: "Horizontal", "Vertical", "Directional"
+- For VERTICAL wells: omit bottom_hole_location, lateral_length_ft
+
+=============================================================================
+
+For COMPLETION REPORTS (Form 1002A/1002C - documents that a well has been drilled and completed):
+
+DOCUMENT IDENTIFICATION:
+- Title contains "COMPLETION REPORT" or "FORM 1002A" (initial) or "FORM 1002C" (recompletion)
+- Has "LEASE NAME" and "WELL NO" fields
+- Shows perforation intervals, formations, and production test results
+- Contains OCC file number and approval stamps
+
+REPORT TYPE DETECTION:
+- Form 1002A or title says "COMPLETION REPORT" without "RECOMPLETION" -> report_type: "initial"
+- Form 1002C or title says "RECOMPLETION REPORT" -> report_type: "recompletion"
+
+WELL NAME EXTRACTION (CRITICAL):
+- Form 1002A has separate fields: "LEASE NAME" and "WELL NO"
+- Combine them: well_name = "{{LEASE NAME}} {{WELL NO}}" (e.g., "Adams Q" + "1" = "Adams Q-1")
+- well_number = just the WELL NO field (e.g., "1")
+- Do NOT misread letters as numbers (Q is not 0, O is not 0)
+
+API/PUN NORMALIZATION (CRITICAL FOR DATABASE JOINS):
+- api_number: Extract exactly as printed with dashes (e.g., "35-043-23686-0000")
+- api_number_normalized: Remove ALL dashes (e.g., "35043236860000")
+- otc_prod_unit_no: Extract from "OTC PROD UNIT NO" or "OTC Prod. Unit No." field ONLY
+- otc_prod_unit_no_normalized: Remove ALL dashes
+
+OTC PROD UNIT NO EXTRACTION (CRITICAL - READ CAREFULLY):
+Location: Upper left of page 1, just below the API number field.
+Label: "OTC PROD UNIT NO." or "OTC Prod. Unit No."
+Format: XXX-XXXXXX-X-XXXX (e.g., "043-226597-0-0000")
+  - XXX = County code (3 digits, e.g., 043 = Dewey County)
+  - XXXXXX = Unit number (5-6 digits)
+  - X = Segment (1 digit)
+  - XXXX = Sub-unit/well (4 digits)
+
+CRITICAL - DO NOT CONFUSE THESE FIELDS:
+- operator_number: A 5-digit code identifying the OPERATOR COMPANY (e.g., "20347")
+  This appears in the "OPERATOR NO" field. It is NOT a PUN - it's just a company ID.
+- otc_prod_unit_no: The OTC Production Unit Number - ALWAYS has dashes and starts with 3-digit county code.
+  If the "OTC PROD UNIT NO" field is BLANK or NOT VISIBLE, set otc_prod_unit_no to null.
+
+FORMATION_ZONES[] ARRAY (CRITICAL FOR COMMINGLED WELLS):
+Many vertical wells complete MULTIPLE formations with separate spacing orders.
+Use formation_zones[] to capture per-formation data:
+- formation_name: Name of the formation (e.g., "Oswego", "Red Fork")
+- spacing_order: Spacing order number for THIS formation
+- unit_size_acres: Unit size from the spacing order (40, 80, 160, 640)
+- perforated_intervals: Array of intervals for THIS formation
+
+CONDITIONAL REQUIREMENTS:
+- IF drill_type is "HORIZONTAL HOLE": bottom_hole_location, lateral_details, and allocation_factors[] are REQUIRED
+- IF well spans multiple sections: allocation_factors[] MUST include ALL sections with PUN for each
+- PUN FORMAT (CRITICAL): XXX-XXXXXX-X-XXXX (3-6-1-4 digits with dashes)
+
+VERTICAL WELL EXAMPLE:
+{{
+  "doc_type": "completion_report",
+  "report_type": "initial",
+
+  "section": 22,
+  "township": "9N",
+  "range": "4W",
+  "county": "Grady",
+  "state": "Oklahoma",
+
+  "api_number": "35-051-12345-0000",
+  "api_number_normalized": "35051123450000",
+  "well_name": "SMITH 1-22",
+  "well_number": "1-22",
+  "otc_prod_unit_no": "051-19876-0-0000",
+  "otc_prod_unit_no_normalized": "05119876000000",
+  "permit_number": "PD-2020-001234",
+
+  "operator": {{
+    "name": "ABC Energy, LLC",
+    "operator_number": "24567"
+  }},
+
+  "dates": {{
+    "spud_date": "2020-06-01",
+    "drilling_finished_date": "2020-06-15",
+    "completion_date": "2020-07-01",
+    "first_production_date": "2020-07-10",
+    "initial_test_date": "2020-07-12"
+  }},
+
+  "well_type": {{
+    "drill_type": "VERTICAL HOLE",
+    "completion_type": "Single Zone",
+    "well_class": "OIL"
+  }},
+
+  "surface_location": {{
+    "section": 22,
+    "township": "9N",
+    "range": "4W",
+    "county": "Grady",
+    "quarters": "C NE NE",
+    "footage_ns": "660 FNL",
+    "footage_ew": "660 FEL",
+    "latitude": 35.123456,
+    "longitude": -97.654321,
+    "ground_elevation_ft": 1280,
+    "total_depth_ft": 8650
+  }},
+
+  "formation_zones": [
+    {{
+      "formation_name": "Hunton",
+      "formation_code": "400HNTN",
+      "spacing_order": "654321",
+      "unit_size_acres": 160,
+      "perforated_intervals": [
+        {{ "from_ft": 8450, "to_ft": 8520 }}
+      ]
+    }}
+  ],
+
+  "initial_production": {{
+    "test_date": "2020-07-12",
+    "oil_bbl_per_day": 125,
+    "oil_gravity_api": 42,
+    "gas_mcf_per_day": 150,
+    "gas_oil_ratio": 1200,
+    "water_bbl_per_day": 45,
+    "flow_method": "PUMPING"
+  }},
+
+  "first_sales": {{
+    "date": "2020-07-15",
+    "purchaser": "Plains Marketing"
+  }},
+
+  "status": "Accepted",
+  "occ_file_number": "1145678",
+
+  "field_scores": {{
+    "api_number": 0.95,
+    "well_name": 0.95,
+    "operator": 0.95,
+    "dates": 0.95,
+    "surface_location": 0.95,
+    "formation_zones": 0.95,
+    "initial_production": 0.95
+  }},
+  "document_confidence": "high"
+}}
+
+HORIZONTAL MULTIUNIT WELL EXAMPLE:
+{{
+  "doc_type": "completion_report",
+  "report_type": "initial",
+
+  "section": 22,
+  "township": "18N",
+  "range": "14W",
+  "county": "Dewey",
+  "state": "Oklahoma",
+
+  "api_number": "35-043-23686-0000",
+  "api_number_normalized": "35043236860000",
+  "well_name": "SMITH 22-27XH",
+  "well_number": "22-27XH",
+  "otc_prod_unit_no": "043-226597-0-0000",
+  "otc_prod_unit_no_normalized": "04322659700000",
+
+  "operator": {{
+    "name": "Devon Energy Production Company, L.P.",
+    "operator_number": "20347"
+  }},
+
+  "dates": {{
+    "spud_date": "2023-01-15",
+    "drilling_finished_date": "2023-02-28",
+    "completion_date": "2023-03-15",
+    "first_production_date": "2023-03-20"
+  }},
+
+  "well_type": {{
+    "drill_type": "HORIZONTAL HOLE",
+    "completion_type": "Multi-Unit",
+    "well_class": "GAS"
+  }},
+
+  "surface_location": {{
+    "section": 22,
+    "township": "18N",
+    "range": "14W",
+    "county": "Dewey",
+    "quarters": "C NW NE",
+    "latitude": 36.123456,
+    "longitude": -98.654321,
+    "ground_elevation_ft": 1850,
+    "total_depth_ft": 16500
+  }},
+
+  "bottom_hole_location": {{
+    "section": 27,
+    "township": "18N",
+    "range": "14W",
+    "county": "Dewey",
+    "quarters": "C SE SW",
+    "latitude": 36.098765,
+    "longitude": -98.654321
+  }},
+
+  "lateral_details": {{
+    "lateral_length_ft": 10500,
+    "completion_interval_ft": 9800,
+    "direction": "south"
+  }},
+
+  "allocation_factors": [
+    {{
+      "section": 22,
+      "township": "18N",
+      "range": "14W",
+      "allocation_percentage": 45.5,
+      "completion_interval_ft": 4500,
+      "pun": "043-226597-0-0000",
+      "pun_normalized": "04322659700000"
+    }},
+    {{
+      "section": 27,
+      "township": "18N",
+      "range": "14W",
+      "allocation_percentage": 54.5,
+      "completion_interval_ft": 5300,
+      "pun": "043-226598-0-0000",
+      "pun_normalized": "04322659800000"
+    }}
+  ],
+
+  "formation_zones": [
+    {{
+      "formation_name": "Woodford",
+      "spacing_order": "712345",
+      "unit_size_acres": 1280
+    }}
+  ],
+
+  "initial_production": {{
+    "test_date": "2023-03-25",
+    "oil_bbl_per_day": 450,
+    "gas_mcf_per_day": 8500,
+    "water_bbl_per_day": 1200,
+    "flow_method": "FLOWING"
+  }},
+
+  "field_scores": {{
+    "api_number": 0.95,
+    "well_name": 0.95,
+    "allocation_factors": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+
+For WELL TRANSFERS (Form 1073/1073MW - Operator change documents):
+
+DOCUMENT IDENTIFICATION:
+- Title contains "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" form
+- Shows former operator and new operator
+- Lists wells being transferred with API numbers
+
+KEY DISTINCTION:
+- Top-level section/township/range are NOT used
+- Each well in the wells[] array has its own location
+- Property linking happens via the wells[] array
+
+EXTRACTION REQUIREMENTS:
+- Extract ALL wells listed - missing wells breaks property linking
+- Each well needs: api_number, well_name, section, township, range
+- well_type: OIL | GAS | DRY
+- well_status: AC (Active) | TA (Temp Abandoned) | SP (Spudded) | PA (Permanently Abandoned)
+
+EXAMPLE:
+{{
+  "doc_type": "well_transfer",
+
+  "transfer_info": {{
+    "form_number": "1073MW",
+    "transfer_date": "2022-01-05",
+    "approval_date": "2022-01-07",
+    "wells_transferred_count": 13
+  }},
+
+  "former_operator": {{
+    "name": "Tessera Energy, LLC",
+    "occ_number": "21803",
+    "address": "P.O. Box 20359, Oklahoma City, OK 73156",
+    "phone": "405-254-3673"
+  }},
+
+  "new_operator": {{
+    "name": "WestStar Oil & Gas, Inc.",
+    "occ_number": "18035",
+    "address": "1601 East 19th, Edmond, OK 73013",
+    "phone": "405-341-2338",
+    "email": "mkrenger@wsog.org",
+    "contact_name": "Michael C. Krenger - President"
+  }},
+
+  "wells": [
+    {{
+      "api_number": "09321476",
+      "well_name": "Augusta Rother",
+      "well_number": "1-28",
+      "well_type": "GAS",
+      "well_status": "AC",
+      "section": 28,
+      "township": "21N",
+      "range": "15W",
+      "quarters": "SE SE SW"
+    }},
+    {{
+      "api_number": "09322686",
+      "well_name": "Baustert",
+      "well_number": "2-21",
+      "well_type": "GAS",
+      "well_status": "AC",
+      "section": 21,
+      "township": "21N",
+      "range": "15W",
+      "quarters": "C SW"
+    }}
+  ],
+
+  "summary": {{
+    "counties_affected": ["Dewey", "Blaine", "Major"],
+    "well_types": {{
+      "oil_count": 0,
+      "gas_count": 13,
+      "dry_count": 0
+    }}
+  }},
+
+  "field_scores": {{
+    "transfer_info": 0.95,
+    "former_operator": 0.95,
+    "new_operator": 0.95,
+    "wells": 0.95
+  }},
+  "document_confidence": "high"
+}}
+"""
+
+# Document types that should use the DEED focused prompt
+DEED_DOC_TYPES = ["mineral_deed", "royalty_deed", "warranty_deed", "quitclaim_deed",
+                  "quit_claim_deed", "gift_deed", "assignment", "trust_funding",
+                  "assignment_of_lease"]
+
+DEED_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma mineral rights deeds and conveyances.
+Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
+- Only comment on dates if they conflict with OTHER dates in the SAME document
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - Lead with actions needed, if any
+   - Answer: what does this mean for the mineral owner?
+   - ALWAYS identify the parties by name
+   - Mention county when relevant for geographic context
+
+   DETAILED ANALYSIS:
+   - Write as an experienced title attorney providing insight
+   - Focus on what's genuinely significant for chain of title
+   - Only reference information explicitly stated in the document
+   - DO NOT list specific data already extracted - focus on insight
+
+For EACH field you extract:
+1. Provide the value (or null if not found)
+2. Provide a confidence score (0.0-1.0)
+
+CONFIDENCE CALIBRATION - CRITICAL FOR HANDWRITTEN/POOR QUALITY DOCUMENTS:
+
+HIGH CONFIDENCE (0.85-1.0): ONLY use when:
+- Text is clearly printed/typed and easily readable
+- Value is unambiguous with no possible alternative interpretations
+
+MEDIUM CONFIDENCE (0.5-0.84): Use when:
+- Text is readable but has minor issues (slight blur, faded)
+- Most characters are clear but 1-2 are slightly ambiguous
+
+LOW CONFIDENCE (0.2-0.49): Use when:
+- Text is partially illegible (handwritten, faded, blurry)
+- Multiple characters are ambiguous
+
+VERY LOW / NULL (0.0-0.19 or null): Use when:
+- Text is mostly illegible or unreadable
+- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+
+HANDWRITTEN DOCUMENT RULES:
+- Handwritten text requires LOWER confidence than printed text
+- If you cannot clearly read handwritten characters, use null with confidence 0.0
+- NEVER hallucinate plausible-sounding values for illegible handwritten text
+- It is BETTER to return null than to guess incorrectly with high confidence
+
+LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
+Oklahoma uses the Section-Township-Range (TRS) system:
+- SECTION is the number (1-36) within a township
+- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
+- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
+
+COMMON MISTAKE TO AVOID:
+- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
+- Township numbers are typically 1-30. Section numbers are 1-36.
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata - they may be wrong.
+
+=============================================================================
+DOCUMENT TYPES FOR THIS PROMPT: mineral_deed, royalty_deed, warranty_deed,
+quitclaim_deed, gift_deed, trust_funding, assignment_of_lease
+=============================================================================
+
+For DEEDS (Mineral Deed, Royalty Deed, Warranty Deed, Quitclaim Deed, Gift Deed, Assignment):
+NOTE: Analyze this document as a title attorney would when building a chain of title.
+This document transfers ownership of mineral or royalty interests from one party to another.
+Focus on extracting exactly what THIS document states. Do not infer prior ownership.
+
+CHAIN OF TITLE PRINCIPLES:
+- Grantor is the party transferring ownership (seller/assignor)
+- Grantee is the party receiving ownership (buyer/assignee)
+- Extract names EXACTLY as written - code will normalize for matching
+- Note any reservations the grantor keeps for themselves
+- Capture references to prior instruments in the chain
+- Capture tenancy on BOTH grantors (what they held) and grantees (how they're taking)
+
+DEED TYPE DETECTION (for the "deed_type" field):
+- warranty: Contains warranty language ("warrant and defend", "general warranty")
+- special_warranty: Limited warranty (only warrants against claims during grantor's ownership)
+- quitclaim: No warranty - releases whatever interest grantor may have ("remise, release, quitclaim")
+- gift: Transfer without monetary consideration, often between family members
+- other: Grant deeds, bargain and sale, or unclear type
+
+MULTI-TRACT DEEDS: If a deed conveys interests in MULTIPLE sections or tracts, include each
+as a separate entry in the tracts array. Each tract has its own legal description and interest details.
+
+OMIT fields that don't apply - do NOT include null values or empty objects.
+
+CRITICAL - POPULATE STRUCTURED FIELDS:
+You MUST populate the structured JSON fields (grantors, grantees, tracts, etc.) with actual values.
+If you mention "the grantor is John Smith" in your analysis, there MUST be a grantors array with {{"name": "John Smith"}}.
+If you mention "Section 11, Township 6N, Range 27E", there MUST be a tract with legal.section, legal.township, legal.range.
+
+REQUIRED FIELDS: doc_type, deed_type, grantors, grantees, tracts (with at least one), execution_date, consideration
+
+MINERAL DEED EXAMPLE:
+{{
+  "doc_type": "mineral_deed",
+  "deed_type": "warranty",
+
+  "grantors": [
+    {{
+      "name": "Joel S. Price",
+      "address": "6801 No. Country Club Dr., Oklahoma City, Oklahoma",
+      "tenancy": "joint_tenants_wros",
+      "marital_status": "married"
+    }},
+    {{
+      "name": "Virginia K. Price",
+      "address": "6801 No. Country Club Dr., Oklahoma City, Oklahoma",
+      "tenancy": "joint_tenants_wros",
+      "marital_status": "married"
+    }}
+  ],
+
+  "grantees": [
+    {{
+      "name": "Joel S. Price",
+      "address": "6801 N. Ctry Club Dr. O.C.",
+      "capacity": "Trustee"
+    }}
+  ],
+
+  "tracts": [
+    {{
+      "legal": {{
+        "section": "18",
+        "township": "17N",
+        "range": "13W",
+        "meridian": "IM",
+        "county": "Blaine",
+        "state": "OK",
+        "quarter_calls": ["E/2"],
+        "gross_acres": 320
+      }},
+      "interest": {{
+        "type": "mineral",
+        "fraction_text": "One Sixty fourths (1/64)",
+        "fraction_decimal": 0.015625,
+        "net_mineral_acres": 5
+      }}
+    }}
+  ],
+
+  "execution_date": "1975-01-26",
+
+  "recording": {{
+    "recording_date": "1975-01-28",
+    "book": "242",
+    "page": "232",
+    "county": "Blaine",
+    "state": "OK"
+  }},
+
+  "consideration": "No Monetary Consideration",
+
+  "field_scores": {{
+    "grantors": 0.95,
+    "grantees": 0.95,
+    "tracts": 0.95,
+    "execution_date": 0.95,
+    "recording": 0.90
+  }},
+  "document_confidence": "high"
+}}
+
+PARTY FIELDS (include only when document states them):
+- name: REQUIRED - exactly as written on document
+- address: If provided
+- capacity: "Trustee", "Personal Representative", "Attorney-in-Fact", "Guardian", etc.
+- tenancy: "joint_tenants_wros", "tenants_in_common", "community_property"
+- marital_status: "married", "single", "widow", "widower", "divorced"
+
+TRACT FIELDS:
+- legal.section, legal.township, legal.range, legal.meridian, legal.county, legal.state: REQUIRED
+- legal.quarter_calls: Array of quarter section calls. Nested calls as single string: ["NW/4 NE/4"]
+- legal.gross_acres: Total acres in the tract
+- interest.type: "mineral", "royalty", "overriding_royalty", "working", "leasehold"
+- interest.fraction_text: As written ("one-sixty fourth (1/64)")
+- interest.fraction_decimal: Numeric value (0.015625)
+- interest.net_mineral_acres: gross_acres × fraction_decimal
+- interest.depth_clause: Only if depth limitation exists
+- interest.formation_clause: Only if formation limitation exists
+
+RESERVATION (only if grantor reserved something):
+- type: "mineral", "royalty", "npri", "life_estate", "other"
+- fraction_text: As written
+- fraction_decimal: Numeric value
+- description: Full reservation language
+
+COMMON FRACTION CONVERSIONS:
+1/2 = 0.5, 1/4 = 0.25, 1/8 = 0.125, 1/16 = 0.0625, 1/32 = 0.03125, 1/64 = 0.015625, 1/128 = 0.0078125
+
+=============================================================================
+
+For TRUST FUNDING (Assignment to Trust):
+Estate planning documents where an individual transfers property to their own trust.
+
+DOCUMENT IDENTIFICATION:
+- Title may say "GENERAL ASSIGNMENT", "ASSIGNMENT", or "QUIT CLAIM DEED"
+- Same person appears as BOTH assignor (individual) AND assignee (as trustee)
+- Trust name mentioned (e.g., "Virginia K. Price Trust")
+- Often includes nominal consideration ($10.00)
+
+{{
+  "doc_type": "trust_funding",
+  "deed_type": "quitclaim",
+
+  "grantors": [
+    {{
+      "name": "Virginia K. Price",
+      "capacity": "Individual"
+    }}
+  ],
+
+  "grantees": [
+    {{
+      "name": "Virginia K. Price Trust dated January 15, 1990",
+      "trustee": "Virginia K. Price",
+      "capacity": "Trustee"
+    }}
+  ],
+
+  "tracts": [
+    {{
+      "legal": {{
+        "section": "18",
+        "township": "17N",
+        "range": "13W",
+        "county": "Blaine",
+        "state": "OK"
+      }},
+      "interest": {{
+        "type": "mineral",
+        "description": "All mineral interests owned by Grantor"
+      }}
+    }}
+  ],
+
+  "execution_date": "1990-02-01",
+  "consideration": "$10.00 and other good and valuable consideration",
+
+  "field_scores": {{
+    "grantors": 0.95,
+    "grantees": 0.95,
+    "tracts": 0.85
+  }},
+  "document_confidence": "high"
+}}
+
+=============================================================================
+
+For ASSIGNMENT OF LEASE:
+Transfer of leasehold/working interest from one party to another.
+
+DOCUMENT IDENTIFICATION:
+- Title contains "ASSIGNMENT OF OIL AND GAS LEASE", "ASSIGNMENT OF LEASEHOLD INTEREST"
+- References an underlying lease (date, lessor, lessee)
+- Transfers working interest/operating rights
+- May retain an overriding royalty (ORRI)
+
+{{
+  "doc_type": "assignment_of_lease",
+
+  "assignor": {{
+    "name": "ABC Oil Company",
+    "address": "123 Main St, Oklahoma City, OK"
+  }},
+
+  "assignee": {{
+    "name": "XYZ Energy LLC",
+    "address": "456 Oak Ave, Tulsa, OK"
+  }},
+
+  "underlying_lease": {{
+    "lessor": "John Smith",
+    "lessee": "ABC Oil Company",
+    "lease_date": "2020-01-15",
+    "recording_book": "1234",
+    "recording_page": "567"
+  }},
+
+  "tracts": [
+    {{
+      "legal": {{
+        "section": "22",
+        "township": "9N",
+        "range": "4W",
+        "county": "Grady",
+        "state": "OK"
+      }},
+      "interest": {{
+        "type": "leasehold",
+        "working_interest_assigned": 1.0,
+        "orri_retained": 0.02
+      }}
+    }}
+  ],
+
+  "execution_date": "2023-06-15",
+  "consideration": "$50,000.00",
+
+  "field_scores": {{
+    "assignor": 0.95,
+    "assignee": 0.95,
+    "underlying_lease": 0.90,
+    "tracts": 0.95
+  }},
+  "document_confidence": "high"
+}}
+"""
+
+
+def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None) -> str:
     """
     Get the extraction prompt with current date and optional OCR quality warning.
 
+    If doc_type is provided and matches a focused prompt group, uses that focused
+    prompt (~500 lines) instead of the mega-prompt (~5000 lines) for better accuracy.
+
     Args:
         ocr_quality_warning: Optional warning about poor OCR quality
+        doc_type: Optional document type from classification (e.g., "completion_report")
 
     Returns:
         Formatted extraction prompt with today's date
     """
     current_date = datetime.now().strftime("%B %d, %Y")
-    prompt = EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+
+    # Select appropriate prompt template based on doc_type
+    if doc_type and doc_type in PERMIT_DOC_TYPES:
+        logger.info(f"Using FOCUSED PERMIT prompt for doc_type={doc_type}")
+        prompt = PERMIT_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in DEED_DOC_TYPES:
+        logger.info(f"Using FOCUSED DEED prompt for doc_type={doc_type}")
+        prompt = DEED_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    else:
+        # Fall back to mega-prompt for unknown or other doc types
+        if doc_type:
+            logger.info(f"No focused prompt for doc_type={doc_type}, using mega-prompt")
+        prompt = EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
 
     if ocr_quality_warning:
         # Insert warning at the beginning of the prompt, after the first line
@@ -7454,7 +8306,7 @@ async def detect_documents(image_paths: list[str]) -> dict:
         }
 
 
-async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False) -> dict:
+async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False, doc_type: str = None) -> dict:
     """
     Extract data from a single document using batching for large documents.
 
@@ -7466,6 +8318,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         max_confidence: Optional maximum confidence ceiling (from OCR quality calibration)
         ocr_quality_score: Optional OCR quality score (0.0-1.0) for review flag computation
         is_handwritten: Optional flag indicating document contains handwriting
+        doc_type: Optional document type from classification (enables focused prompt selection)
 
     Returns:
         Extracted data dictionary with confidence scores (clamped if max_confidence provided)
@@ -7475,6 +8328,8 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         end_page = len(image_paths)
 
     logger.info(f"Extracting single document from pages {start_page} to {end_page}")
+    if doc_type:
+        logger.info(f"Classification hint: doc_type={doc_type}")
     if ocr_quality_warning:
         logger.info(f"OCR quality warning will be passed to model: {ocr_quality_warning[:100]}...")
     if max_confidence and max_confidence < 1.0:
@@ -7493,7 +8348,7 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         content = await process_image_batch(doc_pages, f"all {total_pages} pages")
         content.append({
             "type": "text",
-            "text": get_extraction_prompt(ocr_quality_warning)
+            "text": get_extraction_prompt(ocr_quality_warning, doc_type)
         })
 
         # Call Claude for extraction with retry logic
@@ -7691,12 +8546,12 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         batch_description = f"pages {batch[0][0]}-{batch[-1][0]} of {total_pages}"
         
         content = await process_image_batch(batch, batch_description)
-        
+
         if batch_num == 0:
             # First batch - full extraction
             content.append({
                 "type": "text",
-                "text": get_extraction_prompt(ocr_quality_warning)
+                "text": get_extraction_prompt(ocr_quality_warning, doc_type)
             })
         else:
             # Subsequent batches - look for additional/missing info
@@ -7943,8 +8798,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 "ai_observations": classification.get("reasoning", "Document type not recognized for automatic extraction.")
             }
 
-        # Single page, known type - extract it
-        return await extract_single_document(image_paths)
+        # Single page, known type - extract it with focused prompt
+        return await extract_single_document(image_paths, doc_type=classification.get("doc_type"))
 
     # Step 1: Quick classification on first page for rotation detection
     classification = await quick_classify_document(image_paths[:1])
@@ -8072,13 +8927,14 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         logger.info(f"  is_multi_document={classification.get('is_multi_document')}, estimated_doc_count={classification.get('estimated_doc_count')}")
         logger.info(f"  Skipping page-level classification - treating as single {total_pages}-page document")
 
-        # Skip Stage 1 and go directly to Stage 2 extraction
+        # Skip Stage 1 and go directly to Stage 2 extraction with focused prompt
         result = await extract_single_document(
             image_paths, 1, len(image_paths),
             ocr_quality_warning,
             ocr_quality.get('max_confidence'),
             ocr_quality.get('quality_score'),
-            ocr_quality.get('is_likely_handwritten', False)
+            ocr_quality.get('is_likely_handwritten', False),
+            doc_type=classification.get("doc_type")
         )
         result["_pipeline_type"] = "scanned_single_doc"
         result["_page_count"] = total_pages
@@ -8160,7 +9016,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 "split_metadata": split_result.get("split_metadata")
             }
 
-        # Extract the single document
+        # Extract the single document with focused prompt based on classification
         result = await extract_single_document(
             image_paths,
             chunk["page_start"] + 1,  # Convert to 1-based
@@ -8168,7 +9024,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             ocr_quality_warning,
             ocr_quality.get('max_confidence'),
             ocr_quality.get('quality_score'),
-            ocr_quality.get('is_likely_handwritten', False)
+            ocr_quality.get('is_likely_handwritten', False),
+            doc_type=coarse_type if coarse_type != "other" else None
         )
         result["_coarse_type"] = coarse_type
         result["_split_metadata"] = split_result.get("split_metadata")
@@ -8210,7 +9067,7 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 "_split_reason": chunk.get("split_reason")
             }
         else:
-            # Extract the document
+            # Extract the document with focused prompt based on classification
             doc_data = await extract_single_document(
                 image_paths,
                 page_start + 1,  # Convert to 1-based
@@ -8218,7 +9075,8 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
                 ocr_quality_warning,
                 ocr_quality.get('max_confidence'),
                 ocr_quality.get('quality_score'),
-                ocr_quality.get('is_likely_handwritten', False)
+                ocr_quality.get('is_likely_handwritten', False),
+                doc_type=coarse_type if coarse_type != "other" else None
             )
 
             # Add metadata from splitting

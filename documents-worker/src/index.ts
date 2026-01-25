@@ -2613,15 +2613,16 @@ export default {
         const body = await request.json() as {
           apiNumber: string;
           entryId: number;
+          force?: boolean;  // If true, re-analyze even if already processed
         };
 
-        const { apiNumber, entryId } = body;
+        const { apiNumber, entryId, force } = body;
 
         if (!apiNumber || !entryId) {
           return errorResponse('apiNumber and entryId are required', 400, env);
         }
 
-        console.log(`[1002A Fetch] User ${user.id} requesting API ${apiNumber} entryId ${entryId}`);
+        console.log(`[1002A Fetch] User ${user.id} requesting API ${apiNumber} entryId ${entryId}${force ? ' (force re-analyze)' : ''}`);
 
         // Get user's plan and organization
         const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
@@ -2635,9 +2636,9 @@ export default {
           AND json_extract(source_metadata, '$.entryId') = ?
         `;
 
-        const existing = await env.WELLS_DB.prepare(existingQuery).bind(user.id, entryId).first();
+        const existing = await env.WELLS_DB.prepare(existingQuery).bind(user.id, entryId).first() as { id: string; display_name: string; status: string } | null;
 
-        if (existing) {
+        if (existing && !force) {
           console.log(`[1002A Fetch] Document already exists: ${existing.id}`);
 
           // Get current credit balance for UI
@@ -2652,6 +2653,14 @@ export default {
             status: existing.status,
             creditsRemaining: creditCheck.totalAvailable
           }, 200, env);
+        }
+
+        // If force re-analyze and document exists, soft-delete the old one
+        if (existing && force) {
+          console.log(`[1002A Fetch] Force re-analyze: soft-deleting existing document ${existing.id}`);
+          await env.WELLS_DB.prepare(`
+            UPDATE documents SET deleted_at = datetime('now') WHERE id = ?
+          `).bind(existing.id).run();
         }
 
         // Check credits before fetching

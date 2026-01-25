@@ -357,6 +357,9 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
     const batch = apiNumbers.slice(i, i + BATCH_SIZE);
     const placeholders = batch.map(() => '?').join(',');
 
+    // Aggregate production by base_pun (first 10 chars) to capture all PUN variants
+    // e.g., 153-076554-0-0000 and 153-076554-1-0000 share base_pun 153-076554
+    // Take MAX(last_prod_month) across all variants - if ANY variant has recent production, well is active
     const query = `
       SELECT
         w.api_number, w.well_name, w.well_number, w.operator, w.county,
@@ -368,22 +371,45 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
         w.bh_latitude, w.bh_longitude,
         o.phone as operator_phone,
         o.contact_name as operator_contact,
-        p.total_oil_bbl as otc_total_oil,
-        p.total_gas_mcf as otc_total_gas,
-        p.last_prod_month as otc_last_prod_month,
-        p.is_stale as otc_is_stale
+        prod.otc_total_oil,
+        prod.otc_total_gas,
+        prod.otc_last_prod_month,
+        prod.otc_is_stale
       FROM wells w
       LEFT JOIN operators o
         ON UPPER(TRIM(REPLACE(REPLACE(w.operator, '.', ''), ',', ''))) = o.operator_name_normalized
       LEFT JOIN well_pun_links wpl ON w.api_number = wpl.api_number
-      LEFT JOIN puns p ON wpl.pun = p.pun
+      LEFT JOIN (
+        -- Aggregate production by base_pun to capture all PUN variants
+        SELECT
+          SUBSTR(p.pun, 1, 10) as base_pun,
+          SUM(p.total_oil_bbl) as otc_total_oil,
+          SUM(p.total_gas_mcf) as otc_total_gas,
+          MAX(p.last_prod_month) as otc_last_prod_month,
+          MIN(p.is_stale) as otc_is_stale  -- 0 if ANY variant is active
+        FROM puns p
+        GROUP BY SUBSTR(p.pun, 1, 10)
+      ) prod ON SUBSTR(wpl.pun, 1, 10) = prod.base_pun
       WHERE w.api_number IN (${placeholders})
     `;
 
     try {
       const result = await env.WELLS_DB.prepare(query).bind(...batch).all();
       for (const row of result.results) {
-        results[row.api_number as string] = row;
+        const api = row.api_number as string;
+        const existing = results[api];
+
+        // If we already have data for this API, keep the one with better OTC data
+        // Prefer: most recent last_prod_month, then non-null over null
+        if (existing) {
+          const existingMonth = existing.otc_last_prod_month || '000000';
+          const newMonth = row.otc_last_prod_month || '000000';
+          if (newMonth > existingMonth) {
+            results[api] = row;
+          }
+        } else {
+          results[api] = row;
+        }
       }
     } catch (err) {
       console.error('[batchQueryD1Wells] Error querying batch:', err);

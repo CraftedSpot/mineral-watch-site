@@ -5429,7 +5429,7 @@
             if (cached && cached.documentId) {
                 actionButton = `
                     <button class="occ-reanalyze-btn"
-                            onclick="analyzeMapCompletion('${apiNumber}', ${report.entryId}, this)"
+                            onclick="analyzeMapCompletion('${apiNumber}', ${report.entryId}, this, true)"
                             title="Re-process this document">Re-analyze</button>
                     <button class="occ-view-doc-btn" onclick="openMapDocumentDetail('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>`;
             } else switch (report.status) {
@@ -5450,7 +5450,7 @@
                 case 'processed':
                     actionButton = `
                         <button class="occ-reanalyze-btn"
-                                onclick="analyzeMapCompletion('${apiNumber}', ${report.entryId}, this)"
+                                onclick="analyzeMapCompletion('${apiNumber}', ${report.entryId}, this, true)"
                                 title="Re-process this document">Re-analyze</button>
                         ${report.documentId ? `<button class="occ-view-doc-btn" onclick="openMapDocumentDetail('${report.documentId}')" title="View analyzed document">View Doc ↗</button>` : ''}`;
                     break;
@@ -5527,8 +5527,8 @@
         }
 
         // Analyze completion report
-        async function analyzeMapCompletion(apiNumber, entryId, buttonEl) {
-            console.log(`[MapWellRecords] Analyzing ${apiNumber} entryId ${entryId}`);
+        async function analyzeMapCompletion(apiNumber, entryId, buttonEl, force = false) {
+            console.log(`[MapWellRecords] ${force ? 'Re-analyzing' : 'Analyzing'} ${apiNumber} entryId ${entryId}`);
 
             const parentContainer = buttonEl.closest('.occ-filing-actions');
             if (!parentContainer) return;
@@ -5537,7 +5537,7 @@
             mapCompletionProcessingStates[entryId] = { status: 'fetching', buttonEl };
             parentContainer.innerHTML = `
                 <button class="completion-analyze-btn fetching" disabled>
-                    <span class="spinner-sm"></span>Fetching...
+                    <span class="spinner-sm"></span>${force ? 'Re-analyzing...' : 'Fetching...'}
                 </button>`;
 
             try {
@@ -5545,7 +5545,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ apiNumber, entryId })
+                    body: JSON.stringify({ apiNumber, entryId, force })
                 });
 
                 const result = await response.json();
@@ -5565,7 +5565,7 @@
                     mapAnalyzedCompletionsCache[entryId] = { documentId: result.documentId };
                     parentContainer.innerHTML = `
                         <button class="occ-reanalyze-btn"
-                                onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this)"
+                                onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this, true)"
                                 title="Re-process this document">Re-analyze</button>
                         <button class="occ-view-doc-btn" onclick="openMapDocumentDetail('${result.documentId}')" title="View analyzed document">View Doc ↗</button>`;
                 } else if (result.success) {
@@ -5573,14 +5573,17 @@
                     const docStatus = result.document.status || 'pending';
                     console.log(`[MapWellRecords] Successfully queued: ${docId}, status: ${docStatus}`);
 
-                    if (docStatus === 'complete') {
+                    // Check for completion - handle both 'complete' and 'processed' statuses
+                    if (docStatus === 'complete' || docStatus === 'processed') {
                         mapAnalyzedCompletionsCache[entryId] = { documentId: docId };
                         parentContainer.innerHTML = `
                             <button class="occ-reanalyze-btn"
-                                    onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this)"
+                                    onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this, true)"
                                     title="Re-process this document">Re-analyze</button>
                             <button class="occ-view-doc-btn" onclick="openMapDocumentDetail('${docId}')" title="View analyzed document">View Doc ↗</button>`;
                         showMapToast('Completion report analyzed!', 'success');
+                        // Refresh the completion reports list to show updated PUN
+                        loadMapCompletionReports(apiNumber);
                     } else {
                         // Start polling
                         parentContainer.innerHTML = `
@@ -5627,22 +5630,30 @@
 
                 try {
                     const response = await fetch(`/api/documents/${docId}`, { credentials: 'include' });
-                    const doc = await response.json();
+                    const result = await response.json();
+                    const doc = result.document || result;
 
-                    if (doc.status === 'complete') {
+                    console.log(`[MapWellRecords] Poll status for ${docId}: ${doc.status}`);
+
+                    // Check for completion - handle both 'complete' and 'processed' statuses
+                    if (doc.status === 'complete' || doc.status === 'processed') {
                         mapAnalyzedCompletionsCache[entryId] = { documentId: docId };
                         parentContainer.innerHTML = `
                             <button class="occ-reanalyze-btn"
-                                    onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this)"
+                                    onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this, true)"
                                     title="Re-process this document">Re-analyze</button>
                             <button class="occ-view-doc-btn" onclick="openMapDocumentDetail('${docId}')" title="View analyzed document">View Doc ↗</button>`;
                         showMapToast('Completion report analyzed!', 'success');
-                    } else if (doc.status === 'error') {
+                        // Refresh the completion reports list to show updated PUN
+                        loadMapCompletionReports(apiNumber);
+                    } else if (doc.status === 'error' || doc.status === 'failed') {
                         parentContainer.innerHTML = `
                             <button class="completion-analyze-btn error"
-                                    onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this)">
+                                    onclick="analyzeMapCompletion('${apiNumber}', ${entryId}, this)"
+                                    title="${escapeHtml(doc.extraction_error || 'Error occurred')}">
                                 Retry
                             </button>`;
+                        showMapToast('Analysis failed: ' + (doc.extraction_error || 'Unknown error'), 'error');
                     } else {
                         // Still processing, continue polling
                         parentContainer.innerHTML = `
