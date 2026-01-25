@@ -6536,7 +6536,8 @@
                 'api_number': 'API Number',
                 'nri': 'Net Revenue Interest',
                 'orri': 'Overriding Royalty Interest',
-                'poa_type': 'Power of Attorney Type'
+                'poa_type': 'Power of Attorney Type',
+                'property_name': 'Well/Lease Name'
             };
             
             if (nameMap[fieldName]) return nameMap[fieldName];
@@ -6551,17 +6552,21 @@
         function groupFieldsBySection(data) {
             const groups = {
                 'Detailed Analysis': ['ai_observations'],
-                'Operator/Payor': ['operator_name', 'operator_address', 'return_instructions'],
-                'Property/Well': ['property_name', 'property_number', 'billing_code', 'well_name', 'api_number', 'well_location'],
-                'Owner': ['owner_name', 'owner_address', 'trustee_name'],
-                'Interests': ['working_interest', 'royalty_interest', 'decimal_interest', 'ownership_type', 'net_revenue_interest',
-                            'is_multi_section_unit', 'unit_sections'],
-                'Payment Terms': ['payment_minimum', 'payment_effective_date'],
-                'Recording Information': ['recording', 'recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number'],
-                'Execution Details': ['execution_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type',
+                // Division Order groups (consolidated for cleaner display)
+                'Operator & Well': ['operator_name', 'operator_address', 'return_instructions',
+                            'property_name', 'property_number', 'billing_code', 'api_number'],
+                'Owner & Interest': ['owner_name', 'owner_address', 'trustee_name', 'owner_number',
+                            'working_interest', 'royalty_interest', 'overriding_royalty_interest', 'net_revenue_interest'],
+                'Terms & Unit': ['effective_date', 'payment_minimum', 'product_type', 'unit_size_acres',
+                            'county', 'state', 'section', 'township', 'range',
+                            'is_multi_section_unit', 'unit_sections',
+                            'primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions',
+                            'lease_form', 'habendum_clause', 'pooling_provisions'],
+                'Recording & Execution': ['recording', 'recording_book', 'recording_page', 'document_number', 'recording_date', 'recording_county', 'instrument_number',
+                                    'execution_date', 'prepared_by', 'notary_date', 'notary_county', 'notary_state', 'deed_type',
                                     'notary_expiration', 'commission_expiration', 'corporate_acknowledgment', 'acknowledgment_date',
-                                    'notarization', 'witnesses'],  // notarization object for trust_funding and other docs
-                'Legal Description': ['legal_description', 'tracts', 'section', 'township', 'range', 'county', 'state', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage', 'location'],
+                                    'notarization', 'witnesses'],  // Combined recording and execution info
+                'Legal Description': ['legal_description', 'section', 'township', 'range', 'county', 'state', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage', 'location'],
                 'Parties': ['grantors', 'grantees', 'grantor', 'grantee', 'grantor_name', 'grantee_name', 'grantor_names', 'grantee_names',
                           'grantor_address', 'grantee_address',
                           'grantor_marital_status', 'lessor_name', 'lessee_name', 'lessor_address', 'lessee_address',
@@ -6572,17 +6577,18 @@
                           'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name',
                           'decedent', 'affiant', 'heirs_summary', 'children_living', 'children_predeceased', 'spouses',
                           'president', 'vice_president', 'secretary', 'assistant_secretary', 'treasurer', 'corporate_officer'],
-                'Interest & Consideration': ['interest_conveyed', 'interest_type', 'interest_assigned', 'consideration',
+                'Tracts & Interest': ['tracts', 'interest_conveyed', 'interest_assigned', 'consideration',
                                            'consideration_amount', 'consideration_description', 'bonus_amount',
-                                           'net_mineral_acres', 'reservation', 'minerals_covered', 'mineral_types_conveyed',
-                                           'royalty'],  // oil_gas_lease v2 royalty object
+                                           'net_mineral_acres', 'minerals_covered', 'mineral_types_conveyed',
+                                           'royalty'],  // oil_gas_lease v2 royalty object (interest_type moved to Owner & Interest for division orders)
+                'Notes': ['extraction_notes', 'notes'],  // Extraction notes and general notes
                 'Lease Terms': ['primary_term', 'royalty_rate', 'delay_rental', 'shut_in_royalty', 'extension_provisions',
-                               'lease_form', 'effective_date', 'habendum_clause', 'pooling_provisions',
+                               'lease_form', 'habendum_clause', 'pooling_provisions',
                                'shut_in_provisions', 'force_majeure', 'surface_use', 'assignment_status',
                                'top_lease_provision', 'continuous_development_clause'],
                 // Oil & Gas Lease Protective Clauses (v2 schema)
                 'Lease Clauses': ['depth_clause', 'pugh_clause', 'deductions_clause', 'exhibit_a'],
-                'Well Information': ['operator', 'purchaser', 'owner_number', 'unit_name'],
+                'Well Information': ['operator', 'purchaser'],  // owner_number and unit_name moved to Owner & Interest / Operator & Property
                 'Order Details': ['cd_number', 'order_number', 'cause_number', 'case_number', 'order_sub_type',
                                'order_date', 'effective_date', 'hearing_date', 'reopen_date', 'reopen_purpose',
                                'applicant', 'well_cost', 'unit_size_acres', 'unit_description', 'relief_granted',
@@ -6604,18 +6610,17 @@
                                             'surface_restrictions', 'no_surface_clause', 'pugh_clause', 'vertical_pugh_clause'],
                 // Drilling Permit (Form 1000) and Completion Report sections
                 'Permit Information': ['permit_type', 'well_type', 'issue_date', 'expiration_date'],
-                'Well Identification': ['api_number', 'well_name', 'well_number', 'operator_name', 'operator_address', 'well_identification'],
+                'Well Identification': ['well_name', 'well_number', 'well_identification'],  // api_number, operator_name/address moved to Operator & Well
                 'Surface Location': ['surface_location'],
                 'Bottom Hole Location': ['bottom_hole_location'],
                 'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
                 'Unit Details': ['unit_size_acres', 'spacing_order', 'lateral_direction', 'lateral_length_ft'],
                 'Multi-Unit Sections': ['multi_unit_sections', 'section_crossings'],
                 // Mineral Deed sections (v2 schema)
-                'Tracts': ['tracts'],  // Array of legal descriptions with interests
+                // 'Tracts' merged into 'Interest & Consideration' for cleaner display
                 // 'Recording Information' merged into main Recording Information above
                 'Reservation': ['reservation'],  // Grantor's reserved interests
                 'Prior Instruments': ['prior_instruments'],  // Chain of title references
-                'Extraction Notes': ['extraction_notes'],  // Ambiguities or interpretation notes
                 // Increased Density Order sections
                 'Order Details': ['order_info'],
                 'Officials': ['officials'],
@@ -6672,12 +6677,8 @@
                 'Proportionate Reduction': ['proportionate_reduction'],
                 'Underlying Lease': ['underlying_lease'],
                 'Warranties': ['warranties'],
-                // Quit Claim Deed sections
+                // Quit Claim Deed sections (Grantors/Grantees handled by 'Parties', Interest/Consideration by 'Tracts & Interest')
                 'Deed Classification': ['deed_classification'],
-                'Grantors': ['grantors'],
-                'Grantees': ['grantees'],
-                'Interest Conveyed': ['interest_conveyed'],
-                'Consideration': ['consideration'],
                 'Granting Clause': ['granting_clause'],
                 'Reservations & Exceptions': ['reservations_exceptions'],
                 'Return To': ['return_to'],
@@ -6741,7 +6742,7 @@
                 'Superseded Orders': ['related_orders'],
                 'Termination Provisions': ['termination_provisions'],
                 'Ratification': ['ratification'],
-                'All Tracts': ['tracts'],  // Unitization order tracts with participation percentages
+                // 'All Tracts' removed - tracts now handled by 'Tracts & Interest' for deeds
                 'Exhibits': ['exhibits'],
                 'Reference Well': ['reference_well'],
                 'Unit Parties': ['parties'],  // Unitization order parties (applicant + other_parties)
@@ -6964,12 +6965,10 @@
             const sectionOrder = [
                 // Mineral Deed sections (chain of title priority)
                 'Parties',
-                'Tracts',
-                'Interest & Consideration',
+                'Tracts & Interest',
                 'Reservation',
-                'Recording Information',
+                'Recording & Execution',
                 'Prior Instruments',
-                'Extraction Notes',
                 // Drilling and Spacing Order sections (v2 schema)
                 'Spacing Units',
                 'Companion Causes',
@@ -7003,19 +7002,16 @@
                 'Pooling Order Details',
                 'Notes',
                 'Additional Parties',
-                // Division Order / general document sections
-                'Operator/Payor',
-                'Property/Well',
-                'Owner',
-                'Interests',
-                'Payment Terms',
+                // Division Order sections (consolidated)
+                'Operator & Well',
+                'Owner & Interest',
+                'Terms & Unit',
                 // 'Parties' - already in Mineral Deed sections above
                 // 'Interest & Consideration' - already in Mineral Deed sections above
-                // 'Recording Information' - already in Mineral Deed sections above
-                'Execution Details',
+                // 'Recording & Execution' - already in Mineral Deed sections above
                 'Title & Warranties',
                 'Restrictions & Provisions',
-                'Lease Terms',
+                // 'Lease Terms' - consolidated into Terms & Unit for division orders
                 'Lease Clauses',
                 'Well Information',
                 'Order Details',
@@ -7053,12 +7049,8 @@
                 'Proportionate Reduction',
                 'Underlying Lease',
                 'Warranties',
-                // Quit Claim Deed sections
+                // Quit Claim Deed sections (Grantors/Grantees use 'Parties' section)
                 'Deed Classification',
-                'Grantors',
-                'Grantees',
-                'Interest Conveyed',
-                'Consideration',
                 'Granting Clause',
                 'Reservations & Exceptions',
                 'Return To',
@@ -7117,7 +7109,6 @@
                 'Superseded Orders',
                 'Termination Provisions',
                 'Ratification',
-                'All Tracts',
                 'Exhibits',
                 'Unit Parties',
                 'Other Information'
@@ -11641,10 +11632,10 @@
                             <span class="doc-linked-count">1</span>
                         </div>
                         <div class="doc-linked-content expanded">
-                            <div class="doc-linked-row" onclick="openWellFromDocument('${doc.well_id}')">
+                            <div class="doc-linked-row" onclick="openWellFromDocument('${doc.well_api_number || doc.well_id}')">
                                 <div>
                                     <div class="link-name">${escapeHtml(doc.well_name)}</div>
-                                    <div class="link-meta">${doc.well_operator ? escapeHtml(doc.well_operator) + ' • ' : ''}${doc.well_county ? escapeHtml(doc.well_county) : ''}</div>
+                                    <div class="link-meta">${doc.well_api_number ? escapeHtml(doc.well_api_number) + ' • ' : ''}${doc.well_operator ? escapeHtml(doc.well_operator) + ' • ' : ''}${doc.well_county ? escapeHtml(doc.well_county) : ''}</div>
                                 </div>
                                 <div class="link-badges">
                                     <span class="status-badge" style="${statusStyle}">${wellStatus}</span>
@@ -12845,11 +12836,30 @@
         }
         
         // Open well from document modal - stack on top
-        function openWellFromDocument(wellId) {
-            console.log('[openWellFromDocument] Called with wellId:', wellId);
+        // wellIdOrApi can be either a well ID (Airtable record ID) or an API number
+        function openWellFromDocument(wellIdOrApi) {
+            console.log('[openWellFromDocument] Called with:', wellIdOrApi);
             console.log('[openWellFromDocument] Current modal stack length:', modalStack.length);
             console.log('[openWellFromDocument] Modal stack:', modalStack.map(m => ({ type: m.type, id: m.id })));
-            
+
+            // Check if this looks like an API number (10+ digits, possibly with dashes)
+            const isApiNumber = wellIdOrApi && /^\d{2}-?\d{3}-?\d{5}/.test(wellIdOrApi);
+            let targetWellId = wellIdOrApi;
+
+            if (isApiNumber) {
+                console.log('[openWellFromDocument] Detected API number, searching in loadedWells');
+                // Find the well by API number in loaded wells
+                const matchedWell = loadedWells.find(w => w.apiNumber === wellIdOrApi);
+                if (matchedWell) {
+                    targetWellId = matchedWell.id;
+                    console.log('[openWellFromDocument] Found well by API:', matchedWell.well_name, targetWellId);
+                } else {
+                    console.log('[openWellFromDocument] Well not in tracked wells, showing info message');
+                    showToast('This well is not in your tracked wells list', 'info');
+                    return;
+                }
+            }
+
             // Check if we've hit max depth
             if (modalStack.length >= MAX_MODAL_DEPTH) {
                 console.log('[openWellFromDocument] Max depth reached, closing document modal first');
@@ -12857,15 +12867,15 @@
                 closeDocumentDetailModal();
                 // Give it time to close before opening well
                 setTimeout(async () => {
-                    await openWellDetailsModal(wellId);
+                    await openWellDetailsModal(targetWellId);
                 }, 100);
                 return;
             }
-            
+
             // Don't close the document modal - open well on top
             console.log('[openWellFromDocument] Opening well modal on top of document modal');
             setTimeout(async () => {
-                await openWellDetailsModal(wellId);
+                await openWellDetailsModal(targetWellId);
             }, 50);
         }
         

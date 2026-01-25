@@ -468,18 +468,25 @@ OIL_GAS_LEASE_SCHEMA = {
 
 DIVISION_ORDER_SCHEMA = {
     "required": {
-        "doc_type", "well_name", "interest_owners"
+        "doc_type", "property_name"
     },
     "expected": {
-        "operator", "effective_date", "county",
+        "operator_name", "effective_date", "county", "decimal_interest",
         "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
     },
     "known": {
         # Core division order fields
-        "doc_type", "well_name", "well_number", "api_number", "operator",
-        "effective_date", "county", "state", "legal_description",
-        "section", "township", "range", "meridian",
-        "interest_owners", "total_decimal_interest", "extraction_notes",
+        "doc_type", "property_name", "property_number", "billing_code",
+        "well_name", "well_number", "api_number",
+        "operator_name", "operator_address", "operator",
+        "owner_name", "owner_address", "owner_number", "trustee_name",
+        "working_interest", "royalty_interest", "overriding_royalty_interest", "net_revenue_interest",
+        "decimal_interest", "ownership_type", "interest_type",
+        "effective_date", "payment_minimum",
+        "product_type", "unit_size_acres",
+        "county", "state", "section", "township", "range", "meridian",
+        "is_multi_section_unit", "unit_sections",
+        "legal_description", "interest_owners", "total_decimal_interest", "extraction_notes",
         # Analysis fields
         "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
         "ai_observations",
@@ -3491,12 +3498,17 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
 
   "working_interest": 0.00000000,
   "royalty_interest": 0.00390625,
+  "overriding_royalty_interest": 0.00000000,
+  "net_revenue_interest": 0.00000000,
   "decimal_interest": 0.00390625,
-  "ownership_type": "royalty (or 'working' if working_interest > 0)",
-  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, etc.)",
+  "ownership_type": "royalty (or 'working' if working_interest > 0, or 'orri' if overriding royalty)",
+  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, NRI, etc.)",
 
   "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
   "payment_minimum": 100.00,
+
+  "product_type": "Oil and Gas (check which boxes are marked: 'Oil', 'Gas', or 'Oil and Gas' if both)",
+  "unit_size_acres": 640,
 
   "api_number": "35-051-12345 (if shown)",
   "county": "Grady (from County | State field in header)",
@@ -3518,6 +3530,8 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
     "owner_name": 1.0,
     "working_interest": 1.0,
     "royalty_interest": 1.0,
+    "overriding_royalty_interest": 1.0,
+    "net_revenue_interest": 1.0,
     "effective_date": 0.95,
     "county": 1.0,
     "section": 0.95,
@@ -8299,10 +8313,19 @@ IMPORTANT: Structure your response as follows:
 
    DETAILED ANALYSIS:
    - Write as an experienced mineral rights advisor
-   - Explain what this division order means for the owner
-   - Help them understand their decimal interest and how to verify it
-   - Note any multi-section allocation that affects their interest
-   - Mention where to send the signed DO and who to contact for questions
+   - Use this EXACT format with plain text section headings (NO markdown formatting, NO asterisks):
+
+     What This Division Order Means:
+     [Explain what this DO is and why the owner received it - 2-3 sentences]
+
+     Your Ownership Interest:
+     [Explain their decimal interest and how to verify payments match - 2-3 sentences]
+
+     Action Required & Contact Information:
+     [Where to send signed DO, who to contact for questions - 2-3 sentences]
+
+   - CRITICAL: Do NOT use **bold** or any markdown - output plain text only
+   - Keep each section concise (2-3 sentences each)
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
@@ -8380,12 +8403,17 @@ DIVISION ORDER EXAMPLE:
 
   "working_interest": 0.00000000,
   "royalty_interest": 0.00390625,
+  "overriding_royalty_interest": 0.00000000,
+  "net_revenue_interest": 0.00000000,
   "decimal_interest": 0.00390625,
-  "ownership_type": "royalty (or 'working' if working_interest > 0)",
-  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, etc.)",
+  "ownership_type": "royalty (or 'working' if working_interest > 0, or 'orri' if overriding royalty)",
+  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, NRI, etc.)",
 
   "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
   "payment_minimum": 100.00,
+
+  "product_type": "Oil and Gas (check which boxes are marked: 'Oil', 'Gas', or 'Oil and Gas' if both)",
+  "unit_size_acres": 640,
 
   "api_number": "35-051-12345 (if shown)",
   "county": "Grady (from County | State field in header)",
@@ -8402,7 +8430,7 @@ DIVISION ORDER EXAMPLE:
 
   "key_takeaway": "REQUIRED - One sentence: Division order from [Operator] for [Property Name] well. Owner [Name] has [decimal] interest ([interest type]). [Note if multi-section unit].",
 
-  "detailed_analysis": "REQUIRED - 2-3 paragraphs covering: (1) what this division order means and why the owner received it; (2) the decimal interest and how it relates to their ownership; (3) multi-section allocation if applicable; (4) where to send signed DO and contact info for questions.",
+  "detailed_analysis": "What This Division Order Means:\nThis division order from XYZ Oil Company certifies your ownership interest in the Smith 1-16H well. You received this because drilling has begun or production is starting, and the operator needs to confirm ownership before distributing royalty payments.\n\nYour Ownership Interest:\nYour decimal interest of 0.00390625 (approximately 1/256) represents your share of production revenue. To verify your payments, multiply your decimal interest by the gross production value shown on your check stub.\n\nAction Required & Contact Information:\nSign and return this division order to XYZ Oil Company at PO Box 779, Oklahoma City, OK 73101. For questions about your interest or payment calculations, contact their owner relations department at the number shown on the form.",
 
   "field_scores": {{
     "operator_name": 1.0,
@@ -8411,7 +8439,11 @@ DIVISION ORDER EXAMPLE:
     "owner_name": 1.0,
     "working_interest": 1.0,
     "royalty_interest": 1.0,
+    "overriding_royalty_interest": 1.0,
+    "net_revenue_interest": 1.0,
     "effective_date": 0.95,
+    "product_type": 1.0,
+    "unit_size_acres": 0.95,
     "county": 1.0,
     "section": 0.95,
     "township": 0.95,
@@ -8425,11 +8457,15 @@ DIVISION ORDER EXAMPLE:
 EXTRACTION NOTES FOR DIVISION ORDERS:
 =============================================================================
 
-DECIMAL INTEREST VERIFICATION:
+INTEREST FIELDS - Extract to the CORRECT field based on interest type:
+- working_interest: For working interest owners (operators, WI partners)
+- royalty_interest: For royalty owners (mineral owners receiving royalties)
+- overriding_royalty_interest: For ORRI holders (carved out of working interest)
+- net_revenue_interest: For NRI (net revenue interest after all burdens)
+- decimal_interest: The total/combined interest shown (for reference)
 - This is the MOST IMPORTANT field - owners use it to verify their payment is correct
 - Extract to full precision (8 decimal places if shown)
-- If both working_interest and royalty_interest are shown, extract both
-- decimal_interest should be the total (working + royalty)
+- Check the "Type of Interest" field on the document to determine which field to use
 
 MULTI-SECTION UNITS:
 - Many horizontal wells span multiple sections

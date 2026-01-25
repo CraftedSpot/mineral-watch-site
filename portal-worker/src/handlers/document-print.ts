@@ -736,72 +736,124 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
 // ============================================
 
 function generateDeedFields(data: any): string {
-  const grantor = data.grantor || {};
-  const grantee = data.grantee || {};
-  const legalDescription = data.legal_description || {};
-  const interestConveyed = data.interest_conveyed || {};
+  // Grantors and Grantees are arrays
+  const grantors = data.grantors || [];
+  const grantees = data.grantees || [];
+  const tracts = data.tracts || [];
+  const recordingInfo = data.recording_info || data.recording || {};
+
+  // Format party names with tenancy info
+  const formatPartyList = (parties: any[]): string => {
+    if (!parties || parties.length === 0) return 'Not specified';
+
+    const names = parties.map((p: any) => {
+      let name = p.name || '';
+      if (p.capacity) name += ` (${p.capacity})`;
+      return name;
+    }).filter(Boolean);
+
+    if (names.length === 0) return 'Not specified';
+
+    // Check for tenancy type
+    const tenancy = parties[0]?.tenancy;
+    let tenancyText = '';
+    if (tenancy === 'joint_tenants' || tenancy === 'joint_tenants_wros') {
+      tenancyText = ' (Joint Tenants)';
+    } else if (tenancy === 'tenants_in_common') {
+      tenancyText = ' (Tenants in Common)';
+    }
+
+    return names.join(' and ') + tenancyText;
+  };
+
+  // Get book/page from recording_info
+  const book = recordingInfo.book || data.book || '';
+  const page = recordingInfo.page || data.page || '';
+
+  // Build grantors party box
+  const grantorsHtml = `
+    <div class="party-box">
+      <div class="party-label">Grantor${grantors.length > 1 ? 's' : ''} (Seller)</div>
+      <div class="party-name">${escapeHtml(formatPartyList(grantors))}</div>
+      ${grantors[0]?.address ? `<div class="party-detail">${escapeHtml(grantors[0].address)}</div>` : ''}
+    </div>
+  `;
+
+  // Build grantees party box
+  const granteesHtml = `
+    <div class="party-box">
+      <div class="party-label">Grantee${grantees.length > 1 ? 's' : ''} (Buyer)</div>
+      <div class="party-name">${escapeHtml(formatPartyList(grantees))}</div>
+      ${grantees[0]?.address ? `<div class="party-detail">${escapeHtml(grantees[0].address)}</div>` : ''}
+    </div>
+  `;
+
+  // Build tracts display
+  const tractsHtml = tracts.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Tracts Conveyed</div>
+      ${tracts.map((tract: any, i: number) => {
+        const legal = tract.legal || tract.legal_description || {};
+        const interest = tract.interest || {};
+        const section = legal.section || tract.section || '';
+        const township = legal.township || tract.township || '';
+        const range = legal.range || tract.range || '';
+        const county = legal.county || tract.county || '';
+        const quarters = legal.quarter_calls?.join(', ') || legal.quarters || tract.quarters || '';
+        const acres = tract.acres || legal.gross_acres || '';
+        const interestType = interest.type || tract.interest_type || '';
+        const fraction = interest.fraction_text || interest.fraction || tract.fraction || '';
+        const nma = tract.net_mineral_acres || interest.net_mineral_acres || '';
+
+        return `
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; ${i > 0 ? 'margin-top: 8px;' : ''}">
+            <div style="font-weight: 600; color: #1e293b; margin-bottom: 8px;">
+              ${section && township && range ? `Section ${escapeHtml(String(section))}-${escapeHtml(township)}-${escapeHtml(range)}` : 'Tract ' + (i + 1)}
+              ${county ? `, ${escapeHtml(county)} County` : ''}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
+              ${quarters ? `<div><span style="color: #64748b;">Quarter:</span> ${escapeHtml(quarters)}</div>` : ''}
+              ${acres ? `<div><span style="color: #64748b;">Acres:</span> ${escapeHtml(String(acres))}</div>` : ''}
+              ${interestType ? `<div><span style="color: #64748b;">Interest Type:</span> ${escapeHtml(interestType)}</div>` : ''}
+              ${fraction ? `<div><span style="color: #64748b;">Fraction:</span> <strong>${escapeHtml(fraction)}</strong></div>` : ''}
+              ${nma ? `<div><span style="color: #64748b;">Net Mineral Acres:</span> <strong>${escapeHtml(String(nma))}</strong></div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
 
   return `
     <div class="parties-grid">
-      <div class="party-box">
-        <div class="party-label">Grantor (Seller)</div>
-        <div class="party-name">${escapeHtml(grantor.name || 'Not specified')}</div>
-        ${grantor.address ? `<div class="party-detail">${escapeHtml(grantor.address)}</div>` : ''}
-      </div>
-      <div class="party-box">
-        <div class="party-label">Grantee (Buyer)</div>
-        <div class="party-name">${escapeHtml(grantee.name || 'Not specified')}</div>
-        ${grantee.address ? `<div class="party-detail">${escapeHtml(grantee.address)}</div>` : ''}
-      </div>
+      ${grantorsHtml}
+      ${granteesHtml}
     </div>
 
     <div class="field-grid" style="margin-top: 16px;">
       <div class="field-item">
+        <div class="field-label">Deed Type</div>
+        <div class="field-value">${escapeHtml(data.deed_type) || 'Mineral Deed'}</div>
+      </div>
+      <div class="field-item">
         <div class="field-label">Execution Date</div>
         <div class="field-value">${formatDate(data.execution_date) || 'Not specified'}</div>
       </div>
-      <div class="field-item">
-        <div class="field-label">Recording Date</div>
-        <div class="field-value">${formatDate(data.recording_date) || 'Not specified'}</div>
-      </div>
+      ${book ? `
       <div class="field-item">
         <div class="field-label">Book/Page</div>
-        <div class="field-value mono">${data.book ? `Book ${escapeHtml(data.book)}, Page ${escapeHtml(data.page)}` : 'Not specified'}</div>
+        <div class="field-value mono">Book ${escapeHtml(book)}${page ? `, Page ${escapeHtml(page)}` : ''}</div>
       </div>
-      <div class="field-item">
-        <div class="field-label">Document Number</div>
-        <div class="field-value mono">${escapeHtml(data.document_number) || 'Not specified'}</div>
-      </div>
-      <div class="field-item">
-        <div class="field-label">Interest Type</div>
-        <div class="field-value">${escapeHtml(interestConveyed.type) || 'Not specified'}</div>
-      </div>
-      <div class="field-item">
-        <div class="field-label">Interest Fraction</div>
-        <div class="field-value highlight">${escapeHtml(interestConveyed.fraction) || 'Not specified'}</div>
-      </div>
-      ${
-        data.consideration
-          ? `
+      ` : ''}
+      ${data.consideration ? `
       <div class="field-item">
         <div class="field-label">Consideration</div>
         <div class="field-value">${escapeHtml(data.consideration)}</div>
       </div>
-      `
-          : ''
-      }
+      ` : ''}
     </div>
 
-    ${
-      legalDescription.full_text
-        ? `
-    <div style="margin-top: 16px;">
-      <div class="field-label" style="margin-bottom: 8px;">Legal Description</div>
-      <div class="legal-description">${escapeHtml(legalDescription.full_text)}</div>
-    </div>
-    `
-        : ''
-    }
+    ${tractsHtml}
   `;
 }
 
@@ -950,10 +1002,6 @@ function generatePoolingFields(data: any): string {
 
 function generateDivisionOrderFields(data: any): string {
   // Division order uses flat field names (not nested objects)
-  // property_name = well/unit name
-  // operator_name, operator_address at top level
-  // owner_name, owner_address at top level
-
   const operatorName = data.operator_name || data.operator || '';
   const operatorAddress = data.operator_address || '';
 
@@ -965,10 +1013,12 @@ function generateDivisionOrderFields(data: any): string {
   const ownerAddress = data.owner_address || '';
   const trusteeName = data.trustee_name || '';
 
-  // Interest fields
-  const decimalInterest = data.decimal_interest || '';
-  const royaltyInterest = data.royalty_interest || '';
+  // Interest fields - extract each type separately
   const workingInterest = data.working_interest || '';
+  const royaltyInterest = data.royalty_interest || '';
+  const overridingRoyaltyInterest = data.overriding_royalty_interest || '';
+  const netRevenueInterest = data.net_revenue_interest || '';
+  const decimalInterest = data.decimal_interest || '';
   const interestType = data.interest_type || data.ownership_type || '';
 
   // Payment info
@@ -977,8 +1027,16 @@ function generateDivisionOrderFields(data: any): string {
   // Effective date
   const effectiveDate = data.effective_date || '';
 
+  // Product type and unit size
+  const productType = data.product_type || '';
+  const unitSizeAcres = data.unit_size_acres || '';
+
   // API number
   const apiNumber = data.api_number || '';
+
+  // Unit sections
+  const unitSections = data.unit_sections || [];
+  const isMultiSection = data.is_multi_section_unit || unitSections.length > 1;
 
   // Build operator party box
   const operatorHtml = operatorName ? `
@@ -999,6 +1057,59 @@ function generateDivisionOrderFields(data: any): string {
     </div>
   ` : '';
 
+  // Build interest fields HTML - show each type that has a value
+  const interestFieldsHtml = [
+    workingInterest ? `
+      <div class="field-item">
+        <div class="field-label">Working Interest</div>
+        <div class="field-value highlight">${escapeHtml(String(workingInterest))}</div>
+      </div>` : '',
+    royaltyInterest ? `
+      <div class="field-item">
+        <div class="field-label">Royalty Interest</div>
+        <div class="field-value highlight">${escapeHtml(String(royaltyInterest))}</div>
+      </div>` : '',
+    overridingRoyaltyInterest ? `
+      <div class="field-item">
+        <div class="field-label">Overriding Royalty Interest</div>
+        <div class="field-value highlight">${escapeHtml(String(overridingRoyaltyInterest))}</div>
+      </div>` : '',
+    netRevenueInterest ? `
+      <div class="field-item">
+        <div class="field-label">Net Revenue Interest</div>
+        <div class="field-value highlight">${escapeHtml(String(netRevenueInterest))}</div>
+      </div>` : '',
+  ].filter(Boolean).join('');
+
+  // If no specific interest types, fall back to decimal_interest with type label
+  const fallbackInterestHtml = !interestFieldsHtml && decimalInterest ? `
+    <div class="field-item">
+      <div class="field-label">${interestType ? escapeHtml(interestType.split(' ').map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ')) : 'Decimal Interest'}</div>
+      <div class="field-value highlight">${escapeHtml(String(decimalInterest))}</div>
+    </div>` : '';
+
+  // Build unit sections table if multi-section
+  const unitSectionsHtml = isMultiSection && unitSections.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Unit Sections & Allocation</div>
+      <table class="data-table">
+        <thead>
+          <tr><th>Section</th><th>Location</th><th>Acres</th><th>Allocation</th></tr>
+        </thead>
+        <tbody>
+          ${unitSections.map((sec: any, i: number) => `
+            <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
+              <td>${escapeHtml(String(sec.section || ''))}</td>
+              <td>${escapeHtml(`${sec.township || ''}-${sec.range || ''}`)}</td>
+              <td>${sec.acres ? escapeHtml(String(sec.acres)) : '-'}</td>
+              <td>${sec.allocation_factor ? (Number(sec.allocation_factor) * 100).toFixed(2) + '%' : '-'}</td>
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
   return `
     ${operatorHtml || ownerHtml ? `
     <div class="parties-grid" style="margin-bottom: 16px;">
@@ -1009,7 +1120,7 @@ function generateDivisionOrderFields(data: any): string {
 
     <div class="field-grid">
       <div class="field-item">
-        <div class="field-label">Property/Well Name</div>
+        <div class="field-label">Well/Lease Name</div>
         <div class="field-value">${escapeHtml(propertyName) || 'Not specified'}</div>
       </div>
       ${propertyNumber ? `
@@ -1028,35 +1139,29 @@ function generateDivisionOrderFields(data: any): string {
         <div class="field-label">Effective Date</div>
         <div class="field-value">${formatDate(effectiveDate) || 'Not specified'}</div>
       </div>
-      <div class="field-item">
-        <div class="field-label">Decimal Interest</div>
-        <div class="field-value highlight">${decimalInterest ? escapeHtml(String(decimalInterest)) : 'Not specified'}</div>
-      </div>
-      ${interestType ? `
-      <div class="field-item">
-        <div class="field-label">Interest Type</div>
-        <div class="field-value">${escapeHtml(interestType)}</div>
-      </div>
-      ` : ''}
-      ${royaltyInterest ? `
-      <div class="field-item">
-        <div class="field-label">Royalty Interest</div>
-        <div class="field-value">${escapeHtml(String(royaltyInterest))}</div>
-      </div>
-      ` : ''}
-      ${workingInterest && Number(workingInterest) > 0 ? `
-      <div class="field-item">
-        <div class="field-label">Working Interest</div>
-        <div class="field-value">${escapeHtml(String(workingInterest))}</div>
-      </div>
-      ` : ''}
+      ${interestFieldsHtml}
+      ${fallbackInterestHtml}
       ${paymentMinimum ? `
       <div class="field-item">
         <div class="field-label">Minimum Payment</div>
         <div class="field-value">$${escapeHtml(String(paymentMinimum))}</div>
       </div>
       ` : ''}
+      ${productType ? `
+      <div class="field-item">
+        <div class="field-label">Product Type</div>
+        <div class="field-value">${escapeHtml(productType)}</div>
+      </div>
+      ` : ''}
+      ${unitSizeAcres ? `
+      <div class="field-item">
+        <div class="field-label">Unit Spacing</div>
+        <div class="field-value">${escapeHtml(String(unitSizeAcres))} acres</div>
+      </div>
+      ` : ''}
     </div>
+
+    ${unitSectionsHtml}
   `;
 }
 

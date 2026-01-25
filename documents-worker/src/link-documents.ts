@@ -27,13 +27,20 @@ const normalizeRange = (r: string | null | undefined): string | null => {
   // Remove all non-digits to get the number part
   const num = r.replace(/[^\d]/g, '');
   if (!num) return null;
-  
+
   // Convert to integer to remove leading zeros, then back to string
   const cleanNum = String(parseInt(num, 10));
-  
+
   // Look for direction (E/W), default to W if missing
   const dir = r.match(/[EWew]/)?.[0]?.toUpperCase() || 'W';
   return `${cleanNum}${dir}`;
+};
+
+// Normalize county name (strip "County" suffix, trim whitespace)
+const normalizeCounty = (c: string | null | undefined): string | null => {
+  if (!c) return null;
+  // Remove "County" suffix (case-insensitive) and trim
+  return c.replace(/\s+county$/i, '').trim();
 };
 
 // Well name normalization functions
@@ -108,16 +115,18 @@ export async function linkDocumentToEntities(
   let propertyId: string | null = null;
   let wellId: string | null = null;
 
-  // Get the document's user_id to filter properties by ownership
+  // Get the document's user_id and organization_id to filter properties by ownership
   let documentUserId: string | null = null;
+  let documentOrgId: string | null = null;
   try {
     const docResult = await db.prepare(`
-      SELECT user_id FROM documents WHERE id = ?
+      SELECT user_id, organization_id FROM documents WHERE id = ?
     `).bind(documentId).first();
     documentUserId = docResult?.user_id as string | null;
-    console.log(`[LinkDocuments] Document belongs to user: ${documentUserId}`);
+    documentOrgId = docResult?.organization_id as string | null;
+    console.log(`[LinkDocuments] Document belongs to user: ${documentUserId}, org: ${documentOrgId}`);
   } catch (error) {
-    console.error(`[LinkDocuments] Error fetching document user_id:`, error);
+    console.error(`[LinkDocuments] Error fetching document user_id/organization_id:`, error);
   }
 
   // Extract legal description from document
@@ -164,14 +173,14 @@ export async function linkDocumentToEntities(
   // Check location object for county (used by location_exception_order schema)
   const locationObjForCounty = getValue(extractedFields.location);
 
-  const county = getValue(firstTractLegal?.county) ||
-                 getValue(legalDescObj?.county) ||
-                 getValue(locationObjForCounty?.county) ||
-                 getValue(extractedFields.county) ||
-                 getValue(extractedFields.County) ||
-                 getValue(extractedFields.COUNTY) ||
-                 getValue(extractedFields.recording_county) ||
-                 getValue(extractedFields.recording?.county);  // Recording info fallback
+  const rawCounty = getValue(firstTractLegal?.county) ||
+                    getValue(legalDescObj?.county) ||
+                    getValue(locationObjForCounty?.county) ||
+                    getValue(extractedFields.county) ||
+                    getValue(extractedFields.County) ||
+                    getValue(extractedFields.COUNTY) ||
+                    getValue(extractedFields.recording_county) ||
+                    getValue(extractedFields.recording?.county);  // Recording info fallback
 
   const meridian = getValue(firstTractLegal?.meridian) ||
                    getValue(legalDescObj?.meridian) ||
@@ -180,17 +189,18 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.MERIDIAN) ||
                    getValue(extractedFields.MER) ||
                    null;
-  
+
   // Normalize the values
   const section = normalizeSection(rawSection);
   const township = normalizeTownship(rawTownship);
   const range = normalizeRange(rawRange);
-  
+  const county = normalizeCounty(rawCounty);  // Strip "County" suffix
+
   console.log(`[LinkDocuments] Attempting to link document ${documentId}`);
   if (legalDescObj && typeof legalDescObj === 'object') {
     console.log(`[LinkDocuments] Legal description object found:`, JSON.stringify(legalDescObj));
   }
-  console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}', County '${county}'`);
+  console.log(`[LinkDocuments] Raw values: Section '${rawSection}', Township '${rawTownship}', Range '${rawRange}', County '${rawCounty}'`);
   console.log(`[LinkDocuments] Normalized: Section '${section}', Township '${township}', Range '${range}', County '${county}', Meridian '${meridian}'`);
   
   // Build list of all sections to check (primary + unit_sections)
@@ -309,10 +319,15 @@ export async function linkDocumentToEntities(
   // Match properties by legal description - find ALL matching properties across ALL sections
   const matchedPropertyIds: string[] = [];
 
-  if (sectionsToCheck.length > 0 && county && documentUserId) {
+  // Use organization_id if available, otherwise user_id for property ownership matching
+  const ownerFilter = documentOrgId || documentUserId;
+  console.log(`[LinkDocuments] Using owner filter: ${ownerFilter} (org: ${documentOrgId}, user: ${documentUserId})`);
+
+  if (sectionsToCheck.length > 0 && county && ownerFilter) {
     for (const sectionData of sectionsToCheck) {
       try {
         // Query for ALL properties matching this section (not LIMIT 1)
+        // Strip "County" suffix from property county for comparison (handles "Blaine" vs "Blaine County")
         const propertyQuery = `
           SELECT airtable_record_id as id FROM properties
           WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
@@ -320,18 +335,18 @@ export async function linkDocumentToEntities(
             AND SUBSTR(UPPER(township), -1) = SUBSTR(UPPER(?), -1)
             AND CAST(REPLACE(REPLACE(UPPER(range), 'E', ''), 'W', '') AS INTEGER) = CAST(REPLACE(REPLACE(UPPER(?), 'E', ''), 'W', '') AS INTEGER)
             AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
-            AND LOWER(county) = LOWER(?)
+            AND LOWER(REPLACE(county, ' County', '')) = LOWER(?)
             AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
-            AND owner = ?
+            AND (owner = ? OR organization_id = ?)
         `;
         const propertyParams = [
           sectionData.section,
           sectionData.township, sectionData.township,
           sectionData.range, sectionData.range,
-          county, meridian, meridian, documentUserId
+          county, meridian, meridian, ownerFilter, ownerFilter
         ];
 
-        console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range}`);
+        console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range} for owner ${ownerFilter}`);
 
         const properties = await db.prepare(propertyQuery).bind(...propertyParams).all();
 
@@ -356,7 +371,7 @@ export async function linkDocumentToEntities(
     } else {
       console.log(`[LinkDocuments] No property matches found for any section`);
     }
-  } else if (sectionsToCheck.length > 0 && county && !documentUserId) {
+  } else if (sectionsToCheck.length > 0 && county && !ownerFilter) {
     console.log(`[LinkDocuments] Skipping property matching - could not determine document owner`);
   }
   
@@ -386,11 +401,12 @@ export async function linkDocumentToEntities(
                       getValue(firstWell?.name) ||
                       getValue(wellInfoObj?.well_name) ||
                       getValue(wellInfoObj?.name) ||
-                      getValue(extractedFields.well_name) || 
+                      getValue(extractedFields.well_name) ||
                       getValue(extractedFields.well) ||
                       getValue(extractedFields['Well Name']) ||
                       getValue(extractedFields.WELL) ||
-                      getValue(extractedFields.well_number);
+                      getValue(extractedFields.well_number) ||
+                      getValue(extractedFields.property_name);  // Division orders use property_name for well/lease name
   
   // Extract operator for better matching
   const operator = getValue(firstWell?.operator) ||
@@ -574,13 +590,13 @@ export async function linkDocumentToEntities(
 
       // Strategy 4: Check user's Client Wells table (Airtable-synced)
       // This handles cases where the well exists in the user's tracked wells but not in statewide data
-      if (!wellId && documentUserId) {
-        console.log(`[LinkDocuments] Strategy 4: Checking client_wells for user ${documentUserId}`);
+      if (!wellId && (documentUserId || documentOrgId)) {
+        console.log(`[LinkDocuments] Strategy 4: Checking client_wells for user ${documentUserId} / org ${documentOrgId}`);
 
         const query4 = `
           SELECT airtable_id as id, well_name, operator, section, township, range_val as range
           FROM client_wells
-          WHERE user_id = ?
+          WHERE (user_id = ? OR organization_id = ?)
           AND (
             UPPER(well_name) IN (${nameVariations.map(() => 'UPPER(?)').join(',')})
             OR UPPER(well_name) LIKE UPPER(?)
@@ -598,7 +614,8 @@ export async function linkDocumentToEntities(
         `;
 
         const params4 = [
-          documentUserId,
+          documentUserId || '',
+          documentOrgId || '',
           ...nameVariations,
           `%${baseName || wellName}%`,
           `%${wellName}%`
@@ -608,7 +625,7 @@ export async function linkDocumentToEntities(
           params4.push(`%${township}%`);
         }
 
-        console.log(`[LinkDocuments] Client wells query for user:`, documentUserId);
+        console.log(`[LinkDocuments] Client wells query for user/org:`, documentUserId, documentOrgId);
         console.log(`[LinkDocuments] Name variations:`, nameVariations);
 
         const clientWell = await db.prepare(query4).bind(...params4).first();
