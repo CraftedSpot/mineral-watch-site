@@ -81,9 +81,9 @@ async function fetchDocumentPrintData(
   // Check multiple possible field names for compatibility
   const keyTakeaway = extractedData.key_takeaway || extractedData.summary ||
                       extractedData.executive_summary || null;
-  const detailedAnalysis = extractedData.detailed_analysis || extractedData.analysis ||
-                           extractedData.full_analysis || extractedData.analysis_text ||
-                           extractedData.document_analysis || null;
+  // ai_observations is the primary field name used by the extractor
+  const detailedAnalysis = extractedData.ai_observations || extractedData.detailed_analysis ||
+                           extractedData.analysis || extractedData.full_analysis || null;
 
   // Format linked properties
   const linkedProperties = (doc.linked_properties || []).map((p: any) => ({
@@ -201,6 +201,36 @@ function escapeHtml(s: string | null | undefined): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+/**
+ * Format text with basic markdown support (bold, italic)
+ * Escapes HTML first, then converts markdown syntax
+ * Also cleans up malformed markdown from AI extraction
+ */
+function formatMarkdown(s: string | null | undefined): string {
+  if (!s) return '';
+  let text = escapeHtml(s);
+
+  // Clean up malformed markdown patterns from AI:
+  // 1. Remove orphaned ** at end of lines (like "Headline:**")
+  text = text.replace(/:\*\*\s*$/gm, ':');
+  text = text.replace(/:\*\*\n/g, ':\n');
+
+  // 2. Lines that look like headlines (end with :) followed by ** on next line
+  //    should have the ** moved to wrap the headline instead
+  text = text.replace(/^([A-Z][^:\n]+:)\s*\n\*\*/gm, '**$1**\n');
+
+  // 3. Convert properly formatted **bold** to <strong>
+  text = text.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+  // 4. Clean up any remaining orphaned ** markers
+  text = text.replace(/\*\*/g, '');
+
+  // 5. Convert *italic* to <em> (but not if it was part of **)
+  text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+  return text;
 }
 
 function formatDate(dateStr: string | null | undefined): string {
@@ -632,7 +662,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     <div class="section">
       <div class="key-takeaway">
         <div class="key-takeaway-label">Key Takeaway</div>
-        <div class="key-takeaway-text">${escapeHtml(data.keyTakeaway)}</div>
+        <div class="key-takeaway-text">${formatMarkdown(data.keyTakeaway)}</div>
       </div>
     </div>
     `
@@ -644,7 +674,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
         ? `
     <div class="section">
       <div class="section-title">DETAILED ANALYSIS</div>
-      <div class="analysis-content">${escapeHtml(data.detailedAnalysis)}</div>
+      <div class="analysis-content">${formatMarkdown(data.detailedAnalysis)}</div>
     </div>
     `
         : ''
@@ -664,6 +694,39 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       <span>Analyzed: ${formatDate(data.uploadDate)}</span>
     </div>
   </div>
+
+  <!-- Debug: View Raw Data (hidden when printing) -->
+  <div class="debug-section">
+    <details>
+      <summary style="cursor: pointer; padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; font-weight: 600; color: #92400e;">
+        🔍 Debug: View Raw Data (click to expand)
+      </summary>
+      <div style="margin-top: 12px; padding: 16px; background: #1e293b; border-radius: 6px; overflow-x: auto;">
+        <div style="margin-bottom: 16px;">
+          <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Raw ai_observations / detailed_analysis:</div>
+          <pre style="color: #e2e8f0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0;">${escapeHtml(data.detailedAnalysis) || '(empty)'}</pre>
+        </div>
+        <div style="margin-bottom: 16px;">
+          <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Raw key_takeaway:</div>
+          <pre style="color: #e2e8f0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0;">${escapeHtml(data.keyTakeaway) || '(empty)'}</pre>
+        </div>
+        <div>
+          <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Full extractedData JSON:</div>
+          <pre style="color: #e2e8f0; font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 400px; overflow-y: auto;">${escapeHtml(JSON.stringify(data.extractedData, null, 2))}</pre>
+        </div>
+      </div>
+    </details>
+  </div>
+
+  <style>
+    .debug-section {
+      max-width: 8.5in;
+      margin: 20px auto 0 auto;
+    }
+    @media print {
+      .debug-section { display: none !important; }
+    }
+  </style>
 </body>
 </html>`;
 }
