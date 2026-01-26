@@ -6553,10 +6553,11 @@
             const groups = {
                 'Detailed Analysis': ['ai_observations'],
                 // Division Order groups (consolidated for cleaner display)
-                'Operator & Well': ['operator_name', 'operator_address', 'return_instructions',
+                'Operator & Well': ['operator_name', 'operator_address', 'operator_phone', 'operator_email', 'return_instructions',
                             'property_name', 'property_number', 'billing_code', 'api_number'],
                 'Owner & Interest': ['owner_name', 'owner_address', 'trustee_name', 'owner_number',
-                            'working_interest', 'royalty_interest', 'overriding_royalty_interest', 'net_revenue_interest'],
+                            'owner_phone', 'owner_fax', 'owner_email',  // Owner-provided contact from signature section
+                            'working_interest', 'royalty_interest', 'overriding_royalty_interest', 'net_revenue_interest', 'non_participating_royalty_interest'],
                 'Terms & Unit': ['effective_date', 'payment_minimum', 'product_type', 'unit_size_acres',
                             'county', 'state', 'section', 'township', 'range',
                             'is_multi_section_unit', 'unit_sections',
@@ -6813,6 +6814,14 @@
                 }
 
                 if (section && value !== null && value !== undefined && value !== '') {
+                    // Skip interest fields that are 0 (only show interests with actual values)
+                    const interestFields = ['working_interest', 'royalty_interest', 'overriding_royalty_interest',
+                                           'net_revenue_interest', 'non_participating_royalty_interest'];
+                    if (interestFields.includes(dataFieldNormalized) && (value === 0 || value === '0' || value === 0.0)) {
+                        processedFields.add(dataField);
+                        continue;
+                    }
+
                     if (!grouped[section]) {
                         grouped[section] = {};
                     }
@@ -6887,6 +6896,12 @@
                 
                 // Skip null/undefined/empty values and "None"/"N/A" strings
                 if (value === null || value === undefined || value === '') {
+                    continue;
+                }
+                // Skip interest fields that are 0 (only show the interest type that has a value)
+                const interestFields = ['working_interest', 'royalty_interest', 'overriding_royalty_interest',
+                                       'net_revenue_interest', 'non_participating_royalty_interest'];
+                if (interestFields.includes(fieldLower) && (value === 0 || value === '0' || value === 0.0)) {
                     continue;
                 }
                 // Skip string values that are essentially empty

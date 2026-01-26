@@ -349,7 +349,7 @@ COMPLETION_REPORT_SCHEMA = {
     "expected": {
         "api_number", "api_number_normalized", "well_number", "operator",
         "dates", "well_type", "surface_location", "formation_zones",
-        "initial_production", "formation_tops", "field_scores", "document_confidence"
+        "initial_production", "formation_tops"
     },
     "known": {
         # All valid keys for completion reports
@@ -376,7 +376,7 @@ DRILLING_PERMIT_SCHEMA = {
     },
     "expected": {
         "api_number", "permit_number", "operator", "proposed_depth_ft",
-        "surface_location", "field_scores", "document_confidence"
+        "surface_location"
     },
     "known": {
         "doc_type", "section", "township", "range", "county", "state",
@@ -398,8 +398,7 @@ SPACING_ORDER_SCHEMA = {
         "doc_type", "order_number", "section", "township", "range", "county"
     },
     "expected": {
-        "unit_size_acres", "formation", "effective_date", "applicant",
-        "field_scores", "document_confidence"
+        "unit_size_acres", "formation", "effective_date", "applicant"
     },
     "known": {
         "doc_type", "order_number", "cause_number", "section", "township", "range",
@@ -418,7 +417,7 @@ MINERAL_DEED_SCHEMA = {
     },
     "expected": {
         "execution_date", "consideration", "recording",
-        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
+        "key_takeaway", "detailed_analysis"
     },
     "known": {
         # Core deed fields
@@ -445,7 +444,7 @@ OIL_GAS_LEASE_SCHEMA = {
     },
     "expected": {
         "execution_date", "primary_term_years", "royalty_fraction",
-        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
+        "key_takeaway", "detailed_analysis"
     },
     "known": {
         # Core lease fields
@@ -472,15 +471,16 @@ DIVISION_ORDER_SCHEMA = {
     },
     "expected": {
         "operator_name", "effective_date", "county", "decimal_interest",
-        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence"
+        "key_takeaway", "detailed_analysis"
     },
     "known": {
         # Core division order fields
         "doc_type", "property_name", "property_number", "billing_code",
         "well_name", "well_number", "api_number",
-        "operator_name", "operator_address", "operator",
+        "operator_name", "operator_address", "operator_phone", "operator_email", "operator",
         "owner_name", "owner_address", "owner_number", "trustee_name",
-        "working_interest", "royalty_interest", "overriding_royalty_interest", "net_revenue_interest",
+        "owner_phone", "owner_fax", "owner_email",  # Owner-provided contact (from signature section)
+        "working_interest", "royalty_interest", "overriding_royalty_interest", "net_revenue_interest", "non_participating_royalty_interest",
         "decimal_interest", "ownership_type", "interest_type",
         "effective_date", "payment_minimum",
         "product_type", "unit_size_acres",
@@ -488,8 +488,9 @@ DIVISION_ORDER_SCHEMA = {
         "is_multi_section_unit", "unit_sections",
         "legal_description", "interest_owners", "total_decimal_interest", "extraction_notes",
         # Analysis fields
-        "key_takeaway", "detailed_analysis", "field_scores", "document_confidence",
-        "ai_observations",
+        "key_takeaway", "detailed_analysis", "ai_observations",
+        # Legacy fields (still accepted but no longer requested)
+        "field_scores", "document_confidence",
         # Internal fields
         "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
         "_validation_issues", "_review_flags", "_schema_validation",
@@ -691,6 +692,7 @@ FLAG_SEVERITY = {
     "invalid_pun_format": "critical",
     "impossible_dates": "critical",
     "missing_required_fields": "critical",  # Schema: missing required fields
+    "contact_attribution_error": "critical",  # Owner contact in "contact us" section
 
     # Major - likely needs review
     "poor_ocr_quality": "major",
@@ -698,6 +700,7 @@ FLAG_SEVERITY = {
     "many_missing_fields": "major",
     "very_old_document": "major",  # pre-1980
     "schema_drift": "major",  # Schema: unexpected/invented fields
+    "possible_contact_attribution_error": "major",  # Personal email in contact section
 
     # Minor - worth noting but not alarming alone
     "api_needed_correction": "minor",
@@ -988,6 +991,54 @@ def compute_review_flags(extracted_data: dict, ocr_quality: float, is_handwritte
                 "issues": date_issues,
                 "message": f"Suspicious date patterns: {', '.join(date_issues)}"
             }
+
+    # === Contact Attribution Check (Division Orders) ===
+    # Detect if owner contact info appears in "contact us" context in analysis
+    if doc_type == "division_order":
+        owner_phone = extracted_data.get("owner_phone")
+        owner_email = extracted_data.get("owner_email")
+        analysis = (extracted_data.get("detailed_analysis") or
+                   extracted_data.get("ai_observations") or "")
+        analysis_lower = analysis.lower()
+
+        # Check if owner contact info appears in contact instructions
+        contact_context = "contact" in analysis_lower or "call" in analysis_lower or "question" in analysis_lower
+
+        if owner_phone and contact_context:
+            # Normalize phone for comparison (remove non-digits)
+            phone_digits = ''.join(c for c in str(owner_phone) if c.isdigit())
+            if len(phone_digits) >= 7 and phone_digits in ''.join(c for c in analysis if c.isdigit()):
+                flags.append("contact_attribution_error")
+                flag_details["contact_attribution_error"] = {
+                    "severity": "critical",
+                    "field": "owner_phone",
+                    "value": owner_phone,
+                    "message": f"Owner phone '{owner_phone}' appears in contact instructions - telling owner to contact themselves"
+                }
+
+        if owner_email and contact_context and owner_email.lower() in analysis_lower:
+            flags.append("contact_attribution_error")
+            flag_details["contact_attribution_error"] = {
+                "severity": "critical",
+                "field": "owner_email",
+                "value": owner_email,
+                "message": f"Owner email '{owner_email}' appears in contact instructions - telling owner to contact themselves"
+            }
+
+        # Also check for personal email domains in contact context (even if not captured as owner_email)
+        personal_domains = ["@cox.net", "@gmail.com", "@yahoo.com", "@hotmail.com",
+                           "@aol.com", "@outlook.com", "@att.net", "@sbcglobal.net"]
+        if contact_context:
+            for domain in personal_domains:
+                if domain in analysis_lower:
+                    if "contact_attribution_error" not in flags:
+                        flags.append("possible_contact_attribution_error")
+                        flag_details["possible_contact_attribution_error"] = {
+                            "severity": "major",
+                            "domain": domain,
+                            "message": f"Personal email domain {domain} found in contact instructions - likely owner email, not operator"
+                        }
+                    break
 
     # === Schema Validation ===
     schema_validation = extracted_data.get("_schema_validation")
@@ -2114,38 +2165,12 @@ Document Types:
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
-3. For names, always check for middle initials/names
-
-CONFIDENCE CALIBRATION - CRITICAL FOR HANDWRITTEN/POOR QUALITY DOCUMENTS:
-Use these confidence ranges HONESTLY based on document legibility:
-
-HIGH CONFIDENCE (0.85-1.0): ONLY use when:
-- Text is clearly printed/typed and easily readable
-- Value is unambiguous with no possible alternative interpretations
-- You can see the exact characters without any doubt
-
-MEDIUM CONFIDENCE (0.5-0.84): Use when:
-- Text is readable but has minor issues (slight blur, faded)
-- Most characters are clear but 1-2 are slightly ambiguous
-- Context helps but doesn't guarantee the interpretation
-
-LOW CONFIDENCE (0.2-0.49): Use when:
-- Text is partially illegible (handwritten, faded, blurry)
-- Multiple characters are ambiguous
-- You're making an educated guess based on context
-
-VERY LOW / NULL (0.0-0.19 or null): Use when:
-- Text is mostly illegible or unreadable
-- Handwriting is unclear and you cannot confidently determine the value
-- You would be GUESSING rather than reading
-- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+2. For names, always check for middle initials/names
 
 HANDWRITTEN DOCUMENT RULES:
-- Handwritten text requires LOWER confidence than printed text for the same readability
-- If you cannot clearly read handwritten characters, use null with confidence 0.0
+- If you cannot clearly read handwritten characters, use null
 - NEVER hallucinate plausible-sounding values for illegible handwritten text
-- It is BETTER to return null than to guess incorrectly with high confidence
+- It is BETTER to return null than to guess incorrectly
 
 API NUMBER VALIDATION:
 - Oklahoma API numbers start with "35" (state code)
@@ -2588,22 +2613,7 @@ Common Royalty Fractions: 1/8=0.125, 3/16=0.1875, 1/5=0.20, 1/4=0.25, 1/6=0.1666
 
   "key_takeaway": "REQUIRED - One sentence: 3-year paid-up lease from [Lessor] to [Lessee] covering [acres] acres in [quarters] of Section [S]-[T]-[R], [County] County, with [royalty] royalty and [key provisions or 'standard form with no protective clauses'].",
 
-  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) parties, date, legal description; (2) primary term and consideration; (3) royalty and economic terms; (4) protective clauses PRESENT and ABSENT - explicitly note if Pugh, depth, no-deductions clauses are missing; (5) current status if primary term has expired.",
-
-  "field_scores": {{
-    "lessor_name": 0.95,
-    "lessee_name": 1.0,
-    "execution_date": 0.90,
-    "recording_info": 1.0,
-    "tracts": 0.95,
-    "primary_term": 1.0,
-    "royalty": 0.98,
-    "depth_clause": 0.90,
-    "pugh_clause": 0.90,
-    "deductions_clause": 0.85,
-    "exhibit_a": 1.0
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) parties, date, legal description; (2) primary term and consideration; (3) royalty and economic terms; (4) protective clauses PRESENT and ABSENT - explicitly note if Pugh, depth, no-deductions clauses are missing; (5) current status if primary term has expired."
 }}
 
 IMPORTANT FOR LEASES WITHOUT PROTECTIVE CLAUSES:
@@ -2680,17 +2690,7 @@ EXTRACT (flat structure for clean display):
   "lateral_direction": "south",
   "lateral_length_ft": 10891,
   "unit_size_acres": 640,
-  "spacing_order": "83283",
-
-  "field_scores": {{
-    "api_number": 1.0,
-    "well_name": 1.0,
-    "operator_name": 1.0,
-    "surface_location": 1.0,
-    "bottom_hole_location": 0.95,
-    "target_formation": 0.90
-  }},
-  "document_confidence": "high"
+  "spacing_order": "83283"
 }}
 
 EXTRACTION NOTES FOR FORM 1000:
@@ -2912,19 +2912,7 @@ COMMINGLED VERTICAL WELL EXAMPLE (multiple formations with separate spacing orde
 
   "key_takeaway": "Sandstone Energy completed the MORRISON 1-14 commingled vertical well in Kingfisher County, producing from three formations (Oswego, Red Fork, Skinner) with initial test showing 45 BOPD and 850 MCFD flowing.",
 
-  "detailed_analysis": "This completion report documents the MORRISON 1-14, a vertical well completed in three commingled formations in Section 14-17N-8W, Kingfisher County. The well was spud on March 15, 2019 and completed April 20, 2019.\n\nThe well produces from three formations under separate spacing orders:\n- Oswego (Order 687654, 640-acre unit): Perforated 7,450-7,520 and 7,580-7,640 feet, acidized\n- Red Fork (Order 712345, 160-acre unit): Perforated 8,200-8,280 feet, hydraulically fractured\n- Skinner (Order 698765, 160-acre unit): Perforated 8,750-8,820 feet\n\nInitial production test showed 45 BOPD, 850 MCFD gas, and 25 BWPD flowing through a 16/64 choke. First sales to DCP Midstream commenced May 10, 2019.\n\nMineral owners should note the different spacing orders - the Oswego production is allocated across a 640-acre unit while Red Fork and Skinner use 160-acre spacing.",
-
-  "field_scores": {{
-    "api_number": 0.95,
-    "well_name": 0.95,
-    "operator": 0.95,
-    "dates": 0.95,
-    "surface_location": 0.95,
-    "formation_zones": 0.90,
-    "initial_production": 0.95,
-    "first_sales": 0.85
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This completion report documents the MORRISON 1-14, a vertical well completed in three commingled formations in Section 14-17N-8W, Kingfisher County. The well was spud on March 15, 2019 and completed April 20, 2019.\n\nThe well produces from three formations under separate spacing orders:\n- Oswego (Order 687654, 640-acre unit): Perforated 7,450-7,520 and 7,580-7,640 feet, acidized\n- Red Fork (Order 712345, 160-acre unit): Perforated 8,200-8,280 feet, hydraulically fractured\n- Skinner (Order 698765, 160-acre unit): Perforated 8,750-8,820 feet\n\nInitial production test showed 45 BOPD, 850 MCFD gas, and 25 BWPD flowing through a 16/64 choke. First sales to DCP Midstream commenced May 10, 2019.\n\nMineral owners should note the different spacing orders - the Oswego production is allocated across a 640-acre unit while Red Fork and Skinner use 160-acre spacing."
 }}
 
 SINGLE-ZONE VERTICAL WELL EXAMPLE (one formation, simple case):
@@ -3026,19 +3014,7 @@ SINGLE-ZONE VERTICAL WELL EXAMPLE (one formation, simple case):
 
   "key_takeaway": "ABC Energy completed the SMITH 1-22 vertical Hunton well in Grady County with initial production of 125 BOPD and 150 MCFD on pump.",
 
-  "detailed_analysis": "This completion report documents the SMITH 1-22, a vertical well targeting the Hunton formation in Section 22-9N-4W, Grady County. The well was drilled to 8,650 feet total depth and perforated in the Hunton at 8,450-8,520 feet.\n\nThe well was acidized and initial production test showed 125 BOPD (42 API gravity), 150 MCFD gas, and 45 BWPD on pump. First oil sales to Plains Marketing commenced July 15, 2020.\n\nThis is a single-zone vertical well operating under spacing order 654321 (160-acre unit). The OTC PUN (051-19876-0-0000) links this well to Oklahoma Tax Commission production records.",
-
-  "field_scores": {{
-    "api_number": 0.95,
-    "well_name": 0.95,
-    "operator": 0.95,
-    "dates": 0.95,
-    "surface_location": 0.95,
-    "formation_zones": 0.95,
-    "initial_production": 0.95,
-    "first_sales": 0.85
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This completion report documents the SMITH 1-22, a vertical well targeting the Hunton formation in Section 22-9N-4W, Grady County. The well was drilled to 8,650 feet total depth and perforated in the Hunton at 8,450-8,520 feet.\n\nThe well was acidized and initial production test showed 125 BOPD (42 API gravity), 150 MCFD gas, and 45 BWPD on pump. First oil sales to Plains Marketing commenced July 15, 2020.\n\nThis is a single-zone vertical well operating under spacing order 654321 (160-acre unit). The OTC PUN (051-19876-0-0000) links this well to Oklahoma Tax Commission production records."
 }}
 
 HORIZONTAL MULTIUNIT WELL EXAMPLE (lateral crossing sections):
@@ -3201,22 +3177,7 @@ HORIZONTAL MULTIUNIT WELL EXAMPLE (lateral crossing sections):
 
   "key_takeaway": "Derby Exploration completed the NEWLEY 15-22-1XH horizontal Mississippian well in Dewey County with initial production of 187 BOPD, 3,490 MCFD gas, and 1,359 BWPD, with the lateral extending from Section 22 (54.5%) to Section 15 (45.5%).",
 
-  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud February 1, 2019 and completed November 27, 2019.\n\nThe surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W. Total measured depth is 20,783 feet with a true vertical depth of 10,180 feet and lateral length of approximately 10,106 feet.\n\nTwo perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated length of roughly 9,234 feet. The well was stimulated with 45 frac stages using approximately 12.5 million pounds of proppant.\n\nInitial production test on December 27, 2019 showed 186.9 BOPD (52.2 API gravity), 3,490 MCFD gas, and 1,359 BWPD, flowing naturally with a GOR of 18,672.\n\nProduction is allocated 54.5% to Section 22 (PUN 043-22659-7-00000) and 45.5% to Section 15 (PUN 043-22659-7-00001). Mineral owners in both sections should expect to see this well on their division orders.",
-
-  "field_scores": {{
-    "api_number": 0.95,
-    "well_name": 0.95,
-    "operator": 0.95,
-    "dates": 0.95,
-    "surface_location": 0.95,
-    "bottom_hole_location": 0.90,
-    "lateral_details": 0.90,
-    "formation_zones": 0.95,
-    "initial_production": 0.95,
-    "first_sales": 0.85,
-    "allocation_factors": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This completion report documents the NEWLEY 15-22-1XH, a horizontal well targeting the Mississippian formation in Dewey County. The well was spud February 1, 2019 and completed November 27, 2019.\n\nThe surface location is in Section 22-18N-14W, with the lateral extending north into Section 15-18N-14W. Total measured depth is 20,783 feet with a true vertical depth of 10,180 feet and lateral length of approximately 10,106 feet.\n\nTwo perforation intervals were completed: 10,797-15,414 feet and 15,451-20,068 feet, for a total perforated length of roughly 9,234 feet. The well was stimulated with 45 frac stages using approximately 12.5 million pounds of proppant.\n\nInitial production test on December 27, 2019 showed 186.9 BOPD (52.2 API gravity), 3,490 MCFD gas, and 1,359 BWPD, flowing naturally with a GOR of 18,672.\n\nProduction is allocated 54.5% to Section 22 (PUN 043-22659-7-00000) and 45.5% to Section 15 (PUN 043-22659-7-00001). Mineral owners in both sections should expect to see this well on their division orders."
 }}
 
 For WELL TRANSFERS (Form 1073 / 1073MW):
@@ -3311,15 +3272,7 @@ MULTI-WELL TRANSFER EXAMPLE (Form 1073MW - 13 wells):
 
   "key_takeaway": "Tessera Energy transferred 13 gas wells to WestStar Oil & Gas across Dewey, Blaine, and Major counties, effective January 7, 2022.",
 
-  "detailed_analysis": "This transfer moves operatorship of 13 gas wells from Tessera Energy, LLC to WestStar Oil & Gas, Inc. All wells are classified as active (AC) gas wells. The transfer was approved by the Oklahoma Corporation Commission on January 7, 2022.\n\nMineral owners with interests in any of these wells should expect to receive new division orders from WestStar Oil & Gas. Future royalty payments will come from the new operator, and any questions about production or payments should be directed to WestStar at 405-341-2338 or mkrenger@wsog.org.",
-
-  "field_scores": {{
-    "transfer_info": 0.95,
-    "former_operator": 0.95,
-    "new_operator": 0.95,
-    "wells": 0.95
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This transfer moves operatorship of 13 gas wells from Tessera Energy, LLC to WestStar Oil & Gas, Inc. All wells are classified as active (AC) gas wells. The transfer was approved by the Oklahoma Corporation Commission on January 7, 2022.\n\nMineral owners with interests in any of these wells should expect to receive new division orders from WestStar Oil & Gas. Future royalty payments will come from the new operator, and any questions about production or payments should be directed to WestStar at 405-341-2338 or mkrenger@wsog.org."
 }}
 
 MIXED WELL TYPES EXAMPLE (Form 1073MW - 17 wells, oil + gas, multiple statuses):
@@ -3414,15 +3367,7 @@ MIXED WELL TYPES EXAMPLE (Form 1073MW - 17 wells, oil + gas, multiple statuses):
 
   "key_takeaway": "Jolen Operating Company transferred 17 wells (8 oil, 9 gas) to Kirkpatrick Oil Company across six counties, effective November 7, 2018.",
 
-  "detailed_analysis": "This transfer moves operatorship of 17 wells from Jolen Operating Company to Kirkpatrick Oil Company, Inc. The portfolio includes 8 oil wells and 9 gas wells spread across six Oklahoma counties: Adair, Dewey, Ellis, Harper, Major, and Woodward.\n\nThe largest concentration is the Cheval field in Major County with 8 oil wells. Three wells are temporarily abandoned. Mineral owners should expect new division orders from Kirkpatrick Oil Company. Contact Mike McGinnis at 405-840-2946 or mmcginnis@kirkpatrickoil.com.",
-
-  "field_scores": {{
-    "transfer_info": 0.95,
-    "former_operator": 0.95,
-    "new_operator": 0.95,
-    "wells": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This transfer moves operatorship of 17 wells from Jolen Operating Company to Kirkpatrick Oil Company, Inc. The portfolio includes 8 oil wells and 9 gas wells spread across six Oklahoma counties: Adair, Dewey, Ellis, Harper, Major, and Woodward.\n\nThe largest concentration is the Cheval field in Major County with 8 oil wells. Three wells are temporarily abandoned. Mineral owners should expect new division orders from Kirkpatrick Oil Company. Contact Mike McGinnis at 405-840-2946 or mmcginnis@kirkpatrickoil.com."
 }}
 
 SINGLE WELL TRANSFER EXAMPLE (Form 1073):
@@ -3464,15 +3409,7 @@ SINGLE WELL TRANSFER EXAMPLE (Form 1073):
 
   "key_takeaway": "Smith Energy transferred the Miller 1-15 oil well to Jones Petroleum in Section 15-18N-12W, effective June 20, 2023.",
 
-  "detailed_analysis": "This single well transfer moves the Miller 1-15 from Smith Energy to Jones Petroleum. Mineral owners in Section 15-18N-12W should expect new division orders from Jones Petroleum.",
-
-  "field_scores": {{
-    "transfer_info": 0.95,
-    "former_operator": 0.90,
-    "new_operator": 0.95,
-    "wells": 1.0
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This single well transfer moves the Miller 1-15 from Smith Energy to Jones Petroleum. Mineral owners in Section 15-18N-12W should expect new division orders from Jones Petroleum."
 }}
 
 For DIVISION ORDERS:
@@ -3506,13 +3443,19 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
   "owner_address": "123 Main St, Oklahoma City, OK 73101",
   "owner_number": "PRI38 (if shown - operator's internal owner/interest ID like PR16, PRI38, etc.)",
 
+  // OWNER-PROVIDED CONTACT (from signature section - filled in BY the owner, NOT the operator's contact info)
+  "owner_phone": "405-235-4100 (from 'Owner Daytime Phone' field - often handwritten by owner)",
+  "owner_fax": "405-843-3292 (from 'Owner FAX Number' field)",
+  "owner_email": "owner@personal.com (from 'Owner Email Address' field)",
+
   "working_interest": 0.00000000,
   "royalty_interest": 0.00390625,
   "overriding_royalty_interest": 0.00000000,
   "net_revenue_interest": 0.00000000,
+  "non_participating_royalty_interest": 0.00000000,
   "decimal_interest": 0.00390625,
-  "ownership_type": "royalty (or 'working' if working_interest > 0, or 'orri' if overriding royalty)",
-  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, NRI, etc.)",
+  "ownership_type": "royalty (or 'working' if working_interest > 0, or 'orri' if overriding royalty, or 'npri' if non-participating)",
+  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, NRI, NPRI, Non-Participating Royalty, etc.)",
 
   "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
   "payment_minimum": 100.00,
@@ -3531,25 +3474,7 @@ If a unit spans multiple sections (e.g., "Section 25...Section 36..."), each sec
   "unit_sections": [
     {"section": "16", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.6546},
     {"section": "15", "township": "12N", "range": "7W", "acres": 640.0, "allocation_factor": 0.3454}
-  ],
-
-  "field_scores": {
-    "operator_name": 1.0,
-    "operator_address": 0.95,
-    "property_name": 1.0,
-    "owner_name": 1.0,
-    "working_interest": 1.0,
-    "royalty_interest": 1.0,
-    "overriding_royalty_interest": 1.0,
-    "net_revenue_interest": 1.0,
-    "effective_date": 0.95,
-    "county": 1.0,
-    "section": 0.95,
-    "township": 0.95,
-    "range": 0.95,
-    "unit_sections": 0.90
-  },
-  "document_confidence": "high"
+  ]
 }
 
 For TITLE OPINIONS:
@@ -3565,19 +3490,7 @@ For TITLE OPINIONS:
     "county": "Grady"
   },
   "ownership_summary": "John Smith owns 50% mineral interest...",
-  "title_requirements": ["Probate of Jane Doe Estate", "Release of mortgage"],
-  "field_scores": {
-    "examining_attorney": 0.95,
-    "client_name": 0.90,
-    "effective_date": 1.0,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "ownership_summary": 0.85,
-    "title_requirements": 0.80
-  },
-  "document_confidence": "high"
+  "title_requirements": ["Probate of Jane Doe Estate", "Release of mortgage"]
 }
 
 For CHECK STUBS / ROYALTY STATEMENTS:
@@ -3592,20 +3505,7 @@ For CHECK STUBS / ROYALTY STATEMENTS:
   "gross_revenue": "$2,500.00",
   "net_revenue": "$2,125.00",
   "decimal_interest": 0.00390625,
-  "api_number": "35-051-12345",
-  "field_scores": {
-    "owner_name": 1.0,
-    "operator_name": 1.0,
-    "well_name": 0.95,
-    "check_date": 1.0,
-    "production_month": 1.0,
-    "production_year": 1.0,
-    "gross_revenue": 1.0,
-    "net_revenue": 1.0,
-    "decimal_interest": 0.95,
-    "api_number": 0.90
-  },
-  "document_confidence": "high"
+  "api_number": "35-051-12345"
 }
 
 For OCC ORDERS (Spacing, Increased Density, Location Exception - NOT Pooling):
@@ -3622,20 +3522,7 @@ For OCC ORDERS (Spacing, Increased Density, Location Exception - NOT Pooling):
     "county": "Grady"
   },
   "unit_size": "640 acres",
-  "effective_date": "2023-04-01",
-  "field_scores": {
-    "cause_number": 1.0,
-    "order_type": 0.95,
-    "order_date": 1.0,
-    "applicant": 0.95,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "unit_size": 0.95,
-    "effective_date": 0.90
-  },
-  "document_confidence": "high"
+  "effective_date": "2023-04-01"
 }
 
 For POOLING ORDERS (Force pooling orders requiring mineral owner response):
@@ -3816,20 +3703,7 @@ DETAILED ANALYSIS GUIDANCE - Cover these topics:
     ],
     "respondents_with_unknown_addresses": 5,
     "respondents_dismissed": 2
-  }},
-
-  "field_scores": {{
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "operator": 1.0,
-    "applicant": 0.95,
-    "attorney_information": 0.85,
-    "legal_description": 1.0,
-    "election_options": 0.90,
-    "deadlines": 0.95,
-    "additional_parties": 0.80
-  }},
-  "document_confidence": "high"
+  }}
 }}
 
 For INCREASED DENSITY ORDERS (Authorization for additional wells in existing unit):
@@ -4009,24 +3883,7 @@ OMIT IF EMPTY (do NOT include null, None, N/A, or empty values):
 
   "key_takeaway": "Continental Resources authorized to drill one additional multiunit horizontal well (KO Kipp 4-34-3-10XHW) targeting the Mississippian in Section 10-14N-14W, Custer County.",
 
-  "detailed_analysis": "This increased density order grants Continental Resources permission to drill an additional horizontal well in an existing 640-acre spacing unit in Section 10. The well, named KO Kipp 4-34-3-10XHW, will target the Mississippian formation.\n\nThe Commission found that significant recoverable reserves remain in the unit - approximately 94,000 barrels of oil and 94 billion cubic feet of gas - that would not be efficiently drained by existing wells alone.\n\nThis order is informational only and does not require mineral owner action. If you own minerals in this section, you may see increased royalty payments once the well is drilled and begins production. The authorization expires May 3, 2024 if drilling operations have not commenced.",
-
-  "field_scores": {{
-    "order_info": 0.95,
-    "officials": 0.90,
-    "operator": 0.95,
-    "applicant": 0.95,
-    "legal_description": 1.0,
-    "unit_info": 0.90,
-    "well_authorization": 0.95,
-    "target_formations": 0.90,
-    "existing_wells": 0.85,
-    "recoverable_reserves": 0.80,
-    "allocation_factors": 0.85,
-    "expiration": 0.90,
-    "related_orders": 0.85
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This increased density order grants Continental Resources permission to drill an additional horizontal well in an existing 640-acre spacing unit in Section 10. The well, named KO Kipp 4-34-3-10XHW, will target the Mississippian formation.\n\nThe Commission found that significant recoverable reserves remain in the unit - approximately 94,000 barrels of oil and 94 billion cubic feet of gas - that would not be efficiently drained by existing wells alone.\n\nThis order is informational only and does not require mineral owner action. If you own minerals in this section, you may see increased royalty payments once the well is drilled and begins production. The authorization expires May 3, 2024 if drilling operations have not commenced."
 }}
 
 For CHANGE OF OPERATOR ORDERS (Transfer of operatorship to new company):
@@ -4148,20 +4005,7 @@ EXAMPLE - Simple Change of Operator:
 
   "key_takeaway": "Change of operator from Samson Resources to Pride Energy for the Basal Atoka, Middle Atoka, and Upper Atoka formations in Section 22-7N-19E, Haskell County. Modifies two 1979 pooling orders and adds subsequent well provisions.",
 
-  "detailed_analysis": "This Change of Operator Order transfers operatorship from Samson Resources Company to Pride Energy Company for the Basal Atoka (Spiro), Middle Atoka, and Upper Atoka formations in Section 22-7N-19E, Haskell County, Oklahoma.\n\nThe order modifies two existing pooling orders from 1979 (Order No. 155561 and 158121) to delete Samson as operator and name Pride Energy. Pride Energy has assumed operations of the Sappington 1-22 well, a vertical Atoka and Cromwell producer.\n\nPride Energy has been in business since October 1994, currently operates 57 wells, and maintains a $50,000 financial statement on file with the Commission.\n\nSignificantly, this order also adds subsequent well development provisions to the original pooling orders. Mineral owners who elected to participate in the initial well will receive written notice of any proposed subsequent wells and have 20 days to elect participation and 25 days to pay their proportionate share. Owners who fail to timely elect or pay will be deemed to have relinquished their rights to the proposed well.",
-
-  "field_scores": {
-    "order_info": "high",
-    "officials": "high",
-    "applicant": "high",
-    "former_operator": "high",
-    "new_operator": "high",
-    "target_formations": "high",
-    "affected_wells": "high",
-    "modified_orders": "high",
-    "subsequent_wells": "high"
-  },
-  "document_confidence": "high"
+  "detailed_analysis": "This Change of Operator Order transfers operatorship from Samson Resources Company to Pride Energy Company for the Basal Atoka (Spiro), Middle Atoka, and Upper Atoka formations in Section 22-7N-19E, Haskell County, Oklahoma.\n\nThe order modifies two existing pooling orders from 1979 (Order No. 155561 and 158121) to delete Samson as operator and name Pride Energy. Pride Energy has assumed operations of the Sappington 1-22 well, a vertical Atoka and Cromwell producer.\n\nPride Energy has been in business since October 1994, currently operates 57 wells, and maintains a $50,000 financial statement on file with the Commission.\n\nSignificantly, this order also adds subsequent well development provisions to the original pooling orders. Mineral owners who elected to participate in the initial well will receive written notice of any proposed subsequent wells and have 20 days to elect participation and 25 days to pay their proportionate share. Owners who fail to timely elect or pay will be deemed to have relinquished their rights to the proposed well."
 }
 
 EXAMPLE - Simple Change of Operator (no modified orders, no subsequent wells):
@@ -4228,16 +4072,7 @@ EXAMPLE - Simple Change of Operator (no modified orders, no subsequent wells):
 
   "key_takeaway": "Change of operator from Panther Creek Resources to Unbridled Resources for 2 wells in Section 10-20N-24W, Ellis County.",
 
-  "detailed_analysis": "This Change of Operator Order transfers operatorship from Panther Creek Resources, Inc. to Unbridled Resources, LLC for 2 wells in Section 10-20N-24W, Ellis County, Oklahoma. The Davis Unit 10-1 and 10-2 wells are both producing vertical wells. Unbridled Resources currently operates 34 wells and maintains a $75,000 financial statement on file with the Commission. This is a straightforward operator transfer with no modifications to existing orders.",
-
-  "field_scores": {
-    "order_info": "high",
-    "officials": "medium",
-    "former_operator": "high",
-    "new_operator": "high",
-    "affected_wells": "high"
-  },
-  "document_confidence": "high"
+  "detailed_analysis": "This Change of Operator Order transfers operatorship from Panther Creek Resources, Inc. to Unbridled Resources, LLC for 2 wells in Section 10-20N-24W, Ellis County, Oklahoma. The Davis Unit 10-1 and 10-2 wells are both producing vertical wells. Unbridled Resources currently operates 34 wells and maintains a $75,000 financial statement on file with the Commission. This is a straightforward operator transfer with no modifications to existing orders."
 }
 
 For MULTI-UNIT HORIZONTAL WELL ORDERS (Authorization for horizontal wells spanning multiple units):
@@ -4336,27 +4171,7 @@ If a unit spans multiple sections (e.g., "Section 5...Section 8..."), each secti
   "protestant_attorney": "Benjamin J. Brown",
   "hearing_location": "Eastern Regional Office, 201 W. 5th St., Suite 540, Tulsa, OK 74103",
   "expiration_period": "one year",
-  "expiration_date": "2024-07-31",
-  "field_scores": {
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "order_date": 1.0,
-    "effective_date": 0.90,
-    "hearing_date": 0.95,
-    "applicant": 1.0,
-    "operator": 1.0,
-    "proposed_well_name": 0.85,
-    "legal_county": 1.0,
-    "unit_sections": 0.90,
-    "total_unit_acres": 0.95,
-    "formations": 0.85,
-    "well_type": 0.90,
-    "allocation_method": 0.90,
-    "completion_interval": 0.85,
-    "referenced_spacing_orders": 0.90,
-    "expiration_date": 0.90
-  },
-  "document_confidence": "high"
+  "expiration_date": "2024-07-31"
 }
 
 For DRILLING AND SPACING ORDERS (Vertical/Standard Spacing - establishes well units and setbacks):
@@ -4770,21 +4585,7 @@ HORIZONTAL WELL EXAMPLE:
 
   "key_takeaway": "Horizontal location exception for the Lohmeyer 1708 2H-26X well allowing the lateral to pass within 147 feet of the north section line (vs 165 ft standard). The lateral runs from Section 26 through Section 35, with surface location in Section 23. Engineering testimony confirmed no adverse impact on offset wells.",
 
-  "detailed_analysis": "This post-drill location exception addresses an inadvertent surveying error that placed the lateral toe 18 feet closer to the north line than the 165-foot standard setback. Ovintiv operates Mississippian wells in the north offset Section 23 and presented engineering testimony that fractures run east-west with minimal damage around the toe. No pressure communication with adjacent Lohmeyer 1708 2H-26X and 3H-26X wells was observed. The Commission found no offset would be adversely affected. This is part of a larger development package including increased density (CD2024-003803), multiunit horizontal (CD2024-003807), and 600-foot rule exception (CD2024-003811) causes.",
-
-  "field_scores": {
-    "order_info": "high",
-    "officials": "high",
-    "well_info": "high",
-    "target_formations": "high",
-    "location": "high",
-    "exception_details": "high",
-    "lateral_path": "high",
-    "related_orders": "medium",
-    "companion_causes": "medium"
-  },
-
-  "document_confidence": "high"
+  "detailed_analysis": "This post-drill location exception addresses an inadvertent surveying error that placed the lateral toe 18 feet closer to the north line than the 165-foot standard setback. Ovintiv operates Mississippian wells in the north offset Section 23 and presented engineering testimony that fractures run east-west with minimal damage around the toe. No pressure communication with adjacent Lohmeyer 1708 2H-26X and 3H-26X wells was observed. The Commission found no offset would be adversely affected. This is part of a larger development package including increased density (CD2024-003803), multiunit horizontal (CD2024-003807), and 600-foot rule exception (CD2024-003811) causes."
 }
 
 VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
@@ -4894,20 +4695,7 @@ VERTICAL WELL LOCATION EXCEPTION EXAMPLE (Re-entry):
 
   "key_takeaway": "Re-entry location exception for the Sanders 1-17 well, allowing completion 330 feet from the south line (vs 660 ft standard) to access the Hoxbar formation. This well previously produced from the Hunton formation which is now depleted.",
 
-  "detailed_analysis": "This is a re-entry location exception allowing Triad Energy to recomplete an existing Hunton well into the Hoxbar formation. The well is located 330 feet from the south line and 990 feet from the east line of Section 17. Because this is an existing wellbore, the operator cannot move the location to meet standard setbacks. The exception expires in one year if drilling/recompletion has not commenced. The Commission found no offset would be adversely affected by this exception.",
-
-  "field_scores": {
-    "order_info": "high",
-    "officials": "high",
-    "well_info": "high",
-    "target_formations": "high",
-    "location": "high",
-    "exception_details": "high",
-    "vertical_well_location": "high",
-    "related_orders": "medium"
-  },
-
-  "document_confidence": "high"
+  "detailed_analysis": "This is a re-entry location exception allowing Triad Energy to recomplete an existing Hunton well into the Hoxbar formation. The well is located 330 feet from the south line and 990 feet from the east line of Section 17. Because this is an existing wellbore, the operator cannot move the location to meet standard setbacks. The exception expires in one year if drilling/recompletion has not commenced. The Commission found no offset would be adversely affected by this exception."
 }
 
 For MULTI-UNIT HORIZONTAL ORDER (authorization to drill horizontal wells across multiple spacing units):
@@ -5126,17 +4914,7 @@ PROPERTY LINKING:
 
   "key_takeaway": "Canyon Creek Energy authorized to operate the LDC 24/25-4H multiunit horizontal well targeting Woodford across Sections 13, 24, and 25 of T2N-R9E, Coal County, with production allocated 9.63% to Section 13, 74.22% to Section 24, and 16.15% to Section 25.",
 
-  "detailed_analysis": "This order authorizes Canyon Creek Energy - Arkoma, LLC to operate a multiunit horizontal well (LDC 24/25-4H) that spans three 640-acre spacing units in Coal County. The well targets the Woodford formation and was drilled with a lateral extending from Section 13 through Section 24 and into Section 25.\n\nProduction from this well will be allocated between the three sections based on the length of the completion interval within each unit. Section 24 receives the largest share (74.22%) with 5,288 feet of lateral, Section 25 receives 16.15% with 1,151 feet, and Section 13 receives 9.63% with only 686 feet. The shortened laterals in Sections 13 and 25 are due to geological faulting that limited the wellbore path.\n\nMineral owners in any of these three sections should ensure their division orders reflect the correct allocation percentage for their section. The well was drilled pursuant to spacing orders 537528 (Section 13) and 662358 (Sections 24-25).\n\nThe order supersedes Interim Order No. 720189 and is associated with companion Location Exception and Increased Well Density causes.",
-
-  "field_scores": {
-    "order_info": "high",
-    "officials": "high",
-    "well_authorization": "high",
-    "target_formations": "high",
-    "well_location": "high",
-    "allocation_factors": "high"
-  },
-  "document_confidence": "high"
+  "detailed_analysis": "This order authorizes Canyon Creek Energy - Arkoma, LLC to operate a multiunit horizontal well (LDC 24/25-4H) that spans three 640-acre spacing units in Coal County. The well targets the Woodford formation and was drilled with a lateral extending from Section 13 through Section 24 and into Section 25.\n\nProduction from this well will be allocated between the three sections based on the length of the completion interval within each unit. Section 24 receives the largest share (74.22%) with 5,288 feet of lateral, Section 25 receives 16.15% with 1,151 feet, and Section 13 receives 9.63% with only 686 feet. The shortened laterals in Sections 13 and 25 are due to geological faulting that limited the wellbore path.\n\nMineral owners in any of these three sections should ensure their division orders reflect the correct allocation percentage for their section. The well was drilled pursuant to spacing orders 537528 (Section 13) and 662358 (Sections 24-25).\n\nThe order supersedes Interim Order No. 720189 and is associated with companion Location Exception and Increased Well Density causes."
 }
 
 SECOND MULTI-UNIT HORIZONTAL ORDER EXAMPLE (Two sections, simpler case):
@@ -5274,14 +5052,7 @@ SECOND MULTI-UNIT HORIZONTAL ORDER EXAMPLE (Two sections, simpler case):
 
   "key_takeaway": "Continental Resources authorized to operate the Hansen 5-8H multiunit horizontal well targeting Mississippian across Sections 5 and 8 of T15N-R11W, Blaine County, with production allocated 45.92% to Section 5 and 54.08% to Section 8.",
 
-  "detailed_analysis": "This order authorizes Continental Resources to operate a multiunit horizontal well spanning two 640-acre spacing units in Blaine County. The Hansen 5-8H targets the Mississippian formation with a lateral extending from Section 5 into Section 8.\n\nProduction will be allocated between the sections based on completion interval length. Section 8 receives the larger share (54.08%) with 5,300 feet of lateral, while Section 5 receives 45.92% with 4,500 feet. Total lateral length is 9,800 feet.\n\nMineral owners in either section should verify their division orders reflect the correct allocation percentage. The existing spacing orders (680000 for Section 5, 680001 for Section 8) established the 640-acre units for the Mississippian formation.",
-
-  "field_scores": {
-    "order_info": "high",
-    "well_authorization": "high",
-    "allocation_factors": "high"
-  },
-  "document_confidence": "high"
+  "detailed_analysis": "This order authorizes Continental Resources to operate a multiunit horizontal well spanning two 640-acre spacing units in Blaine County. The Hansen 5-8H targets the Mississippian formation with a lateral extending from Section 5 into Section 8.\n\nProduction will be allocated between the sections based on completion interval length. Section 8 receives the larger share (54.08%) with 5,300 feet of lateral, while Section 5 receives 45.92% with 4,500 feet. Total lateral length is 9,800 feet.\n\nMineral owners in either section should verify their division orders reflect the correct allocation percentage. The existing spacing orders (680000 for Section 5, 680001 for Section 8) established the 640-acre units for the Mississippian formation."
 }
 
 For UNITIZATION ORDER (OCC order creating an enhanced recovery or secondary recovery unit):
@@ -5479,17 +5250,7 @@ PROPERTY LINKING:
 
   "key_takeaway": "Mack Energy Co. created the Carter Knox Subthrusted Morrow Operating Unit covering 5,026 acres across 40 tracts in Grady and Stephens Counties. If your minerals are in one of the included sections, your share of unit production is determined by your tract's participation percentage shown in Exhibit B. This unit supersedes all prior Morrow spacing orders in the area.",
 
-  "ai_observations": "This is an enhanced recovery unit for the Subthrusted Morrow formation, authorizing nitrogen injection to increase oil and gas recovery. The unit spans two counties and 40 tracts with a sophisticated 5-factor allocation formula.\n\nFor mineral owners: Your participation percentage determines your share of ALL unit production, regardless of which specific well produces it. If you own minerals in Section 8-T3N-R5W, note that tracts 7A and 7B split the same acreage between different Morrow intervals - you may have interests in both.\n\nThe 90-day lease extension provision means if unit operations cease, your lease gets a 90-day extension to allow the lessee to resume operations before the lease terminates.\n\nAll prior Morrow spacing orders in the unit area (over 30 orders listed) are superseded by this unit.",
-
-  "field_scores": {
-    "order_info": "high",
-    "unit_info": "high",
-    "location": "high",
-    "target_formations": "high",
-    "tracts": "high",
-    "allocation_formula": "high"
-  },
-  "document_confidence": "high"
+  "ai_observations": "This is an enhanced recovery unit for the Subthrusted Morrow formation, authorizing nitrogen injection to increase oil and gas recovery. The unit spans two counties and 40 tracts with a sophisticated 5-factor allocation formula.\n\nFor mineral owners: Your participation percentage determines your share of ALL unit production, regardless of which specific well produces it. If you own minerals in Section 8-T3N-R5W, note that tracts 7A and 7B split the same acreage between different Morrow intervals - you may have interests in both.\n\nThe 90-day lease extension provision means if unit operations cease, your lease gets a 90-day extension to allow the lessee to resume operations before the lease terminates.\n\nAll prior Morrow spacing orders in the unit area (over 30 orders listed) are superseded by this unit."
 }
 
 For AFFIDAVIT OF HEIRSHIP (sworn statement identifying heirs of deceased mineral owner):
@@ -5661,24 +5422,7 @@ Also extract any references to prior instruments that show how the decedent acqu
       ],
       "probate_case": "PB-2023-1234"
     }
-  },
-  "field_scores": {
-    "decedent_name": 1.0,
-    "decedent_death_date": 0.95,
-    "affiant_name": 1.0,
-    "affiant_relationship": 0.95,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "has_will": 0.90,
-    "spouses": 0.85,
-    "children_living": 0.85,
-    "heirs_summary": 0.80,
-    "recording_info": 0.95,
-    "chain_of_title": 0.85
-  },
-  "document_confidence": "high"
+  }
 }
 
 For DEATH CERTIFICATE (establishes date of death, domicile, and surviving family for chain of title):
@@ -5830,16 +5574,7 @@ STATE CERTIFICATE EXAMPLE:
 
   "key_takeaway": "Dr. Joel Scott Price died June 14, 1975 in Oklahoma City, survived by wife Virginia K. Price; domiciled in Oklahoma County, Oklahoma.",
 
-  "detailed_analysis": "Dr. Joel Scott Price died on June 14, 1975 at Mercy Hospital in Oklahoma City, Oklahoma at age 73. He was a surgeon-physician who resided at 6801 Country Club Drive, Oklahoma City, Oklahoma County, Oklahoma.\n\nAt the time of death, he was married to Virginia K. Price (née Reynolds). His parents were Joel Scott Price Sr. and Rilla Reynolds. The informant on the certificate was Mrs. Joel Scott Price at the residence address.\n\nFor mineral title purposes, Dr. Price was domiciled in Oklahoma, meaning Oklahoma intestacy and probate law governs the distribution of his mineral interests. As a married decedent, his surviving spouse Virginia K. Price would have inheritance rights under Oklahoma law. An affidavit of heirship or probate records would be needed to establish the complete chain of title from Dr. Price to his heirs.",
-
-  "field_scores": {{
-    "decedent_identity": "high",
-    "death_date": "high",
-    "residence": "high",
-    "marital_status": "high",
-    "family_members": "medium"
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "Dr. Joel Scott Price died on June 14, 1975 at Mercy Hospital in Oklahoma City, Oklahoma at age 73. He was a surgeon-physician who resided at 6801 Country Club Drive, Oklahoma City, Oklahoma County, Oklahoma.\n\nAt the time of death, he was married to Virginia K. Price (née Reynolds). His parents were Joel Scott Price Sr. and Rilla Reynolds. The informant on the certificate was Mrs. Joel Scott Price at the residence address.\n\nFor mineral title purposes, Dr. Price was domiciled in Oklahoma, meaning Oklahoma intestacy and probate law governs the distribution of his mineral interests. As a married decedent, his surviving spouse Virginia K. Price would have inheritance rights under Oklahoma law. An affidavit of heirship or probate records would be needed to establish the complete chain of title from Dr. Price to his heirs."
 }}
 
 CONSULAR REPORT EXAMPLE (death abroad):
@@ -6011,16 +5746,7 @@ CONSULAR REPORT EXAMPLE (death abroad):
 
   "key_takeaway": "Robert Allison Price died August 15, 1979 in Sirdal, Norway at age 42, survived by wife Gudbjorg D. Price and children Siri and Eirik; domiciled in Oklahoma City, Oklahoma.",
 
-  "detailed_analysis": "Robert Allison Price, an attorney, died on August 15, 1979 in Sirdal, Norway at age 42 due to accidental drowning. Although he died abroad, his permanent residence was 1104 First National Center, Oklahoma City, Oklahoma County, Oklahoma.\n\nThe consular report identifies his surviving family: wife Gudbjorg D. Price, daughter Siri M. Price, and son Eirik S. Price (listed as traveling companions). The report also lists other known relatives: mother Virginia K. Price, brother William Scott Price, and sister Montine Price Tyree.\n\nFor mineral title purposes, Robert was domiciled in Oklahoma despite dying in Norway. Oklahoma intestacy and probate law governs his estate. His surviving spouse and two children are the primary heirs. The presence of identified children simplifies the heirship determination compared to cases where children must be discovered through other means.\n\nTo complete the chain of title, an affidavit of heirship or Oklahoma probate records should be obtained showing the actual distribution of his mineral interests to his heirs.",
-
-  "field_scores": {{
-    "decedent_identity": "high",
-    "death_date": "high",
-    "residence": "high",
-    "marital_status": "high",
-    "family_members": "high"
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "Robert Allison Price, an attorney, died on August 15, 1979 in Sirdal, Norway at age 42 due to accidental drowning. Although he died abroad, his permanent residence was 1104 First National Center, Oklahoma City, Oklahoma County, Oklahoma.\n\nThe consular report identifies his surviving family: wife Gudbjorg D. Price, daughter Siri M. Price, and son Eirik S. Price (listed as traveling companions). The report also lists other known relatives: mother Virginia K. Price, brother William Scott Price, and sister Montine Price Tyree.\n\nFor mineral title purposes, Robert was domiciled in Oklahoma despite dying in Norway. Oklahoma intestacy and probate law governs his estate. His surviving spouse and two children are the primary heirs. The presence of identified children simplifies the heirship determination compared to cases where children must be discovered through other means.\n\nTo complete the chain of title, an affidavit of heirship or Oklahoma probate records should be obtained showing the actual distribution of his mineral interests to his heirs."
 }}
 
 For TRUST FUNDING documents (assignment of property from individual to their trust):
@@ -6154,20 +5880,7 @@ PROPERTY LINKING:
 
   "key_takeaway": "REQUIRED - One sentence: [Assignor name] transferred [blanket/specific] property interests to the [Trust Name], including mineral interests. This is an estate planning document that moves ownership from individual to trust.",
 
-  "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) parties - note when same person appears in multiple capacities; (2) scope of assignment - blanket vs specific, what property types are included; (3) mineral interest implications - does this affect mineral ownership, which states/counties; (4) chain of title significance - this document is the link between individual ownership and trust ownership for any properties the assignor held at execution date (and after, if includes_future_acquired is true).",
-
-  "field_scores": {{
-    "assignor_name": 1.0,
-    "assignee_name": 1.0,
-    "trust_name": 1.0,
-    "trust_date": 0.95,
-    "execution_date": 1.0,
-    "is_blanket_assignment": 0.95,
-    "includes_mineral_interests": 0.95,
-    "specific_properties": 0.80,
-    "acceptance": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) parties - note when same person appears in multiple capacities; (2) scope of assignment - blanket vs specific, what property types are included; (3) mineral interest implications - does this affect mineral ownership, which states/counties; (4) chain of title significance - this document is the link between individual ownership and trust ownership for any properties the assignor held at execution date (and after, if includes_future_acquired is true)."
 }}
 
 PARTY FIELDS (trust funding specific):
@@ -6363,18 +6076,7 @@ SAME PARTY DIFFERENT CAPACITIES:
 
   "key_takeaway": "REQUIRED - One sentence: Price Oil and Gas Company is an Oklahoma limited partnership formed January 20, 1980 with a 50-year term, owned 75% by three General Partners (Montine Price Foerster Sprehe, Kelsey Price Walters, William S. Price) and 25% by Limited Partners, with GP interests converting to LP interests upon death.",
 
-  "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) entity structure - who are the partners and what are their percentages; (2) management - how decisions are made, LP restrictions; (3) succession - critical: what happens when partners die, especially the GP-to-LP conversion; (4) assignment restrictions - family-only new LPs, GP approval required.",
-
-  "field_scores": {{
-    "entity_info": 1.0,
-    "formation_date": 1.0,
-    "general_partners": 1.0,
-    "limited_partners": 1.0,
-    "term": 0.95,
-    "succession_provisions": 1.0,
-    "assignment_provisions": 0.95
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 3-4 paragraphs covering: (1) entity structure - who are the partners and what are their percentages; (2) management - how decisions are made, LP restrictions; (3) succession - critical: what happens when partners die, especially the GP-to-LP conversion; (4) assignment restrictions - family-only new LPs, GP approval required."
 }}
 
 PARTNER INTEREST EXTRACTION:
@@ -6555,19 +6257,7 @@ EXTRACTION PRIORITY:
 
   "key_takeaway": "REQUIRED - Assignment from Price family members to Robert A. Price of 20-acre leasehold interest in Section 27-15N-12W, Blaine County.",
 
-  "detailed_analysis": "REQUIRED - 2-4 paragraphs covering: (1) who assigned what to whom; (2) underlying lease details; (3) consideration type; (4) chain of title significance.",
-
-  "field_scores": {{
-    "assignors": 1.0,
-    "assignees": 1.0,
-    "interest_assigned": 0.95,
-    "underlying_lease": 0.90,
-    "legal_description": 1.0,
-    "consideration": 0.95,
-    "warranties": 0.90,
-    "execution_info": 1.0
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 2-4 paragraphs covering: (1) who assigned what to whom; (2) underlying lease details; (3) consideration type; (4) chain of title significance."
 }}
 
 RETAINED INTERESTS - CRITICAL:
@@ -6811,18 +6501,7 @@ EXTRACTION PRIORITY:
 
   "key_takeaway": "REQUIRED - Quit claim deed from Virginia K. Price (now Giles) to herself as Trustee of the Virginia K. Price Trust for trust funding purposes.",
 
-  "detailed_analysis": "REQUIRED - 2-4 paragraphs covering: (1) who conveyed to whom and in what capacities; (2) what interest was conveyed; (3) why a quit claim was used (trust funding, correction, etc.); (4) chain of title significance; (5) if correction deed, explain what error is being fixed.",
-
-  "field_scores": {{
-    "grantors": 1.0,
-    "grantees": 1.0,
-    "deed_classification": 1.0,
-    "interest_conveyed": 0.95,
-    "legal_description": 1.0,
-    "consideration": 0.95,
-    "execution_info": 1.0
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 2-4 paragraphs covering: (1) who conveyed to whom and in what capacities; (2) what interest was conveyed; (3) why a quit claim was used (trust funding, correction, etc.); (4) chain of title significance; (5) if correction deed, explain what error is being fixed."
 }}
 
 CORRECTION DEED DETECTION:
@@ -6864,17 +6543,7 @@ For SUSPENSE NOTICES:
   "notice_date": "2023-03-15",
   "suspense_reason": "Need updated W-9 form",
   "amount_held": "$5,234.56",
-  "api_number": "35-051-12345",
-  "field_scores": {
-    "owner_name": 0.95,
-    "operator_name": 1.0,
-    "well_name": 0.95,
-    "notice_date": 1.0,
-    "suspense_reason": 1.0,
-    "amount_held": 0.95,
-    "api_number": 0.90
-  },
-  "document_confidence": "high"
+  "api_number": "35-051-12345"
 }
 
 For JOA (Joint Operating Agreement):
@@ -6890,19 +6559,7 @@ For JOA (Joint Operating Agreement):
     "range": "7W",
     "county": "Grady"
   },
-  "operator_interest": 0.75,
-  "field_scores": {
-    "operator_name": 1.0,
-    "non_operators": 0.90,
-    "unit_name": 0.95,
-    "effective_date": 1.0,
-    "legal_section": 0.95,
-    "legal_township": 0.95,
-    "legal_range": 0.95,
-    "legal_county": 1.0,
-    "operator_interest": 0.85
-  },
-  "document_confidence": "high"
+  "operator_interest": 0.75
 }
 
 For OWNERSHIP/ENTITY DOCUMENTS:
@@ -6914,17 +6571,7 @@ For OWNERSHIP/ENTITY DOCUMENTS:
   "trustee_names": ["John A. Smith", "Mary B. Smith"],
   "beneficiaries": ["Robert Smith", "Sarah Smith"],
   "state": "Oklahoma",
-  "ein": "XX-XXXXXXX",
-  "field_scores": {
-    "entity_name": 1.0,
-    "entity_type": 1.0,
-    "formation_date": 0.95,
-    "trustee_names": 0.95,
-    "beneficiaries": 0.90,
-    "state": 1.0,
-    "ein": 0.85
-  },
-  "document_confidence": "high"
+  "ein": "XX-XXXXXXX"
 }
 
 For LEGAL DOCUMENTS:
@@ -6941,20 +6588,7 @@ For LEGAL DOCUMENTS:
     "township": "12N",
     "range": "7W",
     "county": "Grady"
-  },
-  "field_scores": {
-    "case_number": 1.0,
-    "plaintiff": 0.95,
-    "defendant": 0.95,
-    "court": 1.0,
-    "filing_date": 1.0,
-    "case_type": 0.90,
-    "legal_section": 0.95,
-    "legal_township": 0.95,
-    "legal_range": 0.95,
-    "legal_county": 1.0
-  },
-  "document_confidence": "high"
+  }
 }
 
 For CORRESPONDENCE (letters, notices, cover letters):
@@ -7001,17 +6635,7 @@ Keep extraction simple - let the analysis do the heavy lifting. Only extract str
 
   // Analysis - this does the heavy lifting
   "key_takeaway": "Letter from Cimarex Energy requesting execution of division order for Steffen 1-6H well in Canadian County.",
-  "detailed_analysis": "This cover letter from Cimarex Energy accompanies a division order for the Steffen 1-6H well. The letter requests the recipient sign and return the enclosed division order to begin receiving royalty payments. Contact Sharon Taylor at the Division Order department with any questions.",
-
-  "field_scores": {
-    "from": 1.0,
-    "sender": 0.95,
-    "to": 1.0,
-    "date": 1.0,
-    "subject": 0.95,
-    "well_name": 0.90
-  },
-  "document_confidence": "high"
+  "detailed_analysis": "This cover letter from Cimarex Energy accompanies a division order for the Steffen 1-6H well. The letter requests the recipient sign and return the enclosed division order to begin receiving royalty payments. Contact Sharon Taylor at the Division Order department with any questions."
 }
 
 CORRESPONDENCE EXTRACTION NOTES:
@@ -7035,19 +6659,7 @@ For TAX RECORDS:
     "range": "7W",
     "county": "Grady"
   },
-  "parcel_number": "12345-67890",
-  "field_scores": {
-    "owner_name": 0.95,
-    "tax_year": 1.0,
-    "assessed_value": 1.0,
-    "tax_amount": 1.0,
-    "legal_section": 0.95,
-    "legal_township": 0.95,
-    "legal_range": 0.95,
-    "legal_county": 1.0,
-    "parcel_number": 1.0
-  },
-  "document_confidence": "high"
+  "parcel_number": "12345-67890"
 }
 
 For MAPS:
@@ -7063,19 +6675,7 @@ For MAPS:
     "county": "Grady"
   },
   "prepared_by": "Smith Surveying Inc.",
-  "scale": "1 inch = 500 feet",
-  "field_scores": {
-    "map_type": 0.95,
-    "title": 0.90,
-    "date": 1.0,
-    "legal_section": 1.0,
-    "legal_township": 1.0,
-    "legal_range": 1.0,
-    "legal_county": 1.0,
-    "prepared_by": 0.85,
-    "scale": 0.90
-  },
-  "document_confidence": "high"
+  "scale": "1 inch = 500 feet"
 }
 
 Confidence levels based on overall document quality:
@@ -7255,17 +6855,7 @@ EXTRACT:
   "target_depth_bottom": 9100,
   "lateral_length_ft": 10891,
   "unit_size_acres": 640,
-  "spacing_order": "83283",
-
-  "field_scores": {{
-    "api_number": 1.0,
-    "well_name": 1.0,
-    "operator_name": 1.0,
-    "surface_location": 1.0,
-    "bottom_hole_location": 0.95,
-    "target_formation": 0.90
-  }},
-  "document_confidence": "high"
+  "spacing_order": "83283"
 }}
 
 EXTRACTION NOTES FOR FORM 1000:
@@ -7410,18 +7000,7 @@ VERTICAL WELL EXAMPLE:
   }},
 
   "status": "Accepted",
-  "occ_file_number": "1145678",
-
-  "field_scores": {{
-    "api_number": 0.95,
-    "well_name": 0.95,
-    "operator": 0.95,
-    "dates": 0.95,
-    "surface_location": 0.95,
-    "formation_zones": 0.95,
-    "initial_production": 0.95
-  }},
-  "document_confidence": "high"
+  "occ_file_number": "1145678"
 }}
 
 HORIZONTAL MULTIUNIT WELL EXAMPLE:
@@ -7523,14 +7102,7 @@ HORIZONTAL MULTIUNIT WELL EXAMPLE:
     "gas_mcf_per_day": 8500,
     "water_bbl_per_day": 1200,
     "flow_method": "FLOWING"
-  }},
-
-  "field_scores": {{
-    "api_number": 0.95,
-    "well_name": 0.95,
-    "allocation_factors": 0.90
-  }},
-  "document_confidence": "high"
+  }}
 }}
 
 =============================================================================
@@ -7612,15 +7184,7 @@ EXAMPLE:
       "gas_count": 13,
       "dry_count": 0
     }}
-  }},
-
-  "field_scores": {{
-    "transfer_info": 0.95,
-    "former_operator": 0.95,
-    "new_operator": 0.95,
-    "wells": 0.95
-  }},
-  "document_confidence": "high"
+  }}
 }}
 """
 
@@ -7673,32 +7237,18 @@ IMPORTANT: Structure your response as follows:
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
 
-CONFIDENCE CALIBRATION:
-
-HIGH CONFIDENCE (0.85-1.0): ONLY use when:
-- Text is clearly printed/typed and easily readable
-- Value is unambiguous with no possible alternative interpretations
-
-MEDIUM CONFIDENCE (0.5-0.84): Use when:
-- Text is readable but has minor issues (slight blur, faded)
-- Most characters are clear but 1-2 are slightly ambiguous
-
-LOW CONFIDENCE (0.2-0.49): Use when:
-- Text is partially illegible (handwritten, faded, blurry)
-- Multiple characters are ambiguous
-
-VERY LOW / NULL (0.0-0.19 or null): Use when:
-- Text is mostly illegible or unreadable
-- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+HANDWRITTEN DOCUMENT RULES:
+- If you cannot clearly read handwritten characters, use null
+- NEVER hallucinate plausible-sounding values for illegible handwritten text
+- It is BETTER to return null than to guess incorrectly
 
 BOOLEAN FLAGS FOR ABSENT CLAUSES - CRITICAL:
 For protective clause fields (depth_clause, pugh_clause, deductions_clause):
 - If you search the ENTIRE document and find NO such clause: set has_X_clause: FALSE with HIGH CONFIDENCE
 - Do NOT leave these as null - mineral owners need to know when protection is ABSENT
 - Example: If no Pugh clause exists anywhere in the document, set:
-  "pugh_clause": {{ "has_pugh_clause": false }}  (with field_score 0.95)
+  "pugh_clause": {{ "has_pugh_clause": false }}
 
 LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
 Oklahoma uses the Section-Township-Range (TRS) system:
@@ -7991,22 +7541,7 @@ EXAMPLE EXTRACTION:
 
   "key_takeaway": "REQUIRED - One sentence: 3-year paid-up lease from [Lessor] to [Lessee] covering [acres] acres in [quarters] of Section [S]-[T]-[R], [County] County, with [royalty] royalty and [key provisions or 'standard form with no protective clauses'].",
 
-  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) parties, date, legal description; (2) primary term and consideration; (3) royalty and economic terms; (4) protective clauses PRESENT and ABSENT - explicitly note if Pugh, depth, no-deductions clauses are missing; (5) current status if primary term has expired.",
-
-  "field_scores": {{
-    "lessor_name": 0.95,
-    "lessee_name": 1.0,
-    "execution_date": 0.90,
-    "recording_info": 1.0,
-    "tracts": 0.95,
-    "primary_term": 1.0,
-    "royalty": 0.98,
-    "depth_clause": 0.90,
-    "pugh_clause": 0.90,
-    "deductions_clause": 0.85,
-    "exhibit_a": 1.0
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) parties, date, legal description; (2) primary term and consideration; (3) royalty and economic terms; (4) protective clauses PRESENT and ABSENT - explicitly note if Pugh, depth, no-deductions clauses are missing; (5) current status if primary term has expired."
 }}
 
 =============================================================================
@@ -8298,20 +7833,7 @@ POOLING ORDER EXAMPLE:
 
   "key_takeaway": "REQUIRED - One sentence: Force pooling order filed by [Operator] for the [Well Name] well in [quarters] of Section [S]-[T]-[R], [County] County. Election deadline is [date] (or PASSED if in the past). Default is Option [X] ($[bonus]/NMA, [NRI] NRI delivered).",
 
-  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) what this order means for the mineral owner in plain English; (2) comparison of election options with pros/cons; (3) key deadlines and consequences of missing them; (4) subsequent wells provisions if applicable; (5) how to respond and who to contact.",
-
-  "field_scores": {{
-    "case_number": 1.0,
-    "order_number": 0.95,
-    "operator": 1.0,
-    "applicant": 0.95,
-    "attorney_information": 0.85,
-    "legal_description": 1.0,
-    "election_options": 0.90,
-    "deadlines": 0.95,
-    "additional_parties": 0.80
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) what this order means for the mineral owner in plain English; (2) comparison of election options with pros/cons; (3) key deadlines and consequences of missing them; (4) subsequent wells provisions if applicable; (5) how to respond and who to contact."
 }}
 
 =============================================================================
@@ -8385,26 +7907,8 @@ IMPORTANT: Structure your response as follows:
    - Keep each section concise (2-3 sentences each)
 
 For EACH field you extract:
-1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
-
-CONFIDENCE CALIBRATION:
-
-HIGH CONFIDENCE (0.85-1.0): ONLY use when:
-- Text is clearly printed/typed and easily readable
-- Value is unambiguous with no possible alternative interpretations
-
-MEDIUM CONFIDENCE (0.5-0.84): Use when:
-- Text is readable but has minor issues (slight blur, faded)
-- Most characters are clear but 1-2 are slightly ambiguous
-
-LOW CONFIDENCE (0.2-0.49): Use when:
-- Text is partially illegible (handwritten, faded, blurry)
-- Multiple characters are ambiguous
-
-VERY LOW / NULL (0.0-0.19 or null): Use when:
-- Text is mostly illegible or unreadable
-- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+- Provide the value (or null if not found)
+- Use null instead of fabricating a value you cannot actually read
 
 DECIMAL INTEREST - CRITICAL:
 - Extract the decimal interest EXACTLY as shown (e.g., 0.00390625)
@@ -8448,6 +7952,8 @@ DIVISION ORDER EXAMPLE:
 
   "operator_name": "XYZ Oil Company (the payor - company sending this Division Order)",
   "operator_address": "PO Box 779, Oklahoma City, OK 73101 (where to mail signed DO back)",
+  "operator_phone": "405-555-1234 (from letterhead or 'Questions? Call...' section - NOT from owner signature area)",
+  "operator_email": "ownerrelations@xyzoil.com (from letterhead or contact section - NOT from owner signature area)",
 
   "property_name": "Smith 1-16H (labeled as 'Property Name' - this is the well/unit name, NOT TRS)",
   "property_number": "112295 (operator's internal property ID)",
@@ -8458,13 +7964,19 @@ DIVISION ORDER EXAMPLE:
   "owner_address": "123 Main St, Oklahoma City, OK 73101",
   "owner_number": "PRI38 (if shown - operator's internal owner/interest ID like PR16, PRI38, etc.)",
 
+  // OWNER-PROVIDED CONTACT (from signature section - filled in BY the owner, NOT the operator's contact info)
+  "owner_phone": "405-235-4100 (from 'Owner Daytime Phone' field - often handwritten by owner)",
+  "owner_fax": "405-843-3292 (from 'Owner FAX Number' field)",
+  "owner_email": "owner@personal.com (from 'Owner Email Address' field)",
+
   "working_interest": 0.00000000,
   "royalty_interest": 0.00390625,
   "overriding_royalty_interest": 0.00000000,
   "net_revenue_interest": 0.00000000,
+  "non_participating_royalty_interest": 0.00000000,
   "decimal_interest": 0.00390625,
-  "ownership_type": "royalty (or 'working' if working_interest > 0, or 'orri' if overriding royalty)",
-  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, NRI, etc.)",
+  "ownership_type": "royalty (or 'working' if working_interest > 0, or 'orri' if overriding royalty, or 'npri' if non-participating)",
+  "interest_type": "Royalty (extract the exact 'Type of Interest' field value: Working Interest, Royalty, Override, ORRI, NRI, NPRI, Non-Participating Royalty, etc.)",
 
   "effective_date": "2023-04-01 (or 'First Production' - capture exactly as stated)",
   "payment_minimum": 100.00,
@@ -8487,27 +7999,7 @@ DIVISION ORDER EXAMPLE:
 
   "key_takeaway": "REQUIRED - One sentence: Division order from [Operator] for [Property Name] well. Owner [Name] has [decimal] interest ([interest type]). [Note if multi-section unit].",
 
-  "detailed_analysis": "What This Division Order Means:\nThis division order from XYZ Oil Company certifies your ownership interest in the Smith 1-16H well. You received this because drilling has begun or production is starting, and the operator needs to confirm ownership before distributing royalty payments.\n\nYour Ownership Interest:\nYour decimal interest of 0.00390625 (approximately 1/256) represents your share of production revenue. To verify your payments, multiply your decimal interest by the gross production value shown on your check stub.\n\nAction Required & Contact Information:\nSign and return this division order to XYZ Oil Company at PO Box 779, Oklahoma City, OK 73101. For questions about your interest or payment calculations, contact their owner relations department at the number shown on the form.",
-
-  "field_scores": {{
-    "operator_name": 1.0,
-    "operator_address": 0.95,
-    "property_name": 1.0,
-    "owner_name": 1.0,
-    "working_interest": 1.0,
-    "royalty_interest": 1.0,
-    "overriding_royalty_interest": 1.0,
-    "net_revenue_interest": 1.0,
-    "effective_date": 0.95,
-    "product_type": 1.0,
-    "unit_size_acres": 0.95,
-    "county": 1.0,
-    "section": 0.95,
-    "township": 0.95,
-    "range": 0.95,
-    "unit_sections": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "What This Division Order Means:\nThis division order from XYZ Oil Company certifies your ownership interest in the Smith 1-16H well. You received this because drilling has begun or production is starting, and the operator needs to confirm ownership before distributing royalty payments.\n\nYour Ownership Interest:\nYour decimal interest of 0.00390625 (approximately 1/256) represents your share of production revenue. To verify your payments, multiply your decimal interest by the gross production value shown on your check stub.\n\nAction Required & Contact Information:\nSign and return this division order to XYZ Oil Company at PO Box 779, Oklahoma City, OK 73101. For questions about your interest or payment calculations, contact XYZ Oil Company at 405-555-1234 or ownerrelations@xyzoil.com."
 }}
 
 =============================================================================
@@ -8519,10 +8011,12 @@ INTEREST FIELDS - Extract to the CORRECT field based on interest type:
 - royalty_interest: For royalty owners (mineral owners receiving royalties)
 - overriding_royalty_interest: For ORRI holders (carved out of working interest)
 - net_revenue_interest: For NRI (net revenue interest after all burdens)
+- non_participating_royalty_interest: For NPRI holders (royalty interest without right to lease or bonus)
 - decimal_interest: The total/combined interest shown (for reference)
 - This is the MOST IMPORTANT field - owners use it to verify their payment is correct
 - Extract to full precision (8 decimal places if shown)
 - Check the "Type of Interest" field on the document to determine which field to use
+- NPRI may appear as "Non-Participating Royalty", "NPRI", "NPR", or "Non-Part Royalty"
 
 MULTI-SECTION UNITS:
 - Many horizontal wells span multiple sections
@@ -8540,6 +8034,24 @@ TOP-LEVEL TRS FIELDS:
 Always include top-level section, township, range, county fields.
 These are REQUIRED for property linking - the dashboard uses these to match documents to properties.
 Use the FIRST section mentioned if multiple sections exist.
+
+CONTACT ATTRIBUTION - CRITICAL:
+Division orders have TWO types of contact information that must NOT be confused:
+
+1. OPERATOR CONTACT (from letterhead/header):
+   - operator_phone: From letterhead, "Questions? Call..." or "Contact Us" section
+   - operator_email: From letterhead or official contact section
+   - USE THIS in the "Action Required & Contact Information" analysis section
+
+2. OWNER CONTACT (from signature section):
+   - owner_phone: From "Owner(s) Daytime Phone#" field (often handwritten BY the owner)
+   - owner_email: From "Owner(s) Email Address" field (filled in BY the owner)
+   - NEVER use these in contact instructions - these are the OWNER's details, not operator contact
+
+In the detailed_analysis "Action Required & Contact Information" section:
+- ALWAYS use operator_phone/operator_email for "contact for questions"
+- If no operator contact found, say "contact [operator_name] by mail at the address above"
+- NEVER tell the owner to contact themselves using owner_phone/owner_email
 """
 
 # ============================================================================
@@ -8578,13 +8090,11 @@ IMPORTANT: Structure your response as follows:
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
 
-CONFIDENCE CALIBRATION:
-HIGH CONFIDENCE (0.85-1.0): Text is clearly printed and unambiguous
-MEDIUM CONFIDENCE (0.5-0.84): Minor blur or fading but readable
-LOW CONFIDENCE (0.2-0.49): Partially illegible, some characters ambiguous
-VERY LOW / NULL (0.0-0.19): Mostly illegible - use null instead of guessing
+HANDWRITTEN DOCUMENT RULES:
+- If you cannot clearly read handwritten characters, use null
+- NEVER hallucinate plausible-sounding values for illegible handwritten text
+- It is BETTER to return null than to guess incorrectly
 
 LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
 Oklahoma uses the Section-Township-Range (TRS) system:
@@ -8713,14 +8223,7 @@ For DRILLING AND SPACING ORDER (vertical wells):
   "pooling_authorized": true,
 
   "key_takeaway": "...",
-  "detailed_analysis": "...",
-
-  "field_scores": {{
-    "order_info": 0.95,
-    "units": 0.90,
-    "formations": 0.85
-  }},
-  "document_confidence": "high|medium|low"
+  "detailed_analysis": "..."
 }}
 
 For HORIZONTAL DRILLING AND SPACING ORDER:
@@ -8792,10 +8295,7 @@ For HORIZONTAL DRILLING AND SPACING ORDER:
   ],
 
   "key_takeaway": "...",
-  "detailed_analysis": "...",
-
-  "field_scores": {{ ... }},
-  "document_confidence": "high"
+  "detailed_analysis": "..."
 }}
 
 For MULTI-SECTION HORIZONTAL (1280-acre, 1920-acre units):
@@ -8947,16 +8447,7 @@ For INCREASED DENSITY ORDER:
 
   "key_takeaway": "Continental Resources authorized to drill one additional multiunit horizontal well targeting the Mississippian in Section 10-14N-14W, Custer County. Authorization expires May 3, 2024.",
 
-  "detailed_analysis": "This increased density order grants permission to drill an additional horizontal well in an existing 640-acre spacing unit. The Commission found significant recoverable reserves remain that would not be efficiently drained by existing wells alone. This order is informational - no mineral owner action required. Mineral owners in this section may see increased royalty payments once the well is drilled.",
-
-  "field_scores": {{
-    "order_info": 0.95,
-    "operator": 0.95,
-    "well_authorization": 0.90,
-    "target_formations": 0.85,
-    "expiration": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This increased density order grants permission to drill an additional horizontal well in an existing 640-acre spacing unit. The Commission found significant recoverable reserves remain that would not be efficiently drained by existing wells alone. This order is informational - no mineral owner action required. Mineral owners in this section may see increased royalty payments once the well is drilled."
 }}
 
 =============================================================================
@@ -9030,13 +8521,11 @@ IMPORTANT: Structure your response as follows:
 
 For EACH field you extract:
 1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
 
-CONFIDENCE CALIBRATION:
-HIGH CONFIDENCE (0.85-1.0): Text is clearly printed and unambiguous
-MEDIUM CONFIDENCE (0.5-0.84): Minor blur or fading but readable
-LOW CONFIDENCE (0.2-0.49): Partially illegible, some characters ambiguous
-VERY LOW / NULL (0.0-0.19): Mostly illegible - use null instead of guessing
+HANDWRITTEN DOCUMENT RULES:
+- If you cannot clearly read handwritten characters, use null
+- NEVER hallucinate plausible-sounding values for illegible handwritten text
+- It is BETTER to return null than to guess incorrectly
 
 LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
 Oklahoma uses the Section-Township-Range (TRS) system:
@@ -9251,16 +8740,7 @@ For HORIZONTAL LOCATION EXCEPTION ORDER:
 
   "key_takeaway": "Location exception granted for Lohmeyer 1708 2H-26X horizontal well, allowing lateral path within 147 feet of section lines (vs 165 ft standard). Well will produce from Sections 26 and 35, T17N-R8W, Kingfisher County.",
 
-  "detailed_analysis": "This location exception allows Ovintiv to drill a horizontal Mississippian well with the lateral passing through multiple sections. The reduced setback (147 ft vs 165 ft standard) was granted because the wellbore trajectory requires proximity to the south line of Section 26 where it crosses into Section 35. No adverse impact to offset wells was found. Mineral owners in Sections 26 and 35 will share in production proportionally.",
-
-  "field_scores": {{
-    "order_info": 0.95,
-    "well_info": 0.95,
-    "exception_details": 0.90,
-    "lateral_path": 0.85,
-    "target_formations": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This location exception allows Ovintiv to drill a horizontal Mississippian well with the lateral passing through multiple sections. The reduced setback (147 ft vs 165 ft standard) was granted because the wellbore trajectory requires proximity to the south line of Section 26 where it crosses into Section 35. No adverse impact to offset wells was found. Mineral owners in Sections 26 and 35 will share in production proportionally."
 }}
 
 For VERTICAL LOCATION EXCEPTION ORDER:
@@ -9371,16 +8851,7 @@ For VERTICAL LOCATION EXCEPTION ORDER:
 
   "key_takeaway": "Re-entry location exception for the Sanders 1-17 well, allowing completion 330 feet from the south line (vs 660 ft standard) to access the Hoxbar formation. Authorization expires June 30, 2016.",
 
-  "detailed_analysis": "This location exception allows Triad Energy to re-enter an existing wellbore that previously produced from the depleted Hunton formation. The reduced setback permits targeting the Hoxbar formation which underlies the existing well. The 80-acre spacing unit and one-year expiration are typical for vertical well re-entries. No offset wells were found to be adversely affected.",
-
-  "field_scores": {{
-    "order_info": 0.95,
-    "well_info": 0.95,
-    "exception_details": 0.90,
-    "vertical_well_location": 0.95,
-    "target_formations": 0.90
-  }},
-  "document_confidence": "high"
+  "detailed_analysis": "This location exception allows Triad Energy to re-enter an existing wellbore that previously produced from the depleted Hunton formation. The reduced setback permits targeting the Hoxbar formation which underlies the existing well. The 80-acre spacing unit and one-year expiration are typical for vertical well re-entries. No offset wells were found to be adversely affected."
 }}
 
 =============================================================================
@@ -9607,16 +9078,7 @@ MINERAL DEED EXAMPLE:
     "state": "OK"
   }},
 
-  "consideration": "No Monetary Consideration",
-
-  "field_scores": {{
-    "grantors": 0.95,
-    "grantees": 0.95,
-    "tracts": 0.95,
-    "execution_date": 0.95,
-    "recording": 0.90
-  }},
-  "document_confidence": "high"
+  "consideration": "No Monetary Consideration"
 }}
 
 PARTY FIELDS (include only when document states them):
@@ -9693,14 +9155,7 @@ DOCUMENT IDENTIFICATION:
   ],
 
   "execution_date": "1990-02-01",
-  "consideration": "$10.00 and other good and valuable consideration",
-
-  "field_scores": {{
-    "grantors": 0.95,
-    "grantees": 0.95,
-    "tracts": 0.85
-  }},
-  "document_confidence": "high"
+  "consideration": "$10.00 and other good and valuable consideration"
 }}
 
 =============================================================================
@@ -9753,15 +9208,7 @@ DOCUMENT IDENTIFICATION:
   ],
 
   "execution_date": "2023-06-15",
-  "consideration": "$50,000.00",
-
-  "field_scores": {{
-    "assignor": 0.95,
-    "assignee": 0.95,
-    "underlying_lease": 0.90,
-    "tracts": 0.95
-  }},
-  "document_confidence": "high"
+  "consideration": "$50,000.00"
 }}
 """
 
@@ -9810,10 +9257,7 @@ Return a JSON object with ONLY these fields:
   "county": "Canadian",
 
   "key_takeaway": "One sentence summary of who sent what to whom and why.",
-  "detailed_analysis": "2-3 paragraphs explaining the letter's full context, purpose, any deadlines, action items, title issues, etc. This is where ALL the detail goes.",
-
-  "field_scores": {{ "from": 0.95, "to": 0.95, "date": 0.90 }},
-  "document_confidence": "high"
+  "detailed_analysis": "2-3 paragraphs explaining the letter's full context, purpose, any deadlines, action items, title issues, etc. This is where ALL the detail goes."
 }}
 
 RULES:
@@ -10344,18 +9788,32 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
 
         # Try to find JSON in the response - multiple strategies
         # Strategy 1: Look for ```json blocks
+        # IMPORTANT: Use rfind to find the LAST ``` before KEY TAKEAWAY, since content
+        # inside JSON strings (like detailed_analysis) may contain ```
         if "```json" in json_str:
             json_start_pos = json_str.find("```json")
             start = json_start_pos + 7
-            end = json_str.find("```", start)
-            logger.info(f"Strategy 1: found ```json at {json_start_pos}, searching for closing ``` from pos {start}, found at {end}")
+
+            # Find the end: look for ``` that's followed by KEY TAKEAWAY or end of content
+            # First, find where KEY TAKEAWAY starts (if present)
+            key_takeaway_pos = json_str.find("KEY TAKEAWAY:")
+            search_region = json_str[start:key_takeaway_pos] if key_takeaway_pos != -1 else json_str[start:]
+
+            # Find the LAST ``` in the search region (before KEY TAKEAWAY)
+            last_fence_in_region = search_region.rfind("```")
+            if last_fence_in_region != -1:
+                end = start + last_fence_in_region
+            else:
+                end = -1
+
+            logger.info(f"Strategy 1: found ```json at {json_start_pos}, KEY TAKEAWAY at {key_takeaway_pos}, closing ``` at {end}")
             if end != -1:
                 extracted = json_str[start:end].strip()
                 logger.info(f"Strategy 1 extracted length: {len(extracted)}, first 100 chars: {repr(extracted[:100])}")
                 logger.info(f"Strategy 1 extracted last 100 chars: {repr(extracted[-100:]) if len(extracted) > 100 else repr(extracted)}")
                 json_str = extracted
             else:
-                logger.warning(f"Strategy 1: No closing ``` found after position {start}")
+                logger.warning(f"Strategy 1: No closing ``` found")
         # Strategy 2: Look for ``` blocks (without json specifier)
         elif json_str.startswith("```"):
             lines = json_str.split("\n")
@@ -10369,21 +9827,33 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
             json_str = "\n".join(lines).strip()
             logger.debug(f"Extracted JSON from ``` block, length: {len(json_str)}")
 
-        # Strategy 3: Find the JSON object by matching braces
+        # Strategy 3: Find the JSON object by matching braces (string-aware)
         if "{" in json_str and "}" in json_str:
             # Find the first {
             start = json_str.find("{")
-            # Find matching closing } by counting braces
+            # Find matching closing } by counting braces, but skip braces inside strings
             brace_count = 0
             end = start
+            in_string = False
+            escape_next = False
             for i, char in enumerate(json_str[start:], start):
-                if char == "{":
-                    brace_count += 1
-                elif char == "}":
-                    brace_count -= 1
-                    if brace_count == 0:
-                        end = i + 1
-                        break
+                if escape_next:
+                    escape_next = False
+                    continue
+                if char == '\\' and in_string:
+                    escape_next = True
+                    continue
+                if char == '"' and not escape_next:
+                    in_string = not in_string
+                    continue
+                if not in_string:
+                    if char == "{":
+                        brace_count += 1
+                    elif char == "}":
+                        brace_count -= 1
+                        if brace_count == 0:
+                            end = i + 1
+                            break
             if end > start:
                 json_str = json_str[start:end]
                 logger.debug(f"Extracted JSON by brace matching, length: {len(json_str)}")

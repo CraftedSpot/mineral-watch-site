@@ -1024,6 +1024,8 @@ function generateDivisionOrderFields(data: any): string {
   // Division order uses flat field names (not nested objects)
   const operatorName = data.operator_name || data.operator || '';
   const operatorAddress = data.operator_address || '';
+  const operatorPhone = data.operator_phone || '';
+  const operatorEmail = data.operator_email || '';
 
   // property_name is the well/unit name in division orders
   const propertyName = data.property_name || data.well_name || data.unit_name || '';
@@ -1032,12 +1034,16 @@ function generateDivisionOrderFields(data: any): string {
   const ownerName = data.owner_name || '';
   const ownerAddress = data.owner_address || '';
   const trusteeName = data.trustee_name || '';
+  // Owner-provided contact (from signature section)
+  const ownerPhone = data.owner_phone || '';
+  const ownerEmail = data.owner_email || '';
 
   // Interest fields - extract each type separately
   const workingInterest = data.working_interest || '';
   const royaltyInterest = data.royalty_interest || '';
   const overridingRoyaltyInterest = data.overriding_royalty_interest || '';
   const netRevenueInterest = data.net_revenue_interest || '';
+  const nonParticipatingRoyaltyInterest = data.non_participating_royalty_interest || '';
   const decimalInterest = data.decimal_interest || '';
   const interestType = data.interest_type || data.ownership_type || '';
 
@@ -1058,12 +1064,14 @@ function generateDivisionOrderFields(data: any): string {
   const unitSections = data.unit_sections || [];
   const isMultiSection = data.is_multi_section_unit || unitSections.length > 1;
 
-  // Build operator party box
+  // Build operator party box (with contact info for questions)
   const operatorHtml = operatorName ? `
     <div class="party-box">
       <div class="party-label">Operator (Payor)</div>
       <div class="party-name">${escapeHtml(operatorName)}</div>
       ${operatorAddress ? `<div class="party-detail">${escapeHtml(operatorAddress)}</div>` : ''}
+      ${operatorPhone ? `<div class="party-detail">📞 ${escapeHtml(operatorPhone)}</div>` : ''}
+      ${operatorEmail ? `<div class="party-detail">✉️ ${escapeHtml(operatorEmail)}</div>` : ''}
     </div>
   ` : '';
 
@@ -1074,6 +1082,9 @@ function generateDivisionOrderFields(data: any): string {
       <div class="party-name">${escapeHtml(ownerName)}</div>
       ${trusteeName ? `<div class="party-detail">Trustee: ${escapeHtml(trusteeName)}</div>` : ''}
       ${ownerAddress ? `<div class="party-detail">${escapeHtml(ownerAddress)}</div>` : ''}
+      ${ownerPhone || ownerEmail ? `<div class="party-detail" style="margin-top: 4px; font-size: 11px; color: #64748b;">Your contact (from signature):</div>` : ''}
+      ${ownerPhone ? `<div class="party-detail">${escapeHtml(ownerPhone)}</div>` : ''}
+      ${ownerEmail ? `<div class="party-detail">${escapeHtml(ownerEmail)}</div>` : ''}
     </div>
   ` : '';
 
@@ -1098,6 +1109,11 @@ function generateDivisionOrderFields(data: any): string {
       <div class="field-item">
         <div class="field-label">Net Revenue Interest</div>
         <div class="field-value highlight">${escapeHtml(String(netRevenueInterest))}</div>
+      </div>` : '',
+    nonParticipatingRoyaltyInterest ? `
+      <div class="field-item">
+        <div class="field-label">Non-Participating Royalty</div>
+        <div class="field-value highlight">${escapeHtml(String(nonParticipatingRoyaltyInterest))}</div>
       </div>` : '',
   ].filter(Boolean).join('');
 
@@ -1486,49 +1502,86 @@ function generateIncreasedDensityFields(data: any): string {
 
 function generateCompletionReportFields(data: any): string {
   const wellInfo = data.well_info || data.well || {};
+  const wellLocation = data.well_location || {};
   const completion = data.completion || {};
   const production = data.production || data.initial_production || {};
+  const formationZones = data.formation_zones || [];
+
+  // Extract operator name - handle both object and string formats
+  const operatorName = typeof data.operator === 'object'
+    ? (data.operator?.name || '')
+    : (data.operator || wellInfo.operator || '');
+
+  // Extract well type - handle both object and string formats
+  let wellTypeDisplay = '';
+  if (typeof data.well_type === 'object') {
+    const classification = data.well_type?.classification || '';
+    const method = data.well_type?.method || '';
+    wellTypeDisplay = [classification, method].filter(Boolean).join(' - ');
+  } else {
+    wellTypeDisplay = data.well_type || '';
+  }
+
+  // Extract completion date - check multiple locations
+  const completionDate = data.completion_date || completion.date ||
+    (production.test_date ? production.test_date : '');
+
+  // Extract formation - check formation_zones array first, then fallback
+  let formationDisplay = '';
+  if (formationZones.length > 0) {
+    formationDisplay = formationZones.map((fz: any) => fz.formation_name || fz.name || '').filter(Boolean).join(', ');
+  }
+  if (!formationDisplay) {
+    formationDisplay = completion.formation || data.formation || '';
+  }
+
+  // Extract total depth - check well_location first
+  const totalDepth = wellLocation.total_depth_ft || data.total_depth || '';
+
+  // Extract initial production - handle nested structure
+  const oilProd = production.oil_bbl_per_day || production.oil || '';
+  const gasProd = production.gas_mcf_per_day || production.gas || '';
 
   return `
     <div class="field-grid">
       <div class="field-item">
         <div class="field-label">Well Name</div>
-        <div class="field-value">${escapeHtml(wellInfo.name || data.well_name) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(data.well_name || wellInfo.name) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">API Number</div>
-        <div class="field-value mono">${escapeHtml(wellInfo.api_number || data.api_number) || 'Not specified'}</div>
+        <div class="field-value mono">${escapeHtml(data.api_number || wellInfo.api_number) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Operator</div>
-        <div class="field-value">${escapeHtml(data.operator || wellInfo.operator) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(operatorName) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Completion Date</div>
-        <div class="field-value">${formatDate(completion.date || data.completion_date) || 'Not specified'}</div>
+        <div class="field-value">${formatDate(completionDate) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Formation</div>
-        <div class="field-value">${escapeHtml(completion.formation || data.formation) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(formationDisplay) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Total Depth</div>
-        <div class="field-value">${data.total_depth ? escapeHtml(data.total_depth) + ' ft' : 'Not specified'}</div>
+        <div class="field-value">${totalDepth ? escapeHtml(String(totalDepth)) + ' ft' : 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Well Type</div>
-        <div class="field-value">${escapeHtml(data.well_type) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(wellTypeDisplay) || 'Not specified'}</div>
       </div>
       ${
-        production.oil || production.gas
+        oilProd || gasProd
           ? `
       <div class="field-item">
         <div class="field-label">Initial Production (Oil)</div>
-        <div class="field-value highlight">${production.oil ? escapeHtml(production.oil) + ' BOPD' : 'N/A'}</div>
+        <div class="field-value highlight">${oilProd ? escapeHtml(String(oilProd)) + ' BOPD' : 'N/A'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Initial Production (Gas)</div>
-        <div class="field-value highlight">${production.gas ? escapeHtml(production.gas) + ' MCFD' : 'N/A'}</div>
+        <div class="field-value highlight">${gasProd ? escapeHtml(String(gasProd)) + ' MCFD' : 'N/A'}</div>
       </div>
       `
           : ''
