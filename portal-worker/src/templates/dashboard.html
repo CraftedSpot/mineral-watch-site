@@ -15766,11 +15766,12 @@
             }
 
             return `
-                <div class="completion-report-item${isCurrent ? ' is-current' : ''}">
+                <div class="completion-report-item${isCurrent ? ' is-current' : ''}${isFailed ? ' is-failed' : ''}">
                     <div class="completion-report-main">
                         <div>
                             <span class="completion-report-type ${typeClass}">${typeLabel}</span>
                             ${currentBadge}
+                            ${failedBadge}
                             <span class="completion-report-location">${escapeHtml(report.location || '')}</span>
                         </div>
                         <div class="completion-report-details">
@@ -15968,7 +15969,7 @@
                         // Transitioned to processing
                         currentState.status = 'processing';
                         updateCompletionButtonState(currentButtonEl, 'processing');
-                    } else if (doc.status === 'error') {
+                    } else if (doc.status === 'failed' || doc.status === 'error') {
                         // Processing failed
                         clearInterval(currentState.pollInterval);
                         currentState.pollInterval = null;

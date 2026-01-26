@@ -1502,7 +1502,7 @@ export default {
         if (status === 'failed') {
           // For failed documents, only update status and error
           await env.WELLS_DB.prepare(`
-            UPDATE documents 
+            UPDATE documents
             SET status = 'failed',
                 extraction_completed_at = datetime('now', '-6 hours'),
                 extraction_error = ?
@@ -1511,6 +1511,24 @@ export default {
             extraction_error || 'Unknown error',
             docId
           ).run();
+
+          // Also update well_1002a_tracking if this was a completion report
+          try {
+            await env.WELLS_DB.prepare(`
+              UPDATE well_1002a_tracking
+              SET status = 'error',
+                  error_message = ?,
+                  updated_at = CURRENT_TIMESTAMP
+              WHERE document_id = ?
+            `).bind(
+              extraction_error || 'Processing failed',
+              docId
+            ).run();
+            console.log('[Completion Tracking] Updated tracking status to error for document:', docId);
+          } catch (trackingError) {
+            // Not all documents are completion reports, so this may not match any rows
+            console.log('[Completion Tracking] No tracking record to update for document:', docId);
+          }
         } else {
           // For successful extraction, update all fields
           console.log('Attempting to update document:', docId);

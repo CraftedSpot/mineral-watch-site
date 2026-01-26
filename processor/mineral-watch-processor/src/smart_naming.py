@@ -2223,6 +2223,9 @@ def generate_display_name(extraction: dict) -> str:
         Formatted display name string
     """
     category = extraction.get('doc_type', 'other')
+    # Handle case where doc_type is wrapped in {value: ..., confidence: ...} object
+    if isinstance(category, dict):
+        category = category.get('value', 'other')
     
     # Prepare flattened data structure
     data = {
