@@ -1502,7 +1502,7 @@ function generateIncreasedDensityFields(data: any): string {
 
 function generateCompletionReportFields(data: any): string {
   const wellInfo = data.well_info || data.well || {};
-  const wellLocation = data.well_location || {};
+  const surfaceLocation = data.surface_location || {};
   const completion = data.completion || {};
   const production = data.production || data.initial_production || {};
   const formationZones = data.formation_zones || [];
@@ -1512,12 +1512,19 @@ function generateCompletionReportFields(data: any): string {
     ? (data.operator?.name || '')
     : (data.operator || wellInfo.operator || '');
 
-  // Extract well type - handle both object and string formats
+  // Extract well type - handle object format with drill_type, well_class, completion_type
   let wellTypeDisplay = '';
   if (typeof data.well_type === 'object') {
-    const classification = data.well_type?.classification || '';
-    const method = data.well_type?.method || '';
-    wellTypeDisplay = [classification, method].filter(Boolean).join(' - ');
+    // Schema uses: drill_type (VERTICAL HOLE), well_class (OIL/GAS), completion_type
+    const drillType = data.well_type?.drill_type || '';
+    const wellClass = data.well_type?.well_class || '';
+    const completionType = data.well_type?.completion_type || '';
+    // Build display: "OIL - VERTICAL HOLE" or "GAS - Commingled"
+    const parts = [wellClass, drillType].filter(Boolean);
+    wellTypeDisplay = parts.join(' - ');
+    if (completionType && completionType !== 'Single Zone') {
+      wellTypeDisplay += completionType ? ` (${completionType})` : '';
+    }
   } else {
     wellTypeDisplay = data.well_type || '';
   }
@@ -1535,8 +1542,8 @@ function generateCompletionReportFields(data: any): string {
     formationDisplay = completion.formation || data.formation || '';
   }
 
-  // Extract total depth - check well_location first
-  const totalDepth = wellLocation.total_depth_ft || data.total_depth || '';
+  // Extract total depth - check surface_location (per schema), then fallback
+  const totalDepth = surfaceLocation.total_depth_ft || data.total_depth_ft || data.total_depth || '';
 
   // Extract initial production - handle nested structure
   const oilProd = production.oil_bbl_per_day || production.oil || '';
