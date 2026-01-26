@@ -163,6 +163,20 @@ export async function handleGetProductionSummary(
     const apiNormalized = apiNumber.replace(/-/g, '');
     const api10 = apiNormalized.substring(0, 10);
 
+    // Check KV cache first (24h TTL to reduce D1 load)
+    const cacheKey = `prod:${api10}`;
+    if (env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get(cacheKey, 'json');
+        if (cached) {
+          return jsonResponse(cached);
+        }
+      } catch (cacheError) {
+        console.error('Cache read error:', cacheError);
+        // Continue to D1 on cache error
+      }
+    }
+
     // 1. Get all PUN links for this well from well_pun_links
     const linksResult = await env.WELLS_DB.prepare(`
       SELECT l.pun, l.base_pun, l.confidence, l.match_method, l.formation,
@@ -184,16 +198,28 @@ export async function handleGetProductionSummary(
       county: string | null;
     }>;
 
-    // If no links found, return hasPun: false immediately (skip slow OCC check)
+    // If no links found, cache and return hasPun: false immediately (skip slow OCC check)
     if (!links?.length) {
-      return jsonResponse({
+      const noPunResponse = {
         success: true,
         hasPun: false,
         pun: null,
         production: null,
         has1002aAvailable: null, // Skip OCC check for speed - completion reports shown separately
-        message: 'No PUN linked to this well'
-      });
+        message: 'No PUN linked to this well',
+        cachedAt: Date.now()
+      };
+      // Cache "no PUN" response too (shorter TTL: 6 hours)
+      if (env.OCC_CACHE) {
+        try {
+          await env.OCC_CACHE.put(cacheKey, JSON.stringify(noPunResponse), {
+            expirationTtl: 21600 // 6 hours
+          });
+        } catch (cacheError) {
+          console.error('Cache write error:', cacheError);
+        }
+      }
+      return jsonResponse(noPunResponse);
     }
 
     // 2. Determine link type/scenario
@@ -457,7 +483,8 @@ export async function handleGetProductionSummary(
       disclaimer = `Production reported at lease level (PUN includes ${wellCount} wells).`;
     }
 
-    return jsonResponse({
+    // Build response data
+    const responseData = {
       success: true,
       hasPun: true,
       pun: primaryPun,
@@ -504,8 +531,23 @@ export async function handleGetProductionSummary(
       sparkline,
       sparklineMonths,
       sparklineBOE: sparklineTotal,
-      disclaimer
-    });
+      disclaimer,
+      cachedAt: Date.now()
+    };
+
+    // Cache the response (24h TTL = 86400 seconds)
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(cacheKey, JSON.stringify(responseData), {
+          expirationTtl: 86400 // 24 hours
+        });
+      } catch (cacheError) {
+        console.error('Cache write error:', cacheError);
+        // Don't fail the request on cache write errors
+      }
+    }
+
+    return jsonResponse(responseData);
 
   } catch (error) {
     console.error('Error in handleGetProductionSummary:', error);

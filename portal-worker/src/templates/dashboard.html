@@ -11887,9 +11887,40 @@
                 try {
                     const data = JSON.parse(doc.extracted_data);
                     const fieldScores = data.field_scores || {};
-                    
+
+                    // Check if this is a processor error response
+                    if (data.error) {
+                        // Processor failed to parse Claude's response
+                        content += '<div class="doc-detail-grid">';
+                        content += `
+                            <div class="doc-field">
+                                <label>Status</label>
+                                <div class="doc-value" style="color: var(--error); font-weight: 600;">Processing Error</div>
+                            </div>`;
+                        content += '</div>';
+
+                        content += '<div class="detail-section" style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin: 20px 0;">';
+                        content += `<h4 style="margin: 0 0 8px 0; color: #B91C1C; font-size: 14px; font-weight: 600;">Error: ${escapeHtml(data.error)}</h4>`;
+                        content += '<p style="margin: 0 0 12px 0; color: #7F1D1D; font-size: 13px;">The document processor encountered an error parsing the AI response. Please try re-analyzing the document.</p>';
+
+                        // Show raw response preview if available (collapsed by default)
+                        if (data.raw_response) {
+                            const preview = data.raw_response.substring(0, 500) + (data.raw_response.length > 500 ? '...' : '');
+                            content += `<details style="margin-top: 12px;">
+                                <summary style="cursor: pointer; color: #B91C1C; font-size: 12px;">Show Raw Response</summary>
+                                <pre style="margin-top: 8px; padding: 12px; background: #FFF; border: 1px solid #FECACA; border-radius: 4px; font-size: 11px; overflow-x: auto; white-space: pre-wrap; word-break: break-all;">${escapeHtml(preview)}</pre>
+                            </details>`;
+                        }
+                        content += '</div>';
+
+                        // User Notes - always show
+                        content += '<div class="detail-section">';
+                        content += '<h4 class="detail-section-title">Notes</h4>';
+                        content += `<textarea id="userNotesTextarea" onchange="enableSaveButton()" oninput="enableSaveButton()" style="width: 100%; min-height: 100px; padding: 8px 12px; border: 1px solid #E5E7EB; border-radius: 6px; font-size: 14px; line-height: 1.5; resize: vertical; font-family: inherit;" placeholder="Add your notes here...">${escapeHtml(doc.user_notes || '')}</textarea>`;
+                        content += '</div>';
+
                     // Check if this is an "other" document with skip_extraction
-                    if (data.skip_extraction) {
+                    } else if (data.skip_extraction) {
                         // Simplified display for "other" documents
                         content += '<div class="doc-detail-grid">';
                         

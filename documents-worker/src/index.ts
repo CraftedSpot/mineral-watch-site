@@ -1670,12 +1670,15 @@ export default {
                     ).run();
 
                     // Also insert into well_pun_links (used for production matching)
+                    // base_pun (first 10 chars: XXX-XXXXXX) is critical for horizontal well production matching
+                    const basePun = pun.length >= 10 ? pun.substring(0, 10) : pun;
                     await env.WELLS_DB.prepare(`
-                      INSERT INTO well_pun_links (api_number, pun, match_method, confidence)
-                      VALUES (?, ?, '1002a_extraction', 'high')
+                      INSERT INTO well_pun_links (api_number, pun, base_pun, match_method, confidence)
+                      VALUES (?, ?, ?, '1002a_extraction', 'high')
                       ON CONFLICT(api_number, pun) DO UPDATE SET
+                        base_pun = COALESCE(excluded.base_pun, base_pun),
                         updated_at = CURRENT_TIMESTAMP
-                    `).bind(apiNumber, pun).run();
+                    `).bind(apiNumber, pun, basePun).run();
                   };
 
                   // Single well PUN (vertical wells, or primary PUN for horizontal)

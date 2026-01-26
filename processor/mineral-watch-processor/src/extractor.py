@@ -2117,7 +2117,7 @@ Valid document types:
 """
 
 EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma mineral rights documents.
-Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
+Your task is to extract key information from the document. Return raw values directly - do NOT wrap values in confidence objects.
 
 CURRENT DATE: {current_date}
 
@@ -2173,9 +2173,10 @@ Document Types:
 16. Trust Funding - Assignment of property from individual to their trust (estate planning)
 17. Other - Any document not fitting above categories
 
-For EACH field you extract:
-1. Provide the value (or null if not found)
-2. For names, always check for middle initials/names
+EXTRACTION RULES:
+- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
+- Use null if a field is not found or illegible
+- For names, always check for middle initials/names
 
 HANDWRITTEN DOCUMENT RULES:
 - If you cannot clearly read handwritten characters, use null
@@ -6740,7 +6741,7 @@ What to avoid:
 PERMIT_DOC_TYPES = ["completion_report", "drilling_permit", "well_transfer"]
 
 PERMIT_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma oil & gas well permits and completion reports.
-Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
+Your task is to extract key information from the document. Return raw values directly - do NOT wrap values in confidence objects.
 
 CURRENT DATE: {current_date}
 
@@ -6765,33 +6766,11 @@ IMPORTANT: Structure your response as follows:
    - Only reference information explicitly stated in the document
    - DO NOT list specific data already extracted - focus on insight
 
-For EACH field you extract:
-1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
-
-CONFIDENCE CALIBRATION - CRITICAL FOR HANDWRITTEN/POOR QUALITY DOCUMENTS:
-
-HIGH CONFIDENCE (0.85-1.0): ONLY use when:
-- Text is clearly printed/typed and easily readable
-- Value is unambiguous with no possible alternative interpretations
-
-MEDIUM CONFIDENCE (0.5-0.84): Use when:
-- Text is readable but has minor issues (slight blur, faded)
-- Most characters are clear but 1-2 are slightly ambiguous
-
-LOW CONFIDENCE (0.2-0.49): Use when:
-- Text is partially illegible (handwritten, faded, blurry)
-- Multiple characters are ambiguous
-
-VERY LOW / NULL (0.0-0.19 or null): Use when:
-- Text is mostly illegible or unreadable
-- IMPORTANT: Use null instead of fabricating a value you cannot actually read
-
-HANDWRITTEN DOCUMENT RULES:
-- Handwritten text requires LOWER confidence than printed text
-- If you cannot clearly read handwritten characters, use null with confidence 0.0
-- NEVER hallucinate plausible-sounding values for illegible handwritten text
-- It is BETTER to return null than to guess incorrectly with high confidence
+EXTRACTION RULES:
+- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
+- Use null if a field is not found or illegible
+- NEVER hallucinate plausible-sounding values for illegible text
+- It is BETTER to return null than to guess incorrectly
 
 API NUMBER VALIDATION:
 - Oklahoma API numbers start with "35" (state code)
@@ -7634,27 +7613,11 @@ IMPORTANT: Structure your response as follows:
    - Provide operator contact info (name, address, email) for sending elections
    - Explain subsequent well provisions if applicable
 
-For EACH field you extract:
-1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
-
-CONFIDENCE CALIBRATION:
-
-HIGH CONFIDENCE (0.85-1.0): ONLY use when:
-- Text is clearly printed/typed and easily readable
-- Value is unambiguous with no possible alternative interpretations
-
-MEDIUM CONFIDENCE (0.5-0.84): Use when:
-- Text is readable but has minor issues (slight blur, faded)
-- Most characters are clear but 1-2 are slightly ambiguous
-
-LOW CONFIDENCE (0.2-0.49): Use when:
-- Text is partially illegible (handwritten, faded, blurry)
-- Multiple characters are ambiguous
-
-VERY LOW / NULL (0.0-0.19 or null): Use when:
-- Text is mostly illegible or unreadable
-- IMPORTANT: Use null instead of fabricating a value you cannot actually read
+EXTRACTION RULES:
+- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
+- Use null if a field is not found or illegible
+- NEVER hallucinate plausible-sounding values for illegible text
+- It is BETTER to return null than to guess incorrectly
 
 LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
 Oklahoma uses the Section-Township-Range (TRS) system:
@@ -8924,7 +8887,7 @@ DEED_DOC_TYPES = ["mineral_deed", "royalty_deed", "warranty_deed", "quitclaim_de
                   "assignment_of_lease"]
 
 DEED_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma mineral rights deeds and conveyances.
-Your task is to extract key information and provide a confidence score (0.0-1.0) for each field.
+Your task is to extract key information from the document. Return raw values directly - do NOT wrap values in confidence objects.
 
 CURRENT DATE: {current_date}
 
@@ -8950,33 +8913,11 @@ IMPORTANT: Structure your response as follows:
    - Only reference information explicitly stated in the document
    - DO NOT list specific data already extracted - focus on insight
 
-For EACH field you extract:
-1. Provide the value (or null if not found)
-2. Provide a confidence score (0.0-1.0)
-
-CONFIDENCE CALIBRATION - CRITICAL FOR HANDWRITTEN/POOR QUALITY DOCUMENTS:
-
-HIGH CONFIDENCE (0.85-1.0): ONLY use when:
-- Text is clearly printed/typed and easily readable
-- Value is unambiguous with no possible alternative interpretations
-
-MEDIUM CONFIDENCE (0.5-0.84): Use when:
-- Text is readable but has minor issues (slight blur, faded)
-- Most characters are clear but 1-2 are slightly ambiguous
-
-LOW CONFIDENCE (0.2-0.49): Use when:
-- Text is partially illegible (handwritten, faded, blurry)
-- Multiple characters are ambiguous
-
-VERY LOW / NULL (0.0-0.19 or null): Use when:
-- Text is mostly illegible or unreadable
-- IMPORTANT: Use null instead of fabricating a value you cannot actually read
-
-HANDWRITTEN DOCUMENT RULES:
-- Handwritten text requires LOWER confidence than printed text
-- If you cannot clearly read handwritten characters, use null with confidence 0.0
-- NEVER hallucinate plausible-sounding values for illegible handwritten text
-- It is BETTER to return null than to guess incorrectly with high confidence
+EXTRACTION RULES:
+- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
+- Use null if a field is not found or illegible
+- NEVER hallucinate plausible-sounding values for illegible text
+- It is BETTER to return null than to guess incorrectly
 
 LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
 Oklahoma uses the Section-Township-Range (TRS) system:
