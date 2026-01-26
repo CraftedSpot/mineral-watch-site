@@ -548,6 +548,9 @@ def validate_schema(extracted_data: dict) -> dict:
         }
 
     doc_type = extracted_data.get("doc_type", "unknown")
+    # Handle case where doc_type is wrapped in {value: ..., confidence: ...} object
+    if isinstance(doc_type, dict):
+        doc_type = doc_type.get("value", "unknown")
     schema = DOC_TYPE_SCHEMAS.get(doc_type)
 
     if not schema:
@@ -624,7 +627,11 @@ def validate_formation_zones(extracted_data: dict) -> dict:
     - perforated_intervals (expected)
     - spacing_order (expected if visible on document)
     """
-    if extracted_data.get("doc_type") != "completion_report":
+    doc_type = extracted_data.get("doc_type")
+    # Handle case where doc_type is wrapped in {value: ..., confidence: ...} object
+    if isinstance(doc_type, dict):
+        doc_type = doc_type.get("value", "")
+    if doc_type != "completion_report":
         return {"valid": True, "issues": []}
 
     formation_zones = extracted_data.get("formation_zones", [])
@@ -873,6 +880,9 @@ def compute_review_flags(extracted_data: dict, ocr_quality: float, is_handwritte
 
     # === Missing Fields (document-type aware) ===
     doc_type = extracted_data.get("doc_type", "")
+    # Handle case where doc_type is wrapped in {value: ..., confidence: ...} object
+    if isinstance(doc_type, dict):
+        doc_type = doc_type.get("value", "")
 
     # Deed types have different required fields than well documents
     deed_types = {"mineral_deed", "royalty_deed", "warranty_deed", "quitclaim_deed",

@@ -1725,6 +1725,87 @@ export default {
               } catch (trackingError) {
                 console.error('[1002A Tracking] Failed to update tracking:', trackingError);
               }
+
+              // Update wells table with completion report data (bottom hole, lateral, IP, formation)
+              try {
+                const apiNumber = extracted_data.api_number_normalized || extracted_data.api_number;
+                if (apiNumber) {
+                  const api10 = apiNumber.substring(0, 10);
+
+                  // Extract bottom hole location
+                  const bhLat = extracted_data.bottom_hole_location?.latitude || null;
+                  const bhLon = extracted_data.bottom_hole_location?.longitude || null;
+
+                  // Extract lateral length
+                  const lateralLength = extracted_data.lateral_details?.lateral_length_ft || null;
+
+                  // Extract total depth
+                  const totalDepth = extracted_data.surface_location?.total_depth_ft || null;
+
+                  // Extract initial production
+                  const ipOil = extracted_data.initial_production?.oil_bbl_per_day || null;
+                  const ipGas = extracted_data.initial_production?.gas_mcf_per_day || null;
+                  const ipWater = extracted_data.initial_production?.water_bbl_per_day || null;
+
+                  // Extract formation info (from formation_zones array or formation_tops)
+                  let formationName = null;
+                  let formationDepth = null;
+                  if (extracted_data.formation_zones?.length > 0) {
+                    // Use first/primary formation
+                    formationName = extracted_data.formation_zones[0].formation_name || null;
+                    // Get depth from perforated intervals if available
+                    const perfs = extracted_data.formation_zones[0].perforated_intervals;
+                    if (perfs?.length > 0) {
+                      formationDepth = perfs[0].from_ft || null;
+                    }
+                  } else if (extracted_data.formation_tops?.length > 0) {
+                    formationName = extracted_data.formation_tops[0].name || null;
+                    formationDepth = extracted_data.formation_tops[0].depth_ft || null;
+                  }
+
+                  // Extract completion date
+                  const completionDate = extracted_data.dates?.completion_date || null;
+
+                  // Build dynamic UPDATE - only set fields that have values
+                  const updates: string[] = [];
+                  const values: any[] = [];
+
+                  if (bhLat !== null) { updates.push('bh_latitude = ?'); values.push(bhLat); }
+                  if (bhLon !== null) { updates.push('bh_longitude = ?'); values.push(bhLon); }
+                  if (lateralLength !== null) { updates.push('lateral_length = ?'); values.push(lateralLength); }
+                  if (totalDepth !== null) { updates.push('measured_total_depth = ?'); values.push(totalDepth); }
+                  if (ipOil !== null) { updates.push('ip_oil_bbl = ?'); values.push(ipOil); }
+                  if (ipGas !== null) { updates.push('ip_gas_mcf = ?'); values.push(ipGas); }
+                  if (ipWater !== null) { updates.push('ip_water_bbl = ?'); values.push(ipWater); }
+                  if (formationName !== null) { updates.push('formation_name = ?'); values.push(formationName); }
+                  if (formationDepth !== null) { updates.push('formation_depth = ?'); values.push(formationDepth); }
+                  if (completionDate !== null) { updates.push('completion_date = ?'); values.push(completionDate); }
+
+                  if (updates.length > 0) {
+                    updates.push('updated_at = CURRENT_TIMESTAMP');
+                    const sql = `UPDATE wells SET ${updates.join(', ')} WHERE api_number = ? OR api_number LIKE ? || '%'`;
+                    values.push(api10, api10);
+
+                    const updateResult = await env.WELLS_DB.prepare(sql).bind(...values).run();
+
+                    if (updateResult.meta.changes > 0) {
+                      console.log('[Completion Data] Updated wells table with:', {
+                        api: api10,
+                        bh_lat: bhLat,
+                        bh_lon: bhLon,
+                        lateral_length: lateralLength,
+                        ip_oil: ipOil,
+                        ip_gas: ipGas,
+                        formation: formationName
+                      });
+                    } else {
+                      console.log('[Completion Data] No matching well found for API:', api10);
+                    }
+                  }
+                }
+              } catch (wellUpdateError) {
+                console.error('[Completion Data] Failed to update wells table:', wellUpdateError);
+              }
             }
 
             // Track document usage and deduct credit (only for successful processing)

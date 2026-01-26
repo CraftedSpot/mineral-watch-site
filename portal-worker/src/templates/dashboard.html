@@ -532,7 +532,9 @@
         .completion-report-type.completion { background: #dbeafe; color: #1e40af; }
         .completion-report-type.recompletion { background: #fef3c7; color: #92400e; }
         .completion-current-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #dcfce7; color: #166534; margin-right: 8px; }
+        .completion-failed-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #fee2e2; color: #dc2626; margin-right: 8px; }
         .completion-report-item.is-current { background: #f0fdf4; margin: 0 -16px; padding: 12px 16px; border-radius: 4px; }
+        .completion-report-item.is-failed { background: #fef2f2; }
         .completion-report-location { font-weight: 600; color: #1a1a2e; font-size: 13px; }
         .completion-report-details { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; color: #666; flex-wrap: wrap; align-items: center; }
         .completion-report-details span { display: inline-flex; align-items: center; }
@@ -6554,7 +6556,7 @@
                 'Detailed Analysis': ['ai_observations'],
                 // Division Order groups (consolidated for cleaner display)
                 'Operator & Well': ['operator_name', 'operator_address', 'operator_phone', 'operator_email', 'return_instructions',
-                            'property_name', 'property_number', 'billing_code', 'api_number'],
+                            'property_name', 'property_number', 'billing_code'],  // api_number moved to Well Information
                 'Owner & Interest': ['owner_name', 'owner_address', 'trustee_name', 'owner_number',
                             'owner_phone', 'owner_fax', 'owner_email',  // Owner-provided contact from signature section
                             'working_interest', 'royalty_interest', 'overriding_royalty_interest', 'net_revenue_interest', 'non_participating_royalty_interest'],
@@ -6591,7 +6593,8 @@
                                'top_lease_provision', 'continuous_development_clause'],
                 // Oil & Gas Lease Protective Clauses (v2 schema)
                 'Lease Clauses': ['depth_clause', 'pugh_clause', 'deductions_clause', 'exhibit_a'],
-                'Well Information': ['operator', 'purchaser'],  // owner_number and unit_name moved to Owner & Interest / Operator & Property
+                'Well Information': ['well_name', 'well_number', 'well_identification', 'api_number', 'api_number_normalized',
+                               'well_type', 'operator', 'purchaser', 'permit_type', 'permit_number', 'issue_date', 'expiration_date'],  // Consolidated well & permit info
                 'Order Details': ['cd_number', 'order_number', 'cause_number', 'case_number', 'order_sub_type',
                                'order_date', 'effective_date', 'hearing_date', 'reopen_date', 'reopen_purpose',
                                'applicant', 'well_cost', 'unit_size_acres', 'unit_description', 'relief_granted',
@@ -6612,9 +6615,9 @@
                                             'formation_limitations', 'mineral_types', 'pooling_authorization',
                                             'surface_restrictions', 'no_surface_clause', 'pugh_clause', 'vertical_pugh_clause'],
                 // Drilling Permit (Form 1000) and Completion Report sections
-                'Permit Information': ['permit_type', 'well_type', 'issue_date', 'expiration_date'],
-                'Well Identification': ['well_name', 'well_number', 'well_identification'],  // api_number, operator_name/address moved to Operator & Well
-                'Surface Location': ['surface_location'],
+                // 'Permit Information' removed - merged into 'Well Information'
+                // 'Well Identification' removed - merged into 'Well Information'
+                // 'Surface Location' removed - duplicates Legal Description for completion reports
                 'Bottom Hole Location': ['bottom_hole_location'],
                 'Target Formation': ['target_formation', 'target_depth_top', 'target_depth_bottom'],
                 'Unit Details': ['unit_size_acres', 'spacing_order', 'lateral_direction', 'lateral_length_ft'],
@@ -6720,9 +6723,9 @@
                 'Allocation Factors': ['allocation_factors'],
                 'Relief Granted': ['relief_granted'],
                 'Special Provisions': ['special_provisions'],
-                // Completion Report sections (Well Identification, Surface Location, Bottom Hole Location defined above)
+                // Completion Report sections (Well Information consolidates well data, Surface Location removed as duplicate)
                 'Key Dates': ['dates'],
-                'Well Type': ['well_type'],
+                // 'Well Type' removed - merged into 'Well Information'
                 'Lateral Details': ['lateral_details'],
                 'Perforated Intervals': ['perforated_intervals', 'total_perforated_length_ft'],
                 'Initial Production': ['initial_production'],
@@ -6730,7 +6733,7 @@
                 'Stimulation': ['stimulation'],
                 'Formation Zones': ['formation_zones'],
                 'Formation Tops': ['formation_tops'],
-                'Status': ['status', 'status_date', 'occ_file_number'],
+                // 'Status' removed - OCC status not needed for mineral owners
                 // Well Transfer sections (Former Operator, New Operator already defined in Change of Operator section)
                 'Transfer Information': ['transfer_info'],
                 'Wells Transferred': ['wells'],
@@ -11227,109 +11230,134 @@
                             }
                         } else if (fieldName === 'surface_location' && typeof value === 'object' && data.doc_type === 'completion_report') {
                             // Special handling for surface_location object (completion report)
+                            // Field names match extraction schema
                             const section = value.section || '';
                             const township = value.township || '';
                             const range = value.range || '';
                             const county = value.county || '';
                             const state = value.state || '';
-                            const spot = value.spot || '';
-                            const footage = value.footage_from_section_lines || '';
+                            const quarters = value.quarters || '';
+                            const footageNS = value.footage_ns || '';
+                            const footageEW = value.footage_ew || '';
+                            const elevation = value.ground_elevation_ft;
+                            const totalDepth = value.total_depth_ft;
 
                             if (section || township || range || county) {
                                 hasVisibleFields = true;
+                                const footageDisplay = [footageNS, footageEW].filter(Boolean).join(', ');
                                 sectionContent += `
                                     <div class="doc-field" style="grid-column: 1 / -1;">
                                         <div style="background: #F0FDF4; border: 1px solid #22C55E; border-radius: 8px; padding: 14px;">
                                             <div style="font-size: 14px; font-weight: 600; color: #166534; margin-bottom: 8px;">
-                                                ${section ? `Section ${escapeHtml(section)}` : ''} ${township ? `- ${escapeHtml(township)}` : ''} ${range ? `- ${escapeHtml(range)}` : ''}
+                                                ${section ? `Section ${escapeHtml(String(section))}` : ''} ${township ? `- ${escapeHtml(township)}` : ''} ${range ? `- ${escapeHtml(range)}` : ''}
                                             </div>
                                             <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
                                                 ${county ? `<div><span style="color: #6B7280;">County:</span> <strong>${escapeHtml(county)}</strong></div>` : ''}
                                                 ${state ? `<div><span style="color: #6B7280;">State:</span> <strong>${escapeHtml(state)}</strong></div>` : ''}
-                                                ${spot ? `<div><span style="color: #6B7280;">Spot:</span> <strong>${escapeHtml(spot)}</strong></div>` : ''}
+                                                ${quarters ? `<div><span style="color: #6B7280;">Quarters:</span> <strong>${escapeHtml(quarters)}</strong></div>` : ''}
                                             </div>
-                                            ${footage ? `<div style="margin-top: 8px; font-size: 12px; color: #374151; background: #DCFCE7; padding: 6px 10px; border-radius: 4px;">${escapeHtml(footage)}</div>` : ''}
+                                            ${footageDisplay || elevation || totalDepth ? `<div style="margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; color: #374151; background: #DCFCE7; padding: 6px 10px; border-radius: 4px;">
+                                                ${footageDisplay ? `<span>${escapeHtml(footageDisplay)}</span>` : ''}
+                                                ${elevation ? `<span>Elev: ${elevation.toLocaleString()} ft</span>` : ''}
+                                                ${totalDepth ? `<span>TD: ${totalDepth.toLocaleString()} ft</span>` : ''}
+                                            </div>` : ''}
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
                         } else if (fieldName === 'bottom_hole_location' && typeof value === 'object' && data.doc_type === 'completion_report') {
                             // Special handling for bottom_hole_location object (completion report)
+                            // Field names match extraction schema
                             const section = value.section || '';
                             const township = value.township || '';
                             const range = value.range || '';
-                            const direction = value.direction_from_surface || '';
-                            const distance = value.distance_from_surface_ft;
+                            const county = value.county || '';
+                            const quarters = value.quarters || '';
+                            const footageNS = value.footage_ns || '';
+                            const footageEW = value.footage_ew || '';
 
-                            if (section || township || range || direction || distance) {
+                            if (section || township || range) {
                                 hasVisibleFields = true;
+                                const footageDisplay = [footageNS, footageEW].filter(Boolean).join(', ');
                                 sectionContent += `
                                     <div class="doc-field" style="grid-column: 1 / -1;">
                                         <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 14px;">
                                             <div style="font-size: 14px; font-weight: 600; color: #92400E; margin-bottom: 8px;">
-                                                🎯 Bottom Hole Location
+                                                🎯 Bottom Hole: Section ${escapeHtml(String(section))} - ${escapeHtml(township)} - ${escapeHtml(range)}
                                             </div>
                                             <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 13px;">
-                                                ${section ? `<div><span style="color: #6B7280;">Section:</span> <strong>${escapeHtml(section)}</strong></div>` : ''}
-                                                ${township ? `<div><span style="color: #6B7280;">Township:</span> <strong>${escapeHtml(township)}</strong></div>` : ''}
-                                                ${range ? `<div><span style="color: #6B7280;">Range:</span> <strong>${escapeHtml(range)}</strong></div>` : ''}
+                                                ${county ? `<div><span style="color: #6B7280;">County:</span> <strong>${escapeHtml(county)}</strong></div>` : ''}
+                                                ${quarters ? `<div><span style="color: #6B7280;">Quarters:</span> <strong>${escapeHtml(quarters)}</strong></div>` : ''}
                                             </div>
-                                            ${direction || distance ? `<div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid #FBBF24; font-size: 13px;">
-                                                ${direction ? `<span style="color: #6B7280;">Direction:</span> <strong>${escapeHtml(direction)}</strong>` : ''}
-                                                ${distance ? `<span style="margin-left: 12px; color: #6B7280;">Distance:</span> <strong>${distance.toLocaleString()} ft</strong>` : ''}
-                                            </div>` : ''}
+                                            ${footageDisplay ? `<div style="margin-top: 8px; font-size: 12px; color: #374151; background: #FEF9C3; padding: 6px 10px; border-radius: 4px;">${escapeHtml(footageDisplay)}</div>` : ''}
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
                         } else if (fieldName === 'lateral_details' && typeof value === 'object' && data.doc_type === 'completion_report') {
                             // Special handling for lateral_details object (completion report)
+                            // Field names match extraction schema
                             const lateralLength = value.lateral_length_ft;
-                            const tvd = value.true_vertical_depth_ft;
-                            const direction = value.direction || '';
+                            const kickoffDepth = value.depth_of_deviation_ft;
+                            const radiusOfTurn = value.radius_of_turn_ft;
+                            const direction = value.direction || (value.direction_degrees ? value.direction_degrees + '°' : '');
+                            const completionInterval = value.completion_interval_ft;
 
-                            if (lateralLength || tvd || direction) {
+                            if (lateralLength || kickoffDepth || direction) {
                                 hasVisibleFields = true;
                                 sectionContent += `
                                     <div class="doc-field" style="grid-column: 1 / -1;">
                                         <div style="background: #F5F3FF; border: 1px solid #8B5CF6; border-radius: 8px; padding: 14px;">
                                             <div style="display: flex; flex-wrap: wrap; gap: 20px; font-size: 14px;">
                                                 ${lateralLength ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${lateralLength.toLocaleString()}'</div><div style="font-size: 12px; color: #6B7280;">Lateral Length</div></div>` : ''}
-                                                ${tvd ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${tvd.toLocaleString()}'</div><div style="font-size: 12px; color: #6B7280;">True Vertical Depth</div></div>` : ''}
+                                                ${completionInterval ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${completionInterval.toLocaleString()}'</div><div style="font-size: 12px; color: #6B7280;">Completion Interval</div></div>` : ''}
                                                 ${direction ? `<div style="text-align: center;"><div style="font-size: 24px; font-weight: 700; color: #7C3AED;">${escapeHtml(direction)}</div><div style="font-size: 12px; color: #6B7280;">Direction</div></div>` : ''}
                                             </div>
+                                            ${kickoffDepth || radiusOfTurn ? `<div style="display: flex; gap: 16px; margin-top: 12px; font-size: 12px; color: #6B7280;">
+                                                ${kickoffDepth ? `<span>Kickoff: ${kickoffDepth.toLocaleString()} ft</span>` : ''}
+                                                ${radiusOfTurn ? `<span>Turn Radius: ${radiusOfTurn.toLocaleString()} ft</span>` : ''}
+                                            </div>` : ''}
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
                             }
                         } else if (fieldName === 'initial_production' && typeof value === 'object' && data.doc_type === 'completion_report') {
                             // Special handling for initial_production object (completion report)
+                            // Field names match extraction schema: oil_bbl_per_day, gas_mcf_per_day, etc.
+                            // Note: Check for both null AND undefined since extraction may return null for missing fields
                             const testDate = value.test_date || '';
-                            const oil = value.oil_bopd;
-                            const gas = value.gas_mcfd;
-                            const water = value.water_bwpd;
-                            const choke = value.choke_size_64ths;
-                            const tubingPressure = value.tubing_pressure_psi;
-                            const casingPressure = value.casing_pressure_psi;
-                            const remarks = value.remarks || '';
+                            const oil = value.oil_bbl_per_day;
+                            const gas = value.gas_mcf_per_day;
+                            const water = value.water_bbl_per_day;
+                            const choke = value.choke_size || '';
+                            const flowMethod = value.flow_method || '';
+                            const tubingPressure = value.flow_tubing_pressure_psi;
+                            const shutInPressure = value.initial_shut_in_pressure_psi;
+                            const oilGravity = value.oil_gravity_api;
+                            const gor = value.gas_oil_ratio;
 
-                            if (testDate || oil !== undefined || gas !== undefined || water !== undefined) {
+                            // Use != null to check for both null and undefined
+                            if (testDate || oil != null || gas != null || water != null || tubingPressure != null || flowMethod) {
                                 hasVisibleFields = true;
                                 sectionContent += `
                                     <div class="doc-field" style="grid-column: 1 / -1;">
                                         <div style="background: linear-gradient(135deg, #065F46 0%, #047857 100%); border-radius: 12px; padding: 16px; color: white;">
-                                            ${testDate ? `<div style="font-size: 12px; opacity: 0.8; margin-bottom: 12px;">Test Date: ${escapeHtml(testDate)}</div>` : ''}
+                                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                                                ${testDate ? `<div style="font-size: 12px; opacity: 0.8;">Test Date: ${escapeHtml(testDate)}</div>` : '<div></div>'}
+                                                ${flowMethod ? `<div style="font-size: 11px; background: rgba(255,255,255,0.2); padding: 4px 8px; border-radius: 4px;">${escapeHtml(flowMethod)}</div>` : ''}
+                                            </div>
                                             <div style="display: flex; flex-wrap: wrap; gap: 16px; margin-bottom: 12px;">
-                                                ${oil !== undefined ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${oil.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">OIL (BOPD)</div></div>` : ''}
-                                                ${gas !== undefined ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${gas.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">GAS (MCFD)</div></div>` : ''}
-                                                ${water !== undefined ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${water.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">WATER (BWPD)</div></div>` : ''}
+                                                ${oil != null ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${oil.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">OIL (BOPD)</div></div>` : ''}
+                                                ${gas != null ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${gas.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">GAS (MCFD)</div></div>` : ''}
+                                                ${water != null ? `<div style="background: rgba(255,255,255,0.15); padding: 12px 16px; border-radius: 8px; text-align: center;"><div style="font-size: 28px; font-weight: 700;">${water.toLocaleString()}</div><div style="font-size: 11px; opacity: 0.8;">WATER (BWPD)</div></div>` : ''}
                                             </div>
                                             <div style="display: flex; flex-wrap: wrap; gap: 12px; font-size: 12px; opacity: 0.9;">
-                                                ${choke ? `<span>Choke: ${choke}/64"</span>` : ''}
-                                                ${tubingPressure ? `<span>Tubing: ${tubingPressure.toLocaleString()} psi</span>` : ''}
-                                                ${casingPressure ? `<span>Casing: ${casingPressure.toLocaleString()} psi</span>` : ''}
+                                                ${choke ? `<span>Choke: ${escapeHtml(choke)}</span>` : ''}
+                                                ${oilGravity != null ? `<span>API Gravity: ${oilGravity}°</span>` : ''}
+                                                ${gor != null ? `<span>GOR: ${gor.toLocaleString()}</span>` : ''}
+                                                ${tubingPressure != null ? `<span>FTP: ${tubingPressure.toLocaleString()} psi</span>` : ''}
+                                                ${shutInPressure != null ? `<span>ISIP: ${shutInPressure.toLocaleString()} psi</span>` : ''}
                                             </div>
-                                            ${remarks ? `<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 12px; opacity: 0.9;">${escapeHtml(remarks)}</div>` : ''}
                                         </div>
                                         ${getConfidenceIndicator(fieldName, fieldScores)}
                                     </div>`;
@@ -15681,7 +15709,9 @@
             const typeLabel = isRecompletion ? 'RECOMPLETION 1002C' : 'COMPLETION 1002A';
             const dateDisplay = formatCompletionDate(report.effectiveDate);
             const buttonId = `completion-btn-${report.entryId}`;
+            const isFailed = report.status === 'error';
             const currentBadge = isCurrent ? '<span class="completion-current-badge">Current</span>' : '';
+            const failedBadge = isFailed ? `<span class="completion-failed-badge" title="${escapeHtml(report.errorMessage || 'Processing failed')}">Failed</span>` : '';
 
             // Check client-side cache first (for instant display on modal reopen)
             const cached = analyzedCompletionsCache[report.entryId];
@@ -15694,7 +15724,7 @@
                     <button class="occ-reanalyze-btn"
                             data-api-number="${apiNumber}"
                             data-entry-id="${report.entryId}"
-                            onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
+                            onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this, true)"
                             title="Re-process this document">Re-analyze</button>
                     <button class="occ-view-doc-btn" onclick="openDocumentDetail('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>`;
             } else switch (report.status) {
@@ -15719,14 +15749,14 @@
                         <button class="occ-reanalyze-btn"
                                 data-api-number="${apiNumber}"
                                 data-entry-id="${report.entryId}"
-                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
+                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this, true)"
                                 title="Re-process this document">Re-analyze</button>
                         ${report.documentId ? `<button class="occ-view-doc-btn" onclick="openDocumentDetail('${report.documentId}')" title="View analyzed document">View Doc ↗</button>` : ''}`;
                     break;
                 case 'error':
                     actionButton = `
                         <button id="${buttonId}" class="completion-analyze-btn error"
-                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this)"
+                                onclick="analyzeCompletion('${apiNumber}', ${report.entryId}, this, true)"
                                 title="${escapeHtml(report.errorMessage || 'Error occurred')}">
                             Retry
                         </button>`;
@@ -15803,8 +15833,9 @@
 
         // Analyze completion report - fetch and process 1002A/1002C form
         // Uses same pattern as processOccFiling for consistency
-        async function analyzeCompletion(apiNumber, entryId, buttonEl) {
-            console.log(`[CompletionReports] Analyzing ${apiNumber} entryId ${entryId}`);
+        // force: if true, re-analyze even if already processed (for Re-analyze button)
+        async function analyzeCompletion(apiNumber, entryId, buttonEl, force = false) {
+            console.log(`[CompletionReports] Analyzing ${apiNumber} entryId ${entryId}${force ? ' (force re-analyze)' : ''}`);
 
             // Helper to get current button from state (after DOM updates)
             const getCurrentButton = () => completionProcessingStates[entryId]?.buttonEl || buttonEl;
@@ -15818,7 +15849,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ apiNumber, entryId })
+                    body: JSON.stringify({ apiNumber, entryId, force })
                 });
 
                 const result = await response.json();
@@ -15996,7 +16027,7 @@
                             <button class="occ-reanalyze-btn"
                                     data-api-number="${escapeHtml(apiNum)}"
                                     data-entry-id="${escapeHtml(entryId)}"
-                                    onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this)"
+                                    onclick="analyzeCompletion('${escapeHtml(apiNum)}', ${entryId}, this, true)"
                                     title="Re-process this document">Re-analyze</button>
                             <button class="occ-view-doc-btn"
                                     onclick="openDocumentDetail('${documentId}')"

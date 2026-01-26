@@ -1557,7 +1557,7 @@ function generateCompletionReportFields(data: any): string {
       </div>
       <div class="field-item">
         <div class="field-label">API Number</div>
-        <div class="field-value mono">${escapeHtml(data.api_number || wellInfo.api_number) || 'Not specified'}</div>
+        <div class="field-value mono">${escapeHtml(data.api_number_normalized || data.api_number || wellInfo.api_number) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Operator</div>
