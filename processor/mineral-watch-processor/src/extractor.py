@@ -1434,6 +1434,16 @@ TITLE_PATTERNS = [
     (r"ATTACHMENT\s+[A-Z]", "exhibit"),
     (r"ADDENDUM\s+[A-Z]", "exhibit"),
     (r"SCHEDULE\s+[A-Z]", "exhibit"),
+    # Correspondence/Letters
+    (r"^Dear\s+", "correspondence"),  # Letter salutation
+    (r"RE:\s*DIVISION\s+ORDER", "correspondence"),  # Division order cover letter
+    (r"RE:\s*.+WELL", "correspondence"),  # Re: line mentioning well
+    (r"ENCLOSED\s+.*DIVISION\s+ORDER", "correspondence"),  # Cover letter language
+    (r"PLEASE\s+SIGN\s+AND\s+RETURN", "correspondence"),  # Common letter instruction
+    (r"SINCERELY,?\s*$", "correspondence"),  # Letter closing
+    (r"REGARDS,?\s*$", "correspondence"),  # Letter closing
+    (r"TRANSMITTAL", "correspondence"),  # Transmittal letter
+    (r"COVER\s+LETTER", "correspondence"),  # Explicit cover letter
 ]
 
 # Patterns that indicate start of a new document
@@ -6947,23 +6957,70 @@ For LEGAL DOCUMENTS:
   "document_confidence": "high"
 }
 
-For CORRESPONDENCE:
+For CORRESPONDENCE (letters, notices, cover letters):
+Keep extraction simple - let the analysis do the heavy lifting. Only extract structured fields that are clearly present.
+
 {
   "doc_type": "correspondence",
-  "from": "Devon Energy Production Company",
-  "to": "John A. Smith",
-  "date": "2023-03-15",
-  "subject": "Notice of Drilling Operations",
-  "summary": "Notice of intent to drill the Smith 1-16H well...",
+
+  // From party (company/organization sending the letter)
+  "from": {
+    "company": "Cimarex Energy Co.",
+    "address": "15 East 5th Street, Suite 1000, Tulsa, Oklahoma 74103-4346",
+    "phone": "918-585-1100",
+    "fax": "918-585-1133"
+  },
+
+  // Individual sender (person who signed/sent)
+  "sender": {
+    "name": "Sharon Taylor",
+    "title": "Division Order Analyst",
+    "email": "staylor@cimarex.com",
+    "phone": "918-295-1685",
+    "fax": "918-295-1896"
+  },
+
+  // Recipient
+  "to": {
+    "name": "Price Oil & Gas Ltd",
+    "address": "3124 Rolling Stone Road, Oklahoma City, OK 73120"
+  },
+
+  // Letter details
+  "date": "2012-02-14",
+  "subject": "Division Order Execution - Steffen 1-6H Well",
+  "re_line": "350016-079 Steffen 1-6H, All of Section 6-12N-8W, 635.03 acres, Canadian County, OK",
+
+  // Optional linking fields - ONLY if clearly stated in letter
+  "well_name": "Steffen 1-6H",
+  "api_number": "35-017-12345",
+  "section": 6,
+  "township": "12N",
+  "range": "8W",
+  "county": "Canadian",
+
+  // Analysis - this does the heavy lifting
+  "key_takeaway": "Letter from Cimarex Energy requesting execution of division order for Steffen 1-6H well in Canadian County.",
+  "detailed_analysis": "This cover letter from Cimarex Energy accompanies a division order for the Steffen 1-6H well. The letter requests the recipient sign and return the enclosed division order to begin receiving royalty payments. Contact Sharon Taylor at the Division Order department with any questions.",
+
   "field_scores": {
     "from": 1.0,
+    "sender": 0.95,
     "to": 1.0,
     "date": 1.0,
     "subject": 0.95,
-    "summary": 0.85
+    "well_name": 0.90
   },
   "document_confidence": "high"
 }
+
+CORRESPONDENCE EXTRACTION NOTES:
+- Keep it simple - letters vary widely in format
+- From/sender may be the same entity (operator) - extract both if contact details differ
+- The "Re:" line often contains well/property info - parse it for linking fields
+- If no TRS or well info is present, that's fine - analysis captures the purpose
+- OMIT empty objects (if no sender contact info, omit sender entirely)
+- key_takeaway should summarize: who sent it, to whom, and why
 
 For TAX RECORDS:
 {
@@ -9708,6 +9765,65 @@ DOCUMENT IDENTIFICATION:
 }}
 """
 
+# Document types that should use the CORRESPONDENCE focused prompt
+CORRESPONDENCE_DOC_TYPES = ["correspondence", "letter", "email", "notice", "transmittal"]
+
+CORRESPONDENCE_EXTRACTION_PROMPT_TEMPLATE = """You are extracting basic info from oil & gas correspondence (letters, emails, notices).
+Keep extraction MINIMAL - the analysis text will explain everything else.
+
+CURRENT DATE: {current_date}
+
+CRITICAL: Only extract the fields shown below. Do NOT create additional nested objects like
+"correspondence_info", "division_order_info", "title_issue", "action_items", "well_info", etc.
+Put ALL important details in the analysis text instead.
+
+Return a JSON object with ONLY these fields:
+
+{{
+  "doc_type": "correspondence",
+
+  "from": {{
+    "name": "Company or person name",
+    "address": "Full address if present",
+    "phone": "Phone if present"
+  }},
+
+  "sender": {{
+    "name": "Individual who signed (if different from company)",
+    "title": "Their job title",
+    "email": "Email if present"
+  }},
+
+  "to": {{
+    "name": "Recipient name",
+    "address": "Recipient address if present"
+  }},
+
+  "date": "YYYY-MM-DD (letter date)",
+
+  "well_name": "If mentioned",
+  "api_number": "XX-XXX-XXXXX if mentioned",
+  "property_name": "Property/unit name if mentioned",
+  "section": 6,
+  "township": "12N",
+  "range": "8W",
+  "county": "Canadian",
+
+  "key_takeaway": "One sentence summary of who sent what to whom and why.",
+  "detailed_analysis": "2-3 paragraphs explaining the letter's full context, purpose, any deadlines, action items, title issues, etc. This is where ALL the detail goes.",
+
+  "field_scores": {{ "from": 0.95, "to": 0.95, "date": 0.90 }},
+  "document_confidence": "high"
+}}
+
+RULES:
+- OMIT any field that's empty or not found
+- OMIT sender entirely if it's the same as from.name
+- Do NOT add any fields not listed above
+- Put ALL context (title issues, action items, division order details, deadlines) in detailed_analysis
+- The analysis should be thorough - it's the main content the user will read
+"""
+
 
 def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None) -> str:
     """
@@ -9747,6 +9863,9 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     elif doc_type and doc_type in DEED_DOC_TYPES:
         logger.info(f"Using FOCUSED DEED prompt for doc_type={doc_type}")
         prompt = DEED_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in CORRESPONDENCE_DOC_TYPES:
+        logger.info(f"Using FOCUSED CORRESPONDENCE prompt for doc_type={doc_type}")
+        prompt = CORRESPONDENCE_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     else:
         # Fall back to mega-prompt for unknown or other doc types
         if doc_type:

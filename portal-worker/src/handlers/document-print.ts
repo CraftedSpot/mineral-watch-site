@@ -82,8 +82,21 @@ async function fetchDocumentPrintData(
   const keyTakeaway = extractedData.key_takeaway || extractedData.summary ||
                       extractedData.executive_summary || null;
   // ai_observations is the primary field name used by the extractor
-  const detailedAnalysis = extractedData.ai_observations || extractedData.detailed_analysis ||
+  let detailedAnalysis = extractedData.ai_observations || extractedData.detailed_analysis ||
                            extractedData.analysis || extractedData.full_analysis || null;
+
+  // Clean up analysis text - remove embedded field scores, confidence, etc.
+  if (detailedAnalysis) {
+    // Remove "**Field Scores:**" section and any JSON that follows
+    detailedAnalysis = detailedAnalysis.replace(/\*\*Field Scores:\*\*[\s\S]*?```json[\s\S]*?```/gi, '');
+    detailedAnalysis = detailedAnalysis.replace(/\*\*Field Scores:\*\*[\s\S]*?\{[\s\S]*?\}/gi, '');
+    detailedAnalysis = detailedAnalysis.replace(/Field Scores:[\s\S]*?```json[\s\S]*?```/gi, '');
+    // Remove "**Document Confidence:**" lines
+    detailedAnalysis = detailedAnalysis.replace(/\*\*Document Confidence:\*\*.*$/gim, '');
+    detailedAnalysis = detailedAnalysis.replace(/Document Confidence:.*$/gim, '');
+    // Trim any trailing whitespace/newlines
+    detailedAnalysis = detailedAnalysis.trim();
+  }
 
   // Format linked properties
   const linkedProperties = (doc.linked_properties || []).map((p: any) => ({
@@ -287,6 +300,13 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       break;
     case 'completion_report':
       extractedFieldsHtml = generateCompletionReportFields(data.extractedData);
+      break;
+    case 'correspondence':
+    case 'letter':
+    case 'email':
+    case 'notice':
+    case 'transmittal':
+      extractedFieldsHtml = generateCorrespondenceFields(data.extractedData);
       break;
     default:
       extractedFieldsHtml = generateGenericFields(data.extractedData);
@@ -1517,15 +1537,100 @@ function generateCompletionReportFields(data: any): string {
   `;
 }
 
+function generateCorrespondenceFields(data: any): string {
+  // For correspondence, we only show: from, sender (if different), to, date
+  // Everything else goes in the analysis
+  const from = data.from || {};
+  const sender = data.sender || {};
+  const to = data.to || {};
+  const date = data.date || '';
+
+  // Extract names from objects
+  const fromName = typeof from === 'object' ? (from.name || from.company || '') : String(from);
+  const fromAddress = typeof from === 'object' ? from.address : '';
+  const fromPhone = typeof from === 'object' ? from.phone : '';
+
+  const senderName = typeof sender === 'object' ? sender.name : String(sender || '');
+  const senderTitle = typeof sender === 'object' ? sender.title : '';
+  const senderEmail = typeof sender === 'object' ? sender.email : '';
+
+  const toName = typeof to === 'object' ? (to.name || to.company || '') : String(to);
+  const toAddress = typeof to === 'object' ? to.address : '';
+
+  // Build from party box
+  const fromHtml = fromName ? `
+    <div class="party-box">
+      <div class="party-label">From</div>
+      <div class="party-name">${escapeHtml(fromName)}</div>
+      ${fromAddress ? `<div class="party-detail">${escapeHtml(fromAddress)}</div>` : ''}
+      ${fromPhone ? `<div class="party-detail">${escapeHtml(fromPhone)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Build to party box
+  const toHtml = toName ? `
+    <div class="party-box">
+      <div class="party-label">To</div>
+      <div class="party-name">${escapeHtml(toName)}</div>
+      ${toAddress ? `<div class="party-detail">${escapeHtml(toAddress)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Build sender info (if different from company)
+  const senderHtml = senderName && senderName !== fromName ? `
+    <div class="field-item">
+      <div class="field-label">Contact Person</div>
+      <div class="field-value">${escapeHtml(senderName)}${senderTitle ? ` (${escapeHtml(senderTitle)})` : ''}</div>
+      ${senderEmail ? `<div style="font-size: 12px; color: #64748b; margin-top: 2px;">${escapeHtml(senderEmail)}</div>` : ''}
+    </div>
+  ` : '';
+
+  return `
+    ${fromHtml || toHtml ? `
+    <div class="parties-grid" style="margin-bottom: 16px;">
+      ${fromHtml}
+      ${toHtml}
+    </div>
+    ` : ''}
+
+    <div class="field-grid">
+      ${date ? `
+      <div class="field-item">
+        <div class="field-label">Date</div>
+        <div class="field-value">${formatDate(date)}</div>
+      </div>
+      ` : ''}
+      ${senderHtml}
+    </div>
+
+    <div style="margin-top: 12px; padding: 12px 16px; background: #fff; border-left: 4px solid #16a34a; border-radius: 0;">
+      <div style="font-size: 13px; color: #1e293b;">See the <strong>Detailed Analysis</strong> above for the full content and any action items.</div>
+    </div>
+  `;
+}
+
 function generateGenericFields(data: any): string {
-  // Filter out meta fields and empty values
+  // Filter out meta fields, internal fields, and empty values
   const skipFields = [
+    // Analysis fields (shown separately)
     'key_takeaway',
     'detailed_analysis',
     'summary',
     'analysis',
+    'ai_observations',
+    // Meta/internal fields
     'field_scores',
     'skip_extraction',
+    'document_confidence',
+    'schema_validation',
+    'review_flags',
+    'coarse_type',
+    'detected_title',
+    'split_reason',
+    'start_page',
+    'end_page',
+    // Doc type shown in header
+    'doc_type',
   ];
   const entries = Object.entries(data).filter(([key, value]) => {
     if (skipFields.includes(key)) return false;

@@ -6576,7 +6576,9 @@
                           'releasor', 'ratifying_party', 'original_party', 'principal_name', 'agent_name',
                           'petitioner_name', 'respondent_name', 'decedent_name', 'executor_name', 'affiant_name',
                           'decedent', 'affiant', 'heirs_summary', 'children_living', 'children_predeceased', 'spouses',
-                          'president', 'vice_president', 'secretary', 'assistant_secretary', 'treasurer', 'corporate_officer'],
+                          'president', 'vice_president', 'secretary', 'assistant_secretary', 'treasurer', 'corporate_officer',
+                          'from', 'sender', 'to'],  // Correspondence parties
+                'Letter Details': ['subject', 're_line'],  // Correspondence letter details (date handled separately)
                 'Tracts & Interest': ['tracts', 'interest_conveyed', 'interest_assigned', 'consideration',
                                            'consideration_amount', 'consideration_description', 'bonus_amount',
                                            'net_mineral_acres', 'minerals_covered', 'mineral_types_conveyed',
@@ -7111,6 +7113,8 @@
                 'Ratification',
                 'Exhibits',
                 'Unit Parties',
+                // Correspondence sections
+                'Letter Details',
                 'Other Information'
             ];
             
@@ -9450,6 +9454,41 @@
                                         </div>` : ''}
                                     </div>
                                 </div>`;
+                        } else if ((fieldName === 'from' || fieldName === 'sender' || fieldName === 'to') && typeof value === 'object' && data.doc_type === 'correspondence') {
+                            // Special handling for correspondence from/sender/to objects
+                            const company = value.company || value.name || '';
+                            const address = value.address || '';
+                            const phone = value.phone || '';
+                            const fax = value.fax || '';
+                            const email = value.email || '';
+                            const name = value.name || '';
+                            const title = value.title || '';
+
+                            // Only show if there's actual data
+                            if (company || name || address) {
+                                hasVisibleFields = true;
+                                const labelMap = { 'from': 'From', 'sender': 'Sender', 'to': 'To' };
+                                const bgColor = fieldName === 'from' ? '#DBEAFE' : fieldName === 'sender' ? '#F3E8FF' : '#D1FAE5';
+                                const borderColor = fieldName === 'from' ? '#3B82F6' : fieldName === 'sender' ? '#9333EA' : '#10B981';
+                                const textColor = fieldName === 'from' ? '#1E40AF' : fieldName === 'sender' ? '#6B21A8' : '#047857';
+
+                                sectionContent += `
+                                    <div class="doc-field" style="grid-column: 1 / -1;">
+                                        <label>${labelMap[fieldName]}</label>
+                                        <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 8px; padding: 14px;">
+                                            <div style="font-weight: 600; color: ${textColor}; font-size: 15px;">${escapeHtml(company || name)}</div>
+                                            ${fieldName === 'sender' && name && company ? `<div style="font-size: 13px; color: #4B5563; margin-top: 4px;">${escapeHtml(name)}${title ? ` - ${escapeHtml(title)}` : ''}</div>` : ''}
+                                            ${address ? `<div style="font-size: 13px; color: #6B7280; margin-top: 6px;">${escapeHtml(address)}</div>` : ''}
+                                            ${(phone || fax || email) ? `
+                                                <div style="font-size: 12px; color: #4B5563; margin-top: 8px; display: flex; flex-wrap: wrap; gap: 12px;">
+                                                    ${phone ? `<span>📞 ${escapeHtml(phone)}</span>` : ''}
+                                                    ${fax ? `<span>📠 ${escapeHtml(fax)}</span>` : ''}
+                                                    ${email ? `<span>✉️ ${escapeHtml(email)}</span>` : ''}
+                                                </div>
+                                            ` : ''}
+                                        </div>
+                                    </div>`;
+                            }
                         } else if (fieldName === 'primary_term' && typeof value === 'object') {
                             // Special handling for primary_term object (oil_gas_lease v2 schema)
                             hasVisibleFields = true;

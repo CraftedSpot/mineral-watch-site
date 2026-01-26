@@ -328,6 +328,7 @@ export async function linkDocumentToEntities(
       try {
         // Query for ALL properties matching this section (not LIMIT 1)
         // Strip "County" suffix from property county for comparison (handles "Blaine" vs "Blaine County")
+        // Check owner against both user_id and organization_id (properties table uses 'owner' for both)
         const propertyQuery = `
           SELECT airtable_record_id as id FROM properties
           WHERE CAST(section AS INTEGER) = CAST(? AS INTEGER)
@@ -337,13 +338,14 @@ export async function linkDocumentToEntities(
             AND SUBSTR(UPPER(range), -1) = SUBSTR(UPPER(?), -1)
             AND LOWER(REPLACE(county, ' County', '')) = LOWER(?)
             AND (meridian = ? OR meridian IS NULL OR ? IS NULL)
-            AND (owner = ? OR organization_id = ?)
+            AND owner IN (?, ?)
         `;
         const propertyParams = [
           sectionData.section,
           sectionData.township, sectionData.township,
           sectionData.range, sectionData.range,
-          county, meridian, meridian, ownerFilter, ownerFilter
+          county, meridian, meridian,
+          documentUserId || '', documentOrgId || ''
         ];
 
         console.log(`[LinkDocuments] Checking section ${sectionData.section}-${sectionData.township}-${sectionData.range} for owner ${ownerFilter}`);

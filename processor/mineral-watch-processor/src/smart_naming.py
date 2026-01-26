@@ -1485,22 +1485,29 @@ def name_legal_document(data: Dict[str, Any]) -> str:
 def name_correspondence(data: Dict[str, Any]) -> str:
     """Letter - {From} to {To} - {Date}"""
     parts = ["Letter"]
-    
+
+    # Get from party - handle both string and object formats
     from_party = data.get('from') or data.get('sender')
+    if isinstance(from_party, dict):
+        from_party = from_party.get('name') or from_party.get('company') or ''
+
+    # Get to party - handle both string and object formats
     to_party = data.get('to') or data.get('recipient')
-    
+    if isinstance(to_party, dict):
+        to_party = to_party.get('name') or to_party.get('company') or ''
+
     if from_party and to_party:
         parts.append(f"{extract_last_name(from_party)} to {extract_last_name(to_party)}")
     elif from_party:
         parts.append(f"from {extract_last_name(from_party)}")
     elif to_party:
         parts.append(f"to {extract_last_name(to_party)}")
-    
+
     # Use full date for correspondence
     date = format_date(data.get('date') or data.get('letter_date'), data.get('year'))
     if date:
         parts.append(date)
-    
+
     return " - ".join(parts)
 
 
