@@ -27,9 +27,10 @@ export async function updateHealthStatus(env, runType, status) {
  * @returns {Object} - Combined health status
  */
 export async function getHealthStatus(env) {
-  const [daily, weekly, lastError] = await Promise.all([
+  const [daily, weekly, docket, lastError] = await Promise.all([
     env.MINERAL_CACHE.get(`${HEALTH_KEY_PREFIX}:last-run:daily`, { type: 'json' }),
     env.MINERAL_CACHE.get(`${HEALTH_KEY_PREFIX}:last-run:weekly`, { type: 'json' }),
+    env.MINERAL_CACHE.get(`${HEALTH_KEY_PREFIX}:last-run:docket`, { type: 'json' }),
     env.MINERAL_CACHE.get(`${HEALTH_KEY_PREFIX}:last-run:last-error`, { type: 'json' })
   ]);
   
@@ -75,6 +76,20 @@ export async function getHealthStatus(env) {
     hasRecentError = hoursSinceError < 24;
   }
   
+  // Check if docket run is stale (more than 3 days for weekday monitor)
+  let docketHealthy = true;
+  let docketWarning = null;
+  if (docket?.timestamp) {
+    const lastDocket = new Date(docket.timestamp);
+    const daysSince = (now - lastDocket) / (1000 * 60 * 60 * 24);
+    if (daysSince > 3) {
+      docketHealthy = false;
+      docketWarning = `Last docket run was ${Math.round(daysSince)} days ago`;
+    }
+  } else {
+    docketWarning = 'No docket run recorded';
+  }
+
   return {
     status: dailyHealthy && weeklyHealthy && !hasRecentError ? 'healthy' : 'unhealthy',
     timestamp: now.toISOString(),
@@ -87,6 +102,11 @@ export async function getHealthStatus(env) {
       healthy: weeklyHealthy,
       warning: weeklyWarning,
       lastRun: weekly
+    },
+    docket: {
+      healthy: docketHealthy,
+      warning: docketWarning,
+      lastRun: docket
     },
     lastError: hasRecentError ? lastError : null
   };
