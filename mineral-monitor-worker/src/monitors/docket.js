@@ -638,8 +638,9 @@ export async function runDocketMonitor(env, options = {}) {
   // Process both OKC and Tulsa dockets
   for (const docketType of ['okc', 'tulsa']) {
     try {
-      // Try today and yesterday (dockets may be posted day before)
-      for (const daysAgo of [0, 1]) {
+      // Look back 7 days to catch any missed dockets from prior runs.
+      // Duplicates are handled by ON CONFLICT(case_number) in storeDocketEntries.
+      for (const daysAgo of [0, 1, 2, 3, 4, 5, 6]) {
         const date = new Date(today);
         date.setDate(date.getDate() - daysAgo);
 

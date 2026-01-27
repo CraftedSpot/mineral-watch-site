@@ -100,8 +100,8 @@ export default {
         });
       }
 
-      // Docket monitor - 8 AM Central weekdays (14 UTC, Mon-Fri)
-      if (cronPattern === '0 14 * * 1-5') {
+      // Docket monitor - 12 PM Central weekdays (18 UTC, Mon-Fri)
+      if (cronPattern === '0 18 * * 1-5') {
         // Skip if backfill is running to avoid conflicts
         if (await isBackfillRunning(env)) {
           console.log('[Docket] Skipping - backfill in progress');
