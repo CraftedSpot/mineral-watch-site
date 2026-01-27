@@ -1236,7 +1236,7 @@ var index_default = {
       }
       
       // Unlink/Relink property-well endpoint
-      const unlinkMatch = path.match(/^\/api\/property-well-link\/([a-zA-Z0-9]+)$/);
+      const unlinkMatch = path.match(/^\/api\/property-well-link\/([a-zA-Z0-9_]+)$/);
       if (unlinkMatch && request.method === "DELETE") {
         return handleUnlinkPropertyWell(unlinkMatch[1], request, env);
       }
