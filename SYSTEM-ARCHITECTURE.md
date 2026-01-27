@@ -19,7 +19,8 @@ The platform runs entirely on Cloudflare Workers with a D1 (SQLite) database as 
   - D1: `WELLS_DB` (oklahoma-wells)
   - KV: `AUTH_TOKENS`, `OCC_CACHE`, `COMPLETIONS_CACHE`
   - Services: `AUTH_WORKER`, `DOCUMENTS_WORKER`, `OCC_FETCHER`
-- **Key files:** `src/index.ts` (router), `src/sync.ts` (Airtable sync), `src/handlers/` (API handlers)
+- **Key files:** `src/index.ts` (router), `src/sync.ts` (Airtable sync), `src/handlers/` (API handlers), `src/templates/dashboard-builder.ts` (dashboard composition)
+- **Dashboard:** The portal dashboard is assembled at build time from 18 component files — see "Portal Dashboard Architecture" section below
 
 ### mineral-monitor-worker (alert engine)
 - **Purpose:** Processes OCC Excel files daily, detects new permits/completions/transfers, finds matching users, creates alerts, sends emails.
@@ -54,6 +55,94 @@ The platform runs entirely on Cloudflare Workers with a D1 (SQLite) database as 
 - **mineralwatch-contact:** Contact form handler
 - **mineral-watch-webhooks:** Generic webhook handler
 - **stripe-webhook:** Stripe payment event handler
+
+---
+
+## Portal Dashboard Architecture
+
+The portal dashboard (`/portal/dashboard`) was a 20,107-line monolithic HTML file. It has been decomposed into 18 component files that are assembled at build time via `dashboard-builder.ts`. The browser receives the exact same single HTML page — all composition happens during Wrangler's esbuild bundling step.
+
+### How It Works
+
+1. `src/templates/dashboard-shell.html` (468 lines) contains the page skeleton with placeholder comments like `/* __BASE_CSS__ */`, `<!-- __ADD_WELL_MODAL__ -->`, etc.
+2. `src/templates/dashboard-builder.ts` imports the shell + all component files, uses `String.replace()` to substitute each placeholder with component content.
+3. `src/templates/index.ts` re-exports the assembled HTML as `dashboardHtml`.
+4. Wrangler bundles everything — the browser gets one complete HTML document.
+
+### File Extension: `.txt` (not `.js`/`.css`)
+
+Component files use the `.txt` extension because Wrangler's esbuild:
+- **Executes `.js` files** as JavaScript modules (crashes on `document` references in Workers runtime)
+- **Extracts `.css` files** to separate bundles (returns `{}` instead of a string)
+- **Imports `.txt` files** as raw text strings (what the builder needs)
+
+Type declarations are in `src/types/assets.d.ts` (`declare module '*.txt'`) and `src/types/html.d.ts` (`declare module '*.html'`).
+
+### File Structure
+
+```
+portal-worker/src/templates/
+├── dashboard.html              ← Original monolith (kept as backup/reference)
+├── dashboard-shell.html        ← Skeleton with placeholders (468 lines)
+├── dashboard-builder.ts        ← Build-time composition logic (105 lines)
+├── index.ts                    ← Re-exports dashboardHtml
+│
+├── styles/
+│   ├── dashboard-base.txt      ← Core CSS: layout, header, tabs, cards, forms (2,730 lines)
+│   └── dashboard-documents.txt ← Document/credit CSS, split via marker (697 lines)
+│
+├── scripts/
+│   ├── dashboard-utils.txt     ← Shared utilities: escapeHtml, showToast, formatters (673 lines)
+│   ├── dashboard-init.txt      ← DOMContentLoaded bootstrap, loadAllData, tab switching (214 lines)
+│   ├── dashboard-properties.txt ← Properties tab: CRUD, filter, sort, details modal (979 lines)
+│   ├── dashboard-wells.txt     ← Wells tab: CRUD, search, details, CSV export (1,456 lines)
+│   ├── dashboard-activity.txt  ← Activity tab + stats (195 lines)
+│   ├── dashboard-production.txt ← Production summary rendering (190 lines)
+│   ├── dashboard-documents.txt ← Documents tab: upload, viewer, extraction, credits (8,055 lines)
+│   ├── dashboard-occ.txt       ← OCC filings, completion reports, document processing (1,010 lines)
+│   └── dashboard-bulk.txt      ← Bulk CSV/Excel upload for properties + wells (2,226 lines)
+│
+└── partials/
+    ├── modal-add-property.html ← Add property form with county dropdown, TRS fields (99 lines)
+    ├── modal-add-well.html     ← Add well: API search + name/location search tabs (94 lines)
+    ├── modal-well-details.html ← Well detail modal shell, populated by JS (218 lines)
+    ├── modal-property-details.html ← Property detail modal shell (139 lines)
+    ├── modal-documents.html    ← Doc viewer + detail + upload + credits modals (321 lines)
+    └── modal-bulk-upload.html  ← Bulk properties + wells + processing modals (387 lines)
+```
+
+### Split Markers
+
+Some components contain non-contiguous code blocks (their content appears at multiple positions in the original HTML). These use split markers — special comments that `dashboard-builder.ts` splits on to produce separate fragments for each placeholder:
+
+| Component | Marker(s) | Blocks |
+|-----------|-----------|--------|
+| `dashboard-documents.txt` (CSS) | `/* __SPLIT__ */` | 2 (credit hover + upload styles) |
+| `dashboard-utils.txt` | `/* __SPLIT_UTILS_B__ */` | 2 (core utilities + toast/confirm) |
+| `dashboard-properties.txt` | `__SPLIT_PROPS_B/C/D__` | 4 (tab core, add modal, details, save) |
+| `dashboard-wells.txt` | `__SPLIT_WELLS_B/C/D__` | 4 (tab core, add modal, search/details, CSV) |
+| `dashboard-documents.txt` (JS) | `__SPLIT_DOCS_B/C__` | 3 (main code, linked docs, window binding) |
+| `modal-documents.html` | `__SPLIT_DOCS_HTML_B/C__` | 3 (manual link, viewer+detail, upload) |
+| `dashboard-bulk.txt` | `/* __SPLIT_VERIFY__ */` | 2 (main script + verification) |
+| `modal-bulk-upload.html` | `<!-- __SPLIT_PROCESSING__ -->` | 2 (upload modals + processing modal) |
+
+### Cross-Module Dependencies
+
+All JS runs in global scope (concatenated into one `<script>` block). Key shared state:
+
+| Variable/Function | Defined In | Used By |
+|-------------------|-----------|---------|
+| `allProperties`, `allWells` | init | properties, wells, documents, occ |
+| `showToast`, `showConfirm`, `escapeHtml` | utils | ALL modules |
+| `currentUser`, `API_BASE` | shell (template vars) | ALL modules |
+| `selectedProperties/Wells/Documents` | utils | properties, wells, documents |
+
+### Editing Components
+
+- Edit the component files directly — no need to touch `dashboard.html` or `dashboard-shell.html`
+- The shell only needs editing to add/remove/reorder placeholder positions
+- After changes, `npx wrangler deploy` rebuilds automatically
+- To verify: the Python verification script in the session history compares composed output against `dashboard.html`
 
 ---
 
@@ -450,6 +539,7 @@ For deeper dives, see `Repo Skill and Instructions/`:
 - BH coordinates backfilled from section centers (17,730 wells)
 - Auto-geocoding runs every sync cycle for new wells
 - Orphan cleanup in sync (deletes D1 records removed from Airtable)
+- Dashboard decomposed from 20,107-line monolith into 18 build-time components (Jan 2026)
 
 ### Still Using Airtable
 - User data entry (properties, wells) — users interact with Airtable, synced to D1

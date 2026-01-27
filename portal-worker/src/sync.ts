@@ -1,4 +1,5 @@
 import { fetchWellDetailsFromOCC } from './handlers/wells.js';
+import { runFullPropertyWellMatching } from './utils/property-well-matching.js';
 
 // Airtable configuration
 const AIRTABLE_BASE_ID = 'app3j3X29Uvp5stza'; // Mineral Watch Oklahoma base
@@ -230,6 +231,41 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
     } catch (error) {
       console.error('[Sync] BH geocoding error:', error);
       // Non-fatal - don't fail the sync
+    }
+
+    // Auto-match properties to wells for users with unlinked properties
+    if (result.properties.synced > 0) {
+      try {
+        const usersWithUnlinked = await env.WELLS_DB.prepare(`
+          SELECT p.owner, u.email, u.airtable_record_id, u.organization_id, COUNT(*) as unlinked
+          FROM properties p
+          LEFT JOIN property_well_links pwl
+            ON pwl.property_airtable_id = p.airtable_record_id AND pwl.status = 'Active'
+          JOIN users u ON u.airtable_record_id = p.owner
+          WHERE pwl.id IS NULL
+          GROUP BY p.owner
+        `).all();
+
+        if (usersWithUnlinked.results.length > 0) {
+          console.log(`[Sync] Found ${usersWithUnlinked.results.length} user(s) with unlinked properties, running auto-match`);
+          for (const row of usersWithUnlinked.results as any[]) {
+            try {
+              const matchResult = await runFullPropertyWellMatching(
+                row.airtable_record_id,
+                row.email,
+                row.organization_id || undefined,
+                env
+              );
+              console.log(`[Sync] Auto-match for ${row.email}: ${matchResult.linksCreated} links created (${matchResult.propertiesProcessed} props, ${matchResult.wellsProcessed} wells)`);
+            } catch (matchError) {
+              console.error(`[Sync] Auto-match failed for ${row.email}:`, matchError);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('[Sync] Auto-matching error:', error);
+        // Non-fatal - don't fail the sync
+      }
     }
 
     return result;

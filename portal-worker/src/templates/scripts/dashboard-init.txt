@@ -32,6 +32,9 @@
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }
 
+                // Show Find Matches button for all users
+                document.getElementById('findMatchesBtn').style.display = 'inline-flex';
+
                 // Show Documents tab for all users
                 console.log('Showing documents tab for all users');
                 document.getElementById('documentsTab').style.display = 'flex';
@@ -203,12 +206,38 @@
         
         async function loadAllData() {
             const promises = [loadProperties(), loadWells(), loadActivity(), loadActivityStats()];
-            
+
             // Only load documents if the tab is visible (user has access)
             if (document.getElementById('documentsTab') && document.getElementById('documentsTab').style.display !== 'none') {
                 promises.push(loadDocuments());
                 promises.push(loadUsageStats());
             }
-            
+
             await Promise.all(promises);
+        }
+
+        async function findWellMatches() {
+            const btn = document.getElementById('findMatchesBtn');
+            btn.disabled = true;
+            btn.textContent = 'Matching...';
+            try {
+                const res = await fetch('/api/match-property-wells', { method: 'POST' });
+                const data = await res.json();
+                if (data.success) {
+                    const count = data.stats.linksCreated;
+                    if (count > 0) {
+                        showToast(`Found ${count} new well match${count === 1 ? '' : 'es'}`, 'success');
+                        await Promise.all([loadProperties(), loadWells()]);
+                    } else {
+                        showToast('All properties are already matched', 'success');
+                    }
+                } else {
+                    showToast(data.error || 'Matching failed', 'error');
+                }
+            } catch (err) {
+                showToast('Error: ' + err.message, 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Find Matches';
+            }
         }
