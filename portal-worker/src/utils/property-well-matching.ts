@@ -621,6 +621,8 @@ export async function runFullPropertyWellMatching(
   let wellsFilter: string;
   let linksFilter: string;
   
+  const email = userEmail.replace(/'/g, "\\'");
+
   if (organizationId) {
     // Organization user - get org name for filtering
     const orgResponse = await fetch(
@@ -629,16 +631,19 @@ export async function runFullPropertyWellMatching(
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
-    
+
     const orgData = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
-    
-    propertiesFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
-    wellsFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
-    linksFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
+
+    // Filter by organization name OR user email - properties may have Organization
+    // field empty but User field set (e.g., after bulk re-upload via Airtable)
+    const orgFind = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization}))`;
+    const userFind = `FIND('${email}', ARRAYJOIN({User}))`;
+    propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
+    wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
+    linksFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
   } else {
     // Solo user - filter by user email
-    const email = userEmail.replace(/'/g, "\\'");
     propertiesFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
     wellsFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
     linksFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;

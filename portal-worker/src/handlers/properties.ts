@@ -48,6 +48,8 @@ export async function handleListProperties(request: Request, env: Env) {
   let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
   
+  const userEmail = user.email.replace(/'/g, "\\'");
+
   if (organizationId) {
     // User has organization - need to get org name for the filter
     const orgResponse = await fetch(
@@ -56,19 +58,20 @@ export async function handleListProperties(request: Request, env: Env) {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
-    
+
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      const orgName = org.fields.Name;
-      // Filter by organization name (linked record field shows display value)
-      formula = `{Organization} = '${orgName}'`;
+      const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+      // Filter by org name OR user email — properties uploaded via Airtable
+      // may have User field set but Organization field empty
+      const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
+      const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
+      formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
-      // Fallback - filter by user email using FIND
-      formula = `FIND("${user.email}", ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    // Solo user - filter by user email (primary field in Users table)
-    formula = `FIND("${user.email}", ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
   }
   
   const records = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, formula);

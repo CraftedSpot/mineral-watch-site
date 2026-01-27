@@ -455,6 +455,8 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     const cacheKey = `link-counts:wells:${organizationId || user.id}`;
     let wellsFilter: string;
 
+    const userEmail = user.email.replace(/'/g, "\\'");
+
     if (organizationId) {
       const orgResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${organizationId}`,
@@ -463,12 +465,15 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
 
       if (orgResponse.ok) {
         const org = await orgResponse.json() as any;
-        wellsFilter = `{Organization} = '${org.fields.Name}'`;
+        const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+        const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
+        const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
+        wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
       } else {
-        wellsFilter = `FIND("${user.email}", ARRAYJOIN({User})) > 0`;
+        wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
       }
     } else {
-      wellsFilter = `FIND("${user.email}", ARRAYJOIN({User})) > 0`;
+      wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
 
     // Get wells (cached or fresh)

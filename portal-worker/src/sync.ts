@@ -839,7 +839,7 @@ async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
       }
       
       return env.WELLS_DB.prepare(`
-        INSERT INTO property_well_links (
+        INSERT OR REPLACE INTO property_well_links (
           id, airtable_record_id, property_airtable_id, well_airtable_id,
           match_reason, status, confidence_score,
           user_id, organization_id,
@@ -847,18 +847,6 @@ async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
           created_at, rejected_date, synced_at
         )
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(airtable_record_id) DO UPDATE SET
-          property_airtable_id = excluded.property_airtable_id,
-          well_airtable_id = excluded.well_airtable_id,
-          match_reason = excluded.match_reason,
-          status = excluded.status,
-          confidence_score = excluded.confidence_score,
-          user_id = excluded.user_id,
-          organization_id = excluded.organization_id,
-          link_name = excluded.link_name,
-          link_type = excluded.link_type,
-          rejected_date = excluded.rejected_date,
-          synced_at = CURRENT_TIMESTAMP
       `).bind(
         id,
         record.id,

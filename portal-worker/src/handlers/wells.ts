@@ -311,6 +311,8 @@ export async function handleListWells(request: Request, env: Env) {
   let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
   
+  const userEmail = user.email.replace(/'/g, "\\'");
+
   if (organizationId) {
     // User has organization - fetch org name and filter by it
     const orgResponse = await fetch(
@@ -319,19 +321,18 @@ export async function handleListWells(request: Request, env: Env) {
         headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
       }
     );
-    
+
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      const orgName = org.fields.Name;
-      // Filter by organization name
-      formula = `{Organization} = '${orgName}'`;
+      const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+      const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
+      const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
+      formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
-      // Fallback to email if org fetch fails
-      formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    // Solo user - filter by email
-    formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
   }
   
   const records = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
@@ -440,6 +441,8 @@ export async function handleListWellsV2(request: Request, env: Env) {
   let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
 
+  const userEmail2 = user.email.replace(/'/g, "\\'");
+
   if (organizationId) {
     // User has organization - fetch org name and filter by it
     const orgResponse = await fetch(
@@ -451,13 +454,15 @@ export async function handleListWellsV2(request: Request, env: Env) {
 
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      const orgName = org.fields.Name;
-      formula = `{Organization} = '${orgName}'`;
+      const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+      const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
+      const userFind = `FIND('${userEmail2}', ARRAYJOIN({User}))`;
+      formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
-      formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${userEmail2}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    formula = `FIND('${user.email}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${userEmail2}', ARRAYJOIN({User})) > 0`;
   }
 
   // Fetch tracked wells from Airtable (returns all fields, we'll use minimal)
