@@ -1,0 +1,979 @@
+        async function loadProperties() {
+            try {
+                const res = await fetch('/api/properties');
+                if (!res.ok) throw new Error('Failed to load');
+                const properties = await res.json();
+                loadedProperties = properties; // Store for filtering/sorting
+                document.getElementById('propCount').textContent = properties.length;
+                updateTotalCount();
+
+                // Render table immediately (with zero counts)
+                renderPropertiesTable();
+
+                // Fetch link counts in background and re-render when ready
+                if (properties.length > 0) {
+                    fetchPropertyLinkCounts();
+                }
+            } catch { document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
+
+        // Fetch link counts and merge into loadedProperties
+        async function fetchPropertyLinkCounts() {
+            try {
+                const res = await fetch('/api/properties/link-counts');
+                if (!res.ok) return;
+                const counts = await res.json();
+
+                // Merge counts into loadedProperties
+                for (const prop of loadedProperties) {
+                    if (counts[prop.id]) {
+                        prop._linkCounts = counts[prop.id];
+                    }
+                }
+
+                // Re-render with updated counts
+                renderPropertiesTable();
+            } catch (err) {
+                console.error('Failed to load link counts:', err);
+            }
+        }
+        
+        // Generate a map link for a property section (centers on general area)
+        function generateSectionMapLink(sec, twn, rng, county) {
+            // Link to OCC GIS with a search query - this will show the general area
+            // We can't pin-drop without coordinates, but we can search
+            const searchTerm = encodeURIComponent(`${county || ''} ${sec} ${twn} ${rng}`.trim());
+            return `https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b`;
+        }
+
+        async function loadWells() {
+            try {
+                // Use V2 endpoint with D1 as primary data source
+                const res = await fetch('/api/wells/v2');
+                if (!res.ok) throw new Error('Failed to load');
+                const wells = await res.json();
+                loadedWells = wells; // Store for filtering/sorting
+                document.getElementById('wellCount').textContent = wells.length;
+                updateTotalCount();
+
+
+                // Render the table (handles empty state internally)
+                renderWellsTable();
+
+                // Fetch link counts in background (non-blocking)
+                fetchWellLinkCounts();
+            } catch { document.getElementById('wellsContent').innerHTML = '<div class="empty-state"><p style="color: var(--error);">Error loading. Refresh page.</p></div>'; }
+        }
+
+        // Fetch link counts and merge into loadedWells
+        async function fetchWellLinkCounts() {
+            try {
+                const res = await fetch('/api/wells/link-counts');
+                if (!res.ok) return;
+                const counts = await res.json();
+
+                // Merge counts into loadedWells
+                for (const well of loadedWells) {
+                    if (counts[well.id]) {
+                        well._linkCounts = counts[well.id];
+                    }
+                }
+
+                // Re-render with updated counts
+                renderWellsTable();
+            } catch (err) {
+                console.error('Failed to load well link counts:', err);
+            }
+        }
+
+        // Properties Search & Sort State
+        let propertiesSearchTerm = '';
+        let propertiesSortBy = 'legal-asc';
+
+        // Initialize Properties Controls (call this after user loads)
+        function initPropertiesControls() {
+            const hasSearch = currentUser?.plan !== 'Free';
+            
+            // Show/hide controls based on plan
+            document.getElementById('propertiesControls').style.display = hasSearch ? 'flex' : 'none';
+            
+            if (!hasSearch) return;
+            
+            // Search input handler
+            document.getElementById('propertiesSearch').addEventListener('input', (e) => {
+                propertiesSearchTerm = e.target.value.toLowerCase().trim();
+                renderPropertiesTable();
+            });
+            
+            // Sort select handler
+            document.getElementById('propertiesSort').addEventListener('change', (e) => {
+                propertiesSortBy = e.target.value;
+                renderPropertiesTable();
+            });
+        }
+
+        // Filter properties based on search term
+        function filterProperties(properties) {
+            if (!propertiesSearchTerm) return properties;
+            
+            return properties.filter(p => {
+                const f = p.fields;
+                const searchable = [
+                    f.COUNTY || '',
+                    f.SEC || '',
+                    f.TWN || '',
+                    f.RNG || '',
+                    f.MERIDIAN || '',
+                    f.Notes || ''
+                ].join(' ').toLowerCase();
+                
+                return searchable.includes(propertiesSearchTerm);
+            });
+        }
+
+        // Sort properties based on selected option
+        function sortProperties(properties) {
+            const [field, direction] = propertiesSortBy.split('-');
+            const multiplier = direction === 'asc' ? 1 : -1;
+            
+            return [...properties].sort((a, b) => {
+                if (field === 'legal') {
+                    // Legal Description: County → Township → Range → Section
+                    const aCounty = (a.fields.COUNTY || '').toLowerCase();
+                    const bCounty = (b.fields.COUNTY || '').toLowerCase();
+                    if (aCounty !== bCounty) {
+                        return aCounty < bCounty ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Parse township (e.g., "T24N" -> { num: 24, dir: "N" })
+                    const parseTownship = (twp) => {
+                        const match = (twp || '').match(/T?(\d+)([NS])?/i);
+                        return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
+                    };
+                    
+                    const aTwp = parseTownship(a.fields.TWN);
+                    const bTwp = parseTownship(b.fields.TWN);
+                    if (aTwp.num !== bTwp.num) {
+                        return aTwp.num < bTwp.num ? -1 * multiplier : 1 * multiplier;
+                    }
+                    if (aTwp.dir !== bTwp.dir) {
+                        return aTwp.dir < bTwp.dir ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Parse range (e.g., "R10W" -> { num: 10, dir: "W" })
+                    const parseRange = (rng) => {
+                        const match = (rng || '').match(/R?(\d+)([EW])?/i);
+                        return match ? { num: parseInt(match[1]), dir: (match[2] || '').toLowerCase() } : { num: 0, dir: '' };
+                    };
+                    
+                    const aRng = parseRange(a.fields.RNG);
+                    const bRng = parseRange(b.fields.RNG);
+                    if (aRng.num !== bRng.num) {
+                        return aRng.num < bRng.num ? -1 * multiplier : 1 * multiplier;
+                    }
+                    if (aRng.dir !== bRng.dir) {
+                        return aRng.dir < bRng.dir ? -1 * multiplier : 1 * multiplier;
+                    }
+                    
+                    // Section (numeric)
+                    const aSection = parseInt(a.fields.SEC) || 0;
+                    const bSection = parseInt(b.fields.SEC) || 0;
+                    return aSection < bSection ? -1 * multiplier : (aSection > bSection ? 1 * multiplier : 0);
+                    
+                } else if (field === 'date') {
+                    // Date Added - use createdTime from Airtable
+                    const aDate = new Date(a.createdTime || 0);
+                    const bDate = new Date(b.createdTime || 0);
+                    return aDate < bDate ? -1 * multiplier : (aDate > bDate ? 1 * multiplier : 0);
+                    
+                } else if (field === 'acres') {
+                    // Total Acres - sum of RI and WI acres
+                    const aTotal = (parseFloat(a.fields['RI Acres'] || 0) + parseFloat(a.fields['WI Acres'] || 0));
+                    const bTotal = (parseFloat(b.fields['RI Acres'] || 0) + parseFloat(b.fields['WI Acres'] || 0));
+                    return aTotal < bTotal ? -1 * multiplier : (aTotal > bTotal ? 1 * multiplier : 0);
+
+                } else if (field === 'wells') {
+                    // Linked Wells count
+                    const aCount = a._linkCounts?.wells || 0;
+                    const bCount = b._linkCounts?.wells || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'documents') {
+                    // Linked Documents count
+                    const aCount = a._linkCounts?.documents || 0;
+                    const bCount = b._linkCounts?.documents || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+
+                } else if (field === 'filings') {
+                    // OCC Filings count
+                    const aCount = a._linkCounts?.filings || 0;
+                    const bCount = b._linkCounts?.filings || 0;
+                    return aCount < bCount ? -1 * multiplier : (aCount > bCount ? 1 * multiplier : 0);
+                }
+
+                return 0;
+            });
+        }
+
+        // Render the properties table (extracted from loadProperties)
+        function renderPropertiesTable() {
+            const hasSearch = currentUser?.plan !== 'Free';
+            
+            // Apply filter and sort
+            let displayProperties = loadedProperties;
+            if (hasSearch) {
+                displayProperties = filterProperties(loadedProperties);
+                displayProperties = sortProperties(displayProperties);
+                
+                // Update results count
+                const countEl = document.getElementById('propertiesResultsCount');
+                if (propertiesSearchTerm) {
+                    countEl.textContent = `${displayProperties.length} of ${loadedProperties.length} properties`;
+                } else {
+                    countEl.textContent = `${loadedProperties.length} properties`;
+                }
+            }
+            
+            if (displayProperties.length === 0 && loadedProperties.length > 0) {
+                // No search results
+                document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties match your search.</p></div>';
+                return;
+            }
+            
+            if (displayProperties.length === 0) {
+                document.getElementById('propertiesContent').innerHTML = '<div class="empty-state"><p>No properties yet. Add your first property to start monitoring.</p></div>';
+                return;
+            }
+            
+            // Build table with conditional checkbox column for non-Viewers
+            const isViewer = currentUser?.role === 'Viewer';
+            let html = '<table class="data-table"><colgroup>';
+            if (!isViewer) html += '<col class="col-select">';
+            html += '<col class="col-prop-county"><col class="col-prop-legal"><col class="col-prop-group"><col class="col-prop-acres"><col class="col-prop-notes"><col class="col-links"></colgroup><thead><tr>';
+            if (!isViewer) html += '<th class="bulk-only"><input type="checkbox" id="selectAllProperties" title="Select all"></th>';
+            html += '<th>County</th><th>Legal</th><th class="col-prop-group">Group</th><th style="text-align: right;"><span class="desktop-only-total">Total </span><span class="mobile-only-acres"></span>Acres</th><th class="col-prop-notes-cell">Notes</th><th style="text-align: right;">Links</th></tr></thead><tbody>';
+            
+            // SVG icons for links column
+            const wellsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/></svg>';
+            const docsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>';
+            const filingsIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/></svg>';
+            // Link/chain icon for mobile total (Heroicons)
+            const linkIcon = '<svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>';
+
+            displayProperties.forEach(p => {
+                const f = p.fields;
+                const str = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+                const riAcres = parseFloat(f['RI Acres'] || 0);
+                const wiAcres = parseFloat(f['WI Acres'] || 0);
+                const totalAcres = riAcres + wiAcres;
+                const acresDisplay = totalAcres > 0 ? totalAcres.toFixed(2) : '—';
+                const notesText = f.Notes ? escapeHtml(f.Notes.substring(0, 80)) + (f.Notes.length > 80 ? '...' : '') : '';
+                const notes = notesText ? `<span style="color: var(--slate-blue); font-size: 13px;">${notesText}</span>` : '<em style="color: #A0AEC0;">—</em>';
+                const group = f.Group ? `<span style="color: var(--oil-navy); font-size: 12px; background: #F1F5F9; padding: 2px 8px; border-radius: 12px;">${escapeHtml(f.Group)}</span>` : '<em style="color: #A0AEC0;">—</em>';
+
+                // Get link counts (populated from API or default to 0)
+                const linkCounts = p._linkCounts || { wells: 0, documents: 0, filings: 0 };
+                const wellsClass = linkCounts.wells === 0 ? 'link-count zero' : 'link-count';
+                const docsClass = linkCounts.documents === 0 ? 'link-count zero' : 'link-count';
+                const filingsClass = linkCounts.filings === 0 ? 'link-count zero' : 'link-count';
+                const totalLinks = linkCounts.wells + linkCounts.documents + linkCounts.filings;
+                const totalClass = totalLinks === 0 ? 'link-total zero' : 'link-total';
+
+                html += `<tr onclick="openPropertyDetails('${p.id}')" style="cursor: pointer;">`;
+                if (!isViewer) {
+                    html += `<td class="bulk-only" onclick="event.stopPropagation()"><input type="checkbox" class="property-checkbox" data-id="${p.id}"></td>`;
+                }
+                html += `<td>${escapeHtml(cleanCountyDisplay(f.COUNTY)) || '—'}</td>
+                    <td><strong>${str}</strong></td>
+                    <td class="col-prop-group">${group}</td>
+                    <td style="text-align: right;">${acresDisplay}</td>
+                    <td title="${f.Notes ? escapeHtml(f.Notes) : ''}" class="col-prop-notes-cell">${notes}</td>
+                    <td>
+                        <div class="links-cell">
+                            <div class="link-breakdown">
+                                <span class="${wellsClass}" title="Linked Wells">${wellsIcon}${linkCounts.wells}</span>
+                                <span class="link-separator">│</span>
+                                <span class="${docsClass}" title="Documents">${docsIcon}${linkCounts.documents}</span>
+                                <span class="link-separator">│</span>
+                                <span class="${filingsClass}" title="OCC Filings">${filingsIcon}${linkCounts.filings}</span>
+                            </div>
+                            <span class="${totalClass}" title="Total Links (Wells: ${linkCounts.wells}, Docs: ${linkCounts.documents}, OCC: ${linkCounts.filings})">${linkIcon}${totalLinks}</span>
+                        </div>
+                    </td>
+                </tr>`;
+            });
+            
+            html += '</tbody></table>';
+            document.getElementById('propertiesContent').innerHTML = html;
+            
+            // Check if any properties have groups and show/hide Group column
+            const hasGroups = displayProperties.some(p => p.fields.Group);
+            const propertiesTable = document.querySelector('#propertiesContent .data-table');
+            if (hasGroups) {
+                propertiesTable.classList.add('has-groups');
+            } else {
+                propertiesTable.classList.remove('has-groups');
+            }
+            
+            // Update bulk selection state after table render
+            updateSelectAllState('properties');
+            updateBulkActionVisibility();
+        }
+/* __SPLIT_PROPS_B__ */
+        // Property Modal
+        document.getElementById('addPropertyBtn').addEventListener('click', () => { 
+            document.getElementById('addPropertyModal').style.display = 'flex'; 
+        });
+        
+        function closePropertyModal() { 
+            document.getElementById('addPropertyModal').style.display = 'none'; 
+            document.getElementById('addPropertyForm').reset(); 
+            document.getElementById('propertyNotes').value = ''; // Clear notes field
+            document.getElementById('addPropertyRIAcres').value = '';
+            document.getElementById('addPropertyWIAcres').value = '';
+            document.getElementById('addPropertyTotalAcres').textContent = '0';
+            document.getElementById('addPropertyAcreageBadge').style.display = 'none';
+            document.getElementById('addPropertyLocation').style.opacity = '0';
+        }
+        
+        // Auto-set meridian based on county
+        function autoSetMeridian(county) {
+            const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
+            const meridianSelect = document.getElementById('meridian');
+            
+            if (panhandleCounties.includes(county)) {
+                meridianSelect.value = 'CM';
+            } else if (county) { // Only set IM if a county is selected
+                meridianSelect.value = 'IM';
+            }
+        }
+        window.autoSetMeridian = autoSetMeridian; // Make available globally
+        
+        // Update location display in Add Property header
+        function updateLocationDisplay() {
+            const county = document.getElementById('county').value;
+            const section = document.getElementById('section').value;
+            const township = document.getElementById('township').value.toUpperCase();
+            const range = document.getElementById('range').value.toUpperCase();
+            const locationDiv = document.getElementById('addPropertyLocation');
+            
+            if (county && section && township && range) {
+                locationDiv.textContent = `${county} County • S${section} T${township} R${range}`;
+                locationDiv.style.opacity = '1';
+            } else if (county) {
+                locationDiv.textContent = `${county} County`;
+                locationDiv.style.opacity = '0.8';
+            } else {
+                locationDiv.style.opacity = '0';
+            }
+        }
+        window.updateLocationDisplay = updateLocationDisplay;
+        
+        // Update total acres for Add Property
+        function updateAddPropertyTotalAcres() {
+            const riAcres = parseFloat(document.getElementById('addPropertyRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('addPropertyWIAcres').value) || 0;
+            const total = riAcres + wiAcres;
+            
+            document.getElementById('addPropertyTotalAcres').textContent = total.toFixed(2);
+            
+            // Update the badge in header
+            const badge = document.getElementById('addPropertyAcreageBadge');
+            if (total > 0) {
+                badge.textContent = `${total.toFixed(2)} acres`;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+        window.updateAddPropertyTotalAcres = updateAddPropertyTotalAcres;
+        
+        document.getElementById('addPropertyModal').addEventListener('click', e => { 
+            if (e.target.id === 'addPropertyModal') closePropertyModal(); 
+        });
+        
+        document.getElementById('addPropertyForm').addEventListener('submit', async e => {
+            e.preventDefault();
+            
+            // Get form values
+            const section = document.getElementById('section').value.trim();
+            const township = document.getElementById('township').value.trim().toUpperCase();
+            const range = document.getElementById('range').value.trim().toUpperCase();
+            const notes = document.getElementById('propertyNotes').value.trim();
+            
+            // Additional validation
+            if (!/^[0-9]{1,2}$/.test(section) || parseInt(section) < 1 || parseInt(section) > 36) {
+                showToast('Section must be a number between 1 and 36', 'error');
+                return;
+            }
+            
+            if (!/^[0-9]{1,2}[NS]$/.test(township)) {
+                showToast('Township format: number + N or S (e.g., 12N)', 'error');
+                return;
+            }
+            
+            if (!/^[0-9]{1,2}[WE]$/.test(range)) {
+                showToast('Range format: number + W or E (e.g., 4W)', 'error');
+                return;
+            }
+            
+            const data = { 
+                COUNTY: document.getElementById('county').value, 
+                SEC: section, 
+                TWN: township, 
+                RNG: range, 
+                MERIDIAN: document.getElementById('meridian').value,
+                Notes: notes,
+                Group: document.getElementById('addPropertyGroup').value.trim(),
+                'RI Acres': parseFloat(document.getElementById('addPropertyRIAcres').value) || 0,
+                'WI Acres': parseFloat(document.getElementById('addPropertyWIAcres').value) || 0
+            };
+            try {
+                const res = await fetch('/api/properties', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json' }, 
+                    body: JSON.stringify(data) 
+                });
+                if (!res.ok) { 
+                    const err = await res.json(); 
+                    if (err.error && err.error.includes('already monitoring')) {
+                        showToast('Already tracking this property', 'info');
+                    } else {
+                        showToast(err.error || 'Failed to add property', 'error');
+                    }
+                    return;
+                }
+                showToast('Success, Property Added', 'success');
+                closePropertyModal();
+                await loadProperties();
+            } catch (err) { 
+                showToast('Error adding property: ' + err.message, 'error');
+            }
+        });
+/* __SPLIT_PROPS_C__ */
+        // Property Details Modal Functions
+        async function openPropertyDetails(propId) {
+            console.log('[openPropertyDetails] Called with propId:', propId);
+            
+            // Reset linked counts and lists immediately to prevent concatenation issues
+            const wellsCountEl = document.getElementById('property-linked-wells-count');
+            if (wellsCountEl) {
+                wellsCountEl.textContent = '—';
+            }
+            
+            // Also clear the list content to show fresh loading state
+            const wellsListEl = document.getElementById('linked-wells-list');
+            if (wellsListEl) {
+                wellsListEl.innerHTML = '';
+                wellsListEl.style.display = 'none';
+            }
+            
+            let prop = loadedProperties.find(p => p.id === propId);
+            
+            // If not in loaded properties, fetch from API
+            if (!prop) {
+                console.log('[openPropertyDetails] Property not found in loadedProperties:', propId);
+                console.log('[openPropertyDetails] Fetching from API...');
+                
+                try {
+                    // Fetch all properties and find the one we need
+                    const res = await fetch('/api/properties');
+                    if (!res.ok) throw new Error('Failed to fetch properties');
+                    
+                    const allProperties = await res.json();
+                    prop = allProperties.find(p => p.id === propId);
+                    
+                    if (!prop) {
+                        console.error('[openPropertyDetails] Property not found in API response');
+                        alert('Property not found');
+                        return;
+                    }
+                    
+                    // Add to loaded properties for future use
+                    loadedProperties.push(prop);
+                    console.log('[openPropertyDetails] Property fetched and added to cache');
+                } catch (error) {
+                    console.error('[openPropertyDetails] Error fetching property:', error);
+                    alert('Error loading property details');
+                    return;
+                }
+            }
+            
+            const f = prop.fields;
+            document.getElementById('propertyDetailsId').value = propId;
+            
+            // Calculate total acres for header badge
+            const riAcres = parseFloat(f['RI Acres'] || 0);
+            const wiAcres = parseFloat(f['WI Acres'] || 0);
+            const totalAcres = riAcres + wiAcres;
+            
+            // Set header information
+            const propertyName = f['Name'] || f['Property Name'] || 'Mineral Property';
+            document.getElementById('propertyDetailsTitle').textContent = propertyName;
+            
+            // Set acreage badge
+            const acreageBadge = document.getElementById('propertyDetailsAcreageBadge');
+            if (totalAcres > 0) {
+                acreageBadge.textContent = `${totalAcres.toFixed(2)} acres`;
+                acreageBadge.style.display = 'inline-block';
+            } else {
+                acreageBadge.style.display = 'none';
+            }
+            
+            // Set location info (county + legal)
+            const county = cleanCountyDisplay(f['COUNTY']) || 'Unknown County';
+            const legal = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+            document.getElementById('propertyDetailsLocation').textContent = `${county} • ${legal}`;
+            
+            // Set form fields
+            document.getElementById('propertyDetailsLegal').textContent = legal;
+            document.getElementById('propertyDetailsMeridian').value = f['MERIDIAN'] || 'IM';
+            
+            // Show/hide Group row based on whether it has a value
+            const groupRow = document.getElementById('propertyDetailsGroupRow');
+            if (f['Group']) {
+                document.getElementById('propertyDetailsGroup').textContent = f['Group'];
+                groupRow.style.display = 'flex';
+            } else {
+                groupRow.style.display = 'none';
+            }
+            
+            // Set other fields
+            document.getElementById('propertyDetailsRIAcres').value = riAcres;
+            document.getElementById('propertyDetailsWIAcres').value = wiAcres;
+            document.getElementById('propertyDetailsNotes').value = f['Notes'] || '';
+            
+            // Store original values for change detection
+            document.getElementById('propertyDetailsOriginalNotes').value = f['Notes'] || '';
+            document.getElementById('propertyDetailsOriginalRIAcres').value = riAcres;
+            document.getElementById('propertyDetailsOriginalWIAcres').value = wiAcres;
+            
+            // Update total acres display in form
+            updateTotalAcres();
+            
+            // Don't try to show count from property data - just show loading state
+            const wellsCountElement = document.getElementById('property-linked-wells-count');
+            // Already reset to '—' at the start of this function
+            console.log('[PropertyDetails] Initial count placeholder set to loading state');
+            
+            // Always show loading state initially - the API will update with real data
+            document.getElementById('linked-wells-list').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading wells...</div>';
+            document.getElementById('linked-wells-list').style.display = 'block';
+            document.getElementById('linked-wells-empty').style.display = 'none';
+            
+            // Show modal with forced high z-index like bulk modals
+            const propModal = document.getElementById('propertyDetailsModal');
+            
+            // Nuclear option - move modal to end of body to escape any stacking context
+            if (propModal.parentNode !== document.body) {
+                document.body.appendChild(propModal);
+            }
+            
+            // Calculate z-index based on stack depth BEFORE adding to stack
+            const baseZIndex = 999999;
+            const newZIndex = baseZIndex + (modalStack.length * 10);
+            
+            propModal.style.cssText = `display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; z-index: ${newZIndex} !important; background: rgba(0,0,0,0.5) !important; align-items: center !important; justify-content: center !important; padding: 20px !important;`;
+            
+            // Add to modal stack if not already there (initial opening)
+            if (!modalStack.find(m => m.element === propModal)) {
+                modalStack.push({ type: 'property', id: propId, element: propModal });
+            }
+            
+            // Load linked wells and OCC filings after modal is shown to avoid race condition
+            console.log('[PropertyDetails] Opening property:', propId);
+            setTimeout(() => {
+                loadLinkedWells(propId);
+                loadLinkedDocuments(propId, 'property');
+                // Load OCC filings using section/township/range/meridian
+                if (f.SEC && f.TWN && f.RNG) {
+                    const meridian = f['MERIDIAN'] || 'IM';
+                    loadOccFilings(f.SEC, f.TWN, f.RNG, 'property', meridian);
+                }
+            }, 100);
+            
+            // Handle viewer permissions
+            const isViewer = currentUser?.role === 'Viewer';
+            if (isViewer) {
+                document.getElementById('savePropertyBtn').style.display = 'none';
+                document.getElementById('propertyDetailsNotes').readOnly = true;
+                document.getElementById('propertyDetailsNotes').style.backgroundColor = '#f5f5f5';
+                document.getElementById('propertyDetailsRIAcres').readOnly = true;
+                document.getElementById('propertyDetailsRIAcres').style.backgroundColor = '#f5f5f5';
+                document.getElementById('propertyDetailsWIAcres').readOnly = true;
+                document.getElementById('propertyDetailsWIAcres').style.backgroundColor = '#f5f5f5';
+            } else {
+                document.getElementById('propertyDetailsNotes').readOnly = false;
+                document.getElementById('propertyDetailsNotes').style.backgroundColor = 'white';
+                document.getElementById('propertyDetailsRIAcres').readOnly = false;
+                document.getElementById('propertyDetailsRIAcres').style.backgroundColor = 'white';
+                document.getElementById('propertyDetailsWIAcres').readOnly = false;
+                document.getElementById('propertyDetailsWIAcres').style.backgroundColor = 'white';
+                // Save button will be shown by toggleSaveButton when values change
+                toggleSaveButton('property');
+            }
+        }
+        
+        function updateTotalAcres() {
+            const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
+            const totalAcres = riAcres + wiAcres;
+            
+            // Update total in form
+            document.getElementById('propertyDetailsTotalAcres').textContent = totalAcres > 0 ? totalAcres.toFixed(2) : '—';
+            
+            // Update badge in header
+            const acreageBadge = document.getElementById('propertyDetailsAcreageBadge');
+            if (totalAcres > 0) {
+                acreageBadge.textContent = `${totalAcres.toFixed(2)} acres`;
+                acreageBadge.style.display = 'inline-block';
+            } else {
+                acreageBadge.style.display = 'none';
+            }
+        }
+        
+        // Linked Wells Functions
+        function toggleLinkedWells() {
+            const content = document.getElementById('linked-wells-content');
+            const arrow = document.getElementById('linked-wells-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        async function loadLinkedWells(propertyId) {
+            console.log('[LinkedWells] Loading linked wells for property:', propertyId);
+            
+            const countEl = document.getElementById('property-linked-wells-count');
+            const listEl = document.getElementById('linked-wells-list');
+            const emptyEl = document.getElementById('linked-wells-empty');
+            
+            console.log('[LinkedWells] Count element before update:', countEl, 'textContent:', countEl?.textContent);
+            
+            // Don't reset count - it's already set from property data
+            // Just ensure loading state is shown if count > 0
+            const currentCount = parseInt(countEl.textContent) || 0;
+            if (currentCount > 0 && !listEl.innerHTML.includes('linked-well-row')) {
+                listEl.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading wells...</div>';
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+            }
+            
+            try {
+                const response = await fetch(`/api/property/${propertyId}/linked-wells`);
+                console.log('[LinkedWells] API Response status:', response.status);
+                const data = await response.json();
+                console.log('[LinkedWells] API Response data:', data);
+                
+                const wellCount = data.wells ? data.wells.length : 0;
+                console.log('[LinkedWells] Setting API count to:', wellCount, 'type:', typeof wellCount);
+                countEl.textContent = String(wellCount);
+                
+                if (!data.wells || data.wells.length === 0) {
+                    console.log('[LinkedWells] No wells found, showing empty state');
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                } else {
+                    console.log('[LinkedWells] Found', data.wells.length, 'wells, updating DOM');
+                    listEl.innerHTML = data.wells.map(w => `
+                        <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                            <div style="flex: 1; cursor: pointer;" onclick="openWellFromProperty('${w.wellId}')">
+                                <div style="font-weight: 500; color: #2563eb;">${escapeHtml(w.wellName)}</div>
+                                <div style="font-size: 12px; color: #6b7280;">${escapeHtml(w.operator)} • ${escapeHtml(w.county)}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(w.matchReason)}">${getMatchReasonLabel(w.matchReason)}</span>
+                                <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getStatusStyle(w.wellStatus)}">${w.wellStatus || 'AC'}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                    listEl.style.display = 'block';
+                    emptyEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load linked wells:', error);
+                document.getElementById('property-linked-wells-count').textContent = '0';
+                document.getElementById('linked-wells-list').style.display = 'none';
+                document.getElementById('linked-wells-empty').style.display = 'block';
+            }
+        }
+        
+        function getMatchReasonStyle(reason) {
+            switch(reason) {
+                case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
+                case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
+                case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+        
+        function getMatchReasonLabel(reason) {
+            switch(reason) {
+                case 'Surface Location': return 'Surface';
+                case 'Bottom Hole': return 'Bottom Hole';
+                case 'Lateral Path': return 'Lateral';
+                default: return reason;
+            }
+        }
+        
+        function getStatusStyle(status) {
+            switch(status) {
+                case 'AC': return 'background: #dcfce7; color: #166534;';
+                case 'TA': return 'background: #fef9c3; color: #854d0e;';
+                case 'PA': return 'background: #f3f4f6; color: #6b7280;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+        
+        function openManualLinkWell() {
+            // Manual well linking to properties - feature coming soon
+            showToast('Manual well linking coming soon', 'info');
+        }
+        
+        // Alias for openWellDetailsModal for consistency
+        function openWellDetail(wellId) {
+            openWellDetailsModal(wellId);
+        }
+        
+        // Open well from property modal - stack on top
+        function openWellFromProperty(wellId) {
+            // Check if we've hit max depth
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                return;
+            }
+            
+            // Don't close the property modal - open well on top
+            setTimeout(async () => {
+                await openWellDetailsModal(wellId);
+            }, 50);
+        }
+        
+        async function unlinkWell(linkId) {
+            if (!confirm('Remove this well link?')) return;
+            
+            try {
+                const response = await fetch(`/api/property-well-link/${linkId}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    // Reload the linked wells list
+                    const propertyId = document.getElementById('propertyDetailsId').value;
+                    loadLinkedWells(propertyId);
+                } else {
+                    console.error('Failed to unlink well');
+                }
+            } catch (error) {
+                console.error('Error unlinking well:', error);
+            }
+        }
+        
+        // Linked Properties Functions (for well modal)
+        function toggleLinkedProperties() {
+            const content = document.getElementById('linked-properties-content');
+            const arrow = document.getElementById('linked-properties-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+        
+        async function loadLinkedProperties(wellId) {
+            console.log('[LinkedProperties] Loading linked properties for well:', wellId);
+            
+            // Clear and show loading state
+            const countEl = document.getElementById('well-linked-properties-count');
+            const listEl = document.getElementById('linked-properties-list');
+            const emptyEl = document.getElementById('linked-properties-empty');
+            
+            // Don't reset count if it's already set from well data
+            const currentCount = parseInt(countEl.textContent) || 0;
+            if (currentCount > 0) {
+                listEl.innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading properties...</div>';
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+            } else {
+                listEl.innerHTML = '';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+            
+            try {
+                const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
+                const data = await response.json();
+                
+                const propCount = data.properties?.length || 0;
+                console.log('[LinkedProperties] Setting API count to:', propCount);
+                countEl.textContent = String(propCount);
+                
+                if (!data.properties || data.properties.length === 0) {
+                    listEl.style.display = 'none';
+                    emptyEl.style.display = 'block';
+                } else {
+                    listEl.innerHTML = data.properties.map(p => `
+                        <div class="linked-property-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                            <div style="flex: 1; cursor: pointer;" onclick="openPropertyFromWell('${p.propertyId}')">
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-weight: 500; color: #2563eb;">${escapeHtml(p.location)}</span>
+                                    ${p.group ? `<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">${escapeHtml(p.group)}</span>` : ''}
+                                    ${p.nma ? `<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">${parseFloat(p.nma.toFixed(4))} NMA</span>` : ''}
+                                </div>
+                                <div style="font-size: 12px; color: #6b7280;">${escapeHtml(p.county)}${p.acres && !p.nma ? ' • ' + p.acres + ' acres' : ''}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
+                            </div>
+                        </div>
+                    `).join('');
+                    listEl.style.display = 'block';
+                    emptyEl.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Failed to load linked properties:', error);
+                countEl.textContent = '0';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+            }
+        }
+        
+        function openPropertyFromWell(propertyId) {
+            // Check if we've hit max depth
+            if (modalStack.length >= MAX_MODAL_DEPTH) {
+                alert(`Maximum of ${MAX_MODAL_DEPTH} modals can be opened at once.`);
+                return;
+            }
+            
+            // Don't close the well modal - open property on top
+            setTimeout(async () => {
+                await openPropertyDetails(propertyId);
+            }, 50);
+        }
+        
+        async function unlinkProperty(linkId) {
+            if (!confirm('Remove this property link?')) return;
+            
+            try {
+                const response = await fetch(`/api/property-well-link/${linkId}`, { 
+                    method: 'DELETE',
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    // Reload the linked properties list
+                    const wellId = document.getElementById('wellDetailsId').value;
+                    loadLinkedProperties(wellId);
+                } else {
+                    console.error('Failed to unlink property');
+                }
+            } catch (error) {
+                console.error('Error unlinking property:', error);
+            }
+        }
+        
+        function openManualLinkProperty() {
+            // Manual property linking to wells - feature coming soon
+            showToast('Manual property linking coming soon', 'info');
+        }
+/* __SPLIT_PROPS_D__ */
+        async function savePropertyDetails() {
+            const propId = document.getElementById('propertyDetailsId').value;
+            const notes = document.getElementById('propertyDetailsNotes').value;
+            const meridian = document.getElementById('propertyDetailsMeridian').value;
+            const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
+            
+            try {
+                const res = await fetch('/api/properties/' + propId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes, meridian, riAcres, wiAcres })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const prop = loadedProperties.find(p => p.id === propId);
+                if (prop) {
+                    prop.fields['Notes'] = notes;
+                    prop.fields['MERIDIAN'] = meridian;
+                    prop.fields['RI Acres'] = riAcres;
+                    prop.fields['WI Acres'] = wiAcres;
+                }
+                
+                showToast('Changes saved!', 'success');
+                closePropertyDetailsModal();
+                await loadProperties();
+            } catch (err) {
+                showToast('Error saving changes', 'error');
+            }
+        }
+        
+        async function savePropertyAndClose() {
+            const propId = document.getElementById('propertyDetailsId').value;
+            const notes = document.getElementById('propertyDetailsNotes').value;
+            const meridian = document.getElementById('propertyDetailsMeridian').value;
+            const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
+            const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
+            
+            if (!propId) {
+                showToast('Error: Property ID not found', 'error');
+                return;
+            }
+            
+            try {
+                const res = await fetch('/api/properties/' + propId, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ notes, meridian, riAcres, wiAcres })
+                });
+                
+                if (!res.ok) throw new Error('Failed to save');
+                
+                // Update local data
+                const prop = loadedProperties.find(p => p.id === propId);
+                if (prop) {
+                    prop.fields['Notes'] = notes;
+                    prop.fields['MERIDIAN'] = meridian;
+                    prop.fields['RI Acres'] = riAcres;
+                    prop.fields['WI Acres'] = wiAcres;
+                }
+                
+                // Close modal immediately after successful save
+                closePropertyDetailsModal();
+                
+                // Show success toast after modal closes and reload properties
+                setTimeout(() => {
+                    showToast('Changes saved!', 'success');
+                    loadProperties();
+                }, 100);
+            } catch (err) {
+                console.error('Save property error:', err);
+                showToast('Error saving changes', 'error');
+                // Don't close modal if there was an error
+            }
+        }
+        
+        function closePropertyDetailsModal() {
+            const modal = document.getElementById('propertyDetailsModal');
+            modal.style = '';
+            // Reset z-index for next time
+            modal.style.zIndex = '';
+            
+            // Remove from modal stack
+            const index = modalStack.findIndex(m => m.element === modal);
+            if (index > -1) {
+                modalStack.splice(index, 1);
+            }
+        }
+        
+        document.getElementById('propertyDetailsModal').addEventListener('click', e => {
+            if (e.target.id === 'propertyDetailsModal') closePropertyDetailsModal();
+        });

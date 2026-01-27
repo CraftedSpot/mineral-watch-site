@@ -1,0 +1,190 @@
+        // Production Summary Functions (OTC data)
+        async function loadProductionSummary(apiNumber) {
+            console.log('[ProductionSummary] Loading for API:', apiNumber);
+            const container = document.getElementById('wellProductionSummary');
+
+            // Show loading state
+            container.innerHTML = `
+                <div class="production-summary-loading" style="text-align: center; padding: 20px; color: var(--slate-blue);">
+                    <div style="font-size: 14px;">Loading production data...</div>
+                </div>
+            `;
+
+            try {
+                // Add timeout to prevent hanging - 8 second limit
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const response = await fetch(`/api/wells/${apiNumber}/production-summary`, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        renderNoProductionData('No production data available for this well');
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('[ProductionSummary] Data received:', data);
+
+                if (!data.hasPun || !data.production) {
+                    renderNoProductionData('No OTC production data linked to this well');
+                    return;
+                }
+
+                renderProductionSummary(data);
+
+            } catch (error) {
+                console.error('[ProductionSummary] Error:', error);
+                if (error.name === 'AbortError') {
+                    renderNoProductionData('Production data request timed out');
+                } else {
+                    renderNoProductionData('Failed to load production data');
+                }
+            }
+        }
+
+        function renderNoProductionData(message) {
+            const container = document.getElementById('wellProductionSummary');
+            // Clear PUN when no production data
+            container.dataset.pun = '';
+            container.innerHTML = `
+                <div class="no-production-data">
+                    <div class="icon">📊</div>
+                    <div class="message">${escapeHtml(message)}</div>
+                    <div class="sub-message">Well may not be producing yet or OTC data not yet linked</div>
+                </div>
+            `;
+        }
+
+        function renderProductionSummary(data) {
+            const container = document.getElementById('wellProductionSummary');
+            const prod = data.production;
+
+            // Store PUN for use by print function
+            container.dataset.pun = data.pun || '';
+
+            // Format numbers with commas
+            const formatNum = (num) => num != null ? Number(num).toLocaleString() : '—';
+
+            // Determine status class and display text
+            // Status categories: active, recently_idle, extended_idle, no_recent_production
+            // Using "reported" to clarify this is OTC reported data, not necessarily actual production
+            const statusMap = {
+                'active': { class: 'active', text: 'Active', suffix: '(Last Reported: Within 3 Months)' },
+                'recently_idle': { class: 'recently-idle', text: 'Recently Idle', suffix: '' },
+                'extended_idle': { class: 'extended-idle', text: 'Extended Idle', suffix: '' },
+                'no_recent_production': { class: 'no-recent', text: '⚠️ No Recent Reported Production', suffix: '' }
+            };
+            const statusInfo = statusMap[data.status] || statusMap['no_recent_production'];
+            const statusClass = statusInfo.class;
+
+            // Determine trend class and symbol
+            let trendClass = 'flat';
+            let trendSymbol = '→';
+            let trendText = '';
+            if (data.trend && data.trend.yoyChange != null && data.trend.yoyChange !== 0) {
+                if (data.trend.direction === 'up') {
+                    trendClass = 'up';
+                    trendSymbol = '↑';
+                    trendText = `+${data.trend.yoyChange}% YoY`;
+                } else if (data.trend.direction === 'down') {
+                    trendClass = 'down';
+                    trendSymbol = '↓';
+                    trendText = `${data.trend.yoyChange}% YoY`;
+                }
+            }
+
+            // Build sparkline SVG if data available
+            // Active wells: sparse data (only reported months) to avoid misleading flatline from OTC lag
+            // Inactive/stale wells: full 6 months including zeros to show production actually stopped
+            let sparklineHtml = '';
+            if (data.sparkline && data.sparkline.length > 0) {
+                const points = data.sparkline;
+                const months = data.sparklineMonths || [];
+                const maxVal = Math.max(...points, 1);
+                const height = 32;
+                const width = 120;
+                const isActive = data.status === 'active';
+                // For single point, center it; otherwise spread evenly
+                const step = points.length === 1 ? 0 : width / (points.length - 1);
+                const coordPairs = points.map((val, i) => {
+                    const x = points.length === 1 ? width / 2 : i * step;
+                    const y = height - (val / maxVal) * (height - 4);
+                    return { x, y, val, month: months[i] || '' };
+                });
+                const lineCoords = coordPairs.map(p => `${p.x},${p.y}`).join(' ');
+                // Visible data point circles + larger hover targets with tooltips
+                const circles = coordPairs.map(p =>
+                    `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${p.val > 0 ? '#3b82f6' : '#cbd5e1'}"/>
+                     <circle cx="${p.x}" cy="${p.y}" r="8" fill="transparent" stroke="none" style="cursor:pointer">
+                        <title>${p.month}: ${p.val > 0 ? p.val.toLocaleString() + ' BOE' : 'No report'}</title>
+                    </circle>`
+                ).join('');
+                const totalBOE = data.sparklineBOE || points.reduce((a, b) => a + b, 0);
+                const reportedCount = points.filter(p => p > 0).length;
+                // Different tooltip for active (sparse) vs inactive (full) wells
+                const tooltipText = isActive
+                    ? `${reportedCount} reported month${reportedCount !== 1 ? 's' : ''}: ${totalBOE.toLocaleString()} BOE`
+                    : `Last 6 months: ${totalBOE.toLocaleString()} BOE`;
+                sparklineHtml = `
+                    <div class="sparkline-container" title="${tooltipText}">
+                        <svg class="sparkline-svg" width="${width}" height="${height}">
+                            ${points.length > 1 ? `<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${lineCoords}"/>` : ''}
+                            ${circles}
+                        </svg>
+                    </div>
+                `;
+            }
+
+            // Build the HTML
+            const lastProd = prod.lastProduction?.formatted || 'N/A';
+            const monthsProduced = prod.monthsProduced || 0;
+
+            container.innerHTML = `
+                <div class="production-summary-header">
+                    <div class="production-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">Last Reported</span>
+                            <span class="meta-value">${lastProd}</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">Months Produced</span>
+                            <span class="meta-value">${monthsProduced.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    ${data.pun ? `<span class="pun-badge">✓ PUN: ${escapeHtml(data.pun)}</span>` : ''}
+                </div>
+
+                <div class="production-data-grid">
+                    <div></div>
+                    <div class="grid-header">${prod.lastMonth?.formatted || 'Last Reported'}</div>
+                    <div class="grid-header">Last 12 Mo</div>
+                    <div class="grid-header">Lifetime</div>
+
+                    <div class="row-label oil">OIL</div>
+                    <div class="value-cell">${formatNum(prod.lastMonth?.oil)} <span>BBL</span></div>
+                    <div class="value-cell">${formatNum(prod.last12Mo?.oil)} <span>BBL</span></div>
+                    <div class="value-cell">${formatNum(prod.lifetime?.oil)} <span>BBL</span></div>
+
+                    <div class="row-label gas">GAS</div>
+                    <div class="value-cell">${formatNum(prod.lastMonth?.gas)} <span>MCF</span></div>
+                    <div class="value-cell">${formatNum(prod.last12Mo?.gas)} <span>MCF</span></div>
+                    <div class="value-cell">${formatNum(prod.lifetime?.gas)} <span>MCF</span></div>
+                </div>
+
+                <div class="status-trend-row">
+                    <div class="status-indicator">
+                        <span class="status-dot ${statusClass}"></span>
+                        <span class="status-text">${statusInfo.text} ${data.status === 'active' ? statusInfo.suffix : (lastProd !== 'N/A' ? `(Last Reported: ${lastProd})` : '')}</span>
+                        ${trendText ? `<span class="trend-indicator ${trendClass}">${trendSymbol} ${trendText}</span>` : ''}
+                    </div>
+                    ${sparklineHtml}
+                </div>
+            `;
+        }

@@ -1,0 +1,321 @@
+<!-- Manual Document Link Modal -->
+<div class="modal-overlay" id="manualDocLinkModal" style="display: none;">
+    <div class="modal" style="max-width: 500px; width: 100%; position: relative;">
+        <button class="modal-close" onclick="closeManualDocLinkModal()" aria-label="Close">&times;</button>
+        <div style="padding: 24px;">
+            <h3 style="margin: 0 0 8px 0; font-size: 18px; font-weight: 600;">Link Document</h3>
+            <p id="manualDocLinkSubtitle" style="margin: 0 0 20px 0; font-size: 14px; color: var(--slate-blue);">Select a document to link</p>
+
+            <div id="manualDocLinkList" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 6px;">
+                <!-- Documents will be populated here -->
+            </div>
+
+            <div id="manualDocLinkEmpty" style="display: none; text-align: center; padding: 40px 20px; color: var(--slate-blue);">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px; opacity: 0.4;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                <p style="margin: 0; font-weight: 500;">No unlinked documents</p>
+                <p style="margin: 8px 0 0 0; font-size: 13px;">All your documents are already linked to properties or wells.</p>
+            </div>
+
+            <div class="modal-buttons" style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 10px;">
+                <button type="button" class="btn-secondary" onclick="closeManualDocLinkModal()">Cancel</button>
+            </div>
+        </div>
+        <input type="hidden" id="manualDocLinkTargetType">
+        <input type="hidden" id="manualDocLinkTargetId">
+    </div>
+</div>
+<!-- __SPLIT_DOCS_HTML_B__ -->
+<!-- DOCUMENT VIEW MODAL -->
+<div class="modal-overlay" id="documentViewModal" style="display: none; z-index: 1000001;">
+    <div class="modal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column;">
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
+            <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
+            <div style="display: flex; gap: 12px; align-items: center;">
+                <button onclick="downloadCurrentDocument()" class="btn-secondary-action" style="padding: 8px 16px;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Download
+                </button>
+                <button onclick="closeDocumentViewer()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 4px;">×</button>
+            </div>
+        </div>
+        <div id="pdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659; position: relative;">
+            <object id="pdfViewer" type="application/pdf" style="width: 100%; height: 100%; border: none;">
+                <p style="color: white; text-align: center; padding: 20px;">PDF cannot be displayed. <a href="#" onclick="downloadCurrentDocument(); return false;" style="color: #60A5FA;">Download instead</a></p>
+            </object>
+        </div>
+    </div>
+</div>
+
+<!-- DOCUMENT DETAIL MODAL -->
+<div class="modal-overlay" id="documentDetailModal" style="display: none; overflow-y: auto; z-index: 1000000;">
+    <div class="modal detail-modal document-detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+        <!-- Modal Header with green background (full bleed) -->
+        <div class="modal-header detail-modal-header" style="background: #1D6F5C; color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+            <button onclick="closeDocumentDetailModal()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer; color: white; opacity: 0.9; hover: opacity: 1;">×</button>
+            <h2 id="documentModalTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 22px; font-weight: 700;">Document Details</h2>
+            <div id="documentModalSubtitle" style="margin-top: 2px; font-size: 15px; opacity: 0.9;"></div>
+        </div>
+        
+        <!-- Modal Body (scrollable content) -->
+        <div class="modal-body detail-modal-body" id="documentDetailContent" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
+            <!-- Content will be populated dynamically -->
+        </div>
+        
+        <!-- Modal Footer (fixed at bottom) -->
+        <div class="modal-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; flex-wrap: wrap; background: white;">
+            <div style="display: flex; gap: 10px;">
+                <button onclick="viewDocumentPDF()" id="viewOriginalBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                    </svg>
+                    <span id="viewOriginalBtnText">View Original</span>
+                </button>
+                <button onclick="printDocumentSummary()" id="printDocBtn" style="background: white; color: #1D6F5C; border: 1px solid #1D6F5C; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px; transition: all 0.2s;" title="Print or save as PDF">
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                        <rect x="6" y="14" width="12" height="8"></rect>
+                    </svg>
+                    <span>Print Summary</span>
+                </button>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button onclick="closeDocumentDetailModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
+                <button onclick="saveAndCloseDocumentNotes()" id="saveDocNotesBtn" style="background: #1D6F5C; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: 500; cursor: pointer; display: none;">Save & Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- OUT OF CREDITS MODAL -->
+<div class="modal-overlay" id="outOfCreditsModal" style="display: none;">
+    <div class="modal" style="max-width: 450px; text-align: center;">
+        <div style="margin-bottom: 24px;">
+            <div style="width: 64px; height: 64px; background: #FEE2E2; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
+                <svg width="32" height="32" fill="none" stroke="#DC2626" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                </svg>
+            </div>
+            <h2 style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 20px; color: var(--oil-navy);">You're Out of Credits</h2>
+            <p style="margin: 0; color: #6B7280; font-size: 14px; line-height: 1.5;" id="outOfCreditsMessage">
+                You've used all your available credits. Documents won't be processed until you have credits available.
+            </p>
+        </div>
+
+        <div style="background: #F9FAFB; border-radius: 8px; padding: 16px; margin-bottom: 24px; text-align: left;">
+            <h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Get More Credits</h4>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <a href="#" onclick="closeOutOfCreditsModal(); openCreditPackModal(); return false;" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                    </svg>
+                    <div>
+                        <div style="font-weight: 500;">Buy Credit Pack</div>
+                        <div style="font-size: 12px; color: #6B7280;">One-time purchase, never expires</div>
+                    </div>
+                </a>
+                <a href="/portal/account" style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: white; border: 1px solid #E5E7EB; border-radius: 6px; text-decoration: none; color: var(--oil-navy); transition: border-color 0.2s;">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/>
+                    </svg>
+                    <div>
+                        <div style="font-weight: 500;">Upgrade Plan</div>
+                        <div style="font-size: 12px; color: #6B7280;">More monthly credits + bonus</div>
+                    </div>
+                </a>
+            </div>
+        </div>
+
+        <div style="display: flex; gap: 12px; justify-content: center;">
+            <button onclick="closeOutOfCreditsModal()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">
+                Close
+            </button>
+        </div>
+
+        <p id="creditResetInfo" style="margin: 16px 0 0; font-size: 12px; color: #9CA3AF;"></p>
+    </div>
+</div>
+
+<!-- CREDIT PACK PURCHASE MODAL -->
+<div class="modal-overlay" id="creditPackModal" style="display: none;">
+    <div class="modal" style="max-width: 700px; position: relative;">
+        <button onclick="closeCreditPackModal()" style="position: absolute; top: 12px; right: 12px; background: #f3f4f6; border: 1px solid #e5e7eb; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; color: #374151; display: flex; align-items: center; justify-content: center; z-index: 10;">×</button>
+        <div style="text-align: center; margin-bottom: 24px;">
+            <h2 style="margin: 0 0 8px; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">Buy Credit Pack</h2>
+            <p style="margin: 0; color: #6B7280; font-size: 14px;">One-time purchase. Credits never expire.</p>
+        </div>
+
+        <div class="credit-pack-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 24px;">
+            <!-- Starter Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpV6u9OfJmRCDOqmiQGFg2V')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Starter Pack</h3>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">100</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$49</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.49 per credit</div>
+            </div>
+
+            <!-- Working Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpVCK9OfJmRCDOq8r8NrrqJ')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Working Pack</h3>
+                    <span style="background: #D1FAE5; color: #047857; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">POPULAR</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">500</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$199</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.40 per credit</div>
+            </div>
+
+            <!-- Team Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpVCK9OfJmRCDOqhjfa5Na1')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Team Pack</h3>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">2,000</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$699</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.35 per credit</div>
+            </div>
+
+            <!-- Operations Pack -->
+            <div class="credit-pack-card" onclick="purchaseCreditPack('price_1SpVCK9OfJmRCDOqNVkGVLVQ')" style="border: 2px solid #E5E7EB; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s; background: white;">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px;">
+                    <h3 style="margin: 0; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Operations Pack</h3>
+                    <span style="background: #DBEAFE; color: #1D4ED8; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;">BEST VALUE</span>
+                </div>
+                <div style="margin-bottom: 8px;">
+                    <span style="font-size: 32px; font-weight: 700; color: var(--oil-navy);">10,000</span>
+                    <span style="font-size: 14px; color: #6B7280;"> credits</span>
+                </div>
+                <div style="font-size: 20px; font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">$2,499</div>
+                <div style="font-size: 12px; color: #6B7280;">$0.25 per credit</div>
+            </div>
+        </div>
+
+        <div style="text-align: center; padding-top: 16px; border-top: 1px solid #E5E7EB;">
+            <p style="margin: 0; font-size: 13px; color: #9CA3AF;">
+                <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="vertical-align: middle; margin-right: 4px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                Purchased credits are used after your monthly credits, before bonus credits.
+            </p>
+        </div>
+    </div>
+</div>
+<!-- __SPLIT_DOCS_HTML_C__ -->
+<!-- DOCUMENT UPLOAD MODAL -->
+<div class="modal-overlay" id="documentUploadModal" style="display: none;">
+    <div class="modal" style="max-width: 500px;">
+        <button class="close-btn" onclick="closeUploadModal()" style="position: absolute; top: 12px; right: 12px; background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">×</button>
+        <h2 style="margin-bottom: 24px; font-family: 'Merriweather', serif;">Upload Documents</h2>
+        
+        <form id="documentUploadForm" onsubmit="handleDocumentUpload(event)">
+            <!-- File Drop Zone -->
+            <div id="fileDropZone" style="border: 2px dashed var(--border); border-radius: 8px; padding: 40px; text-align: center; background: #f8f9fa; cursor: pointer; margin-bottom: 24px;" 
+                 ondrop="handleDocumentFileDrop(event)" 
+                 ondragover="handleDocumentDragOver(event)" 
+                 ondragleave="handleDocumentDragLeave(event)"
+                 onclick="document.getElementById('documentFileInput').click()">
+                <svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 12px; opacity: 0.4;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                </svg>
+                <p id="dropZoneText" style="margin: 0 0 8px; font-size: 16px; font-weight: 600; color: var(--oil-navy);">Drop files here or click to browse</p>
+                <p id="dropZoneSubtext" style="margin: 0; font-size: 13px; color: var(--slate-blue);">PDF, JPEG, PNG, TIFF • Max 50MB per file</p>
+                <input type="file" id="documentFileInput" accept=".pdf,.jpg,.jpeg,.png,.tiff,.tif" multiple style="display: none;" onchange="handleDocumentFileSelect(event)">
+            </div>
+
+            <!-- Photo Preview Grid (used when photos selected via mobile button) -->
+            <div id="photoPreviewSection" style="display: none; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                    <h4 style="margin: 0; font-size: 14px; color: var(--oil-navy);">
+                        <span id="photoCount">0</span> Photos Selected
+                    </h4>
+                    <button type="button" onclick="clearPhotoSelection()" style="background: none; border: none; color: var(--red-dirt); cursor: pointer; font-size: 13px; font-weight: 500;">
+                        Clear All
+                    </button>
+                </div>
+                <p style="margin: 0 0 12px; font-size: 12px; color: var(--slate-blue);">
+                    Drag to reorder • Uncheck to exclude • Photos will be combined into a PDF
+                </p>
+                <div id="photoPreviewGrid" class="photo-preview-grid"></div>
+
+                <!-- Photo Upload Actions -->
+                <div id="photoUploadActions" style="margin-top: 16px; display: flex; gap: 12px;">
+                    <button type="button" onclick="document.getElementById('photoFileInput').click()" class="btn-secondary-action" style="flex: 1;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 6px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+                        </svg>
+                        Add More
+                    </button>
+                    <button type="button" id="combineUploadBtn" onclick="handlePhotoUpload()" class="btn-add" style="flex: 2;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin-right: 6px;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        Upload <span id="uploadPageCount">0</span> Pages
+                    </button>
+                </div>
+            </div>
+
+            <!-- Selected Files Display -->
+            <div id="selectedFilesDisplay" style="display: none; max-height: 200px; overflow-y: auto; margin-bottom: 24px;">
+                <h4 style="margin: 0 0 12px; font-size: 14px; color: var(--oil-navy);">Selected Files:</h4>
+                <div id="selectedFilesList"></div>
+            </div>
+            
+            <!-- Credit Estimation -->
+            <div id="creditEstimation" style="display: none; background: #F3F4F6; border: 1px solid #E5E7EB; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                    <span style="font-size: 14px; font-weight: 500; color: var(--oil-navy);">Minimum credits:</span>
+                    <span style="font-size: 16px; font-weight: 700; color: var(--oil-navy);" id="estimatedCredits">0</span>
+                </div>
+                <div style="font-size: 13px; color: #6B7280; margin-bottom: 4px;">
+                    (<span id="totalPages">0</span> pages detected)
+                </div>
+                <div style="font-size: 12px; color: #9CA3AF; margin-bottom: 8px;">
+                    Each document extracted uses 1 credit
+                </div>
+                <div style="font-size: 13px; color: #6B7280;">
+                    You have <span style="font-weight: 600; color: #059669;" id="availableCreditsInModal">0</span> credits available
+                </div>
+                <div id="creditWarning" style="display: none; margin-top: 12px; padding: 12px; background: #FEF2F2; border: 1px solid #FECACA; border-radius: 6px;">
+                    <svg width="16" height="16" fill="none" stroke="#DC2626" viewBox="0 0 24 24" style="display: inline-block; vertical-align: middle; margin-right: 6px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+                    </svg>
+                    <span style="color: #DC2626; font-weight: 500;">Estimated credits exceed your available balance</span>
+                </div>
+            </div>
+            
+            <!-- Upload Button -->
+            <div style="display: flex; gap: 12px; justify-content: flex-end;">
+                <button type="button" class="btn-secondary-action" onclick="closeUploadModal()">Cancel</button>
+                <button type="submit" class="btn-add" id="uploadBtn" disabled>
+                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                    </svg>
+                    Upload
+                </button>
+            </div>
+        </form>
+        
+        <!-- Progress Display -->
+        <div id="uploadProgress" style="display: none; margin-top: 24px;">
+            <div style="background: #E0F2FE; border-radius: 6px; padding: 16px; text-align: center;">
+                <div class="spinner" style="width: 24px; height: 24px; border: 2px solid #60A5FA; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin: 0 auto 12px;"></div>
+                <p style="margin: 0; color: #1E40AF; font-weight: 500;">Uploading document...</p>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,0 +1,94 @@
+    <!-- Add Well Modal -->
+    <div class="modal-overlay" id="addWellModal">
+        <div class="modal" style="max-width: 600px; width: 100%; position: relative;">
+            <button class="modal-close" onclick="closeWellModal()" aria-label="Close">×</button>
+            <h2>Add Well</h2>
+            
+            <!-- Tab Navigation -->
+            <div class="tab-nav">
+                <button class="tab-btn active" data-tab="api-tab">Search by API</button>
+                <button class="tab-btn" data-tab="location-tab">Search by Name/Location</button>
+            </div>
+            
+            <!-- API Search Tab -->
+            <div class="tab-content active" id="api-tab">
+                <form id="addWellForm">
+                    <div class="form-group full">
+                        <label for="apiNumber">API Number *</label>
+                        <input type="text" id="apiNumber" placeholder="3515322352" required>
+                        <div class="form-hint">10-digit Oklahoma well API (starts with 35)</div>
+                    </div>
+                    <div class="form-group full">
+                        <label for="wellNotes">Notes (Optional)</label>
+                        <textarea id="wellNotes" placeholder="Any notes about this well"></textarea>
+                    </div>
+                    <div class="modal-buttons">
+                        <button type="button" class="btn-cancel" onclick="closeWellModal()">Cancel</button>
+                        <button type="submit" class="btn-submit">Add Well</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Name/Location Search Tab -->
+            <div class="tab-content" id="location-tab">
+                <div class="search-form">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="searchWellName">Well Name</label>
+                            <input type="text" id="searchWellName" placeholder="e.g., Collins">
+                        </div>
+                        <div class="form-group">
+                            <label for="searchOperator">Operator</label>
+                            <input type="text" id="searchOperator" placeholder="e.g., Devon">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="searchSection">Section</label>
+                            <input type="number" id="searchSection" placeholder="1-36" min="1" max="36">
+                        </div>
+                        <div class="form-group">
+                            <label for="searchTownship">Township</label>
+                            <input type="text" id="searchTownship" placeholder="e.g., 12N or 12">
+                        </div>
+                        <div class="form-group">
+                            <label for="searchRange">Range</label>
+                            <input type="text" id="searchRange" placeholder="e.g., 5W or 5">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group full">
+                            <label for="searchCounty">County</label>
+                            <input type="text" id="searchCounty" placeholder="e.g., Grady">
+                        </div>
+                    </div>
+                    
+                    <div class="search-buttons">
+                        <button type="button" class="btn-search" onclick="searchWells()">Search Wells</button>
+                        <button type="button" class="btn-clear" onclick="clearWellSearch()">Clear</button>
+                    </div>
+                </div>
+                
+                <!-- Search Results -->
+                <div id="searchResults" class="search-results" style="display: none;">
+                    <div class="results-header">
+                        <h3>Search Results</h3>
+                        <div class="results-info" id="resultsInfo"></div>
+                    </div>
+                    <div class="results-list" id="resultsList">
+                        <!-- Results will be populated here -->
+                    </div>
+                </div>
+                
+                <!-- Loading State -->
+                <div id="searchLoading" class="search-loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <div>Searching wells...</div>
+                </div>
+                
+                <div class="modal-buttons">
+                    <button type="button" class="btn-cancel" onclick="closeWellModal()">Cancel</button>
+                </div>
+            </div>
+        </div>
+    </div>

@@ -1,0 +1,2226 @@
+// Global state for bulk upload
+let parsedData = [];
+let validationResults = null;
+
+// Security: escape HTML to prevent XSS (also defined in main script, but needed here for bulk upload)
+function escapeHtmlBulk(text) {
+    if (!text) return '';
+    const str = String(text);
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
+// Open bulk upload modal
+function openBulkUploadModal() {
+    console.log('openBulkUploadModal called');
+    const modal = document.getElementById('bulk-upload-modal');
+    console.log('Bulk upload modal element:', modal);
+    if (modal) {
+        // Force the modal to be visible with inline styles
+        modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; z-index: 99999 !important; background-color: rgba(0, 0, 0, 0.8) !important; align-items: center !important; justify-content: center !important;';
+        
+        // Force body overflow hidden to prevent scrolling
+        document.body.style.overflow = 'hidden';
+        
+        resetBulkUpload();
+        
+        // Also check if the modal content is visible
+        const modalContent = modal.querySelector('.modal.bulk-modal');
+        console.log('Modal content element:', modalContent);
+        if (modalContent) {
+            modalContent.style.cssText = 'display: block !important; position: relative !important; z-index: 100000 !important; background: white !important; max-width: 900px !important; width: 90% !important; max-height: 90vh !important; overflow: auto !important;';
+            console.log('Modal content styles applied');
+        }
+        
+        // Debug: Check computed styles
+        const computedStyle = window.getComputedStyle(modal);
+        console.log('Modal computed display:', computedStyle.display);
+        console.log('Modal computed z-index:', computedStyle.zIndex);
+        console.log('Modal computed position:', computedStyle.position);
+        
+        // Check if modal is in viewport
+        const rect = modal.getBoundingClientRect();
+        console.log('Modal position:', rect);
+    } else {
+        console.error('Bulk upload modal not found!');
+    }
+}
+
+// Make function available globally
+window.openBulkUploadModal = openBulkUploadModal;
+
+// Open bulk upload wells modal
+function openBulkUploadWellsModal() {
+    const modal = document.getElementById('bulk-upload-wells-modal');
+    if (modal) {
+        // Force the modal to be visible with inline styles
+        modal.style.cssText = 'display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; width: 100% !important; height: 100% !important; z-index: 99999 !important; background-color: rgba(0, 0, 0, 0.8) !important; align-items: center !important; justify-content: center !important;';
+        resetBulkUploadWells();
+        
+        // Also check if the modal content is visible
+        const modalContent = modal.querySelector('.modal.bulk-modal');
+        if (modalContent) {
+            modalContent.style.cssText = 'display: block !important; position: relative !important; z-index: 100000 !important; background: white !important;';
+        }
+    }
+}
+
+// Make function available globally
+window.openBulkUploadWellsModal = openBulkUploadWellsModal;
+
+// Close bulk upload modal
+function closeBulkUploadModal() {
+    document.getElementById('bulk-upload-modal').style.display = 'none';
+    document.body.style.overflow = ''; // Restore body scrolling
+    resetBulkUpload();
+}
+
+// Reset to initial state
+function resetBulkUpload() {
+    document.getElementById('upload-step').style.display = 'block';
+    document.getElementById('preview-step').style.display = 'none';
+    document.getElementById('import-step').style.display = 'none';
+    document.getElementById('results-step').style.display = 'none';
+    document.getElementById('file-info').style.display = 'none';
+    document.getElementById('parse-error').style.display = 'none';
+    document.getElementById('fileInput').value = '';
+    parsedData = [];
+    validationResults = null;
+}
+
+// Handle file drop
+function handleFileDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('dropzone').classList.remove('drag-over');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        processFile(files[0]);
+    }
+}
+
+// Handle drag over
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('dropzone').classList.add('drag-over');
+}
+
+// Handle drag leave
+function handleDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('dropzone').classList.remove('drag-over');
+}
+
+// Handle file select
+function handleFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+        processFile(files[0]);
+    }
+}
+
+// Process uploaded file
+async function processFile(file) {
+    document.getElementById('filename').textContent = file.name;
+    document.getElementById('filesize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('file-info').style.display = 'block';
+    document.getElementById('parse-error').style.display = 'none';
+    
+    try {
+        // Detect file type
+        const extension = file.name.split('.').pop().toLowerCase();
+        
+        if (extension === 'csv' || extension === 'txt' || extension === 'tsv') {
+            // Parse CSV/TSV
+            await parseCSV(file);
+        } else if (extension === 'xlsx' || extension === 'xls') {
+            // Parse Excel
+            await parseExcel(file);
+        } else {
+            throw new Error('Unsupported file type. Please upload CSV or Excel file.');
+        }
+        
+        // If we got here, parsing succeeded
+        if (parsedData.length === 0) {
+            throw new Error('No data found in file');
+        }
+        
+        // Validate and show preview
+        await validateAndPreview();
+        
+    } catch (error) {
+        console.error('File processing error:', error);
+        document.getElementById('error-message').textContent = error.message;
+        document.getElementById('parse-error').style.display = 'block';
+    }
+}
+
+// Parse CSV file
+async function parseCSV(file) {
+    return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                if (results.errors.length > 0) {
+                    reject(new Error(`CSV parsing error: ${results.errors[0].message}`));
+                    return;
+                }
+                parsedData = results.data;
+                resolve();
+            },
+            error: (error) => {
+                reject(new Error(`CSV parsing failed: ${error.message}`));
+            }
+        });
+    });
+}
+
+// Parse Excel file
+async function parseExcel(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                
+                // Get first sheet
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                
+                if (jsonData.length === 0) {
+                    reject(new Error('Excel file contains no data'));
+                    return;
+                }
+                
+                parsedData = jsonData;
+                resolve();
+            } catch (error) {
+                reject(new Error(`Excel parsing failed: ${error.message}`));
+            }
+        };
+        
+        reader.onerror = () => {
+            reject(new Error('Failed to read file'));
+        };
+        
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// Validate and show preview
+async function validateAndPreview() {
+    try {
+        const response = await fetch('/api/bulk-validate-properties', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ properties: parsedData })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Validation failed');
+        }
+        
+        validationResults = await response.json();
+        
+        // Show preview step
+        document.getElementById('upload-step').style.display = 'none';
+        document.getElementById('preview-step').style.display = 'block';
+        
+        // Render summary badges
+        renderSummary();
+        
+        // Render plan check
+        renderPlanCheck();
+        
+        // Render preview table
+        renderPreviewTable();
+        
+    } catch (error) {
+        console.error('Validation error:', error);
+        document.getElementById('error-message').textContent = error.message;
+        document.getElementById('parse-error').style.display = 'block';
+    }
+}
+
+// Render summary badges
+function renderSummary() {
+    const summary = validationResults.summary;
+    const html = `
+        <div class="validation-badge badge-valid">
+            ✓ ${summary.valid} Valid
+        </div>
+        ${summary.invalid > 0 ? `
+        <div class="validation-badge badge-invalid">
+            ❌ ${summary.invalid} Invalid
+        </div>
+        ` : ''}
+        ${summary.warnings > 0 ? `
+        <div class="validation-badge badge-warning">
+            ⚠️ ${summary.warnings} Warnings
+        </div>
+        ` : ''}
+        ${summary.duplicates > 0 ? `
+        <div class="validation-badge badge-duplicate">
+            🔄 ${summary.duplicates} Duplicates
+        </div>
+        ` : ''}
+    `;
+    document.getElementById('validation-summary').innerHTML = html;
+}
+
+// Render plan check
+function renderPlanCheck() {
+    const plan = validationResults.planCheck;
+    const wouldExceed = plan.wouldExceedLimit;
+    
+    const html = `
+        <div class="plan-check-box ${wouldExceed ? 'exceeded' : 'ok'}">
+            <div class="plan-check-header">
+                ${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
+            </div>
+            <div class="plan-check-details">
+                Current: ${plan.current} properties · 
+                Adding: ${validationResults.summary.willImport} · 
+                Total: ${plan.afterUpload} of ${plan.limit} (${plan.plan} plan)
+            </div>
+        </div>
+    `;
+    document.getElementById('plan-check').innerHTML = html;
+    
+    // Disable import button if would exceed
+    document.getElementById('import-btn').disabled = wouldExceed;
+}
+
+// Render preview table
+function renderPreviewTable() {
+    const tbody = document.getElementById('preview-table-body');
+    let html = '';
+    
+    validationResults.results.forEach((result, index) => {
+        const prop = result.normalized;
+        const rowClass = result.isDuplicate ? 'preview-row-duplicate' : 
+                        (result.errors.length > 0 ? 'preview-row-error' :
+                        (result.warnings.length > 0 ? 'preview-row-warning' : 'preview-row-valid'));
+        
+        const statusClass = result.isDuplicate ? 'status-cell-duplicate' :
+                           (result.errors.length > 0 ? 'status-cell-error' :
+                           (result.warnings.length > 0 ? 'status-cell-warning' : 'status-cell-valid'));
+        
+        const statusText = result.isDuplicate ? '🔄 Duplicate' :
+                          (result.errors.length > 0 ? `❌ ${result.errors[0]}` :
+                          (result.warnings.length > 0 ? `⚠️ ${result.warnings[0]}` : '✓ Valid'));
+        
+        html += `
+            <tr class="${rowClass}">
+                <td>${index + 1}</td>
+                <td>${escapeHtmlBulk(prop.SEC) || '-'}</td>
+                <td>${escapeHtmlBulk(prop.TWN) || '-'}</td>
+                <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
+                <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
+                <td>${escapeHtmlBulk(cleanCountyDisplay(prop.COUNTY)) || '-'}</td>
+                <td class="status-cell ${statusClass}">
+                    ${statusText}
+                </td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+// Start import - with chunking to avoid Worker timeouts
+async function startImport() {
+    // Show import step
+    document.getElementById('preview-step').style.display = 'none';
+    document.getElementById('import-step').style.display = 'block';
+    
+    // Progress tracking
+    const progressBar = document.getElementById('progress-bar');
+    progressBar.classList.remove('indeterminate');
+    
+    // Prepare valid properties for upload
+    const toImport = validationResults.results
+        .filter(r => r.isValid && !r.isDuplicate)
+        .map(r => r.normalized);
+    
+    const CHUNK_SIZE = 50; // Upload 50 at a time to avoid timeouts
+    const totalChunks = Math.ceil(toImport.length / CHUNK_SIZE);
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+    let totalErrors = [];
+    
+    document.getElementById('import-progress').textContent = `Importing ${toImport.length} properties...`;
+    
+    try {
+        // Process chunks sequentially
+        for (let i = 0; i < toImport.length; i += CHUNK_SIZE) {
+            const chunk = toImport.slice(i, i + CHUNK_SIZE);
+            const chunkNumber = Math.floor(i / CHUNK_SIZE) + 1;
+            
+            // Update progress
+            const progress = Math.round((i / toImport.length) * 100);
+            progressBar.style.width = `${progress}%`;
+            document.getElementById('progress-percent').textContent = `${progress}%`;
+            document.getElementById('import-progress').textContent = 
+                `Importing batch ${chunkNumber}/${totalChunks} (${i + chunk.length}/${toImport.length} properties)...`;
+            
+            // Upload chunk
+            const response = await fetch('/api/bulk-upload-properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ properties: chunk })
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || `Batch ${chunkNumber} failed`);
+            }
+            
+            const chunkResults = await response.json();
+            totalSuccessful += chunkResults.results.successful;
+            totalFailed += chunkResults.results.failed;
+            if (chunkResults.results.errors) {
+                totalErrors = totalErrors.concat(chunkResults.results.errors);
+            }
+            
+            // Small delay between chunks to avoid overwhelming the server
+            if (i + CHUNK_SIZE < toImport.length) {
+                await new Promise(resolve => setTimeout(resolve, 100));
+            }
+        }
+        
+        // Show completion
+        progressBar.style.width = '100%';
+        document.getElementById('progress-percent').textContent = '100%';
+        document.getElementById('import-progress').textContent = `${totalSuccessful} of ${toImport.length} properties created`;
+        
+        // Brief delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        // Show results
+        showResults({
+            results: {
+                successful: totalSuccessful,
+                failed: totalFailed,
+                skipped: 0,
+                errors: totalErrors
+            }
+        });
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        showError(error.message);
+    }
+}
+
+// Show results
+function showResults(results) {
+    document.getElementById('import-step').style.display = 'none';
+    document.getElementById('results-step').style.display = 'block';
+    
+    const success = results.results.successful;
+    const failed = results.results.failed;
+    const skipped = results.results.skipped;
+    
+    // Update stat boxes
+    document.getElementById('result-created').textContent = success;
+    document.getElementById('result-skipped').textContent = skipped;
+    document.getElementById('result-failed').textContent = failed;
+    
+    if (failed === 0) {
+        document.getElementById('results-icon').textContent = '✅';
+        document.getElementById('results-title').textContent = 'Import Complete!';
+        document.getElementById('results-details').textContent = 'Your properties are now being monitored for OCC activity.';
+    } else {
+        document.getElementById('results-icon').textContent = '⚠️';
+        document.getElementById('results-title').textContent = 'Import Completed with Errors';
+        document.getElementById('results-details').textContent = 'Some properties could not be imported. Check your file and try again.';
+    }
+}
+
+// Show error
+function showError(message) {
+    document.getElementById('import-step').style.display = 'none';
+    document.getElementById('results-step').style.display = 'block';
+    document.getElementById('results-icon').textContent = '❌';
+    document.getElementById('results-title').textContent = 'Import Failed';
+    
+    // Clear stat boxes
+    document.getElementById('result-created').textContent = '0';
+    document.getElementById('result-skipped').textContent = '0';
+    document.getElementById('result-failed').textContent = '–';
+    
+    document.getElementById('results-details').textContent = message;
+}
+
+// Finish and close
+async function finishBulkUpload() {
+    closeBulkUploadModal();
+    // Reload properties
+    await loadProperties();
+
+    // Auto re-link documents after property import
+    // This links any documents that were uploaded before these properties existed
+    try {
+        const res = await fetch('/api/documents/relink', { method: 'POST' });
+        if (res.ok) {
+            const result = await res.json();
+            if (result.linked > 0) {
+                showToast(`Auto-linked ${result.linked} document${result.linked > 1 ? 's' : ''} to your new properties`, 'success');
+            }
+        }
+    } catch (e) {
+        console.log('Auto-relink after property import:', e);
+    }
+}
+
+// ==========================================
+// WELLS BULK UPLOAD FUNCTIONS
+// ==========================================
+
+let wellsParsedData = [];
+let wellsValidationResults = null;
+
+// Close wells modal
+function closeBulkUploadWellsModal() {
+    document.getElementById('bulk-upload-wells-modal').style.display = 'none';
+    resetBulkUploadWells();
+}
+
+// Reset wells modal
+function resetBulkUploadWells() {
+    document.getElementById('wells-upload-step').style.display = 'block';
+    document.getElementById('wells-preview-step').style.display = 'none';
+    document.getElementById('wells-import-step').style.display = 'none';
+    document.getElementById('wells-results-step').style.display = 'none';
+    document.getElementById('wells-file-info').style.display = 'none';
+    document.getElementById('wells-parse-error').style.display = 'none';
+    document.getElementById('wellsFileInput').value = '';
+    wellsParsedData = [];
+    wellsValidationResults = null;
+}
+
+// Handle wells file drop
+function handleWellsFileDrop(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('wells-dropzone').classList.remove('drag-over');
+    
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        processWellsFile(files[0]);
+    }
+}
+
+function handleWellsDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('wells-dropzone').classList.add('drag-over');
+}
+
+function handleWellsDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    document.getElementById('wells-dropzone').classList.remove('drag-over');
+}
+
+function handleWellsFileSelect(e) {
+    const files = e.target.files;
+    if (files.length > 0) {
+        processWellsFile(files[0]);
+    }
+}
+
+// Process wells file
+async function processWellsFile(file) {
+    document.getElementById('wells-filename').textContent = file.name;
+    document.getElementById('wells-filesize').textContent = `${(file.size / 1024).toFixed(1)} KB`;
+    document.getElementById('wells-file-info').style.display = 'flex';
+    document.getElementById('wells-parse-error').style.display = 'none';
+    
+    try {
+        const extension = file.name.split('.').pop().toLowerCase();
+        
+        if (extension === 'csv' || extension === 'txt' || extension === 'tsv') {
+            await parseWellsCSV(file);
+        } else if (extension === 'xlsx' || extension === 'xls') {
+            await parseWellsExcel(file);
+        } else {
+            throw new Error('Unsupported file type');
+        }
+        
+        if (wellsParsedData.length === 0) {
+            throw new Error('No data found in file');
+        }
+        
+        // Check if file is very large
+        if (wellsParsedData.length > 2000) {
+            throw new Error('File too large. Please limit to 2000 wells per import.');
+        }
+        
+        // Show info about batch processing for large files
+        if (wellsParsedData.length > 200) {
+            const batchCount = Math.ceil(wellsParsedData.length / 25);
+            document.getElementById('wells-file-info').innerHTML += 
+                `<span style="color: #f59e0b; font-size: 12px; margin-left: 10px;">
+                    Large file: Will process in ${batchCount} batches of 25
+                </span>`;
+        }
+        
+        await validateAndPreviewWells();
+        
+    } catch (error) {
+        console.error('Wells file processing error:', error);
+        document.getElementById('wells-error-message').textContent = error.message;
+        document.getElementById('wells-parse-error').style.display = 'block';
+    }
+}
+
+// Parse CSV for wells
+async function parseWellsCSV(file) {
+    return new Promise((resolve, reject) => {
+        Papa.parse(file, {
+            header: true,
+            skipEmptyLines: true,
+            complete: (results) => {
+                wellsParsedData = results.data;
+                resolve();
+            },
+            error: (error) => reject(error)
+        });
+    });
+}
+
+// Parse Excel for wells
+async function parseWellsExcel(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                wellsParsedData = XLSX.utils.sheet_to_json(firstSheet);
+                resolve();
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file'));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+// Store batch processing state
+let cancelBatchProcessing = false;
+let batchProgressInterval = null;
+
+// Validate and preview wells with batch processing for large files
+async function validateAndPreviewWells() {
+    try {
+        const totalRows = wellsParsedData.length;
+        const BATCH_SIZE = 25; // Reduced from 50 to avoid timeouts
+        
+        // Show progress UI for large files
+        if (totalRows > 200) {
+            showBatchProgress(totalRows);
+        }
+        
+        // For files <= 200 rows, process normally
+        if (totalRows <= 200) {
+            const response = await fetch('/api/bulk-validate-wells', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ wells: wellsParsedData })
+            });
+            
+            if (!response.ok) {
+                let errorMessage = 'Validation failed';
+                try {
+                    const error = await response.json();
+                    errorMessage = error.error || errorMessage;
+                } catch (e) {
+                    // Response wasn't JSON (probably HTML error page)
+                    errorMessage = `Server error (${response.status}). The file may be too large or complex. Try a smaller batch.`;
+                }
+                throw new Error(errorMessage);
+            }
+            
+            wellsValidationResults = await response.json();
+        } else {
+            // Process in batches for large files
+            wellsValidationResults = {
+                results: [],
+                summary: {
+                    total: 0,
+                    exactMatches: 0,
+                    needsReview: 0,
+                    notFound: 0,
+                    hasApi: 0,
+                    duplicates: 0,
+                    willImport: 0,
+                    canImport: false
+                },
+                planCheck: null
+            };
+            
+            for (let i = 0; i < totalRows; i += BATCH_SIZE) {
+                if (cancelBatchProcessing) {
+                    throw new Error('Validation cancelled by user');
+                }
+                
+                const batch = wellsParsedData.slice(i, Math.min(i + BATCH_SIZE, totalRows));
+                const batchNum = Math.floor(i / BATCH_SIZE) + 1;
+                const totalBatches = Math.ceil(totalRows / BATCH_SIZE);
+                
+                updateBatchProgress(i, totalRows, `Processing batch ${batchNum}/${totalBatches}...`);
+                
+                console.log(`[BulkValidate] Sending batch ${batchNum} with ${batch.length} wells`);
+                console.log('[BulkValidate] First well in batch:', batch[0]);
+                
+                const response = await fetch('/api/bulk-validate-wells', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ wells: batch })
+                });
+                
+                if (!response.ok) {
+                    let errorMessage = `Batch ${batchNum} failed`;
+                    try {
+                        const error = await response.json();
+                        errorMessage = error.error || errorMessage;
+                    } catch (e) {
+                        errorMessage = `Batch ${batchNum} failed (${response.status}). Try reducing file size.`;
+                    }
+                    throw new Error(errorMessage);
+                }
+                
+                const batchResult = await response.json();
+                
+                // Merge batch results
+                wellsValidationResults.results = wellsValidationResults.results.concat(batchResult.results);
+                wellsValidationResults.summary.total += batchResult.summary.total;
+                wellsValidationResults.summary.exactMatches += batchResult.summary.exactMatches;
+                wellsValidationResults.summary.needsReview += batchResult.summary.needsReview;
+                wellsValidationResults.summary.notFound += batchResult.summary.notFound;
+                wellsValidationResults.summary.hasApi += batchResult.summary.hasApi;
+                wellsValidationResults.summary.duplicates += batchResult.summary.duplicates;
+                wellsValidationResults.summary.willImport += batchResult.summary.willImport;
+                
+                // Use last batch's plan check (most accurate)
+                wellsValidationResults.planCheck = batchResult.planCheck;
+                
+                // Longer pause between batches to avoid rate limiting
+                if (i + BATCH_SIZE < totalRows) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                }
+            }
+            
+            wellsValidationResults.summary.canImport = wellsValidationResults.summary.willImport > 0 && 
+                                                       !wellsValidationResults.planCheck.wouldExceedLimit;
+        }
+        
+        hideBatchProgress();
+        
+        document.getElementById('wells-upload-step').style.display = 'none';
+        document.getElementById('wells-preview-step').style.display = 'block';
+        
+        renderWellsSummary();
+        renderWellsPlanCheck();
+        renderWellsPreviewTable();
+        updateImportButtonState();
+        
+    } catch (error) {
+        console.error('Wells validation error:', error);
+        hideBatchProgress();
+        document.getElementById('wells-error-message').textContent = error.message;
+        document.getElementById('wells-parse-error').style.display = 'block';
+    }
+}
+
+// Show batch processing progress
+function showBatchProgress(totalRows) {
+    cancelBatchProcessing = false;
+    
+    const html = `
+        <div class="bulk-section" id="batch-progress-section">
+            <h3 style="margin-bottom: 16px;">Processing ${totalRows} wells in batches...</h3>
+            <div class="progress-bar-track" style="margin-bottom: 12px;">
+                <div class="progress-bar-fill" id="batch-progress-bar" style="width: 0%;"></div>
+            </div>
+            <div class="progress-count" id="batch-progress-text">Starting...</div>
+            <button class="btn-secondary" style="margin-top: 16px;" onclick="cancelBatchValidation()">Cancel</button>
+        </div>
+    `;
+    
+    // Insert progress UI at the top of upload step
+    const uploadStep = document.getElementById('wells-upload-step');
+    const firstSection = uploadStep.querySelector('.bulk-section');
+    firstSection.insertAdjacentHTML('beforebegin', html);
+}
+
+// Update batch progress
+function updateBatchProgress(current, total, message) {
+    const percent = Math.round((current / total) * 100);
+    document.getElementById('batch-progress-bar').style.width = `${percent}%`;
+    document.getElementById('batch-progress-text').textContent = `${message} (${current}/${total} wells - ${percent}%)`;
+}
+
+// Hide batch progress
+function hideBatchProgress() {
+    const progressSection = document.getElementById('batch-progress-section');
+    if (progressSection) {
+        progressSection.remove();
+    }
+}
+
+// Cancel batch validation
+function cancelBatchValidation() {
+    cancelBatchProcessing = true;
+    hideBatchProgress();
+}
+
+// Render wells summary badges with enhanced status
+function renderWellsSummary() {
+    const summary = wellsValidationResults.summary;
+    let badges = [];
+    
+    // Show different badges based on match types
+    if (summary.hasApi > 0) badges.push(`<div class="validation-badge badge-valid">✓ ${summary.hasApi} Direct API</div>`);
+    if (summary.exactMatches > 0) badges.push(`<div class="validation-badge badge-valid">🎯 ${summary.exactMatches} Exact Match</div>`);
+    if (summary.needsReview > 0) badges.push(`<div class="validation-badge badge-warning">⚠️ ${summary.needsReview} Need Review</div>`);
+    if (summary.notFound > 0) badges.push(`<div class="validation-badge badge-invalid">❌ ${summary.notFound} Not Found</div>`);
+    if (summary.duplicates > 0) badges.push(`<div class="validation-badge badge-duplicate">↺ ${summary.duplicates} Already Tracked</div>`);
+    
+    document.getElementById('wells-validation-summary').innerHTML = badges.join(' ');
+}
+
+// Render wells plan check
+function renderWellsPlanCheck() {
+    const plan = wellsValidationResults.planCheck;
+    const wouldExceed = plan.wouldExceedLimit;
+    
+    const html = `
+        <div class="plan-check-box ${wouldExceed ? 'exceeded' : 'ok'}">
+            <div class="plan-check-header">
+                ${wouldExceed ? '❌ Would Exceed Plan Limit' : '✓ Within Plan Limit'}
+            </div>
+            <div class="plan-check-details">
+                Current: ${plan.current} wells · 
+                Adding: ${wellsValidationResults.summary.willImport} · 
+                Total: ${plan.afterUpload} of ${plan.limit} (${plan.plan} plan)
+            </div>
+        </div>
+    `;
+    document.getElementById('wells-plan-check').innerHTML = html;
+    document.getElementById('wells-import-btn').disabled = wouldExceed;
+}
+
+// Render enhanced wells preview table with search results
+function renderWellsPreviewTable() {
+    const tbody = document.getElementById('wells-preview-table-body');
+    let html = '';
+    wellsSelections = {}; // Reset selections
+    
+    wellsValidationResults.results.forEach((result, index) => {
+        // Determine row styling based on match status
+        let rowClass = 'preview-row-valid';
+        let statusIcon = '✓';
+        let statusText = 'Ready';
+        
+        if (result.matchStatus === 'not_found' || result.errors.length > 0) {
+            rowClass = 'preview-row-error';
+            statusIcon = '❌';
+            statusText = result.errors[0] || 'Not found';
+        } else if (result.matchStatus === 'ambiguous') {
+            rowClass = 'preview-row-warning';
+            statusIcon = '⚠️';
+            statusText = 'Select';
+        } else if (result.isDuplicate) {
+            rowClass = 'preview-row-duplicate';
+            statusIcon = '↺';
+            statusText = 'Tracked';
+        } else if (result.matchStatus === 'exact') {
+            statusIcon = '🎯';
+            statusText = 'Matched';
+        }
+        
+        // Build CSV data display
+        const csvData = [];
+        const orig = result.original;
+        
+        // Extract well name and number with same priority as search function
+        // Priority 1: Use WELL_NAME + WELL_NUM (separate fields to combine)
+        const wellName = orig.WELL_NAME || orig['Well_Name'] || orig['Well Name'] || 
+                        orig.well_name || orig.WellName || orig.wellName || '';
+        const wellNumber = orig.WELL_NUM || orig['Well_Num'] || orig['WELL_NUMBER'] || 
+                          orig['Well Number'] || orig['well_number'] || orig.WellNumber || 
+                          orig.wellNumber || orig.well_num || '';
+        
+        // Priority logic for well name:
+        // 1. If we have separate name and number, combine them
+        // 2. Otherwise use 'WELL Name & Number' if available  
+        // 3. Do NOT use 'WELL NAME COMBINED' as it includes operator
+        let fullWellName = '';
+        if (wellName && wellNumber) {
+            fullWellName = `${wellName.trim()} ${wellNumber.trim()}`.trim();
+        } else {
+            fullWellName = orig['WELL Name & Number'] || orig['Well Name & Number'] || wellName || '';
+        }
+        
+        if (fullWellName) csvData.push(`Well: ${fullWellName}`);
+        if (orig.Operator || orig.operator || orig.OPERATOR) csvData.push(`Op: ${orig.Operator || orig.operator || orig.OPERATOR}`);
+        
+        const county = orig.County || orig.county || orig.COUNTY || '';
+        if (county) csvData.push(`County: ${county}`);
+        
+        // Add location with meridian
+        if ((orig.Section || orig.SECTION) && (orig.Township || orig.TOWNSHIP) && (orig.Range || orig.RANGE)) {
+            // Determine meridian based on county
+            const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
+            const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
+            csvData.push(`Loc: S${orig.Section || orig.SECTION}-T${orig.Township || orig.TOWNSHIP}-R${orig.Range || orig.RANGE}-${meridian}`);
+        }
+        const csvDisplay = csvData.join(', ') || 'No search data';
+        
+        // Build matched well display
+        let matchedWellHtml = '-';
+        let apiNumberHtml = '-';
+        let actionHtml = '';
+        
+        if (result.matchStatus === 'has_api' && result.normalized) {
+            matchedWellHtml = escapeHtmlBulk(result.normalized.wellName || 'API provided');
+            apiNumberHtml = escapeHtmlBulk(result.normalized.apiNumber);
+            actionHtml = result.isDuplicate ? '<span style="color: #6b7280;">Already tracked</span>' : '<span style="color: #22c55e;">✓ Will add</span>';
+        } else if (result.matchStatus === 'exact' && result.searchResults) {
+            const match = result.searchResults.matches[0];
+            matchedWellHtml = escapeHtmlBulk(match.well_name || '-') + (match.well_number ? ' ' + escapeHtmlBulk(match.well_number) : '');
+            apiNumberHtml = escapeHtmlBulk(match.api_number);
+            actionHtml = result.isDuplicate ? '<span style="color: #6b7280;">Already tracked</span>' : '<span style="color: #22c55e;">✓ Will add</span>';
+        } else if (result.matchStatus === 'ambiguous' && result.searchResults) {
+            // Create dropdown for ambiguous matches
+            const selectId = `well-select-${index}`;
+            matchedWellHtml = `
+                <select id="${selectId}" class="bulk-well-select" onchange="updateWellSelection(${index}, this.value)" style="max-width: 300px;">
+                    <option value="">— Select well (${result.searchResults.total} matches) —</option>
+                    <option value="SKIP">— Skip this well —</option>
+                    ${result.searchResults.matches.map(m => 
+                        `<option value="${m.api_number}">${escapeHtmlBulk(m.well_name)}${m.well_number ? ' ' + escapeHtmlBulk(m.well_number) : ''} - ${m.api_number} - ${m.operator || 'Unknown Op'} - S${m.section}-T${m.township}-R${m.range} - ${m.county} - ${m.well_status || 'UNK'}</option>`
+                    ).join('')}
+                </select>
+            `;
+            apiNumberHtml = '<span id="api-' + index + '">-</span>';
+            actionHtml = '<span id="action-' + index + '" style="color: #f59e0b;">Select well</span>';
+        } else if (result.matchStatus === 'not_found') {
+            actionHtml = '<span style="color: #ef4444;">Skip</span>';
+        }
+        
+        html += `
+            <tr class="${rowClass}">
+                <td>${result.row}</td>
+                <td class="status-cell"><span style="font-size: 16px;">${statusIcon}</span></td>
+                <td style="font-size: 12px; color: #64748b;">${escapeHtmlBulk(csvDisplay)}</td>
+                <td>${matchedWellHtml}</td>
+                <td style="font-family: monospace; font-size: 12px;">${apiNumberHtml}</td>
+                <td>${actionHtml}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+    
+    // Show quick actions for files with ambiguous matches
+    const hasAmbiguous = wellsValidationResults.results.some(r => r.matchStatus === 'ambiguous');
+    if (hasAmbiguous) {
+        document.getElementById('wells-quick-actions').style.display = 'block';
+    }
+}
+
+// Track well selections for ambiguous matches
+let wellsSelections = {};
+
+// Update well selection
+function updateWellSelection(index, apiNumber) {
+    if (apiNumber === 'SKIP') {
+        wellsSelections[index] = 'SKIP';
+        // Update the display for skipped wells
+        document.getElementById(`api-${index}`).textContent = '—';
+        document.getElementById(`action-${index}`).innerHTML = '<span style="color: #6b7280;">Skip</span>';
+    } else if (apiNumber) {
+        wellsSelections[index] = apiNumber;
+        // Update the API and action display
+        document.getElementById(`api-${index}`).textContent = apiNumber;
+        document.getElementById(`action-${index}`).innerHTML = '<span style="color: #22c55e;">✓ Will add</span>';
+    } else {
+        delete wellsSelections[index];
+        document.getElementById(`api-${index}`).textContent = '-';
+        document.getElementById(`action-${index}`).innerHTML = '<span style="color: #f59e0b;">Select well</span>';
+    }
+    
+    // Update import button state
+    updateImportButtonState();
+}
+
+// Select all exact matches for quick import
+function selectAllExactMatches() {
+    wellsValidationResults.results.forEach((result, index) => {
+        if (result.matchStatus === 'ambiguous' && result.searchResults && result.searchResults.matches.length > 0) {
+            // Auto-select the first match
+            const firstMatch = result.searchResults.matches[0];
+            const selectEl = document.getElementById(`well-select-${index}`);
+            if (selectEl && selectEl.value === '') {
+                selectEl.value = firstMatch.api_number;
+                updateWellSelection(index, firstMatch.api_number);
+            }
+        }
+    });
+}
+
+// Update import button based on selections
+function updateImportButtonState() {
+    const summary = wellsValidationResults.summary;
+    const needsReview = wellsValidationResults.results.filter(r => r.matchStatus === 'ambiguous' && !r.isDuplicate);
+    const selectedCount = Object.keys(wellsSelections).length;
+    const allSelected = selectedCount >= needsReview.length;
+    
+    // Only allow import if all ambiguous wells have selections
+    const canImport = summary.canImport && (needsReview.length === 0 || allSelected);
+    const btn = document.getElementById('wells-import-btn');
+    
+    // Update button text to show pending selections
+    const pendingSelections = needsReview.length - selectedCount;
+    if (pendingSelections > 0) {
+        btn.textContent = `Select ${pendingSelections} wells to continue`;
+    } else {
+        btn.textContent = 'Import Wells';
+    }
+    
+    if (canImport) {
+        btn.disabled = false;
+        const totalToImport = summary.exactMatches + summary.hasApi + selectedCount;
+        btn.textContent = `Import ${totalToImport} Wells`;
+    } else if (needsReview.length > selectedCount) {
+        btn.disabled = true;
+        btn.textContent = `Select ${needsReview.length - selectedCount} more wells`;
+    } else {
+        btn.disabled = true;
+        btn.textContent = 'Import Wells';
+    }
+}
+
+// Start wells import
+async function startWellsImport() {
+    document.getElementById('wells-preview-step').style.display = 'none';
+    document.getElementById('wells-import-step').style.display = 'block';
+    
+    // Progress tracking
+    const progressBar = document.getElementById('wells-progress-bar');
+    progressBar.classList.remove('indeterminate');
+    
+    // Count total wells to import (excluding skipped)
+    const summary = wellsValidationResults.summary;
+    const skippedSelections = Object.values(wellsSelections).filter(v => v === 'SKIP').length;
+    const totalToImport = summary.exactMatches + summary.hasApi + Object.keys(wellsSelections).length - skippedSelections;
+    
+    document.getElementById('wells-import-progress').textContent = `Processing ${totalToImport} wells...`;
+    
+    // Simulate progress since we can't get real-time updates from backend
+    let simulatedProgress = 0;
+    const progressInterval = setInterval(() => {
+        simulatedProgress = Math.min(simulatedProgress + Math.random() * 15, 90);
+        progressBar.style.width = simulatedProgress + '%';
+        
+        // Update message based on progress
+        if (simulatedProgress < 30) {
+            document.getElementById('wells-import-progress').textContent = `Validating ${totalToImport} wells...`;
+        } else if (simulatedProgress < 60) {
+            document.getElementById('wells-import-progress').textContent = `Fetching well data from OCC...`;
+        } else {
+            document.getElementById('wells-import-progress').textContent = `Creating well records...`;
+        }
+    }, 500);
+    
+    try {
+        // Send all validation results with selections
+        const response = await fetch('/api/bulk-upload-wells', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ 
+                wells: wellsValidationResults.results,
+                selections: wellsSelections 
+            })
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+        }
+        
+        const results = await response.json();
+        
+        // Clear the progress simulation
+        clearInterval(progressInterval);
+        
+        // Update progress to 100%
+        progressBar.style.width = '100%';
+        document.getElementById('wells-import-progress').textContent = 'Processing complete!';
+        
+        // Brief delay to show completion
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        showWellsResults(results);
+        
+        // Auto-refresh wells in the background if import was successful
+        if (results.results.successful > 0) {
+            console.log(`Auto-refreshing wells after importing ${results.results.successful} wells`);
+            loadWells();
+        }
+        
+    } catch (error) {
+        // Clear the progress simulation on error too
+        clearInterval(progressInterval);
+        console.error('Wells upload error:', error);
+        showWellsError(error.message);
+    }
+}
+
+// Show wells results
+function showWellsResults(results) {
+    document.getElementById('wells-import-step').style.display = 'none';
+    document.getElementById('wells-results-step').style.display = 'block';
+    
+    const success = results.results.successful;
+    const failed = results.results.failed;
+    const skipped = results.results.skipped;
+    
+    document.getElementById('wells-result-created').textContent = success;
+    document.getElementById('wells-result-skipped').textContent = skipped;
+    document.getElementById('wells-result-failed').textContent = failed;
+    
+    // Update the well count in the tab immediately
+    if (success > 0) {
+        const currentCount = parseInt(document.getElementById('wellCount').textContent) || 0;
+        document.getElementById('wellCount').textContent = currentCount + success;
+        updateTotalCount();
+    }
+    
+    if (failed === 0 && skipped === 0) {
+        document.getElementById('wells-results-icon').textContent = '✅';
+        document.getElementById('wells-results-title').textContent = 'Import Complete!';
+        document.getElementById('wells-results-details').textContent = 'Your wells are now being monitored for OCC activity.';
+    } else if (failed === 0 && skipped > 0) {
+        document.getElementById('wells-results-icon').textContent = '⚠️';
+        document.getElementById('wells-results-title').textContent = 'Import Completed';
+        document.getElementById('wells-results-details').textContent = `${success} wells added successfully. ${skipped} wells were skipped (duplicates, invalid, or no selection made for ambiguous matches).`;
+    } else {
+        document.getElementById('wells-results-icon').textContent = '⚠️';
+        document.getElementById('wells-results-title').textContent = 'Import Completed with Errors';
+        document.getElementById('wells-results-details').textContent = 'Some wells could not be imported.';
+    }
+}
+
+// Show wells error
+function showWellsError(message) {
+    document.getElementById('wells-import-step').style.display = 'none';
+    document.getElementById('wells-results-step').style.display = 'block';
+    document.getElementById('wells-results-icon').textContent = '❌';
+    document.getElementById('wells-results-title').textContent = 'Import Failed';
+    document.getElementById('wells-result-created').textContent = '0';
+    document.getElementById('wells-result-skipped').textContent = '0';
+    document.getElementById('wells-result-failed').textContent = '–';
+    document.getElementById('wells-results-details').textContent = message;
+}
+
+// Finish wells upload
+async function finishBulkUploadWells() {
+    closeBulkUploadWellsModal();
+    await loadWells();
+
+    // Auto re-link documents after wells import
+    try {
+        const res = await fetch('/api/documents/relink', { method: 'POST' });
+        if (res.ok) {
+            const result = await res.json();
+            if (result.linked > 0) {
+                showToast(`Auto-linked ${result.linked} document${result.linked > 1 ? 's' : ''} to your new wells`, 'success');
+            }
+        }
+    } catch (e) {
+        console.log('Auto-relink after wells import:', e);
+    }
+}
+
+// Document Upload Functions
+let selectedFiles = [];
+
+function openUploadModal() {
+    console.log('openUploadModal called');
+    console.log('Modal element exists?', !!document.getElementById('documentUploadModal'));
+    console.log('selectedFilesList exists?', !!document.getElementById('selectedFilesList'));
+    
+    // Reset all modal state
+    clearSelectedFile();
+    
+    // Check if user has credits available
+    if (currentUsageStats) {
+        const availableCredits = currentUsageStats.usage.total_available || 0;
+        if (availableCredits === 0) {
+            // Show out of credits modal instead
+            showOutOfCreditsModal();
+            return;
+        }
+    }
+
+    // Reset form visibility (in case it was hidden during upload)
+    document.getElementById('documentUploadForm').style.display = 'block';
+    document.getElementById('uploadProgress').style.display = 'none';
+
+    // Reset drop zone to default state
+    const dropZone = document.getElementById('fileDropZone');
+    dropZone.style.borderColor = 'var(--border)';
+    dropZone.style.background = '#f8f9fa';
+
+    // Update available credits display if we have usage stats
+    if (currentUsageStats) {
+        const availableCredits = currentUsageStats.usage.total_available || 0;
+        document.getElementById('availableCreditsInModal').textContent = availableCredits;
+    }
+
+    // Reset file input
+    document.getElementById('documentFileInput').value = '';
+
+    // Reset selected files display
+    document.getElementById('selectedFilesDisplay').style.display = 'none';
+    // Clear only the list content, not the entire container
+    const filesList = document.getElementById('selectedFilesList');
+    if (filesList) {
+        filesList.innerHTML = '';
+    }
+
+    // Make sure upload button is disabled
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+    }
+
+    // Update drop zone text for mobile (no drag/drop on mobile)
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    const dropZoneText = document.getElementById('dropZoneText');
+    if (dropZoneText) {
+        dropZoneText.textContent = isMobile ? 'Tap to select files' : 'Drop files here or click to browse';
+    }
+
+    // Show modal
+    document.getElementById('documentUploadModal').style.display = 'flex';
+}
+window.openUploadModal = openUploadModal;
+
+function showOutOfCreditsModal() {
+    const usage = currentUsageStats?.usage;
+    const isLifetimeTier = usage?.is_lifetime_tier;
+
+    // Update message based on tier
+    const messageEl = document.getElementById('outOfCreditsMessage');
+    if (isLifetimeTier) {
+        messageEl.textContent = "You've used all your free trial credits. Upgrade to a paid plan to continue processing documents.";
+    } else {
+        messageEl.textContent = "You've used all your available credits this month. Purchase a credit pack or wait for your monthly reset.";
+    }
+
+    // Update reset info for paid tiers
+    const resetInfo = document.getElementById('creditResetInfo');
+    if (!isLifetimeTier && usage?.reset_date) {
+        const resetDate = new Date(usage.reset_date);
+        const resetDateStr = resetDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric' });
+        resetInfo.textContent = `Your monthly credits reset on ${resetDateStr}`;
+        resetInfo.style.display = 'block';
+    } else {
+        resetInfo.style.display = 'none';
+    }
+
+    document.getElementById('outOfCreditsModal').style.display = 'flex';
+}
+window.showOutOfCreditsModal = showOutOfCreditsModal;
+
+function closeOutOfCreditsModal() {
+    document.getElementById('outOfCreditsModal').style.display = 'none';
+}
+window.closeOutOfCreditsModal = closeOutOfCreditsModal;
+
+function openCreditPackModal() {
+    document.getElementById('creditPackModal').style.display = 'flex';
+}
+window.openCreditPackModal = openCreditPackModal;
+
+function closeCreditPackModal() {
+    document.getElementById('creditPackModal').style.display = 'none';
+}
+window.closeCreditPackModal = closeCreditPackModal;
+
+async function purchaseCreditPack(priceId) {
+    try {
+        // Show loading state
+        const cards = document.querySelectorAll('.credit-pack-card');
+        cards.forEach(card => {
+            card.style.pointerEvents = 'none';
+            card.style.opacity = '0.6';
+        });
+
+        const response = await fetch('/api/documents/checkout/credit-pack', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            credentials: 'include',
+            body: JSON.stringify({ priceId })
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Failed to create checkout session');
+        }
+
+        const { url } = await response.json();
+
+        // Redirect to Stripe Checkout
+        window.location.href = url;
+    } catch (error) {
+        console.error('Error purchasing credit pack:', error);
+        showToast('Failed to start checkout: ' + error.message, 'error');
+
+        // Reset loading state
+        const cards = document.querySelectorAll('.credit-pack-card');
+        cards.forEach(card => {
+            card.style.pointerEvents = '';
+            card.style.opacity = '';
+        });
+    }
+}
+window.purchaseCreditPack = purchaseCreditPack;
+
+// Close credit pack modal when clicking outside
+document.getElementById('creditPackModal')?.addEventListener('click', e => {
+    if (e.target.id === 'creditPackModal') closeCreditPackModal();
+});
+
+function closeUploadModal() {
+    document.getElementById('documentUploadModal').style.display = 'none';
+    clearSelectedFile();
+
+    // Reset photo upload state
+    selectedPhotos = [];
+    document.getElementById('photoPreviewSection').style.display = 'none';
+    document.getElementById('uploadBtn').style.display = 'inline-flex';  // Show desktop upload button again
+    document.getElementById('photoFileInput').value = '';
+
+    // Reset form and progress display
+    document.getElementById('documentUploadForm').style.display = 'block';
+    document.getElementById('uploadProgress').style.display = 'none';
+}
+window.closeUploadModal = closeUploadModal;
+
+function handleDocumentDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'var(--red-dirt)';
+    e.currentTarget.style.background = '#FEF3C7';
+}
+
+function handleDocumentDragLeave(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'var(--border)';
+    e.currentTarget.style.background = '#f8f9fa';
+}
+
+function handleDocumentFileDrop(e) {
+    console.log('handleDocumentFileDrop fired', e.dataTransfer.files.length, 'files');
+    e.preventDefault();
+    e.stopPropagation();
+    e.currentTarget.style.borderColor = 'var(--border)';
+    e.currentTarget.style.background = '#f8f9fa';
+    
+    const files = Array.from(e.dataTransfer.files);
+    console.log('Files array:', files);
+    processSelectedFiles(files);
+}
+
+function handleDocumentFileSelect(e) {
+    const files = Array.from(e.target.files);
+    processSelectedFiles(files);
+}
+
+function processSelectedFiles(files) {
+    console.log('processSelectedFiles called with', files.length, 'files');
+    // Filter and validate files
+    const validFiles = [];
+    const errors = [];
+    
+    // Allowed file types
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/tiff'];
+
+    for (const file of files) {
+        if (!allowedTypes.includes(file.type)) {
+            errors.push(`${file.name}: Only PDF, JPEG, PNG, and TIFF files are allowed`);
+            continue;
+        }
+
+        if (file.size > 50 * 1024 * 1024) {
+            errors.push(`${file.name}: File size must be less than 50MB`);
+            continue;
+        }
+        
+        validFiles.push(file);
+    }
+    
+    // Check total file limit
+    if (validFiles.length > 500) {
+        alert('Maximum 500 files can be uploaded at once');
+        validFiles.splice(500);
+    }
+    
+    // Check total size limit (500MB)
+    const totalSize = validFiles.reduce((sum, file) => sum + file.size, 0);
+    const maxTotalSize = 500 * 1024 * 1024; // 500MB
+    
+    if (totalSize > maxTotalSize) {
+        alert(`Total file size exceeds 500MB limit. Current total: ${(totalSize / 1024 / 1024).toFixed(1)}MB`);
+        // Remove files from the end until we're under the limit
+        while (validFiles.length > 0 && validFiles.reduce((sum, file) => sum + file.size, 0) > maxTotalSize) {
+            validFiles.pop();
+        }
+    }
+    
+    if (errors.length > 0) {
+        alert('Some files were not added:\n' + errors.join('\n'));
+    }
+    
+    if (validFiles.length > 0) {
+        selectedFiles = validFiles;
+        displaySelectedFiles();
+    }
+}
+
+async function displaySelectedFiles() {
+    console.log('displaySelectedFiles called with', selectedFiles.length, 'files');
+    const listDiv = document.getElementById('selectedFilesList');
+    console.log('selectedFilesList element:', listDiv);
+    console.log('Document ready state:', document.readyState);
+    console.log('Document body contains:', document.body.innerHTML.includes('selectedFilesList'));
+    console.log('Modal visible?', document.getElementById('documentUploadModal').style.display);
+
+    if (!listDiv) {
+        console.warn('selectedFilesList element not found');
+        console.log('Trying to find parent selectedFilesDisplay:', document.getElementById('selectedFilesDisplay'));
+        return;
+    }
+    listDiv.innerHTML = '';
+
+    // Show loading state for credit estimation
+    document.getElementById('selectedFilesDisplay').style.display = 'block';
+    document.getElementById('uploadBtn').disabled = selectedFiles.length === 0;
+
+    if (selectedFiles.length > 0) {
+        document.getElementById('creditEstimation').style.display = 'block';
+        document.getElementById('totalPages').textContent = 'counting...';
+        document.getElementById('estimatedCredits').textContent = '...';
+    }
+
+    // Calculate total pages using pdf.js for accurate page counts
+    let totalPages = 0;
+    const pageEstimates = [];
+
+    // Process each file and get actual page count
+    for (let index = 0; index < selectedFiles.length; index++) {
+        const file = selectedFiles[index];
+        let pageCount = 1; // Default fallback
+
+        // Use pdf.js to get actual page count for PDFs, images are always 1 page
+        if (file.type === 'application/pdf' && typeof pdfjsLib !== 'undefined') {
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                pageCount = pdf.numPages;
+                console.log(`PDF ${file.name}: ${pageCount} pages (actual)`);
+            } catch (err) {
+                console.warn(`Could not read PDF ${file.name}, using fallback estimate:`, err);
+                // Fallback: rough estimate of 1 page per 100KB
+                pageCount = Math.max(1, Math.ceil(file.size / (100 * 1024)));
+            }
+        } else if (file.type.startsWith('image/')) {
+            // Images are always 1 page
+            pageCount = 1;
+            console.log(`Image ${file.name}: 1 page`);
+        } else {
+            // Unknown type: use rough estimate
+            pageCount = Math.max(1, Math.ceil(file.size / (100 * 1024)));
+        }
+
+        pageEstimates.push(pageCount);
+        totalPages += pageCount;
+
+        // Build file display element
+        const fileDiv = document.createElement('div');
+        fileDiv.style.cssText = 'display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--success-bg); border: 1px solid var(--success); border-radius: 4px; margin-bottom: 8px;';
+
+        const fileName = document.createElement('span');
+        fileName.textContent = `${file.name} (${pageCount} pg, ${(file.size / 1024 / 1024).toFixed(1)}MB)`;
+        fileName.style.cssText = 'font-size: 14px; color: var(--oil-navy);';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.onclick = () => removeFile(index);
+        removeBtn.style.cssText = 'background: none; border: none; color: var(--red-dirt); cursor: pointer;';
+        removeBtn.innerHTML = '<svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+
+        fileDiv.appendChild(fileName);
+        fileDiv.appendChild(removeBtn);
+        listDiv.appendChild(fileDiv);
+    }
+
+    // Calculate and display credit estimation
+    if (selectedFiles.length > 0) {
+        // Calculate credits: Math.ceil(pages / 30)
+        const estimatedCredits = Math.ceil(totalPages / 30);
+
+        document.getElementById('estimatedCredits').textContent = estimatedCredits;
+        document.getElementById('totalPages').textContent = totalPages;
+
+        // Update available credits from current usage stats
+        if (currentUsageStats) {
+            const availableCredits = currentUsageStats.usage.total_available || 0;
+            document.getElementById('availableCreditsInModal').textContent = availableCredits;
+
+            // Show warning if estimated > available
+            const warning = document.getElementById('creditWarning');
+            if (estimatedCredits > availableCredits) {
+                warning.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+            }
+        }
+    } else {
+        document.getElementById('creditEstimation').style.display = 'none';
+    }
+}
+
+function removeFile(index) {
+    selectedFiles.splice(index, 1);
+    if (selectedFiles.length === 0) {
+        clearSelectedFile();
+    } else {
+        displaySelectedFiles();
+    }
+}
+
+function clearSelectedFile() {
+    selectedFiles = [];
+    const fileInput = document.getElementById('documentFileInput');
+    if (fileInput) {
+        fileInput.value = '';
+    }
+    document.getElementById('selectedFilesDisplay').style.display = 'none';
+    document.getElementById('creditEstimation').style.display = 'none';
+    const uploadBtn = document.getElementById('uploadBtn');
+    if (uploadBtn) {
+        uploadBtn.disabled = true;
+    }
+}
+
+async function handleDocumentUpload(e) {
+    e.preventDefault();
+    
+    if (!selectedFiles.length) return;
+    
+    // Show progress
+    document.getElementById('documentUploadForm').style.display = 'none';
+    document.getElementById('uploadProgress').style.display = 'block';
+    
+    const formData = new FormData();
+    
+    // Use multi-file endpoint if multiple files, otherwise single file endpoint
+    if (selectedFiles.length === 1) {
+        formData.append('file', selectedFiles[0]);
+        
+        try {
+            const response = await fetch('/api/documents/upload', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Upload failed');
+            }
+            
+            // Close modal and refresh documents list
+            closeUploadModal();
+            await loadDocuments();
+
+            // Refresh credit display after upload
+            loadUsageStats();
+
+            // Trigger debounced polling
+            onDocumentUploaded();
+        } catch (error) {
+            alert('Upload failed: ' + error.message);
+            // Reset modal
+            document.getElementById('documentUploadForm').style.display = 'block';
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+    } else {
+        // Multiple files
+        for (const file of selectedFiles) {
+            formData.append('files', file);
+        }
+        
+        try {
+            const response = await fetch('/api/documents/upload-multiple', {
+                method: 'POST',
+                body: formData,
+                credentials: 'include'
+            });
+            
+            if (!response.ok) {
+                const error = await response.json();
+                throw new Error(error.error || 'Upload failed');
+            }
+            
+            const result = await response.json();
+            
+            // Show results
+            let message = `Uploaded: ${result.uploaded} files`;
+            if (result.failed > 0) {
+                message += `\nFailed: ${result.failed} files`;
+                if (result.errors && result.errors.length > 0) {
+                    message += '\n\nErrors:\n' + result.errors.map(e => `- ${e.filename}: ${e.error}`).join('\n');
+                }
+            }
+            
+            if (result.failed > 0) {
+                alert(message);
+            }
+            
+            // Close modal and refresh documents list
+            closeUploadModal();
+            await loadDocuments();
+
+            // Refresh credit display after upload
+            loadUsageStats();
+
+            // Show processing notification for any upload
+            if (result.uploaded >= 1) {
+                showBulkProcessingModal(result.uploaded);
+            }
+
+            // Trigger debounced polling
+            onDocumentUploaded();
+        } catch (error) {
+            alert('Upload failed: ' + error.message);
+            // Reset modal
+            document.getElementById('documentUploadForm').style.display = 'block';
+            document.getElementById('uploadProgress').style.display = 'none';
+        }
+    }
+}
+
+// Expose document functions to window
+window.handleDocumentFileDrop = handleDocumentFileDrop;
+window.handleDocumentDragOver = handleDocumentDragOver;
+window.handleDocumentDragLeave = handleDocumentDragLeave;
+window.handleDocumentFileSelect = handleDocumentFileSelect;
+window.clearSelectedFile = clearSelectedFile;
+window.handleDocumentUpload = handleDocumentUpload;
+
+// ============================================
+// PHOTO UPLOAD FEATURE (Mobile-Friendly)
+// ============================================
+
+// State for photo uploads
+let selectedPhotos = []; // Array of { file, thumbnail, included, originalIndex }
+let draggedPhotoIndex = null;
+
+// Handle photo file selection
+async function handlePhotoFileSelect(event) {
+    const files = Array.from(event.target.files);
+    if (files.length === 0) return;
+
+    // Open the upload modal if not already open (for mobile photo upload button)
+    const modal = document.getElementById('documentUploadModal');
+    if (modal.style.display === 'none') {
+        openUploadModal();
+    }
+
+    // Show photo preview section, hide the regular upload button
+    document.getElementById('photoPreviewSection').style.display = 'block';
+    document.getElementById('uploadBtn').style.display = 'none';  // Hide desktop upload button when photos selected
+
+    // Process each file
+    for (const file of files) {
+        // Check if already added (by name and size)
+        const isDuplicate = selectedPhotos.some(p =>
+            p.file.name === file.name && p.file.size === file.size
+        );
+        if (isDuplicate) continue;
+
+        // Check file type
+        const isHEIC = file.type === 'image/heic' || file.type === 'image/heif' ||
+                       file.name.toLowerCase().endsWith('.heic') ||
+                       file.name.toLowerCase().endsWith('.heif');
+        const isValidImage = file.type === 'image/jpeg' || file.type === 'image/png' || isHEIC;
+
+        if (!isValidImage) {
+            console.warn(`Skipping ${file.name}: not a valid image type`);
+            continue;
+        }
+
+        // Check file size (50MB limit)
+        if (file.size > 50 * 1024 * 1024) {
+            alert(`${file.name} is too large. Maximum size is 50MB.`);
+            continue;
+        }
+
+        // Add to selection with loading state
+        const photoData = {
+            file: file,
+            thumbnail: null,
+            included: true,
+            originalIndex: selectedPhotos.length,
+            isHEIC: isHEIC,
+            convertedBlob: null // For HEIC conversion result
+        };
+        selectedPhotos.push(photoData);
+    }
+
+    // Render the grid and process thumbnails
+    renderPhotoGrid();
+
+    // Process thumbnails asynchronously (including HEIC conversion)
+    await processPhotoThumbnails();
+
+    // Clear the file input for re-selection
+    event.target.value = '';
+}
+
+// Render the photo preview grid
+function renderPhotoGrid() {
+    const grid = document.getElementById('photoPreviewGrid');
+    grid.innerHTML = '';
+
+    let pageNumber = 1;
+    selectedPhotos.forEach((photo, index) => {
+        const item = document.createElement('div');
+        item.className = 'photo-preview-item' + (photo.included ? '' : ' excluded') + (photo.thumbnail ? '' : ' loading');
+        item.draggable = true;
+        item.dataset.index = index;
+
+        // Drag events
+        item.addEventListener('dragstart', handlePhotoDragStart);
+        item.addEventListener('dragend', handlePhotoDragEnd);
+        item.addEventListener('dragover', handlePhotoDragOver);
+        item.addEventListener('dragleave', handlePhotoDragLeave);
+        item.addEventListener('drop', handlePhotoDrop);
+
+        // Touch events for mobile drag
+        item.addEventListener('touchstart', handlePhotoTouchStart, { passive: false });
+        item.addEventListener('touchmove', handlePhotoTouchMove, { passive: false });
+        item.addEventListener('touchend', handlePhotoTouchEnd);
+
+        if (photo.thumbnail) {
+            // Thumbnail image
+            const img = document.createElement('img');
+            img.src = photo.thumbnail;
+            img.className = 'photo-thumbnail';
+            img.alt = `Page ${photo.included ? pageNumber : '-'}`;
+            item.appendChild(img);
+
+            // Checkbox for include/exclude
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'photo-checkbox';
+            checkbox.checked = photo.included;
+            checkbox.title = photo.included ? 'Click to exclude' : 'Click to include';
+            checkbox.addEventListener('change', (e) => {
+                e.stopPropagation();
+                togglePhotoInclusion(index);
+            });
+            item.appendChild(checkbox);
+
+            // Remove button
+            const removeBtn = document.createElement('button');
+            removeBtn.type = 'button';
+            removeBtn.className = 'photo-remove-btn';
+            removeBtn.innerHTML = '<svg width="12" height="12" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>';
+            removeBtn.onclick = (e) => {
+                e.stopPropagation();
+                removePhoto(index);
+            };
+            item.appendChild(removeBtn);
+
+            // Page number badge (only for included photos)
+            if (photo.included) {
+                const badge = document.createElement('div');
+                badge.className = 'photo-page-number';
+                badge.textContent = pageNumber;
+                item.appendChild(badge);
+                pageNumber++;
+            }
+
+            // Drag handle for mobile
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'photo-drag-handle';
+            dragHandle.innerHTML = '<svg width="14" height="14" fill="currentColor" viewBox="0 0 24 24"><path d="M8 6a2 2 0 11-4 0 2 2 0 014 0zm0 6a2 2 0 11-4 0 2 2 0 014 0zm0 6a2 2 0 11-4 0 2 2 0 014 0zm8-12a2 2 0 11-4 0 2 2 0 014 0zm0 6a2 2 0 11-4 0 2 2 0 014 0zm0 6a2 2 0 11-4 0 2 2 0 014 0z"/></svg>';
+            item.appendChild(dragHandle);
+        }
+
+        grid.appendChild(item);
+    });
+
+    updatePhotoCountDisplay();
+}
+
+// Process thumbnails (with HEIC conversion)
+async function processPhotoThumbnails() {
+    for (let i = 0; i < selectedPhotos.length; i++) {
+        const photo = selectedPhotos[i];
+        if (photo.thumbnail) continue; // Already processed
+
+        try {
+            let imageBlob = photo.file;
+
+            // Convert HEIC to JPEG if needed
+            if (photo.isHEIC) {
+                console.log(`Converting HEIC: ${photo.file.name}`);
+                try {
+                    if (typeof heic2any !== 'undefined') {
+                        imageBlob = await heic2any({
+                            blob: photo.file,
+                            toType: 'image/jpeg',
+                            quality: 0.85
+                        });
+                        photo.convertedBlob = imageBlob;
+                        console.log(`HEIC converted: ${photo.file.name}`);
+                    } else {
+                        console.warn('heic2any not loaded, HEIC conversion unavailable');
+                        continue;
+                    }
+                } catch (heicError) {
+                    console.error(`HEIC conversion failed for ${photo.file.name}:`, heicError);
+                    // Remove from selection if conversion fails
+                    selectedPhotos.splice(i, 1);
+                    i--;
+                    renderPhotoGrid();
+                    continue;
+                }
+            }
+
+            // Create thumbnail
+            photo.thumbnail = await createThumbnail(imageBlob);
+            renderPhotoGrid();
+        } catch (err) {
+            console.error(`Failed to process ${photo.file.name}:`, err);
+        }
+    }
+}
+
+// Create a thumbnail from an image blob
+function createThumbnail(blob) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const maxSize = 200;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > maxSize) {
+                    height = Math.round(height * maxSize / width);
+                    width = maxSize;
+                }
+            } else {
+                if (height > maxSize) {
+                    width = Math.round(width * maxSize / height);
+                    height = maxSize;
+                }
+            }
+
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+
+            URL.revokeObjectURL(url);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to load image'));
+        };
+        img.src = url;
+    });
+}
+
+// Toggle photo inclusion
+function togglePhotoInclusion(index) {
+    selectedPhotos[index].included = !selectedPhotos[index].included;
+    renderPhotoGrid();
+}
+
+// Remove a photo
+function removePhoto(index) {
+    selectedPhotos.splice(index, 1);
+    if (selectedPhotos.length === 0) {
+        clearPhotoSelection();
+    } else {
+        renderPhotoGrid();
+    }
+}
+
+// Clear all photos
+function clearPhotoSelection() {
+    selectedPhotos = [];
+    document.getElementById('photoPreviewSection').style.display = 'none';
+    document.getElementById('uploadBtn').style.display = 'inline-flex';  // Show desktop upload button again
+    document.getElementById('photoFileInput').value = '';
+}
+
+// Update count displays
+function updatePhotoCountDisplay() {
+    const includedCount = selectedPhotos.filter(p => p.included).length;
+    const totalCount = selectedPhotos.length;
+
+    document.getElementById('photoCount').textContent = totalCount;
+    document.getElementById('uploadPageCount').textContent = includedCount;
+
+    // Disable upload button if no photos included
+    const uploadBtn = document.getElementById('combineUploadBtn');
+    if (uploadBtn) {
+        uploadBtn.disabled = includedCount === 0;
+    }
+}
+
+// Drag and drop handlers for reordering
+function handlePhotoDragStart(e) {
+    draggedPhotoIndex = parseInt(e.target.dataset.index);
+    e.target.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+}
+
+function handlePhotoDragEnd(e) {
+    e.target.classList.remove('dragging');
+    draggedPhotoIndex = null;
+    // Remove drag-over class from all items
+    document.querySelectorAll('.photo-preview-item').forEach(item => {
+        item.classList.remove('drag-over');
+    });
+}
+
+function handlePhotoDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const item = e.target.closest('.photo-preview-item');
+    if (item && parseInt(item.dataset.index) !== draggedPhotoIndex) {
+        item.classList.add('drag-over');
+    }
+}
+
+function handlePhotoDragLeave(e) {
+    const item = e.target.closest('.photo-preview-item');
+    if (item) {
+        item.classList.remove('drag-over');
+    }
+}
+
+function handlePhotoDrop(e) {
+    e.preventDefault();
+    const item = e.target.closest('.photo-preview-item');
+    if (!item) return;
+
+    const dropIndex = parseInt(item.dataset.index);
+    if (draggedPhotoIndex === null || draggedPhotoIndex === dropIndex) return;
+
+    // Reorder the array
+    const [movedPhoto] = selectedPhotos.splice(draggedPhotoIndex, 1);
+    selectedPhotos.splice(dropIndex, 0, movedPhoto);
+
+    renderPhotoGrid();
+}
+
+// Touch handlers for mobile drag (simplified)
+let touchStartY = 0;
+let touchedElement = null;
+
+function handlePhotoTouchStart(e) {
+    const item = e.target.closest('.photo-preview-item');
+    if (!item) return;
+
+    touchedElement = item;
+    touchStartY = e.touches[0].clientY;
+    draggedPhotoIndex = parseInt(item.dataset.index);
+
+    // Long press to initiate drag
+    item.touchTimeout = setTimeout(() => {
+        item.classList.add('dragging');
+    }, 200);
+}
+
+function handlePhotoTouchMove(e) {
+    if (!touchedElement) return;
+
+    clearTimeout(touchedElement.touchTimeout);
+
+    const touch = e.touches[0];
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetItem = elementBelow?.closest('.photo-preview-item');
+
+    // Remove drag-over from all
+    document.querySelectorAll('.photo-preview-item').forEach(item => {
+        item.classList.remove('drag-over');
+    });
+
+    if (targetItem && targetItem !== touchedElement) {
+        targetItem.classList.add('drag-over');
+    }
+}
+
+function handlePhotoTouchEnd(e) {
+    if (!touchedElement) return;
+
+    clearTimeout(touchedElement.touchTimeout);
+    touchedElement.classList.remove('dragging');
+
+    const touch = e.changedTouches[0];
+    const elementBelow = document.elementFromPoint(touch.clientX, touch.clientY);
+    const targetItem = elementBelow?.closest('.photo-preview-item');
+
+    if (targetItem && targetItem !== touchedElement) {
+        const dropIndex = parseInt(targetItem.dataset.index);
+        if (draggedPhotoIndex !== null && draggedPhotoIndex !== dropIndex) {
+            const [movedPhoto] = selectedPhotos.splice(draggedPhotoIndex, 1);
+            selectedPhotos.splice(dropIndex, 0, movedPhoto);
+            renderPhotoGrid();
+        }
+    }
+
+    // Clean up
+    document.querySelectorAll('.photo-preview-item').forEach(item => {
+        item.classList.remove('drag-over');
+    });
+
+    touchedElement = null;
+    draggedPhotoIndex = null;
+}
+
+// Combine images into PDF and upload
+async function handlePhotoUpload() {
+    const includedPhotos = selectedPhotos.filter(p => p.included && p.thumbnail);
+
+    if (includedPhotos.length === 0) {
+        alert('Please select at least one photo to upload.');
+        return;
+    }
+
+    // Show progress state
+    const uploadBtn = document.getElementById('combineUploadBtn');
+    const originalBtnHTML = uploadBtn.innerHTML;
+    uploadBtn.disabled = true;
+    uploadBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>Creating PDF...';
+
+    try {
+        // Create PDF using pdf-lib
+        const { PDFDocument } = PDFLib;
+        const pdfDoc = await PDFDocument.create();
+
+        for (let i = 0; i < includedPhotos.length; i++) {
+            const photo = includedPhotos[i];
+
+            // Update button progress
+            uploadBtn.innerHTML = `<div class="spinner" style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>Processing ${i + 1}/${includedPhotos.length}...`;
+
+            // Get the image data (use converted blob for HEIC)
+            const imageBlob = photo.convertedBlob || photo.file;
+            const imageBytes = await imageBlob.arrayBuffer();
+
+            // Embed image in PDF
+            let image;
+            const mimeType = photo.convertedBlob ? 'image/jpeg' : photo.file.type;
+
+            if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
+                image = await pdfDoc.embedJpg(imageBytes);
+            } else if (mimeType === 'image/png') {
+                image = await pdfDoc.embedPng(imageBytes);
+            } else {
+                // For other formats, try to convert to JPEG first
+                const convertedBlob = await convertToJpeg(imageBlob);
+                const convertedBytes = await convertedBlob.arrayBuffer();
+                image = await pdfDoc.embedJpg(convertedBytes);
+            }
+
+            // Create page with image dimensions (max 8.5x11 inches at 72 DPI)
+            const maxWidth = 612; // 8.5 inches
+            const maxHeight = 792; // 11 inches
+
+            let pageWidth = image.width;
+            let pageHeight = image.height;
+
+            // Scale down if larger than page
+            if (pageWidth > maxWidth || pageHeight > maxHeight) {
+                const widthRatio = maxWidth / pageWidth;
+                const heightRatio = maxHeight / pageHeight;
+                const scale = Math.min(widthRatio, heightRatio);
+                pageWidth = pageWidth * scale;
+                pageHeight = pageHeight * scale;
+            }
+
+            const page = pdfDoc.addPage([pageWidth, pageHeight]);
+            page.drawImage(image, {
+                x: 0,
+                y: 0,
+                width: pageWidth,
+                height: pageHeight
+            });
+        }
+
+        // Generate PDF bytes
+        uploadBtn.innerHTML = '<div class="spinner" style="width: 16px; height: 16px; border: 2px solid white; border-top: 2px solid transparent; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>Uploading...';
+
+        const pdfBytes = await pdfDoc.save();
+        const pdfBlob = new Blob([pdfBytes], { type: 'application/pdf' });
+
+        // Generate filename
+        const timestamp = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+        const filename = `photo_document_${timestamp}_${includedPhotos.length}pages.pdf`;
+
+        // Upload using existing endpoint
+        const formData = new FormData();
+        formData.append('file', new File([pdfBlob], filename, { type: 'application/pdf' }));
+
+        const response = await fetch('/api/documents/upload', {
+            method: 'POST',
+            body: formData,
+            credentials: 'include'
+        });
+
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.error || 'Upload failed');
+        }
+
+        // Success - close modal and refresh
+        closeUploadModal();
+        await loadDocuments();
+        loadUsageStats();
+        onDocumentUploaded();
+
+        // Show processing notification
+        showBulkProcessingModal(1);
+
+        // Reset photo state
+        selectedPhotos = [];
+
+    } catch (error) {
+        console.error('Photo upload failed:', error);
+        alert('Upload failed: ' + error.message);
+
+        // Reset button
+        uploadBtn.disabled = false;
+        uploadBtn.innerHTML = originalBtnHTML;
+    }
+}
+
+// Helper to convert image to JPEG
+function convertToJpeg(blob) {
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+            canvas.toBlob(resolve, 'image/jpeg', 0.92);
+            URL.revokeObjectURL(url);
+        };
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Failed to convert image'));
+        };
+        img.src = url;
+    });
+}
+
+// Expose photo upload functions to window
+window.handlePhotoFileSelect = handlePhotoFileSelect;
+window.clearPhotoSelection = clearPhotoSelection;
+window.handlePhotoUpload = handlePhotoUpload;
+window.togglePhotoInclusion = togglePhotoInclusion;
+window.removePhoto = removePhoto;
+
+// ============================================
+// END PHOTO UPLOAD FEATURE
+// ============================================
+
+// Bulk processing modal functions
+function showBulkProcessingModal(count) {
+    // Check if user has opted out of seeing this message
+    const preference = localStorage.getItem('hideBulkProcessingNotification');
+    if (preference === 'true') {
+        return;
+    }
+
+    // Update count in message
+    document.getElementById('bulkProcessingCount').textContent = count;
+
+    // Handle singular/plural
+    const pluralSpan = document.getElementById('bulkProcessingPlural');
+    if (pluralSpan) {
+        pluralSpan.textContent = count === 1 ? '' : 's';
+    }
+
+    // Show modal
+    document.getElementById('bulkProcessingModal').style.display = 'flex';
+}
+
+function closeBulkProcessingModal() {
+    // Check if user wants to hide this in the future
+    const dontShowAgain = document.getElementById('bulkNotificationPreference').checked;
+    if (dontShowAgain) {
+        localStorage.setItem('hideBulkProcessingNotification', 'true');
+    }
+    
+    // Hide modal
+    document.getElementById('bulkProcessingModal').style.display = 'none';
+}
+
+window.showBulkProcessingModal = showBulkProcessingModal;
+window.closeBulkProcessingModal = closeBulkProcessingModal;
+/* __SPLIT_VERIFY__ */
+// Ensure bulk upload functions are globally accessible
+console.log('Dashboard loaded. Checking bulk upload functions...');
+console.log('openBulkUploadModal available:', typeof openBulkUploadModal);
+console.log('openBulkUploadWellsModal available:', typeof openBulkUploadWellsModal);
+
+// If functions exist but not on window, add them
+if (typeof openBulkUploadModal === 'function' && !window.openBulkUploadModal) {
+    window.openBulkUploadModal = openBulkUploadModal;
+    console.log('Added openBulkUploadModal to window');
+}
+if (typeof openBulkUploadWellsModal === 'function' && !window.openBulkUploadWellsModal) {
+    window.openBulkUploadWellsModal = openBulkUploadWellsModal;
+    console.log('Added openBulkUploadWellsModal to window');
+}

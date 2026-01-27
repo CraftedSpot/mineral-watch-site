@@ -1,0 +1,139 @@
+    <!-- Property Details Modal - Orange Card Design -->
+    <div class="modal-overlay" id="propertyDetailsModal">
+        <div class="property-card detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+            <!-- Header with Orange Gradient (full bleed) -->
+            <div class="property-card-header detail-modal-header" style="background: linear-gradient(135deg, var(--red-dirt) 0%, var(--red-dirt-dark) 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+                <button class="close-btn" onclick="closePropertyDetailsModal()" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+                <div>
+                    <h2 class="property-name" id="propertyDetailsTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 22px; font-weight: 700;">Property Details</h2>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 2px;">
+                        <div class="property-location" id="propertyDetailsLocation" style="font-size: 15px; opacity: 0.9;">Garvin County • T03N R03W 25</div>
+                        <span class="acreage-badge" id="propertyDetailsAcreageBadge" style="background: rgba(255,255,255,0.2); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600;">47.5 acres</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Body (scrollable) -->
+            <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0; background: #f1f5f9;">
+
+            <!-- Property Info Card -->
+            <div class="details-grid">
+                <div class="details-row">
+                    <span class="details-label">Legal</span>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <span class="details-value" id="propertyDetailsLegal" style="font-family: monospace;">—</span>
+                        <select id="propertyDetailsMeridian" style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: white;">
+                            <option value="IM">IM</option>
+                            <option value="CM">CM</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="details-row" id="propertyDetailsGroupRow" style="display: none;">
+                    <span class="details-label">Group</span>
+                    <span class="details-value" id="propertyDetailsGroup">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">Total Acres</span>
+                    <span class="details-value" id="propertyDetailsTotalAcres" style="font-weight: 500;">—</span>
+                </div>
+                <div class="details-row">
+                    <span class="details-label">RI Acres</span>
+                    <input type="number" id="propertyDetailsRIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0" oninput="updateTotalAcres(); toggleSaveButton('property');">
+                </div>
+                <div class="details-row">
+                    <span class="details-label">WI Acres</span>
+                    <input type="number" id="propertyDetailsWIAcres" step="0.01" min="0" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 120px;" placeholder="0" oninput="updateTotalAcres(); toggleSaveButton('property');">
+                </div>
+            </div>
+
+                <!-- Linked Wells Accordion -->
+                <div class="linked-wells-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="linked-wells-header" onclick="toggleLinkedWells()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-wells-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Wells</span>
+                            <span id="property-linked-wells-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                    </div>
+
+                    <div id="linked-wells-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-wells-list" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-wells-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No wells linked to this property
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Linked Documents Section -->
+                <div class="linked-documents-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="linked-documents-header" onclick="toggleLinkedDocuments('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-documents-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Documents</span>
+                            <span id="property-linked-documents-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+
+                    <div id="linked-documents-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-documents-list" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-documents-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No documents linked to this property
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="occ-filings-header" onclick="toggleOccFilings('property')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="property-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="property-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+
+                    <div id="property-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="property-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="property-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="property-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="property-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="property-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Section -->
+                <div class="info-section" style="margin-top: 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
+                    <div class="details-row" style="flex-direction: column; align-items: flex-start;">
+                        <span class="details-label" style="margin-bottom: 8px;">Notes</span>
+                        <textarea id="propertyDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; background: white;" placeholder="Add notes about this property..." onkeyup="toggleSaveButton('property')"></textarea>
+                    </div>
+                </div>
+            </div>
+
+            <input type="hidden" id="propertyDetailsId">
+            <input type="hidden" id="propertyDetailsOriginalNotes">
+            <input type="hidden" id="propertyDetailsOriginalRIAcres">
+            <input type="hidden" id="propertyDetailsOriginalWIAcres">
+
+            <!-- Footer Actions (fixed at bottom) -->
+            <div class="card-footer detail-modal-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; gap: 10px; flex-shrink: 0; background: white;">
+                <button class="action-btn primary" id="propertyDetailsMWMapBtn" onclick="viewPropertyOnMapFromModal()" style="background: var(--red-dirt); flex: 1;">MW Map ↗</button>
+                <a href="#" target="_blank" class="action-btn primary" id="propertyDetailsMapLink" style="background: var(--red-dirt); flex: 1;">OCC Map ↗</a>
+                <button class="action-btn primary" id="savePropertyBtn" onclick="savePropertyAndClose()" style="background: var(--red-dirt); display: none; flex: 1;">Save & Close</button>
+            </div>
+        </div>
+    </div>

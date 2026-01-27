@@ -1,0 +1,218 @@
+    <!-- Well Details Modal - New Card Design -->
+    <div class="modal-overlay" id="wellDetailsModal">
+        <div class="well-card detail-modal" style="max-width: 700px; max-height: calc(100vh - 20px); margin: 10px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column; padding: 0;">
+            <!-- Header with Blue Gradient (full bleed) -->
+            <div class="card-header detail-modal-header" style="background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+                <button class="close-btn" onclick="closeWellDetailsModal()" aria-label="Close" style="position: absolute; top: 16px; right: 16px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; width: 32px; height: 32px; border-radius: 6px; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center;">×</button>
+                <h2 class="well-name" id="wellDetailsTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 22px; font-weight: 700;">Well Details</h2>
+                <div class="api-number" id="wellDetailsApi" style="margin-top: 2px; font-size: 15px; opacity: 0.9;">API: —</div>
+            </div>
+            
+            <!-- Content Body (scrollable) -->
+            <div class="card-content detail-modal-body" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" id="wellDetailsStatusBadge">AC</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value" id="wellDetailsType">GAS</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge horizontal" id="wellDetailsDirection">Horizontal</span>
+                    </div>
+                    <div class="status-item" id="wellDetailsFormationItem" style="display: none;">
+                        <span class="status-label">Formation</span>
+                        <span class="status-badge formation" id="wellDetailsFormationBadge" style="background: #FEF3C7; color: #92400E;">Woodford</span>
+                    </div>
+                </div>
+                
+                <!-- Operator & Location - Side by Side -->
+                <div class="info-section-row" style="display: flex; gap: 12px; margin-bottom: 16px;">
+                    <!-- Operator Box -->
+                    <div class="info-section-card" style="flex: 1; margin-bottom: 0;">
+                        <div class="section-label">Operator</div>
+                        <div class="section-value" id="wellDetailsOperator" style="margin-bottom: 4px;">Validus Energy II Midcon LLC</div>
+                        <div class="contact-line" id="wellDetailsContact" style="font-size: 13px; color: #64748b;">
+                            <a href="tel:7209742084" id="wellDetailsPhoneLink" style="color: var(--slate-blue);">(720) 974-2084</a> • <span id="wellDetailsContactPerson">Michelle Pettifor</span>
+                        </div>
+                    </div>
+                    <!-- Location Box -->
+                    <div class="info-section-card" style="flex: 1; margin-bottom: 0;">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellDetailsLocation" style="margin-bottom: 4px;">T03N R03W 25</div>
+                        <div id="wellDetailsCounty" style="font-size: 13px; color: #64748b;">Garvin County</div>
+                    </div>
+                </div>
+
+                <!-- Key Dates Row (always visible if data exists) -->
+                <div class="key-dates-row" id="wellKeyDatesRow" style="display: none; background: #f8fafc; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; border: 1px solid #e2e8f0;">
+                    <div style="display: flex; gap: 24px; flex-wrap: wrap;">
+                        <div class="date-item" id="wellCompletedDateItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">Completed</div>
+                            <div id="wellDetailsCompletedDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                        <div class="date-item" id="wellFirstProdDateItem" style="display: none;">
+                            <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px;">First Production</div>
+                            <div id="wellDetailsFirstProdDisplay" style="font-size: 14px; font-weight: 600; color: var(--oil-navy);">—</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Production Summary Box (OTC data) -->
+                <div class="production-summary-box" id="wellProductionSummary">
+                    <div class="production-summary-loading" style="text-align: center; padding: 20px; color: var(--slate-blue);">
+                        <div style="font-size: 14px;">Loading production data...</div>
+                    </div>
+                </div>
+
+                <!-- Linked Properties Accordion -->
+                <div class="linked-properties-section" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="linked-properties-header" onclick="toggleLinkedProperties()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-properties-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Properties</span>
+                            <span id="well-linked-properties-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                    </div>
+
+                    <div id="linked-properties-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-properties-list" style="max-height: 250px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-properties-empty" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No properties linked to this well
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Linked Documents Section (Well) -->
+                <div class="linked-documents-section-well" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="linked-documents-header-well" onclick="toggleLinkedDocuments('well')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="linked-documents-arrow-well" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Documents</span>
+                            <span id="well-linked-documents-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+
+                    <div id="linked-documents-content-well" style="display: none; padding: 0 16px 16px;">
+                        <div id="linked-documents-list-well" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="linked-documents-empty-well" style="color: #6b7280; font-size: 14px; padding: 12px 0;">
+                            No documents linked to this well
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings Section (Well) -->
+                <div class="occ-filings-section-well" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="occ-filings-header-well" onclick="toggleOccFilings('well')" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="well-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="well-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+
+                    <div id="well-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="well-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="well-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="well-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="well-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="well-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Well Records Section (Completion Reports) - Loads slower, shown last -->
+                <div class="occ-filings-section-well" style="margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px;">
+                    <div class="occ-filings-header-well" onclick="toggleWellRecords()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="well-records-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Well Records</span>
+                            <span id="well-records-count" class="loading-badge"><span class="pulse-dot"></span>Loading</span>
+                        </div>
+                    </div>
+                    <div id="well-records-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="well-records-container" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Skeleton loading UI -->
+                            <div class="skeleton-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f3f4f6;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 100px; height: 20px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        <div style="width: 150px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                        <div style="width: 100px; height: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 70px; height: 28px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="width: 80px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                </div>
+                            </div>
+                            <div class="skeleton-row" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 0;">
+                                <div style="display: flex; align-items: center; gap: 12px;">
+                                    <div style="width: 100px; height: 20px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                                        <div style="width: 120px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                        <div style="width: 90px; height: 12px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <div style="width: 70px; height: 28px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                    <div style="width: 80px; height: 14px; background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 4px;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Dates (hidden, used by production summary) -->
+                <div id="wellDetailsCompletionDate" style="display: none;">—</div>
+                <div id="wellDetailsFirstProdDate" style="display: none;">—</div>
+
+                <!-- Notes Section -->
+                <div class="info-section" style="margin-top: 16px;">
+                    <div class="section-label">Notes</div>
+                    <textarea id="wellDetailsNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical; margin-top: 6px;" placeholder="Add notes about this well..." onkeyup="toggleSaveButton('well')"></textarea>
+                </div>
+            </div>
+            
+            <!-- Footer Actions (fixed at bottom) -->
+            <div class="card-footer detail-modal-footer well-footer" style="padding: 16px 24px; border-top: 1px solid #e5e7eb; flex-shrink: 0; background: white;">
+                <div class="well-footer-grid">
+                    <div class="well-footer-left">
+                        <button class="action-btn primary well-blue" id="wellDetailsMWMapBtn" onclick="viewWellOnMapFromModal()">MW Map ↗</button>
+                        <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsMapLink">OCC Map ↗</a>
+                    </div>
+                    <div class="well-footer-right">
+                        <div class="occ-warning" style="position: relative;">
+                            <a href="#" target="_blank" class="action-btn primary well-blue" id="wellDetailsRecordsLink">Well Records ↗</a>
+                            <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
+                            <div class="occ-tooltip">
+                                <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                            </div>
+                        </div>
+                        <button class="action-btn primary well-blue" id="wellPrintBtn" onclick="printWellReport()" title="View Unit Report">Unit Report ↗</button>
+                    </div>
+                </div>
+                <button class="action-btn primary well-blue" id="saveWellBtn" onclick="saveWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
+            </div>
+            
+            <input type="hidden" id="wellDetailsId">
+            <input type="hidden" id="wellDetailsOriginalNotes">
+        </div>
+    </div>

@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Mineral Watch</title>
+    <!-- v2024.12.13.10 - Fixed Import buttons with onclick handlers and added wells modal CSS -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+/* __BASE_CSS__ */
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal" class="active">Dashboard</a>
+                    <a href="/portal/map">Map</a>
+                    <a href="/portal/account">Account</a>
+                    <a href="/portal/learn">Learn</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    <main>
+        <div class="container">
+            <div class="page-header">
+                <h1 style="margin: 0;">My Monitoring</h1>
+                <div class="header-actions">
+                    <div class="action-group">
+                        <button class="btn-add" id="addPropertyBtn">
+                            <span>➕</span> Property
+                        </button>
+                        <button class="btn-secondary-action" id="bulkUploadBtn" title="Import Properties" onclick="openBulkUploadModal()">
+                            Import
+                        </button>
+                        <button class="btn-secondary-action" id="exportPropertiesBtn" style="display: none;" onclick="exportPropertiesCSV()" title="Export Properties">
+                            Export
+                        </button>
+                    </div>
+                    <div class="action-divider"></div>
+                    <div class="action-group">
+                        <button class="btn-add" id="addWellBtn">
+                            <span>➕</span> Well
+                        </button>
+                        <button class="btn-secondary-action" id="bulkUploadWellsBtn" title="Import Wells" onclick="openBulkUploadWellsModal()">
+                            Import
+                        </button>
+                        <button class="btn-secondary-action" id="exportWellsBtn" style="display: none;" onclick="exportWellsCSV()" title="Export Wells">
+                            Export
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="plan-info">
+                <span class="plan-badge" id="planBadge">FREE</span>
+                <div class="plan-usage">
+                    <div class="usage-item usage-stat">
+                        <span class="usage-count" id="propCount">0</span>
+                        <span class="usage-limit">/ <span id="propLimit">1</span></span>
+                        <span class="usage-label">Properties</span>
+                    </div>
+                    <div class="usage-item usage-separator">|</div>
+                    <div class="usage-item usage-stat">
+                        <span class="usage-count" id="wellCount">0</span>
+                        <span class="usage-limit">/ <span id="wellLimit">0</span></span>
+                        <span class="usage-label">Wells</span>
+                    </div>
+                    <div class="usage-item usage-separator" id="docCountItem" style="display: none;">|</div>
+                    <div class="usage-item usage-stat" id="docCountDisplay" style="display: none;">
+                        <span class="usage-count" id="docCount">0</span>
+                        <span class="usage-label">Documents</span>
+                    </div>
+                </div>
+                <a href="/portal/upgrade" class="upgrade-link" id="upgradeLink">Upgrade →</a>
+            </div>
+            
+            <div class="stats-card" id="statsCard">
+                <div class="stat-item">
+                    <span class="stat-label">Last Alert</span>
+                    <span class="stat-value" id="statLastAlert">—</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-label">This Month</span>
+                    <span class="stat-value" id="statThisMonth">0</span>
+                </div>
+                <div class="stat-divider"></div>
+                <div class="stat-item">
+                    <span class="stat-label">This Year</span>
+                    <span class="stat-value" id="statThisYear">0</span>
+                </div>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" data-tab="properties">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"/>
+                    </svg>
+                    Properties
+                </button>
+                <button class="tab" data-tab="wells">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z"/>
+                    </svg>
+                    Wells
+                </button>
+                <button class="tab" data-tab="documents" id="documentsTab" style="display: none;">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                    </svg>
+                    Documents
+                </button>
+                <button class="tab" data-tab="activity">
+                    <svg class="tab-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>
+                    </svg>
+                    Activity
+                </button>
+            </div>
+
+            <div class="content-card">
+                <div id="properties-tab" class="tab-content active">
+                    <div id="propertiesControls" class="table-controls" style="display: none;">
+                        <input type="text" id="propertiesSearch" class="search-input" placeholder="Search properties by county, section, township, or range...">
+                        <select id="propertiesSort" class="sort-select">
+                            <option value="legal-asc" selected>Legal Description</option>
+                            <option value="acres-desc">Total Acres</option>
+                            <option value="wells-desc">Wells</option>
+                            <option value="documents-desc">Documents</option>
+                            <option value="filings-desc">OCC Filings</option>
+                        </select>
+                        <span id="propertiesResultsCount" class="results-count"></span>
+                    </div>
+                   <div id="propertiesBulkActionBar" class="bulk-action-bar">
+                        <div class="bulk-count"><span class="selected-count">0</span> selected</div>
+                        <div class="bulk-actions">
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('properties')">
+                                Delete Selected
+                            </button>
+                        </div>
+                        <span class="bulk-clear" onclick="clearSelection('properties')">Clear selection</span>
+                    </div>
+                   <div id="propertiesContent">
+    <div class="skeleton-table">
+        <div class="skeleton-header">
+            <div class="skeleton skeleton-cell medium"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+            <div class="skeleton skeleton-cell narrow"></div>
+        </div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+        <div class="skeleton-row"><div class="skeleton skeleton-cell medium"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div><div class="skeleton skeleton-cell narrow"></div></div>
+    </div>
+</div>
+                </div>
+                
+                <div id="wells-tab" class="tab-content">
+                    <div id="wellsControls" class="table-controls" style="display: none;">
+                        <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
+                        <select id="wellsFilter" class="sort-select">
+                            <option value="all" selected>All Wells</option>
+                            <option value="active">Active Only</option>
+                            <option value="idle">Idle Only</option>
+                        </select>
+                        <select id="wellsSort" class="sort-select">
+                            <option value="name-asc" selected>Well Name</option>
+                            <option value="legal-asc">Legal Description</option>
+                            <option value="operator-asc">Operator</option>
+                            <option value="boe-desc">Lifetime BOE</option>
+                            <option value="lastprod-desc">Last Reported</option>
+                            <option value="properties-desc">Properties</option>
+                            <option value="documents-desc">Documents</option>
+                            <option value="filings-desc">OCC Filings</option>
+                        </select>
+                        <span id="wellsResultsCount" class="results-count"></span>
+                    </div>
+                   <div id="wellsBulkActionBar" class="bulk-action-bar">
+                        <div class="bulk-count"><span class="selected-count">0</span> selected</div>
+                        <div class="bulk-actions">
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('wells')">
+                                Delete Selected
+                            </button>
+                        </div>
+                        <span class="bulk-clear" onclick="clearSelection('wells')">Clear selection</span>
+                    </div>
+                   <div id="wellsContent">
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th class="bulk-only skeleton skeleton-cell"></th>
+                <th class="skeleton skeleton-cell">Well Information</th>
+                <th class="skeleton skeleton-cell">Operator Contact</th>
+                <th class="skeleton skeleton-cell"></th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td></tr>
+            <tr><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td></tr>
+            <tr><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td><td class="skeleton skeleton-cell"></td></tr>
+        </tbody>
+    </table>
+</div>
+                </div>
+
+                <div id="activity-tab" class="tab-content">
+                    <!-- Activity Bulk Action Bar -->
+                    <div class="bulk-action-bar" id="activityBulkBar">
+                        <div class="bulk-info">
+                            <span id="activitySelectedCount">0</span> activities selected
+                        </div>
+                        <div class="bulk-actions">
+                            <button class="bulk-btn" onclick="bulkDeleteSelected('activity')">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+                                    <path stroke="currentColor" stroke-width="2" d="M3 6h18M8 6V4a1 1 0 011-1h6a1 1 0 011 1v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6h14zM10 11v6M14 11v6"/>
+                                </svg>
+                                Delete Selected
+                            </button>
+                        </div>
+                    </div>
+
+                    <div id="activityContent">
+                    <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
+                    <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
+                    <div class="skeleton-activity"><div class="skeleton skeleton-avatar"></div><div class="skeleton-activity-content"><div class="skeleton skeleton-line short"></div><div class="skeleton skeleton-line long"></div><div class="skeleton skeleton-line medium"></div></div></div>
+                </div>
+                </div>
+                
+                <div id="documents-tab" class="tab-content">
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 20px;">
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
+                                <h3 style="margin: 0; font-size: 18px; font-weight: 600; color: var(--oil-navy);">Digital Documents</h3>
+                                <div class="credit-display-container">
+                                    <span class="credit-separator">|</span>
+                                    <div class="credit-display-new">
+                                        <!-- Main heading -->
+                                        <div class="credit-heading">
+                                            <span class="credit-label">Credits:</span>
+                                            <span class="credit-available" id="creditsAvailable">0</span>
+                                            <span class="credit-available-label">available</span>
+                                            <a href="/portal/account#credits" class="credit-view-details">View details</a>
+                                            <span class="credit-separator">·</span>
+                                            <a href="#" onclick="openCreditPackModal(); return false;" class="credit-buy-more">Buy More</a>
+                                        </div>
+                                        <!-- Credit rows -->
+                                        <div class="credit-rows">
+                                            <!-- Monthly row -->
+                                            <div class="credit-row" id="monthlyRow">
+                                                <span class="credit-row-label">Monthly</span>
+                                                <div class="credit-row-bar">
+                                                    <div class="credit-row-bar-fill" id="monthlyBarFill"></div>
+                                                </div>
+                                                <span class="credit-row-count"><span id="monthlyRemaining">0</span> remaining</span>
+                                                <span class="credit-row-status" id="monthlyStatus">Resets --</span>
+                                            </div>
+                                            <!-- Rolling row (only shown if user has rolling credits) -->
+                                            <div class="credit-row" id="rollingRow" style="display: none;">
+                                                <span class="credit-row-label">Rolling</span>
+                                                <div class="credit-row-bar rolling">
+                                                    <div class="credit-row-bar-fill rolling" id="rollingBarFill"></div>
+                                                </div>
+                                                <span class="credit-row-count"><span id="rollingRemaining">0</span> remaining</span>
+                                                <span class="credit-row-status">Roll over</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <button class="btn-add" onclick="openUploadModal()" style="font-size: 14px;">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                            </svg>
+                            Upload Documents
+                        </button>
+                        <!-- Hidden file input for photo uploads (used by mobile photo upload section) -->
+                        <input type="file" id="photoFileInput" accept="image/jpeg,image/png,image/heic,image/heif,.heic,.heif" multiple style="display: none;" onchange="handlePhotoFileSelect(event)">
+                        <button id="relinkDocumentsBtn" class="btn-secondary" onclick="relinkDocuments()" style="font-size: 14px; display: none;" title="Re-scan unlinked documents for property/well matches">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/>
+                            </svg>
+                            Re-scan for Links
+                        </button>
+                    </div>
+                    
+                    <!-- Low Credit Warning Banner -->
+                    <div id="lowCreditWarning" class="credit-warning-banner" style="display: none;"></div>
+
+                    <!-- Mobile Photo Upload - Full width button above search -->
+                    <div id="mobilePhotoUploadSection" style="display: none; margin-bottom: 16px;">
+                        <button type="button" onclick="document.getElementById('photoFileInput').click()" style="width: 100%; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 14px 20px; background: linear-gradient(135deg, #059669 0%, #047857 100%); color: white; border: none; border-radius: 8px; font-size: 15px; font-weight: 600; cursor: pointer; box-shadow: 0 2px 8px rgba(5, 150, 105, 0.25);">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                            </svg>
+                            Upload from Photos
+                        </button>
+                    </div>
+
+                    <div id="documentsControls" class="table-controls" style="display: none;">
+                        <input type="text" id="documentsSearch" class="search-input" placeholder="Search documents by name, type, county, or content...">
+                        <div class="searchable-dropdown" id="documentsCategoryDropdown">
+                            <button type="button" class="searchable-dropdown-trigger" id="documentsCategoryTrigger">
+                                <span class="dropdown-label">All Categories</span>
+                                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M3 4.5L6 7.5L9 4.5"/>
+                                </svg>
+                            </button>
+                            <div class="searchable-dropdown-menu" id="documentsCategoryMenu">
+                                <div class="dropdown-search-wrapper">
+                                    <input type="text" class="dropdown-search" id="documentsCategorySearch" placeholder="Search categories...">
+                                </div>
+                                <div class="dropdown-options" id="documentsCategoryOptions">
+                                    <!-- Options populated by JS -->
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="documentsCategory" value="all">
+                        <select id="documentsSort" class="sort-select">
+                            <!-- Options will be dynamically populated -->
+                        </select>
+                        <span id="documentsResultsCount" class="results-count"></span>
+                    </div>
+                    
+                    <div id="documentsBulkActionBar" class="bulk-action-bar" style="display: none;"></div>
+                    
+                    <div id="documentsContent" style="padding: 0 20px;">
+                        <!-- Loading skeleton will be here initially -->
+                        <div class="skeleton-activity">
+                            <div class="skeleton skeleton-avatar"></div>
+                            <div class="skeleton-activity-content">
+                                <div class="skeleton skeleton-line short"></div>
+                                <div class="skeleton skeleton-line long"></div>
+                            </div>
+                        </div>
+                        <div class="skeleton-activity">
+                            <div class="skeleton skeleton-avatar"></div>
+                            <div class="skeleton-activity-content">
+                                <div class="skeleton skeleton-line short"></div>
+                                <div class="skeleton skeleton-line long"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
+    
+<!-- __ADD_PROPERTY_MODAL__ -->
+
+<!-- __ADD_WELL_MODAL__ -->
+    
+<!-- __WELL_DETAILS_MODAL__ -->
+    
+<!-- __PROPERTY_DETAILS_MODAL__ -->
+    
+    <script>
+/* __UTILS_JS_A__ */
+/* __INIT_JS__ */
+
+/* __PROPS_A__ */
+
+/* __WELLS_A__ */
+        
+/* __ACTIVITY_JS__ */
+        
+/* __PROPS_B__ */
+
+/* __WELLS_B__ */
+        
+/* __DOCS_A__ */
+
+/* __WELLS_C__ */
+        
+/* __PROPS_C__ */
+
+/* __PRODUCTION_JS__ */
+
+/* __DOCS_B__ */
+
+/* __OCC_JS__ */
+
+/* __DOCS_C__ */
+
+/* __PROPS_D__ */
+        
+/* __WELLS_D__ */
+        
+/* __UTILS_JS_B__ */
+    </script>
+    </div>
+</div>
+<!-- End of propertyDetailsModal -->
+
+<!-- __DOCUMENT_MODALS_A__ -->
+
+<!-- __BULK_UPLOAD_MODALS__ -->
+
+<!-- __DOCUMENT_MODALS_B__ -->
+
+<style>
+/* __DOCUMENTS_CSS_A__ */
+</style>
+
+<!-- __DOCUMENT_MODALS_C__ -->
+
+<style>
+/* __DOCUMENTS_CSS_B__ */
+</style>
+
+<script>
+/* __BULK_JS__ */
+</script>
+
+<!-- Add Papa Parse library (CSV parsing) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+
+<!-- PDF.js library for accurate page count detection -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+    // Set worker source for pdf.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+</script>
+
+<!-- pdf-lib for combining images into PDF -->
+<script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+<!-- heic2any for HEIC/HEIF to JPEG conversion (iPhone photos) -->
+<script src="https://unpkg.com/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
+<!-- SheetJS library removed - now using server-side JSON processing -->
+
+<!-- Custom Confirm Dialog -->
+<div class="confirm-overlay" id="confirmDialog">
+    <div class="confirm-modal">
+        <div class="confirm-header">
+            <div class="confirm-icon">⚠️</div>
+            <h3 class="confirm-title" id="confirmTitle">Confirm Action</h3>
+        </div>
+        <div class="confirm-body">
+            <p class="confirm-message" id="confirmMessage"></p>
+        </div>
+        <div class="confirm-buttons">
+            <button class="confirm-btn confirm-btn-cancel" id="confirmCancel">Cancel</button>
+            <button class="confirm-btn confirm-btn-confirm" id="confirmOk">Delete</button>
+        </div>
+    </div>
+</div>
+
+<!-- __BULK_PROCESSING_MODAL__ -->
+
+    <script>
+/* __BULK_VERIFY_JS__ */
+</script>
+
+</body>
+</html>

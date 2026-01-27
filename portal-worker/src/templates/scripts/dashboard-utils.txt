@@ -1,0 +1,673 @@
+        // Security: escape HTML to prevent XSS from user-generated content
+        function escapeHtml(text) {
+            if (!text) return '';
+            const str = String(text);
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // Filter tracts table by search term (unitization orders)
+        function filterTracts(tableId, searchId) {
+            const searchTerm = document.getElementById(searchId).value.toLowerCase();
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody .tract-row');
+
+            rows.forEach(row => {
+                const searchData = row.getAttribute('data-search') || '';
+                row.style.display = searchData.includes(searchTerm) ? '' : 'none';
+            });
+        }
+
+        // Format analysis text: escape HTML then convert markdown bold to HTML
+        function formatAnalysisText(text) {
+            if (!text) return '';
+            // First escape HTML for security
+            let escaped = escapeHtml(text);
+            // Convert **text** to <strong>text</strong>
+            escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // Convert line breaks to <br> for proper formatting
+            escaped = escaped.replace(/\n/g, '<br>');
+            return escaped;
+        }
+        
+        // Toggle save button visibility when content changes
+        function toggleSaveButton(modalType) {
+            if (modalType === 'well') {
+                const notes = document.getElementById('wellDetailsNotes').value;
+                const originalNotes = document.getElementById('wellDetailsOriginalNotes').value || '';
+                const saveBtn = document.getElementById('saveWellBtn');
+                
+                if (notes !== originalNotes) {
+                    saveBtn.style.display = 'inline-block';
+                } else {
+                    saveBtn.style.display = 'none';
+                }
+            } else if (modalType === 'property') {
+                const notes = document.getElementById('propertyDetailsNotes').value;
+                const originalNotes = document.getElementById('propertyDetailsOriginalNotes').value || '';
+                const riAcres = document.getElementById('propertyDetailsRIAcres').value;
+                const originalRIAcres = document.getElementById('propertyDetailsOriginalRIAcres').value || '';
+                const wiAcres = document.getElementById('propertyDetailsWIAcres').value;
+                const originalWIAcres = document.getElementById('propertyDetailsOriginalWIAcres').value || '';
+                const saveBtn = document.getElementById('savePropertyBtn');
+                
+                if (notes !== originalNotes || riAcres !== originalRIAcres || wiAcres !== originalWIAcres) {
+                    saveBtn.style.display = 'inline-block';
+                } else {
+                    saveBtn.style.display = 'none';
+                }
+            }
+        }
+        
+        // Clean county display - remove numeric prefix like "011-" from "011-BLAINE"
+        function cleanCountyDisplay(county) {
+            if (!county) return '';
+            // Remove any leading digits followed by a hyphen
+            return county.replace(/^\d+-/, '');
+        }
+        
+        // Format activity location from S15-T12N-R5W to T12N R5W 15
+        function formatActivityLocation(location) {
+            if (!location) return '';
+            
+            // Try to parse S15-T12N-R5W format
+            const match = location.match(/S(\d+)-T([^-]+)-R(.+)/i);
+            if (match) {
+                const [_, section, township, range] = match;
+                return `T${township} R${range} ${section}`;
+            }
+            
+            // Return original if can't parse
+            return escapeHtml(location);
+        }
+
+        // OCC Status Code Definitions for Hover Tooltips
+        const occStatusHelp = {
+            'AC': 'Well is open and not plugged (could still be used or revived).',
+            'ND': 'New drill - well recently drilled, completion info pending.',
+            'SP': 'Drilling has started (spudded), but the well is not finished yet.',
+            'TA': 'Well is shut in but not plugged; could be brought back or later plugged.',
+            'PA': 'Well has been fully plugged and abandoned (no future production).',
+            'OR': 'Orphan well with no responsible operator on record.',
+            'STFD': 'On the state\'s list to be plugged with Oklahoma funds.',
+            'PASF': 'Well plugged using Oklahoma state funds.',
+            'PASUR': 'Well plugged using bond/surety money from the operator.',
+            'PASURSF': 'Well plugged using a mix of surety and state funds.',
+            'PAFF': 'Well plugged using federal funds.'
+        };
+
+        // Well Type Code Definitions for Hover Tooltips
+        const wellTypeHelp = {
+            'NULL': 'Well type unknown; records incomplete.',
+            '2D': 'Older disposal/injection well type.',
+            '2DCm': 'Commercial disposal well taking fluid from others.',
+            '2DNC': 'Non-commercial disposal well for one operator/lease.',
+            '2R': 'Enhanced recovery injection well (helps push oil to producers).',
+            '2RIn': 'Enhanced recovery injection well – UIC type.',
+            '2RSi': 'Enhanced recovery injection well that can also produce some oil or gas.',
+            'DRY': 'Dry hole; no commercial oil or gas found.',
+            'GAS': 'Gas production well.',
+            'GSW': 'Storage well used for gas.',
+            'IEPA': 'Federal injection well regulated under EPA.',
+            'INJ': 'General injection/disposal well.',
+            'LPSW': 'Storage well for LPG.',
+            'ND': 'Well type unknown; documents missing.',
+            'NT': 'No type assigned; likely missing completion info.',
+            'OBW': 'Observation/monitoring well for gas storage.',
+            'OG': 'Oil and gas production well.',
+            'OIL': 'Oil-only production well.',
+            'OPRH': 'Legacy orphaned production well type.',
+            'P&A': 'Legacy plugged and abandoned well type.',
+            'PA': 'Plugged and abandoned well type.',
+            'STFD': 'State-funds well type; used for state plugging records.',
+            'SW': 'Service well (testing, maintenance, etc.).',
+            'SWD': 'Saltwater disposal well.',
+            'TA': 'Temporarily abandoned well type (legacy).',
+            'TM': 'Terminated UIC well type (authorization revoked or ended).',
+            'TWW': 'Legacy water-related UIC well type.',
+            'WSW': 'Water supply well used for various purposes.'
+        };
+
+        // Production Terms Help for Hover Tooltips
+        const productionHelp = {
+            "ipGas": "Initial Production Gas - 24-hour flow test rate when well first came online",
+            "ipOil": "Initial Production Oil - 24-hour flow test rate when well first came online", 
+            "ipWater": "Initial Production Water - 24-hour flow test rate when well first came online",
+            "lateral": "Lateral Length - horizontal portion of wellbore drilled through the formation",
+            "formation": "Geological Formation - the specific rock layer being produced for oil/gas",
+            "spudDate": "Spud Date - when drilling operations began at this well location",
+            "completedDate": "Completion Date - when well construction finished and production equipment was installed",
+            "firstProdDate": "First Production Date - when commercial oil/gas production began",
+            "multiSection": "Multi-Section Horizontal - wellbore crosses multiple land sections for maximum formation contact"
+        };
+        
+        // Format phone number for display (e.g., 4051234567 -> (405) 123-4567)
+        function formatPhoneNumber(phone) {
+            if (!phone) return '';
+            // Remove all non-digits
+            const digits = phone.replace(/\D/g, '');
+            
+            if (digits.length === 10) {
+                return `(${digits.substr(0,3)}) ${digits.substr(3,3)}-${digits.substr(6,4)}`;
+            } else if (digits.length === 11 && digits.startsWith('1')) {
+                return `+1 (${digits.substr(1,3)}) ${digits.substr(4,3)}-${digits.substr(7,4)}`;
+            } else {
+                return phone; // Return original if format doesn't match
+            }
+        }
+        
+        // View property on Map
+        function viewOnMap(propertyId) {
+            const property = loadedProperties.find(p => p.id === propertyId);
+            if (property) {
+                const f = property.fields;
+                // Pass property ID and location info for centering
+                const params = new URLSearchParams({
+                    property: propertyId,
+                    county: f.COUNTY,
+                    section: f.SEC,
+                    township: f.TWN,
+                    range: f.RNG
+                });
+                window.open(`/portal/oklahoma-map?${params.toString()}`, '_blank');
+            }
+        }
+        
+        // View well on Map (V2: flat object)
+        function viewWellOnMap(wellId) {
+            const well = loadedWells.find(w => w.id === wellId);
+            if (well) {
+                // Pass well ID and location info for centering
+                const params = new URLSearchParams({
+                    well: wellId,
+                    county: well.county,
+                    section: well.section,
+                    township: well.township,
+                    range: well.range
+                });
+                window.open(`/portal/oklahoma-map?${params.toString()}`, '_blank');
+            }
+        }
+        
+        // View well on Map from modal
+        function viewWellOnMapFromModal() {
+            const wellId = document.getElementById('wellDetailsId').value;
+            if (wellId) {
+                viewWellOnMap(wellId);
+            }
+        }
+        
+        // View property on Map from modal
+        function viewPropertyOnMapFromModal() {
+            const propertyId = document.getElementById('propertyDetailsId').value;
+            if (propertyId) {
+                viewOnMap(propertyId);
+            }
+        }
+        
+        const planConfigs = {
+            'Free': { properties: 1, wells: 1 },
+            'Starter': { properties: 10, wells: 10 },
+            'Standard': { properties: 50, wells: 50 },
+            'Professional': { properties: 250, wells: 250 },
+            'Business': { properties: 500, wells: 500 },
+            'Enterprise': { properties: Infinity, wells: Infinity }
+        };
+        let currentTab = 'properties';
+        let currentUser = null; // Store user data globally
+        
+        // Modal stacking management
+        const modalStack = [];
+        const MAX_MODAL_DEPTH = 4; // Maximum number of stacked modals
+        
+        // Bulk Selection State
+        let selectedProperties = new Set();
+        let selectedWells = new Set();
+        let selectedActivity = new Set();
+        let selectedDocuments = new Set();
+        
+        // Bulk Selection Functions
+        function updateBulkActionVisibility() {
+            // Show/hide bulk action bars based on selection state
+            const propBar = document.getElementById('propertiesBulkActionBar');
+            const wellBar = document.getElementById('wellsBulkActionBar');
+            const activityBar = document.getElementById('activityBulkBar');
+            const docBar = document.getElementById('documentsBulkActionBar');
+            
+            if (propBar) {
+                propBar.style.display = selectedProperties.size > 0 ? 'flex' : 'none';
+                const count = document.querySelector('#propertiesBulkActionBar .selected-count');
+                if (count) count.textContent = selectedProperties.size;
+            }
+            
+            if (wellBar) {
+                wellBar.style.display = selectedWells.size > 0 ? 'flex' : 'none';
+                const count = document.querySelector('#wellsBulkActionBar .selected-count');
+                if (count) count.textContent = selectedWells.size;
+            }
+            
+            if (activityBar) {
+                activityBar.classList.toggle('active', selectedActivity.size > 0);
+                const count = document.getElementById('activitySelectedCount');
+                if (count) count.textContent = selectedActivity.size;
+            }
+            
+            if (docBar) {
+                docBar.style.display = selectedDocuments.size > 0 ? 'flex' : 'none';
+                docBar.className = 'bulk-action-bar active';
+                docBar.innerHTML = `
+                    <div class="bulk-count"><span class="selected-count">${selectedDocuments.size}</span> selected</div>
+                    <div class="bulk-actions">
+                        <button class="bulk-btn" onclick="bulkDeleteSelected('documents')">
+                            Delete Selected
+                        </button>
+                    </div>
+                    <span class="bulk-clear" onclick="clearSelection('documents')">Clear selection</span>
+                `;
+            }
+        }
+        
+        function togglePropertySelection(propertyId, checked) {
+            if (checked) {
+                selectedProperties.add(propertyId);
+            } else {
+                selectedProperties.delete(propertyId);
+            }
+            updateBulkActionVisibility();
+            updateSelectAllState('properties');
+        }
+        
+        function toggleWellSelection(wellId, checked) {
+            if (checked) {
+                selectedWells.add(wellId);
+            } else {
+                selectedWells.delete(wellId);
+            }
+            updateBulkActionVisibility();
+            updateSelectAllState('wells');
+        }
+        
+        function toggleDocumentSelection(docId, checked) {
+            if (checked) {
+                selectedDocuments.add(docId);
+            } else {
+                selectedDocuments.delete(docId);
+            }
+            updateBulkActionVisibility();
+        }
+        
+        function selectAllItems(type, checked) {
+            if (type === 'properties') {
+                const checkboxes = document.querySelectorAll('.property-checkbox');
+                selectedProperties.clear();
+                checkboxes.forEach(cb => {
+                    cb.checked = checked;
+                    if (checked) selectedProperties.add(cb.dataset.id);
+                });
+            } else if (type === 'wells') {
+                const checkboxes = document.querySelectorAll('.well-checkbox');
+                selectedWells.clear();
+                checkboxes.forEach(cb => {
+                    cb.checked = checked;
+                    if (checked) selectedWells.add(cb.dataset.id);
+                });
+            } else if (type === 'documents') {
+                const checkboxes = document.querySelectorAll('.document-checkbox');
+                selectedDocuments.clear();
+                checkboxes.forEach(cb => {
+                    cb.checked = checked;
+                    if (checked) selectedDocuments.add(cb.dataset.id);
+                });
+            }
+            updateBulkActionVisibility();
+        }
+        
+        function updateSelectAllState(type) {
+            const selectAllId = type === 'properties' ? 'selectAllProperties' : 'selectAllWells';
+            const checkboxes = document.querySelectorAll(type === 'properties' ? '.property-checkbox' : '.well-checkbox');
+            const selectedSet = type === 'properties' ? selectedProperties : selectedWells;
+            const selectAllCheckbox = document.getElementById(selectAllId);
+            
+            if (!selectAllCheckbox) return;
+            
+            if (selectedSet.size === 0) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = false;
+            } else if (selectedSet.size === checkboxes.length) {
+                selectAllCheckbox.indeterminate = false;
+                selectAllCheckbox.checked = true;
+            } else {
+                selectAllCheckbox.indeterminate = true;
+                selectAllCheckbox.checked = false;
+            }
+        }
+        
+        let deleteInProgress = false;
+        
+        async function bulkDeleteSelected(type) {
+            if (deleteInProgress) return;
+            deleteInProgress = true;
+            
+            const selectedSet = type === 'properties' ? selectedProperties : 
+                               type === 'wells' ? selectedWells : 
+                               type === 'documents' ? selectedDocuments : selectedActivity;
+            const itemName = type === 'properties' ? 'properties' : 
+                           type === 'wells' ? 'wells' : 
+                           type === 'documents' ? 'documents' : 'activities';
+            
+            if (selectedSet.size === 0) {
+                deleteInProgress = false;
+                return;
+            }
+            
+            // Use custom confirm dialog instead of system confirm
+            const confirmed = await showConfirm(
+                `Delete ${selectedSet.size} ${itemName}?<br><br>This action cannot be undone.`,
+                {
+                    title: `Delete ${selectedSet.size} ${itemName}?`,
+                    confirmText: 'Delete',
+                    cancelText: 'Cancel'
+                }
+            );
+            
+            if (!confirmed) {
+                deleteInProgress = false;
+                return;
+            }
+            
+            // Get the delete button and add loading state
+            const deleteBtn = document.querySelector(`[onclick*="bulkDeleteSelected('${type}')"]`);
+            if (deleteBtn) {
+                deleteBtn.classList.add('loading');
+                deleteBtn.disabled = true;
+            }
+            
+            // Show immediate feedback
+            const totalItems = selectedSet.size;
+            showToast(`Deleting ${totalItems} ${itemName}...`, 'info', 0); // 0 = persistent until manually dismissed
+            
+            try {
+                const itemsToDelete = Array.from(selectedSet);
+                let successCount = 0;
+                let failCount = 0;
+                
+                // Batch deletes in groups of 5 (Airtable rate limit)
+                for (let i = 0; i < itemsToDelete.length; i += 5) {
+                    const batch = itemsToDelete.slice(i, i + 5);
+                    const deletePromises = batch.map(async id => {
+                        const endpoint = type === 'properties' ? `/api/properties/${id}` : 
+                                       type === 'wells' ? `/api/wells/${id}` : 
+                                       type === 'documents' ? `/api/documents/${id}` : `/api/activity/${id}`;
+                        try {
+                            const res = await fetch(endpoint, { method: 'DELETE' });
+                            if (res.ok) {
+                                successCount++;
+                            } else {
+                                const error = await res.text();
+                                console.error(`Failed to delete ${type} ${id}:`, res.status, error);
+                                failCount++;
+                            }
+                        } catch (err) {
+                            console.error(`Error deleting ${type} ${id}:`, err);
+                            failCount++;
+                        }
+                    });
+                    
+                    await Promise.all(deletePromises);
+                    
+                    // Update progress in toast
+                    const processed = Math.min(i + 5, totalItems);
+                    if (processed < totalItems) {
+                        // Dismiss previous toast and show updated progress
+                        dismissToast();
+                        showToast(`Deleting ${itemName}... ${processed}/${totalItems}`, 'info', 0);
+                    }
+                    
+                    // Wait 1 second between batches for rate limiting
+                    if (i + 5 < itemsToDelete.length) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+                }
+                
+                // Dismiss progress toast before showing final result
+                dismissToast();
+                
+                // Clear selection
+                selectedSet.clear();
+                updateBulkActionVisibility();
+                
+                // Reload data
+                await loadAllData();
+                
+                // Show success toast
+                if (failCount === 0) {
+                    showToast(`Successfully deleted ${successCount} ${itemName}`, 'success', 4000);
+                } else {
+                    showToast(`Deleted ${successCount} ${itemName}. ${failCount} failed.`, 'error', 6000);
+                }
+                
+            } catch (err) {
+                console.error(`Bulk delete ${itemName} error:`, err);
+                showToast(`Failed to delete ${itemName}. Please try again.`, 'error');
+            } finally {
+                // Remove loading state
+                if (deleteBtn) {
+                    deleteBtn.classList.remove('loading');
+                    deleteBtn.disabled = false;
+                }
+                deleteInProgress = false;
+            }
+        }
+        
+        function clearSelection(type) {
+            if (type === 'properties') {
+                selectedProperties.clear();
+                document.querySelectorAll('.property-checkbox').forEach(cb => cb.checked = false);
+                document.getElementById('selectAllProperties').checked = false;
+                document.getElementById('selectAllProperties').indeterminate = false;
+            } else if (type === 'wells') {
+                selectedWells.clear();
+                document.querySelectorAll('.well-checkbox').forEach(cb => cb.checked = false);
+                document.getElementById('selectAllWells').checked = false;
+                document.getElementById('selectAllWells').indeterminate = false;
+            } else if (type === 'activity') {
+                selectedActivity.clear();
+                document.querySelectorAll('.activity-checkbox-input').forEach(cb => cb.checked = false);
+            } else if (type === 'documents') {
+                selectedDocuments.clear();
+                document.querySelectorAll('.document-checkbox').forEach(cb => cb.checked = false);
+            }
+            updateBulkActionVisibility();
+        }
+        
+        async function bulkAddToWells() {
+            if (selectedProperties.size === 0) return;
+            
+            // Get selected property data
+            const selectedPropData = loadedProperties.filter(p => selectedProperties.has(p.id));
+            
+            try {
+                const addPromises = selectedPropData.map(async (prop) => {
+                    const fields = prop.fields;
+                    
+                    // Check if well already exists for this property (V2: flat object)
+                    const existingWell = loadedWells.find(w =>
+                        w.section == fields.SEC &&
+                        w.township === fields.TWN &&
+                        w.range === fields.RNG &&
+                        w.county === fields.COUNTY
+                    );
+                    
+                    if (existingWell) {
+                        console.log(`Well already exists for ${fields.COUNTY} S${fields.SEC} T${fields.TWN} R${fields.RNG}`);
+                        return null;
+                    }
+                    
+                    // Create well data from property
+                    const wellData = {
+                        'Well Name': `${fields.COUNTY} S${fields.SEC} T${fields.TWN} R${fields.RNG}`,
+                        'County': fields.COUNTY,
+                        'Section': fields.SEC,
+                        'Township': fields.TWN,
+                        'Range': fields.RNG,
+                        'API Number': '', // Will be filled when user adds it
+                        'Email': currentUser.email
+                    };
+                    
+                    const res = await fetch('/api/wells', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(wellData)
+                    });
+                    
+                    if (!res.ok) throw new Error(`Failed to create well for ${wellData['Well Name']}`);
+                    return await res.json();
+                });
+                
+                const results = await Promise.all(addPromises);
+                const created = results.filter(r => r !== null).length;
+                const skipped = results.length - created;
+                
+                // Clear selection and reload data
+                clearSelection('properties');
+                await loadWells();
+                
+                let message = `Successfully created ${created} wells`;
+                if (skipped > 0) message += ` (${skipped} already existed)`;
+                showToast(message);
+                
+            } catch (err) {
+                console.error('Bulk add to wells error:', err);
+                showToast('Failed to add some properties as wells. Please try again.', 'error');
+            }
+        }
+        
+/* __SPLIT_UTILS_B__ */
+        function downloadCSV(csvContent, filename) {
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+        
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/auth/logout', { 
+                    method: 'POST',
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok) {
+                    // Clear any client-side session data
+                    document.cookie = 'mw_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                    window.location.href = '/portal/login';
+                } else {
+                    console.error('Logout failed:', response.status);
+                    // Still redirect to login
+                    window.location.href = '/portal/login';
+                }
+            } catch (error) {
+                console.error('Logout error:', error);
+                // Still redirect to login
+                window.location.href = '/portal/login';
+            }
+        });
+        
+        // Toast notification system
+        function showToast(message, type = 'success', duration = 3000) {
+            // Remove any existing toasts
+            const existingToast = document.getElementById('toast-notification');
+            if (existingToast) {
+                existingToast.remove();
+            }
+
+            const toast = document.createElement('div');
+            toast.id = 'toast-notification';
+            toast.className = `toast toast-${type}`;
+            
+            const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+            
+            toast.innerHTML = `
+                <span class="toast-icon">${icon}</span>
+                <span class="toast-message">${escapeHtml(message)}</span>
+            `;
+            
+            document.body.appendChild(toast);
+            
+            // Trigger animation
+            setTimeout(() => toast.classList.add('toast-show'), 10);
+            
+            // Auto dismiss if duration > 0, otherwise keep persistent
+            if (duration > 0) {
+                setTimeout(() => {
+                    toast.classList.remove('toast-show');
+                    setTimeout(() => toast.remove(), 300);
+                }, duration);
+            }
+        }
+        
+        function dismissToast() {
+            const existingToast = document.getElementById('toast-notification');
+            if (existingToast) {
+                existingToast.classList.remove('toast-show');
+                setTimeout(() => existingToast.remove(), 300);
+            }
+        }
+
+        // Custom confirm dialog
+        function showConfirm(message, options = {}) {
+            return new Promise((resolve) => {
+                const dialog = document.getElementById('confirmDialog');
+                console.log('Confirm dialog element:', dialog);
+                
+                if (!dialog) {
+                    console.error('Confirm dialog not found!');
+                    resolve(false);
+                    return;
+                }
+                
+                const title = document.getElementById('confirmTitle');
+                const messageEl = document.getElementById('confirmMessage');
+                const cancelBtn = document.getElementById('confirmCancel');
+                const okBtn = document.getElementById('confirmOk');
+                
+                title.textContent = options.title || 'Confirm Action';
+                messageEl.innerHTML = message;
+                okBtn.textContent = options.confirmText || 'Delete';
+                cancelBtn.textContent = options.cancelText || 'Cancel';
+                
+                dialog.classList.add('show');
+                console.log('Dialog should be visible now');
+                
+                const handleCancel = () => {
+                    dialog.classList.remove('show');
+                    resolve(false);
+                    cleanup();
+                };
+                
+                const handleConfirm = () => {
+                    dialog.classList.remove('show');
+                    resolve(true);
+                    cleanup();
+                };
+                
+                const cleanup = () => {
+                    cancelBtn.removeEventListener('click', handleCancel);
+                    okBtn.removeEventListener('click', handleConfirm);
+                    dialog.removeEventListener('click', handleOverlayClick);
+                };
+                
+                const handleOverlayClick = (e) => {
+                    if (e.target === dialog) handleCancel();
+                };
+                
+                cancelBtn.addEventListener('click', handleCancel);
+                okBtn.addEventListener('click', handleConfirm);
+                dialog.addEventListener('click', handleOverlayClick);
+            });
+        }

@@ -1,0 +1,387 @@
+<!-- BULK UPLOAD MODAL - REDESIGNED -->
+<div class="modal-overlay" id="bulk-upload-modal">
+    <div class="modal bulk-modal">
+        <!-- Header -->
+        <div class="bulk-header">
+            <h2>Bulk Upload Properties</h2>
+            <button class="bulk-close" onclick="closeBulkUploadModal()">&times;</button>
+        </div>
+        
+        <!-- Step 1: File Upload -->
+        <div id="upload-step" style="display:block;">
+            <!-- Instructions -->
+            <div class="bulk-section">
+                <p class="bulk-intro">Upload a CSV or Excel file with your properties. We'll automatically detect columns and format your data.</p>
+                <p class="bulk-text" style="margin-top: 8px;">💡 <strong>Tip:</strong> Include a Notes column to add context like well names, ownership details, or reminders for each property.</p>
+            </div>
+            
+            <!-- File Formats -->
+            <div class="bulk-section bulk-section-gray">
+                <div class="bulk-label">Supported File Formats</div>
+                <div class="bulk-text">CSV (.csv), Excel (.xlsx, .xls), Tab-delimited (.txt, .tsv)</div>
+            </div>
+            
+            <!-- Two Column: Column Names + Format Examples -->
+            <div class="bulk-section">
+                <div class="bulk-two-col">
+                    <!-- Column Names -->
+                    <div>
+                        <div class="bulk-label">Column Names (Flexible)</div>
+                        <div class="bulk-columns">
+                            <div><strong>Section:</strong> <code>SEC</code> <code>Section</code> <code>Sec</code> <code>S</code></div>
+                            <div><strong>Township:</strong> <code>TWN</code> <code>Township</code> <code>Town</code> <code>T</code></div>
+                            <div><strong>Range:</strong> <code>RNG</code> <code>Range</code> <code>R</code></div>
+                            <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
+                            <div><strong>Acres:</strong> <code>RI Acres</code> <code>RI</code> <code>WI Acres</code> <code>WI</code> <code>Total Acres</code> <code>Acres</code></div>
+                            <div><strong>Group:</strong> <code>Group</code> <code>Entity</code></div>
+                            <div><strong>County:</strong> <code>County</code> <code>Co</code> <code>C</code></div>
+                            <div><strong>Optional:</strong> County, Meridian, Group, RI Acres, WI Acres, Total Acres</div>
+                            <div style="font-size: 12px; color: var(--slate-blue); margin-top: 8px;">💡 If only "Total Acres" is provided, it defaults to RI interest</div>
+                        </div>
+                    </div>
+                    
+                    <!-- Format Examples -->
+                    <div>
+                        <div class="bulk-label">We Auto-Format These</div>
+                        <div class="bulk-formats">
+                            <div class="bulk-format"><code>3</code> <span class="arrow">→</span> <code>03</code></div>
+                            <div class="bulk-format"><code>S3</code> <span class="arrow">→</span> <code>03</code></div>
+                            <div class="bulk-format"><code>12 N</code> <span class="arrow">→</span> <code>12N</code></div>
+                            <div class="bulk-format"><code>T12N</code> <span class="arrow">→</span> <code>12N</code></div>
+                            <div class="bulk-format"><code>8w</code> <span class="arrow">→</span> <code>8W</code></div>
+                            <div class="bulk-format"><code>R08W</code> <span class="arrow">→</span> <code>8W</code></div>
+                        </div>
+                        <p class="bulk-note">Missing meridian: Panhandle counties (Cimarron, Texas, Beaver) default to CM, all others to IM</p>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Upload Area -->
+            <div class="bulk-section">
+                <div class="bulk-dropzone" id="dropzone" 
+                     ondrop="handleFileDrop(event)" 
+                     ondragover="handleDragOver(event)"
+                     ondragleave="handleDragLeave(event)"
+                     onclick="document.getElementById('fileInput').click()">
+                    <div class="dropzone-icon">📄</div>
+                    <div class="dropzone-text">Drop your file here or click to browse</div>
+                    <div class="dropzone-subtext">Maximum file size: 5MB</div>
+                </div>
+                
+                <input type="file" id="fileInput" accept=".csv,.xlsx,.xls,.txt,.tsv" style="display:none;" onchange="handleFileSelect(event)">
+                
+                <div id="file-info" class="bulk-file-info" style="display: none;">
+                    <span class="file-name" id="filename"></span>
+                    <span class="file-size" id="filesize"></span>
+                </div>
+                
+                <div id="parse-error" class="bulk-error" style="display: none;">
+                    <strong>Error parsing file:</strong> <span id="error-message"></span>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="bulk-footer">
+                <button class="btn-secondary" onclick="closeBulkUploadModal()">Cancel</button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Preview & Validate -->
+        <div id="preview-step" style="display:none;">
+            <div class="bulk-section">
+                <h3 style="margin-bottom: 8px; font-family: 'Merriweather', serif;">Preview & Validate</h3>
+                <p class="bulk-text">Review the detected properties before importing:</p>
+            </div>
+            
+            <div class="bulk-section">
+                <!-- Validation Badges -->
+                <div id="validation-summary" class="bulk-badges"></div>
+                
+                <!-- Plan Check -->
+                <div id="plan-check"></div>
+                
+                <!-- Preview Table -->
+                <div class="bulk-table-container">
+                    <table class="bulk-table">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>SEC</th>
+                                <th>TWN</th>
+                                <th>RNG</th>
+                                <th>MER</th>
+                                <th>County</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="preview-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div class="bulk-footer">
+                <button class="btn-secondary" onclick="resetBulkUpload()">Start Over</button>
+                <button id="import-btn" class="btn-primary" onclick="startImport()">Import Properties</button>
+            </div>
+        </div>
+        
+        <!-- Step 3: Importing Progress -->
+        <div id="import-step" style="display:none;">
+            <div class="bulk-progress">
+                <div class="progress-icon">⚡</div>
+                <h3>Importing Properties...</h3>
+                <p class="bulk-text">Please wait while we create your properties.</p>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill" id="progress-bar"></div>
+                </div>
+                <div class="progress-percent" id="progress-percent">0%</div>
+                <div class="progress-count" id="import-progress">0 of 0 properties created</div>
+            </div>
+        </div>
+        
+        <!-- Step 4: Results -->
+        <div id="results-step" style="display:none;">
+            <div class="bulk-results">
+                <div class="results-icon" id="results-icon">✅</div>
+                <h3 class="results-title" id="results-title">Import Complete!</h3>
+                <div class="results-stats">
+                    <div class="stat-box">
+                        <div class="stat-number stat-success" id="result-created">0</div>
+                        <div class="stat-label">Created</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number stat-warning" id="result-skipped">0</div>
+                        <div class="stat-label">Skipped</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number stat-error" id="result-failed">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+                <p class="bulk-text" id="results-details">Your properties are now being monitored for OCC activity.</p>
+                <button class="btn-primary" onclick="finishBulkUpload()">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- BULK UPLOAD WELLS MODAL -->
+<div class="modal-overlay" id="bulk-upload-wells-modal">
+    <div class="modal bulk-modal">
+        <!-- Header -->
+        <div class="bulk-header">
+            <h2>Bulk Upload Wells</h2>
+            <button class="bulk-close" onclick="closeBulkUploadWellsModal()">&times;</button>
+        </div>
+        
+        <!-- Step 1: File Upload -->
+        <div id="wells-upload-step" style="display:block;">
+            <div class="bulk-section">
+                <p class="bulk-intro">Upload a CSV or Excel file to add wells. You can use API numbers or search by well name, operator, and location.</p>
+                <p class="bulk-text" style="margin-top: 8px;">💡 <strong>New:</strong> No API numbers? We'll search our database of 453k Oklahoma wells using your CSV data!</p>
+            </div>
+            
+            <div class="bulk-section bulk-section-gray">
+                <div class="bulk-label">Column Options</div>
+                <div class="bulk-text" style="margin-bottom: 12px;">
+                    <strong>Option 1: Direct API</strong> — Provide 10-digit API numbers
+                </div>
+                <div class="bulk-columns">
+                    <div>Headers: <code>API</code> <code>API Number</code> <code>apiNumber</code></div>
+                </div>
+                <div class="bulk-text" style="margin-top: 16px; margin-bottom: 12px;">
+                    <strong>Option 2: Search by Details</strong> — We'll find matching wells
+                </div>
+                <div class="bulk-columns">
+                    <div><code>Well Name</code> <code>Operator</code> <code>Section</code> <code>Township</code> <code>Range</code> <code>County</code></div>
+                </div>
+            </div>
+            
+            <div class="bulk-section">
+                <div class="bulk-two-col">
+                    <div>
+                        <div class="bulk-label">Optional Columns</div>
+                        <div class="bulk-columns">
+                            <div><strong>Notes:</strong> <code>Notes</code> <code>Note</code> <code>Comments</code></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="bulk-label">Format Flexibility</div>
+                        <div class="bulk-formats">
+                            <div class="bulk-format"><code>35-015-20001</code> <span class="arrow">→</span> <code>3501520001</code></div>
+                            <div class="bulk-format"><code>35 015 20001</code> <span class="arrow">→</span> <code>3501520001</code></div>
+                        </div>
+                        <p class="bulk-note">Dashes, spaces, dots are automatically removed</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bulk-section">
+                <div class="bulk-dropzone" id="wells-dropzone" 
+                     ondrop="handleWellsFileDrop(event)" 
+                     ondragover="handleWellsDragOver(event)"
+                     ondragleave="handleWellsDragLeave(event)"
+                     onclick="document.getElementById('wellsFileInput').click()">
+                    <div class="dropzone-icon">🛢️</div>
+                    <div class="dropzone-text">Drop your file here or click to browse</div>
+                    <div class="dropzone-subtext">CSV or Excel files accepted</div>
+                </div>
+                
+                <input type="file" id="wellsFileInput" accept=".csv,.xlsx,.xls,.txt,.tsv" style="display:none;" onchange="handleWellsFileSelect(event)">
+                
+                <div id="wells-file-info" class="bulk-file-info" style="display: none;">
+                    <span class="file-name" id="wells-filename"></span>
+                    <span class="file-size" id="wells-filesize"></span>
+                </div>
+                
+                <div id="wells-parse-error" class="bulk-error" style="display: none;">
+                    <strong>Error parsing file:</strong> <span id="wells-error-message"></span>
+                </div>
+            </div>
+            
+            <div class="bulk-footer">
+                <button class="btn-secondary" onclick="closeBulkUploadWellsModal()">Cancel</button>
+            </div>
+        </div>
+        
+        <!-- Step 2: Preview -->
+        <div id="wells-preview-step" style="display:none;">
+            <div class="bulk-section">
+                <h3 style="margin-bottom: 8px; font-family: 'Merriweather', serif;">Preview & Validate</h3>
+                <p class="bulk-text">Review the API numbers before importing:</p>
+            </div>
+            
+            <div class="bulk-section">
+                <div id="wells-validation-summary" class="bulk-badges"></div>
+                <div id="wells-plan-check"></div>
+                
+                <!-- Quick Actions for large files -->
+                <div id="wells-quick-actions" style="display: none; margin-top: 16px; margin-bottom: 16px;">
+                    <button class="btn-secondary" onclick="selectAllExactMatches()">
+                        Select All Exact Matches
+                    </button>
+                    <span style="margin-left: 12px; color: #64748b; font-size: 14px;">
+                        For ambiguous matches, select the correct well from the dropdown
+                    </span>
+                </div>
+                
+                <div class="bulk-table-container">
+                    <table class="bulk-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 40px;">#</th>
+                                <th style="width: 60px;">Status</th>
+                                <th>CSV Data</th>
+                                <th>Matched Well</th>
+                                <th style="width: 120px;">API Number</th>
+                                <th style="width: 100px;">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="wells-preview-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="bulk-footer">
+                <button class="btn-secondary" onclick="resetBulkUploadWells()">Start Over</button>
+                <button id="wells-import-btn" class="btn-primary" onclick="startWellsImport()">Import Wells</button>
+            </div>
+        </div>
+        
+        <!-- Step 3: Importing -->
+        <div id="wells-import-step" style="display:none;">
+            <div class="bulk-progress">
+                <div class="progress-icon">⚡</div>
+                <h3>Importing Wells...</h3>
+                <p class="bulk-text">Please wait while we add your wells.</p>
+                <div class="progress-bar-track">
+                    <div class="progress-bar-fill indeterminate" id="wells-progress-bar"></div>
+                </div>
+                <div class="progress-count" id="wells-import-progress">Processing...</div>
+            </div>
+        </div>
+        
+        <!-- Step 4: Results -->
+        <div id="wells-results-step" style="display:none;">
+            <div class="bulk-results">
+                <div class="results-icon" id="wells-results-icon">✅</div>
+                <h3 class="results-title" id="wells-results-title">Import Complete!</h3>
+                <div class="results-stats">
+                    <div class="stat-box">
+                        <div class="stat-number stat-success" id="wells-result-created">0</div>
+                        <div class="stat-label">Created</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number stat-warning" id="wells-result-skipped">0</div>
+                        <div class="stat-label">Skipped</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-number stat-error" id="wells-result-failed">0</div>
+                        <div class="stat-label">Failed</div>
+                    </div>
+                </div>
+                <p class="bulk-text" id="wells-results-details">Your wells are now being monitored for OCC activity.</p>
+                <button class="btn-primary" onclick="finishBulkUploadWells()">Done</button>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- __SPLIT_PROCESSING__ -->
+<!-- DOCUMENT PROCESSING NOTIFICATION MODAL -->
+<div class="modal-overlay" id="bulkProcessingModal" style="display: none;">
+    <div class="modal" style="max-width: 440px; background: linear-gradient(135deg, #FAFDF7 0%, #F0FDF4 100%); border: 1px solid rgba(34, 197, 94, 0.3); box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 10px 10px -5px rgba(0, 0, 0, 0.03);">
+        <div style="text-align: center; margin-bottom: 20px;">
+            <div style="width: 56px; height: 56px; background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); border-radius: 50%; display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+                    <path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"/>
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linecap="round" stroke-linejoin="round"/>
+                    <polyline points="14 2 14 8 20 8" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </div>
+            <h2 style="margin: 0 0 6px 0; font-family: 'Merriweather', serif; font-size: 22px; color: var(--oil-navy);">
+                Processing Started
+            </h2>
+            <p style="margin: 0; font-size: 14px; color: #15803D; font-weight: 500;">
+                <span id="bulkProcessingCount">1</span> document<span id="bulkProcessingPlural">s</span> queued
+            </p>
+        </div>
+
+        <div style="background: rgba(34, 197, 94, 0.08); border: 1px solid rgba(34, 197, 94, 0.2); padding: 14px 16px; margin-bottom: 16px; border-radius: 10px;">
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+                <div style="flex-shrink: 0; margin-top: 2px;">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#16A34A" stroke-width="2.5">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <p style="margin: 0 0 4px 0; font-weight: 600; font-size: 14px; color: var(--oil-navy);">
+                        We'll email you when it's done
+                    </p>
+                    <p style="margin: 0; font-size: 13px; color: #166534; line-height: 1.5;">
+                        Feel free to close this page. Processing typically takes a few minutes.
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div style="background: rgba(34, 197, 94, 0.04); border: 1px solid rgba(34, 197, 94, 0.12); padding: 12px 14px; margin-bottom: 16px; border-radius: 8px;">
+            <p style="margin: 0; font-size: 13px; color: #166534; line-height: 1.4;">
+                <strong style="color: #15803D;">Tip:</strong> Keep this tab open and it will auto-refresh when ready.
+            </p>
+        </div>
+
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <input type="checkbox" id="bulkNotificationPreference" style="margin: 0; cursor: pointer; accent-color: #22C55E;">
+            <label for="bulkNotificationPreference" style="font-size: 13px; color: var(--slate-blue); cursor: pointer; user-select: none;">
+                Don't show this again
+            </label>
+        </div>
+
+        <div style="display: flex; justify-content: center; margin-top: 20px;">
+            <button onclick="closeBulkProcessingModal()" class="btn btn-primary" style="background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%); border: none; padding: 10px 28px; font-size: 15px; font-weight: 600; box-shadow: 0 2px 4px rgba(22, 163, 74, 0.2);">
+                Got it
+            </button>
+        </div>
+    </div>
+</div>
