@@ -240,7 +240,7 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
           SELECT p.owner, u.email, u.airtable_record_id, u.organization_id, COUNT(*) as unlinked
           FROM properties p
           LEFT JOIN property_well_links pwl
-            ON pwl.property_airtable_id = p.airtable_record_id AND pwl.status = 'Active'
+            ON pwl.property_airtable_id = p.airtable_record_id AND pwl.status IN ('Active', 'Linked')
           JOIN users u ON u.airtable_record_id = p.owner
           WHERE pwl.id IS NULL
           GROUP BY p.owner
@@ -541,8 +541,6 @@ async function syncClientWells(env: any): Promise<SyncResult['clientWells']> {
           bh_section = (SELECT w.bh_section FROM wells w WHERE w.api_number = client_wells.api_number),
           bh_township = (SELECT w.bh_township FROM wells w WHERE w.api_number = client_wells.api_number),
           bh_range = (SELECT w.bh_range FROM wells w WHERE w.api_number = client_wells.api_number),
-          bh_latitude = (SELECT w.bh_latitude FROM wells w WHERE w.api_number = client_wells.api_number),
-          bh_longitude = (SELECT w.bh_longitude FROM wells w WHERE w.api_number = client_wells.api_number),
           lateral_length = COALESCE(lateral_length, (SELECT w.lateral_length FROM wells w WHERE w.api_number = client_wells.api_number))
         WHERE status = 'Active'
         AND api_number IN (SELECT api_number FROM wells)

@@ -137,7 +137,8 @@ export {
 export {
   handleGetPropertyLinkedWells,
   handleGetWellLinkedProperties,
-  handleUnlinkPropertyWell
+  handleUnlinkPropertyWell,
+  handleRelinkPropertyWell
 } from './property-wells.js';
 
 // Single item matching handlers

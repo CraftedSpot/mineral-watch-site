@@ -273,7 +273,7 @@ async function fetchUnitPrintData(
       JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
       JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
       WHERE (${conditions})
-        AND pwl.status = 'Active'
+        AND pwl.status IN ('Active', 'Linked')
         AND p.owner = ?
       GROUP BY p.airtable_record_id
       ORDER BY p.county, p.section

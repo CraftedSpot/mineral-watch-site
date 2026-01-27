@@ -122,6 +122,168 @@ export function parseSectionsAffected(sectionsStr: string): number[] {
 }
 
 /**
+ * PLSS section grid layout (serpentine numbering):
+ *   6  5  4  3  2  1
+ *   7  8  9 10 11 12
+ *  18 17 16 15 14 13
+ *  19 20 21 22 23 24
+ *  30 29 28 27 26 25
+ *  31 32 33 34 35 36
+ */
+const SECTION_GRID: number[][] = [
+  [ 6,  5,  4,  3,  2,  1],
+  [ 7,  8,  9, 10, 11, 12],
+  [18, 17, 16, 15, 14, 13],
+  [19, 20, 21, 22, 23, 24],
+  [30, 29, 28, 27, 26, 25],
+  [31, 32, 33, 34, 35, 36],
+];
+
+// Precompute section → (row, col) lookup
+const SECTION_POS = new Map<number, [number, number]>();
+for (let r = 0; r < 6; r++) {
+  for (let c = 0; c < 6; c++) {
+    SECTION_POS.set(SECTION_GRID[r][c], [r, c]);
+  }
+}
+
+/**
+ * Get adjacent sections within the same township (8 neighbors, including diagonals)
+ */
+export function getAdjacentSectionsInTownship(section: number): number[] {
+  const pos = SECTION_POS.get(section);
+  if (!pos) return [];
+  const [row, col] = pos;
+  const adjacent: number[] = [];
+  const directions: [number, number][] = [
+    [-1, -1], [-1, 0], [-1, 1],
+    [ 0, -1],          [ 0, 1],
+    [ 1, -1], [ 1, 0], [ 1, 1]
+  ];
+  for (const [dr, dc] of directions) {
+    const newRow = row + dr;
+    const newCol = col + dc;
+    if (newRow >= 0 && newRow < 6 && newCol >= 0 && newCol < 6) {
+      adjacent.push(SECTION_GRID[newRow][newCol]);
+    }
+  }
+  return adjacent;
+}
+
+/**
+ * Parse township string to get number and direction (e.g., "17N" -> {num: 17, dir: "N"})
+ */
+export function parseTownship(township: string): { num: number; dir: string } | null {
+  const match = township.match(/^(\d+)([NS])$/i);
+  if (!match) return null;
+  return { num: parseInt(match[1]), dir: match[2].toUpperCase() };
+}
+
+/**
+ * Parse range string to get number and direction (e.g., "18W" -> {num: 18, dir: "W"})
+ */
+export function parseRange(range: string): { num: number; dir: string } | null {
+  const match = range.match(/^(\d+)([EW])$/i);
+  if (!match) return null;
+  return { num: parseInt(match[1]), dir: match[2].toUpperCase() };
+}
+
+/**
+ * Get which edges of the township grid a section borders
+ */
+export function getEdgeSections(section: number): { north: boolean; south: boolean; east: boolean; west: boolean } {
+  const pos = SECTION_POS.get(section);
+  if (!pos) return { north: false, south: false, east: false, west: false };
+  const [row, col] = pos;
+  return {
+    north: row === 0,
+    south: row === 5,
+    east: col === 5,
+    west: col === 0
+  };
+}
+
+/**
+ * Get adjacent locations including cross-township/range boundaries.
+ * Returns {section, township, range} tuples for all 8-connected neighbors.
+ * For edge/corner sections, includes neighbors in adjacent townships/ranges.
+ */
+export function getAdjacentLocations(
+  section: number,
+  township: string,
+  range: string
+): Array<{ section: number; township: string; range: string }> {
+  const locations: Array<{ section: number; township: string; range: string }> = [];
+
+  // Adjacent within same township
+  const adjacentInTownship = getAdjacentSectionsInTownship(section);
+  for (const adjSection of adjacentInTownship) {
+    locations.push({ section: adjSection, township, range });
+  }
+
+  // Cross-township adjacency for edge sections
+  const edges = getEdgeSections(section);
+  const pos = SECTION_POS.get(section);
+  if (!pos) return locations;
+
+  const [row, col] = pos;
+  const twp = parseTownship(township);
+  const rng = parseRange(range);
+
+  if (!twp || !rng) return locations;
+
+  // North edge
+  if (edges.north) {
+    const northTwp = twp.dir === 'N' ? `${twp.num + 1}N` : (twp.num > 1 ? `${twp.num - 1}S` : '1N');
+    const southRowSections = [31, 32, 33, 34, 35, 36];
+    for (let dc = -1; dc <= 1; dc++) {
+      const newCol = col + dc;
+      if (newCol >= 0 && newCol < 6) {
+        locations.push({ section: southRowSections[newCol], township: northTwp, range });
+      }
+    }
+  }
+
+  // South edge
+  if (edges.south) {
+    const southTwp = twp.dir === 'S' ? `${twp.num + 1}S` : (twp.num > 1 ? `${twp.num - 1}N` : '1S');
+    const northRowSections = [6, 5, 4, 3, 2, 1];
+    for (let dc = -1; dc <= 1; dc++) {
+      const newCol = col + dc;
+      if (newCol >= 0 && newCol < 6) {
+        locations.push({ section: northRowSections[newCol], township: southTwp, range });
+      }
+    }
+  }
+
+  // East edge
+  if (edges.east) {
+    const eastRng = rng.dir === 'E' ? `${rng.num + 1}E` : (rng.num > 1 ? `${rng.num - 1}W` : '1E');
+    const westColSections = [6, 7, 18, 19, 30, 31];
+    for (let dr = -1; dr <= 1; dr++) {
+      const newRow = row + dr;
+      if (newRow >= 0 && newRow < 6) {
+        locations.push({ section: westColSections[newRow], township, range: eastRng });
+      }
+    }
+  }
+
+  // West edge
+  if (edges.west) {
+    const westRng = rng.dir === 'W' ? `${rng.num + 1}W` : (rng.num > 1 ? `${rng.num - 1}E` : '1W');
+    const eastColSections = [1, 12, 13, 24, 25, 36];
+    for (let dr = -1; dr <= 1; dr++) {
+      const newRow = row + dr;
+      if (newRow >= 0 && newRow < 6) {
+        locations.push({ section: eastColSections[newRow], township, range: westRng });
+      }
+    }
+  }
+
+  return locations;
+}
+
+/**
  * Create a location key for comparison
  */
 export function createLocationKey(section: number | null, township: string, range: string, meridian: string): LocationKey | null {
@@ -203,8 +365,90 @@ export function checkMatch(
   if (locationsMatch(property.location, well.bottomHoleLocation)) {
     return 'Bottom Hole';
   }
-  
+
+  // Priority 4: Adjacent BH section match (horizontal wells - stronger signal)
+  if (well.bottomHoleLocation) {
+    const adjLocs = getAdjacentLocations(
+      property.location.section, property.location.township, property.location.range
+    );
+    if (adjLocs.some(a =>
+      a.section === well.bottomHoleLocation!.section &&
+      a.township === well.bottomHoleLocation!.township &&
+      a.range === well.bottomHoleLocation!.range
+    )) {
+      return 'Adjacent Section';
+    }
+  }
+
+  // Priority 5: Adjacent surface section match
+  if (well.surfaceLocation) {
+    const adjLocs = getAdjacentLocations(
+      property.location.section, property.location.township, property.location.range
+    );
+    if (adjLocs.some(a =>
+      a.section === well.surfaceLocation!.section &&
+      a.township === well.surfaceLocation!.township &&
+      a.range === well.surfaceLocation!.range
+    )) {
+      return 'Adjacent Section';
+    }
+  }
+
   return null;
+}
+
+/**
+ * Enrich Airtable well records with BH location data from D1 wells table.
+ * The matching reads wells from Airtable, but BH Section/Township/Range are
+ * often only in the statewide wells table. This fills in the gaps so
+ * Bottom Hole matching (Priority 3) works for lateral wells.
+ */
+export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<void> {
+  // Collect API numbers for wells missing BH data
+  const apiNumbers: string[] = [];
+  const apiToWells = new Map<string, any[]>();
+
+  for (const well of wells) {
+    const api = well.fields['API Number'];
+    if (!api) continue;
+    const clean = String(api).replace(/\D/g, '');
+    if (!clean) continue;
+
+    // Only enrich if Airtable is missing BH section
+    if (!well.fields[WELL_FIELDS.BH_SECTION]) {
+      apiNumbers.push(clean);
+      const existing = apiToWells.get(clean) || [];
+      existing.push(well);
+      apiToWells.set(clean, existing);
+    }
+  }
+
+  if (apiNumbers.length === 0) return;
+
+  // Query D1 in batches of 50
+  const BATCH = 50;
+  for (let i = 0; i < apiNumbers.length; i += BATCH) {
+    const batch = apiNumbers.slice(i, i + BATCH);
+    const placeholders = batch.map(() => '?').join(',');
+    const result = await env.WELLS_DB.prepare(
+      `SELECT api_number, bh_section, bh_township, bh_range
+       FROM wells
+       WHERE api_number IN (${placeholders})
+       AND bh_section IS NOT NULL`
+    ).bind(...batch).all();
+
+    for (const row of (result.results || []) as any[]) {
+      const targets = apiToWells.get(row.api_number);
+      if (!targets) continue;
+      for (const well of targets) {
+        well.fields[WELL_FIELDS.BH_SECTION] = String(row.bh_section);
+        well.fields[WELL_FIELDS.BH_TOWNSHIP] = row.bh_township || well.fields[WELL_FIELDS.TOWNSHIP];
+        well.fields[WELL_FIELDS.BH_RANGE] = row.bh_range || well.fields[WELL_FIELDS.RANGE];
+      }
+    }
+  }
+
+  console.log(`[PropertyWellMatch] Enriched ${apiNumbers.length} wells with D1 BH data`);
 }
 
 /**
@@ -273,18 +517,18 @@ export async function getLinksForProperty(
     const wellId = link.fields[LINK_FIELDS.WELL]?.[0];
     if (!wellId) continue;
     
-    if (link.fields[LINK_FIELDS.STATUS] === 'Active') {
+    if (['Active', 'Linked'].includes(link.fields[LINK_FIELDS.STATUS])) {
       active.add(wellId);
-    } else if (link.fields[LINK_FIELDS.STATUS] === 'Rejected') {
+    } else if (['Rejected', 'Unlinked'].includes(link.fields[LINK_FIELDS.STATUS])) {
       rejected.add(wellId);
     }
   }
-  
+
   return { active, rejected };
 }
 
 /**
- * Get existing links for a well (both active and rejected)
+ * Get existing links for a well (both linked and unlinked)
  */
 export async function getLinksForWell(
   env: Env,
@@ -292,17 +536,17 @@ export async function getLinksForWell(
 ): Promise<{ active: Set<string>; rejected: Set<string> }> {
   const filter = `OR({Well} = '${wellId}', FIND('${wellId}', ARRAYJOIN({Well})) > 0)`;
   const links = await fetchAllAirtableRecords(env, LINKS_TABLE, filter);
-  
+
   const active = new Set<string>();
   const rejected = new Set<string>();
-  
+
   for (const link of links) {
     const propertyId = link.fields[LINK_FIELDS.PROPERTY]?.[0];
     if (!propertyId) continue;
-    
-    if (link.fields[LINK_FIELDS.STATUS] === 'Active') {
+
+    if (['Active', 'Linked'].includes(link.fields[LINK_FIELDS.STATUS])) {
       active.add(propertyId);
-    } else if (link.fields[LINK_FIELDS.STATUS] === 'Rejected') {
+    } else if (['Rejected', 'Unlinked'].includes(link.fields[LINK_FIELDS.STATUS])) {
       rejected.add(propertyId);
     }
   }
@@ -462,7 +706,7 @@ export async function matchSingleProperty(
           [LINK_FIELDS.WELL]: [wellData.id],
           [LINK_FIELDS.LINK_TYPE]: 'Auto',
           [LINK_FIELDS.MATCH_REASON]: matchReason,
-          [LINK_FIELDS.STATUS]: 'Active',
+          [LINK_FIELDS.STATUS]: 'Linked',
           [LINK_FIELDS.USER]: [userId]
         }
       };
@@ -575,7 +819,7 @@ export async function matchSingleWell(
           [LINK_FIELDS.WELL]: [wellId],
           [LINK_FIELDS.LINK_TYPE]: 'Auto',
           [LINK_FIELDS.MATCH_REASON]: matchReason,
-          [LINK_FIELDS.STATUS]: 'Active',
+          [LINK_FIELDS.STATUS]: 'Linked',
           [LINK_FIELDS.USER]: [userId]
         }
       };
@@ -657,7 +901,10 @@ export async function runFullPropertyWellMatching(
   ]);
   
   console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells, ${existingLinks.length} existing links`);
-  
+
+  // Enrich wells with BH data from D1 (Airtable often lacks BH fields)
+  await enrichWellsWithD1Data(wells, env);
+
   // Build set of existing links to avoid duplicates
   const existingLinkKeys = new Set<string>();
   for (const link of existingLinks) {
@@ -667,11 +914,11 @@ export async function runFullPropertyWellMatching(
       existingLinkKeys.add(`${propertyId}-${wellId}`);
     }
   }
-  
+
   // Process properties and wells
   const processedProperties = processProperties(properties);
   const processedWells = processWells(wells);
-  
+
   // Find matches
   const linksToCreate: any[] = [];
   
@@ -701,7 +948,7 @@ export async function runFullPropertyWellMatching(
             [LINK_FIELDS.WELL]: [well.id],
             [LINK_FIELDS.LINK_TYPE]: 'Auto',
             [LINK_FIELDS.MATCH_REASON]: reason,
-            [LINK_FIELDS.STATUS]: 'Active',
+            [LINK_FIELDS.STATUS]: 'Linked',
             [LINK_FIELDS.USER]: [userId]
           }
         };
@@ -749,6 +996,34 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: b
   if (locationsMatch(property.location, well.bottomHoleLocation)) {
     return { matched: true, reason: 'Bottom Hole' };
   }
-  
+
+  // Priority 4: Adjacent BH section match (horizontal wells - stronger signal)
+  if (well.bottomHoleLocation) {
+    const adjLocs = getAdjacentLocations(
+      property.location.section, property.location.township, property.location.range
+    );
+    if (adjLocs.some(a =>
+      a.section === well.bottomHoleLocation!.section &&
+      a.township === well.bottomHoleLocation!.township &&
+      a.range === well.bottomHoleLocation!.range
+    )) {
+      return { matched: true, reason: 'Adjacent Section' };
+    }
+  }
+
+  // Priority 5: Adjacent surface section match
+  if (well.surfaceLocation) {
+    const adjLocs = getAdjacentLocations(
+      property.location.section, property.location.township, property.location.range
+    );
+    if (adjLocs.some(a =>
+      a.section === well.surfaceLocation!.section &&
+      a.township === well.surfaceLocation!.township &&
+      a.range === well.surfaceLocation!.range
+    )) {
+      return { matched: true, reason: 'Adjacent Section' };
+    }
+  }
+
   return { matched: false, reason: '' };
 }

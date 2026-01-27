@@ -86,7 +86,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         FROM property_well_links pwl
         JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
-          AND pwl.status = 'Active'
+          AND pwl.status IN ('Active', 'Linked')
           AND pwl.organization_id = ?
       `;
       params = [propertyId, userOrgId];
@@ -107,7 +107,7 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         FROM property_well_links pwl
         JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
-          AND pwl.status = 'Active'
+          AND pwl.status IN ('Active', 'Linked')
           AND pwl.user_id = ?
       `;
       params = [propertyId, authUser.id];
@@ -236,7 +236,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         FROM property_well_links pwl
         JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
         WHERE pwl.well_airtable_id = ?
-          AND pwl.status = 'Active'
+          AND pwl.status IN ('Active', 'Linked')
           AND pwl.organization_id = ?
       `;
       params = [wellId, userOrgId];
@@ -257,7 +257,7 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         FROM property_well_links pwl
         JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
         WHERE pwl.well_airtable_id = ?
-          AND pwl.status = 'Active'
+          AND pwl.status IN ('Active', 'Linked')
           AND pwl.user_id = ?
       `;
       params = [wellId, authUser.id];
@@ -322,7 +322,7 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
     try {
       const d1Result = await env.WELLS_DB.prepare(`
         UPDATE property_well_links
-        SET status = 'Rejected', rejected_date = ?
+        SET status = 'Unlinked', rejected_date = ?
         WHERE id = ? OR airtable_record_id = ?
       `).bind(new Date().toISOString(), linkId, airtableRecordId).run();
 
@@ -344,7 +344,7 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
           },
           body: JSON.stringify({
             fields: {
-              Status: 'Rejected',
+              Status: 'Unlinked',
               'Rejected Date': new Date().toISOString()
             }
           })
@@ -369,6 +369,71 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
     console.error('[UnlinkWell] Error:', error);
     return jsonResponse({
       error: 'Failed to unlink well',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
+ * Re-link a previously unlinked well-property relationship
+ */
+export async function handleRelinkPropertyWell(linkId: string, request: Request, env: Env) {
+  try {
+    const user = await authenticateRequest(request, env);
+    if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+    console.log(`[RelinkWell] Re-linking link ${linkId}`);
+
+    const airtableRecordId = linkId.startsWith('link_') ? linkId.replace('link_', '') : linkId;
+
+    // Update D1 database
+    try {
+      const d1Result = await env.WELLS_DB.prepare(`
+        UPDATE property_well_links
+        SET status = 'Linked', rejected_date = NULL
+        WHERE id = ? OR airtable_record_id = ?
+      `).bind(linkId, airtableRecordId).run();
+
+      console.log(`[RelinkWell] D1 update result: ${d1Result.meta.changes} rows changed`);
+    } catch (d1Error) {
+      console.error('[RelinkWell] D1 update failed:', d1Error);
+    }
+
+    // Update Airtable for consistency
+    try {
+      const updateResponse = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(LINKS_TABLE)}/${airtableRecordId}`,
+        {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              Status: 'Linked',
+              'Rejected Date': null
+            }
+          })
+        }
+      );
+
+      if (!updateResponse.ok) {
+        console.error(`[RelinkWell] Airtable update failed: ${updateResponse.status}`);
+      }
+    } catch (airtableError) {
+      console.error('[RelinkWell] Airtable update error:', airtableError);
+    }
+
+    return jsonResponse({
+      success: true,
+      linkId
+    });
+
+  } catch (error) {
+    console.error('[RelinkWell] Error:', error);
+    return jsonResponse({
+      error: 'Failed to re-link well',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }

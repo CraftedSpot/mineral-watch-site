@@ -669,28 +669,37 @@
                 const data = await response.json();
                 console.log('[LinkedWells] API Response data:', data);
                 
-                const wellCount = data.wells ? data.wells.length : 0;
-                console.log('[LinkedWells] Setting API count to:', wellCount, 'type:', typeof wellCount);
+                const linkedWells = data.wells ? data.wells.filter(w => w.linkStatus !== 'Unlinked') : [];
+                const wellCount = linkedWells.length;
+                console.log('[LinkedWells] Setting API count to:', wellCount, '(total incl unlinked:', (data.wells || []).length, ')');
                 countEl.textContent = String(wellCount);
-                
+
                 if (!data.wells || data.wells.length === 0) {
                     console.log('[LinkedWells] No wells found, showing empty state');
                     listEl.style.display = 'none';
                     emptyEl.style.display = 'block';
                 } else {
                     console.log('[LinkedWells] Found', data.wells.length, 'wells, updating DOM');
-                    listEl.innerHTML = data.wells.map(w => `
-                        <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                    listEl.innerHTML = data.wells.map(w => {
+                        const isUnlinked = w.linkStatus === 'Unlinked';
+                        const unlinkedDate = w.rejectedDate ? new Date(w.rejectedDate).toLocaleDateString() : '';
+                        return `
+                        <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;${isUnlinked ? ' opacity: 0.5;' : ''}">
                             <div style="flex: 1; cursor: pointer;" onclick="openWellFromProperty('${w.wellId}')">
-                                <div style="font-weight: 500; color: #2563eb;">${escapeHtml(w.wellName)}</div>
+                                <div style="font-weight: 500; color: ${isUnlinked ? '#9ca3af' : '#2563eb'};">${escapeHtml(w.wellName)}</div>
                                 <div style="font-size: 12px; color: #6b7280;">${escapeHtml(w.operator)} • ${escapeHtml(w.county)}</div>
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(w.matchReason)}">${getMatchReasonLabel(w.matchReason)}</span>
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getStatusStyle(w.wellStatus)}">${w.wellStatus || 'AC'}</span>
+                                ${isUnlinked
+                                    ? `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #f3f4f6; color: #6b7280;" title="Unlinked${unlinkedDate ? ' on ' + unlinkedDate : ''}">Unlinked</span>
+                                       <button onclick="event.stopPropagation(); relinkWell('${w.linkId}')" title="Re-link this well" style="border: none; background: none; cursor: pointer; color: #2563eb; font-size: 14px; padding: 2px 4px;">&#8617;</button>`
+                                    : `<button onclick="event.stopPropagation(); unlinkWell('${w.linkId}')" title="Unlink this well" style="border: none; background: none; cursor: pointer; color: #9ca3af; font-size: 14px; padding: 2px 4px;">&#10005;</button>`
+                                }
                             </div>
-                        </div>
-                    `).join('');
+                        </div>`;
+                    }).join('');
                     listEl.style.display = 'block';
                     emptyEl.style.display = 'none';
                 }
@@ -707,15 +716,17 @@
                 case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
                 case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
                 case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
+                case 'Adjacent Section': return 'background: #fef3c7; color: #92400e;';
                 default: return 'background: #e5e7eb; color: #374151;';
             }
         }
-        
+
         function getMatchReasonLabel(reason) {
             switch(reason) {
                 case 'Surface Location': return 'Surface';
                 case 'Bottom Hole': return 'Bottom Hole';
                 case 'Lateral Path': return 'Lateral';
+                case 'Adjacent Section': return 'Adjacent';
                 default: return reason;
             }
         }
@@ -755,12 +766,12 @@
         
         async function unlinkWell(linkId) {
             if (!confirm('Remove this well link?')) return;
-            
+
             try {
                 const response = await fetch(`/api/property-well-link/${linkId}`, {
                     method: 'DELETE'
                 });
-                
+
                 if (response.ok) {
                     // Reload the linked wells list
                     const propertyId = document.getElementById('propertyDetailsId').value;
@@ -770,6 +781,23 @@
                 }
             } catch (error) {
                 console.error('Error unlinking well:', error);
+            }
+        }
+
+        async function relinkWell(linkId) {
+            try {
+                const response = await fetch(`/api/property-well-link/${linkId}`, {
+                    method: 'PATCH'
+                });
+
+                if (response.ok) {
+                    const propertyId = document.getElementById('propertyDetailsId').value;
+                    loadLinkedWells(propertyId);
+                } else {
+                    console.error('Failed to re-link well');
+                }
+            } catch (error) {
+                console.error('Error re-linking well:', error);
             }
         }
         
@@ -810,19 +838,23 @@
                 const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
                 const data = await response.json();
                 
-                const propCount = data.properties?.length || 0;
-                console.log('[LinkedProperties] Setting API count to:', propCount);
+                const linkedProps = data.properties ? data.properties.filter(p => p.linkStatus !== 'Unlinked') : [];
+                const propCount = linkedProps.length;
+                console.log('[LinkedProperties] Setting API count to:', propCount, '(total incl unlinked:', (data.properties || []).length, ')');
                 countEl.textContent = String(propCount);
-                
+
                 if (!data.properties || data.properties.length === 0) {
                     listEl.style.display = 'none';
                     emptyEl.style.display = 'block';
                 } else {
-                    listEl.innerHTML = data.properties.map(p => `
-                        <div class="linked-property-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                    listEl.innerHTML = data.properties.map(p => {
+                        const isUnlinked = p.linkStatus === 'Unlinked';
+                        const unlinkedDate = p.rejectedDate ? new Date(p.rejectedDate).toLocaleDateString() : '';
+                        return `
+                        <div class="linked-property-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;${isUnlinked ? ' opacity: 0.5;' : ''}">
                             <div style="flex: 1; cursor: pointer;" onclick="openPropertyFromWell('${p.propertyId}')">
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <span style="font-weight: 500; color: #2563eb;">${escapeHtml(p.location)}</span>
+                                    <span style="font-weight: 500; color: ${isUnlinked ? '#9ca3af' : '#2563eb'};">${escapeHtml(p.location)}</span>
                                     ${p.group ? `<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">${escapeHtml(p.group)}</span>` : ''}
                                     ${p.nma ? `<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">${parseFloat(p.nma.toFixed(4))} NMA</span>` : ''}
                                 </div>
@@ -830,9 +862,14 @@
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
+                                ${isUnlinked
+                                    ? `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #f3f4f6; color: #6b7280;" title="Unlinked${unlinkedDate ? ' on ' + unlinkedDate : ''}">Unlinked</span>
+                                       <button onclick="event.stopPropagation(); relinkProperty('${p.linkId}')" title="Re-link this property" style="border: none; background: none; cursor: pointer; color: #2563eb; font-size: 14px; padding: 2px 4px;">&#8617;</button>`
+                                    : `<button onclick="event.stopPropagation(); unlinkProperty('${p.linkId}')" title="Unlink this property" style="border: none; background: none; cursor: pointer; color: #9ca3af; font-size: 14px; padding: 2px 4px;">&#10005;</button>`
+                                }
                             </div>
-                        </div>
-                    `).join('');
+                        </div>`;
+                    }).join('');
                     listEl.style.display = 'block';
                     emptyEl.style.display = 'none';
                 }
@@ -859,13 +896,13 @@
         
         async function unlinkProperty(linkId) {
             if (!confirm('Remove this property link?')) return;
-            
+
             try {
-                const response = await fetch(`/api/property-well-link/${linkId}`, { 
+                const response = await fetch(`/api/property-well-link/${linkId}`, {
                     method: 'DELETE',
                     credentials: 'include'
                 });
-                
+
                 if (response.ok) {
                     // Reload the linked properties list
                     const wellId = document.getElementById('wellDetailsId').value;
@@ -875,6 +912,24 @@
                 }
             } catch (error) {
                 console.error('Error unlinking property:', error);
+            }
+        }
+
+        async function relinkProperty(linkId) {
+            try {
+                const response = await fetch(`/api/property-well-link/${linkId}`, {
+                    method: 'PATCH',
+                    credentials: 'include'
+                });
+
+                if (response.ok) {
+                    const wellId = document.getElementById('wellDetailsId').value;
+                    loadLinkedProperties(wellId);
+                } else {
+                    console.error('Failed to re-link property');
+                }
+            } catch (error) {
+                console.error('Error re-linking property:', error);
             }
         }
         

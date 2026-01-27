@@ -50,12 +50,14 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
       
       // Ownership will be verified by filtering links by user/org in the main query below
       
-      // Query linked wells from D1 using client_wells table
+      // Query all wells (linked + unlinked) from D1
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
           pwl.id as link_id,
           pwl.match_reason,
           pwl.confidence_score,
+          pwl.status as link_status,
+          pwl.rejected_date,
           cw.airtable_id as well_id,
           cw.well_name,
           cw.api_number,
@@ -66,16 +68,20 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         FROM property_well_links pwl
         JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
-          AND pwl.status = 'Active'
-        ORDER BY cw.well_name
+          AND pwl.status IN ('Active', 'Linked', 'Rejected', 'Unlinked')
+        ORDER BY
+          CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
+          cw.well_name
       `).bind(propertyId).all();
-      
+
       console.log(`[GetLinkedWells-D1] D1 query: ${d1Results.results.length} wells in ${Date.now() - start}ms`);
-      
+
       // Format results to match the expected API response
       const wells = d1Results.results.map((row: any) => {
         // Clean county display - remove numeric prefix
         const cleanCounty = row.county ? row.county.replace(/^\d+-/, '') : 'Unknown County';
+        // Normalize status to new values
+        const isLinked = ['Active', 'Linked'].includes(row.link_status);
 
         return {
           linkId: row.link_id,
@@ -86,7 +92,9 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
           wellStatus: row.well_status || 'AC',
           matchReason: row.match_reason || 'Manual',
           apiNumber: row.api_number,
-          confidenceScore: row.confidence_score
+          confidenceScore: row.confidence_score,
+          linkStatus: isLinked ? 'Linked' : 'Unlinked',
+          rejectedDate: row.rejected_date || null
         };
       });
       
@@ -158,12 +166,14 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         return getLinkedPropertiesFromAirtable(wellId, request, env);
       }
       
-      // Query linked properties from D1 - ownership already verified at well list level
+      // Query all properties (linked + unlinked) from D1
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
           pwl.id as link_id,
           pwl.match_reason,
           pwl.confidence_score,
+          pwl.status as link_status,
+          pwl.rejected_date,
           p.airtable_record_id as property_id,
           p.section,
           p.township,
@@ -176,8 +186,10 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         FROM property_well_links pwl
         JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
         WHERE pwl.well_airtable_id = ?
-          AND pwl.status = 'Active'
-        ORDER BY p.section, p.township, p.range
+          AND pwl.status IN ('Active', 'Linked', 'Rejected', 'Unlinked')
+        ORDER BY
+          CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
+          p.section, p.township, p.range
       `).bind(wellId).all();
       
       console.log(`[GetLinkedProperties-D1] D1 query: ${d1Results.results.length} properties in ${Date.now() - start}ms`);
@@ -232,6 +244,9 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         // Get NMA from Airtable fetch
         const nma = nmaMap.get(row.property_id) || null;
 
+        // Normalize status to new values
+        const isLinked = ['Active', 'Linked'].includes(row.link_status);
+
         return {
           linkId: row.link_id,
           propertyId: row.property_id,
@@ -242,7 +257,9 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
           group: row.group_name || null,
           matchReason: row.match_reason || 'Manual',
           meridian: row.meridian || 'IM',
-          confidenceScore: row.confidence_score
+          confidenceScore: row.confidence_score,
+          linkStatus: isLinked ? 'Linked' : 'Unlinked',
+          rejectedDate: row.rejected_date || null
         };
       });
 

@@ -134,6 +134,7 @@ import {
   // handleGetPropertyLinkedWells, // Removed - using D1 handler
   // handleGetWellLinkedProperties, // Removed - using D1 handler
   handleUnlinkPropertyWell,
+  handleRelinkPropertyWell,
   // Single item matching handlers
   handleMatchSingleProperty,
   handleMatchSingleWell,
@@ -1234,10 +1235,13 @@ var index_default = {
         }
       }
       
-      // Unlink property-well endpoint
+      // Unlink/Relink property-well endpoint
       const unlinkMatch = path.match(/^\/api\/property-well-link\/([a-zA-Z0-9]+)$/);
       if (unlinkMatch && request.method === "DELETE") {
         return handleUnlinkPropertyWell(unlinkMatch[1], request, env);
+      }
+      if (unlinkMatch && request.method === "PATCH") {
+        return handleRelinkPropertyWell(unlinkMatch[1], request, env);
       }
       
       // Match single property endpoint

@@ -8,6 +8,7 @@ import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
+import { enrichWellsWithD1Data, getAdjacentLocations } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
@@ -220,7 +221,35 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: b
   if (locationsMatch(property.location, well.bottomHoleLocation)) {
     return { matched: true, reason: 'Bottom Hole' };
   }
-  
+
+  // Priority 4: Adjacent BH section match (horizontal wells - stronger signal)
+  if (well.bottomHoleLocation) {
+    const adjLocs = getAdjacentLocations(
+      property.location.section, property.location.township, property.location.range
+    );
+    if (adjLocs.some(a =>
+      a.section === well.bottomHoleLocation!.section &&
+      a.township === well.bottomHoleLocation!.township &&
+      a.range === well.bottomHoleLocation!.range
+    )) {
+      return { matched: true, reason: 'Adjacent Section' };
+    }
+  }
+
+  // Priority 5: Adjacent surface section match
+  if (well.surfaceLocation) {
+    const adjLocs = getAdjacentLocations(
+      property.location.section, property.location.township, property.location.range
+    );
+    if (adjLocs.some(a =>
+      a.section === well.surfaceLocation!.section &&
+      a.township === well.surfaceLocation!.township &&
+      a.range === well.surfaceLocation!.range
+    )) {
+      return { matched: true, reason: 'Adjacent Section' };
+    }
+  }
+
   return { matched: false, reason: '' };
 }
 
@@ -304,6 +333,9 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       console.log('[PropertyWellMatch] Sample well:', JSON.stringify(wells[0], null, 2));
     }
     
+    // Enrich wells with BH data from D1 (Airtable often lacks BH fields)
+    await enrichWellsWithD1Data(wells, env);
+
     // Build set of existing links to avoid duplicates
     const existingLinkKeys = new Set<string>();
     for (const link of existingLinks) {
@@ -313,11 +345,11 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
         existingLinkKeys.add(`${propertyId}-${wellId}`);
       }
     }
-    
+
     // Process properties and wells
     const processedProperties = processProperties(properties);
     const processedWells = processWells(wells);
-    
+
     // Find matches
     const linksToCreate: any[] = [];
     let matchesFound = 0;
@@ -352,7 +384,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
               [LINK_FIELDS.WELL]: [well.id],
               [LINK_FIELDS.LINK_TYPE]: 'Auto',
               [LINK_FIELDS.MATCH_REASON]: reason,
-              [LINK_FIELDS.STATUS]: 'Active',
+              [LINK_FIELDS.STATUS]: 'Linked',
               [LINK_FIELDS.USER]: [userId]
             }
           };
@@ -443,7 +475,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
             propertyId,
             wellId,
             fields['Match Reason'] || 'Manual',
-            fields['Status'] || 'Active',
+            fields['Status'] || 'Linked',
             null,
             linkUserId,
             orgId,
