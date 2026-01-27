@@ -1,8 +1,16 @@
 /**
  * Matching Service - Finds users with properties/wells that match OCC records
+ * MIGRATED: Now uses D1 instead of Airtable for reads
  */
 
-import { queryAirtable, getUserById } from './airtable.js';
+import {
+  getUserById,
+  getPropertiesByLocation,
+  getAdjacentProperties,
+  getWellsByApiNumber,
+  getOrganizationById,
+  getOrganizationMembers
+} from './d1.js';
 import { normalizeSection } from '../utils/normalize.js';
 import { getAdjacentSections, getExtendedAdjacentSections } from '../utils/plss.js';
 
@@ -17,117 +25,100 @@ import { getAdjacentSections, getExtendedAdjacentSections } from '../utils/plss.
 export async function findMatchingProperties(location, env, options = {}) {
   const { section, township, range, meridian, county } = location;
   const normalizedSec = normalizeSection(section);
-  
+
   // Default meridian to IM if not specified (Oklahoma convention)
   // Exception: Panhandle counties (Cimarron, Texas, Beaver) default to CM
   const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
-  const effectiveMeridian = meridian || 
+  const effectiveMeridian = meridian ||
     (panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM');
-  
+
   const matches = [];
   const seenUsers = new Set(); // Prevent duplicate alerts
-  
-  // Query for exact property matches
-  const formula = `AND(
-    {SEC} = "${normalizedSec}",
-    {TWN} = "${township}",
-    {RNG} = "${range}",
-    {MERIDIAN} = "${effectiveMeridian}",
-    {Status} = "Active"
-  )`;
-  
-  const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
-  
+
+  // Query D1 for exact property matches
+  const properties = await getPropertiesByLocation(env, {
+    section: normalizedSec,
+    township,
+    range,
+    meridian: effectiveMeridian
+  });
+
   for (const prop of properties) {
-    // Case 1: Individual user linked to property
-    const userIds = prop.fields.User;
-    if (userIds && userIds.length > 0) {
-      const user = await getUserById(env, userIds[0]);
-      if (user && user.fields.Status === 'Active' && !seenUsers.has(user.id)) {
-        seenUsers.add(user.id);
-        matches.push({
-          property: prop,
-          user: {
-            id: user.id,
-            email: user.fields.Email,
-            name: user.fields.Name
-          },
-          alertLevel: 'YOUR PROPERTY',
-          matchedSection: `${normalizedSec}-${township}-${range}`
-        });
+    // Case 1: Individual user linked to property (via JOIN)
+    if (prop._user && prop._user.id) {
+      const userId = prop._user.id;
+      if (!seenUsers.has(userId)) {
+        // Verify user is active by fetching full record
+        const user = await getUserById(env, userId);
+        if (user && user.fields.Status === 'Active') {
+          seenUsers.add(userId);
+          matches.push({
+            property: prop,
+            user: {
+              id: user.id,
+              email: user.fields.Email,
+              name: user.fields.Name
+            },
+            alertLevel: 'YOUR PROPERTY',
+            matchedSection: `${normalizedSec}-${township}-${range}`
+          });
+        }
       }
     }
-    
+
     // Case 2: Organization linked to property - get all users in the org
     const orgIds = prop.fields.Organization;
     if (orgIds && orgIds.length > 0) {
-      const orgId = orgIds[0]; // Get first org ID (properties typically belong to one org)
+      const orgId = orgIds[0];
       console.log(`[Matching] Property in ${normalizedSec}-${township}-${range} belongs to organization ID: ${orgId}`);
-      
-      // Fetch the Organization record directly by ID
+
       try {
-        const orgUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
-        const orgResponse = await fetch(orgUrl, {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (orgResponse.ok) {
-          const org = await orgResponse.json();
+        const org = await getOrganizationById(env, orgId);
+        if (org) {
           const orgName = org.fields.Name;
-          const orgUserIds = org.fields['👤 Users'] || [];
-          
-          console.log(`[Matching] Organization "${orgName}" has ${orgUserIds.length} users`);
-          
-          // Get all active users in the organization
-          for (const orgUserId of orgUserIds) {
-            if (!seenUsers.has(orgUserId)) {
-              const orgUser = await getUserById(env, orgUserId);
-              if (orgUser && orgUser.fields.Status === 'Active') {
-                seenUsers.add(orgUserId);
-                matches.push({
-                  property: prop,
-                  user: {
-                    id: orgUser.id,
-                    email: orgUser.fields.Email,
-                    name: orgUser.fields.Name
-                  },
-                  alertLevel: 'YOUR PROPERTY',
-                  matchedSection: `${normalizedSec}-${township}-${range}`,
-                  organizationId: orgId,
-                  viaOrganization: orgName
-                });
-              }
+          const orgMembers = await getOrganizationMembers(env, orgId);
+
+          console.log(`[Matching] Organization "${orgName}" has ${orgMembers.length} active members`);
+
+          for (const orgUser of orgMembers) {
+            if (!seenUsers.has(orgUser.id)) {
+              seenUsers.add(orgUser.id);
+              matches.push({
+                property: prop,
+                user: {
+                  id: orgUser.id,
+                  email: orgUser.fields.Email,
+                  name: orgUser.fields.Name
+                },
+                alertLevel: 'YOUR PROPERTY',
+                matchedSection: `${normalizedSec}-${township}-${range}`,
+                organizationId: orgId,
+                viaOrganization: orgName
+              });
             }
           }
-        } else {
-          console.error(`[Matching] Failed to fetch organization ${orgId}: ${orgResponse.status}`);
         }
       } catch (error) {
         console.error(`[Matching] Error fetching organization ${orgId}:`, error);
       }
     }
   }
-  
+
   // ALWAYS check for adjacent section matches (users who own sections adjacent to this permit)
-  // This runs independently of direct matches
   const adjacentMatches = await findUsersMonitoringAdjacentTo(location, env, options);
-  
+
   // Filter out users who already have a direct match to avoid duplicates
-  const uniqueAdjacentMatches = adjacentMatches.filter(adjMatch => 
+  const uniqueAdjacentMatches = adjacentMatches.filter(adjMatch =>
     !matches.some(m => m.user.id === adjMatch.user.id)
   );
-  
+
   matches.push(...uniqueAdjacentMatches);
-  
+
   return matches;
 }
 
 /**
  * Find users who are monitoring sections adjacent to the given location
- * OPTIMIZED: Single batched query instead of multiple separate queries
  * @param {Object} location - S-T-R of the permit
  * @param {Object} env - Worker environment
  * @param {Object} options - Optional settings
@@ -139,47 +130,39 @@ async function findUsersMonitoringAdjacentTo(location, env, options = {}) {
   const normalizedSec = parseInt(normalizeSection(section), 10);
 
   // Default meridian to IM if not specified (Oklahoma convention)
-  // Exception: Panhandle counties (Cimarron, Texas, Beaver) default to CM
   const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
   const effectiveMeridian = meridian ||
     (panhandleCounties.includes(county?.toUpperCase()) ? 'CM' : 'IM');
 
-  // Get adjacent sections - use extended grid (5x5, 24 sections) for horizontal wells
-  // or standard grid (3x3, 8 sections) for other relief types
+  // Get adjacent sections - use extended grid for horizontal wells
   const adjacentSections = options.useExtendedGrid
     ? getExtendedAdjacentSections(normalizedSec, township, range)
     : getAdjacentSections(normalizedSec, township, range);
 
-  // OPTIMIZATION: Build single OR query for all adjacent sections (8 or 24)
-  // Include meridian to avoid cross-meridian false positives
-  const sectionConditions = adjacentSections.map(adj =>
-    `AND({SEC} = "${normalizeSection(adj.section)}", {TWN} = "${adj.township}", {RNG} = "${adj.range}", {MERIDIAN} = "${effectiveMeridian}")`
-  ).join(', ');
-  
-  const formula = `AND(
-    OR(${sectionConditions}),
-    {Monitor Adjacent} = TRUE(),
-    {Status} = "Active"
-  )`;
-  
-  const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
-  
+  // Normalize section numbers for query
+  const normalizedAdjacentSections = adjacentSections.map(adj => ({
+    section: normalizeSection(adj.section),
+    township: adj.township,
+    range: adj.range
+  }));
+
+  // Query D1 for properties in adjacent sections with monitor_adjacent enabled
+  const properties = await getAdjacentProperties(env, normalizedAdjacentSections, effectiveMeridian);
+
   const matches = [];
   const seenUsers = new Set();
-  
+
   for (const prop of properties) {
     // Case 1: Individual user linked to property
-    const userIds = prop.fields.User;
-    if (userIds && userIds.length > 0) {
-      const userId = userIds[0];
+    if (prop._user && prop._user.id) {
+      const userId = prop._user.id;
       if (!seenUsers.has(userId)) {
-        seenUsers.add(userId);
-        
         const user = await getUserById(env, userId);
         if (user && user.fields.Status === 'Active') {
-          // Determine which adjacent section this property is in
+          seenUsers.add(userId);
+
           const propSection = `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`;
-          
+
           matches.push({
             property: prop,
             user: {
@@ -194,49 +177,36 @@ async function findUsersMonitoringAdjacentTo(location, env, options = {}) {
         }
       }
     }
-    
-    // Case 2: Organization linked to property - get all users in the org
+
+    // Case 2: Organization linked to property
     const orgIds = prop.fields.Organization;
     if (orgIds && orgIds.length > 0) {
       const orgId = orgIds[0];
-      
+
       try {
-        const orgUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
-        const orgResponse = await fetch(orgUrl, {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (orgResponse.ok) {
-          const org = await orgResponse.json();
+        const org = await getOrganizationById(env, orgId);
+        if (org) {
           const orgName = org.fields.Name;
-          const orgUserIds = org.fields['👤 Users'] || [];
-          
-          // Determine which adjacent section this property is in
+          const orgMembers = await getOrganizationMembers(env, orgId);
+
           const propSection = `${normalizeSection(prop.fields.SEC)}-${prop.fields.TWN}-${prop.fields.RNG}`;
-          
-          // Get all active users in the organization
-          for (const orgUserId of orgUserIds) {
-            if (!seenUsers.has(orgUserId)) {
-              const orgUser = await getUserById(env, orgUserId);
-              if (orgUser && orgUser.fields.Status === 'Active') {
-                seenUsers.add(orgUserId);
-                matches.push({
-                  property: prop,
-                  user: {
-                    id: orgUser.id,
-                    email: orgUser.fields.Email,
-                    name: orgUser.fields.Name
-                  },
-                  alertLevel: 'ADJACENT SECTION',
-                  matchedSection: propSection,
-                  organizationId: orgId,
-                  permitSection: `${normalizeSection(section)}-${township}-${range}`,
-                  viaOrganization: orgName
-                });
-              }
+
+          for (const orgUser of orgMembers) {
+            if (!seenUsers.has(orgUser.id)) {
+              seenUsers.add(orgUser.id);
+              matches.push({
+                property: prop,
+                user: {
+                  id: orgUser.id,
+                  email: orgUser.fields.Email,
+                  name: orgUser.fields.Name
+                },
+                alertLevel: 'ADJACENT SECTION',
+                matchedSection: propSection,
+                organizationId: orgId,
+                permitSection: `${normalizeSection(section)}-${township}-${range}`,
+                viaOrganization: orgName
+              });
             }
           }
         }
@@ -245,7 +215,7 @@ async function findUsersMonitoringAdjacentTo(location, env, options = {}) {
       }
     }
   }
-  
+
   return matches;
 }
 
@@ -256,86 +226,68 @@ async function findUsersMonitoringAdjacentTo(location, env, options = {}) {
  * @returns {Array} - Users tracking this well
  */
 export async function findMatchingWells(api10, env) {
-  const formula = `AND(
-    {API Number} = "${api10}",
-    {Status} = "Active"
-  )`;
-  
-  const wells = await queryAirtable(env, env.AIRTABLE_WELLS_TABLE, formula);
+  const wells = await getWellsByApiNumber(env, api10);
   const matches = [];
-  const seenUsers = new Set(); // Prevent duplicate alerts
-  
+  const seenUsers = new Set();
+
   for (const well of wells) {
-    // Case 1: Individual user directly linked to well
-    const userIds = well.fields.User;
-    if (userIds && userIds.length > 0) {
-      const user = await getUserById(env, userIds[0]);
-      if (user && user.fields.Status === 'Active' && !seenUsers.has(user.id)) {
-        seenUsers.add(user.id);
-        matches.push({
-          well: well,
-          user: {
-            id: user.id,
-            email: user.fields.Email,
-            name: user.fields.Name
-          },
-          alertLevel: 'TRACKED WELL'
-        });
+    // Case 1: Individual user directly linked to well (via JOIN)
+    if (well._user && well._user.id) {
+      const userId = well._user.id;
+      if (!seenUsers.has(userId)) {
+        const user = await getUserById(env, userId);
+        if (user && user.fields.Status === 'Active') {
+          seenUsers.add(userId);
+          matches.push({
+            well: well,
+            user: {
+              id: user.id,
+              email: user.fields.Email,
+              name: user.fields.Name
+            },
+            alertLevel: 'TRACKED WELL'
+          });
+        }
       }
     }
-    
+
     // Case 2: Organization linked to well - get all users in the org
     const orgIds = well.fields.Organization;
     if (orgIds && orgIds.length > 0) {
-      const orgId = orgIds[0]; // Get first org ID (wells typically belong to one org)
+      const orgId = orgIds[0];
       console.log(`[Matching] Well ${api10} belongs to organization ID: ${orgId}`);
-      
-      // Fetch the Organization record directly by ID
+
       try {
-        const orgUrl = `https://api.airtable.com/v0/${env.AIRTABLE_BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`;
-        const orgResponse = await fetch(orgUrl, {
-          headers: {
-            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        if (orgResponse.ok) {
-          const org = await orgResponse.json();
+        const org = await getOrganizationById(env, orgId);
+        if (org) {
           const orgName = org.fields.Name;
-          const orgUserIds = org.fields['👤 Users'] || [];
-          
-          console.log(`[Matching] Organization "${orgName}" has ${orgUserIds.length} users`);
-          
-          // Get all active users in the organization
-          for (const orgUserId of orgUserIds) {
-            if (!seenUsers.has(orgUserId)) {
-              const orgUser = await getUserById(env, orgUserId);
-              if (orgUser && orgUser.fields.Status === 'Active') {
-                seenUsers.add(orgUserId);
-                matches.push({
-                  well: well,
-                  user: {
-                    id: orgUser.id,
-                    email: orgUser.fields.Email,
-                    name: orgUser.fields.Name
-                  },
-                  alertLevel: 'TRACKED WELL',
-                  viaOrganization: orgName,
-                  organizationId: orgId
-                });
-              }
+          const orgMembers = await getOrganizationMembers(env, orgId);
+
+          console.log(`[Matching] Organization "${orgName}" has ${orgMembers.length} active members`);
+
+          for (const orgUser of orgMembers) {
+            if (!seenUsers.has(orgUser.id)) {
+              seenUsers.add(orgUser.id);
+              matches.push({
+                well: well,
+                user: {
+                  id: orgUser.id,
+                  email: orgUser.fields.Email,
+                  name: orgUser.fields.Name
+                },
+                alertLevel: 'TRACKED WELL',
+                viaOrganization: orgName,
+                organizationId: orgId
+              });
             }
           }
-        } else {
-          console.error(`[Matching] Failed to fetch organization ${orgId}: ${orgResponse.status}`);
         }
       } catch (error) {
         console.error(`[Matching] Error fetching organization ${orgId}:`, error);
       }
     }
   }
-  
+
   console.log(`[Matching] Well ${api10}: found ${matches.length} users to notify`);
   return matches;
 }

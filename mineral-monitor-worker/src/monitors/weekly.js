@@ -16,10 +16,10 @@ import {
   hasRecentAlertInSet,
   createActivityLog,
   updateActivityLog,
-  queryAirtable,
   userWantsAlert,
   getUserById
 } from '../services/airtable.js';
+import { batchGetPropertiesByLocations } from '../services/d1.js';
 import { getAdjacentSections } from '../utils/plss.js';
 import { sendAlertEmail } from '../services/email.js';
 import { normalizeAPI, normalizeOperator, normalizeSection } from '../utils/normalize.js';
@@ -67,62 +67,57 @@ async function saveProcessedTransfers(env, processedSet) {
 
 /**
  * OPTIMIZATION: Batch load all properties for sections in transfers
+ * MIGRATED: Now uses D1 instead of Airtable
+ * Note: Currently unused - transfers match by API number via findMatchingWells
  * @param {Array} transfers - Array of transfer records
  * @param {Object} env - Worker environment
  * @returns {Map} - Map of section keys to property arrays
  */
 async function batchLoadPropertiesForTransfers(transfers, env) {
   const sectionsToLoad = new Set();
-  
+
   for (const transfer of transfers) {
     if (!transfer.Section || !transfer.Township || !transfer.Range) continue;
-    
+
     const normalizedSection = normalizeSection(transfer.Section);
     const meridian = transfer.PM || 'IM';
-    
+
     // Add the transfer's section
     sectionsToLoad.add(`${normalizedSection}|${transfer.Township}|${transfer.Range}|${meridian}`);
-    
+
     // Add adjacent sections
     const adjacents = getAdjacentSections(parseInt(normalizedSection, 10), transfer.Township, transfer.Range);
     for (const adj of adjacents) {
       sectionsToLoad.add(`${normalizeSection(adj.section)}|${adj.township}|${adj.range}|${meridian}`);
     }
   }
-  
+
   console.log(`[Weekly] Batch loading properties for ${sectionsToLoad.size} unique sections`);
-  
+
   if (sectionsToLoad.size === 0) {
     return new Map();
   }
-  
-  // Build OR query for all sections
-  const sectionQueries = Array.from(sectionsToLoad).map(key => {
+
+  // Convert section keys to location objects for D1 query
+  const locations = Array.from(sectionsToLoad).map(key => {
     const [section, township, range, meridian] = key.split('|');
-    return `AND({SEC}="${section}",{TWN}="${township}",{RNG}="${range}",{MERIDIAN}="${meridian}",{Status}="Active")`;
+    return { section, township, range, meridian };
   });
-  
-  // Chunk if needed (Airtable formula limit)
-  const CHUNK_SIZE = 50;
+
+  // Query D1 for all properties in these locations
+  const properties = await batchGetPropertiesByLocations(env, locations);
+
+  // Index by section key
   const propertyMap = new Map();
-  
-  for (let i = 0; i < sectionQueries.length; i += CHUNK_SIZE) {
-    const chunk = sectionQueries.slice(i, i + CHUNK_SIZE);
-    const formula = `OR(${chunk.join(',')})`;
-    
-    const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
-    
-    // Index by section key
-    for (const prop of properties) {
-      const key = `${prop.fields.SEC}|${prop.fields.TWN}|${prop.fields.RNG}|${prop.fields.MERIDIAN}`;
-      if (!propertyMap.has(key)) {
-        propertyMap.set(key, []);
-      }
-      propertyMap.get(key).push(prop);
+  for (const prop of properties) {
+    const key = `${prop.fields.SEC}|${prop.fields.TWN}|${prop.fields.RNG}|${prop.fields.MERIDIAN}`;
+    if (!propertyMap.has(key)) {
+      propertyMap.set(key, []);
     }
+    propertyMap.get(key).push(prop);
   }
-  
-  console.log(`[Weekly] Loaded ${propertyMap.size} sections with properties`);
+
+  console.log(`[Weekly] Loaded ${propertyMap.size} sections with properties from D1`);
   return propertyMap;
 }
 

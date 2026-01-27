@@ -1579,20 +1579,17 @@ function generateCompletionReportFields(data: any): string {
         <div class="field-label">Well Type</div>
         <div class="field-value">${escapeHtml(wellTypeDisplay) || 'Not specified'}</div>
       </div>
-      ${
-        oilProd || gasProd
-          ? `
+      ${oilProd ? `
       <div class="field-item">
         <div class="field-label">Initial Production (Oil)</div>
-        <div class="field-value highlight">${oilProd ? escapeHtml(String(oilProd)) + ' BOPD' : 'N/A'}</div>
+        <div class="field-value highlight">${escapeHtml(String(oilProd))} BOPD</div>
       </div>
+      ` : ''}${gasProd ? `
       <div class="field-item">
         <div class="field-label">Initial Production (Gas)</div>
-        <div class="field-value highlight">${gasProd ? escapeHtml(String(gasProd)) + ' MCFD' : 'N/A'}</div>
+        <div class="field-value highlight">${escapeHtml(String(gasProd))} MCFD</div>
       </div>
-      `
-          : ''
-      }
+      ` : ''}
     </div>
   `;
 }

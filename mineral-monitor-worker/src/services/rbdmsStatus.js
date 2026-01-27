@@ -4,7 +4,7 @@
  * in user-tracked wells only
  */
 
-import { queryAirtable, createActivityLog, userWantsAlert, getUserById } from './airtable.js';
+import { createActivityLog, userWantsAlert, getUserById } from './airtable.js';
 import { sendAlertEmail } from './email.js';
 import { getStatusDescription } from './statusChange.js';
 import { normalizeAPI } from '../utils/normalize.js';
@@ -276,20 +276,13 @@ export async function checkAllWellStatuses(env, options = {}) {
         
         // Process status change alert
         try {
-          // Get user details
-          const userQuery = await queryAirtable(
-            env,
-            env.AIRTABLE_USERS_TABLE,
-            `RECORD_ID()="${userIds[0]}"`,
-            ['Email', 'Name']
-          );
-          
-          if (!userQuery || userQuery.length === 0) {
+          // Get user details from D1
+          const user = await getUserById(env, userIds[0]);
+
+          if (!user) {
             console.error(`[RBDMS] Could not find user ${userIds[0]}`);
             continue;
           }
-          
-          const user = userQuery[0];
           const userName = user.fields.Name || user.fields.Email;
           const userOrganizations = user.fields.Organization || [];
           

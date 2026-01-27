@@ -124,6 +124,8 @@ import {
   handleStatewideActivity,
   // Statewide activity backfill handler
   handleBackfillStatewideActivity,
+  handleBackfillSectionCenters,
+  handleBackfillBhCoordinates,
   // Property-well matching handler
   handleMatchPropertyWells,
   // Debug handler
@@ -1152,7 +1154,17 @@ var index_default = {
       if (path === "/api/backfill-statewide-activity" && request.method === "POST") {
         return handleBackfillStatewideActivity(request, env);
       }
-      
+
+      // Section centers backfill endpoint
+      if (path === "/api/admin/backfill-section-centers" && request.method === "POST") {
+        return handleBackfillSectionCenters(request, env);
+      }
+
+      // BH coordinates backfill endpoint
+      if (path === "/api/admin/backfill-bh-coordinates" && request.method === "POST") {
+        return handleBackfillBhCoordinates(request, env);
+      }
+
       // Property-well matching endpoint
       if (path === "/api/match-property-wells" && request.method === "POST") {
         return handleMatchPropertyWells(request, env);

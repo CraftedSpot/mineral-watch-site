@@ -1,7 +1,22 @@
 /**
- * Airtable Service - Handles all Airtable API interactions
- * OPTIMIZED: Added batch user lookups and preloaded alert checking
+ * Airtable Service - Handles Airtable API interactions
+ * MIGRATED: Activity log now writes to D1 instead of Airtable
+ * MIGRATED: Alert preloading now reads from D1 instead of Airtable
+ *
+ * Remaining Airtable usage:
+ * - User lookups (for backward compatibility with other services)
+ * - User preferences
  */
+
+import {
+  getUserById as d1GetUserById,
+  getUserByEmail as d1GetUserByEmail,
+  batchGetUsers as d1BatchGetUsers,
+  preloadRecentAlerts as d1PreloadRecentAlerts,
+  hasRecentAlertInSet as d1HasRecentAlertInSet,
+  createActivityLog as d1CreateActivityLog,
+  updateActivityLog as d1UpdateActivityLog
+} from './d1.js';
 
 const AIRTABLE_API_BASE = 'https://api.airtable.com/v0';
 
@@ -34,108 +49,51 @@ export async function queryAirtable(env, tableId, formula) {
 
 /**
  * Get a user by their Airtable record ID
+ * MIGRATED: Now uses D1 instead of Airtable
  * @param {Object} env - Worker environment
  * @param {string} userId - Airtable record ID
  * @returns {Object|null} - User record or null
  */
 export async function getUserById(env, userId) {
-  const url = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_USERS_TABLE}/${userId}`;
-  
-  const response = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    }
-  });
-  
-  if (!response.ok) {
-    if (response.status === 404) return null;
-    const error = await response.text();
-    throw new Error(`Airtable get user failed: ${response.status} - ${error}`);
-  }
-  
-  return await response.json();
+  return d1GetUserById(env, userId);
 }
 
 /**
- * OPTIMIZATION: Batch get multiple users by their Airtable record IDs
+ * Batch get multiple users by their Airtable record IDs
+ * MIGRATED: Now uses D1 instead of Airtable
  * @param {Object} env - Worker environment
  * @param {string[]} userIds - Array of Airtable record IDs
  * @returns {Map<string, Object>} - Map of userId to user record
  */
 export async function batchGetUsers(env, userIds) {
-  const uniqueIds = [...new Set(userIds.filter(id => id))];
-  const userMap = new Map();
-  
-  if (uniqueIds.length === 0) return userMap;
-  
-  // Airtable's RECORD_ID() function lets us query by ID
-  // Chunk into batches of 50 to avoid formula length limits
-  const CHUNK_SIZE = 50;
-  
-  for (let i = 0; i < uniqueIds.length; i += CHUNK_SIZE) {
-    const chunk = uniqueIds.slice(i, i + CHUNK_SIZE);
-    const orConditions = chunk.map(id => `RECORD_ID() = "${id}"`).join(', ');
-    const formula = `AND(OR(${orConditions}), {Status} = "Active")`;
-    
-    const users = await queryAirtable(env, env.AIRTABLE_USERS_TABLE, formula);
-    
-    for (const user of users) {
-      userMap.set(user.id, user);
-    }
-  }
-  
-  console.log(`[Airtable] Batch loaded ${userMap.size} users from ${uniqueIds.length} IDs`);
-  return userMap;
+  return d1BatchGetUsers(env, userIds);
 }
 
 /**
  * Find a user by their email address
+ * MIGRATED: Now uses D1 instead of Airtable
  * @param {Object} env - Worker environment
  * @param {string} email - User email
  * @returns {Object|null} - User record or null
  */
 export async function findUserByEmail(env, email) {
-  const formula = `{Email} = "${email}"`;
-  const users = await queryAirtable(env, env.AIRTABLE_USERS_TABLE, formula);
-  return users.length > 0 ? users[0] : null;
+  return d1GetUserByEmail(env, email);
 }
 
 /**
- * OPTIMIZATION: Preload all recent alerts from the last 7 days
+ * Preload all recent alerts from the last 7 days
  * Returns a Set for O(1) lookup instead of querying per-alert
+ * MIGRATED: Now uses D1 instead of Airtable
  * @param {Object} env - Worker environment
  * @returns {Set<string>} - Set of "apiNumber|activityType|userId" keys
  */
 export async function preloadRecentAlerts(env) {
-  const sevenDaysAgo = new Date();
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-  const isoDate = sevenDaysAgo.toISOString().split('T')[0];
-  
-  const formula = `IS_AFTER({Detected At}, "${isoDate}")`;
-  
-  console.log(`[Airtable] Preloading alerts since ${isoDate}`);
-  const activities = await queryAirtable(env, env.AIRTABLE_ACTIVITY_TABLE, formula);
-  
-  const alertSet = new Set();
-  
-  for (const activity of activities) {
-    const api = activity.fields['API Number'];
-    const activityType = activity.fields['Activity Type'];
-    const userIds = activity.fields.User || [];
-    
-    for (const userId of userIds) {
-      // Key format: "apiNumber|activityType|userId"
-      alertSet.add(`${api}|${activityType}|${userId}`);
-    }
-  }
-  
-  console.log(`[Airtable] Preloaded ${alertSet.size} recent alert keys from ${activities.length} activity records`);
-  return alertSet;
+  return d1PreloadRecentAlerts(env, 7);
 }
 
 /**
- * OPTIMIZATION: Check if alert exists using preloaded Set
+ * Check if alert exists using preloaded Set
+ * (Pure function - no migration needed)
  * @param {Set<string>} alertSet - Preloaded alert set
  * @param {string} apiNumber - Well API number
  * @param {string} activityType - Type of activity
@@ -143,8 +101,7 @@ export async function preloadRecentAlerts(env) {
  * @returns {boolean} - Whether a recent alert exists
  */
 export function hasRecentAlertInSet(alertSet, apiNumber, activityType, userId) {
-  const key = `${apiNumber}|${activityType}|${userId}`;
-  return alertSet.has(key);
+  return d1HasRecentAlertInSet(alertSet, apiNumber, activityType, userId);
 }
 
 /**
@@ -185,94 +142,62 @@ export async function hasRecentAlert(env, userEmail, apiNumber, activityType) {
 
 /**
  * Create a new activity log entry
+ * MIGRATED: Now writes to D1 instead of Airtable
  * @param {Object} env - Worker environment
  * @param {Object} data - Activity data
- * @returns {Object} - Created record
+ * @returns {Object} - Created record info
  */
 export async function createActivityLog(env, data) {
-  const url = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}`;
-  
-  const fields = {
-    'Well Name': data.wellName,
-    'Detected At': new Date().toISOString(),
-    'API Number': data.apiNumber,
-    'Activity Type': data.activityType,
-    'Operator': data.operator,
-    'Alert Level': data.alertLevel,
-    'Section-Township-Range': data.sectionTownshipRange,
-    'County': data.county,
-    'Email Sent': false,
-    'User': [data.userId]  // Linked record array - Email lookup auto-populates
-  };
-  
-  // Optional fields
-  if (data.previousOperator) fields['Previous Operator'] = data.previousOperator;
-  if (data.previousValue) fields['Previous Value'] = data.previousValue;
-  if (data.newValue) fields['New Value'] = data.newValue;
-  if (data.occLink) fields['OCC Link'] = data.occLink;
-  // Note: operatorPhone is sent in email alerts but not stored in Activity Log
-  // The portal enriches operator info when displaying wells
-  if (data.notes) fields['Notes'] = data.notes;
-  if (data.formation) fields['Formation'] = data.formation; // Add formation field
-  // Note: coordinateSource is tracked internally but not stored in Activity Log
-  // Always include OCC Map Link field (empty string if no link)
-  fields['OCC Map Link'] = data.mapLink || "";
-  console.log(`[Airtable] OCC Map Link field set to: ${fields['OCC Map Link']}`);
-  
-  // Add MyMineralWatch map link if we have an API number
-  if (data.apiNumber) {
-    fields['Map Link'] = `https://portal.mymineralwatch.com/map?well=${data.apiNumber}`;
-    console.log(`[Airtable] MyMineralWatch Map Link set for API ${data.apiNumber}`);
-  }
-  
-  // Note: Organization field removed - doesn't exist in Activity table yet
-  // If you want to track org on activities, add "Organization" linked field to Activity table in Airtable first
-  // if (data.organizationId) {
-  //   fields['Organization'] = [data.organizationId];
-  // }
-  
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ fields })
+  console.log(`[D1] Creating activity log for ${data.apiNumber} - ${data.activityType}`);
+
+  const result = await d1CreateActivityLog(env, {
+    userId: data.userId,
+    organizationId: data.organizationId || null,
+    apiNumber: data.apiNumber,
+    wellName: data.wellName,
+    operator: data.operator,
+    previousOperator: data.previousOperator,
+    activityType: data.activityType,
+    alertLevel: data.alertLevel,
+    previousValue: data.previousValue,
+    newValue: data.newValue,
+    county: data.county,
+    sectionTownshipRange: data.sectionTownshipRange,
+    formation: data.formation,
+    occLink: data.occLink,
+    mapLink: data.mapLink,
+    emailSent: false,
+    detectedAt: new Date().toISOString()
   });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Airtable create activity failed: ${response.status} - ${error}`);
-  }
-  
-  return await response.json();
+
+  // Return in Airtable-like format for compatibility
+  return {
+    id: result.id,
+    fields: {
+      'Well Name': data.wellName,
+      'API Number': data.apiNumber,
+      'Activity Type': data.activityType,
+      'Email Sent': false
+    }
+  };
 }
 
 /**
  * Update an activity log entry (e.g., mark email as sent)
+ * MIGRATED: Now updates D1 instead of Airtable
  * @param {Object} env - Worker environment
- * @param {string} recordId - Activity log record ID
+ * @param {string|number} recordId - Activity log record ID
  * @param {Object} fields - Fields to update
- * @returns {Object} - Updated record
+ * @returns {Object} - Update result
  */
 export async function updateActivityLog(env, recordId, fields) {
-  const url = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_ACTIVITY_TABLE}/${recordId}`;
-  
-  const response = await fetch(url, {
-    method: 'PATCH',
-    headers: {
-      'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      'Content-Type': 'application/json'
-    },
-    body: JSON.stringify({ fields })
-  });
-  
-  if (!response.ok) {
-    const error = await response.text();
-    throw new Error(`Airtable update activity failed: ${response.status} - ${error}`);
+  // Map Airtable field names to D1 updates
+  const updates = {};
+  if (fields['Email Sent'] !== undefined) {
+    updates.emailSent = fields['Email Sent'];
   }
 
-  return await response.json();
+  return d1UpdateActivityLog(env, recordId, updates);
 }
 
 /**

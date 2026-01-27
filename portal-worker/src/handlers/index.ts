@@ -108,6 +108,12 @@ export { handleStatewideActivity } from './statewide.js';
 // Statewide activity backfill handler
 export { handleBackfillStatewideActivity } from './backfill-statewide-activity.js';
 
+// Section centers backfill handler
+export { handleBackfillSectionCenters } from './backfill-section-centers.js';
+
+// BH coordinates backfill handler
+export { handleBackfillBhCoordinates } from './backfill-bh-coordinates.js';
+
 // Organization handlers
 export {
   handleGetOrganization,

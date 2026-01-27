@@ -3,7 +3,7 @@
  * Detects and alerts on well status changes during daily monitoring
  */
 
-import { queryAirtable, createActivityLog } from './airtable.js';
+import { createActivityLog } from './airtable.js';
 import { sendAlertEmail } from './email.js';
 import { normalizeAPI } from '../utils/normalize.js';
 import { getCoordinatesWithFallback } from '../utils/coordinates.js';

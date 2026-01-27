@@ -14,11 +14,11 @@ import {
   hasRecentAlertInSet,
   createActivityLog,
   updateActivityLog,
-  queryAirtable,
   batchGetUsers,
   userWantsAlert,
   getUserById
 } from '../services/airtable.js';
+import { batchGetPropertiesByLocations } from '../services/d1.js';
 import { sendAlertEmail } from '../services/email.js';
 import { sendBatchedEmails } from '../services/emailBatch.js';
 import { normalizeSection, normalizeAPI } from '../utils/normalize.js';
@@ -99,6 +99,7 @@ async function saveProcessedAPIs(env, processedSet) {
 
 /**
  * Batch load all properties for the sections we need to check
+ * MIGRATED: Now uses D1 instead of Airtable
  * @param {Array} permits - Array of permit records
  * @param {Array} completions - Array of completion records
  * @param {Object} env - Worker environment
@@ -106,46 +107,39 @@ async function saveProcessedAPIs(env, processedSet) {
  */
 async function batchLoadProperties(permits, completions, env) {
   const sectionsToLoad = new Set();
-  
+
   // Collect all sections from permits
   for (const permit of permits) {
     addSectionsForRecord(permit, sectionsToLoad, 'permit');
   }
-  
+
   // Collect all sections from completions
   for (const completion of completions) {
     addSectionsForRecord(completion, sectionsToLoad, 'completion');
   }
-  
+
   console.log(`[Daily] Batch loading properties for ${sectionsToLoad.size} unique sections`);
-  
-  // Build OR query for all sections
-  const sectionQueries = Array.from(sectionsToLoad).map(key => {
+
+  // Convert section keys to location objects for D1 query
+  const locations = Array.from(sectionsToLoad).map(key => {
     const [section, township, range, meridian] = key.split('|');
-    return `AND({SEC}="${section}",{TWN}="${township}",{RNG}="${range}",{MERIDIAN}="${meridian}",{Status}="Active")`;
+    return { section, township, range, meridian };
   });
-  
-  // Chunk if needed (Airtable formula limit)
-  const CHUNK_SIZE = 50;
+
+  // Query D1 for all properties in these locations
+  const properties = await batchGetPropertiesByLocations(env, locations);
+
+  // Index by section key
   const propertyMap = new Map();
-  
-  for (let i = 0; i < sectionQueries.length; i += CHUNK_SIZE) {
-    const chunk = sectionQueries.slice(i, i + CHUNK_SIZE);
-    const formula = `OR(${chunk.join(',')})`;
-    
-    const properties = await queryAirtable(env, env.AIRTABLE_PROPERTIES_TABLE, formula);
-    
-    // Index by section key
-    for (const prop of properties) {
-      const key = `${prop.fields.SEC}|${prop.fields.TWN}|${prop.fields.RNG}|${prop.fields.MERIDIAN}`;
-      if (!propertyMap.has(key)) {
-        propertyMap.set(key, []);
-      }
-      propertyMap.get(key).push(prop);
+  for (const prop of properties) {
+    const key = `${prop.fields.SEC}|${prop.fields.TWN}|${prop.fields.RNG}|${prop.fields.MERIDIAN}`;
+    if (!propertyMap.has(key)) {
+      propertyMap.set(key, []);
     }
+    propertyMap.get(key).push(prop);
   }
-  
-  console.log(`[Daily] Loaded ${propertyMap.size} sections with properties`);
+
+  console.log(`[Daily] Loaded ${propertyMap.size} sections with properties from D1`);
   return propertyMap;
 }
 

@@ -97,6 +97,44 @@ async function fetchAirtableRecords(
   return response.json();
 }
 
+/**
+ * Remove D1 records that no longer exist in Airtable.
+ * Compares D1 airtable IDs against the set fetched from Airtable
+ * and deletes any that are missing (orphaned).
+ */
+async function cleanupOrphans(
+  env: any,
+  tableName: string,
+  airtableIdColumn: string,
+  validAirtableIds: Set<string>
+): Promise<number> {
+  const d1Records = await env.WELLS_DB.prepare(
+    `SELECT ${airtableIdColumn} FROM ${tableName} WHERE ${airtableIdColumn} IS NOT NULL`
+  ).all();
+
+  const orphanIds: string[] = [];
+  for (const row of d1Records.results) {
+    const atId = row[airtableIdColumn] as string;
+    if (atId && !validAirtableIds.has(atId)) {
+      orphanIds.push(atId);
+    }
+  }
+
+  if (orphanIds.length === 0) return 0;
+
+  // Delete orphans in batches of 100
+  for (let i = 0; i < orphanIds.length; i += 100) {
+    const chunk = orphanIds.slice(i, i + 100);
+    const stmts = chunk.map(id =>
+      env.WELLS_DB.prepare(`DELETE FROM ${tableName} WHERE ${airtableIdColumn} = ?`).bind(id)
+    );
+    await env.WELLS_DB.batch(stmts);
+  }
+
+  console.log(`[Sync] Removed ${orphanIds.length} orphaned records from ${tableName}`);
+  return orphanIds.length;
+}
+
 export async function syncAirtableData(env: any): Promise<SyncResult> {
   const startTime = Date.now();
   const result: SyncResult = {
@@ -186,6 +224,14 @@ export async function syncAirtableData(env: any): Promise<SyncResult> {
       }
     }
 
+    // Auto-geocode BH coordinates for wells with section info but no lat/lng
+    try {
+      await geocodeBhFromSectionCenters(env);
+    } catch (error) {
+      console.error('[Sync] BH geocoding error:', error);
+      // Non-fatal - don't fail the sync
+    }
+
     return result;
   } catch (error) {
     // Update sync log with error
@@ -224,18 +270,23 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
 
     console.log(`Total properties to sync: ${allRecords.length}`);
 
-    if (allRecords.length === 0) {
-      return result;
-    }
-
     // Prepare batch statements
     const statements = allRecords.map(record => {
       const id = `prop_${record.id}`;
       const fields = record.fields || {};
 
+      // Extract user and organization IDs from linked records
+      const userId = fields['User']?.[0] || null;
+      const orgId = fields['Organization']?.[0] || null;
+
       return env.WELLS_DB.prepare(`
-        INSERT INTO properties (id, airtable_record_id, county, section, township, range, meridian, acres, net_acres, notes, owner, group_name, synced_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        INSERT INTO properties (
+          id, airtable_record_id, county, section, township, range, meridian,
+          acres, net_acres, ri_acres, wi_acres, notes, owner, group_name,
+          user_id, organization_id, monitor_adjacent, status, occ_map_link,
+          synced_at, updated_at
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
         ON CONFLICT(airtable_record_id) DO UPDATE SET
           county = excluded.county,
           section = excluded.section,
@@ -244,10 +295,18 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
           meridian = excluded.meridian,
           acres = excluded.acres,
           net_acres = excluded.net_acres,
+          ri_acres = excluded.ri_acres,
+          wi_acres = excluded.wi_acres,
           notes = excluded.notes,
           owner = excluded.owner,
           group_name = excluded.group_name,
-          synced_at = CURRENT_TIMESTAMP
+          user_id = excluded.user_id,
+          organization_id = excluded.organization_id,
+          monitor_adjacent = excluded.monitor_adjacent,
+          status = excluded.status,
+          occ_map_link = excluded.occ_map_link,
+          synced_at = CURRENT_TIMESTAMP,
+          updated_at = CURRENT_TIMESTAMP
       `).bind(
         id,
         record.id,
@@ -256,32 +315,43 @@ async function syncProperties(env: any): Promise<SyncResult['properties']> {
         fields.TWN || null,
         fields.RNG || null,
         fields.MERIDIAN || null,
-        parseNumber(fields.ACRES),
-        parseNumber(fields['NET ACRES']),
+        parseNumber(fields['RI Acres']),           // acres = RI Acres
+        parseNumber(fields['WI Acres']),           // net_acres = WI Acres
+        parseNumber(fields['RI Acres']),           // ri_acres (explicit)
+        parseNumber(fields['WI Acres']),           // wi_acres (explicit)
         fields.Notes || null,
-        fields['User']?.[0] || null,
-        fields.Group || null
+        userId,                                     // owner (legacy, same as user_id)
+        fields.Group || null,
+        userId,                                     // user_id
+        orgId,                                      // organization_id
+        fields['Monitor Adjacent'] ? 1 : 0,        // monitor_adjacent
+        fields.Status || 'Active',                 // status
+        fields['OCC Map Link'] || null             // occ_map_link
       );
     });
 
     // Execute statements in chunks
-    console.log(`Executing batch insert/update for ${statements.length} properties...`);
-    
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-      const chunk = statements.slice(i, i + BATCH_SIZE);
-      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
-      console.log(`Processing properties ${i + 1}-${chunkEnd} of ${statements.length}`);
-      
-      await env.WELLS_DB.batch(chunk);
+    if (statements.length > 0) {
+      console.log(`Executing batch insert/update for ${statements.length} properties...`);
+
+      for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+        const chunk = statements.slice(i, i + BATCH_SIZE);
+        const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+        console.log(`Processing properties ${i + 1}-${chunkEnd} of ${statements.length}`);
+
+        await env.WELLS_DB.batch(chunk);
+      }
     }
-    
+
     // Count results
     result.synced = allRecords.length;
-    // Since we're using UPSERT, we can't easily distinguish creates vs updates
-    // Just report total synced
     result.created = 0;
     result.updated = result.synced;
-    
+
+    // Clean up D1 records deleted from Airtable
+    const validPropertyIds = new Set(allRecords.map(r => r.id));
+    await cleanupOrphans(env, 'properties', 'airtable_record_id', validPropertyIds);
+
   } catch (error) {
     result.errors.push(`Properties sync failed: ${error.message}`);
     console.error('Properties sync error:', error);
@@ -316,10 +386,6 @@ async function syncClientWells(env: any): Promise<SyncResult['clientWells']> {
     } while (offset);
 
     console.log(`Total client wells to sync: ${allRecords.length}`);
-
-    if (allRecords.length === 0) {
-      return result;
-    }
 
     // Prepare batch statements for UPSERT
     const statements = allRecords.map(record => {
@@ -406,22 +472,47 @@ async function syncClientWells(env: any): Promise<SyncResult['clientWells']> {
     });
 
     // Execute statements in chunks
-    console.log(`Executing batch insert/update for ${statements.length} client wells...`);
+    if (statements.length > 0) {
+      console.log(`Executing batch insert/update for ${statements.length} client wells...`);
 
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-      const chunk = statements.slice(i, i + BATCH_SIZE);
-      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
-      console.log(`Processing client wells ${i + 1}-${chunkEnd} of ${statements.length}`);
+      for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+        const chunk = statements.slice(i, i + BATCH_SIZE);
+        const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+        console.log(`Processing client wells ${i + 1}-${chunkEnd} of ${statements.length}`);
 
-      await env.WELLS_DB.batch(chunk);
+        await env.WELLS_DB.batch(chunk);
+      }
     }
 
     // Count results
     result.synced = allRecords.length;
-    result.created = 0; // Can't distinguish with UPSERT
+    result.created = 0;
     result.updated = result.synced;
 
     console.log(`[Sync] Successfully synced ${result.synced} client wells to D1`);
+
+    // Clean up D1 records deleted from Airtable
+    const validWellIds = new Set(allRecords.map(r => r.id));
+    await cleanupOrphans(env, 'client_wells', 'airtable_id', validWellIds);
+
+    // Enrich client_wells with data from main wells table (horizontal, BH location, etc.)
+    if (allRecords.length > 0) {
+      console.log(`[Sync] Enriching client wells with OCC data from wells table...`);
+      const enrichResult = await env.WELLS_DB.prepare(`
+        UPDATE client_wells
+        SET
+          is_horizontal = (SELECT w.is_horizontal FROM wells w WHERE w.api_number = client_wells.api_number),
+          bh_section = (SELECT w.bh_section FROM wells w WHERE w.api_number = client_wells.api_number),
+          bh_township = (SELECT w.bh_township FROM wells w WHERE w.api_number = client_wells.api_number),
+          bh_range = (SELECT w.bh_range FROM wells w WHERE w.api_number = client_wells.api_number),
+          bh_latitude = (SELECT w.bh_latitude FROM wells w WHERE w.api_number = client_wells.api_number),
+          bh_longitude = (SELECT w.bh_longitude FROM wells w WHERE w.api_number = client_wells.api_number),
+          lateral_length = COALESCE(lateral_length, (SELECT w.lateral_length FROM wells w WHERE w.api_number = client_wells.api_number))
+        WHERE status = 'Active'
+        AND api_number IN (SELECT api_number FROM wells)
+      `).run();
+      console.log(`[Sync] Enriched ${enrichResult.meta.changes} client wells with OCC data`);
+    }
 
   } catch (error) {
     result.errors.push(`Client wells sync failed: ${error.message}`);
@@ -695,10 +786,6 @@ async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
 
     console.log(`Total property-well links to sync: ${allRecords.length}`);
 
-    if (allRecords.length === 0) {
-      return result;
-    }
-
     // Prepare batch statements
     const statements = allRecords.map(record => {
       const id = `link_${record.id}`;
@@ -720,9 +807,10 @@ async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
           id, airtable_record_id, property_airtable_id, well_airtable_id,
           match_reason, status, confidence_score,
           user_id, organization_id,
+          link_name, link_type,
           created_at, rejected_date, synced_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(airtable_record_id) DO UPDATE SET
           property_airtable_id = excluded.property_airtable_id,
           well_airtable_id = excluded.well_airtable_id,
@@ -731,6 +819,8 @@ async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
           confidence_score = excluded.confidence_score,
           user_id = excluded.user_id,
           organization_id = excluded.organization_id,
+          link_name = excluded.link_name,
+          link_type = excluded.link_type,
           rejected_date = excluded.rejected_date,
           synced_at = CURRENT_TIMESTAMP
       `).bind(
@@ -743,33 +833,133 @@ async function syncPropertyWellLinks(env: any): Promise<SyncResult['links']> {
         parseNumber(fields['Confidence Score']),
         userId,
         orgId,
+        fields['Link Name'] || null,               // link_name (e.g., "SUSAN #1-15H → S22-T21N-R15W")
+        fields['Link Type'] || 'Auto',             // link_type (Auto or Manual)
         formatDate(record.createdTime),
         fields['Status'] === 'Rejected' ? formatDate(fields['Rejected Date']) : null
       );
     }).filter(stmt => stmt !== null); // Remove any null statements
 
     // Execute statements in chunks
-    console.log(`Executing batch insert/update for ${statements.length} property-well links...`);
-    
-    for (let i = 0; i < statements.length; i += BATCH_SIZE) {
-      const chunk = statements.slice(i, i + BATCH_SIZE);
-      const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
-      console.log(`Processing links ${i + 1}-${chunkEnd} of ${statements.length}`);
-      
-      await env.WELLS_DB.batch(chunk);
+    if (statements.length > 0) {
+      console.log(`Executing batch insert/update for ${statements.length} property-well links...`);
+
+      for (let i = 0; i < statements.length; i += BATCH_SIZE) {
+        const chunk = statements.slice(i, i + BATCH_SIZE);
+        const chunkEnd = Math.min(i + BATCH_SIZE, statements.length);
+        console.log(`Processing links ${i + 1}-${chunkEnd} of ${statements.length}`);
+
+        await env.WELLS_DB.batch(chunk);
+      }
     }
-    
+
     result.synced = statements.length;
-    result.created = 0; // We're using UPSERT
+    result.created = 0;
     result.updated = result.synced;
-    
+
     console.log(`[Sync] Successfully synced ${result.synced} property-well links`);
-    
+
+    // Clean up D1 records deleted from Airtable
+    const validLinkIds = new Set(allRecords.map(r => r.id));
+    await cleanupOrphans(env, 'property_well_links', 'airtable_record_id', validLinkIds);
+
   } catch (error) {
     result.errors.push(`Links sync failed: ${error.message}`);
     console.error('Property-well links sync error:', error);
     // Don't throw - let other syncs complete
   }
-  
+
   return result;
+}
+
+/**
+ * Auto-geocode BH coordinates for wells that have section/township/range
+ * but no lat/lng. Uses PLSS section centers as approximate coordinates.
+ * Only processes wells without existing BH coordinates (won't overwrite OCC API data).
+ * Runs as part of the sync cycle to catch newly loaded wells.
+ */
+async function geocodeBhFromSectionCenters(env: any): Promise<void> {
+  // Check if any wells need geocoding
+  const needGeocode = await env.WELLS_DB.prepare(`
+    SELECT COUNT(*) as count FROM wells
+    WHERE bh_section IS NOT NULL
+      AND bh_township IS NOT NULL
+      AND bh_latitude IS NULL
+  `).first();
+
+  const count = needGeocode?.count as number || 0;
+  if (count === 0) {
+    console.log('[Sync] No wells need BH geocoding');
+    return;
+  }
+
+  console.log(`[Sync] Geocoding BH coordinates for ${count} wells from section centers`);
+
+  // Fetch wells that need geocoding (limit per sync cycle to avoid timeout)
+  const MAX_PER_CYCLE = 500;
+  const wells = await env.WELLS_DB.prepare(`
+    SELECT id, bh_section, bh_township, bh_range, meridian
+    FROM wells
+    WHERE bh_section IS NOT NULL
+      AND bh_township IS NOT NULL
+      AND bh_latitude IS NULL
+    LIMIT ?
+  `).bind(MAX_PER_CYCLE).all();
+
+  if (wells.results.length === 0) return;
+
+  // Build lookup keys and fetch matching sections
+  const statements: any[] = [];
+  let updated = 0;
+
+  for (const well of wells.results) {
+    const township = well.bh_township as string;
+    const range = well.bh_range as string;
+    const meridianRaw = (well.meridian as string || '').toUpperCase();
+
+    if (!township || !range) continue;
+
+    // Convert formats: wells "27N" → plss "270N", wells "09W" → plss "9W"
+    const twpDir = township.slice(-1);
+    const twpNum = parseInt(township.slice(0, -1), 10);
+    const rngDir = range.slice(-1);
+    const rngNum = parseInt(range.slice(0, -1), 10);
+    const meridian = meridianRaw === 'IM' ? 'indian' : meridianRaw === 'CM' ? 'cimarron' : null;
+
+    if (isNaN(twpNum) || isNaN(rngNum) || !meridian) continue;
+
+    const plssTownship = `${twpNum * 10}${twpDir}`;
+    const plssRange = `${rngNum}${rngDir}`;
+    const section = String(well.bh_section);
+
+    // Look up section center
+    const sectionRow = await env.WELLS_DB.prepare(`
+      SELECT center_lat, center_lng FROM plss_sections
+      WHERE (section = ? OR section = ?)
+        AND township = ?
+        AND range = ?
+        AND meridian = ?
+        AND center_lat IS NOT NULL
+      LIMIT 1
+    `).bind(section, section.padStart(2, '0'), plssTownship, plssRange, meridian).first();
+
+    if (sectionRow) {
+      statements.push(
+        env.WELLS_DB.prepare(`
+          UPDATE wells SET bh_latitude = ?, bh_longitude = ?, bh_coordinate_source = 'section_center'
+          WHERE id = ?
+        `).bind(sectionRow.center_lat, sectionRow.center_lng, well.id)
+      );
+      updated++;
+    }
+  }
+
+  // Execute in D1 batch chunks of 100
+  const DB_BATCH = 100;
+  for (let i = 0; i < statements.length; i += DB_BATCH) {
+    const chunk = statements.slice(i, i + DB_BATCH);
+    await env.WELLS_DB.batch(chunk);
+  }
+
+  console.log(`[Sync] Geocoded ${updated} wells with section center coordinates (${count - updated > MAX_PER_CYCLE ? 'more remaining' : count - updated + ' unmatched'})`);
 }
