@@ -223,51 +223,62 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   // Get user's current properties for duplicate checking
   const existingProperties = await fetchUserProperties(env, user.email);
   const existingSet = new Set(
-    existingProperties.map(p => 
-      `${p.SEC}-${p.TWN}-${p.RNG}-${p.MERIDIAN || 'IM'}`
+    existingProperties.map(p =>
+      `${p.SEC}-${p.TWN}-${p.RNG}-${p.MERIDIAN || 'IM'}-${p.GROUP || ''}`
     )
   );
-  
+
   // Get user's plan limits
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
   const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
-  
+
   const propertiesCount = await countUserProperties(env, user.email);
   const currentPropertyCount = propertiesCount;
-  
+
+  // Track keys seen within this batch for intra-batch duplicate detection
+  const seenInBatch = new Map<string, number>(); // key → first row index
+
   // Validate each property
   const results = properties.map((prop: any, index: number) => {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
+
     // Normalize data
     const normalized = normalizePropertyData(prop);
-    
+
     // Validate required fields
     if (!normalized.SEC) {
       errors.push("Missing section number");
     } else if (normalized.SEC < 1 || normalized.SEC > 36) {
       errors.push("Section must be 1-36");
     }
-    
+
     if (!normalized.TWN) {
       errors.push("Missing township");
     } else if (!validateTownship(normalized.TWN)) {
       errors.push("Invalid township format (e.g. 12N)");
     }
-    
+
     if (!normalized.RNG) {
       errors.push("Missing range");
     } else if (!validateRange(normalized.RNG)) {
       errors.push("Invalid range format (e.g. 4W)");
     }
-    
-    // Check for duplicates
-    const key = `${normalized.SEC}-${normalized.TWN}-${normalized.RNG}-${normalized.MERIDIAN}`;
-    const isDuplicate = existingSet.has(key);
-    if (isDuplicate) {
+
+    // Check for duplicates (existing properties + within this batch)
+    const key = `${normalized.SEC}-${normalized.TWN}-${normalized.RNG}-${normalized.MERIDIAN}-${normalized.GROUP || ''}`;
+    const existsDuplicate = existingSet.has(key);
+    const batchDupeRow = seenInBatch.get(key);
+    const batchDuplicate = batchDupeRow !== undefined;
+    const isDuplicate = existsDuplicate || batchDuplicate;
+
+    if (existsDuplicate) {
       warnings.push("Already monitoring this property");
+    } else if (batchDuplicate) {
+      warnings.push(`Duplicate of row ${batchDupeRow! + 1} in this upload`);
+    } else {
+      seenInBatch.set(key, index);
     }
 
     // Note: Meridian defaults intelligently based on county (CM for Panhandle, IM for others)
@@ -343,18 +354,19 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
   // Get existing properties for duplicate check
   const existingProperties = await fetchUserProperties(env, user.email);
   const existingSet = new Set(
-    existingProperties.map(p => 
-      `${p.SEC}-${p.TWN}-${p.RNG}-${p.MERIDIAN || 'IM'}`
+    existingProperties.map(p =>
+      `${p.SEC}-${p.TWN}-${p.RNG}-${p.MERIDIAN || 'IM'}-${p.GROUP || ''}`
     )
   );
-  
-  // Filter out duplicates and invalid
+
+  // Filter out duplicates (existing + intra-batch) and invalid
+  const seenInUpload = new Set<string>();
   const toCreate = properties.filter((prop: any) => {
-    const key = `${prop.SEC}-${prop.TWN}-${prop.RNG}-${prop.MERIDIAN}`;
-    return !existingSet.has(key) && 
-           prop.SEC >= 1 && prop.SEC <= 36 &&
-           validateTownship(prop.TWN) &&
-           validateRange(prop.RNG);
+    const key = `${prop.SEC}-${prop.TWN}-${prop.RNG}-${prop.MERIDIAN}-${prop.GROUP || ''}`;
+    if (existingSet.has(key) || seenInUpload.has(key)) return false;
+    if (prop.SEC < 1 || prop.SEC > 36 || !validateTownship(prop.TWN) || !validateRange(prop.RNG)) return false;
+    seenInUpload.add(key);
+    return true;
   });
   
   console.log(`Bulk upload: Creating ${toCreate.length} properties for ${user.email}`);
@@ -935,30 +947,33 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     
     if (cleanApi && cleanApi.length === 10 && cleanApi.startsWith('35')) {
       // Valid API provided - use it directly
-      const isDuplicate = existingSet.has(cleanApi);
-      if (isDuplicate) {
+      const existsDuplicate = existingSet.has(cleanApi);
+      if (existsDuplicate) {
         warnings.push("Already tracking this well");
       }
-      
+
       // Check for duplicate in this batch
       const batchDuplicates = wells.slice(0, index).filter((w: any) => {
         const api = String(w.API || w.api || w['API Number'] || w.apiNumber || '').replace(/\D/g, '');
         return api === cleanApi;
       });
-      if (batchDuplicates.length > 0) {
+      const batchDuplicate = batchDuplicates.length > 0;
+      if (batchDuplicate) {
         warnings.push("Duplicate in this file");
       }
-      
+
+      const isDuplicate = existsDuplicate || batchDuplicate;
+
       // Combine well name and number for preview
-      const wellNameField = well.WELL_NAME || well['Well_Name'] || well['Well Name'] || 
+      const wellNameField = well.WELL_NAME || well['Well_Name'] || well['Well Name'] ||
                            well.well_name || well.WellName || well.wellName || '';
-      const wellNumberField = well.WELL_NUM || well['Well_Num'] || well['WELL_NUMBER'] || 
-                             well['Well Number'] || well['well_number'] || well.WellNumber || 
+      const wellNumberField = well.WELL_NUM || well['Well_Num'] || well['WELL_NUMBER'] ||
+                             well['Well Number'] || well['well_number'] || well.WellNumber ||
                              well.wellNumber || well.well_num || '';
-      const combinedWellName = wellNameField && wellNumberField 
-        ? `${wellNameField.trim()} ${wellNumberField.trim()}` 
+      const combinedWellName = wellNameField && wellNumberField
+        ? `${wellNameField.trim()} ${wellNumberField.trim()}`
         : wellNameField || '';
-      
+
       return {
         row: index + 1,
         original: well,
@@ -1190,14 +1205,15 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   
   // Process wells based on their match status and selections
   const toCreate: any[] = [];
-  
+  const seenInUpload = new Set<string>(); // Intra-batch dedup safety net
+
   wells.forEach((well: any, index: number) => {
     // Skip invalid or duplicate wells
     if (!well.isValid || well.isDuplicate) return;
-    
+
     let apiNumber = '';
     let wellName = '';
-    
+
     if (well.matchStatus === 'has_api' && well.normalized) {
       // Direct API provided
       apiNumber = well.normalized.apiNumber;
@@ -1220,11 +1236,12 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
         wellName = selectedMatch.well_name;
       }
     }
-    
+
     if (apiNumber) {
-      if (existingSet.has(apiNumber)) {
+      if (existingSet.has(apiNumber) || seenInUpload.has(apiNumber)) {
         console.log(`[BulkUpload] Skipping duplicate: ${apiNumber} - ${wellName}`);
       } else {
+        seenInUpload.add(apiNumber);
         toCreate.push({
           apiNumber,
           wellName,

@@ -533,11 +533,11 @@ export default {
 
       try {
         const startTime = Date.now();
+        const lookbackDays = parseInt(url.searchParams.get('lookback') || '7', 10);
         const results = await runDocketMonitor(env, {
           dryRun,
           skipAlerts,
-          // If specific date/type provided, we'd need to modify runDocketMonitor
-          // For now, it processes today and yesterday
+          lookbackDays: Math.min(lookbackDays, 90), // Cap at 90 days
         });
 
         return new Response(JSON.stringify({

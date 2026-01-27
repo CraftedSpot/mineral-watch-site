@@ -58,6 +58,7 @@ export interface SimplifiedProperty {
   TWN: string;
   RNG: string;
   MERIDIAN: string;
+  GROUP: string;
 }
 
 export interface SimplifiedWell {
@@ -369,7 +370,8 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
     SEC: r.fields.SEC,
     TWN: r.fields.TWN,
     RNG: r.fields.RNG,
-    MERIDIAN: r.fields.MERIDIAN || 'IM'
+    MERIDIAN: r.fields.MERIDIAN || 'IM',
+    GROUP: r.fields.Group || ''
   }));
 }
 

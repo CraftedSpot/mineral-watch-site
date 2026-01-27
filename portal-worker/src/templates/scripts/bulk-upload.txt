@@ -324,6 +324,7 @@ function renderPreviewTable() {
                 <td>${escapeHtmlBulk(prop.RNG) || '-'}</td>
                 <td>${escapeHtmlBulk(prop.MERIDIAN) || '-'}</td>
                 <td>${escapeHtmlBulk(cleanCountyDisplay(prop.COUNTY)) || '-'}</td>
+                <td>${escapeHtmlBulk(prop.GROUP) || '-'}</td>
                 <td class="status-cell ${statusClass}">
                     ${statusText}
                 </td>

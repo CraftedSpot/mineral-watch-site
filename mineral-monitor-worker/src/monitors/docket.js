@@ -635,12 +635,14 @@ export async function runDocketMonitor(env, options = {}) {
     errors: []
   };
 
+  const lookbackDays = options.lookbackDays || 7;
+
   // Process both OKC and Tulsa dockets
   for (const docketType of ['okc', 'tulsa']) {
     try {
-      // Look back 7 days to catch any missed dockets from prior runs.
+      // Look back N days to catch any missed dockets from prior runs.
       // Duplicates are handled by ON CONFLICT(case_number) in storeDocketEntries.
-      for (const daysAgo of [0, 1, 2, 3, 4, 5, 6]) {
+      for (let daysAgo = 0; daysAgo < lookbackDays; daysAgo++) {
         const date = new Date(today);
         date.setDate(date.getDate() - daysAgo);
 
