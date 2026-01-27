@@ -350,25 +350,51 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     const processedProperties = processProperties(properties);
     const processedWells = processWells(wells);
 
-    // Find matches
+    // Find matches with detailed diagnostics
     const linksToCreate: any[] = [];
     let matchesFound = 0;
     let skippedExisting = 0;
-    
+    const matchesByType: Record<string, number> = {};
+    let propertiesWithNoLocation = 0;
+    let wellsWithNoSurface = 0;
+    let wellsWithBH = 0;
+    let wellsWithSectionsAffected = 0;
+
+    // Count property/well data quality
+    for (const p of processedProperties) {
+      if (!p.location) propertiesWithNoLocation++;
+    }
+    for (const w of processedWells) {
+      if (!w.surfaceLocation) wellsWithNoSurface++;
+      if (w.bottomHoleLocation) wellsWithBH++;
+      if (w.sectionsAffected.length > 0) wellsWithSectionsAffected++;
+    }
+
+    // Count existing links by match reason
+    const existingByReason: Record<string, number> = {};
+    for (const link of existingLinks) {
+      const reason = link.fields[LINK_FIELDS.MATCH_REASON] || 'Unknown';
+      existingByReason[reason] = (existingByReason[reason] || 0) + 1;
+    }
+
+    console.log(`[PropertyWellMatch] Data quality: ${propertiesWithNoLocation} props without location, ${wellsWithNoSurface} wells without surface, ${wellsWithBH} wells with BH, ${wellsWithSectionsAffected} wells with sections affected`);
+    console.log(`[PropertyWellMatch] Existing links by reason:`, existingByReason);
+
     for (const property of processedProperties) {
       for (const well of processedWells) {
         const linkKey = `${property.id}-${well.id}`;
-        
+
         // Skip if link already exists
         if (existingLinkKeys.has(linkKey)) {
           skippedExisting++;
           continue;
         }
-        
+
         // Check for match
         const { matched, reason } = findBestMatch(property, well);
         if (matched) {
           matchesFound++;
+          matchesByType[reason] = (matchesByType[reason] || 0) + 1;
           
           // Create link name
           const wellName = well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown Well';
@@ -508,7 +534,15 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       linksSkipped: skippedExisting,
       existingLinks: existingLinks.length,
       d1Synced,
-      errors: failed
+      errors: failed,
+      newMatchesByType: matchesByType,
+      existingLinksByType: existingByReason,
+      dataQuality: {
+        propertiesWithNoLocation,
+        wellsWithNoSurface,
+        wellsWithBH,
+        wellsWithSectionsAffected
+      }
     };
 
     console.log(`[PropertyWellMatch] Completed in ${duration}s:`, stats);

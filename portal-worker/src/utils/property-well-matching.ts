@@ -398,10 +398,62 @@ export function checkMatch(
 }
 
 /**
+ * Compute sections crossed by a lateral well path using Bresenham's line
+ * algorithm on the PLSS section grid. Given a surface section and bottom hole
+ * section (within the same township), returns all sections the lateral passes through.
+ */
+export function computeLateralSections(surfaceSection: number, bhSection: number): number[] {
+  if (surfaceSection === bhSection) return [];
+
+  const surfacePos = SECTION_POS.get(surfaceSection);
+  const bhPos = SECTION_POS.get(bhSection);
+  if (!surfacePos || !bhPos) return [];
+
+  const [r0, c0] = surfacePos;
+  const [r1, c1] = bhPos;
+
+  // Bresenham's line algorithm to trace grid cells between surface and BH
+  const sections = new Set<number>();
+  const dx = Math.abs(c1 - c0);
+  const dy = Math.abs(r1 - r0);
+  const sx = c0 < c1 ? 1 : -1;
+  const sy = r0 < r1 ? 1 : -1;
+  let err = dx - dy;
+  let x = c0, y = r0;
+
+  while (true) {
+    sections.add(SECTION_GRID[y][x]);
+    if (x === c1 && y === r1) break;
+    const e2 = 2 * err;
+    // For diagonal moves, include both intermediate sections for broader coverage
+    if (e2 > -dy && e2 < dx) {
+      // Diagonal step — also include the two cells on either side of the diagonal
+      sections.add(SECTION_GRID[y][x + sx]);
+      sections.add(SECTION_GRID[y + sy][x]);
+      err -= dy;
+      err += dx;
+      x += sx;
+      y += sy;
+    } else if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    } else {
+      err += dx;
+      y += sy;
+    }
+  }
+
+  return Array.from(sections);
+}
+
+/**
  * Enrich Airtable well records with BH location data from D1 wells table.
  * The matching reads wells from Airtable, but BH Section/Township/Range are
  * often only in the statewide wells table. This fills in the gaps so
  * Bottom Hole matching (Priority 3) works for lateral wells.
+ *
+ * Also auto-computes "Sections Affected" for horizontal wells by tracing the
+ * lateral path between surface and BH sections on the PLSS grid.
  */
 export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<void> {
   // Collect API numbers for wells missing BH data
@@ -423,32 +475,71 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<voi
     }
   }
 
-  if (apiNumbers.length === 0) return;
+  if (apiNumbers.length > 0) {
+    // Query D1 in batches of 50
+    const BATCH = 50;
+    for (let i = 0; i < apiNumbers.length; i += BATCH) {
+      const batch = apiNumbers.slice(i, i + BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      const result = await env.WELLS_DB.prepare(
+        `SELECT api_number, bh_section, bh_township, bh_range
+         FROM wells
+         WHERE api_number IN (${placeholders})
+         AND bh_section IS NOT NULL`
+      ).bind(...batch).all();
 
-  // Query D1 in batches of 50
-  const BATCH = 50;
-  for (let i = 0; i < apiNumbers.length; i += BATCH) {
-    const batch = apiNumbers.slice(i, i + BATCH);
-    const placeholders = batch.map(() => '?').join(',');
-    const result = await env.WELLS_DB.prepare(
-      `SELECT api_number, bh_section, bh_township, bh_range
-       FROM wells
-       WHERE api_number IN (${placeholders})
-       AND bh_section IS NOT NULL`
-    ).bind(...batch).all();
-
-    for (const row of (result.results || []) as any[]) {
-      const targets = apiToWells.get(row.api_number);
-      if (!targets) continue;
-      for (const well of targets) {
-        well.fields[WELL_FIELDS.BH_SECTION] = String(row.bh_section);
-        well.fields[WELL_FIELDS.BH_TOWNSHIP] = row.bh_township || well.fields[WELL_FIELDS.TOWNSHIP];
-        well.fields[WELL_FIELDS.BH_RANGE] = row.bh_range || well.fields[WELL_FIELDS.RANGE];
+      for (const row of (result.results || []) as any[]) {
+        const targets = apiToWells.get(row.api_number);
+        if (!targets) continue;
+        for (const well of targets) {
+          well.fields[WELL_FIELDS.BH_SECTION] = String(row.bh_section);
+          well.fields[WELL_FIELDS.BH_TOWNSHIP] = row.bh_township || well.fields[WELL_FIELDS.TOWNSHIP];
+          well.fields[WELL_FIELDS.BH_RANGE] = row.bh_range || well.fields[WELL_FIELDS.RANGE];
+        }
       }
+    }
+
+    console.log(`[PropertyWellMatch] Enriched ${apiNumbers.length} wells with D1 BH data`);
+  }
+
+  // Auto-compute Sections Affected for wells with BH data but no Sections Affected
+  let computedCount = 0;
+  for (const well of wells) {
+    // Skip wells that already have Sections Affected populated
+    if (well.fields[WELL_FIELDS.SECTIONS_AFFECTED]) continue;
+
+    const surfaceSection = parseInt(String(well.fields[WELL_FIELDS.SECTION] || ''), 10);
+    const bhSection = parseInt(String(well.fields[WELL_FIELDS.BH_SECTION] || ''), 10);
+
+    if (!surfaceSection || !bhSection || surfaceSection === bhSection) continue;
+    if (surfaceSection < 1 || surfaceSection > 36 || bhSection < 1 || bhSection > 36) continue;
+
+    // Only compute for same-township wells (surface and BH in same township)
+    const surfaceTwn = well.fields[WELL_FIELDS.TOWNSHIP];
+    const bhTwn = well.fields[WELL_FIELDS.BH_TOWNSHIP] || surfaceTwn;
+    const surfaceRng = well.fields[WELL_FIELDS.RANGE];
+    const bhRng = well.fields[WELL_FIELDS.BH_RANGE] || surfaceRng;
+
+    if (surfaceTwn === bhTwn && surfaceRng === bhRng) {
+      // Same township — compute lateral path through grid
+      const lateralSections = computeLateralSections(surfaceSection, bhSection);
+      if (lateralSections.length > 0) {
+        // Format as "S19, S20, S21" matching parseSectionsAffected expectations
+        well.fields[WELL_FIELDS.SECTIONS_AFFECTED] = lateralSections.map(s => `S${s}`).join(', ');
+        computedCount++;
+      }
+    } else {
+      // Cross-township lateral: include surface and BH sections at minimum
+      // The BH section will be matched via Bottom Hole / Adjacent BH priorities
+      // but we can still note the surface section as affected
+      well.fields[WELL_FIELDS.SECTIONS_AFFECTED] = `S${surfaceSection}, S${bhSection}`;
+      computedCount++;
     }
   }
 
-  console.log(`[PropertyWellMatch] Enriched ${apiNumbers.length} wells with D1 BH data`);
+  if (computedCount > 0) {
+    console.log(`[PropertyWellMatch] Auto-computed lateral sections for ${computedCount} wells`);
+  }
 }
 
 /**

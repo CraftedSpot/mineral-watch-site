@@ -224,12 +224,25 @@
                 const res = await fetch('/api/match-property-wells', { method: 'POST' });
                 const data = await res.json();
                 if (data.success) {
-                    const count = data.stats.linksCreated;
+                    const s = data.stats;
+                    const count = s.linksCreated;
                     if (count > 0) {
-                        showToast(`Found ${count} new well match${count === 1 ? '' : 'es'}`, 'success');
+                        // Build detail of new match types
+                        const types = Object.entries(s.newMatchesByType || {}).map(([k,v]) => `${v} ${k}`).join(', ');
+                        showToast(`Found ${count} new match${count === 1 ? '' : 'es'}: ${types}`, 'success');
                         await Promise.all([loadProperties(), loadWells()]);
                     } else {
-                        showToast('All properties are already matched', 'success');
+                        // Show existing breakdown so user knows what's already linked
+                        const existing = s.existingLinksByType || {};
+                        const breakdown = Object.entries(existing).map(([k,v]) => `${v} ${k}`).join(', ');
+                        const dq = s.dataQuality || {};
+                        const detail = `Checked ${s.propertiesProcessed} properties vs ${s.wellsProcessed} wells. ` +
+                            `${s.existingLinks} existing links (${breakdown || 'none'}). ` +
+                            `Wells with BH data: ${dq.wellsWithBH || 0}, with lateral sections: ${dq.wellsWithSectionsAffected || 0}.`;
+                        showToast('No new matches found', 'info');
+                        console.log('[FindMatches] Detail:', detail);
+                        // Show detail in a small dialog
+                        showMatchDetail(detail);
                     }
                 } else {
                     showToast(data.error || 'Matching failed', 'error');
@@ -240,4 +253,20 @@
                 btn.disabled = false;
                 btn.textContent = 'Find Matches';
             }
+        }
+
+        function showMatchDetail(detail) {
+            // Remove existing detail if any
+            const existing = document.getElementById('matchDetailBanner');
+            if (existing) existing.remove();
+
+            const banner = document.createElement('div');
+            banner.id = 'matchDetailBanner';
+            banner.style.cssText = 'position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#f0f9ff; border:1px solid #bae6fd; color:#0c4a6e; padding:12px 20px; border-radius:8px; font-size:13px; max-width:600px; z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.15);';
+            banner.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:start; gap:12px;">
+                <div>${detail}</div>
+                <button onclick="this.parentElement.parentElement.remove()" style="border:none; background:none; cursor:pointer; font-size:16px; color:#0c4a6e; padding:0;">&times;</button>
+            </div>`;
+            document.body.appendChild(banner);
+            setTimeout(() => banner.remove(), 15000);
         }

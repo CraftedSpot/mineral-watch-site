@@ -693,9 +693,9 @@
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(w.matchReason)}">${getMatchReasonLabel(w.matchReason)}</span>
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getStatusStyle(w.wellStatus)}">${w.wellStatus || 'AC'}</span>
                                 ${isUnlinked
-                                    ? `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #f3f4f6; color: #6b7280;" title="Unlinked${unlinkedDate ? ' on ' + unlinkedDate : ''}">Unlinked</span>
-                                       <button onclick="event.stopPropagation(); relinkWell('${w.linkId}')" title="Re-link this well" style="border: none; background: none; cursor: pointer; color: #2563eb; font-size: 14px; padding: 2px 4px;">&#8617;</button>`
-                                    : `<button onclick="event.stopPropagation(); unlinkWell('${w.linkId}')" title="Unlink this well" style="border: none; background: none; cursor: pointer; color: #9ca3af; font-size: 14px; padding: 2px 4px;">&#10005;</button>`
+                                    ? `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #fef2f2; color: #991b1b;">Unlinked</span>
+                                       <button onclick="event.stopPropagation(); relinkWell('${w.linkId}')" title="Re-link this well${unlinkedDate ? ' (unlinked ' + unlinkedDate + ')' : ''}" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #2563eb; background: #eff6ff; color: #2563eb; cursor: pointer;">Relink</button>`
+                                    : `<button onclick="event.stopPropagation(); unlinkWell('${w.linkId}')" title="Unlink this well" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #d1d5db; background: #f9fafb; color: #6b7280; cursor: pointer;">Unlink</button>`
                                 }
                             </div>
                         </div>`;
@@ -863,9 +863,9 @@
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
                                 ${isUnlinked
-                                    ? `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #f3f4f6; color: #6b7280;" title="Unlinked${unlinkedDate ? ' on ' + unlinkedDate : ''}">Unlinked</span>
-                                       <button onclick="event.stopPropagation(); relinkProperty('${p.linkId}')" title="Re-link this property" style="border: none; background: none; cursor: pointer; color: #2563eb; font-size: 14px; padding: 2px 4px;">&#8617;</button>`
-                                    : `<button onclick="event.stopPropagation(); unlinkProperty('${p.linkId}')" title="Unlink this property" style="border: none; background: none; cursor: pointer; color: #9ca3af; font-size: 14px; padding: 2px 4px;">&#10005;</button>`
+                                    ? `<span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; background: #fef2f2; color: #991b1b;">Unlinked</span>
+                                       <button onclick="event.stopPropagation(); relinkProperty('${p.linkId}')" title="Re-link this property${unlinkedDate ? ' (unlinked ' + unlinkedDate + ')' : ''}" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #2563eb; background: #eff6ff; color: #2563eb; cursor: pointer;">Relink</button>`
+                                    : `<button onclick="event.stopPropagation(); unlinkProperty('${p.linkId}')" title="Unlink this property" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #d1d5db; background: #f9fafb; color: #6b7280; cursor: pointer;">Unlink</button>`
                                 }
                             </div>
                         </div>`;
