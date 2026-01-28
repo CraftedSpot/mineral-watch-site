@@ -59,6 +59,16 @@ export interface LocationKey {
   meridian: string;
 }
 
+/**
+ * Location tuple for lateral path sections (section + township + range).
+ * Unlike LocationKey, does not include meridian since that's a per-well property.
+ */
+export interface LateralLocation {
+  section: number;
+  township: string;
+  range: string;
+}
+
 export interface PropertyRecord {
   id: string;
   fields: any;
@@ -70,7 +80,7 @@ export interface WellRecord {
   fields: any;
   surfaceLocation: LocationKey | null;
   bottomHoleLocation: LocationKey | null;
-  sectionsAffected: number[];
+  sectionsAffected: LateralLocation[];
   township: string;
   range: string;
   meridian: string;
@@ -358,11 +368,12 @@ export function checkMatch(
     return 'Surface Location';
   }
   
-  // Priority 2: Lateral path match (sections affected)
-  if (well.sectionsAffected.includes(property.location.section) &&
-      property.location.township === well.township &&
-      property.location.range === well.range &&
-      property.location.meridian === well.meridian) {
+  // Priority 2: Lateral path match (sections affected — full STR tuples)
+  if (well.sectionsAffected.some(s =>
+      s.section === property.location!.section &&
+      s.township === property.location!.township &&
+      s.range === property.location!.range
+  ) && property.location.meridian === well.meridian) {
     return 'Lateral Path';
   }
   
@@ -554,14 +565,24 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<Enr
       // Same township — compute lateral path through grid
       const lateralSections = computeLateralSections(surfaceSection, bhSection);
       if (lateralSections.length > 0) {
-        // Format as "S19, S20, S21" matching parseSectionsAffected expectations
+        // Store full STR tuples for cross-township-aware matching
+        well._lateralLocations = lateralSections.map(s => ({
+          section: s,
+          township: surfaceTwn,
+          range: surfaceRng
+        }));
+        // Also set display string for diagnostics
         well.fields[WELL_FIELDS.SECTIONS_AFFECTED] = lateralSections.map(s => `S${s}`).join(', ');
         computedCount++;
       }
     } else {
       crossTwn++;
-      // Cross-township lateral: include surface and BH sections at minimum
-      well.fields[WELL_FIELDS.SECTIONS_AFFECTED] = `S${surfaceSection}, S${bhSection}`;
+      // Cross-township lateral: each section gets its own township/range
+      well._lateralLocations = [
+        { section: surfaceSection, township: surfaceTwn, range: surfaceRng },
+        { section: bhSection, township: bhTwn, range: bhRng }
+      ];
+      well.fields[WELL_FIELDS.SECTIONS_AFFECTED] = `S${surfaceSection}-T${surfaceTwn}-R${surfaceRng}, S${bhSection}-T${bhTwn}-R${bhRng}`;
       computedCount++;
     }
   }
@@ -612,9 +633,21 @@ export function processWell(well: any): WellRecord {
   const bhRange = well.fields[WELL_FIELDS.BH_RANGE] || range;
   const bottomHoleLocation = createLocationKey(bhSection, bhTownship, bhRange, meridian);
   
-  // Sections affected
-  const sectionsAffected = parseSectionsAffected(well.fields[WELL_FIELDS.SECTIONS_AFFECTED] || '');
-  
+  // Sections affected as full location tuples
+  let sectionsAffected: LateralLocation[];
+  if (well._lateralLocations) {
+    // Use pre-computed full tuples from enrichment pipeline
+    sectionsAffected = well._lateralLocations;
+  } else {
+    // Fallback: parse section numbers from string, use surface township/range
+    const sectionNumbers = parseSectionsAffected(well.fields[WELL_FIELDS.SECTIONS_AFFECTED] || '');
+    sectionsAffected = sectionNumbers.map(s => ({
+      section: s,
+      township: township,
+      range: range
+    }));
+  }
+
   return {
     id: well.id,
     fields: well.fields,
@@ -804,18 +837,21 @@ export async function matchSingleProperty(
   
   // Fetch all user's wells
   const wells = await fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter);
-  
+
+  // Enrich wells with BH data and compute lateral sections
+  await enrichWellsWithD1Data(wells, env);
+
   // Process the property
   const processedProperty = processProperty(propertyData);
-  
+
   // Check matches
   const newLinks = [];
-  
+
   for (const wellData of wells) {
     if (linkedWellIds.has(wellData.id) || rejectedWellIds.has(wellData.id)) {
       continue;
     }
-    
+
     const processedWell = processWell(wellData);
     const matchReason = checkMatch(processedProperty, processedWell);
     
@@ -917,7 +953,10 @@ export async function matchSingleWell(
   
   // Fetch all user's properties
   const properties = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter);
-  
+
+  // Enrich the well with BH data and compute lateral sections
+  await enrichWellsWithD1Data([wellData], env);
+
   // Process the well
   const processedWell = processWell(wellData);
   
@@ -1111,11 +1150,12 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: b
     return { matched: true, reason: 'Surface Location' };
   }
   
-  // Priority 2: Lateral path match (sections affected)
-  if (well.sectionsAffected.includes(property.location.section) &&
-      property.location.township === well.township &&
-      property.location.range === well.range &&
-      property.location.meridian === well.meridian) {
+  // Priority 2: Lateral path match (sections affected — full STR tuples)
+  if (well.sectionsAffected.some(s =>
+      s.section === property.location!.section &&
+      s.township === property.location!.township &&
+      s.range === property.location!.range
+  ) && property.location.meridian === well.meridian) {
     return { matched: true, reason: 'Lateral Path' };
   }
   

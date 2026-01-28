@@ -237,11 +237,12 @@
                         const breakdown = Object.entries(existing).map(([k,v]) => `${v} ${k}`).join(', ');
                         const dq = s.dataQuality || {};
                         const en = s.enrichment || {};
-                        const statusBreakdown = Object.entries(s.existingLinksByStatus || {}).map(([k,v]) => `${v} ${k}`).join(', ');
-                        let detail = `Checked ${s.propertiesProcessed} properties vs ${s.wellsProcessed} wells. ` +
-                            `${s.existingLinks} existing links (${breakdown || 'none'}). ` +
-                            `Link statuses: ${statusBreakdown || 'unknown'}. ` +
-                            `BH enriched: ${en.bhEnriched || 0}. Wells with BH: ${dq.wellsWithBH || 0}, lateral computed: ${en.lateralComputed || 0}.`;
+                        const d1 = s.d1LinkCounts || {};
+                        const d1StatusBreakdown = Object.entries(d1.byStatus || {}).map(([k,v]) => `${v} ${k}`).join(', ');
+                        let detail = `<b>Airtable:</b> ${s.existingLinks} links (${breakdown || 'none'}). ` +
+                            `<b>D1:</b> ${d1.totalLinks || '?'} links (${d1StatusBreakdown || '?'}), ${d1.wellsWithActiveLinks || '?'} wells with active links. ` +
+                            `<b>Gap:</b> ${(s.existingLinks || 0) - (d1.totalLinks || 0)} links missing from D1. ` +
+                            `BH enriched: ${en.bhEnriched || 0}, lateral computed: ${en.lateralComputed || 0}.`;
                         if (s.unlinkedWellCount > 0) {
                             detail += `<br><br><b>${s.unlinkedWellCount} wells with no property link:</b><br>`;
                             detail += (s.unlinkedWellSamples || []).map(w =>

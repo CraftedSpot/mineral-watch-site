@@ -8,7 +8,8 @@ import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
-import { enrichWellsWithD1Data, getAdjacentLocations } from '../utils/property-well-matching.js';
+import { enrichWellsWithD1Data, getAdjacentLocations, parseSectionsAffected as sharedParseSectionsAffected } from '../utils/property-well-matching.js';
+import type { LateralLocation } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
@@ -75,7 +76,7 @@ interface WellRecord {
   fields: any;
   surfaceLocation: LocationKey | null;
   bottomHoleLocation: LocationKey | null;
-  sectionsAffected: number[];
+  sectionsAffected: LateralLocation[];
   township: string;
   range: string;
   meridian: string;
@@ -174,9 +175,21 @@ function processWells(wells: any[]): WellRecord[] {
     const bhRange = well.fields[WELL_FIELDS.BH_RANGE] || range;
     const bottomHoleLocation = createLocationKey(bhSection, bhTownship, bhRange, meridian);
     
-    // Sections affected
-    const sectionsAffected = parseSectionsAffected(well.fields[WELL_FIELDS.SECTIONS_AFFECTED] || '');
-    
+    // Sections affected as full location tuples
+    let sectionsAffected: LateralLocation[];
+    if (well._lateralLocations) {
+      // Use pre-computed full tuples from enrichment pipeline
+      sectionsAffected = well._lateralLocations;
+    } else {
+      // Fallback: parse section numbers from string, use surface township/range
+      const sectionNumbers = parseSectionsAffected(well.fields[WELL_FIELDS.SECTIONS_AFFECTED] || '');
+      sectionsAffected = sectionNumbers.map((s: number) => ({
+        section: s,
+        township: township,
+        range: range
+      }));
+    }
+
     return {
       id: well.id,
       fields: well.fields,
@@ -212,11 +225,12 @@ function findBestMatch(property: PropertyRecord, well: WellRecord): { matched: b
     return { matched: true, reason: 'Surface Location' };
   }
   
-  // Priority 2: Lateral path match (sections affected)
-  if (well.sectionsAffected.includes(property.location.section) &&
-      property.location.township === well.township &&
-      property.location.range === well.range &&
-      property.location.meridian === well.meridian) {
+  // Priority 2: Lateral path match (sections affected — full STR tuples)
+  if (well.sectionsAffected.some(s =>
+      s.section === property.location!.section &&
+      s.township === property.location!.township &&
+      s.range === property.location!.range
+  ) && property.location.meridian === well.meridian) {
     return { matched: true, reason: 'Lateral Path' };
   }
   
@@ -453,7 +467,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
           ? `S${well.bottomHoleLocation.section}-T${well.bottomHoleLocation.township}-R${well.bottomHoleLocation.range}`
           : 'no BH';
         const lat = well.sectionsAffected.length > 0
-          ? well.sectionsAffected.join(',')
+          ? well.sectionsAffected.map(s => `S${s.section}-T${s.township}-R${s.range}`).join(',')
           : 'none';
         unlinkedWells.push({
           name: well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown',
@@ -569,6 +583,27 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
+    // Query D1 to compare link counts
+    let d1LinkCounts: any = null;
+    try {
+      const d1Total = await env.WELLS_DB.prepare(
+        `SELECT status, COUNT(*) as count FROM property_well_links GROUP BY status`
+      ).all();
+      const d1WellsWithLinks = await env.WELLS_DB.prepare(
+        `SELECT COUNT(DISTINCT well_airtable_id) as count FROM property_well_links WHERE status IN ('Active', 'Linked')`
+      ).first();
+      const d1TotalLinks = await env.WELLS_DB.prepare(
+        `SELECT COUNT(*) as count FROM property_well_links`
+      ).first();
+      d1LinkCounts = {
+        totalLinks: d1TotalLinks?.count || 0,
+        byStatus: Object.fromEntries((d1Total.results || []).map((r: any) => [r.status, r.count])),
+        wellsWithActiveLinks: d1WellsWithLinks?.count || 0
+      };
+    } catch (e) {
+      console.error('[PropertyWellMatch] D1 count query failed:', e);
+    }
+
     const stats = {
       propertiesProcessed: properties.length,
       wellsProcessed: wells.length,
@@ -587,6 +622,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       },
       enrichment: enrichDiag,
       existingLinksByStatus: existingByStatus,
+      d1LinkCounts,
       unlinkedWellCount: unlinkedWells.length,
       unlinkedWellSamples: unlinkedWells.slice(0, 10)
     };
