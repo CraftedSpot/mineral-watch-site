@@ -472,6 +472,7 @@ export function computeLateralSections(surfaceSection: number, bhSection: number
  * lateral path between surface and BH sections on the PLSS grid.
  */
 export interface EnrichmentDiagnostics {
+  surfaceEnriched: number;
   bhEnriched: number;
   lateralComputed: number;
   lateralSkipNoBH: number;
@@ -481,8 +482,8 @@ export interface EnrichmentDiagnostics {
 }
 
 export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<EnrichmentDiagnostics> {
-  // Collect API numbers for wells missing BH data
-  const apiNumbers: string[] = [];
+  // Collect ALL API numbers to enrich from D1 statewide data
+  const allApiNumbers: string[] = [];
   const apiToWells = new Map<string, any[]>();
 
   for (const well of wells) {
@@ -491,40 +492,63 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<Enr
     const clean = String(api).replace(/\D/g, '');
     if (!clean) continue;
 
-    // Only enrich if Airtable is missing BH section
-    if (!well.fields[WELL_FIELDS.BH_SECTION]) {
-      apiNumbers.push(clean);
-      const existing = apiToWells.get(clean) || [];
-      existing.push(well);
-      apiToWells.set(clean, existing);
-    }
+    allApiNumbers.push(clean);
+    const existing = apiToWells.get(clean) || [];
+    existing.push(well);
+    apiToWells.set(clean, existing);
   }
 
-  if (apiNumbers.length > 0) {
-    // Query D1 in batches of 50
-    const BATCH = 50;
-    for (let i = 0; i < apiNumbers.length; i += BATCH) {
-      const batch = apiNumbers.slice(i, i + BATCH);
+  let surfaceEnriched = 0;
+  let bhEnriched = 0;
+
+  if (allApiNumbers.length > 0) {
+    // Query D1 in batches for ALL well data (surface + BH)
+    const BATCH = 90; // D1 limit is 100 bind params per query
+    const uniqueApis = [...new Set(allApiNumbers)];
+    for (let i = 0; i < uniqueApis.length; i += BATCH) {
+      const batch = uniqueApis.slice(i, i + BATCH);
       const placeholders = batch.map(() => '?').join(',');
       const result = await env.WELLS_DB.prepare(
-        `SELECT api_number, bh_section, bh_township, bh_range
+        `SELECT api_number, well_name, well_number, section, township, range, county,
+                bh_section, bh_township, bh_range
          FROM wells
-         WHERE api_number IN (${placeholders})
-         AND bh_section IS NOT NULL`
+         WHERE api_number IN (${placeholders})`
       ).bind(...batch).all();
 
       for (const row of (result.results || []) as any[]) {
         const targets = apiToWells.get(row.api_number);
         if (!targets) continue;
         for (const well of targets) {
-          well.fields[WELL_FIELDS.BH_SECTION] = String(row.bh_section);
-          well.fields[WELL_FIELDS.BH_TOWNSHIP] = row.bh_township || well.fields[WELL_FIELDS.TOWNSHIP];
-          well.fields[WELL_FIELDS.BH_RANGE] = row.bh_range || well.fields[WELL_FIELDS.RANGE];
+          // Backfill surface location if missing
+          if (!well.fields[WELL_FIELDS.SECTION] && row.section) {
+            well.fields[WELL_FIELDS.SECTION] = String(row.section);
+            well.fields[WELL_FIELDS.TOWNSHIP] = row.township;
+            well.fields[WELL_FIELDS.RANGE] = row.range;
+            surfaceEnriched++;
+          }
+          // Backfill well name if missing
+          if (!well.fields[WELL_FIELDS.WELL_NAME] && row.well_name) {
+            const name = row.well_number
+              ? `${row.well_name} #${row.well_number}`
+              : row.well_name;
+            well.fields[WELL_FIELDS.WELL_NAME] = name;
+          }
+          // Backfill county if missing
+          if (!well.fields[WELL_FIELDS.COUNTY] && row.county) {
+            well.fields[WELL_FIELDS.COUNTY] = row.county;
+          }
+          // Backfill BH data if missing
+          if (!well.fields[WELL_FIELDS.BH_SECTION] && row.bh_section) {
+            well.fields[WELL_FIELDS.BH_SECTION] = String(row.bh_section);
+            well.fields[WELL_FIELDS.BH_TOWNSHIP] = row.bh_township || well.fields[WELL_FIELDS.TOWNSHIP];
+            well.fields[WELL_FIELDS.BH_RANGE] = row.bh_range || well.fields[WELL_FIELDS.RANGE];
+            bhEnriched++;
+          }
         }
       }
     }
 
-    console.log(`[PropertyWellMatch] Enriched ${apiNumbers.length} wells with D1 BH data`);
+    console.log(`[PropertyWellMatch] Enriched from D1: ${surfaceEnriched} surface locations, ${bhEnriched} BH locations`);
   }
 
   // Auto-compute Sections Affected for wells with BH data but no Sections Affected
@@ -590,7 +614,8 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<Enr
   console.log(`[PropertyWellMatch] Lateral computation: computed=${computedCount}, alreadyHas=${skipAlreadyHas}, noSurface=${skipNoSurface}, noBH=${skipNoBH}, sameSection=${skipSameSection}, outOfRange=${skipOutOfRange}, sameTwn=${sameTwn}, crossTwn=${crossTwn}`);
 
   return {
-    bhEnriched: apiNumbers.length,
+    surfaceEnriched,
+    bhEnriched,
     lateralComputed: computedCount,
     lateralSkipNoBH: skipNoBH,
     lateralSkipSameSection: skipSameSection,
@@ -661,26 +686,25 @@ export function processWell(well: any): WellRecord {
 }
 
 /**
- * Get existing links for a property (both active and rejected)
+ * Get existing links for a property from D1 (both linked and unlinked)
  */
 export async function getLinksForProperty(
   env: Env,
   propertyId: string
 ): Promise<{ active: Set<string>; rejected: Set<string> }> {
-  const filter = `OR({Property} = '${propertyId}', FIND('${propertyId}', ARRAYJOIN({Property})) > 0)`;
-  const links = await fetchAllAirtableRecords(env, LINKS_TABLE, filter);
-  
+  const result = await env.WELLS_DB.prepare(
+    `SELECT well_airtable_id, status FROM property_well_links WHERE property_airtable_id = ?`
+  ).bind(propertyId).all();
+
   const active = new Set<string>();
   const rejected = new Set<string>();
-  
-  for (const link of links) {
-    const wellId = link.fields[LINK_FIELDS.WELL]?.[0];
-    if (!wellId) continue;
-    
-    if (['Active', 'Linked'].includes(link.fields[LINK_FIELDS.STATUS])) {
-      active.add(wellId);
-    } else if (['Rejected', 'Unlinked'].includes(link.fields[LINK_FIELDS.STATUS])) {
-      rejected.add(wellId);
+
+  for (const link of (result.results || []) as any[]) {
+    if (!link.well_airtable_id) continue;
+    if (['Active', 'Linked'].includes(link.status)) {
+      active.add(link.well_airtable_id);
+    } else if (['Rejected', 'Unlinked'].includes(link.status)) {
+      rejected.add(link.well_airtable_id);
     }
   }
 
@@ -688,29 +712,28 @@ export async function getLinksForProperty(
 }
 
 /**
- * Get existing links for a well (both linked and unlinked)
+ * Get existing links for a well from D1 (both linked and unlinked)
  */
 export async function getLinksForWell(
   env: Env,
   wellId: string
 ): Promise<{ active: Set<string>; rejected: Set<string> }> {
-  const filter = `OR({Well} = '${wellId}', FIND('${wellId}', ARRAYJOIN({Well})) > 0)`;
-  const links = await fetchAllAirtableRecords(env, LINKS_TABLE, filter);
+  const result = await env.WELLS_DB.prepare(
+    `SELECT property_airtable_id, status FROM property_well_links WHERE well_airtable_id = ?`
+  ).bind(wellId).all();
 
   const active = new Set<string>();
   const rejected = new Set<string>();
 
-  for (const link of links) {
-    const propertyId = link.fields[LINK_FIELDS.PROPERTY]?.[0];
-    if (!propertyId) continue;
-
-    if (['Active', 'Linked'].includes(link.fields[LINK_FIELDS.STATUS])) {
-      active.add(propertyId);
-    } else if (['Rejected', 'Unlinked'].includes(link.fields[LINK_FIELDS.STATUS])) {
-      rejected.add(propertyId);
+  for (const link of (result.results || []) as any[]) {
+    if (!link.property_airtable_id) continue;
+    if (['Active', 'Linked'].includes(link.status)) {
+      active.add(link.property_airtable_id);
+    } else if (['Rejected', 'Unlinked'].includes(link.status)) {
+      rejected.add(link.property_airtable_id);
     }
   }
-  
+
   return { active, rejected };
 }
 
@@ -1026,11 +1049,10 @@ export async function runFullPropertyWellMatching(
 ): Promise<{ linksCreated: number; propertiesProcessed: number; wellsProcessed: number }> {
   console.log(`[PropertyWellMatch] Starting for user ${userEmail}`);
   
-  // Build filter formulas based on org/user
+  // Build Airtable filter formulas for tracked properties/wells
   let propertiesFilter: string;
   let wellsFilter: string;
-  let linksFilter: string;
-  
+
   const email = userEmail.replace(/'/g, "\\'");
 
   if (organizationId) {
@@ -1045,39 +1067,46 @@ export async function runFullPropertyWellMatching(
     const orgData = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
 
-    // Filter by organization name OR user email - properties may have Organization
-    // field empty but User field set (e.g., after bulk re-upload via Airtable)
     const orgFind = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization}))`;
     const userFind = `FIND('${email}', ARRAYJOIN({User}))`;
     propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
     wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-    linksFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
   } else {
-    // Solo user - filter by user email
     propertiesFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
     wellsFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
-    linksFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
   }
-  
-  // Fetch all data in parallel
-  const [properties, wells, existingLinks] = await Promise.all([
+
+  // Fetch tracked properties/wells from Airtable
+  const [properties, wells] = await Promise.all([
     fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter),
-    fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter),
-    fetchAllAirtableRecords(env, LINKS_TABLE, linksFilter)
+    fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter)
   ]);
-  
-  console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells, ${existingLinks.length} existing links`);
+
+  console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells`);
+
+  // Get existing links from D1 using actual property IDs (not user_id which may be NULL)
+  const propertyIds = properties.map((p: any) => p.id);
+  let existingLinks: any[] = [];
+  const LINK_BATCH = 90; // D1 limit is 100 bind params per query
+  for (let i = 0; i < propertyIds.length; i += LINK_BATCH) {
+    const batch = propertyIds.slice(i, i + LINK_BATCH);
+    const placeholders = batch.map(() => '?').join(',');
+    const result = await env.WELLS_DB.prepare(
+      `SELECT property_airtable_id, well_airtable_id FROM property_well_links WHERE property_airtable_id IN (${placeholders})`
+    ).bind(...batch).all();
+    existingLinks.push(...((result.results || []) as any[]));
+  }
+
+  console.log(`[PropertyWellMatch] Found ${existingLinks.length} existing links in D1 for ${propertyIds.length} properties`);
 
   // Enrich wells with BH data from D1 (Airtable often lacks BH fields)
   await enrichWellsWithD1Data(wells, env);
 
-  // Build set of existing links to avoid duplicates
+  // Build set of existing links to avoid duplicates (from D1)
   const existingLinkKeys = new Set<string>();
   for (const link of existingLinks) {
-    const propertyId = link.fields[LINK_FIELDS.PROPERTY]?.[0];
-    const wellId = link.fields[LINK_FIELDS.WELL]?.[0];
-    if (propertyId && wellId) {
-      existingLinkKeys.add(`${propertyId}-${wellId}`);
+    if (link.property_airtable_id && link.well_airtable_id) {
+      existingLinkKeys.add(`${link.property_airtable_id}-${link.well_airtable_id}`);
     }
   }
 

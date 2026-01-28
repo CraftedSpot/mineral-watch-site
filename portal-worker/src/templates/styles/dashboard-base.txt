@@ -25,6 +25,8 @@
         
         .btn-secondary-action { background: white; color: var(--slate-blue); border: 1px solid var(--border); padding: 10px 16px; border-radius: 4px; font-size: 13px; font-weight: 600; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 6px; transition: all 0.2s; min-width: 80px; }
         .btn-secondary-action:hover { border-color: var(--slate-blue); color: var(--oil-navy); background: #f8fafc; }
+        .btn-secondary-action.matching { animation: matchPulse 1.2s ease-in-out infinite; color: white; border-color: var(--red-dirt); }
+        @keyframes matchPulse { 0%, 100% { background: var(--red-dirt); } 50% { background: var(--red-dirt-dark); } }
         .plan-info { background: white; border-radius: 8px; padding: 16px 20px; margin-bottom: 25px; display: flex; align-items: center; gap: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; }
         .plan-badge { background: var(--success-bg); color: var(--success); padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 700; text-transform: uppercase; }
         .plan-usage { font-size: 14px; color: var(--slate-blue); display: flex; gap: 20px; flex-wrap: wrap; }

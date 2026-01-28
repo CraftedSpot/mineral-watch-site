@@ -220,6 +220,7 @@
             const btn = document.getElementById('findMatchesBtn');
             btn.disabled = true;
             btn.textContent = 'Matching...';
+            btn.classList.add('matching');
             try {
                 const res = await fetch('/api/match-property-wells', { method: 'POST' });
                 const data = await res.json();
@@ -232,30 +233,7 @@
                         showToast(`Found ${count} new match${count === 1 ? '' : 'es'}: ${types}`, 'success');
                         await Promise.all([loadProperties(), loadWells()]);
                     } else {
-                        // Show existing breakdown so user knows what's already linked
-                        const existing = s.existingLinksByType || {};
-                        const breakdown = Object.entries(existing).map(([k,v]) => `${v} ${k}`).join(', ');
-                        const dq = s.dataQuality || {};
-                        const en = s.enrichment || {};
-                        const d1 = s.d1LinkCounts || {};
-                        const d1StatusBreakdown = Object.entries(d1.byStatus || {}).map(([k,v]) => `${v} ${k}`).join(', ');
-                        let detail = `<b>Airtable:</b> ${s.existingLinks} links (${breakdown || 'none'}). ` +
-                            `<b>D1:</b> ${d1.totalLinks || '?'} links (${d1StatusBreakdown || '?'}), ${d1.wellsWithActiveLinks || '?'} wells with active links. ` +
-                            `<b>Gap:</b> ${(s.existingLinks || 0) - (d1.totalLinks || 0)} links missing from D1. ` +
-                            `BH enriched: ${en.bhEnriched || 0}, lateral computed: ${en.lateralComputed || 0}.`;
-                        if (s.unlinkedWellCount > 0) {
-                            detail += `<br><br><b>${s.unlinkedWellCount} wells with no property link:</b><br>`;
-                            detail += (s.unlinkedWellSamples || []).map(w =>
-                                `${w.name}: Surface=${w.location}, BH=${w.bhLocation}, Lateral=${w.lateralSections}`
-                            ).join('<br>');
-                            if (s.unlinkedWellCount > 10) detail += `<br>... and ${s.unlinkedWellCount - 10} more`;
-                        } else {
-                            detail += '<br><br>All wells are linked to at least one property.';
-                        }
-                        showToast('No new matches found', 'info');
-                        console.log('[FindMatches] Detail:', detail);
-                        // Show detail in a small dialog
-                        showMatchDetail(detail);
+                        showToast('All wells matched', 'info');
                     }
                 } else {
                     showToast(data.error || 'Matching failed', 'error');
@@ -264,22 +242,9 @@
                 showToast('Error: ' + err.message, 'error');
             } finally {
                 btn.disabled = false;
-                btn.textContent = 'Find Matches';
+                btn.textContent = 'Match';
+                btn.classList.remove('matching');
             }
         }
 
-        function showMatchDetail(detail) {
-            // Remove existing detail if any
-            const existing = document.getElementById('matchDetailBanner');
-            if (existing) existing.remove();
 
-            const banner = document.createElement('div');
-            banner.id = 'matchDetailBanner';
-            banner.style.cssText = 'position:fixed; bottom:80px; left:50%; transform:translateX(-50%); background:#f0f9ff; border:1px solid #bae6fd; color:#0c4a6e; padding:12px 20px; border-radius:8px; font-size:13px; max-width:600px; z-index:10000; box-shadow:0 4px 12px rgba(0,0,0,0.15);';
-            banner.innerHTML = `<div style="display:flex; justify-content:space-between; align-items:start; gap:12px;">
-                <div>${detail}</div>
-                <button onclick="this.parentElement.parentElement.remove()" style="border:none; background:none; cursor:pointer; font-size:16px; color:#0c4a6e; padding:0;">&times;</button>
-            </div>`;
-            document.body.appendChild(banner);
-            setTimeout(() => banner.remove(), 15000);
-        }

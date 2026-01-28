@@ -290,13 +290,12 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     
     console.log(`[PropertyWellMatch] Starting for user ${authUser.email}`);
     
-    // Build filter formulas based on org/user
+    // Build filter formulas based on org/user (Airtable only for tracked properties/wells)
     let propertiesFilter: string;
     let wellsFilter: string;
-    let linksFilter: string;
-    
+
     console.log(`[PropertyWellMatch] User ID: ${userId}, Org ID: ${organizationId || 'none'}`);
-    
+
     const userEmail = authUser.email.replace(/'/g, "\\'");
 
     if (organizationId) {
@@ -319,28 +318,47 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
       propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
       wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
-      linksFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
       // Solo user - filter by user email (as displayed in linked field)
-      // Airtable displays emails in linked User fields, not record IDs
       propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
       wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
-      linksFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
-    
+
     console.log(`[PropertyWellMatch] Filters - Properties: ${propertiesFilter}`);
     console.log(`[PropertyWellMatch] Filters - Wells: ${wellsFilter}`);
-    console.log(`[PropertyWellMatch] Filters - Links: ${linksFilter}`);
-    
-    // Fetch all data in parallel
+
+    // Fetch tracked properties/wells from Airtable
     console.log('[PropertyWellMatch] Fetching data...');
-    const [properties, wells, existingLinks] = await Promise.all([
+
+    const [properties, wells] = await Promise.all([
       fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter),
-      fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter),
-      fetchAllAirtableRecords(env, LINKS_TABLE, linksFilter)
+      fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter)
     ]);
-    
-    console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells, ${existingLinks.length} existing links`);
+
+    console.log(`[PropertyWellMatch] Fetched ${properties.length} properties, ${wells.length} wells`);
+
+    // Get existing links from D1 using the actual property IDs (not user_id which may be NULL)
+    const propertyIds = properties.map((p: any) => p.id);
+    let existingLinks: Array<{
+      property_airtable_id: string;
+      well_airtable_id: string;
+      match_reason: string;
+      status: string;
+    }> = [];
+
+    const LINK_BATCH = 90; // D1 limit is 100 bind params per query
+    for (let i = 0; i < propertyIds.length; i += LINK_BATCH) {
+      const batch = propertyIds.slice(i, i + LINK_BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      const result = await env.WELLS_DB.prepare(
+        `SELECT property_airtable_id, well_airtable_id, match_reason, status
+         FROM property_well_links
+         WHERE property_airtable_id IN (${placeholders})`
+      ).bind(...batch).all();
+      existingLinks.push(...((result.results || []) as any[]));
+    }
+
+    console.log(`[PropertyWellMatch] Found ${existingLinks.length} existing links in D1 for ${propertyIds.length} properties`);
     
     // Debug: Log sample property and well to check field structure
     if (properties.length > 0) {
@@ -350,16 +368,14 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       console.log('[PropertyWellMatch] Sample well:', JSON.stringify(wells[0], null, 2));
     }
     
-    // Enrich wells with BH data from D1 (Airtable often lacks BH fields)
+    // Enrich wells with surface location, well name, county, and BH data from D1
     const enrichDiag = await enrichWellsWithD1Data(wells, env);
 
-    // Build set of existing links to avoid duplicates
+    // Build set of existing links to avoid duplicates (from D1)
     const existingLinkKeys = new Set<string>();
     for (const link of existingLinks) {
-      const propertyId = link.fields[LINK_FIELDS.PROPERTY]?.[0];
-      const wellId = link.fields[LINK_FIELDS.WELL]?.[0];
-      if (propertyId && wellId) {
-        existingLinkKeys.add(`${propertyId}-${wellId}`);
+      if (link.property_airtable_id && link.well_airtable_id) {
+        existingLinkKeys.add(`${link.property_airtable_id}-${link.well_airtable_id}`);
       }
     }
 
@@ -387,13 +403,13 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       if (w.sectionsAffected.length > 0) wellsWithSectionsAffected++;
     }
 
-    // Count existing links by match reason AND by status
+    // Count existing links by match reason AND by status (from D1)
     const existingByReason: Record<string, number> = {};
     const existingByStatus: Record<string, number> = {};
     for (const link of existingLinks) {
-      const reason = link.fields[LINK_FIELDS.MATCH_REASON] || 'Unknown';
+      const reason = link.match_reason || 'Unknown';
       existingByReason[reason] = (existingByReason[reason] || 0) + 1;
-      const status = link.fields[LINK_FIELDS.STATUS] || 'No Status';
+      const status = link.status || 'No Status';
       existingByStatus[status] = (existingByStatus[status] || 0) + 1;
     }
 
@@ -445,11 +461,10 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       }
     }
     
-    // Find wells with no links at all (not in any existing pair)
+    // Find wells with no links at all (from D1 existing links)
     const linkedWellIds = new Set<string>();
     for (const link of existingLinks) {
-      const wellId = link.fields[LINK_FIELDS.WELL]?.[0];
-      if (wellId) linkedWellIds.add(wellId);
+      if (link.well_airtable_id) linkedWellIds.add(link.well_airtable_id);
     }
     // Also count wells that would be linked by new matches
     for (const l of linksToCreate) {
@@ -583,27 +598,6 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(1);
 
-    // Query D1 to compare link counts
-    let d1LinkCounts: any = null;
-    try {
-      const d1Total = await env.WELLS_DB.prepare(
-        `SELECT status, COUNT(*) as count FROM property_well_links GROUP BY status`
-      ).all();
-      const d1WellsWithLinks = await env.WELLS_DB.prepare(
-        `SELECT COUNT(DISTINCT well_airtable_id) as count FROM property_well_links WHERE status IN ('Active', 'Linked')`
-      ).first();
-      const d1TotalLinks = await env.WELLS_DB.prepare(
-        `SELECT COUNT(*) as count FROM property_well_links`
-      ).first();
-      d1LinkCounts = {
-        totalLinks: d1TotalLinks?.count || 0,
-        byStatus: Object.fromEntries((d1Total.results || []).map((r: any) => [r.status, r.count])),
-        wellsWithActiveLinks: d1WellsWithLinks?.count || 0
-      };
-    } catch (e) {
-      console.error('[PropertyWellMatch] D1 count query failed:', e);
-    }
-
     const stats = {
       propertiesProcessed: properties.length,
       wellsProcessed: wells.length,
@@ -614,6 +608,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       errors: failed,
       newMatchesByType: matchesByType,
       existingLinksByType: existingByReason,
+      existingLinksByStatus: existingByStatus,
       dataQuality: {
         propertiesWithNoLocation,
         wellsWithNoSurface,
@@ -621,8 +616,6 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
         wellsWithSectionsAffected
       },
       enrichment: enrichDiag,
-      existingLinksByStatus: existingByStatus,
-      d1LinkCounts,
       unlinkedWellCount: unlinkedWells.length,
       unlinkedWellSamples: unlinkedWells.slice(0, 10)
     };
