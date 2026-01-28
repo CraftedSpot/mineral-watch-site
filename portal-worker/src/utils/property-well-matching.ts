@@ -104,20 +104,25 @@ export function getMeridian(record: any): string {
  */
 export function parseSectionsAffected(sectionsStr: string): number[] {
   if (!sectionsStr) return [];
-  
+
   const sections: number[] = [];
-  // Match patterns like "S19", "19", "Sec 19", etc.
-  const matches = sectionsStr.match(/\b(\d{1,2})\b/g);
-  
+  // Match patterns like "S19", "S 19", "19", "Sec 19", "Sec19", etc.
+  // Uses a regex that handles digits preceded by letters (e.g., "S34")
+  const matches = sectionsStr.match(/(?:^|[^0-9])(\d{1,2})(?=[^0-9]|$)/g);
+
   if (matches) {
     for (const match of matches) {
-      const section = parseInt(match, 10);
-      if (section >= 1 && section <= 36) {
-        sections.push(section);
+      // Extract just the digits from each match (match may include leading non-digit)
+      const digitMatch = match.match(/(\d{1,2})/);
+      if (digitMatch) {
+        const section = parseInt(digitMatch[1], 10);
+        if (section >= 1 && section <= 36) {
+          sections.push(section);
+        }
       }
     }
   }
-  
+
   return [...new Set(sections)]; // Remove duplicates
 }
 
@@ -455,7 +460,16 @@ export function computeLateralSections(surfaceSection: number, bhSection: number
  * Also auto-computes "Sections Affected" for horizontal wells by tracing the
  * lateral path between surface and BH sections on the PLSS grid.
  */
-export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<void> {
+export interface EnrichmentDiagnostics {
+  bhEnriched: number;
+  lateralComputed: number;
+  lateralSkipNoBH: number;
+  lateralSkipSameSection: number;
+  lateralSameTwn: number;
+  lateralCrossTwn: number;
+}
+
+export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<EnrichmentDiagnostics> {
   // Collect API numbers for wells missing BH data
   const apiNumbers: string[] = [];
   const apiToWells = new Map<string, any[]>();
@@ -504,15 +518,30 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<voi
 
   // Auto-compute Sections Affected for wells with BH data but no Sections Affected
   let computedCount = 0;
+  let skipAlreadyHas = 0;
+  let skipNoSurface = 0;
+  let skipNoBH = 0;
+  let skipSameSection = 0;
+  let skipOutOfRange = 0;
+  let sameTwn = 0;
+  let crossTwn = 0;
+
   for (const well of wells) {
     // Skip wells that already have Sections Affected populated
-    if (well.fields[WELL_FIELDS.SECTIONS_AFFECTED]) continue;
+    if (well.fields[WELL_FIELDS.SECTIONS_AFFECTED]) {
+      skipAlreadyHas++;
+      continue;
+    }
 
-    const surfaceSection = parseInt(String(well.fields[WELL_FIELDS.SECTION] || ''), 10);
-    const bhSection = parseInt(String(well.fields[WELL_FIELDS.BH_SECTION] || ''), 10);
+    const surfaceRaw = well.fields[WELL_FIELDS.SECTION];
+    const bhRaw = well.fields[WELL_FIELDS.BH_SECTION];
+    const surfaceSection = parseInt(String(surfaceRaw || ''), 10);
+    const bhSection = parseInt(String(bhRaw || ''), 10);
 
-    if (!surfaceSection || !bhSection || surfaceSection === bhSection) continue;
-    if (surfaceSection < 1 || surfaceSection > 36 || bhSection < 1 || bhSection > 36) continue;
+    if (!surfaceSection || isNaN(surfaceSection)) { skipNoSurface++; continue; }
+    if (!bhSection || isNaN(bhSection)) { skipNoBH++; continue; }
+    if (surfaceSection === bhSection) { skipSameSection++; continue; }
+    if (surfaceSection < 1 || surfaceSection > 36 || bhSection < 1 || bhSection > 36) { skipOutOfRange++; continue; }
 
     // Only compute for same-township wells (surface and BH in same township)
     const surfaceTwn = well.fields[WELL_FIELDS.TOWNSHIP];
@@ -521,6 +550,7 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<voi
     const bhRng = well.fields[WELL_FIELDS.BH_RANGE] || surfaceRng;
 
     if (surfaceTwn === bhTwn && surfaceRng === bhRng) {
+      sameTwn++;
       // Same township — compute lateral path through grid
       const lateralSections = computeLateralSections(surfaceSection, bhSection);
       if (lateralSections.length > 0) {
@@ -529,17 +559,23 @@ export async function enrichWellsWithD1Data(wells: any[], env: Env): Promise<voi
         computedCount++;
       }
     } else {
+      crossTwn++;
       // Cross-township lateral: include surface and BH sections at minimum
-      // The BH section will be matched via Bottom Hole / Adjacent BH priorities
-      // but we can still note the surface section as affected
       well.fields[WELL_FIELDS.SECTIONS_AFFECTED] = `S${surfaceSection}, S${bhSection}`;
       computedCount++;
     }
   }
 
-  if (computedCount > 0) {
-    console.log(`[PropertyWellMatch] Auto-computed lateral sections for ${computedCount} wells`);
-  }
+  console.log(`[PropertyWellMatch] Lateral computation: computed=${computedCount}, alreadyHas=${skipAlreadyHas}, noSurface=${skipNoSurface}, noBH=${skipNoBH}, sameSection=${skipSameSection}, outOfRange=${skipOutOfRange}, sameTwn=${sameTwn}, crossTwn=${crossTwn}`);
+
+  return {
+    bhEnriched: apiNumbers.length,
+    lateralComputed: computedCount,
+    lateralSkipNoBH: skipNoBH,
+    lateralSkipSameSection: skipSameSection,
+    lateralSameTwn: sameTwn,
+    lateralCrossTwn: crossTwn
+  };
 }
 
 /**

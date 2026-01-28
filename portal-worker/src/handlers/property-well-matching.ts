@@ -109,20 +109,23 @@ function getMeridian(record: any): string {
  */
 function parseSectionsAffected(sectionsStr: string): number[] {
   if (!sectionsStr) return [];
-  
+
   const sections: number[] = [];
-  // Match patterns like "S19", "19", "Sec 19", etc.
-  const matches = sectionsStr.match(/\b(\d{1,2})\b/g);
-  
+  // Match patterns like "S19", "S 19", "19", "Sec 19", "Sec19", etc.
+  const matches = sectionsStr.match(/(?:^|[^0-9])(\d{1,2})(?=[^0-9]|$)/g);
+
   if (matches) {
     for (const match of matches) {
-      const section = parseInt(match, 10);
-      if (section >= 1 && section <= 36) {
-        sections.push(section);
+      const digitMatch = match.match(/(\d{1,2})/);
+      if (digitMatch) {
+        const section = parseInt(digitMatch[1], 10);
+        if (section >= 1 && section <= 36) {
+          sections.push(section);
+        }
       }
     }
   }
-  
+
   return [...new Set(sections)]; // Remove duplicates
 }
 
@@ -334,7 +337,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
     }
     
     // Enrich wells with BH data from D1 (Airtable often lacks BH fields)
-    await enrichWellsWithD1Data(wells, env);
+    const enrichDiag = await enrichWellsWithD1Data(wells, env);
 
     // Build set of existing links to avoid duplicates
     const existingLinkKeys = new Set<string>();
@@ -370,11 +373,14 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       if (w.sectionsAffected.length > 0) wellsWithSectionsAffected++;
     }
 
-    // Count existing links by match reason
+    // Count existing links by match reason AND by status
     const existingByReason: Record<string, number> = {};
+    const existingByStatus: Record<string, number> = {};
     for (const link of existingLinks) {
       const reason = link.fields[LINK_FIELDS.MATCH_REASON] || 'Unknown';
       existingByReason[reason] = (existingByReason[reason] || 0) + 1;
+      const status = link.fields[LINK_FIELDS.STATUS] || 'No Status';
+      existingByStatus[status] = (existingByStatus[status] || 0) + 1;
     }
 
     console.log(`[PropertyWellMatch] Data quality: ${propertiesWithNoLocation} props without location, ${wellsWithNoSurface} wells without surface, ${wellsWithBH} wells with BH, ${wellsWithSectionsAffected} wells with sections affected`);
@@ -425,7 +431,43 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
       }
     }
     
-    console.log(`[PropertyWellMatch] Found ${matchesFound} matches, ${skippedExisting} already linked`);
+    // Find wells with no links at all (not in any existing pair)
+    const linkedWellIds = new Set<string>();
+    for (const link of existingLinks) {
+      const wellId = link.fields[LINK_FIELDS.WELL]?.[0];
+      if (wellId) linkedWellIds.add(wellId);
+    }
+    // Also count wells that would be linked by new matches
+    for (const l of linksToCreate) {
+      const wellId = l.fields[LINK_FIELDS.WELL]?.[0];
+      if (wellId) linkedWellIds.add(wellId);
+    }
+
+    const unlinkedWells: Array<{name: string; location: string; bhLocation: string; lateralSections: string}> = [];
+    for (const well of processedWells) {
+      if (!linkedWellIds.has(well.id)) {
+        const loc = well.surfaceLocation
+          ? `S${well.surfaceLocation.section}-T${well.surfaceLocation.township}-R${well.surfaceLocation.range}`
+          : 'no surface';
+        const bhLoc = well.bottomHoleLocation
+          ? `S${well.bottomHoleLocation.section}-T${well.bottomHoleLocation.township}-R${well.bottomHoleLocation.range}`
+          : 'no BH';
+        const lat = well.sectionsAffected.length > 0
+          ? well.sectionsAffected.join(',')
+          : 'none';
+        unlinkedWells.push({
+          name: well.fields[WELL_FIELDS.WELL_NAME] || 'Unknown',
+          location: loc,
+          bhLocation: bhLoc,
+          lateralSections: lat
+        });
+      }
+    }
+
+    console.log(`[PropertyWellMatch] Found ${matchesFound} matches, ${skippedExisting} already linked, ${unlinkedWells.length} wells with no link`);
+    if (unlinkedWells.length > 0) {
+      console.log('[PropertyWellMatch] Unlinked wells (first 10):', JSON.stringify(unlinkedWells.slice(0, 10)));
+    }
     
     // Create links in batches
     let created = 0;
@@ -542,7 +584,11 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
         wellsWithNoSurface,
         wellsWithBH,
         wellsWithSectionsAffected
-      }
+      },
+      enrichment: enrichDiag,
+      existingLinksByStatus: existingByStatus,
+      unlinkedWellCount: unlinkedWells.length,
+      unlinkedWellSamples: unlinkedWells.slice(0, 10)
     };
 
     console.log(`[PropertyWellMatch] Completed in ${duration}s:`, stats);

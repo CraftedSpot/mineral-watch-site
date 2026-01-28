@@ -236,9 +236,21 @@
                         const existing = s.existingLinksByType || {};
                         const breakdown = Object.entries(existing).map(([k,v]) => `${v} ${k}`).join(', ');
                         const dq = s.dataQuality || {};
-                        const detail = `Checked ${s.propertiesProcessed} properties vs ${s.wellsProcessed} wells. ` +
+                        const en = s.enrichment || {};
+                        const statusBreakdown = Object.entries(s.existingLinksByStatus || {}).map(([k,v]) => `${v} ${k}`).join(', ');
+                        let detail = `Checked ${s.propertiesProcessed} properties vs ${s.wellsProcessed} wells. ` +
                             `${s.existingLinks} existing links (${breakdown || 'none'}). ` +
-                            `Wells with BH data: ${dq.wellsWithBH || 0}, with lateral sections: ${dq.wellsWithSectionsAffected || 0}.`;
+                            `Link statuses: ${statusBreakdown || 'unknown'}. ` +
+                            `BH enriched: ${en.bhEnriched || 0}. Wells with BH: ${dq.wellsWithBH || 0}, lateral computed: ${en.lateralComputed || 0}.`;
+                        if (s.unlinkedWellCount > 0) {
+                            detail += `<br><br><b>${s.unlinkedWellCount} wells with no property link:</b><br>`;
+                            detail += (s.unlinkedWellSamples || []).map(w =>
+                                `${w.name}: Surface=${w.location}, BH=${w.bhLocation}, Lateral=${w.lateralSections}`
+                            ).join('<br>');
+                            if (s.unlinkedWellCount > 10) detail += `<br>... and ${s.unlinkedWellCount - 10} more`;
+                        } else {
+                            detail += '<br><br>All wells are linked to at least one property.';
+                        }
                         showToast('No new matches found', 'info');
                         console.log('[FindMatches] Detail:', detail);
                         // Show detail in a small dialog
