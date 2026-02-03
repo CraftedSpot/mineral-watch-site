@@ -31,6 +31,8 @@
 
         function renderInsights(insights) {
             const container = document.getElementById('insightsList');
+            // Remove loading animation
+            document.getElementById('insightsSection')?.classList.remove('insights-loading');
 
             if (!insights || insights.length === 0) {
                 container.innerHTML = `
@@ -68,6 +70,8 @@
 
         function renderInsightsFallback() {
             const container = document.getElementById('insightsList');
+            // Remove loading animation
+            document.getElementById('insightsSection')?.classList.remove('insights-loading');
             container.innerHTML = `
                 <div class="insight-item">
                     <div class="insight-indicator neutral"></div>

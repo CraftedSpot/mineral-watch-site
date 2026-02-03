@@ -6,7 +6,7 @@
  *   3. Preloads recent alerts for O(1) dedup checking
  */
 
-import { fetchOCCFile, checkDataFreshness } from '../services/occ.js';
+import { fetchOCCFile, checkDataFreshness, markNewRecordsReceived } from '../services/occ.js';
 import { fetchWellCoordinates } from '../services/occGis.js';
 import { findMatchingProperties, findMatchingWells } from '../services/matching.js';
 import {
@@ -629,8 +629,16 @@ export async function runDailyMonitor(env, options = {}) {
     // Save updated processed APIs (skip in test mode to allow re-testing)
     if (!isTestMode) {
       await saveProcessedAPIs(env, processedAPIs);
+
+      // Mark freshness - if we processed any new records, update the "last new record" timestamp
+      if (results.permitsProcessed > 0) {
+        await markNewRecordsReceived('itd', env);
+      }
+      if (results.completionsProcessed > 0) {
+        await markNewRecordsReceived('completions', env);
+      }
     }
-    
+
     // Send batched emails
     if (userAlertMap.size > 0) {
       console.log(`[Daily] Sending batched emails to ${userAlertMap.size} users`);

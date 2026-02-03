@@ -158,12 +158,15 @@
             const countyAvg = well.county_avg_pct != null ? well.county_avg_pct + '%' : '—';
             const variance = well.variance_points != null ? '+' + well.variance_points + ' pts' : '—';
 
+            // Priority based on deduction rate: > 50% = high, 25-50% = medium
+            const priorityClass = well.agg_deduction_pct > 50 ? 'priority-high' : 'priority-medium';
+
             const oilProd = well.products.find(p => p.product_code === '1');
             const gasProd = well.products.find(p => p.product_code === '5' || p.product_code === '6');
             const nglProd = well.products.find(p => p.product_code === '3');
 
             return `
-                <tr class="well-row" onclick="toggleWellDetail('${well.api_number}')">
+                <tr class="well-row ${priorityClass}" onclick="toggleWellDetail('${well.api_number}')">
                     <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}</td>
                     <td class="sticky sticky-operator">${escapeHtml(well.operator || '—')}</td>
                     <td>${escapeHtml(cleanCountyName(well.county))}</td>
@@ -326,16 +329,21 @@
             `;
 
             // Executive Summary
+            const latestMonth = summary.latest_month || '';
+            const latestDate = latestMonth ? formatReportMonth(latestMonth) : '';
+
             html += `
                 <div class="report-summary-card">
                     <h2 class="report-summary-title">Summary</h2>
+                    <p class="report-meta-line print-only">Analysis Period: ${summary.analysis_period}${latestDate ? ' (through ' + latestDate + ')' : ''}</p>
                     <p class="report-summary-text">
-                        Based on analysis of <strong>${portfolio.total_wells_analyzed}</strong> of your actively producing wells with complete OTC financial records <span class="info-icon" title="Analysis requires wells with multiple product types (oil, gas, NGL) to accurately calculate deduction rates. Single-product wells are excluded to avoid false positives from standard gas processing accounting.">ⓘ</span>,
+                        Based on analysis of <strong>${portfolio.total_wells_analyzed}</strong> of your actively producing wells with complete OTC financial records<sup class="print-only">1</sup><span class="info-icon screen-only" title="Analysis requires wells with multiple product types (oil, gas, NGL) to accurately calculate deduction rates. Single-product wells are excluded to avoid false positives from standard gas processing accounting.">ⓘ</span>,
                         <span class="summary-highlight">${summary.flagged_count} well${summary.flagged_count !== 1 ? 's' : ''}</span>
                         ha${summary.flagged_count !== 1 ? 've' : 's'} aggregate deductions above 25%.
                         The highest rate is <strong>${summary.worst_deduction_pct}%</strong> on ${escapeHtml(worstWell.well_name)},
                         compared to your portfolio average of <strong>${portfolio.avg_deduction_pct}%</strong>.
                     </p>
+                    <p class="report-footnote print-only"><sup>1</sup> Analysis includes wells with multiple product types (oil, gas, NGL). Single-product wells are excluded to ensure accuracy.</p>
                 </div>
             `;
 
@@ -378,8 +386,8 @@
                 </div>
             `;
 
-            // Print-only Summary Table (simple, no scroll, top 5 offenders)
-            const topOffenders = flaggedWells.slice(0, 5);
+            // Print-only Summary Table (simple, no scroll, top 10 offenders)
+            const topOffenders = flaggedWells.slice(0, 10);
             html += `
                 <div class="print-summary-table">
                     <h3 class="chart-title">Top Flagged Wells</h3>
@@ -403,7 +411,7 @@
                             `).join('')}
                         </tbody>
                     </table>
-                    ${flaggedWells.length > 5 ? `<p class="summary-note">+ ${flaggedWells.length - 5} more wells flagged. See full data export for details.</p>` : ''}
+                    ${flaggedWells.length > 10 ? `<p class="summary-note">+ ${flaggedWells.length - 10} more wells flagged. See full data export for details.</p>` : ''}
                 </div>
             `;
 

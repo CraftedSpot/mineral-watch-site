@@ -131,10 +131,19 @@ export async function sendDailySummary(env, results) {
   // Format data freshness info
   let freshnessInfo = '';
   if (dataFreshness) {
+    const formatFreshness = (data, label) => {
+      if (!data) return `${label}: N/A`;
+      if (data.totalRecords === 0) return `${label}: ⚠️ FILE EMPTY`;
+      const lastNew = data.daysSinceNewRecords !== null
+        ? `last new ${data.daysSinceNewRecords}d ago`
+        : 'tracking started';
+      return `${label}: ${data.totalRecords} in file, ${lastNew}${data.isStale ? ' ⚠️ NO NEW DATA' : ''}`;
+    };
+
     freshnessInfo = `
-OCC Data Freshness:
-  - Permits: newest ${dataFreshness.permits?.newestDate || 'N/A'} (${dataFreshness.permits?.daysSinceNewest ?? '?'} days ago)${dataFreshness.permits?.isStale ? ' ⚠️ STALE' : ''}
-  - Completions: newest ${dataFreshness.completions?.newestDate || 'N/A'} (${dataFreshness.completions?.daysSinceNewest ?? '?'} days ago)${dataFreshness.completions?.isStale ? ' ⚠️ STALE' : ''}`;
+OCC 7-Day Rolling Files:
+  - ${formatFreshness(dataFreshness.permits, 'Permits')}
+  - ${formatFreshness(dataFreshness.completions, 'Completions')}`;
   }
 
   // Calculate totals for context

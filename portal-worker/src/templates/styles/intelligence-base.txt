@@ -116,6 +116,36 @@
         .toast.error { background: var(--danger-red); }
         .toast.success { background: var(--success); }
 
+        /* Skeleton loading animation */
+        @keyframes skeleton-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        .skeleton-loading .summary-value,
+        .skeleton-loading .summary-detail {
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+        }
+        .skeleton-loading .summary-value {
+            background: rgba(255,255,255,0.15);
+            color: transparent;
+            border-radius: 4px;
+            min-width: 60px;
+            display: inline-block;
+        }
+        .skeleton-loading .summary-detail {
+            background: rgba(255,255,255,0.1);
+            color: transparent;
+            border-radius: 3px;
+            display: inline-block;
+            min-width: 100px;
+        }
+        .insights-loading {
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+        }
+        .insights-loading .insight-indicator {
+            background: var(--text-muted) !important;
+        }
+
         /* Responsive */
         @media (max-width: 900px) {
             .summary-cards { grid-template-columns: repeat(2, 1fr); }

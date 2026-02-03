@@ -181,69 +181,95 @@ export function validateRecord(record, fileType) {
 }
 
 /**
- * Check if OCC data is stale (no new records in X days)
+ * Check if OCC data is stale based on whether we're receiving new records
+ *
+ * The OCC files are 7-day rolling windows. A record's date field (Approval_Date, Create_Date)
+ * is when the event happened, NOT when OCC added it to the file. A completion from 30 days ago
+ * might be added to the file today.
+ *
+ * We track "freshness" by checking when we last saw NEW (unprocessed) records.
+ * If no new records for staleDays, we alert that something may be wrong.
+ *
  * @param {Array} records - Parsed records
  * @param {string} fileType - Type of file
  * @param {Object} env - Worker environment bindings
- * @param {number} staleDays - Number of days before data is considered stale (default 3)
- * @returns {Object} - { isStale, newestDate, daysSinceNewest }
+ * @param {number} staleDays - Days without new records before considered stale (default 7)
+ * @returns {Object} - { isStale, totalRecords, daysSinceNewRecords, lastNewRecordDate }
  */
-export async function checkDataFreshness(records, fileType, env, staleDays = 5) {
-  if (!records || records.length === 0) {
-    return { isStale: true, newestDate: null, daysSinceNewest: null, reason: 'No records found' };
-  }
-
-  // Find the newest date in the records
-  let newestDate = null;
-
-  for (const record of records) {
-    let dateField;
-    switch (fileType) {
-      case 'itd':
-        dateField = record.Approval_Date || record.Submit_Date || record.Create_Date;
-        break;
-      case 'completions':
-        dateField = record.Create_Date || record.Created_Date || record.DATE_CREATED;
-        break;
-      case 'transfers':
-        dateField = record.EventDate;
-        break;
-    }
-
-    if (dateField) {
-      const recordDate = new Date(dateField);
-      if (!isNaN(recordDate.getTime())) {
-        if (!newestDate || recordDate > newestDate) {
-          newestDate = recordDate;
-        }
-      }
-    }
-  }
-
-  if (!newestDate) {
-    return { isStale: true, newestDate: null, daysSinceNewest: null, reason: 'No valid dates found' };
-  }
-
+export async function checkDataFreshness(records, fileType, env, staleDays = 7) {
+  const cacheKey = `occ-freshness:${fileType}:last-new-record`;
   const now = new Date();
-  const daysSinceNewest = Math.floor((now - newestDate) / (1000 * 60 * 60 * 24));
-  const isStale = daysSinceNewest > staleDays;
 
-  console.log(`[OCC] Data freshness check for ${fileType}: newest date is ${newestDate.toISOString().split('T')[0]}, ${daysSinceNewest} days ago`);
+  // If file is completely empty, that's a real problem
+  if (!records || records.length === 0) {
+    console.log(`[OCC] WARNING: ${fileType} file is empty - possible parsing issue or OCC outage`);
+    return {
+      isStale: true,
+      totalRecords: 0,
+      daysSinceNewRecords: null,
+      reason: 'File is empty',
+      lastNewRecordDate: null
+    };
+  }
 
-  // Send alert if stale
+  console.log(`[OCC] ${fileType} file contains ${records.length} records (7-day rolling window)`);
+
+  // Get the last time we saw new records for this file type
+  let lastNewRecordDate = null;
+  try {
+    const cached = await env.MINERAL_CACHE.get(cacheKey);
+    if (cached) {
+      lastNewRecordDate = new Date(cached);
+    }
+  } catch (err) {
+    console.warn(`[OCC] Failed to get freshness cache for ${fileType}:`, err.message);
+  }
+
+  // Calculate days since we last saw new records
+  let daysSinceNewRecords = null;
+  if (lastNewRecordDate) {
+    daysSinceNewRecords = Math.floor((now - lastNewRecordDate) / (1000 * 60 * 60 * 24));
+  }
+
+  // Stale = no new records in staleDays AND we have a recorded last-new date
+  // If we've never tracked before, we can't determine staleness yet
+  const isStale = daysSinceNewRecords !== null && daysSinceNewRecords > staleDays;
+
   if (isStale) {
+    console.log(`[OCC] WARNING: No new ${fileType} records in ${daysSinceNewRecords} days (threshold: ${staleDays})`);
     const { sendSanityWarning } = await import('./adminAlerts.js');
-    await sendSanityWarning(env, `OCC ${fileType} data appears stale`,
-      `The newest record in the OCC ${fileType} file is from ${newestDate.toISOString().split('T')[0]} (${daysSinceNewest} days ago).\n\nThis could indicate:\n- OCC hasn't published new filings (holiday period, etc.)\n- The OCC file format changed\n- A technical issue with OCC's data pipeline\n\nNo action needed if this is expected (e.g., holiday week). Otherwise, check https://oklahoma.gov/occ/divisions/oil-gas/oil-gas-data.html`
+    await sendSanityWarning(env, `No new OCC ${fileType} records in ${daysSinceNewRecords} days`,
+      `The OCC ${fileType} file has records, but we haven't seen any NEW (unprocessed) records since ${lastNewRecordDate.toISOString().split('T')[0]}.\n\nThis could indicate:\n- OCC hasn't published new filings (normal lull in activity)\n- The OCC file format changed\n- Our processing cache needs to be cleared\n\nFile currently contains ${records.length} records. Check https://oklahoma.gov/occ/divisions/oil-gas/oil-gas-data.html`
     );
+  } else {
+    console.log(`[OCC] ${fileType} freshness OK - ${records.length} records in file${daysSinceNewRecords !== null ? `, last new record ${daysSinceNewRecords} days ago` : ''}`);
   }
 
   return {
     isStale,
-    newestDate: newestDate.toISOString().split('T')[0],
-    daysSinceNewest,
+    totalRecords: records.length,
+    daysSinceNewRecords,
+    lastNewRecordDate: lastNewRecordDate ? lastNewRecordDate.toISOString().split('T')[0] : null,
     fileType
   };
+}
+
+/**
+ * Mark that we received new records for a file type
+ * Call this after successfully processing new (not already cached) records
+ * @param {string} fileType - Type of file
+ * @param {Object} env - Worker environment bindings
+ */
+export async function markNewRecordsReceived(fileType, env) {
+  const cacheKey = `occ-freshness:${fileType}:last-new-record`;
+  try {
+    await env.MINERAL_CACHE.put(cacheKey, new Date().toISOString(), {
+      expirationTtl: 30 * 24 * 60 * 60 // 30 days
+    });
+    console.log(`[OCC] Marked ${fileType} as having new records`);
+  } catch (err) {
+    console.warn(`[OCC] Failed to update freshness cache for ${fileType}:`, err.message);
+  }
 }
 
 /**

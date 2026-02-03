@@ -86,6 +86,9 @@
         }
 
         function renderSummaryCards(data) {
+            // Remove skeleton loading animation
+            document.getElementById('summaryCardsContainer')?.classList.remove('skeleton-loading');
+
             // Active Wells
             document.getElementById('summaryActiveWells').textContent = data.activeWells ?? '—';
             const wellsDetail = document.getElementById('summaryWellsDetail');
@@ -149,6 +152,9 @@
         }
 
         function setSummaryError() {
+            // Remove skeleton loading animation
+            document.getElementById('summaryCardsContainer')?.classList.remove('skeleton-loading');
+
             document.getElementById('summaryActiveWells').textContent = '—';
             document.getElementById('summaryWellsDetail').textContent = 'Could not load';
             document.getElementById('summaryRevenue').textContent = '—';

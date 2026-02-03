@@ -50,6 +50,14 @@
         }
         .report-summary-text .info-icon:hover { color: var(--oil-navy); }
 
+        /* Screen/Print visibility */
+        .print-only { display: none; }
+        .screen-only { display: inline; }
+
+        /* Footnote and meta line for print */
+        .report-footnote { font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem; line-height: 1.4; }
+        .report-meta-line { font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+
         /* Comparison Bar Chart */
         .chart-section { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem; }
         .chart-title { font-size: 0.95rem; font-weight: 600; color: var(--oil-navy); margin-bottom: 1.25rem; }
@@ -76,6 +84,10 @@
         .report-data-table tbody tr:hover { background: var(--paper); }
         .report-data-table .well-row { cursor: pointer; }
         .report-data-table .well-row:hover { background: var(--accent-blue-light); }
+
+        /* Priority indicators - colored left border */
+        .report-data-table .well-row.priority-high td.sticky-well { box-shadow: inset 4px 0 0 var(--danger-red); }
+        .report-data-table .well-row.priority-medium td.sticky-well { box-shadow: inset 4px 0 0 var(--warning-amber); }
 
         /* Sticky columns */
         .report-data-table th.sticky, .report-data-table td.sticky { position: sticky; background: white; z-index: 1; }
@@ -205,8 +217,16 @@
             .bar-fill.bar-portfolio { background: var(--accent-blue) !important; }
             .bar-container { background: #f1f5f9 !important; }
 
-            /* Hide full data table, show print summary table */
+            /* Show/hide print vs screen elements */
             .screen-only { display: none !important; }
+            .print-only { display: block !important; }
+            sup.print-only { display: inline !important; }
+
+            /* HUD badges side-by-side for print — override mobile stacking */
+            .hud-metrics { display: flex !important; flex-direction: row !important; flex-wrap: nowrap !important; gap: 0.75rem !important; }
+            .hud-badge { min-width: 0 !important; flex: 1 1 0 !important; width: auto !important; }
+
+            /* Hide full data table, show print summary table */
             .print-summary-table { display: block; background: none !important; border: 1.5px solid var(--border) !important; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; break-inside: avoid; }
             .print-summary-table .chart-title { font-size: 0.9rem; margin-bottom: 0.75rem; }
             .summary-table th { font-size: 0.7rem; padding: 0.5rem 0.6rem; }
