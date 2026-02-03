@@ -1,0 +1,69 @@
+WELLS REQUIRING MANUAL REVIEW
+============================================================
+
+Well: MADDUX #4
+  API: 3515322538
+  TRS: S3 T25N R18W
+
+  Proposed: MADDUX #1
+  PUN: 153-046923-0-0000
+  TRS: S13 T25N R18W
+  Score: 75%
+
+----------------------------------------
+
+Well: RINGWOOD-MANNING UNIT #M-17
+  API: 3509330116
+  TRS: S4 T21N R10W
+
+  Proposed: RINGWOOD MANNING UNIT
+  PUN: 093-031945-0-0000
+  TRS: S4 T21N R10W
+  Score: 75%
+
+----------------------------------------
+
+Well: SMITH #1
+  API: 3515320096
+  TRS: S19 T22N R17W
+
+  Proposed: MABLE SMITH  1-19
+  PUN: 153-041628-0-0000
+  TRS: S19 T22N R17W
+  Score: 85%
+
+----------------------------------------
+
+Well: SMITH #1
+  API: 3515320096
+  TRS: S19 T22N R17W
+
+  Proposed: MABLE SMITH  1-19
+  PUN: 153-041628-0-0000
+  TRS: S19 T22N R17W
+  Score: 85%
+
+----------------------------------------
+
+Well: PHILLIPS #4-27H
+  API: 3509324995
+  TRS: S22 T22N R14W
+
+  Proposed: PHILLIPS 4-27
+  PUN: 093-215629-0-0000
+  TRS: S22 T22N R14W
+  Score: 90%
+
+----------------------------------------
+
+Well: MADDUX #4
+  API: 3515322538
+  TRS: S3 T25N R18W
+
+  Proposed: MADDUX #1
+  PUN: 153-046923-0-0000
+  TRS: S13 T25N R18W
+  Score: 75%
+
+----------------------------------------
+

@@ -1,0 +1,450 @@
+        // Function to load county data with caching
+        async function loadCountyData() {
+            try {
+                console.log('Loading county boundaries...');
+                updateStatus('Loading counties...');
+
+                // Check cache first
+                const cached = localStorage.getItem('counties_cache');
+                let countyData;
+
+                if (cached) {
+                    try {
+                        const { version, data } = JSON.parse(cached);
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const current = await versionResponse.json();
+                            if (version === current.counties_version) {
+                                console.log('Counties loaded from cache');
+                                countyData = data;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Cache read error:', e);
+                    }
+                }
+
+                // If not cached or version mismatch, fetch fresh
+                if (!countyData) {
+                    const response = await fetch('/api/map/counties', { credentials: 'include' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    countyData = await response.json();
+
+                    // Cache with version
+                    try {
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const version = await versionResponse.json();
+                            localStorage.setItem('counties_cache', JSON.stringify({
+                                version: version.counties_version,
+                                data: countyData
+                            }));
+                            console.log('Counties cached');
+                        }
+                    } catch (e) {
+                        console.warn('Cache write error:', e);
+                    }
+                }
+
+                // Check if we have data
+                if (!countyData.features || countyData.features.length === 0) {
+                    console.warn('No county data returned from API');
+                    // Fall back to static file if D1 is empty
+                    console.log('Falling back to static county data...');
+                    const fallbackResponse = await fetch('/assets/County_Boundaries_2423125635378062927.geojson');
+                    if (fallbackResponse.ok) {
+                        const fallbackData = await fallbackResponse.json();
+                        console.log('Static county data loaded:', fallbackData.features.length, 'counties');
+                        countyData.features = fallbackData.features;
+                    }
+                }
+
+                console.log('County data loaded:', countyData.features.length, 'counties');
+
+                // Load missing counties (ATOKA and BRYAN) from fallback file
+                try {
+                    const missingResponse = await fetch('/assets/missing-counties-fallback.geojson');
+                    if (missingResponse.ok) {
+                        const missingData = await missingResponse.json();
+                        console.log('Loading', missingData.features.length, 'missing counties from fallback');
+                        // Add missing counties to the main data
+                        countyData.features = countyData.features.concat(missingData.features);
+                        console.log('Total counties after adding missing:', countyData.features.length);
+                    }
+                } catch (error) {
+                    console.warn('Could not load missing counties fallback:', error);
+                }
+
+                // Create county layer with enhanced visibility
+                countyLayer = L.geoJSON(countyData, {
+                    style: {
+                        color: '#1C2B36',        // Brand navy blue from navigation
+                        weight: 3,               // Thicker for counties
+                        fillOpacity: 0,          // No fill at all
+                        fillColor: 'transparent',
+                        opacity: 0.8            // Higher opacity for counties
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const countyName = feature.properties.COUNTY_NAME || 'Unknown County';
+
+                        // No popup for county boundaries to avoid interference
+
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 3, fillOpacity: 0.3 });
+                        });
+
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 2, fillOpacity: 0.1 });
+                        });
+                    }
+                }).addTo(map);
+
+                console.log('County layers created and added to map');
+                map.fitBounds(countyLayer.getBounds(), {padding: [20, 20]});
+                updateStatus(`${countyData.features.length} counties loaded`);
+
+            } catch (error) {
+                console.error('Error loading county data:', error);
+                updateStatus('Using sample county data');
+                console.log('Using fallback county data - real data will be loaded later');
+                createFallbackCountyData();
+            }
+        }
+
+        // Function to load real PLSS township boundaries with caching
+        async function loadTownshipData() {
+            try {
+                console.log('Loading PLSS township boundaries...');
+                updateStatus('Loading townships...');
+
+                // Check cache first
+                const cached = localStorage.getItem('townships_cache');
+                let townshipData;
+
+                if (cached) {
+                    try {
+                        const { version, data } = JSON.parse(cached);
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const current = await versionResponse.json();
+                            if (version === current.townships_version) {
+                                console.log('Townships loaded from cache');
+                                townshipData = data;
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Township cache read error:', e);
+                    }
+                }
+
+                // If not cached or version mismatch, fetch fresh
+                if (!townshipData) {
+                    const response = await fetch('/api/map/townships', { credentials: 'include' });
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    townshipData = await response.json();
+
+                    // Cache with version
+                    try {
+                        const versionResponse = await fetch('/api/map-data/version');
+                        if (versionResponse.ok) {
+                            const version = await versionResponse.json();
+                            localStorage.setItem('townships_cache', JSON.stringify({
+                                version: version.townships_version,
+                                data: townshipData
+                            }));
+                            console.log('Townships cached');
+                        }
+                    } catch (e) {
+                        console.warn('Township cache write error:', e);
+                    }
+                }
+
+                // Check if we have data
+                if (!townshipData.features || townshipData.features.length === 0) {
+                    console.warn('No township data returned from API');
+                    // Fall back to static file if D1 is empty
+                    console.log('Falling back to static township data...');
+                    const fallbackResponse = await fetch('/assets/PLSS_Township_simplified.geojson');
+                    if (fallbackResponse.ok) {
+                        const fallbackData = await fallbackResponse.json();
+                        console.log('Static township data loaded:', fallbackData.features.length, 'townships');
+                        townshipData.features = fallbackData.features;
+                    }
+                }
+
+                console.log('PLSS township data loaded:', townshipData.features.length, 'townships');
+
+                // Remove any existing mathematical grid
+                if (townshipLayer && map.hasLayer(townshipLayer)) {
+                    map.removeLayer(townshipLayer);
+                }
+
+                // Create township layer with real boundaries
+                townshipLayer = L.geoJSON(townshipData, {
+                    style: {
+                        color: '#64748B',        // Slate-500 - more visible
+                        weight: 1.5,             // Slightly thicker
+                        fillOpacity: 0,
+                        opacity: 0.6,            // More visible
+                        dashArray: '4, 4'        // Even dashes
+                    },
+                    onEachFeature: function(feature, layer) {
+                        const townshipLabel = feature.properties.TWNSHPLAB || 'Unknown';
+                        const meridianFull = feature.properties.PRINMER || 'Indian Meridian';
+                        // Abbreviate meridian: IM = Indian Meridian, CM = Cimarron Meridian
+                        const meridian = meridianFull.includes('Cimarron') ? 'CM' : 'IM';
+
+                        // Use tooltip on hover instead of popup (cleaner, doesn't persist)
+                        layer.bindTooltip(`${townshipLabel} • ${meridian}`, {
+                            sticky: true,
+                            opacity: 0.9,
+                            className: 'township-tooltip'
+                        });
+
+                        layer.on('mouseover', function() {
+                            this.setStyle({ weight: 2.5, opacity: 0.9 });
+                        });
+
+                        layer.on('mouseout', function() {
+                            this.setStyle({ weight: 1.5, opacity: 0.6 });
+                        });
+
+                        // Click uses the existing identifyLocation system
+                        // which shows section info in the corner box
+                    }
+                });
+
+                // Don't add to map yet - let toggle control it
+                updateStatus('Townships ready');
+
+            } catch (error) {
+                console.error('Could not load PLSS data:', error);
+                updateStatus('Using sample township grid');
+                console.log('Using mathematical township grid - real data will be loaded later');
+                createFallbackTownshipGrid();
+            }
+        }
+
+        // Fallback county data for testing - enhanced with more Oklahoma counties
+        function createFallbackCountyData() {
+            const fallbackData = {
+                "type": "FeatureCollection",
+                "features": [
+                    {
+                        "type": "Feature",
+                        "properties": { "COUNTY_NAME": "OKLAHOMA", "COUNTY_NO": 55, "COUNTY_FIPS_NO": 109 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-97.7, 35.7], [-97.3, 35.7], [-97.3, 35.3], [-97.7, 35.3], [-97.7, 35.7]]]
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": { "COUNTY_NAME": "CLEVELAND", "COUNTY_NO": 14, "COUNTY_FIPS_NO": 27 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-97.7, 35.3], [-97.3, 35.3], [-97.3, 34.9], [-97.7, 34.9], [-97.7, 35.3]]]
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": { "COUNTY_NAME": "CANADIAN", "COUNTY_NO": 12, "COUNTY_FIPS_NO": 17 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-98.1, 35.7], [-97.7, 35.7], [-97.7, 35.3], [-98.1, 35.3], [-98.1, 35.7]]]
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": { "COUNTY_NAME": "TULSA", "COUNTY_NO": 72, "COUNTY_FIPS_NO": 143 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-96.3, 36.4], [-95.9, 36.4], [-95.9, 36.0], [-96.3, 36.0], [-96.3, 36.4]]]
+                        }
+                    },
+                    {
+                        "type": "Feature",
+                        "properties": { "COUNTY_NAME": "COMANCHE", "COUNTY_NO": 16, "COUNTY_FIPS_NO": 31 },
+                        "geometry": {
+                            "type": "Polygon",
+                            "coordinates": [[[-98.9, 34.9], [-98.5, 34.9], [-98.5, 34.5], [-98.9, 34.5], [-98.9, 34.9]]]
+                        }
+                    }
+                ]
+            };
+
+            countyLayer = L.geoJSON(fallbackData, {
+                style: { color: '#2980b9', weight: 2, fillOpacity: 0.1, fillColor: '#3498db' },
+                onEachFeature: function(feature, layer) {
+                    const countyName = feature.properties.COUNTY_NAME;
+                    layer.bindPopup(`<div class="popup-title">${countyName} County (Sample)</div>`, {
+                        className: 'high-z-popup'
+                    });
+                }
+            }).addTo(map);
+
+            map.fitBounds(countyLayer.getBounds(), {padding: [50, 50]});
+        }
+
+        // Fallback mathematical grid
+        function createFallbackTownshipGrid() {
+            const INDIAN_MERIDIAN = -97.916667;
+            const INDIAN_BASE_LINE = 35.233333;
+            const MILES_PER_TOWNSHIP = 6;
+            const LAT_MILES_RATIO = 1 / 69;
+            const LNG_MILES_RATIO = 1 / 54.6;
+
+            const gridLines = [];
+
+            // Generate horizontal lines
+            for (let t = -10; t <= 10; t++) {
+                const lat = INDIAN_BASE_LINE + (t * MILES_PER_TOWNSHIP * LAT_MILES_RATIO);
+                if (lat >= 34.0 && lat <= 37.0) {
+                    gridLines.push({
+                        coordinates: [[lat, -99.0], [lat, -94.0]],
+                        label: `T${Math.abs(t)}${t >= 0 ? 'N' : 'S'}`
+                    });
+                }
+            }
+
+            // Generate vertical lines
+            for (let r = -15; r <= 15; r++) {
+                const lng = INDIAN_MERIDIAN + (r * MILES_PER_TOWNSHIP * LNG_MILES_RATIO);
+                if (lng >= -99.0 && lng <= -94.0) {
+                    gridLines.push({
+                        coordinates: [[34.0, lng], [37.0, lng]],
+                        label: `R${Math.abs(r)}${r >= 0 ? 'E' : 'W'}`
+                    });
+                }
+            }
+
+            townshipLayer = L.layerGroup();
+
+            gridLines.forEach(line => {
+                const polyline = L.polyline(line.coordinates, {
+                    color: '#64748B',        // Blue-gray (not red)
+                    weight: 1.5,
+                    opacity: 0.6,
+                    dashArray: '5, 5'       // Keep dashed for townships
+                });
+
+                polyline.bindPopup(`<div class="popup-title">PLSS Grid Line</div><div class="popup-detail">${line.label}</div>`, {
+                    className: 'high-z-popup'
+                });
+                townshipLayer.addLayer(polyline);
+            });
+        }
+
+        // Create county labels layer - calculates centroids from actual GeoJSON data
+        function createCountyLabels() {
+            countyLabelsLayer.clearLayers();
+
+            // If county layer isn't loaded yet, wait
+            if (!countyLayer) {
+                console.log('County layer not loaded yet, cannot create labels');
+                return;
+            }
+
+            const zoom = map.getZoom();
+            const fontSize = zoom < 7 ? '9px' : zoom < 9 ? '11px' : zoom < 11 ? '13px' : '15px';
+
+            // Iterate through county features and calculate centroids
+            countyLayer.eachLayer(function(layer) {
+                const feature = layer.feature;
+                if (!feature || !feature.properties) return;
+
+                const countyName = feature.properties.COUNTY_NAME || feature.properties.NAME || 'Unknown';
+
+                // Calculate centroid from geometry
+                let centroid = null;
+                try {
+                    if (feature.geometry) {
+                        const bounds = layer.getBounds();
+                        centroid = bounds.getCenter();
+                    }
+                } catch (e) {
+                    console.warn('Could not calculate centroid for', countyName);
+                    return;
+                }
+
+                if (!centroid) return;
+
+                const label = L.divIcon({
+                    className: 'county-label',
+                    html: `<div style="
+                        color: rgba(28, 43, 54, 0.85);
+                        font-family: 'Inter', sans-serif;
+                        font-size: ${fontSize};
+                        font-weight: 600;
+                        text-transform: uppercase;
+                        letter-spacing: 1px;
+                        text-align: center;
+                        white-space: nowrap;
+                        pointer-events: none;
+                        text-shadow:
+                            -1px -1px 0 rgba(255,255,255,0.95),
+                            1px -1px 0 rgba(255,255,255,0.95),
+                            -1px 1px 0 rgba(255,255,255,0.95),
+                            1px 1px 0 rgba(255,255,255,0.95),
+                            0 0 4px rgba(255,255,255,0.9);
+                    ">${countyName}</div>`,
+                    iconSize: [120, 20],
+                    iconAnchor: [60, 10]
+                });
+
+                const marker = L.marker([centroid.lat, centroid.lng], {
+                    icon: label,
+                    interactive: false
+                });
+
+                countyLabelsLayer.addLayer(marker);
+            });
+
+            console.log(`Created ${countyLabelsLayer.getLayers().length} county labels`);
+        }
+
+        // Helper function to ensure proper layer ordering (properties should be clickable)
+        function ensureLayerOrder() {
+            // Order from bottom to top:
+            // 1. Land grid (counties, townships) - bottom
+            // 2. Activity heatmap layer - low priority background
+            // 3. Lateral paths layer
+            // 4. Wells layer
+            // 5. Permits/Completions layers
+            // 6. Properties layer - top (most clickable)
+
+            // Bring activity heatmap to back if visible
+            if (activityHeatmapLayer && map.hasLayer(activityHeatmapLayer)) {
+                // Layer groups don't have bringToBack, so remove and re-add at bottom
+                map.removeLayer(activityHeatmapLayer);
+                map.addLayer(activityHeatmapLayer);
+            }
+
+
+            // Bring wells layer to appropriate position
+            if (wellsLayer && map.hasLayer(wellsLayer)) {
+                wellsLayer.bringToFront();
+            }
+
+            // Bring nearby wells layer above heatmap but below tracked wells
+            if (nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
+                nearbyWellsLayer.bringToFront();
+            }
+
+            // Bring properties to front if visible
+            if (propertiesLayer && map.hasLayer(propertiesLayer)) {
+                propertiesLayer.bringToFront();
+            }
+
+            // Section lines should be on top of everything
+            if (sectionLayer && map.hasLayer(sectionLayer)) {
+                sectionLayer.bringToFront();
+            }
+        }
+

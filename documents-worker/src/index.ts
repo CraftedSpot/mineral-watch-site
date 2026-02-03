@@ -1,6 +1,7 @@
 import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
 import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
+import { CountyRecordExtractionService } from './services/county-record-extraction';
 import { PDFDocument } from 'pdf-lib';
 
 interface Env {
@@ -13,6 +14,9 @@ interface Env {
   PROCESSING_API_KEY: string;
   SYNC_API_KEY?: string;
   STRIPE_SECRET_KEY?: string;
+  OKCR_API_KEY?: string;
+  OKCR_API_BASE?: string;
+  ANTHROPIC_API_KEY?: string;
 }
 
 // Credit pack pricing - must match Stripe product prices (LIVE MODE)
@@ -222,7 +226,9 @@ async function ensureProcessingColumns(env: Env) {
     { name: 'extraction_started_at', type: 'TEXT' },
     { name: 'extraction_completed_at', type: 'TEXT' },
     { name: 'extraction_error', type: 'TEXT' },
-    { name: 'source_metadata', type: 'TEXT' }  // JSON: { type, api, url, uploadedAt }
+    { name: 'source_metadata', type: 'TEXT' },  // JSON: { type, api, url, uploadedAt }
+    { name: 'user_email', type: 'TEXT' },
+    { name: 'user_name', type: 'TEXT' }
   ];
 
   for (const column of columnsToAdd) {
@@ -557,19 +563,22 @@ export default {
 
         console.log('Stored in R2, creating DB record');
 
-        // Get user's organization and plan
+        // Get user's organization, plan, and contact info
         // Auth-worker returns organizationId directly (not nested in fields)
         const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
         const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
+        const userEmail = user.email || user.fields?.Email || null;
+        const userName = user.name || user.fields?.Name || null;
 
         // All files (PDF and images) go to pending status for processing
         // The processor handles different file types appropriately
         await env.WELLS_DB.prepare(`
           INSERT INTO documents (
             id, r2_key, filename, original_filename, user_id, organization_id,
-            file_size, status, upload_date, queued_at, user_plan, content_type
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?)
-        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type).run();
+            file_size, status, upload_date, queued_at, user_plan, content_type,
+            user_email, user_name
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?)
+        `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName).run();
 
         console.log('Document uploaded successfully:', docId);
 
@@ -625,6 +634,8 @@ export default {
         // Auth-worker returns organizationId directly (not nested in fields)
         const userOrg = user.organizationId || user.fields?.Organization?.[0] || user.organization?.[0] || null;
         const userPlan = user.plan || user.fields?.Plan || user.Plan || 'Free';
+        const userEmail = user.email || user.fields?.Email || null;
+        const userName = user.name || user.fields?.Name || null;
 
         // Process each file
         for (let i = 0; i < files.length; i++) {
@@ -665,9 +676,10 @@ export default {
             await env.WELLS_DB.prepare(`
               INSERT INTO documents (
                 id, r2_key, filename, original_filename, user_id, organization_id,
-                file_size, status, upload_date, queued_at, user_plan, content_type
-              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?)
-            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type).run();
+                file_size, status, upload_date, queued_at, user_plan, content_type,
+                user_email, user_name
+              ) VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', datetime('now', '-6 hours'), datetime('now', '-6 hours'), ?, ?, ?, ?)
+            `).bind(docId, r2Key, file.name, file.name, user.id, userOrg, file.size, userPlan, file.type, userEmail, userName).run();
 
             results.push({
               success: true,
@@ -716,13 +728,19 @@ export default {
         }
 
         // Query document without property JOIN - we'll fetch properties separately
+        // TRIM/SUBSTR extracts the first well_id from comma-separated list (primary well is always first)
         const query = `
           SELECT
             d.*,
             w.well_name,
             w.api_number as well_api_number
           FROM documents d
-          LEFT JOIN wells w ON d.well_id = w.airtable_record_id
+          LEFT JOIN wells w ON w.airtable_record_id = (
+            CASE WHEN d.well_id LIKE '%,%'
+              THEN TRIM(SUBSTR(d.well_id, 1, INSTR(d.well_id, ',') - 1))
+              ELSE TRIM(d.well_id)
+            END
+          )
           WHERE d.id = ?
             AND (d.${conditions.join(' OR d.')})
             AND d.deleted_at IS NULL
@@ -1266,15 +1284,23 @@ export default {
         `).run();
 
         // Get documents with status='pending' that haven't exceeded retry limit
-        // Include user_plan for credit checks and content_type for file type detection
+        // Round-robin by user so bulk uploaders (e.g. harvester) don't starve real users
+        // Real users are prioritized over system_harvester within each round-robin slot
         const results = await env.WELLS_DB.prepare(`
           SELECT id, r2_key, filename, original_filename, user_id, organization_id,
-                 file_size, upload_date, page_count, processing_attempts, user_plan, content_type
-          FROM documents
-          WHERE status = 'pending'
-            AND processing_attempts < 3
-            AND deleted_at IS NULL
-          ORDER BY upload_date ASC
+                 file_size, upload_date, page_count, processing_attempts, user_plan, content_type,
+                 source_metadata
+          FROM (
+            SELECT *,
+              ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY upload_date ASC) as user_queue_pos
+            FROM documents
+            WHERE status = 'pending'
+              AND processing_attempts < 3
+              AND deleted_at IS NULL
+          )
+          ORDER BY user_queue_pos,
+            CASE WHEN user_id = 'system_harvester' THEN 1 ELSE 0 END,
+            upload_date ASC
           LIMIT 20
         `).all();
 
@@ -1291,6 +1317,13 @@ export default {
         for (const doc of results.results) {
           const userId = doc.user_id as string;
           const userPlan = (doc.user_plan as string) || 'Free';
+
+          // System-triggered documents (harvester) bypass credit checks
+          if (userId === 'system_harvester' || userPlan === 'system') {
+            docsToProcess.push(doc);
+            if (docsToProcess.length >= 10) break;
+            continue;
+          }
 
           // Check credit cache or fetch
           if (!(userId in userCreditCache)) {
@@ -1829,6 +1862,130 @@ export default {
               }
             }
 
+            // Auto-populate pooling_orders, pooling_election_options, and lease_comps for pooling orders
+            if ((doc_type === 'pooling_order' || doc_type === 'force_pooling_order') && extracted_data) {
+              try {
+                const orderInfo = extracted_data.order_info || {};
+                const unitInfo = extracted_data.unit_info || {};
+                const wellInfo = extracted_data.well_info || {};
+                const deadlines = extracted_data.deadlines || {};
+                const defaultElection = extracted_data.default_election || {};
+
+                const poolingId = 'po_' + docId.replace(/^doc_/, '');
+
+                // 1. Insert into pooling_orders
+                try {
+                  await env.WELLS_DB.prepare(`
+                    INSERT OR IGNORE INTO pooling_orders (
+                      id, document_id, case_number, order_number, order_date, effective_date,
+                      applicant, operator, proposed_well_name,
+                      section, township, range, county, meridian,
+                      unit_description, unit_size_acres,
+                      well_type, formations,
+                      response_deadline, response_deadline_days,
+                      default_election_option, default_election_description,
+                      confidence
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                  `).bind(
+                    poolingId,
+                    docId,
+                    orderInfo.case_number || null,
+                    orderInfo.order_number || null,
+                    orderInfo.order_date || null,
+                    orderInfo.effective_date || null,
+                    extracted_data.applicant?.name || null,
+                    extracted_data.operator?.name || null,
+                    wellInfo.proposed_well_name || null,
+                    extracted_data.section ? String(extracted_data.section) : (section ? String(section) : null),
+                    extracted_data.township || township || null,
+                    extracted_data.range || range || null,
+                    extracted_data.county || county || null,
+                    'IM',
+                    unitInfo.unit_description || null,
+                    unitInfo.unit_size_acres || null,
+                    wellInfo.well_type || null,
+                    extracted_data.formations ? JSON.stringify(extracted_data.formations) : null,
+                    deadlines.election_deadline || null,
+                    deadlines.election_period_days || null,
+                    defaultElection.option_number != null ? String(defaultElection.option_number) : null,
+                    defaultElection.description || null,
+                    'high'
+                  ).run();
+                  console.log('[Pooling] Inserted pooling_orders for:', docId);
+                } catch (poErr: any) {
+                  console.error('[Pooling] Failed to insert pooling_orders for', docId, ':', poErr);
+                }
+
+                // 2. Insert election options
+                const options = extracted_data.election_options || [];
+                for (const opt of options) {
+                  try {
+                    await env.WELLS_DB.prepare(`
+                      INSERT INTO pooling_election_options (
+                        pooling_order_id, option_number, option_type, description,
+                        bonus_per_acre, royalty_fraction, royalty_decimal,
+                        working_interest_retained, cost_per_nma, penalty_percentage, notes
+                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(
+                      poolingId,
+                      opt.option_number || null,
+                      opt.option_type || null,
+                      opt.description || null,
+                      opt.bonus_per_nma || null,
+                      opt.royalty_rate || null,
+                      opt.nri_delivered ? parseFloat(String(opt.nri_delivered).replace('%', '')) / 100 : null,
+                      opt.option_type === 'participate' ? 1 : 0,
+                      opt.cost_per_nma || null,
+                      opt.risk_penalty_percentage || null,
+                      opt.excess_royalty ? `Excess royalty: ${opt.excess_royalty}` : null
+                    ).run();
+                  } catch (optErr: any) {
+                    console.error('[Pooling] Failed to insert election option', opt.option_number, 'for', docId, ':', optErr);
+                  }
+                }
+
+                // 3. Insert lease comps from exhibits
+                const leaseExhibits = extracted_data.lease_exhibits || [];
+                for (const comp of leaseExhibits) {
+                  try {
+                    await env.WELLS_DB.prepare(`
+                      INSERT INTO lease_comps (
+                        source_document_id, section, township, range, county, state, quarters,
+                        lessor, lessee, bonus_per_nma, royalty, royalty_decimal,
+                        lease_date, term_years, acres,
+                        source_case_number, source_order_number
+                      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    `).bind(
+                      docId,
+                      comp.section ? String(comp.section) : null,
+                      comp.township || null,
+                      comp.range || null,
+                      comp.county || extracted_data.county || county || null,
+                      'Oklahoma',
+                      comp.quarters || null,
+                      comp.lessor || null,
+                      comp.lessee || null,
+                      comp.bonus_per_nma || null,
+                      comp.royalty || null,
+                      comp.royalty_decimal || null,
+                      comp.lease_date || null,
+                      comp.term_years || null,
+                      comp.acres || null,
+                      orderInfo.case_number || null,
+                      orderInfo.order_number || null
+                    ).run();
+                  } catch (compErr: any) {
+                    console.error('[Pooling] Failed to insert lease comp for', docId, ':', compErr);
+                  }
+                }
+
+                console.log(`[Pooling] Post-processing complete for ${docId}: ${options.length} options, ${leaseExhibits.length} lease comps`);
+              } catch (poolingError) {
+                // Non-fatal — document is already saved with full extracted_data JSON
+                console.error('[Pooling] Post-processing failed for', docId, ':', poolingError);
+              }
+            }
+
             // Track document usage and deduct credit (only for successful processing)
             if (status !== 'failed') {
               try {
@@ -1839,21 +1996,28 @@ export default {
                 `).bind(docId).first();
 
                 if (docInfo?.user_id) {
-                  const usageService = new UsageTrackingService(env.WELLS_DB);
+                  const userId = docInfo.user_id as string;
                   const userPlan = (docInfo.user_plan as string) || 'Free';
-                  // Use organization_id for credit tracking if available, otherwise user_id
-                  const creditUserId = (docInfo.organization_id as string) || (docInfo.user_id as string);
-                  await usageService.trackDocumentProcessed(
-                    creditUserId,
-                    userPlan,
-                    docId,
-                    doc_type || 'unknown',
-                    page_count || 0,
-                    false, // isMultiDoc - handle this in split endpoint
-                    0,     // childCount - handle this in split endpoint
-                    extracted_data?.skip_extraction || false
-                  );
-                  console.log('[Usage] Tracked document processing for:', creditUserId, '(org:', docInfo.organization_id, ', user:', docInfo.user_id, ') plan:', userPlan);
+
+                  // Skip credit tracking for system-triggered documents
+                  if (userId === 'system_harvester' || userPlan === 'system') {
+                    console.log('[Usage] Skipping credit tracking for system document:', docId);
+                  } else {
+                    const usageService = new UsageTrackingService(env.WELLS_DB);
+                    // Use organization_id for credit tracking if available, otherwise user_id
+                    const creditUserId = (docInfo.organization_id as string) || userId;
+                    await usageService.trackDocumentProcessed(
+                      creditUserId,
+                      userPlan,
+                      docId,
+                      doc_type || 'unknown',
+                      page_count || 0,
+                      false, // isMultiDoc - handle this in split endpoint
+                      0,     // childCount - handle this in split endpoint
+                      extracted_data?.skip_extraction || false
+                    );
+                    console.log('[Usage] Tracked document processing for:', creditUserId, '(org:', docInfo.organization_id, ', user:', userId, ') plan:', userPlan);
+                  }
                 }
               } catch (usageError) {
                 // Don't fail the request if usage tracking fails
@@ -1901,7 +2065,7 @@ export default {
 
         // Get parent document info
         const parentDoc = await env.WELLS_DB.prepare(`
-          SELECT r2_key, filename, user_id, organization_id, user_plan
+          SELECT r2_key, filename, user_id, organization_id, user_plan, user_email, user_name
           FROM documents
           WHERE id = ? AND deleted_at IS NULL
         `).bind(parentDocId).first();
@@ -1924,13 +2088,14 @@ export default {
           await env.WELLS_DB.prepare(`
             INSERT INTO documents (
               id, r2_key, filename, user_id, organization_id, user_plan,
+              user_email, user_name,
               parent_document_id, page_range_start, page_range_end,
               status, doc_type, display_name, category, confidence,
               county, section, township, range, extracted_data,
               needs_review, field_scores, fields_needing_review,
               upload_date, extraction_completed_at
             ) VALUES (
-              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+              ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
               datetime('now', '-6 hours'), datetime('now', '-6 hours')
             )
           `).bind(
@@ -1940,6 +2105,8 @@ export default {
             parentDoc.user_id,
             parentDoc.organization_id,
             parentDoc.user_plan || 'Free', // Inherit plan from parent
+            parentDoc.user_email || null,
+            parentDoc.user_name || null,
             parentDocId,
             child.page_range_start,
             child.page_range_end,
@@ -2094,47 +2261,42 @@ export default {
       const userId = path.split('/')[4];
 
       try {
-        // Get user info from auth-worker
-        const authRequest = new Request(`https://auth-worker.photog12.workers.dev/api/users/${userId}`, {
-          headers: {
-            'Authorization': `Bearer ${env.PROCESSING_API_KEY}` // Internal service auth
-          },
-        });
+        // Look up user email/name from their most recent document in D1
+        const userDoc = await env.WELLS_DB.prepare(`
+          SELECT user_email, user_name FROM documents
+          WHERE user_id = ? AND user_email IS NOT NULL
+          ORDER BY upload_date DESC LIMIT 1
+        `).bind(userId).first();
 
-        const authResponse = await env.AUTH_WORKER.fetch(authRequest);
-        
-        if (!authResponse.ok) {
-          // For now, return a default response since we don't have user lookup
-          // In production, this would fetch from Airtable or user service
-          console.log('Could not fetch user from auth-worker, using defaults');
+        if (userDoc?.user_email) {
           return jsonResponse({
             id: userId,
-            email: 'james@mymineralwatch.com', // Default for testing
-            name: 'User',
+            email: userDoc.user_email,
+            name: userDoc.user_name || 'User',
             notification_preferences: {
               email_on_complete: true
             }
           }, 200, env);
         }
 
-        const userData = await authResponse.json();
+        // No email found (system_harvester or old docs without email)
+        console.log(`No email found for user ${userId}, skipping notification`);
         return jsonResponse({
-          id: userData.id,
-          email: userData.email || userData.fields?.Email,
-          name: userData.name || userData.fields?.Name,
+          id: userId,
+          email: null,
+          name: 'User',
           notification_preferences: {
-            email_on_complete: true
+            email_on_complete: false
           }
         }, 200, env);
       } catch (error) {
         console.error('Get user error:', error);
-        // Return default for now
         return jsonResponse({
           id: userId,
-          email: 'james@mymineralwatch.com',
+          email: null,
           name: 'User',
           notification_preferences: {
-            email_on_complete: true
+            email_on_complete: false
           }
         }, 200, env);
       }
@@ -2597,15 +2759,16 @@ export default {
         const body = await request.json() as {
           caseNumber: string;
           orderNumber?: string;
+          force?: boolean;
         };
 
-        const { caseNumber, orderNumber } = body;
+        const { caseNumber, orderNumber, force } = body;
 
         if (!caseNumber) {
           return errorResponse('caseNumber is required', 400, env);
         }
 
-        console.log(`[OCC Fetch] User ${user.id} requesting case ${caseNumber}`);
+        console.log(`[OCC Fetch] User ${user.id} requesting case ${caseNumber}${force ? ' (force re-analyze)' : ''}`);
 
         // Get user's plan and organization
         const userPlan = user.fields?.Plan || user.plan || user.Plan || 'Free';
@@ -2629,7 +2792,7 @@ export default {
 
         const existing = await env.WELLS_DB.prepare(existingQuery).bind(...queryParams).first();
 
-        if (existing) {
+        if (existing && !force) {
           console.log(`[OCC Fetch] Document already exists: ${existing.id}`);
 
           // Get current credit balance for UI (use org ID if available)
@@ -2644,6 +2807,14 @@ export default {
             status: existing.status,
             creditsRemaining: creditCheck.totalAvailable
           }, 200, env);
+        }
+
+        // If force re-analyze and document exists, soft-delete the old one
+        if (existing && force) {
+          console.log(`[OCC Fetch] Force re-analyze: soft-deleting existing document ${existing.id}`);
+          await env.WELLS_DB.prepare(`
+            UPDATE documents SET deleted_at = datetime('now') WHERE id = ?
+          `).bind(existing.id).run();
         }
 
         // Check credits before fetching (use org ID if available)
@@ -2843,6 +3014,64 @@ export default {
       } catch (error) {
         console.error('[1002A Fetch] Error:', error);
         return errorResponse('Failed to fetch 1002A document: ' + (error as Error).message, 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/extract-county-record - Extract a county record from OKCR
+    if (path === '/api/processing/extract-county-record' && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      try {
+        const body = await request.json() as any;
+        const { action, county, instrument_number, images, format, instrument_type,
+                userId, userPlan, organizationId, credits_required, cacheRow } = body;
+
+        if (!userId || !userPlan) {
+          return errorResponse('Missing userId or userPlan', 400, env);
+        }
+
+        const service = new CountyRecordExtractionService(env);
+
+        if (action === 'create_from_cache') {
+          // Cached extraction: copy to new user's document, charge credits
+          if (!cacheRow || !cacheRow.document_id) {
+            return errorResponse('Missing cacheRow with document_id', 400, env);
+          }
+          const result = await service.createDocumentFromCache({
+            userId,
+            userPlan,
+            organizationId,
+            cacheRow,
+            credits_required: credits_required || 5
+          });
+          return jsonResponse(result, result.success ? 200 : (result.status || 500), env);
+        }
+
+        // Full extraction: fetch from OKCR, extract, create document, charge credits
+        if (!county || !instrument_number || !images || !Array.isArray(images) || images.length === 0) {
+          return errorResponse('Missing county, instrument_number, or images array', 400, env);
+        }
+
+        const result = await service.extractCountyRecord({
+          county,
+          instrument_number,
+          images,
+          format: format || 'extract',
+          instrument_type,
+          userId,
+          userPlan,
+          organizationId,
+          credits_required: credits_required || 5
+        });
+
+        return jsonResponse(result, result.success ? 200 : (result.status || 500), env);
+
+      } catch (error) {
+        console.error('[County Record Extraction] Error:', error);
+        return errorResponse('Failed to extract county record: ' + (error as Error).message, 500, env);
       }
     }
 

@@ -386,11 +386,11 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
 
     const airtableRecordId = linkId.startsWith('link_') ? linkId.replace('link_', '') : linkId;
 
-    // Update D1 database
+    // Update D1 database — set confidence_score = 1.0 for user-confirmed links
     try {
       const d1Result = await env.WELLS_DB.prepare(`
         UPDATE property_well_links
-        SET status = 'Linked', rejected_date = NULL
+        SET status = 'Linked', rejected_date = NULL, confidence_score = 1.0
         WHERE id = ? OR airtable_record_id = ?
       `).bind(linkId, airtableRecordId).run();
 

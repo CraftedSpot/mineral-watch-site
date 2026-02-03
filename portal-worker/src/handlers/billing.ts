@@ -44,7 +44,8 @@ async function createCheckoutSession(env: Env, user: any, priceId: string, exist
   params.append('line_items[0][price]', priceId);
   params.append('line_items[0][quantity]', '1');
   params.append('customer_email', user.email);
-  
+  params.append('allow_promotion_codes', 'true');
+
   // If they have a customer ID (e.g., cancelled before), use it
   if (existingCustomerId) {
     params.delete('customer_email');

@@ -1,15 +1,14 @@
 /**
- * Email Batch Service - Groups and sends batched alert emails
- * Reduces email volume by combining multiple alerts per category
- * Supports digest mode - queues alerts for digest delivery instead of instant
+ * Email Batch Service - Queues alerts for daily/weekly digest delivery
+ * All alerts are queued to pending_alerts table for digest processing.
+ * No instant emails are sent - users receive daily and/or weekly digests.
  */
 
-import { sendAlertEmail } from './email.js';
-import { createActivityLog, updateActivityLog, getUserById } from './airtable.js';
+import { createActivityLog, getUserById } from './airtable.js';
 import {
   getEffectiveNotificationMode,
-  shouldSendInstant,
   getDigestFrequency,
+  shouldQueueWeekly,
   queuePendingAlert,
   getOrganizationById
 } from './pendingAlerts.js';
@@ -21,12 +20,12 @@ import {
 const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 /**
- * Process and send batched emails for all collected alerts
+ * Process all collected alerts - create activity logs and queue for digest delivery
  * @param {Object} env - Worker environment
  * @param {Map} userAlertMap - Map of userId -> array of alerts
  * @param {boolean} dryRun - Whether this is a dry run
  * @param {Object} options - Additional options including test mode
- * @returns {Object} - Results of email sending
+ * @returns {Object} - Results of processing
  */
 export async function sendBatchedEmails(env, userAlertMap, dryRun = false, options = {}) {
   const results = {
@@ -39,27 +38,11 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
     skippedUsers: []
   };
 
-  // Test mode email filtering - TEMPORARILY DISABLED to resend missed emails
-  // const approvedTestEmails = ['photog12@gmail.com', 'mrsprice518@gmail.com'];
-  const approvedTestEmails = null; // Disable filtering temporarily
-
   // Process each user's alerts
   for (const [userId, userAlerts] of userAlertMap.entries()) {
     try {
       // Get user email from first alert
       const userEmail = userAlerts[0]?.user?.email;
-
-      // In test mode, filter to approved emails only
-      // TEMPORARILY DISABLED - sending to all users for missed email resend
-      if (results.testMode && userEmail && approvedTestEmails) {
-        if (!approvedTestEmails.includes(userEmail)) {
-          console.log(`[Test Mode] Skipping batched email to: ${userEmail} (${userAlerts.length} alerts)`);
-          results.skippedUsers.push({ email: userEmail, alertCount: userAlerts.length });
-          continue;
-        } else {
-          console.log(`[Test Mode] Sending batched email to: ${userEmail} (${userAlerts.length} alerts)`);
-        }
-      }
 
       // Get user's notification mode
       const user = await getUserById(env, userId);
@@ -75,11 +58,6 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
 
       console.log(`[EmailBatch] User ${userEmail} notification mode: ${notificationMode} (orgId: ${organizationId}, via: ${alertOrgId ? 'alert' : 'user'})`);
 
-      // Debug: Log if org lookup might have issues
-      if (alertOrgId && userOrgId && alertOrgId !== userOrgId) {
-        console.log(`[EmailBatch] Note: Alert org (${alertOrgId}) differs from user org (${userOrgId})`);
-      }
-
       // Check if user wants no notifications
       if (notificationMode === 'None') {
         console.log(`[EmailBatch] Skipping user ${userEmail} - notifications disabled`);
@@ -87,48 +65,79 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
         continue;
       }
 
-      // Determine what actions to take based on notification mode
-      const sendInstant = shouldSendInstant(notificationMode);
+      // Determine digest frequency for this user
       const digestFrequency = getDigestFrequency(notificationMode);
 
-      // Send instant email if appropriate
-      if (sendInstant) {
-        const sent = await sendBatchedUserEmail(env, userId, userAlerts, dryRun);
-        if (sent) {
-          results.emailsSent++;
-          results.alertsSent += userAlerts.length;
+      if (!digestFrequency) {
+        console.log(`[EmailBatch] No digest frequency for user ${userEmail} (mode: ${notificationMode})`);
+        results.alertsSkipped += userAlerts.length;
+        continue;
+      }
+
+      if (dryRun) {
+        console.log(`[EmailBatch] DRY RUN: Would queue ${userAlerts.length} alerts for ${digestFrequency} digest for ${userEmail}`);
+        results.alertsQueued += userAlerts.length;
+        continue;
+      }
+
+      // Create activity logs and queue alerts for digest
+      for (let i = 0; i < userAlerts.length; i++) {
+        const alert = userAlerts[i];
+
+        // Create activity log entry
+        const activityData = {
+          wellName: alert.wellName,
+          apiNumber: alert.apiNumber,
+          activityType: alert.activityType,
+          operator: alert.operator,
+          alertLevel: alert.alertLevel,
+          sectionTownshipRange: alert.location,
+          county: alert.county,
+          occLink: alert.occLink || null,
+          mapLink: alert.mapLink || "",
+          userId: alert.user.id,
+          formation: alert.formation || null,
+          organizationId: alert.organizationId || null
+        };
+        const record = await createActivityLog(env, activityData);
+        const activityLogId = record.id;
+
+        // Queue for digest delivery
+        await queuePendingAlert(env, {
+          userId: userId,
+          userEmail: userEmail,
+          organizationId: organizationId,
+          activityLogId: activityLogId,
+          activityType: alert.activityType,
+          wellName: alert.wellName,
+          apiNumber: alert.apiNumber,
+          operator: alert.operator,
+          county: alert.county,
+          sectionTownshipRange: alert.location,
+          alertLevel: alert.alertLevel,
+          daysUntilExpiration: alert.daysUntilExpiration || null,
+          expireDate: alert.expireDate || null,
+          previousStatus: alert.previousStatus || null,
+          newStatus: alert.newStatus || null,
+          previousOperator: alert.previousOperator || null,
+          digestFrequency: digestFrequency
+        });
+        results.alertsQueued++;
+
+        // Rate limit Airtable writes
+        if (i < userAlerts.length - 1) {
+          await delay(200);
         }
       }
 
-      // Queue for digest if appropriate (even if we also sent instant)
-      if (digestFrequency && !dryRun) {
+      // For 'Daily + Weekly' users, also queue a copy for the weekly report
+      if (shouldQueueWeekly(notificationMode) && digestFrequency === 'daily') {
         for (const alert of userAlerts) {
-          // Create activity log first if we didn't send instant (activity log was created there)
-          let activityLogId = alert.activityLogId;
-          if (!sendInstant) {
-            const activityData = {
-              wellName: alert.wellName,
-              apiNumber: alert.apiNumber,
-              activityType: alert.activityType,
-              operator: alert.operator,
-              alertLevel: alert.alertLevel,
-              sectionTownshipRange: alert.location,
-              county: alert.county,
-              occLink: alert.occLink || null,
-              mapLink: alert.mapLink || "",
-              userId: alert.user.id,
-              formation: alert.formation || null,
-              organizationId: alert.organizationId || null
-            };
-            const record = await createActivityLog(env, activityData);
-            activityLogId = record.id;
-          }
-
           await queuePendingAlert(env, {
             userId: userId,
             userEmail: userEmail,
             organizationId: organizationId,
-            activityLogId: activityLogId,
+            activityLogId: null, // weekly report doesn't need individual activity log refs
             activityType: alert.activityType,
             wellName: alert.wellName,
             apiNumber: alert.apiNumber,
@@ -141,12 +150,13 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
             previousStatus: alert.previousStatus || null,
             newStatus: alert.newStatus || null,
             previousOperator: alert.previousOperator || null,
-            digestFrequency: digestFrequency
+            digestFrequency: 'weekly'
           });
-          results.alertsQueued++;
         }
-        console.log(`[EmailBatch] Queued ${userAlerts.length} alerts for ${digestFrequency} digest for ${userEmail}`);
+        console.log(`[EmailBatch] Also queued ${userAlerts.length} alerts for weekly report for ${userEmail}`);
       }
+
+      console.log(`[EmailBatch] Queued ${userAlerts.length} alerts for ${digestFrequency} digest for ${userEmail}`);
 
     } catch (error) {
       console.error(`[EmailBatch] Error processing user ${userId}:`, error);
@@ -154,259 +164,9 @@ export async function sendBatchedEmails(env, userAlertMap, dryRun = false, optio
     }
   }
 
-  console.log(`[EmailBatch] Summary: ${results.emailsSent} emails sent, ${results.alertsQueued} alerts queued, ${results.alertsSkipped} skipped`);
+  console.log(`[EmailBatch] Summary: ${results.alertsQueued} alerts queued, ${results.alertsSkipped} skipped`);
   return results;
 }
 
-/**
- * Send a batched email for a specific user with all their alerts
- */
-async function sendBatchedUserEmail(env, userId, alerts, dryRun) {
-  if (alerts.length === 0) return false;
-  
-  // Get user info from first alert
-  const firstAlert = alerts[0];
-  const userEmail = firstAlert.user.email;
-  const userName = firstAlert.user.name;
-
-  if (dryRun) {
-    console.log(`[EmailBatch] DRY RUN: Would send email to ${userEmail} with ${alerts.length} alerts`);
-    alerts.forEach(a => {
-      console.log(`  - ${a.wellName} (${a.apiNumber}) - ${a.alertLevel} [${a.activityType}]`);
-    });
-    return true;
-  }
-
-  // Create activity logs for all alerts with rate limiting
-  const activityRecords = [];
-  for (let i = 0; i < alerts.length; i++) {
-    const alert = alerts[i];
-    const activityData = {
-      wellName: alert.wellName,
-      apiNumber: alert.apiNumber,
-      activityType: alert.activityType,
-      operator: alert.operator,
-      operatorPhone: alert.operatorPhone,
-      alertLevel: alert.alertLevel,
-      sectionTownshipRange: alert.location,
-      county: alert.county,
-      occLink: alert.occLink || null,
-      mapLink: alert.mapLink || "",
-      userId: alert.user.id,
-      formation: alert.formation || null,
-      coordinateSource: alert.coordinateSource || null,
-      organizationId: alert.organizationId || null
-    };
-
-    const record = await createActivityLog(env, activityData);
-    activityRecords.push(record);
-    
-    // Add 200ms delay between Airtable writes (except after the last one)
-    if (i < alerts.length - 1) {
-      await delay(200);
-    }
-  }
-
-  try {
-    // Send the batched email
-    if (alerts.length === 1) {
-      // Single alert - use existing email format
-      await sendAlertEmail(env, {
-        ...alerts[0],
-        to: userEmail,
-        userName: userName,
-        userId: userId  // Ensure userId is passed for track link generation
-      });
-    } else {
-      // Multiple alerts - send batched email
-      await sendBatchedAlertEmail(env, {
-        to: userEmail,
-        userName: userName,
-        alerts: alerts,
-        userId: userId
-      });
-    }
-
-    // Update all activity logs to mark emails as sent with rate limiting
-    for (let i = 0; i < activityRecords.length; i++) {
-      const record = activityRecords[i];
-      await updateActivityLog(env, record.id, { 'Email Sent': true });
-      
-      // Add 200ms delay between Airtable updates (except after the last one)
-      if (i < activityRecords.length - 1) {
-        await delay(200);
-      }
-    }
-
-    console.log(`[EmailBatch] Sent email to ${userEmail} with ${alerts.length} alerts`);
-    return true;
-  } catch (emailError) {
-    console.error(`[EmailBatch] Failed to send email to ${userEmail}:`, emailError.message);
-    // Activity logs remain with Email Sent = false
-    return false;
-  }
-}
-
-/**
- * Send a batched alert email with multiple wells
- */
-async function sendBatchedAlertEmail(env, data) {
-  const { to, userName, alerts, userId } = data;
-  
-  // Group alerts by alert level
-  const yourPropertyAlerts = alerts.filter(a => a.alertLevel === 'YOUR PROPERTY');
-  const adjacentAlerts = alerts.filter(a => a.alertLevel === 'ADJACENT TO YOUR PROPERTY');
-  const trackedAlerts = alerts.filter(a => a.alertLevel === 'TRACKED WELL');
-
-  // Count by activity type
-  const permitCount = alerts.filter(a => a.activityType === 'Intent to Drill - New Permit').length;
-  const completionCount = alerts.filter(a => a.activityType === 'Well Completed').length;
-  
-  // Build email subject
-  let subject = 'MyMineralWatch Alert: ';
-  const parts = [];
-  
-  if (permitCount > 0) {
-    parts.push(`${permitCount} New Permit${permitCount > 1 ? 's' : ''}`);
-  }
-  if (completionCount > 0) {
-    parts.push(`${completionCount} Completion${completionCount > 1 ? 's' : ''}`);
-  }
-  
-  subject += parts.join(' & ');
-
-  // Add priority indicator
-  if (yourPropertyAlerts.length > 0) {
-    subject += ' - YOUR PROPERTY AFFECTED';
-  }
-
-  // Build HTML content
-  let htmlContent = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
-      <h2 style="color: #1e293b; margin-bottom: 24px;">${subject}</h2>
-      
-      <p style="color: #475569; margin-bottom: 24px;">
-        Hello ${userName || 'there'},<br><br>
-        We've detected the following activity that may affect your mineral interests:
-      </p>
-  `;
-
-  // Add sections for each alert level
-  if (yourPropertyAlerts.length > 0) {
-    htmlContent += buildAlertSection('On Your Property', yourPropertyAlerts, '#dc2626');
-  }
-  
-  if (adjacentAlerts.length > 0) {
-    htmlContent += buildAlertSection('Adjacent to Your Property', adjacentAlerts, '#ea580c');
-  }
-  
-  if (trackedAlerts.length > 0) {
-    htmlContent += buildAlertSection('Tracked Wells', trackedAlerts, '#0891b2');
-  }
-
-  // Add footer
-  htmlContent += `
-      <div style="margin-top: 32px; padding-top: 24px; border-top: 1px solid #e2e8f0;">
-        <p style="color: #64748b; font-size: 14px; margin-bottom: 16px;">
-          View all your alerts and manage your properties in your dashboard:
-        </p>
-        <a href="https://portal.mymineralwatch.com" style="display: inline-block; background-color: #3b82f6; color: white; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 500;">
-          View Dashboard
-        </a>
-      </div>
-    </div>
-  `;
-
-  // Send via Postmark
-  const response = await fetch('https://api.postmarkapp.com/email', {
-    method: 'POST',
-    headers: {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'X-Postmark-Server-Token': env.POSTMARK_SERVER_TOKEN
-    },
-    body: JSON.stringify({
-      From: 'alerts@mymineralwatch.com',
-      To: to,
-      Subject: subject,
-      HtmlBody: htmlContent,
-      Tag: 'batch-daily',
-      Metadata: {
-        permitCount: permitCount.toString(),
-        completionCount: completionCount.toString(),
-        alertCount: alerts.length.toString(),
-        userId: userId
-      }
-    })
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`Postmark API error: ${response.status} - ${errorText}`);
-  }
-
-  return true;
-}
-
-/**
- * Build HTML section for a group of alerts
- */
-function buildAlertSection(title, alerts, color) {
-  let html = `
-    <div style="margin-bottom: 32px;">
-      <h3 style="color: ${color}; margin-bottom: 16px; font-size: 18px; font-weight: 600;">
-        ${title} (${alerts.length})
-      </h3>
-      <div style="border-left: 3px solid ${color}; padding-left: 16px;">
-  `;
-
-  for (const alert of alerts) {
-    const isHorizontal = alert.bhLocation && alert.alertLevel === 'YOUR PROPERTY';
-    
-    html += `
-      <div style="margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid #e2e8f0;">
-        <h4 style="margin: 0 0 8px 0; color: #1e293b; font-size: 16px;">
-          ${alert.wellName}
-        </h4>
-        <p style="margin: 0 0 4px 0; color: #64748b; font-size: 14px;">
-          <strong>${alert.activityType}</strong> • ${alert.operator}
-        </p>
-        <p style="margin: 0 0 4px 0; color: #64748b; font-size: 14px;">
-          ${alert.location} • API: ${alert.apiNumber}
-        </p>
-    `;
-
-    if (isHorizontal) {
-      html += `
-        <p style="margin: 0 0 8px 0; color: #059669; font-size: 14px; font-weight: 500;">
-          ↔️ Horizontal Well - ${alert.lateralLength ? (alert.lateralLength/5280).toFixed(1) + ' miles' : 'Multi-section'}
-        </p>
-      `;
-    }
-
-    // Add action links
-    html += `
-      <div style="margin-top: 8px;">
-    `;
-    
-    if (alert.mapLink) {
-      html += `<a href="${alert.mapLink}" style="color: #3b82f6; text-decoration: none; margin-right: 16px; font-size: 14px;">📍 View Map</a>`;
-    }
-    
-    if (alert.occLink) {
-      html += `<a href="${alert.occLink}" style="color: #3b82f6; text-decoration: none; font-size: 14px;">📄 OCC Filing</a>`;
-    }
-    
-    html += `
-      </div>
-      </div>
-    `;
-  }
-
-  html += `
-      </div>
-    </div>
-  `;
-
-  return html;
-}
+// Note: Instant email sending functions removed. All alerts now queue for
+// daily/weekly digest delivery. Daily digest emails are sent by digest.js.

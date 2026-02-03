@@ -188,7 +188,7 @@ export function validateRecord(record, fileType) {
  * @param {number} staleDays - Number of days before data is considered stale (default 3)
  * @returns {Object} - { isStale, newestDate, daysSinceNewest }
  */
-export async function checkDataFreshness(records, fileType, env, staleDays = 3) {
+export async function checkDataFreshness(records, fileType, env, staleDays = 5) {
   if (!records || records.length === 0) {
     return { isStale: true, newestDate: null, daysSinceNewest: null, reason: 'No records found' };
   }

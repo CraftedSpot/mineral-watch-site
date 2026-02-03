@@ -193,6 +193,32 @@ No action required.
 }
 
 /**
+ * Send docket monitor run summary
+ */
+export async function sendDocketSummary(env, results) {
+  const { fetched, parsed, stored, alerts, errors, duration } = results;
+
+  const hasErrors = errors && errors.length > 0;
+  const priority = hasErrors ? 'warning' : 'info';
+
+  const body = `
+Docket Monitor Run Complete
+============================
+
+PDFs Fetched: ${fetched || 0} (OKC + Tulsa, 7-day lookback)
+Entries Parsed: ${parsed || 0}
+New Entries Stored: ${stored || 0}
+Alerts Sent: ${alerts || 0}
+Duration: ${duration}ms
+${hasErrors ? `\nErrors (${errors.length}):\n${errors.map(e => `  - ${e}`).join('\n')}` : ''}
+
+${!hasErrors ? 'No action required.' : ''}
+  `.trim();
+
+  await sendAdminAlert(env, `Docket Monitor: ${parsed} entries, ${alerts} alerts${hasErrors ? ' (ERRORS)' : ''}`, body, priority);
+}
+
+/**
  * Send critical failure alert
  */
 export async function sendFailureAlert(env, cronPattern, error) {

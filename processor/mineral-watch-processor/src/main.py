@@ -183,7 +183,22 @@ async def process_document(client: APIClient, doc: dict) -> dict:
     user_id = doc.get('user_id')
     content_type_hint = doc.get('content_type')  # May be provided by queue
 
-    logger.info(f"Processing document {doc_id}: {original_filename}")
+    # Derive known doc type from source_metadata (skip classify/detect for fetched docs)
+    known_doc_type = None
+    source_metadata_raw = doc.get('source_metadata')
+    if source_metadata_raw:
+        try:
+            source_meta = json.loads(source_metadata_raw) if isinstance(source_metadata_raw, str) else source_metadata_raw
+            source_type = source_meta.get('type', '')
+            if source_type == 'occ_1002a':
+                known_doc_type = 'completion_report'
+            elif source_type == 'occ_filing':
+                known_doc_type = source_meta.get('filing_type')  # Future: pooling_order, spacing_order, etc.
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    logger.info(f"Processing document {doc_id}: {original_filename}" +
+                (f" (known_doc_type={known_doc_type})" if known_doc_type else ""))
 
     file_path = None
     image_paths = []
@@ -237,8 +252,8 @@ async def process_document(client: APIClient, doc: dict) -> dict:
 
         # 4. Extract with Claude Vision
         # Pass PDF path for deterministic splitting (only for strict PDFs)
-        pdf_path_for_splitting = file_path if (content_type == 'application/pdf' and not use_flexible) else None
-        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible)
+        pdf_path_for_splitting = file_path if (content_type == 'application/pdf' and (not use_flexible or known_doc_type)) else None
+        extraction_result = await extract_document_data(image_paths, pdf_path=pdf_path_for_splitting, flexible_pipeline=use_flexible, known_doc_type=known_doc_type)
         
         # 4. Check for multi-document PDF
         if extraction_result.get('is_multi_document'):

@@ -8,9 +8,9 @@
 import { runDailyMonitor } from './monitors/daily.js';
 import { runWeeklyMonitor } from './monitors/weekly.js';
 import { runDocketMonitor } from './monitors/docket.js';
-import { runDailyDigest, runWeeklyDigest } from './monitors/digest.js';
+import { runWeeklyDigest, runDailyDigest } from './monitors/digest.js';
 import { updateHealthStatus, getHealthStatus } from './utils/health.js';
-import { sendDailySummary, sendWeeklySummary, sendFailureAlert } from './services/adminAlerts.js';
+import { sendDailySummary, sendWeeklySummary, sendDocketSummary, sendFailureAlert } from './services/adminAlerts.js';
 import { backfillDateRange, getBackfillStatus, clearBackfillProgress, isBackfillRunning } from './backfill/dockets.js';
 import { backfillNewProperty, backfillUserProperties } from './services/historicalBackfill.js';
 
@@ -76,8 +76,9 @@ export default {
         });
       }
 
-      // Daily digest - Tue-Sat 00:00 UTC = Mon-Fri 6 PM Central
-      if (cronPattern === '0 0 * * 2-6') {
+      // Daily digest - 7 AM Central (13 UTC) every day
+      // Sends yesterday's queued alerts before the daily monitor runs at 8 AM CT
+      if (cronPattern === '0 13 * * *') {
         result = await runDailyDigest(env);
         await updateHealthStatus(env, 'daily-digest', {
           timestamp: new Date().toISOString(),
@@ -122,6 +123,12 @@ export default {
           stored: result.stored,
           alerts_sent: result.alerts,
           status: 'success'
+        });
+
+        // Send admin summary
+        await sendDocketSummary(env, {
+          ...result,
+          duration: Date.now() - startTime
         });
       }
       
@@ -200,6 +207,38 @@ export default {
       });
     }
     
+    // Manual trigger for daily digest (protected)
+    if (url.pathname === '/trigger/daily-digest') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      ctx.waitUntil(runDailyDigest(env));
+      return new Response(JSON.stringify({
+        status: 'started',
+        type: 'daily-digest'
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
+    // Manual trigger for weekly digest (protected)
+    if (url.pathname === '/trigger/digest') {
+      const authHeader = request.headers.get('Authorization');
+      if (authHeader !== `Bearer ${env.TRIGGER_SECRET}`) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+
+      ctx.waitUntil(runWeeklyDigest(env));
+      return new Response(JSON.stringify({
+        status: 'started',
+        type: 'weekly-digest'
+      }), {
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+
     // Test specific well
     if (url.pathname === '/test/check-well') {
       const targetAPI = url.searchParams.get('api') || '3508700028';
@@ -877,6 +916,7 @@ export default {
       endpoints: [
         '/health',
         '/trigger/daily',
+        '/trigger/daily-digest',
         '/trigger/weekly',
         '/cache/status - View processed APIs cache',
         '/cache/clear - Clear cache (requires auth)',

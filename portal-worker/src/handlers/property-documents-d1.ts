@@ -139,10 +139,27 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
     
     try {
       // Query documents linked to well via Airtable record ID
-      // Documents store Airtable record IDs in well_id, join through airtable_wells table
+      // Documents store Airtable record IDs in well_id (may be comma-separated for multi-well links)
       const docTypeList = WELL_DOC_TYPES.map(type => `'${type.replace(/'/g, "''")}'`).join(', ');
 
       console.log(`[GetWellDocuments-D1] Querying documents for API number ${apiNumber}`);
+
+      // Step 1: Resolve API number to airtable_record_id
+      const wellRecord = await env.WELLS_DB.prepare(
+        `SELECT airtable_record_id FROM airtable_wells WHERE api_number = ? LIMIT 1`
+      ).bind(apiNumber).first();
+
+      if (!wellRecord?.airtable_record_id) {
+        console.log(`[GetWellDocuments-D1] No well found for API: ${apiNumber}`);
+        return jsonResponse({ success: true, documents: [], source: 'D1', queryTime: Date.now() - start });
+      }
+
+      const wellAirtableId = wellRecord.airtable_record_id as string;
+
+      // Step 2: Find documents using LIKE patterns (supports comma-separated well_id)
+      const startsWithPattern = `${wellAirtableId},%`;
+      const endsWithPattern = `%,${wellAirtableId}`;
+      const containsPattern = `%,${wellAirtableId},%`;
 
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
@@ -153,13 +170,17 @@ export async function handleGetWellLinkedDocuments(apiNumber: string, request: R
           d.upload_date,
           d.r2_key
         FROM documents d
-        JOIN airtable_wells aw ON d.well_id = aw.airtable_record_id
-        WHERE aw.api_number = ?
+        WHERE (
+          d.well_id = ?
+          OR d.well_id LIKE ?
+          OR d.well_id LIKE ?
+          OR d.well_id LIKE ?
+        )
           AND (d.deleted_at IS NULL OR d.deleted_at = '')
           AND d.doc_type IN (${docTypeList})
           AND (d.user_id = ? OR d.organization_id = ?)
         ORDER BY d.upload_date DESC
-      `).bind(apiNumber, authUser.id, userOrgId).all();
+      `).bind(wellAirtableId, startsWithPattern, endsWithPattern, containsPattern, authUser.id, userOrgId).all();
       
       console.log(`[GetWellDocuments-D1] D1 query: ${d1Results.results.length} documents in ${Date.now() - start}ms`);
       

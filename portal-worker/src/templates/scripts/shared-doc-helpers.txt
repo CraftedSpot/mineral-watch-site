@@ -1,0 +1,35 @@
+        // === Shared Document Helpers (used by both dashboard and map) ===
+
+        function formatFieldName(fieldName) {
+            if (!fieldName) return '';
+            const nameMap = {
+                'cd_number': 'CD Number',
+                'api_number': 'API Number',
+                'nri': 'Net Revenue Interest',
+                'orri': 'Overriding Royalty Interest',
+                'poa_type': 'Power of Attorney Type',
+                'property_name': 'Well/Lease Name'
+            };
+            if (nameMap[fieldName]) return nameMap[fieldName];
+            return fieldName
+                .replace(/_/g, ' ')
+                .replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        function formatAnalysisText(text) {
+            if (!text) return '';
+            // Strip --- horizontal rules before escaping
+            text = text.replace(/^---+$/gm, '');
+            // First escape HTML for security
+            let escaped = escapeHtml(text);
+            // Convert ### headers to styled section headers
+            escaped = escaped.replace(/^#{1,6}\s+(.+)$/gm, '<br><strong style="font-size: 15px; display: inline-block; margin-top: 8px;">$1</strong>');
+            // Convert **text** to <strong>text</strong>
+            escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // Convert markdown bullet lists (- item) to styled bullets
+            escaped = escaped.replace(/^- (.+)$/gm, '&bull; $1');
+            // Convert line breaks to <br> for proper formatting
+            escaped = escaped.replace(/\n/g, '<br>');
+            return escaped;
+        }
+

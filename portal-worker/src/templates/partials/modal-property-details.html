@@ -115,6 +115,53 @@
                     </div>
                 </div>
 
+                <!-- County Records Section (gated to specific orgs during beta) -->
+                <div id="county-records-section" class="county-records-section" style="display: none; margin: 16px 0; border: 1px solid #e2e8f0; border-radius: 8px; background: white;">
+                    <div class="county-records-header" onclick="toggleCountyRecords()" style="display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: white; border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="county-records-arrow" style="transition: transform 0.2s;">&#9654;</span>
+                            <span style="font-weight: 500;">County Records</span>
+                            <span id="county-records-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">&mdash;</span>
+                        </div>
+                    </div>
+
+                    <div id="county-records-content" style="display: none; padding: 0 16px 16px;">
+                        <!-- Mode Toggle -->
+                        <div id="county-records-mode-toggle" style="display: none; margin-bottom: 8px;">
+                            <div style="display: inline-flex; border: 1px solid #d1d5db; border-radius: 6px; overflow: hidden; font-size: 12px;">
+                                <button id="cr-mode-both" onclick="setCrFilterMode('both')" style="padding: 4px 10px; border: none; cursor: pointer; background: #374151; color: white;">All</button>
+                                <button id="cr-mode-leases" onclick="setCrFilterMode('leases')" style="padding: 4px 10px; border: none; border-left: 1px solid #d1d5db; cursor: pointer; background: white; color: #374151;">Leases &amp; Activity</button>
+                                <button id="cr-mode-title" onclick="setCrFilterMode('title')" style="padding: 4px 10px; border: none; border-left: 1px solid #d1d5db; cursor: pointer; background: white; color: #374151;">Title</button>
+                            </div>
+                        </div>
+                        <!-- Filters -->
+                        <div id="county-records-filters" style="display: none; margin-bottom: 10px; align-items: center; gap: 8px; flex-wrap: wrap;">
+                            <select id="county-records-type-filter" onchange="filterCountyRecords()" style="padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px; background: white;">
+                                <option value="">All Types</option>
+                            </select>
+                            <input type="date" id="county-records-date-from" onchange="filterCountyRecords()" style="padding: 3px 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px;" placeholder="From">
+                            <input type="date" id="county-records-date-to" onchange="filterCountyRecords()" style="padding: 3px 6px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 12px;" placeholder="To">
+                            <button onclick="clearCountyRecordsFilters()" style="padding: 3px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 11px; background: #f9fafb; color: #6b7280; cursor: pointer;">Clear</button>
+                        </div>
+
+                        <!-- Results list -->
+                        <div id="county-records-list" style="max-height: 400px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+
+                        <!-- Empty state -->
+                        <div id="county-records-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No county records found for this section
+                        </div>
+
+                        <!-- Pagination -->
+                        <div id="county-records-pagination" style="display: none; margin-top: 10px; text-align: center;">
+                            <div id="county-records-showing" style="font-size: 12px; color: #6b7280; margin-bottom: 6px;"></div>
+                            <button id="county-records-load-more" onclick="loadMoreCountyRecords()" style="padding: 6px 16px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; background: white; color: #374151; cursor: pointer;">Load More</button>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Notes Section -->
                 <div class="info-section" style="margin-top: 16px; background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px;">
                     <div class="details-row" style="flex-direction: column; align-items: flex-start;">

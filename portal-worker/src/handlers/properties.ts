@@ -115,15 +115,42 @@ export async function handleAddProperty(request: Request, env: Env, ctx?: Execut
     }, 403);
   }
   
-  const section = String(body.SEC).padStart(2, "0");
-  const township = body.TWN.toUpperCase().replace(/\s/g, "");
-  const range = body.RNG.toUpperCase().replace(/\s/g, "");
-  
+  // Normalize Section: strip prefixes, extract number, validate 1-36, zero-pad
+  let secStr = String(body.SEC).trim().replace(/^(s|sec|section)\s*/i, '');
+  const secMatch = secStr.match(/(\d+)/);
+  if (!secMatch) {
+    return jsonResponse({ error: "Invalid section number" }, 400);
+  }
+  const secNum = parseInt(secMatch[1], 10);
+  if (secNum < 1 || secNum > 36) {
+    return jsonResponse({ error: "Section must be between 1 and 36" }, 400);
+  }
+  const section = String(secNum).padStart(2, "0");
+
+  // Normalize Township: strip prefixes, uppercase, default direction N
+  let twnStr = String(body.TWN).trim().toUpperCase().replace(/^(T|TWN|TOWN|TOWNSHIP)\s*/i, '').replace(/\s+/g, '');
+  if (/^\d+$/.test(twnStr)) {
+    twnStr = twnStr + 'N'; // Default to North if no direction
+  }
+  if (!/^\d{1,2}[NS]$/.test(twnStr)) {
+    return jsonResponse({ error: "Invalid township (e.g., 12N or 4S)" }, 400);
+  }
+  const township = twnStr.toUpperCase();
+
+  // Normalize Range: strip prefixes, uppercase, default direction W
+  let rngStr = String(body.RNG).trim().toUpperCase().replace(/^(R|RNG|RANGE)\s*/i, '').replace(/\s+/g, '');
+  if (/^\d+$/.test(rngStr)) {
+    rngStr = rngStr + 'W'; // Default to West if no direction
+  }
+  if (!/^\d{1,2}[EW]$/.test(rngStr)) {
+    return jsonResponse({ error: "Invalid range (e.g., 4W or 8E)" }, 400);
+  }
+  const range = rngStr.toUpperCase();
+
   // Smart meridian detection based on county
   const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
   let meridian = body.MERIDIAN;
   if (!meridian) {
-    // Auto-set meridian based on county
     meridian = panhandleCounties.includes(body.COUNTY) ? "CM" : "IM";
   }
   const isDuplicate = await checkDuplicateProperty(env, user.email, body.COUNTY, section, township, range);

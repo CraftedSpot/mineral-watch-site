@@ -6,16 +6,37 @@
 /**
  * Get the effective notification mode for a user
  * Takes into account organization defaults and user overrides
+ *
+ * Valid modes:
+ *   'Daily + Weekly'  - Daily alert digest + weekly regional report (default)
+ *   'Daily Digest'    - Daily alert digest only
+ *   'Weekly Report'   - Weekly regional report only (includes alerts)
+ *   'None'            - No notifications
+ *
  * @param {Object} user - Airtable user record
  * @param {Object} organization - Airtable organization record (optional)
- * @returns {string} - Notification mode: 'Instant', 'Daily Digest', 'Weekly Digest', 'Instant + Weekly', 'None'
+ * @returns {string} - Notification mode
  */
 export function getEffectiveNotificationMode(user, organization = null) {
   const userOverride = user?.fields?.['Notification Override'];
 
+  // Migrate legacy modes to new system
+  const normalize = (mode) => {
+    switch (mode) {
+      case 'Instant + Weekly': return 'Daily + Weekly';
+      case 'Instant': return 'Daily Digest';
+      case 'Weekly Digest': return 'Weekly Report';
+      case 'Daily Digest': return 'Daily Digest';
+      case 'Daily + Weekly': return 'Daily + Weekly';
+      case 'Weekly Report': return 'Weekly Report';
+      case 'None': return 'None';
+      default: return mode;
+    }
+  };
+
   // If user has an override and it's not "Use Org Default", use it
   if (userOverride && userOverride !== 'Use Org Default') {
-    return userOverride;
+    return normalize(userOverride);
   }
 
   // If user is in an organization, check org settings
@@ -25,38 +46,55 @@ export function getEffectiveNotificationMode(user, organization = null) {
 
     // If org doesn't allow override, use org default
     if (!allowOverride && orgMode) {
-      return orgMode;
+      return normalize(orgMode);
     }
 
     // Use org default if available
     if (orgMode) {
-      return orgMode;
+      return normalize(orgMode);
     }
   }
 
-  // Default to Instant for users without org or without preferences set
-  return 'Instant';
+  // Default: daily digest + weekly report
+  return 'Daily + Weekly';
 }
 
 /**
- * Determine if we should send an instant alert based on notification mode
+ * Determine if we should queue for daily digest based on notification mode
  * @param {string} mode - Effective notification mode
  * @returns {boolean}
  */
-export function shouldSendInstant(mode) {
-  return mode === 'Instant' || mode === 'Instant + Weekly';
+export function shouldQueueDaily(mode) {
+  return mode === 'Daily Digest' || mode === 'Daily + Weekly';
 }
 
 /**
- * Determine if we should queue for digest based on notification mode
+ * Determine if we should queue for weekly digest based on notification mode
+ * @param {string} mode - Effective notification mode
+ * @returns {boolean}
+ */
+export function shouldQueueWeekly(mode) {
+  return mode === 'Weekly Report' || mode === 'Daily + Weekly';
+}
+
+/**
+ * @deprecated Use shouldQueueDaily instead. Kept for backward compatibility.
+ */
+export function shouldSendInstant(mode) {
+  // No more instant sending - everything is digest-based
+  return false;
+}
+
+/**
+ * Get the digest frequency to queue an alert for
  * @param {string} mode - Effective notification mode
  * @returns {string|null} - 'daily', 'weekly', or null
  */
 export function getDigestFrequency(mode) {
-  if (mode === 'Daily Digest') {
+  if (mode === 'Daily Digest' || mode === 'Daily + Weekly') {
     return 'daily';
   }
-  if (mode === 'Weekly Digest' || mode === 'Instant + Weekly') {
+  if (mode === 'Weekly Report') {
     return 'weekly';
   }
   return null;
@@ -156,14 +194,20 @@ export async function markAlertsProcessed(env, alertIds) {
   if (!env.WELLS_DB || alertIds.length === 0) return;
 
   try {
-    const placeholders = alertIds.map(() => '?').join(',');
-    const stmt = env.WELLS_DB.prepare(`
-      UPDATE pending_alerts
-      SET processed_at = datetime('now'), digest_sent_at = datetime('now')
-      WHERE id IN (${placeholders})
-    `);
+    // D1 has a ~100 bind variable limit. 1 variable per alert ID.
+    const CHUNK_SIZE = 90;
 
-    await stmt.bind(...alertIds).run();
+    for (let i = 0; i < alertIds.length; i += CHUNK_SIZE) {
+      const chunk = alertIds.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => '?').join(',');
+
+      await env.WELLS_DB.prepare(`
+        UPDATE pending_alerts
+        SET processed_at = datetime('now'), digest_sent_at = datetime('now')
+        WHERE id IN (${placeholders})
+      `).bind(...chunk).run();
+    }
+
     console.log(`[PendingAlerts] Marked ${alertIds.length} alerts as processed`);
 
   } catch (err) {

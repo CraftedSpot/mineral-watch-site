@@ -1,0 +1,954 @@
+        
+        // Load and display tracked wells with clustering
+        async function loadTrackedWells() {
+            try {
+                updateStatus('Loading tracked wells...');
+                
+                const wells = await fetchTrackedWells();
+                
+                if (wells.length === 0) {
+                    console.log('No wells to display');
+                    return;
+                }
+                
+                // Store wells globally for search
+                trackedWells = wells;
+                
+                const totalWells = wells.length;
+                let processedWells = 0;
+                
+                // Store wells by ID for lookup (used by modal)
+                wellsById = {};
+                wells.forEach(well => {
+                    wellsById[well.id] = well;
+                });
+                
+                // Clear existing wells layer and create new cluster group
+                if (wellsLayer) {
+                    map.removeLayer(wellsLayer);
+                }
+                
+                // Initialize cluster group for tracked wells
+                wellsLayer = L.markerClusterGroup({
+                    disableClusteringAtZoom: 7,   // Expand at zoom 7 for tracked wells (was 9)
+                    maxClusterRadius: 50,          // Smaller radius for tighter clusters
+                    spiderfyOnMaxZoom: true,
+                    showCoverageOnHover: false,
+                    zoomToBoundsOnClick: true,
+                    // Custom cluster icon with tracked well colors
+                    iconCreateFunction: function(cluster) {
+                        const count = cluster.getChildCount();
+                        let size = 'small';
+                        let className = 'tracked-well-cluster-small';
+                        
+                        if (count > 50) {
+                            size = 'large';
+                            className = 'tracked-well-cluster-large';
+                        } else if (count > 10) {
+                            size = 'medium';  
+                            className = 'tracked-well-cluster-medium';
+                        }
+                        
+                        return new L.DivIcon({
+                            html: '<div><span>' + count + '</span></div>',
+                            className: 'tracked-well-cluster ' + className,
+                            iconSize: new L.Point(40, 40)
+                        });
+                    }
+                });
+                
+                let addedWells = 0;
+                
+                for (const well of wells) {
+                    const fields = well.fields || {};
+                    
+                    // Parse coordinates from OCC Map Link
+                    const coords = parseOccMapLink(fields['OCC Map Link']);
+                    if (!coords) {
+                        console.warn(`No coordinates found for well ${fields['API Number']}`);
+                        continue;
+                    }
+                    
+                    // Create individual marker for each well (clustering will group them automatically)
+                    const marker = createTrackedWellMarker(well, coords);
+                    if (marker) {
+                        wellsLayer.addLayer(marker);
+                        wellMarkers[well.id] = marker;
+                        addedWells++;
+                    }
+                    
+                    processedWells++;
+                    // Update status every 10 wells or on the last well
+                    if (processedWells % 10 === 0 || processedWells === totalWells) {
+                        updateStatus(`Loading ${processedWells} of ${totalWells} wells...`);
+                    }
+                }
+                
+                // Add wells layer to map
+                if (wellsLayer.getLayers().length > 0) {
+                    map.addLayer(wellsLayer);
+                    // Ensure proper layer ordering - properties should be on top
+                    ensureLayerOrder();
+                    // Show well legend when wells are loaded
+                    // Well legend removed - will be added back later
+                    // document.getElementById('wellLegend').style.display = 'block';
+                }
+                
+                // Pre-fetch BH section geometries for wells that need them
+                const bhSectionsToFetch = new Set();
+                for (const well of wells) {
+                    const fields = well.fields || {};
+                    if (fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
+                        const bhCacheKey = `${fields['BH Section']}-${fields['BH Township']}-${fields['BH Range']}`;
+                        if (!geometryCache[bhCacheKey]) {
+                            bhSectionsToFetch.add({
+                                section: fields['BH Section'],
+                                township: fields['BH Township'],
+                                range: fields['BH Range'],
+                                county: fields['County'] || ''
+                            });
+                        }
+                    }
+                }
+                
+                // Batch fetch missing BH geometries
+                if (bhSectionsToFetch.size > 0) {
+                    console.log(`Pre-fetching ${bhSectionsToFetch.size} BH section geometries...`);
+                    for (const bh of bhSectionsToFetch) {
+                        const geometry = await fetchSectionGeometry(bh.section, bh.township, bh.range, bh.county);
+                        if (geometry) {
+                            const cacheKey = `${bh.section}-${bh.township}-${bh.range}`;
+                            geometryCache[cacheKey] = geometry;
+                            console.log(`✅ Cached BH geometry for ${cacheKey}, type: ${geometry.geometry?.type}`);
+                        } else {
+                            console.warn(`❌ Failed to fetch BH geometry for ${bh.section}-${bh.township}-${bh.range}`);
+                        }
+                    }
+                    console.log(`Finished pre-fetching. Cache now has ${Object.keys(geometryCache).length} geometries`);
+                }
+                
+                // Fetch D1 lateral data for tracked wells
+                console.log('Fetching D1 lateral data for tracked wells...');
+                const apiNumbers = wells
+                    .map(w => w.fields['API Number'])
+                    .filter(api => api && api.length >= 10);
+                
+                let d1LateralData = {};
+                if (apiNumbers.length > 0) {
+                    try {
+                        // Fetch all enrichment data in a single request - D1 can handle it
+                        console.log(`Fetching enrichment data for ${apiNumbers.length} tracked wells in a single request`);
+                        const startTime = Date.now();
+                        
+                        const response = await fetch('/api/well-enrichment/bulk', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            credentials: 'include',
+                            body: JSON.stringify({ apiNumbers })
+                        });
+                        
+                        if (response.ok) {
+                            const result = await response.json();
+                            const enrichmentData = result.data || {};
+                            
+                            // Extract wells with lateral data
+                            for (const [apiNumber, data] of Object.entries(enrichmentData)) {
+                                if (data.bottom_hole_location && data.bottom_hole_location.latitude) {
+                                    d1LateralData[apiNumber] = data;
+                                }
+                            }
+                            
+                            const queryTime = Date.now() - startTime;
+                            console.log(`Found D1 lateral data for ${Object.keys(d1LateralData).length} tracked wells in ${queryTime}ms`);
+                        } else {
+                            console.error('Failed to fetch bulk enrichment data:', response.status);
+                        }
+                    } catch (error) {
+                        console.error('Error fetching D1 lateral data:', error);
+                    }
+                }
+                
+                // Now create lateral paths for wells with BH data and add them to wellsLayer
+                console.log('Creating lateral paths for wells with BH data...');
+                let lateralPathCount = 0;
+                
+                for (const well of wells) {
+                    const fields = well.fields || {};
+                    const apiNumber = fields['API Number'];
+                    
+                    // Get surface coordinates
+                    const coords = parseOccMapLink(fields['OCC Map Link']);
+                    if (!coords) continue;
+                    
+                    // First check D1 data for bottom hole coordinates
+                    const d1Data = d1LateralData[apiNumber];
+                    if (d1Data && d1Data.has_lateral && d1Data.bottom_hole_location) {
+                        const bhLat = d1Data.bottom_hole_location.latitude;
+                        const bhLng = d1Data.bottom_hole_location.longitude;
+                        
+                        // Apply same distance filtering as nearby wells
+                        const latDiff = Math.abs(bhLat - coords.lat);
+                        const lngDiff = Math.abs(bhLng - coords.lon);
+                        const approxDistanceMiles = (latDiff + lngDiff) * 69;
+                        
+                        if (approxDistanceMiles < 3) {
+                            const lateralPath = drawLateralPath(
+                                coords,
+                                { lat: bhLat, lng: bhLng },
+                                well,
+                                'tracked'
+                            );
+                            
+                            if (lateralPath) {
+                                wellsLayer.addLayer(lateralPath);
+                                lateralPathCount++;
+                            }
+                        }
+                    }
+                    // Fall back to Airtable BH Section/Township/Range if no D1 data
+                    else if (fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
+                        const bhCacheKey = `${fields['BH Section']}-${fields['BH Township']}-${fields['BH Range']}`;
+                        const bhGeometry = geometryCache[bhCacheKey];
+                        
+                        if (bhGeometry && bhGeometry.geometry) {
+                            // Calculate center from cached geometry
+                            const bounds = L.geoJSON(bhGeometry).getBounds();
+                            const bhCenter = bounds.getCenter();
+                            
+                            const lateralPath = drawLateralPath(
+                                coords,
+                                { lat: bhCenter.lat, lng: bhCenter.lng },
+                                well,
+                                'tracked'
+                            );
+                            
+                            if (lateralPath) {
+                                // Add lateral path to the wells layer instead of a separate layer
+                                wellsLayer.addLayer(lateralPath);
+                                lateralPathCount++;
+                            }
+                        }
+                    }
+                }
+                
+                if (lateralPathCount > 0) {
+                    console.log(`✅ Created ${lateralPathCount} lateral paths`);
+                }
+                
+                console.log(`Added ${addedWells} wells to cluster layer`);
+                updateStatus(`${addedWells} wells loaded`);
+                // Update well count display
+                document.getElementById('wellCount').textContent = addedWells;
+                
+            } catch (error) {
+                console.error('Error loading wells:', error);
+                updateStatus('Error loading wells');
+            }
+        }
+        
+        // Expand well card - show detailed modal (Dashboard style)
+        function expandWellCard(wellId, isTracked = true) {
+            const well = wellsById[wellId];
+            if (!well) {
+                console.warn('Well not found:', wellId);
+                return;
+            }
+
+            // Restore modal body HTML structure (may have been overwritten by expandActivityCard)
+            document.getElementById('wellModalBody').innerHTML = `
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" id="wellModalStatusBadge">AC</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value" id="wellModalType">—</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge horizontal" id="wellModalDirection">—</span>
+                    </div>
+                </div>
+
+                <!-- Operator / Location Row -->
+                <div class="operator-location-row">
+                    <!-- Operator Box -->
+                    <div class="info-box">
+                        <div class="section-label">Operator</div>
+                        <div class="section-value" id="wellModalOperator" style="margin-bottom: 4px;">—</div>
+                        <div class="contact-line" id="wellModalContact" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                    <!-- Location Box -->
+                    <div class="info-box">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellModalLocation" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalCounty" style="font-size: 13px; color: #64748b;">—</div>
+                    </div>
+                </div>
+
+                <!-- Formation & Depth / Initial Production Row -->
+                <div class="operator-location-row" id="wellModalFormationIPRow" style="display: none;">
+                    <!-- Formation & Depth Box -->
+                    <div class="info-box" id="wellModalFormationBox" style="display: none;">
+                        <div class="section-label">Formation & Depth</div>
+                        <div class="section-value" id="wellModalFormation" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalDepth" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                    <!-- Initial Production Box -->
+                    <div class="info-box" id="wellModalIPBox" style="display: none;">
+                        <div class="section-label">Initial Production</div>
+                        <div class="section-value" id="wellModalIP" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalIPType" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                </div>
+
+                <!-- OTC Production Summary Section -->
+                <div id="wellModalOTCProduction" class="production-section" style="display: none; margin-top: 16px;">
+                    <div class="production-header">
+                        <span class="production-title">OTC Production</span>
+                        <span class="formation-badge" id="wellModalOTCStatus">—</span>
+                    </div>
+                    <div id="wellModalOTCContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Linked Properties Section (for tracked wells) - Collapsible -->
+                <div class="occ-filings-section" id="wellModalLinkedPropertiesSection" style="display: none; margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapLinkedProperties()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-linked-props-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Properties</span>
+                            <span id="wellModalLinkedPropertiesCount" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                    </div>
+                    <div id="map-linked-props-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalLinkedProperties" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linked Documents Section (for tracked wells) - Collapsible -->
+                <div class="occ-filings-section" id="wellModalLinkedDocsSection" style="display: none; margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapLinkedDocs()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-linked-docs-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Documents</span>
+                            <span id="wellModalLinkedDocsCount" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                    </div>
+                    <div id="map-linked-docs-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalLinkedDocs" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Well Records Section (Completion Reports) - Collapsible -->
+                <div class="occ-filings-section" id="wellModalWellRecordsSection" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapWellRecords()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-well-records-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Well Records</span>
+                            <span id="wellModalWellRecordsCount" class="loading-badge"><span class="pulse-dot"></span>Loading</span>
+                        </div>
+                    </div>
+                    <div id="map-well-records-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalCompletionReports" style="max-height: 300px; overflow-y: auto;">
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Section (for tracked wells) - At bottom -->
+                <div id="wellModalNotesSection" style="display: none; margin-top: 16px;">
+                    <div style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Notes</div>
+                    <textarea id="wellModalNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this well..." onkeyup="toggleMapWellSaveButton()"></textarea>
+                </div>
+            `;
+
+            // Also restore the footer actions structure - Dashboard Style
+            document.getElementById('wellModalActions').innerHTML = `
+                <div class="map-well-footer-grid">
+                    <div class="map-well-footer-left">
+                        <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map ↗</button>
+                        <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map ↗</a>
+                    </div>
+                    <div class="map-well-footer-right">
+                        <div class="occ-warning" style="position: relative;">
+                            <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalRecordsLink">Well Records</a>
+                            <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
+                            <div class="occ-tooltip">
+                                <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                            </div>
+                        </div>
+                        <button class="action-btn primary well-blue" id="wellModalUnitReportBtn" onclick="printMapWellReport()">Unit Report ↗</button>
+                    </div>
+                </div>
+                <div id="wellModalTrackRow" style="display: none; margin-top: 10px;">
+                    <button class="action-btn track-well" id="wellModalTrackBtn" onclick="trackWellFromModal()" style="width: 100%;">+ Track Well</button>
+                </div>
+                <button class="action-btn primary well-blue" id="wellModalSaveBtn" onclick="saveMapWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
+            `;
+
+            const fields = well.fields || {};
+            const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
+            const apiNumber = fields['API Number'] || 'Unknown';
+            const operator = toTitleCase(fields['Operator'] || 'Unknown');
+            const operatorPhone = fields['Operator Phone'] || '';
+            const contactName = toTitleCase(fields['Contact Name'] || fields['Operator Contact'] || '');
+            const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
+            const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+
+            // Get formation name but filter out invalid values
+            let formationRaw = fields['Formation Name'] || fields['Formation'] || '';
+            const invalidFormations = ['horizontal hole', 'horizontal', 'vertical hole', 'vertical', 'directional'];
+            const formation = invalidFormations.includes(formationRaw.toLowerCase()) ? '' : toTitleCase(formationRaw);
+
+            const wellType = fields['Well Type'] || 'Oil Well';
+            const county = toTitleCase(fields['County'] || '');
+            const section = fields['Section'] || '';
+            const township = fields['Township'] || '';
+            const range = fields['Range'] || '';
+            const meridian = fields['Meridian'] || 'IM';
+            const completionDate = fields['Completion Date'] || '';
+            const totalDepth = fields['Total Depth'] || '';
+            const occMapLink = fields['OCC Map Link'] || '';
+
+            // Detect if horizontal based on well name pattern
+            const isHorizontal = detectHorizontalWell(wellName);
+
+            // Format location string (T10N R07W 06 format)
+            const locationStr = section && township && range
+                ? `T${township} R${range} ${section}`
+                : 'Location not available';
+
+            // Store state in hidden fields
+            document.getElementById('wellModalWellId').value = wellId;
+            document.getElementById('wellModalApiNumber').value = apiNumber;
+            document.getElementById('wellModalIsTracked').value = isTracked ? '1' : '0';
+            document.getElementById('wellModalSection').value = section;
+            document.getElementById('wellModalTownship').value = township;
+            document.getElementById('wellModalRange').value = range;
+            document.getElementById('wellModalMeridian').value = meridian;
+
+            // Set modal title
+            document.getElementById('wellModalTitle').textContent = wellName;
+            document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
+
+            // Status badge with color
+            const statusBadge = document.getElementById('wellModalStatusBadge');
+            statusBadge.textContent = wellStatus;
+            statusBadge.style.background = statusColor + '20';
+            statusBadge.style.color = statusColor;
+
+            // Well type
+            document.getElementById('wellModalType').textContent = wellType || '—';
+
+            // Direction badge
+            const directionBadge = document.getElementById('wellModalDirection');
+            if (isHorizontal) {
+                directionBadge.textContent = 'Horizontal';
+                directionBadge.className = 'status-badge horizontal';
+            } else {
+                directionBadge.textContent = 'Vertical';
+                directionBadge.className = 'status-badge vertical';
+            }
+
+            // Operator
+            document.getElementById('wellModalOperator').textContent = operator;
+
+            // Contact info
+            const contactEl = document.getElementById('wellModalContact');
+            if (operatorPhone || contactName) {
+                let contactHtml = '';
+                if (operatorPhone) {
+                    contactHtml += `<a href="tel:${operatorPhone.replace(/\D/g, '')}">${formatPhone(operatorPhone)}</a>`;
+                }
+                if (operatorPhone && contactName) contactHtml += ' • ';
+                if (contactName) contactHtml += contactName;
+                contactEl.innerHTML = contactHtml;
+                contactEl.style.display = 'block';
+            } else {
+                contactEl.style.display = 'none';
+            }
+
+            // Location and County
+            document.getElementById('wellModalLocation').textContent = locationStr;
+            document.getElementById('wellModalCounty').textContent = county ? `${county} County` : '—';
+
+            // Formation & Depth / Initial Production Row
+            const formationIPRow = document.getElementById('wellModalFormationIPRow');
+            const formationBox = document.getElementById('wellModalFormationBox');
+            const ipBox = document.getElementById('wellModalIPBox');
+
+            // Get IP data from fields
+            const ipOil = fields['IP Oil'] || fields['IP Oil BBL'] || null;
+            const ipGas = fields['IP Gas'] || fields['IP Gas MCF'] || null;
+            const displayDepth = totalDepth || fields['Formation Depth'] || fields['True Vertical Depth'] || null;
+
+            // Check if we have any data to show
+            const hasFormationData = (formation && formation.trim()) || (displayDepth && displayDepth > 0);
+            const hasIPData = ipOil || ipGas;
+
+            if (hasFormationData || hasIPData) {
+                formationIPRow.style.display = 'flex';
+
+                // Formation & Depth Box
+                if (hasFormationData) {
+                    formationBox.style.display = 'block';
+                    document.getElementById('wellModalFormation').textContent = formation && formation.trim() ? formation : 'N/A';
+                    const depthEl = document.getElementById('wellModalDepth');
+                    if (displayDepth && displayDepth > 0) {
+                        depthEl.textContent = `${Number(displayDepth).toLocaleString()} ft`;
+                        depthEl.style.display = 'block';
+                    } else {
+                        depthEl.style.display = 'none';
+                    }
+                } else {
+                    formationBox.style.display = 'none';
+                }
+
+                // Initial Production Box
+                if (hasIPData) {
+                    ipBox.style.display = 'block';
+                    let ipText = '';
+                    let ipTypeText = '';
+                    if (ipOil) {
+                        ipText += `${Number(ipOil).toLocaleString()} BBL/day`;
+                        ipTypeText = 'Oil';
+                    }
+                    if (ipOil && ipGas) {
+                        ipText += ' • ';
+                        ipTypeText += ' & ';
+                    }
+                    if (ipGas) {
+                        ipText += `${Number(ipGas).toLocaleString()} MCF/day`;
+                        ipTypeText += 'Gas';
+                    }
+                    document.getElementById('wellModalIP').textContent = ipText;
+                    document.getElementById('wellModalIPType').textContent = ipTypeText;
+                } else {
+                    ipBox.style.display = 'none';
+                }
+            } else {
+                formationIPRow.style.display = 'none';
+            }
+
+            // OCC Map link
+            const mapLink = document.getElementById('wellModalMapLink');
+            if (occMapLink && occMapLink !== '#') {
+                mapLink.href = occMapLink;
+                mapLink.style.display = 'flex';
+            } else {
+                mapLink.style.display = 'none';
+            }
+
+            // Well Records link
+            const recordsLink = document.getElementById('wellModalRecordsLink');
+            if (apiNumber && apiNumber !== 'Unknown') {
+                recordsLink.href = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1`;
+            }
+
+            // Track button row - show only for untracked wells
+            const trackRow = document.getElementById('wellModalTrackRow');
+            const trackBtn = document.getElementById('wellModalTrackBtn');
+            if (!isTracked) {
+                trackRow.style.display = 'block';
+                trackBtn.style.display = 'flex';
+            } else {
+                trackRow.style.display = 'none';
+                trackBtn.style.display = 'none';
+            }
+
+            // Notes section - show only for tracked wells
+            const notesSection = document.getElementById('wellModalNotesSection');
+            const notesTextarea = document.getElementById('wellModalNotes');
+            const saveBtn = document.getElementById('wellModalSaveBtn');
+            if (isTracked) {
+                notesSection.style.display = 'block';
+                // Notes will be populated by loadMapWellDetails
+                notesTextarea.value = '';
+                document.getElementById('wellModalOriginalNotes').value = '';
+                saveBtn.style.display = 'none';
+            } else {
+                notesSection.style.display = 'none';
+            }
+
+            // Linked Properties section - show only for tracked wells
+            const linkedPropertiesSection = document.getElementById('wellModalLinkedPropertiesSection');
+            if (isTracked) {
+                linkedPropertiesSection.style.display = 'block';
+                document.getElementById('wellModalLinkedPropertiesCount').textContent = '—';
+                document.getElementById('wellModalLinkedProperties').innerHTML = '<div style="color: #6b7280; font-size: 13px;">Loading...</div>';
+            } else {
+                linkedPropertiesSection.style.display = 'none';
+            }
+
+            // Reset OTC production section
+            document.getElementById('wellModalOTCProduction').style.display = 'none';
+            document.getElementById('wellModalOTCContent').innerHTML = '';
+            document.getElementById('wellModalOTCStatus').textContent = '—';
+
+            // Reset linked properties collapsible state
+            document.getElementById('map-linked-props-content').style.display = 'none';
+            document.getElementById('map-linked-props-arrow').style.transform = 'rotate(0deg)';
+
+            // Reset linked documents section
+            document.getElementById('wellModalLinkedDocsSection').style.display = 'none';
+            document.getElementById('map-linked-docs-content').style.display = 'none';
+            document.getElementById('map-linked-docs-arrow').style.transform = 'rotate(0deg)';
+            document.getElementById('wellModalLinkedDocsCount').textContent = '0';
+            document.getElementById('wellModalLinkedDocs').innerHTML = '';
+
+            // Reset Well Records section
+            document.getElementById('wellModalWellRecordsCount').className = 'loading-badge';
+            document.getElementById('wellModalWellRecordsCount').innerHTML = '<span class="pulse-dot"></span>Loading';
+            document.getElementById('wellModalCompletionReports').innerHTML = `
+                <div class="skeleton-row">
+                    <div class="skeleton-left">
+                        <div class="skeleton-loader skeleton-badge"></div>
+                        <div class="skeleton-details">
+                            <div class="skeleton-loader skeleton-detail"></div>
+                            <div class="skeleton-loader skeleton-detail"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton-right">
+                        <div class="skeleton-loader skeleton-btn"></div>
+                        <div class="skeleton-loader skeleton-date"></div>
+                    </div>
+                </div>
+                <div class="skeleton-row">
+                    <div class="skeleton-left">
+                        <div class="skeleton-loader skeleton-badge"></div>
+                        <div class="skeleton-details">
+                            <div class="skeleton-loader skeleton-detail"></div>
+                            <div class="skeleton-loader skeleton-detail"></div>
+                        </div>
+                    </div>
+                    <div class="skeleton-right">
+                        <div class="skeleton-loader skeleton-btn"></div>
+                        <div class="skeleton-loader skeleton-date"></div>
+                    </div>
+                </div>`;
+            document.getElementById('map-well-records-content').style.display = 'none';
+            document.getElementById('map-well-records-arrow').style.transform = 'rotate(0deg)';
+
+            // Reset OCC filings section
+            document.getElementById('map-occ-count').textContent = '—';
+            document.getElementById('map-occ-direct').innerHTML = '<div style="padding: 12px; color: #6b7280;">Loading filings...</div>';
+            document.getElementById('map-occ-adjacent').innerHTML = '';
+            document.getElementById('map-occ-adjacent-wrapper').style.display = 'none';
+            document.getElementById('map-occ-empty').style.display = 'none';
+            document.getElementById('map-occ-content').style.display = 'none';
+            document.getElementById('map-occ-arrow').style.transform = 'rotate(0deg)';
+
+            // Show modal
+            document.getElementById('wellModal').classList.add('active');
+
+            // Close popup if open
+            map.closePopup();
+
+            // Load OTC production data
+            if (apiNumber && apiNumber !== 'Unknown') {
+                loadMapOTCProduction(apiNumber);
+            }
+
+            // Load OCC filings
+            if (section && township && range) {
+                loadMapOccFilings(section, township, range, meridian);
+            }
+
+            // Load completion reports (Well Records section)
+            if (apiNumber && apiNumber !== 'Unknown') {
+                loadMapCompletionReports(apiNumber);
+            } else {
+                // No API number - show message
+                document.getElementById('wellModalWellRecordsCount').className = '';
+                document.getElementById('wellModalWellRecordsCount').style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                document.getElementById('wellModalWellRecordsCount').textContent = '0';
+                document.getElementById('wellModalCompletionReports').innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No API number available</div>';
+            }
+
+            // Load notes and linked properties for tracked wells
+            if (isTracked && wellId) {
+                loadMapWellDetails(wellId);
+            }
+        }
+
+        // Load notes and linked properties for tracked well
+        async function loadMapWellDetails(wellId) {
+            try {
+                // Fetch well details including notes
+                const response = await fetch(`/api/wells/${wellId}`, { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const notes = data.notes || '';
+                    document.getElementById('wellModalNotes').value = notes;
+                    document.getElementById('wellModalOriginalNotes').value = notes;
+                }
+            } catch (error) {
+                console.error('Error loading well details:', error);
+            }
+
+            // Fetch linked properties using wellId (Airtable record ID)
+            try {
+                const response = await fetch(`/api/well/${wellId}/linked-properties`, { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const properties = data.properties || [];
+                    const linkedCount = properties.filter(p => p.linkStatus !== 'Unlinked').length;
+                    document.getElementById('wellModalLinkedPropertiesCount').textContent = linkedCount;
+
+                    const container = document.getElementById('wellModalLinkedProperties');
+                    if (properties.length === 0) {
+                        container.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No linked properties</div>';
+                    } else {
+                        container.innerHTML = properties.map(p => {
+                            const isUnlinked = p.linkStatus === 'Unlinked';
+                            const unlinkedDate = p.rejectedDate ? new Date(p.rejectedDate).toLocaleDateString() : '';
+                            return `
+                            <div class="linked-property-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;${isUnlinked ? ' opacity: 0.5;' : ''}">
+                                <div style="flex: 1; cursor: pointer;" onclick="zoomToPropertyFromWell('${p.propertyId}')">
+                                    <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+                                        <span style="font-weight: 500; color: ${isUnlinked ? '#9ca3af' : '#2563eb'};">${p.location || '—'}</span>
+                                        ${p.group ? `<span style="font-size: 11px; padding: 2px 6px; background: #e0e7ff; color: #3730a3; border-radius: 4px;">${p.group}</span>` : ''}
+                                        ${p.nma ? `<span style="font-size: 11px; padding: 2px 6px; background: #dcfce7; color: #166534; border-radius: 4px;">${parseFloat(p.nma.toFixed(4))} NMA</span>` : ''}
+                                    </div>
+                                    <div style="font-size: 12px; color: #6b7280;">${p.county || '—'}${p.acres && !p.nma ? ' • ' + p.acres + ' acres' : ''}</div>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                                    <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
+                                    ${isUnlinked
+                                        ? `<button onclick="event.stopPropagation(); mapRelinkProperty('${p.linkId}', '${wellId}')" title="Re-link${unlinkedDate ? ' (unlinked ' + unlinkedDate + ')' : ''}" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #2563eb; background: #eff6ff; color: #2563eb; cursor: pointer;">Relink</button>`
+                                        : `<button onclick="event.stopPropagation(); mapUnlinkProperty('${p.linkId}', '${wellId}')" title="Unlink" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #d1d5db; background: #f9fafb; color: #6b7280; cursor: pointer;">Unlink</button>`
+                                    }
+                                </div>
+                            </div>`;
+                        }).join('');
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading linked properties:', error);
+                document.getElementById('wellModalLinkedProperties').innerHTML = '<div style="color: #6b7280; font-size: 13px; padding: 8px 0;">Unable to load</div>';
+            }
+
+            // Fetch linked documents using wellId and apiNumber
+            const apiNumber = document.getElementById('wellModalApiNumber').value;
+            try {
+                const response = await fetch(`/api/well/${wellId}/linked-documents?apiNumber=${encodeURIComponent(apiNumber)}`, { credentials: 'include' });
+                if (response.ok) {
+                    const data = await response.json();
+                    const documents = data.documents || [];
+                    document.getElementById('wellModalLinkedDocsCount').textContent = documents.length;
+                    document.getElementById('wellModalLinkedDocsSection').style.display = 'block';
+
+                    const container = document.getElementById('wellModalLinkedDocs');
+                    if (documents.length === 0) {
+                        container.innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No linked documents</div>';
+                    } else {
+                        container.innerHTML = documents.map(d => `
+                            <div style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500; color: var(--oil-navy);">${d.displayName || d.fileName || 'Document'}</div>
+                                    <div style="font-size: 12px; color: #6b7280;">${d.documentType || 'Unknown type'}${d.recordingDate ? ' • ' + d.recordingDate : ''}</div>
+                                </div>
+                                ${d.documentId ? `<a href="/documents/${d.documentId}" target="_blank" style="color: #2563eb; font-size: 12px; text-decoration: none;">View →</a>` : ''}
+                            </div>
+                        `).join('');
+                    }
+                } else {
+                    document.getElementById('wellModalLinkedDocsSection').style.display = 'block';
+                    document.getElementById('wellModalLinkedDocsCount').textContent = '0';
+                    document.getElementById('wellModalLinkedDocs').innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No linked documents</div>';
+                }
+            } catch (error) {
+                console.error('Error loading linked documents:', error);
+                document.getElementById('wellModalLinkedDocsSection').style.display = 'block';
+                document.getElementById('wellModalLinkedDocsCount').textContent = '0';
+                document.getElementById('wellModalLinkedDocs').innerHTML = '<div style="color: #6b7280; font-size: 13px; padding: 8px 0;">Unable to load</div>';
+            }
+        }
+
+        // Zoom to a property from the well modal
+        function zoomToPropertyFromWell(propertyId) {
+            if (propertyMarkers[propertyId]) {
+                const marker = propertyMarkers[propertyId];
+                const bounds = marker.getBounds();
+                map.fitBounds(bounds, { maxZoom: 14, padding: [50, 50] });
+                closeWellModal();
+                setTimeout(() => marker.openPopup(), 500);
+            }
+        }
+
+        // Toggle save button visibility when notes change
+        function toggleMapWellSaveButton() {
+            const current = document.getElementById('wellModalNotes').value;
+            const original = document.getElementById('wellModalOriginalNotes').value;
+            const saveBtn = document.getElementById('wellModalSaveBtn');
+            saveBtn.style.display = current !== original ? 'block' : 'none';
+        }
+
+        // Save notes and close modal
+        async function saveMapWellNotesAndClose() {
+            const wellId = document.getElementById('wellModalWellId').value;
+            const notes = document.getElementById('wellModalNotes').value;
+
+            try {
+                const response = await fetch(`/api/wells/${wellId}/notes`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ notes })
+                });
+
+                if (response.ok) {
+                    document.getElementById('wellModalOriginalNotes').value = notes;
+                    document.getElementById('wellModalSaveBtn').style.display = 'none';
+                    closeWellModal();
+                } else {
+                    alert('Failed to save notes');
+                }
+            } catch (error) {
+                console.error('Error saving notes:', error);
+                alert('Error saving notes');
+            }
+        }
+
+        // Center map on the current modal well
+        function centerMapOnModalWell() {
+            const apiNumber = document.getElementById('wellModalApiNumber').value;
+            const lat = parseFloat(document.getElementById('wellModalLat').value);
+            const lon = parseFloat(document.getElementById('wellModalLon').value);
+
+            if (lat && lon && !isNaN(lat) && !isNaN(lon)) {
+                map.setView([lat, lon], 14);
+                closeWellModal();
+            } else if (apiNumber) {
+                // Try to find the well's coordinates from loaded data
+                const section = document.getElementById('wellModalSection').value;
+                const township = document.getElementById('wellModalTownship').value;
+                const range = document.getElementById('wellModalRange').value;
+                if (section && township && range) {
+                    // Zoom to approximate location based on TRS (handled by map)
+                    closeWellModal();
+                }
+            }
+        }
+
+        // Print unit report for well from map modal
+        function printMapWellReport() {
+            const apiNumber = document.getElementById('wellModalApiNumber').value;
+            const otcSection = document.getElementById('wellModalOTCProduction');
+            const pun = otcSection?.dataset?.pun;
+
+            if (pun) {
+                // Open unit print report with PUN and current well API highlighted
+                const url = `/print/unit?pun=${encodeURIComponent(pun)}&wellApi=${encodeURIComponent(apiNumber)}`;
+                window.open(url, '_blank');
+            } else if (apiNumber) {
+                // No PUN available - show alert
+                alert('No production unit (PUN) linked to this well. Production report unavailable.');
+            } else {
+                alert('No API number available for this well');
+            }
+        }
+
+        // Helper function to detect horizontal wells
+        function detectHorizontalWell(wellName) {
+            if (!wellName) return false;
+            const name = wellName.toLowerCase();
+            // Check common horizontal naming patterns
+            return name.endsWith('h') ||
+                   name.endsWith('xh') ||
+                   name.includes(' h ') ||
+                   name.includes('-h-') ||
+                   /\d+h$/.test(name) ||
+                   /\d+xh$/.test(name);
+        }
+
+        // Helper function to format phone number
+        function formatPhone(phone) {
+            if (!phone) return '';
+            const digits = phone.replace(/\D/g, '');
+            if (digits.length === 10) {
+                return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6)}`;
+            }
+            return phone;
+        }
+        
+        // Close well modal
+        function closeWellModal() {
+            document.getElementById('wellModal').classList.remove('active');
+        }
+        
+        // Close modal on overlay click
+        document.getElementById('wellModal').addEventListener('click', function(e) {
+            if (e.target === this) {
+                closeWellModal();
+            }
+        });
+        
+        // Close modal on Escape key
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') {
+                closeWellModal();
+            }
+        });
+

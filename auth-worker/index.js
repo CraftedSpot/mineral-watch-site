@@ -1,7 +1,7 @@
 // Auth Worker - Handles magic link authentication for Mineral Watch
 // Separated from portal-worker for better code organization and bug isolation
 
-const COOKIE_NAME = "mw_session_v3";
+const COOKIE_NAME = "mw_session_v4";
 const TOKEN_EXPIRY = 15 * 60 * 1000; // 15 minutes
 const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
 
@@ -272,6 +272,9 @@ function handleLogout(corsHeaders) {
   response.headers.append("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
   response.headers.append("Set-Cookie", `${COOKIE_NAME}=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=portal.mymineralwatch.com; Max-Age=0`);
   response.headers.append("Set-Cookie", `${COOKIE_NAME}=; Path=/; Max-Age=0`);
+  // Clear old v3 cookie
+  response.headers.append("Set-Cookie", `mw_session_v3=; HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=0`);
+  response.headers.append("Set-Cookie", `mw_session_v3=; HttpOnly; Secure; SameSite=Lax; Path=/; Domain=.mymineralwatch.com; Max-Age=0`);
   
   return response;
 }

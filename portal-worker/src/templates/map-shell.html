@@ -1,0 +1,3093 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Map - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+    <style>
+        :root { 
+            /* UI Palette */
+            --oil-navy: #1C2B36; 
+            --slate-blue: #334E68; 
+            --red-dirt: #C05621; 
+            --red-dirt-dark: #9C4215; 
+            --paper: #F8F9FA; 
+            --border: #E2E8F0; 
+            --success: #03543F; 
+            --success-bg: #DEF7EC; 
+            --error: #DC2626; 
+            
+            /* Notification Alert Colors */
+            --your-property: #FCA5A5;
+            --your-property-dark: #DC2626;
+            --adjacent-section: #FDBA74;
+            --adjacent-section-dark: #EA580C;
+            --tracked-well: #5EEAD4;
+            --tracked-well-dark: #0D9488;
+            
+            /* Activity Type Colors */
+            --permit: #FDE047;  /* Yellow */
+            --permit-dark: #F59E0B;  /* Darker yellow */
+            --completed: #3B82F6;  /* Blue */
+            --completed-dark: #1D4ED8;  /* Darker blue */
+            --drilling: #FDBA74;
+            --drilling-dark: #EA580C;
+            
+            /* Heatmap Gradient */
+            --status-active: #22C55E;
+            --status-recent: #F59E0B;
+            --status-quiet: #3B82F6;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Inter', sans-serif; line-height: 1.6; color: var(--oil-navy); background: #F7FAFC; min-height: 100vh; }
+        h1, h2, .logo { font-family: 'Merriweather', serif; }
+        
+        header { background: var(--oil-navy); padding: 15px 0; color: white; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 0 25px; }
+        .header-inner { display: flex; justify-content: space-between; align-items: center; }
+        .logo { font-size: 20px; font-weight: 900; color: white; text-decoration: none; }
+        .nav-links { display: flex; gap: 25px; }
+        .nav-links a { color: rgba(255,255,255,0.8); text-decoration: none; font-weight: 500; font-size: 14px; }
+        .nav-links a:hover, .nav-links a.active { color: white; }
+        .user-menu { display: flex; align-items: center; gap: 15px; }
+        .user-name { font-size: 14px; color: rgba(255,255,255,0.8); }
+        .btn-logout { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 4px; font-size: 13px; cursor: pointer; }
+        
+        main { padding: 20px 0; }
+        .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .page-header h1 { font-size: 28px; margin: 0; }
+        
+        /* Map Container */
+        .map-container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            /* overflow: hidden; -- Removed to prevent stacking context issues */
+            position: relative;
+        }
+        
+        #map {
+            width: 100%;
+            height: 700px;
+            position: relative;
+        }
+        
+        /* Removed white overlay - using opacity on tiles instead */
+        
+        /* Page header with count display */
+        .page-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        
+        .page-header h1 {
+            margin: 0;
+        }
+        
+        /* Count Display */
+        .map-count-display {
+            background: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .count-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 0 8px;
+        }
+        
+        .count-value {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--oil-navy);
+            line-height: 1;
+        }
+        
+        .count-label {
+            font-size: 11px;
+            color: var(--slate-blue);
+            margin-top: 2px;
+            white-space: nowrap;
+            cursor: help;
+            position: relative;
+        }
+        
+        /* Enhanced native tooltips */
+        .count-label[title]:hover {
+            color: var(--red-dirt);
+            cursor: help;
+        }
+        
+        .legend-group-title[title] {
+            cursor: help;
+        }
+        
+        .count-separator {
+            color: #CBD5E1;
+            font-size: 16px;
+            line-height: 1;
+        }
+        
+        /* Search Bar */
+        .map-search-container {
+            flex: 1;
+            max-width: 400px;
+            position: relative;
+        }
+        
+        .map-search-input {
+            width: 100%;
+            padding: 10px 40px 10px 16px;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+        
+        .map-search-input:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+            box-shadow: 0 0 0 3px rgba(192, 86, 33, 0.1);
+        }
+        
+        .map-search-input::placeholder {
+            color: #94A3B8;
+        }
+        
+        .map-search-icon {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748B;
+            pointer-events: none;
+        }
+        
+        .map-search-results {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .map-search-results.active {
+            display: block;
+        }
+        
+        .search-result-item {
+            padding: 12px 16px;
+            cursor: pointer;
+            transition: background-color 0.15s;
+            border-bottom: 1px solid rgba(226, 232, 240, 0.5);
+        }
+        
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+        
+        .search-result-item:hover {
+            background-color: var(--paper);
+        }
+        
+        .search-result-type {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .search-result-type.type-property {
+            background: #DCFCE7; color: #166534;
+        }
+        .search-result-type.type-well {
+            background: #DBEAFE; color: #1E40AF;
+        }
+        .search-result-type.type-nearby {
+            background: #F3F4F6; color: #6B7280;
+        }
+        
+        .search-result-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--oil-navy);
+            margin-bottom: 2px;
+        }
+        
+        .search-result-details {
+            font-size: 12px;
+            color: var(--slate-blue);
+        }
+        
+        .search-no-results {
+            padding: 20px;
+            text-align: center;
+            color: #94A3B8;
+            font-size: 14px;
+        }
+        
+        /* Mobile responsive for count display */
+        @media (max-width: 768px) {
+            .page-header {
+                justify-content: center;
+                text-align: center;
+            }
+            
+            .map-count-display {
+                padding: 8px 12px;
+                gap: 4px;
+                order: 2; /* Show below title on mobile */
+                width: 100%;
+                justify-content: center;
+            }
+            
+            .count-item {
+                padding: 0 6px;
+            }
+            
+            .count-value {
+                font-size: 16px;
+            }
+            
+            .count-label {
+                font-size: 10px;
+            }
+            
+            .count-separator {
+                font-size: 14px;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .map-count-display {
+                gap: 2px;
+            }
+            
+            /* Hide on very small screens to save space */
+            .count-label {
+                display: none;
+            }
+            
+            .count-value {
+                font-size: 14px;
+            }
+        }
+        
+        /* Map Controls */
+        .map-controls {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            min-width: 240px;
+        }
+        
+        .controls-title {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--oil-navy);
+        }
+        
+        .control-group {
+            margin-bottom: 12px;
+        }
+        
+        .control-label {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            margin: 8px 0;
+            cursor: pointer;
+            color: var(--slate-blue);
+        }
+        
+        .control-label input[type="checkbox"] {
+            margin-right: 8px;
+            transform: scale(1.1);
+        }
+        
+        .control-label:hover {
+            color: var(--oil-navy);
+        }
+        
+        .map-status {
+            font-size: 12px;
+            color: var(--slate-blue);
+            padding-top: 8px;
+            border-top: 1px solid var(--border);
+        }
+        
+        /* Loading overlay */
+        .map-loading {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255,255,255,0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1001;
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid var(--border);
+            border-top-color: var(--red-dirt);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #1976d2;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .loading-text {
+            margin-top: 16px;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--slate-blue);
+            text-align: center;
+            line-height: 1.4;
+        }
+        
+        .loading-subtext {
+            margin-top: 8px;
+            font-size: 13px;
+            color: #64748B;
+            text-align: center;
+        }
+        
+        /* OCC Warning Tooltip */
+        .occ-warning {
+            position: relative;
+            display: block;
+        }
+        
+        .occ-warning-icon {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: #F59E0B;
+            color: white;
+            border-radius: 50%;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: help;
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 10;
+        }
+        
+        .occ-tooltip {
+            position: absolute;
+            bottom: 100%;
+            right: 0;
+            background: #1F2937;
+            color: white;
+            padding: 12px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.4;
+            width: 280px;
+            margin-bottom: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.2s;
+            z-index: 1000;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        
+        .occ-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: #1F2937;
+        }
+        
+        .occ-warning:hover .occ-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+        
+        /* Info Panel */
+        .info-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 320px;
+        }
+        
+        .info-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 8px;
+            color: var(--oil-navy);
+        }
+        
+        .info-description {
+            font-size: 13px;
+            color: var(--slate-blue);
+            line-height: 1.4;
+        }
+        
+        /* Well Legend */
+        .well-legend {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 12px 16px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1000;
+            max-width: 160px;
+            font-size: 13px;
+        }
+        
+        .legend-subtitle {
+            font-weight: 600;
+            color: var(--slate-blue);
+        }
+        
+        /* Leaflet popup customization */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+        }
+        
+        .leaflet-popup-content {
+            margin: 12px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .popup-title {
+            font-weight: 600;
+            font-size: 14px;
+            margin-bottom: 6px;
+            color: var(--oil-navy);
+        }
+        
+        .popup-detail {
+            font-size: 12px;
+            color: var(--slate-blue);
+            margin: 3px 0;
+        }
+        
+        .popup-link {
+            display: inline-block;
+            margin-top: 8px;
+            color: var(--red-dirt);
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+        }
+        
+        .popup-link:hover {
+            text-decoration: underline;
+        }
+        
+        /* Well Clustering Styles */
+        .well-cluster-icon {
+            background: transparent !important;
+            border: none !important;
+        }
+        
+        .well-marker {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        
+        .well-count {
+            color: white;
+            font-weight: bold;
+            font-size: 12px;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.7);
+            line-height: 1;
+        }
+
+        /* Township tooltip - clean, minimal */
+        .township-tooltip {
+            background: rgba(255, 255, 255, 0.95) !important;
+            border: 1px solid var(--border) !important;
+            border-radius: 4px !important;
+            padding: 4px 8px !important;
+            font-family: 'Inter', sans-serif !important;
+            font-size: 12px !important;
+            color: var(--slate-blue) !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        
+        .township-tooltip::before {
+            border-top-color: rgba(255, 255, 255, 0.95) !important;
+        }
+
+        /* New Map Controls Bar */
+        .map-controls-bar {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: white;
+            border-radius: 8px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            z-index: 1000;
+            transition: all 0.3s ease;
+            flex-wrap: nowrap;
+        }
+        
+        /* Collapsed state styles */
+        .map-controls-bar.collapsed {
+            padding: 10px 14px;
+            cursor: pointer;
+        }
+        
+        .map-controls-bar.collapsed .primary-toggles,
+        .map-controls-bar.collapsed .overlays-dropdown {
+            display: none;
+        }
+        
+        /* Toggle handle for expand/collapse */
+        .controls-toggle {
+            display: none;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--oil-navy);
+        }
+        
+        .map-controls-bar.collapsed .controls-toggle {
+            display: flex;
+        }
+        
+        .controls-toggle-icon {
+            font-size: 16px;
+            transition: transform 0.2s;
+        }
+        
+        /* Simple X button for collapsing */
+        .collapse-x-btn {
+            background: white;
+            border: 1px solid var(--border);
+            color: var(--slate-blue);
+            cursor: pointer;
+            width: 32px;
+            height: 32px;
+            font-size: 18px;
+            font-weight: 400;
+            border-radius: 4px;
+            display: none;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            line-height: 1;
+            padding: 0;
+            text-align: center;
+        }
+        
+        .collapse-x-btn:hover {
+            background: var(--paper);
+            color: var(--red-dirt);
+            border-color: var(--red-dirt);
+        }
+        
+        .map-controls-bar:not(.collapsed) .collapse-x-btn {
+            display: block;
+        }
+        
+        .primary-toggles {
+            display: flex;
+            gap: 4px;
+            padding-right: 8px;
+            border-right: 1px solid var(--border);
+            align-items: center;
+        }
+        
+        .well-status-select {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 6px 8px;
+            font-family: 'Inter', sans-serif;
+            font-size: 12px;
+            font-weight: 500;
+            color: var(--slate-blue);
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 85px;
+        }
+        
+        .well-status-select:hover {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--oil-navy-pale);
+        }
+        
+        .well-status-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--oil-navy-pale);
+        }
+
+        /* Layer select dropdown - matches toggle-btn styling */
+        .layer-select {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.2;
+            color: var(--slate-blue);
+            cursor: pointer;
+            transition: all 0.2s;
+            appearance: none;
+            -webkit-appearance: none;
+            box-sizing: border-box;
+            min-height: 36px;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2364748b' d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 8px center;
+            padding-right: 28px;
+        }
+
+        .layer-select:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+
+        .layer-select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--oil-navy-pale);
+        }
+
+        /* Active state when a layer option is selected (not "off") */
+        .layer-select.active {
+            background-color: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='white' d='M3 5l3 3 3-3'/%3E%3C/svg%3E");
+        }
+
+        .layer-select.active:hover {
+            background-color: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+            color: white;
+        }
+
+        .layer-select.loading {
+            pointer-events: none;
+            color: white;
+            border-color: var(--red-dirt);
+            animation: pulse-loading 1.2s ease-in-out infinite;
+        }
+
+        @keyframes pulse-loading {
+            0%, 100% { opacity: 1; background-color: var(--red-dirt); }
+            50% { opacity: 0.7; background-color: #e08a6a; }
+        }
+
+        .toggle-btn {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.2;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            color: var(--slate-blue);
+            transition: all 0.2s;
+            position: relative;
+            user-select: none;
+            box-sizing: border-box;
+            min-height: 36px;
+        }
+        
+        .toggle-btn:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+        
+        .toggle-btn.active {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+        
+        .toggle-btn.loading {
+            position: relative;
+            pointer-events: none;
+            opacity: 0.8;
+        }
+        
+        .toggle-btn.loading span::before {
+            content: '⟳ ';
+            display: inline-block;
+            animation: spin 1s linear infinite;
+        }
+        
+        .toggle-btn input {
+            position: absolute;
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        /* Filings Dropdown Button - mirrors Overlays pattern */
+        .filings-dropdown {
+            position: relative;
+        }
+
+        .filings-btn {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.2;
+            color: var(--slate-blue);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-sizing: border-box;
+            min-height: 36px;
+        }
+
+        .filings-btn:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+
+        .filings-btn.active {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+
+        .filings-btn.active:hover {
+            background: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+        }
+
+        .filings-btn.inactive {
+            color: #9CA3AF;
+        }
+
+        .filings-btn::after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .filings-btn.active::after {
+            color: white;
+        }
+
+        .filings-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 140px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s;
+        }
+
+        .filings-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        /* Heatmap Dropdown Button - mirrors Overlays pattern */
+        .heatmap-dropdown {
+            position: relative;
+        }
+
+        .heatmap-btn {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.2;
+            color: var(--slate-blue);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-sizing: border-box;
+            min-height: 36px;
+        }
+
+        .heatmap-btn:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+
+        .heatmap-btn.active {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+
+        .heatmap-btn.active:hover {
+            background: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+        }
+
+        .heatmap-btn.inactive {
+            color: #9CA3AF;
+        }
+
+        .heatmap-btn::after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 4px;
+        }
+
+        .heatmap-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 140px;
+            z-index: 1000;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s;
+        }
+
+        .heatmap-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+
+        .heatmap-section-divider {
+            font-size: 10px;
+            font-weight: 600;
+            color: #6B7280;
+            padding: 8px 12px 4px;
+            border-top: 1px solid #E5E7EB;
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* Overlays Dropdown Button */
+        .overlays-dropdown {
+            position: relative;
+        }
+
+        .overlays-btn {
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-family: 'Inter', sans-serif;
+            font-size: 13px;
+            font-weight: 500;
+            line-height: 1.2;
+            color: var(--slate-blue);
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-sizing: border-box;
+            min-height: 36px;
+        }
+        
+        .overlays-btn:hover {
+            border-color: var(--red-dirt);
+            color: var(--oil-navy);
+        }
+        
+        .overlays-btn.active {
+            background: var(--red-dirt);
+            color: white;
+            border-color: var(--red-dirt);
+        }
+
+        .overlays-btn.active:hover {
+            background: var(--red-dirt-dark, #b35a3a);
+            border-color: var(--red-dirt-dark, #b35a3a);
+        }
+
+        .overlays-btn.active::after {
+            color: white;
+        }
+
+        .overlays-btn.inactive {
+            color: #9CA3AF;
+        }
+        
+        .overlays-btn::after {
+            content: '▼';
+            font-size: 10px;
+            margin-left: 4px;
+        }
+        
+        /* Dropdown Menu */
+        .overlays-menu {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 4px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            min-width: 180px;
+            padding: 8px;
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.2s;
+        }
+        
+        .overlays-menu.show {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        
+        .overlay-option {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.15s;
+        }
+        
+        .overlay-option:hover {
+            background: var(--paper);
+        }
+        
+        .overlay-option.all-option {
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 4px;
+            font-weight: 600;
+        }
+        
+        .overlay-option input {
+            margin-right: 8px;
+        }
+        
+        .overlay-option label {
+            flex: 1;
+            cursor: pointer;
+            font-size: 13px;
+            user-select: none;
+        }
+        
+        /* Map Status */
+        .map-status {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            font-size: 13px;
+            color: var(--slate-blue);
+            z-index: 1000;
+        }
+
+        /* Layer Panel */
+        .layer-panel {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 320px;
+            height: 100%;
+            background: white;
+            box-shadow: -4px 0 12px rgba(0,0,0,0.15);
+            z-index: 1001;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .layer-panel.open {
+            transform: translateX(0);
+        }
+        
+        .layer-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid var(--border);
+            background: var(--paper);
+        }
+        
+        .layer-panel-title {
+            font-weight: 600;
+            font-size: 16px;
+            color: var(--oil-navy);
+        }
+        
+        .layer-panel-close {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: var(--slate-blue);
+            padding: 4px;
+            border-radius: 4px;
+            line-height: 1;
+        }
+        
+        .layer-panel-close:hover {
+            background: var(--border);
+        }
+        
+        .layer-panel-content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        /* County Search */
+        .county-search {
+            margin-bottom: 24px;
+        }
+        
+        .search-label {
+            display: block;
+            font-weight: 500;
+            margin-bottom: 8px;
+            color: var(--oil-navy);
+            font-size: 14px;
+        }
+        
+        .search-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: var(--red-dirt);
+            box-shadow: 0 0 0 2px rgba(192, 86, 33, 0.1);
+        }
+
+        /* Layer Groups */
+        .layer-group {
+            margin-bottom: 24px;
+        }
+        
+        .layer-group-title {
+            font-weight: 600;
+            font-size: 14px;
+            color: var(--oil-navy);
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .layer-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 0;
+            cursor: pointer;
+        }
+        
+        .layer-option input[type="checkbox"] {
+            margin: 0;
+        }
+        
+        .layer-option-label {
+            font-size: 14px;
+            color: var(--slate-blue);
+            cursor: pointer;
+        }
+        
+        .layer-option:hover .layer-option-label {
+            color: var(--oil-navy);
+        }
+
+        /* Popup Styling */
+        .leaflet-popup-content-wrapper {
+            border-radius: 12px;
+            padding: 0;
+            min-width: 240px;
+            max-width: 300px;
+        }
+        
+        .leaflet-popup-close-button {
+            position: absolute !important;
+            top: 8px !important;
+            right: 8px !important;
+            z-index: 1000 !important;
+            background: rgba(255,255,255,0.9) !important;
+            border-radius: 50% !important;
+            width: 24px !important;
+            height: 24px !important;
+            line-height: 20px !important;
+            text-align: center !important;
+            font-size: 16px !important;
+            color: var(--slate-blue) !important;
+            border: none !important;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+        }
+        
+        .leaflet-popup-close-button:hover {
+            background: white !important;
+            color: var(--oil-navy) !important;
+        }
+        
+        /* Ensure popup has enough space */
+        .leaflet-popup {
+            margin-bottom: 20px !important;
+            z-index: 1500 !important; /* Above filter controls which are at z-index: 1000 */
+        }
+        
+        .leaflet-popup-tip-container {
+            margin-top: 0 !important;
+        }
+        
+        .leaflet-popup-content {
+            margin: 24px;
+            padding: 8px 0;  /* Extra padding top/bottom for badges */
+            font-family: 'Inter', sans-serif;
+            min-width: 200px;
+            min-height: 120px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .popup-header {
+            display: flex;
+            gap: 8px;
+            margin-top: 4px;    /* Extra space above tags */
+            margin-bottom: 16px;
+        }
+        
+        .popup-tag {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+        
+        .popup-tag.your-property {
+            background: var(--your-property);
+            color: var(--your-property-dark);
+        }
+        
+        .popup-tag.adjacent-section {
+            background: var(--adjacent-section);
+            color: var(--adjacent-section-dark);
+        }
+        
+        .popup-tag.tracked-well {
+            background: var(--tracked-well);
+            color: var(--tracked-well-dark);
+        }
+        
+        .popup-tag.permit {
+            background: var(--permit);
+            color: var(--permit-dark);
+        }
+        
+        .popup-tag.completed {
+            background: var(--completed);
+            color: var(--completed-dark);
+        }
+        
+        .popup-tag.drilling {
+            background: var(--drilling);
+            color: var(--drilling-dark);
+        }
+        
+        .popup-well-name {
+            font-weight: 600;
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--oil-navy);
+            line-height: 1.3;
+            text-transform: none;
+        }
+        
+        .popup-details {
+            font-size: 14px;
+            color: var(--slate-blue);
+            line-height: 1.5;
+            margin-bottom: 18px;
+            text-transform: none;
+        }
+        
+        .popup-actions {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 4px;  /* Extra space below buttons */
+        }
+        
+        .popup-btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s;
+        }
+        
+        .popup-btn-primary {
+            background: var(--red-dirt);
+            color: white;
+        }
+        
+        .popup-btn-primary:hover {
+            background: var(--red-dirt-dark);
+        }
+        
+        .popup-btn-secondary {
+            background: var(--border);
+            color: var(--slate-blue);
+        }
+        
+        .popup-btn-secondary:hover {
+            background: var(--oil-navy);
+            color: white;
+        }
+
+        /* Well Detail Modal */
+        .well-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s ease, visibility 0.2s ease;
+        }
+        
+        .well-modal-overlay.active {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Document Viewer Modal Overlay */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000001;
+        }
+
+        .well-modal {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 480px;
+            width: 90%;
+            max-height: 85vh;
+            overflow: hidden;
+            transform: translateY(20px);
+            transition: transform 0.2s ease;
+        }
+        
+        .well-modal-overlay.active .well-modal {
+            transform: translateY(0);
+        }
+        
+        .well-modal-header {
+            background: var(--oil-navy);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+        
+        .well-modal-title {
+            font-family: 'Merriweather', serif;
+            font-size: 18px;
+            font-weight: 700;
+            margin: 0 0 4px 0;
+            line-height: 1.3;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .well-type-badge {  /* Formation badge */
+            background: rgba(255,255,255,0.2);
+            color: white;
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .well-date-badge {  /* Completion date badge */
+            background: rgba(255,255,255,0.15);
+            color: rgba(255,255,255,0.9);
+            padding: 3px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            font-family: 'Inter', sans-serif;
+        }
+        
+        .well-modal-subtitle {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+        
+        .well-modal-close {
+            background: rgba(255,255,255,0.1);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 18px;
+            line-height: 1;
+            flex-shrink: 0;
+            margin-left: 12px;
+        }
+        
+        .well-modal-close:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        
+        .well-modal-body {
+            padding: 20px;
+            overflow-y: auto;
+            max-height: calc(75vh - 180px);
+            margin-bottom: 0;
+        }
+        
+        .well-detail-section {
+            margin-bottom: 20px;
+        }
+        
+        .well-detail-section:last-child {
+            margin-bottom: 0;
+        }
+        
+        .well-detail-label {
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--slate-blue);
+            margin-bottom: 4px;
+        }
+        
+        .well-detail-value {
+            font-size: 15px;
+            color: var(--oil-navy);
+        }
+        
+        .well-detail-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .well-detail-full {
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .well-contact-info {
+            font-size: 13px;
+            color: var(--slate-blue);
+            margin-top: 2px;
+        }
+        
+        .well-detail-value a {
+            color: var(--red-dirt);
+            text-decoration: none;
+        }
+        
+        .well-detail-value a:hover {
+            text-decoration: underline;
+        }
+        
+        .well-status-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .well-modal-actions {
+            padding: 16px 20px 20px;
+            background: var(--paper);
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 0;
+        }
+        
+        .well-modal-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+            text-decoration: none;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .well-modal-btn-primary {
+            background: var(--slate-blue);
+            color: white;
+        }
+
+        .well-modal-btn-primary:hover {
+            background: var(--oil-navy);
+        }
+        
+        .well-modal-btn-secondary {
+            background: white;
+            color: var(--slate-blue);
+            border: 1px solid var(--border);
+        }
+        
+        .well-modal-btn-secondary:hover {
+            background: var(--oil-navy);
+            color: white;
+            border-color: var(--oil-navy);
+        }
+        
+        /* Info icon and tooltip styles */
+        .info-icon {
+            display: inline-block;
+            margin-left: 4px;
+            font-style: normal;
+            font-size: 14px;
+            color: rgba(255,255,255,0.8);
+            cursor: help;
+        }
+        
+        .well-records-tooltip {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(28, 43, 54, 0.95);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+            max-width: 250px;
+            white-space: normal;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.2s, visibility 0.2s;
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .well-records-tooltip::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            border: 6px solid transparent;
+            border-top-color: rgba(28, 43, 54, 0.95);
+        }
+        
+        .well-modal-btn:hover + .well-records-tooltip,
+        .info-icon:hover + .well-records-tooltip {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        /* Dashboard-style Well Modal Enhancements */
+        .well-modal {
+            max-width: 700px;
+            max-height: calc(100vh - 20px);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .well-modal-header {
+            background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%);
+            padding: 20px 24px;
+            flex-shrink: 0;
+        }
+
+        .well-modal-title {
+            font-size: 22px;
+        }
+
+        .well-modal-body {
+            padding: 20px 24px;
+            flex: 1;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+            min-height: 0;
+            max-height: none;
+        }
+
+        /* Status Row */
+        .status-row { display: flex; gap: 24px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
+        .status-item { display: flex; flex-direction: column; gap: 6px; }
+        .status-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-blue); }
+        .status-badge { display: inline-block; padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 700; background: var(--success-bg); color: var(--success); }
+        .status-badge.horizontal { background: #DBEAFE; color: #1E40AF; }
+        .status-badge.vertical { background: #FEF3C7; color: #92400E; }
+        .status-value { font-size: 14px; font-weight: 600; color: var(--oil-navy); }
+
+        /* Info Sections */
+        .info-section { margin-bottom: 16px; }
+        .info-section:last-child { margin-bottom: 0; }
+        .section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--slate-blue); margin-bottom: 6px; }
+        .section-value { font-size: 15px; font-weight: 500; color: var(--oil-navy); }
+        .section-value a { color: var(--red-dirt); text-decoration: none; }
+        .section-value a:hover { text-decoration: underline; }
+        .contact-line { font-size: 14px; color: var(--slate-blue); margin-top: 2px; }
+
+        /* Two Column Grid */
+        .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+        /* Production Section */
+        .production-section { background: var(--paper); border-radius: 8px; padding: 16px; margin-top: 16px; }
+        .production-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+        .production-title { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: var(--oil-navy); }
+        .formation-badge { background: white; border: 1px solid var(--border); padding: 4px 10px; border-radius: 4px; font-size: 12px; font-weight: 600; color: var(--slate-blue); white-space: nowrap; }
+        .production-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+        .production-item { text-align: center; }
+        .production-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 4px; }
+        .production-value { font-size: 16px; font-weight: 700; color: var(--oil-navy); }
+        .production-unit { font-size: 11px; font-weight: 500; color: var(--slate-blue); }
+
+        /* Dates Row */
+        .dates-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--border); }
+        .date-item { text-align: center; }
+        .date-label { font-size: 10px; font-weight: 600; text-transform: uppercase; color: var(--slate-blue); margin-bottom: 2px; }
+        .date-value { font-size: 12px; font-weight: 600; color: var(--oil-navy); }
+
+        /* Card Footer Actions */
+        .well-modal-actions {
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            flex-wrap: wrap;
+            background: white;
+            border-top: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+        .action-btn { padding: 12px 16px; border-radius: 6px; font-size: 14px; font-weight: 600; text-decoration: none; text-align: center; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 6px; border: none; }
+        .action-btn.primary { background: var(--red-dirt); color: white; }
+        .action-btn.primary:hover { background: var(--red-dirt-dark); }
+        .action-btn.primary.well-blue { background: var(--slate-blue); }
+        .action-btn.primary.well-blue:hover { background: var(--oil-navy); }
+        .action-btn.secondary { background: white; color: var(--red-dirt); border: 1px solid var(--red-dirt); }
+
+        /* Map Well Footer Grid - matches dashboard */
+        .map-well-footer-grid {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+        }
+        .map-well-footer-left, .map-well-footer-right {
+            display: flex;
+            gap: 10px;
+        }
+        .map-well-footer-grid .action-btn {
+            flex: none;
+            padding: 10px 14px;
+            font-size: 13px;
+            min-width: 110px;
+            justify-content: center;
+        }
+        .map-well-footer-grid .occ-warning .action-btn { min-width: 110px; }
+        .action-btn.secondary:hover { background: #FFF5F0; }
+        .action-btn.outline { background: white; color: var(--slate-blue); border: 1px solid var(--border); }
+        .action-btn.outline:hover { border-color: var(--slate-blue); color: var(--oil-navy); }
+        .action-btn.track-well { background: var(--tracked-well); color: var(--oil-navy); border: none; }
+        .action-btn.track-well:hover { background: var(--tracked-well-dark); color: white; }
+
+        /* OCC Filings Section */
+        .occ-filings-section { margin: 16px 0; border: 1px solid #e5e7eb; border-radius: 8px; }
+        .occ-filings-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; cursor: pointer; background: #f9fafb; border-radius: 8px; }
+        .occ-filings-header:hover { background: #f3f4f6; }
+        .occ-filing-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .occ-filing-item:last-child { border-bottom: none; }
+        .occ-filing-main { flex: 1; }
+        .occ-filing-type { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+        .occ-filing-applicant { color: #666; font-size: 13px; margin-top: 2px; }
+        .occ-filing-details { display: flex; gap: 12px; margin-top: 4px; font-size: 12px; color: #888; flex-wrap: wrap; }
+        .occ-filing-case { font-family: monospace; }
+        .occ-filing-status { padding: 2px 6px; border-radius: 3px; font-size: 11px; font-weight: 500; }
+        .occ-filing-status.heard { background: #d4edda; color: #155724; }
+        .occ-filing-status.continued { background: #fff3cd; color: #856404; }
+        .occ-filing-status.scheduled { background: #cce5ff; color: #004085; }
+        .occ-filing-status.dismissed { background: #f8d7da; color: #721c24; }
+        .occ-filing-status.filed { background: #e2e3e5; color: #383d41; }
+        .occ-filing-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+        .occ-filing-link { color: #2563eb; text-decoration: none; font-size: 14px; margin-left: 8px; }
+        .occ-filing-link:hover { text-decoration: underline; }
+        .occ-adjacent-note { font-size: 10px; background: #f3f4f6; padding: 2px 6px; border-radius: 4px; margin-left: 8px; color: #6b7280; }
+        .occ-hearing-warning { margin-right: 4px; }
+        .occ-filing-actions { display: flex; align-items: center; gap: 8px; margin-left: 12px; }
+        .occ-process-btn {
+            background: #2563eb;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .occ-process-btn:hover { background: #1d4ed8; }
+        .occ-process-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .occ-process-btn.fetching { background: #8b5cf6; }
+        .occ-process-btn.queued { background: #f59e0b; }
+        .occ-process-btn.processing { background: #6366f1; }
+        .occ-process-btn.complete { background: #10b981; cursor: pointer; }
+        .occ-process-btn.complete:hover { background: #059669; }
+        .occ-process-btn.error { background: #ef4444; }
+        .occ-process-btn .spinner-sm {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeIn { from { opacity: 0; transform: translate(-50%, 10px); } to { opacity: 1; transform: translate(-50%, 0); } }
+        @keyframes fadeOut { from { opacity: 1; transform: translate(-50%, 0); } to { opacity: 0; transform: translate(-50%, 10px); } }
+        .occ-pending-text {
+            font-size: 11px;
+            color: #6b7280;
+            font-style: italic;
+            padding: 6px 0;
+        }
+
+        /* Completion Report Styles (for Well Records section) */
+        .completion-report-item { display: flex; justify-content: space-between; align-items: flex-start; padding: 12px 0; border-bottom: 1px solid #eee; }
+        .completion-report-item:last-child { border-bottom: none; }
+        .completion-report-main { flex: 1; }
+        .completion-report-type { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; text-transform: uppercase; margin-right: 8px; }
+        .completion-report-type.completion { background: #dbeafe; color: #1e40af; }
+        .completion-report-type.recompletion { background: #fef3c7; color: #92400e; }
+        .completion-current-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; background: #dcfce7; color: #166534; margin-right: 8px; }
+        .completion-report-item.is-current { background: #f0fdf4; margin: 0 -16px; padding: 12px 16px; border-radius: 4px; }
+        .completion-report-location { font-weight: 600; color: #1a1a2e; font-size: 13px; }
+        .completion-report-details { display: flex; gap: 8px; margin-top: 4px; font-size: 12px; color: #666; flex-wrap: wrap; align-items: center; }
+        .completion-report-details span { display: inline-flex; align-items: center; }
+        .completion-report-pun { font-family: monospace; background: #f3f4f6; padding: 2px 6px; border-radius: 3px; font-size: 11px; }
+        .completion-report-date { text-align: right; font-size: 12px; color: #888; min-width: 70px; }
+        .completion-analyze-btn {
+            background: #2563eb;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 500;
+            border: none;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+        .completion-analyze-btn:hover { background: #1d4ed8; }
+        .completion-analyze-btn:disabled { background: #94a3b8; cursor: not-allowed; }
+        .completion-analyze-btn.fetching { background: #8b5cf6; }
+        .completion-analyze-btn.queued { background: #f59e0b; }
+        .completion-analyze-btn.processing { background: #6366f1; }
+        .completion-analyze-btn.analyzed { background: #10b981; cursor: default; }
+        .completion-analyze-btn.error { background: #ef4444; }
+        .completion-analyze-btn .spinner-sm {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 4px;
+            vertical-align: middle;
+        }
+        .occ-reanalyze-btn {
+            background: #f1f5f9;
+            color: #64748b;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+            border: 1px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 8px;
+        }
+        .occ-reanalyze-btn:hover { background: #e2e8f0; color: #475569; border-color: #cbd5e1; }
+        .occ-view-doc-btn {
+            background: #10b981;
+            color: white;
+            padding: 5px 12px;
+            border: none;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .occ-view-doc-btn:hover { background: #059669; }
+        /* Skeleton loading animation */
+        .skeleton-loader {
+            background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+            background-size: 200% 100%;
+            animation: skeleton-pulse 1.5s ease-in-out infinite;
+            border-radius: 4px;
+        }
+        @keyframes skeleton-pulse {
+            0% { background-position: 200% 0; }
+            100% { background-position: -200% 0; }
+        }
+        .skeleton-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .skeleton-row:last-child { border-bottom: none; }
+        .skeleton-left { flex: 1; }
+        .skeleton-badge { width: 100px; height: 18px; margin-bottom: 8px; }
+        .skeleton-text { height: 14px; margin-bottom: 4px; }
+        .skeleton-text.short { width: 60%; }
+        .skeleton-text.medium { width: 80%; }
+        .skeleton-details { display: flex; gap: 8px; margin-top: 6px; }
+        .skeleton-detail { width: 80px; height: 12px; }
+        .skeleton-right { display: flex; align-items: center; gap: 8px; }
+        .skeleton-btn { width: 60px; height: 26px; }
+        .skeleton-date { width: 50px; height: 14px; }
+        /* Loading badge with pulsing dot */
+        .loading-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #e5e7eb;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #6b7280;
+        }
+        .loading-badge .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background: #3b82f6;
+            border-radius: 50%;
+            animation: pulse-dot 1.2s ease-in-out infinite;
+        }
+        @keyframes pulse-dot {
+            0%, 100% { opacity: 0.4; transform: scale(0.8); }
+            50% { opacity: 1; transform: scale(1.2); }
+        }
+
+        /* Operator / Location Row */
+        .operator-location-row {
+            display: flex;
+            gap: 16px;
+            margin-bottom: 16px;
+        }
+        .operator-location-row .info-box {
+            flex: 1;
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 12px 16px;
+            border: 1px solid #e2e8f0;
+        }
+
+        /* Mobile responsive for modal */
+        @media (max-width: 480px) {
+            .well-modal { max-width: 100%; margin: 10px; }
+            .status-row { flex-wrap: wrap; gap: 16px; }
+            .two-col { grid-template-columns: 1fr; gap: 12px; }
+            .production-grid { grid-template-columns: repeat(2, 1fr); }
+            .dates-row { grid-template-columns: 1fr; }
+            .well-modal-actions { flex-direction: column; }
+            .well-modal-actions > div { width: 100%; }
+            /* Stack operator/location on mobile */
+            .operator-location-row {
+                flex-direction: column;
+                gap: 12px;
+            }
+            /* Map well footer 2x2 grid on mobile */
+            .map-well-footer-grid {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+                gap: 8px;
+            }
+            .map-well-footer-left, .map-well-footer-right {
+                display: contents;
+            }
+            .map-well-footer-grid .action-btn { min-width: unset; padding: 10px 8px; font-size: 13px; }
+            .map-well-footer-grid .occ-warning { min-width: unset; }
+        }
+
+        /* Legend Strip */
+        .legend-strip {
+            background: white;
+            border-radius: 8px;
+            padding: 16px 20px;
+            margin-top: 16px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 24px;
+        }
+        
+        .legend-group {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        
+        .legend-group-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--oil-navy);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .legend-subtitle {
+            display: block;
+            font-size: 10px;
+            font-weight: 400;
+            color: var(--slate-blue);
+            text-transform: none;
+            letter-spacing: normal;
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+        
+        .legend-items {
+            display: flex;
+            gap: 12px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .legend-color {
+            width: 14px;
+            height: 14px;
+            border-radius: 3px;
+            border: 1px solid rgba(0,0,0,0.1);
+        }
+        
+        .legend-text {
+            font-size: 11px;
+            color: var(--slate-blue);
+        }
+
+        /* Toast animations */
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
+
+        /* Mobile Responsiveness */
+        @media (max-width: 768px) {
+            #map {
+                height: 500px;
+            }
+            
+            .map-controls-bar {
+                top: 10px;
+                right: 10px;
+                flex-direction: column;
+                align-items: stretch;
+                padding: 6px;
+            }
+            
+            /* Mobile collapsed state adjustments */
+            .map-controls-bar.collapsed {
+                flex-direction: row;
+                padding: 8px 12px;
+            }
+            
+            .primary-toggles {
+                padding-right: 0;
+                padding-bottom: 6px;
+                border-right: none;
+                border-bottom: 1px solid var(--border);
+                flex-wrap: wrap;
+            }
+            
+            .toggle-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+                flex: 1;
+                min-width: 80px;
+            }
+
+            .layer-select {
+                font-size: 12px;
+                padding: 6px 10px;
+                padding-right: 24px;
+                flex: 1;
+                min-width: 100px;
+            }
+
+            .filings-dropdown {
+                width: auto;
+            }
+
+            .filings-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .filings-menu {
+                right: auto;
+                left: 0;
+                min-width: 120px;
+            }
+
+            .heatmap-dropdown {
+                width: auto;
+            }
+
+            .heatmap-btn {
+                font-size: 12px;
+                padding: 6px 10px;
+            }
+
+            .heatmap-menu {
+                right: auto;
+                left: 0;
+                min-width: 120px;
+            }
+
+            .overlays-dropdown {
+                width: 100%;
+            }
+
+            .overlays-btn {
+                width: 100%;
+                justify-content: space-between;
+            }
+
+            .overlays-menu {
+                right: auto;
+                left: 0;
+                width: 100%;
+            }
+
+            .legend-strip {
+                display: none;
+            }
+        }
+        
+        /* Lateral path styles for better visibility */
+        .lateral-path {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        
+        .lateral-path:hover {
+            opacity: 1 !important;
+        }
+        
+        .lateral-path-direction {
+            pointer-events: none; /* Prevent interfering with main path hover */
+        }
+        
+        /* Ensure lateral paths are interactive even when overlapping */
+        .leaflet-interactive {
+            cursor: pointer;
+        }
+        
+        /* Ensure ALL popups appear above filter controls */
+        .leaflet-pane.leaflet-popup-pane {
+            z-index: 9999 !important;
+        }
+        
+        .leaflet-popup {
+            z-index: 9999 !important;
+        }
+        
+        .leaflet-container .leaflet-popup {
+            z-index: 9999 !important;
+        }
+        
+        /* High z-index popup class */
+        .high-z-popup {
+            z-index: 9999 !important;
+        }
+        
+        .high-z-popup .leaflet-popup-content-wrapper {
+            z-index: 9999 !important;
+        }
+        
+        .high-z-popup .leaflet-popup-tip-container {
+            z-index: 9999 !important;
+        }
+        
+        /* Force leaflet container to not create stacking context */
+        .leaflet-container {
+            z-index: auto !important;
+        }
+        
+        /* Wells Filter Panel */
+        .wells-filter-panel {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 300px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            z-index: 1002;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .filter-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 20px;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .filter-header h4 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--slate-blue);
+        }
+        
+        .filter-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: var(--slate-gray);
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+        
+        .filter-close:hover {
+            background: var(--paper);
+            color: var(--slate-blue);
+        }
+        
+        .filter-body {
+            padding: 20px;
+        }
+        
+        .filter-section {
+            margin-bottom: 20px;
+        }
+        
+        .filter-section label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--slate-blue);
+        }
+        
+        .filter-select,
+        .filter-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 14px;
+            color: var(--slate-blue);
+            background: white;
+            transition: border-color 0.2s;
+        }
+        
+        .filter-select:focus,
+        .filter-input:focus {
+            outline: none;
+            border-color: var(--terra-cotta);
+        }
+        
+        .filter-actions {
+            padding: 16px 20px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+        }
+        
+        .filter-btn {
+            flex: 1;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .filter-btn-primary {
+            background: var(--terra-cotta);
+            color: white;
+        }
+        
+        .filter-btn-primary:hover {
+            background: var(--terra-cotta-dark);
+        }
+        
+        .filter-btn-secondary {
+            background: var(--paper);
+            color: var(--slate-blue);
+            border: 1px solid var(--border);
+        }
+        
+        .filter-btn-secondary:hover {
+            background: var(--border);
+        }
+        
+        /* Filter toggle button */
+        .filter-toggle-btn {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: white;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--slate-blue);
+            cursor: pointer;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            z-index: 1001;
+            transition: all 0.2s;
+            display: none; /* Hidden by default, shown when wells layer is active */
+        }
+        
+        .filter-toggle-btn:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transform: translateY(-1px);
+        }
+        
+        .filter-toggle-btn.active {
+            background: var(--terra-cotta);
+            color: white;
+        }
+        
+        /* Marker cluster styles */
+        .marker-cluster {
+            background-clip: padding-box;
+            border-radius: 20px;
+        }
+        
+        .marker-cluster div {
+            width: 30px;
+            height: 30px;
+            margin-left: 5px;
+            margin-top: 5px;
+            text-align: center;
+            border-radius: 15px;
+            font: 12px 'Inter', sans-serif;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .marker-cluster-small {
+            background-color: rgba(156, 163, 175, 0.6);
+        }
+        
+        .marker-cluster-small div {
+            background-color: rgba(107, 114, 128, 0.9);
+            color: white;
+        }
+        
+        .marker-cluster-medium {
+            background-color: rgba(156, 163, 175, 0.6);
+        }
+        
+        .marker-cluster-medium div {
+            background-color: rgba(75, 85, 99, 0.9);
+            color: white;
+            width: 35px;
+            height: 35px;
+            font-size: 14px;
+        }
+        
+        .marker-cluster-large {
+            background-color: rgba(156, 163, 175, 0.6);
+        }
+        
+        .marker-cluster-large div {
+            background-color: rgba(55, 65, 81, 0.9);
+            color: white;
+            width: 40px;
+            height: 40px;
+            font-size: 16px;
+        }
+        
+        /* Tracked well cluster styles - using oil/gas colors */
+        .tracked-well-cluster-small {
+            background-color: rgba(34, 197, 94, 0.3);
+        }
+        
+        .tracked-well-cluster-small div {
+            background-color: rgba(34, 197, 94, 0.9);
+            color: white;
+        }
+        
+        .tracked-well-cluster-medium {
+            background-color: rgba(34, 197, 94, 0.3);
+        }
+        
+        .tracked-well-cluster-medium div {
+            background-color: rgba(34, 197, 94, 0.9);
+            color: white;
+            width: 35px;
+            height: 35px;
+            font-size: 14px;
+        }
+        
+        .tracked-well-cluster-large {
+            background-color: rgba(34, 197, 94, 0.3);
+        }
+        
+        .tracked-well-cluster-large div {
+            background-color: rgba(34, 197, 94, 0.9);
+            color: white;
+            width: 40px;
+            height: 40px;
+            font-size: 16px;
+        }
+        
+        /* Hide nearby well markers to avoid z-index issues */
+        .nearby-well-marker {
+            z-index: 600 !important;
+        }
+        
+        /* Footer */
+        footer { 
+            background: var(--oil-navy); 
+            color: #A0AEC0; 
+            padding: 20px 0; 
+            font-size: 13px; 
+            text-align: center; 
+            margin-top: auto; 
+        }
+        
+        /* Mobile Styles */
+        @media (max-width: 768px) {
+            /* Mobile navigation - match Learn page style */
+            .header-inner {
+                flex-direction: column;
+                gap: 15px;
+            }
+            
+            .nav-links {
+                gap: 20px;
+            }
+            
+            /* Map specific mobile adjustments */
+            #map {
+                height: 400px;
+            }
+            .page-header h1 {
+                font-size: 20px;
+            }
+            .container { 
+                padding: 0 15px; 
+            }
+            main { 
+                padding: 15px 0; 
+            }
+            
+            /* Legend adjustments for mobile */
+            .legend {
+                bottom: 20px;
+                right: 10px;
+                left: 10px;
+                max-width: none;
+                font-size: 12px;
+            }
+            
+            .legend-item {
+                margin-bottom: 6px;
+                font-size: 11px;
+            }
+            
+            .legend-color {
+                width: 14px;
+                height: 14px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/map" class="active">Map</a>
+                    <a href="/portal/account">Account</a>
+                    <a href="/portal/learn">Learn</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+    
+    <main>
+        <div class="container">
+            <div class="page-header">
+                <h1>Map</h1>
+                
+                <!-- Search Bar -->
+                <div class="map-search-container">
+                    <input 
+                        type="text" 
+                        class="map-search-input" 
+                        id="mapSearch"
+                        placeholder="Search wells, properties, or operators..."
+                        autocomplete="off"
+                    >
+                    <svg class="map-search-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                        <path fill-rule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clip-rule="evenodd" />
+                    </svg>
+                    <div class="map-search-results" id="searchResults"></div>
+                </div>
+                
+                <!-- Count Display -->
+                <div class="map-count-display">
+                    <div class="count-item">
+                        <span class="count-value" id="propertyCount">0</span>
+                        <span class="count-label">Properties</span>
+                    </div>
+                    <div class="count-separator">•</div>
+                    <div class="count-item">
+                        <span class="count-value" id="wellCount">0</span>
+                        <span class="count-label" title="Wells you're actively monitoring">Tracked Wells</span>
+                    </div>
+                    <div class="count-separator">•</div>
+                    <div class="count-item">
+                        <span class="count-value" id="permitCount">0</span>
+                        <span class="count-label" title="New drilling permits within 90 days near your properties">Permits</span>
+                    </div>
+                    <div class="count-separator">•</div>
+                    <div class="count-item">
+                        <span class="count-value" id="completionCount">0</span>
+                        <span class="count-label" title="Wells completed within 90 days near your properties">Completions</span>
+                    </div>
+                    <div class="count-separator" id="nearbyWellsSeparator" style="display: none;">•</div>
+                    <div class="count-item" id="nearbyWellsCount" style="display: none; flex-direction: column;">
+                        <span class="count-value" id="nearbyWellCount">0</span>
+                        <span class="count-label" title="Wells near your properties">Nearby Wells</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="map-container">
+                <div id="map"></div>
+                
+                <!-- Loading overlay - only shown for first-time users -->
+                <div class="map-loading" id="mapLoading" style="display: none;">
+                    <div class="loading-spinner"></div>
+                    <div class="loading-text">Loading map data...</div>
+                    <div class="loading-subtext"></div>
+                </div>
+                
+                <!-- New Map Controls Bar -->
+                <div class="map-controls-bar collapsed" id="mapControlsBar">
+                    <div class="controls-toggle" onclick="toggleControls()">
+                        <span class="controls-toggle-icon">☰</span>
+                        <span>Layers</span>
+                    </div>
+                    <button class="collapse-x-btn" onclick="toggleControls()" title="Collapse">×</button>
+                    <div class="primary-toggles">
+                        <label class="toggle-btn active">
+                            <input type="checkbox" id="toggle-wells" checked>
+                            <span title="Wells you're actively monitoring">Tracked Wells</span>
+                        </label>
+                        <div class="filings-dropdown">
+                            <button class="filings-btn active" id="filingsBtn" title="OCC filings within 90 days near your properties">
+                                <span>Nearby Filings</span>
+                            </button>
+                            <div class="filings-menu" id="filingsMenu">
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-permits" checked>
+                                    <label for="toggle-permits">Permits</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-completions" checked>
+                                    <label for="toggle-completions">Completions</label>
+                                </div>
+                            </div>
+                        </div>
+                        <select id="nearby-wells-select" class="layer-select" title="Explore wells near your properties">
+                            <option value="off">Nearby Wells</option>
+                            <option value="AC">Active Only</option>
+                            <option value="ALL">All Statuses</option>
+                        </select>
+                        <div class="heatmap-dropdown">
+                            <button class="heatmap-btn active" id="heatmapBtn" title="Statewide drilling activity within 90 days">
+                                <span>Heat Map</span>
+                            </button>
+                            <div class="heatmap-menu" id="heatmapMenu">
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-permits" checked>
+                                    <label for="toggle-heatmap-permits">Permits</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-completions" checked>
+                                    <label for="toggle-heatmap-completions">Completions</label>
+                                </div>
+                                <div class="heatmap-section-divider">OCC Applications</div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-pooling">
+                                    <label for="toggle-heatmap-pooling">Pooling</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-density">
+                                    <label for="toggle-heatmap-density">Increased Density</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-spacing">
+                                    <label for="toggle-heatmap-spacing">Spacing Unit</label>
+                                </div>
+                                <div class="overlay-option">
+                                    <input type="checkbox" id="toggle-heatmap-horizontal">
+                                    <label for="toggle-heatmap-horizontal">Horizontal Well</label>
+                                </div>
+                            </div>
+                        </div>
+                        <select id="production-select" class="layer-select" title="County production (trailing 12 months)">
+                            <option value="off" selected>Production</option>
+                            <option value="oil">Oil</option>
+                            <option value="gas">Gas</option>
+                        </select>
+                    </div>
+
+                    <div class="overlays-dropdown">
+                        <button class="overlays-btn" id="overlaysBtn">
+                            <span>Overlays</span>
+                        </button>
+                        <div class="overlays-menu" id="overlaysMenu">
+                            <div class="overlay-option all-option">
+                                <input type="checkbox" id="toggle-all-overlays">
+                                <label for="toggle-all-overlays">All Overlays</label>
+                            </div>
+                            <div class="overlay-option">
+                                <input type="checkbox" id="toggle-land-grid" checked>
+                                <label for="toggle-land-grid">Land Grid</label>
+                            </div>
+                            <div class="overlay-option">
+                                <input type="checkbox" id="toggle-section-numbers" checked>
+                                <label for="toggle-section-numbers">Section Numbers</label>
+                            </div>
+                            <div class="overlay-option">
+                                <input type="checkbox" id="toggle-county-labels" checked>
+                                <label for="toggle-county-labels">County Names</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Map Status removed for cleaner UX -->
+                
+                <!-- Filter Toggle Button -->
+                <button class="filter-toggle-btn" id="filterToggleBtn" onclick="toggleWellsFilter()">
+                    <span>🔍 Filter Wells</span>
+                </button>
+                
+                <!-- Wells Filter Panel -->
+                <div class="wells-filter-panel" id="wellsFilterPanel" style="display: none;">
+                    <div class="filter-header">
+                        <h4>Filter D1 Wells</h4>
+                        <button class="filter-close" onclick="toggleWellsFilter()">&times;</button>
+                    </div>
+                    <div class="filter-body">
+                        <div class="filter-section">
+                            <label>Well Status</label>
+                            <select id="filterWellStatus" class="filter-select">
+                                <option value="">All Statuses</option>
+                                <option value="ACTIVE">Active</option>
+                                <option value="PA">Plugged & Abandoned</option>
+                                <option value="SI">Shut In</option>
+                                <option value="TA">Temporarily Abandoned</option>
+                                <option value="DRY">Dry Hole</option>
+                            </select>
+                        </div>
+                        <div class="filter-section">
+                            <label>Well Type</label>
+                            <select id="filterWellType" class="filter-select">
+                                <option value="">All Types</option>
+                                <option value="OIL">Oil</option>
+                                <option value="GAS">Gas</option>
+                                <option value="INJ">Injection</option>
+                                <option value="SWD">Salt Water Disposal</option>
+                            </select>
+                        </div>
+                        <div class="filter-section">
+                            <label>Operator</label>
+                            <input type="text" id="filterOperator" class="filter-input" placeholder="Enter operator name...">
+                        </div>
+                        <div class="filter-section">
+                            <label>County</label>
+                            <input type="text" id="filterCounty" class="filter-input" placeholder="Enter county name...">
+                        </div>
+                    </div>
+                    <div class="filter-actions">
+                        <button class="filter-btn filter-btn-primary" onclick="applyWellsFilter()">Apply Filter</button>
+                        <button class="filter-btn filter-btn-secondary" onclick="clearWellsFilter()">Clear</button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Legend Strip -->
+            <div class="legend-strip">
+                <div class="legend-group">
+                    <div class="legend-group-title">Monitoring</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div class="legend-color" style="background: var(--your-property); border-color: var(--your-property-dark);"></div>
+                            <span class="legend-text">My Property</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="16" height="20" viewBox="-2 -1 28 36" xmlns="http://www.w3.org/2000/svg" style="margin: 2px 4px;">
+                                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                                      fill="#22C55E" stroke="#16A34A" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="4.5" fill="#16A34A"/>
+                            </svg>
+                            <span class="legend-text">Tracked Well</span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="14" height="18" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg" style="margin: 2px 5px;">
+                                <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z"
+                                      fill="#9CA3AF" stroke="#6B7280" stroke-width="2"/>
+                                <circle cx="12" cy="12" r="4.5" fill="#6B7280"/>
+                            </svg>
+                            <span class="legend-text">Nearby Well</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="legend-group">
+                    <div class="legend-group-title">Activity Type</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <svg width="20" height="20" viewBox="0 0 20 20" style="margin: 0 2px;">
+                                <circle cx="10" cy="10" r="8" fill="var(--permit)" stroke="var(--permit-dark)" stroke-width="2" opacity="0.7"/>
+                            </svg>
+                            <span class="legend-text">New Drilling Permit
+                                <span class="legend-subtitle">Near your properties • Last 90 days</span>
+                            </span>
+                        </div>
+                        <div class="legend-item">
+                            <svg width="20" height="20" viewBox="0 0 20 20" style="margin: 0 2px;">
+                                <circle cx="10" cy="10" r="8" fill="var(--completed)" stroke="var(--completed-dark)" stroke-width="2" opacity="0.7"/>
+                            </svg>
+                            <span class="legend-text">Recently Completed
+                                <span class="legend-subtitle">Near your properties • Last 90 days</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="legend-group">
+                    <div class="legend-group-title">Heat Map</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div style="width: 40px; height: 14px; background: linear-gradient(to right, rgba(255, 255, 0, 0.4), rgba(245, 158, 11, 0.8), rgba(220, 38, 38, 1)); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
+                            <span class="legend-text">Permits
+                                <span class="legend-subtitle">Statewide • Last 90 days</span>
+                            </span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width: 40px; height: 14px; background: linear-gradient(to right, rgba(96, 165, 250, 0.4), rgba(59, 130, 246, 0.8), rgba(124, 58, 237, 1)); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
+                            <span class="legend-text">Completions
+                                <span class="legend-subtitle">Statewide • Last 90 days</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="legend-group">
+                    <div class="legend-group-title">Production</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div style="width: 40px; height: 14px; background: linear-gradient(to right, #ffffcc, #ffeda0, #feb24c, #f03b20, #bd0026); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
+                            <span class="legend-text">Oil (BBL)
+                                <span class="legend-subtitle">By county • Trailing 12 months</span>
+                            </span>
+                        </div>
+                        <div class="legend-item">
+                            <div style="width: 40px; height: 14px; background: linear-gradient(to right, #deebf7, #9ecae1, #4292c6, #2171b5, #084594); border-radius: 3px; border: 1px solid rgba(0,0,0,0.1);"></div>
+                            <span class="legend-text">Gas (MCF)
+                                <span class="legend-subtitle">By county • Trailing 12 months</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer><div class="container">&copy; 2025 Mineral Watch</div></footer>
+
+    <!-- Well Detail Modal - Dashboard Style -->
+    <div class="well-modal-overlay" id="wellModal">
+        <div class="well-modal">
+            <!-- Header with Blue Gradient -->
+            <div class="well-modal-header">
+                <div style="flex: 1;">
+                    <h3 class="well-modal-title" id="wellModalTitle">Well Name</h3>
+                    <div class="well-modal-subtitle" id="wellModalSubtitle">API: —</div>
+                </div>
+                <button class="well-modal-close" onclick="closeWellModal()">&times;</button>
+            </div>
+
+            <!-- Content Body (scrollable) -->
+            <div class="well-modal-body" id="wellModalBody">
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" id="wellModalStatusBadge">AC</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value" id="wellModalType">—</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge horizontal" id="wellModalDirection">—</span>
+                    </div>
+                </div>
+
+                <!-- Operator / Location Row -->
+                <div class="operator-location-row">
+                    <!-- Operator Box -->
+                    <div class="info-box">
+                        <div class="section-label">Operator</div>
+                        <div class="section-value" id="wellModalOperator" style="margin-bottom: 4px;">—</div>
+                        <div class="contact-line" id="wellModalContact" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                    <!-- Location Box -->
+                    <div class="info-box">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" id="wellModalLocation" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalCounty" style="font-size: 13px; color: #64748b;">—</div>
+                    </div>
+                </div>
+
+                <!-- Formation & Depth / Initial Production Row -->
+                <div class="operator-location-row" id="wellModalFormationIPRow" style="display: none;">
+                    <!-- Formation & Depth Box -->
+                    <div class="info-box" id="wellModalFormationBox" style="display: none;">
+                        <div class="section-label">Formation & Depth</div>
+                        <div class="section-value" id="wellModalFormation" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalDepth" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                    <!-- Initial Production Box -->
+                    <div class="info-box" id="wellModalIPBox" style="display: none;">
+                        <div class="section-label">Initial Production</div>
+                        <div class="section-value" id="wellModalIP" style="margin-bottom: 4px;">—</div>
+                        <div id="wellModalIPType" style="font-size: 13px; color: #64748b;"></div>
+                    </div>
+                </div>
+
+                <!-- OTC Production Summary Section -->
+                <div id="wellModalOTCProduction" class="production-section" style="display: none; margin-top: 16px;">
+                    <div class="production-header">
+                        <span class="production-title">OTC Production</span>
+                        <span class="formation-badge" id="wellModalOTCStatus">—</span>
+                    </div>
+                    <div id="wellModalOTCContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <!-- Linked Properties Section (for tracked wells) - Collapsible -->
+                <div class="occ-filings-section" id="wellModalLinkedPropertiesSection" style="display: none; margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapLinkedProperties()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-linked-props-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Properties</span>
+                            <span id="wellModalLinkedPropertiesCount" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                    </div>
+                    <div id="map-linked-props-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalLinkedProperties" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Linked Documents Section (for tracked wells) - Collapsible -->
+                <div class="occ-filings-section" id="wellModalLinkedDocsSection" style="display: none; margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapLinkedDocs()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-linked-docs-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Linked Documents</span>
+                            <span id="wellModalLinkedDocsCount" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">0</span>
+                        </div>
+                    </div>
+                    <div id="map-linked-docs-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalLinkedDocs" style="max-height: 200px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Well Records Section (Completion Reports) - Collapsible -->
+                <div class="occ-filings-section" id="wellModalWellRecordsSection" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapWellRecords()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-well-records-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Well Records</span>
+                            <span id="wellModalWellRecordsCount" class="loading-badge"><span class="pulse-dot"></span>Loading</span>
+                        </div>
+                    </div>
+                    <div id="map-well-records-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalCompletionReports" style="max-height: 300px; overflow-y: auto;">
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Section (for tracked wells) - At bottom -->
+                <div id="wellModalNotesSection" style="display: none; margin-top: 16px;">
+                    <div style="font-size: 12px; font-weight: 500; color: #6b7280; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">Notes</div>
+                    <textarea id="wellModalNotes" style="width: 100%; min-height: 80px; padding: 10px; border: 1px solid var(--border); border-radius: 6px; font-family: inherit; font-size: 14px; resize: vertical;" placeholder="Add notes about this well..." onkeyup="toggleMapWellSaveButton()"></textarea>
+                </div>
+            </div>
+
+            <!-- Footer Actions - Dashboard Style -->
+            <div class="well-modal-actions" id="wellModalActions" style="padding: 16px 20px; border-top: 1px solid #e5e7eb; background: white;">
+                <div class="map-well-footer-grid">
+                    <div class="map-well-footer-left">
+                        <button class="action-btn primary well-blue" id="wellModalMWMapBtn" onclick="centerMapOnModalWell()">MW Map ↗</button>
+                        <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalMapLink">OCC Map ↗</a>
+                    </div>
+                    <div class="map-well-footer-right">
+                        <div class="occ-warning" style="position: relative;">
+                            <a href="#" target="_blank" class="action-btn primary well-blue" id="wellModalRecordsLink">Well Records</a>
+                            <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
+                            <div class="occ-tooltip">
+                                <strong>Well Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                            </div>
+                        </div>
+                        <button class="action-btn primary well-blue" id="wellModalUnitReportBtn" onclick="printMapWellReport()">Unit Report ↗</button>
+                    </div>
+                </div>
+                <div id="wellModalTrackRow" style="display: none; margin-top: 10px;">
+                    <button class="action-btn track-well" id="wellModalTrackBtn" onclick="trackWellFromModal()" style="width: 100%;">+ Track Well</button>
+                </div>
+                <button class="action-btn primary well-blue" id="wellModalSaveBtn" onclick="saveMapWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
+            </div>
+
+            <!-- Hidden fields for state -->
+            <input type="hidden" id="wellModalWellId">
+            <input type="hidden" id="wellModalApiNumber">
+            <input type="hidden" id="wellModalIsTracked">
+            <input type="hidden" id="wellModalSection">
+            <input type="hidden" id="wellModalTownship">
+            <input type="hidden" id="wellModalRange">
+            <input type="hidden" id="wellModalMeridian">
+            <input type="hidden" id="wellModalOriginalNotes">
+            <input type="hidden" id="wellModalLat">
+            <input type="hidden" id="wellModalLon">
+        </div>
+    </div>
+
+    <!-- DOCUMENT DETAIL MODAL -->
+    <div class="modal-overlay" id="mapDocumentDetailModal" style="display: none; z-index: 1000001;">
+        <div class="modal document-detail-modal" style="max-width: 700px; max-height: calc(100vh - 40px); margin: 20px auto; background: #FFFFFF; border-radius: 16px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1); display: flex; flex-direction: column;">
+            <!-- Modal Header -->
+            <div style="background: linear-gradient(135deg, var(--oil-navy) 0%, var(--slate-blue) 100%); color: white; padding: 20px 24px; position: relative; flex-shrink: 0;">
+                <button onclick="closeMapDocumentDetail()" style="position: absolute; top: 16px; right: 16px; background: none; border: none; font-size: 24px; cursor: pointer; color: white; opacity: 0.9;">&times;</button>
+                <h2 id="mapDocModalTitle" style="margin: 0; font-family: 'Merriweather', serif; font-size: 20px; font-weight: 700;">Document Details</h2>
+                <div id="mapDocModalSubtitle" style="margin-top: 4px; font-size: 14px; opacity: 0.9;"></div>
+            </div>
+
+            <!-- Modal Body (scrollable) -->
+            <div id="mapDocDetailContent" style="padding: 20px 24px; flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; min-height: 0;">
+                <div style="text-align: center; padding: 40px; color: #6b7280;">Loading document details...</div>
+            </div>
+
+            <!-- Modal Footer -->
+            <div style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; background: white;">
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="viewMapDocumentPDF()" id="mapViewOriginalBtn" style="background: var(--slate-blue); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                        View Original
+                    </button>
+                    <button onclick="printMapDocumentSummary()" style="background: white; color: var(--slate-blue); border: 1px solid var(--slate-blue); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;" title="Print or save as PDF">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        Print Summary
+                    </button>
+                </div>
+                <button onclick="closeMapDocumentDetail()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- DOCUMENT VIEW MODAL -->
+    <div class="modal-overlay" id="documentViewModal" style="display: none; z-index: 1000002;">
+        <div class="modal" style="max-width: 900px; height: 90vh; display: flex; flex-direction: column; background: white; border-radius: 12px; overflow: hidden;">
+            <div style="display: flex; justify-content: space-between; align-items: center; padding: 16px; border-bottom: 1px solid var(--border);">
+                <h2 id="documentViewTitle" style="margin: 0; font-size: 18px; font-weight: 600;">Document Viewer</h2>
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <button onclick="downloadMapDocument()" class="btn-secondary-action" style="padding: 8px 16px; background: var(--slate-blue); color: white; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 6px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                        </svg>
+                        Download
+                    </button>
+                    <button onclick="closeMapDocumentViewer()" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666; padding: 4px;">&times;</button>
+                </div>
+            </div>
+            <div id="mapPdfViewerContainer" style="flex: 1; overflow: hidden; background: #525659; position: relative;">
+                <p style="color: white; text-align: center; padding: 20px;">Loading document...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+/* __MAP_SHARED_UTILS__ */
+/* __MAP_SHARED_CONFIG__ */
+/* __MAP_SHARED_OCC_HELPERS__ */
+/* __MAP_SHARED_DOC_HELPERS__ */
+/* __MAP_CONTROLS__ */
+/* __MAP_CORE__ */
+/* __MAP_GEO__ */
+/* __MAP_WELLS_TRACKED__ */
+/* __MAP_OCC__ */
+/* __MAP_DOCUMENTS__ */
+/* __MAP_PROPERTIES__ */
+/* __MAP_LAYERS__ */
+/* __MAP_ACTIVITY__ */
+/* __MAP_NEARBY__ */
+/* __MAP_INIT__ */
+    </script>
+</body>
+</html>

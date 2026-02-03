@@ -746,7 +746,9 @@ export async function handleUpdateOrganizationSettings(request: Request, env: En
     const { defaultNotificationMode, allowUserOverride } = await request.json() as any;
 
     // Validate notification mode
-    const validModes = ['Instant', 'Daily Digest', 'Weekly Digest', 'Instant + Weekly', 'None'];
+    const validModes = ['Daily + Weekly', 'Daily Digest', 'Weekly Report', 'None',
+      // Legacy modes (accepted for backward compatibility, normalized on read)
+      'Instant + Weekly', 'Instant', 'Weekly Digest'];
     if (defaultNotificationMode && !validModes.includes(defaultNotificationMode)) {
       return jsonResponse({ error: "Invalid notification mode" }, 400);
     }

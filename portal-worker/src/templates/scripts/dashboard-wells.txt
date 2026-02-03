@@ -1,38 +1,23 @@
-        // Wells Search, Filter & Sort State
-        let wellsSearchTerm = '';
-        let wellsFilterBy = 'all';
-        let wellsSortBy = 'name-asc';
+        // Wells list controller (state + event binding via shared ListController)
+        const wellsController = createListController({
+            defaultFilter: 'all',
+            defaultSort: 'name-asc',
+            controlsId: 'wellsControls',
+            searchId: 'wellsSearch',
+            filterId: 'wellsFilter',
+            sortId: 'wellsSort',
+            requirePlan: true,
+            itemName: 'wells',
+            renderFn: () => renderWellsTable(),
+            filterFn: filterWells,
+            sortFn: sortWells
+        });
 
-        // Initialize Wells Controls (call this after user loads)
-        function initWellsControls() {
-            const hasSearch = currentUser?.plan !== 'Free';
-            
-            // Show/hide controls based on plan
-            document.getElementById('wellsControls').style.display = hasSearch ? 'flex' : 'none';
-            
-            if (!hasSearch) return;
-            
-            // Search input handler
-            document.getElementById('wellsSearch').addEventListener('input', (e) => {
-                wellsSearchTerm = e.target.value.toLowerCase().trim();
-                renderWellsTable();
-            });
-
-            // Filter select handler (Active/Inactive)
-            document.getElementById('wellsFilter').addEventListener('change', (e) => {
-                wellsFilterBy = e.target.value;
-                renderWellsTable();
-            });
-
-            // Sort select handler
-            document.getElementById('wellsSort').addEventListener('change', (e) => {
-                wellsSortBy = e.target.value;
-                renderWellsTable();
-            });
-        }
+        // Alias for backward compat — initWellsControls is called from dashboard-init
+        const initWellsControls = () => wellsController.initControls();
 
         // Filter wells based on search term and status filter (V2 uses flat object)
-        function filterWells(wells) {
+        function filterWells(wells, filterBy, searchTerm) {
             let filtered = wells;
 
             // Apply status filter (Active/Idle based on OTC production data)
@@ -57,16 +42,16 @@
                 return 'extended_idle';
             };
 
-            if (wellsFilterBy === 'active') {
+            if (filterBy === 'active') {
                 // Active = produced in last 3 months
                 filtered = filtered.filter(w => getProductionStatus(w) === 'active');
-            } else if (wellsFilterBy === 'idle') {
+            } else if (filterBy === 'idle') {
                 // Idle = recently_idle, extended_idle, or no_data (anything NOT active)
                 filtered = filtered.filter(w => getProductionStatus(w) !== 'active');
             }
 
             // Apply search filter
-            if (wellsSearchTerm) {
+            if (searchTerm) {
                 filtered = filtered.filter(w => {
                     const searchable = [
                         w.well_name || '',
@@ -75,7 +60,7 @@
                         w.county || ''
                     ].join(' ').toLowerCase();
 
-                    return searchable.includes(wellsSearchTerm);
+                    return searchable.includes(searchTerm);
                 });
             }
 
@@ -83,8 +68,8 @@
         }
 
         // Sort wells based on selected option (V2 uses flat object)
-        function sortWells(wells) {
-            const [field, direction] = wellsSortBy.split('-');
+        function sortWells(wells, sortBy) {
+            const [field, direction] = sortBy.split('-');
             const multiplier = direction === 'asc' ? 1 : -1;
 
             return [...wells].sort((a, b) => {
@@ -475,20 +460,12 @@
         // Render the wells table (extracted from loadWells)
         function renderWellsTable() {
             const hasSearch = currentUser?.plan !== 'Free';
-            
-            // Apply filter and sort
+
+            // Apply filter and sort via controller pipeline
             let displayWells = loadedWells;
             if (hasSearch) {
-                displayWells = filterWells(loadedWells);
-                displayWells = sortWells(displayWells);
-                
-                // Update results count
-                const countEl = document.getElementById('wellsResultsCount');
-                if (wellsSearchTerm) {
-                    countEl.textContent = `${displayWells.length} of ${loadedWells.length} wells`;
-                } else {
-                    countEl.textContent = `${loadedWells.length} wells`;
-                }
+                displayWells = wellsController.applyPipeline(loadedWells);
+                wellsController.updateCount(displayWells.length, loadedWells.length, 'wellsResultsCount');
             }
             
             if (displayWells.length === 0 && loadedWells.length > 0) {
@@ -822,14 +799,8 @@
             document.getElementById('searchLoading').style.display = 'none';
         }
         
-        // HTML escape function to prevent XSS
-        function escapeHtml(text) {
-            if (!text) return '';
-            const div = document.createElement('div');
-            div.textContent = text;
-            return div.innerHTML;
-        }
-        
+        // escapeHtml() is now in shared-utils.txt (injected earlier in the page)
+
         // Auto-search on input with debouncing
         document.addEventListener('DOMContentLoaded', function() {
             const searchInputs = [
@@ -1207,6 +1178,10 @@
                     loadProductionSummary(well.apiNumber);
                 } else {
                     renderNoProductionData('No API number available');
+                }
+                // Load decimal interest from OTC data
+                if (well.apiNumber) {
+                    loadDecimalInterest(well.apiNumber);
                 }
                 // Load Well Records (completion reports) in separate section
                 if (well.apiNumber) {

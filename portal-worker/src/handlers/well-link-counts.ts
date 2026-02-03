@@ -156,35 +156,75 @@ async function fetchDocumentCounts(
   apiToWellId: Map<string, string>
 ): Promise<Map<string, number>> {
   const docCounts = new Map<string, number>();
-  const batches = chunk(apiNumbers.filter(a => a), BATCH_SIZE_D1);
+  const filteredApis = apiNumbers.filter(a => a);
   const docTypeList = WELL_DOC_TYPES.map(type => `'${type}'`).join(', ');
 
-  const batchPromises = batches.map(async (batch) => {
+  // Step 1: Batch-resolve API numbers to airtable_record_ids
+  const apiToRecordId = new Map<string, string>();
+  const recordIdToApi = new Map<string, string>();
+  const apiBatches = chunk(filteredApis, BATCH_SIZE_D1);
+
+  const resolvePromises = apiBatches.map(async (batch) => {
     try {
       const placeholders = batch.map(() => '?').join(', ');
-      const query = `
-        SELECT aw.api_number, COUNT(*) as count
-        FROM documents d
-        JOIN airtable_wells aw ON d.well_id = aw.airtable_record_id
-        WHERE aw.api_number IN (${placeholders})
-          AND (d.deleted_at IS NULL OR d.deleted_at = '')
-          AND d.doc_type IN (${docTypeList})
-        GROUP BY aw.api_number
-      `;
-      const result = await env.WELLS_DB.prepare(query).bind(...batch).all();
-      return result.results as { api_number: string; count: number }[] || [];
+      const result = await env.WELLS_DB.prepare(
+        `SELECT api_number, airtable_record_id FROM airtable_wells WHERE api_number IN (${placeholders})`
+      ).bind(...batch).all();
+      return result.results as { api_number: string; airtable_record_id: string }[] || [];
+    } catch (err) {
+      console.error('[WellLinkCounts] Error resolving API to record IDs:', err);
+      return [];
+    }
+  });
+
+  const resolveResults = await Promise.all(resolvePromises);
+  for (const rows of resolveResults) {
+    for (const row of rows) {
+      apiToRecordId.set(row.api_number, row.airtable_record_id);
+      recordIdToApi.set(row.airtable_record_id, row.api_number);
+    }
+  }
+
+  // Step 2: Count documents per well using LIKE patterns (supports comma-separated well_id)
+  const recordIds = Array.from(recordIdToApi.keys());
+  const idBatches = chunk(recordIds, 25); // Smaller batches — each ID generates 4 WHERE conditions
+
+  const countPromises = idBatches.map(async (batch) => {
+    try {
+      // Count documents for each well individually within the batch
+      const results: { recordId: string; count: number }[] = [];
+      for (const recordId of batch) {
+        const startsWithPattern = `${recordId},%`;
+        const endsWithPattern = `%,${recordId}`;
+        const containsPattern = `%,${recordId},%`;
+
+        const row = await env.WELLS_DB.prepare(`
+          SELECT COUNT(*) as count FROM documents
+          WHERE (well_id = ? OR well_id LIKE ? OR well_id LIKE ? OR well_id LIKE ?)
+            AND (deleted_at IS NULL OR deleted_at = '')
+            AND doc_type IN (${docTypeList})
+        `).bind(recordId, startsWithPattern, endsWithPattern, containsPattern).first();
+
+        if (row && (row.count as number) > 0) {
+          results.push({ recordId, count: row.count as number });
+        }
+      }
+      return results;
     } catch (err) {
       console.error('[WellLinkCounts] Error fetching document counts:', err);
       return [];
     }
   });
 
-  const results = await Promise.all(batchPromises);
-  for (const rows of results) {
-    for (const row of rows) {
-      const wellId = apiToWellId.get(row.api_number);
-      if (wellId) {
-        docCounts.set(wellId, row.count);
+  const countResults = await Promise.all(countPromises);
+  for (const rows of countResults) {
+    for (const { recordId, count } of rows) {
+      const api = recordIdToApi.get(recordId);
+      if (api) {
+        const wellId = apiToWellId.get(api);
+        if (wellId) {
+          docCounts.set(wellId, count);
+        }
       }
     }
   }

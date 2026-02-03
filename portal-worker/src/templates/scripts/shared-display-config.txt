@@ -1,0 +1,280 @@
+/**
+ * Shared Display Configuration
+ * Controls which extracted fields are shown in the document detail modal
+ * and how certain fields are formatted for display.
+ *
+ * Used by both dashboard and map document modals.
+ */
+
+// Display configuration - controls which fields are hidden per document type
+const DISPLAY_CONFIG = {
+  // Default config for all document types
+  _default: {
+    hide: [
+      // System-use fields (always hidden)
+      'api_number_normalized', 'api_normalized',
+      'bottom_hole_location', 'lateral_details', 'lateral_path',
+      'formation_tops', 'first_sales',
+      'well_number',           // Redundant with well_name
+      'field_scores', 'document_confidence', '_schema_validation',
+      'skip_extraction', 'raw_response', 'error',
+      'doc_type', 'category',
+      // Analysis fields (rendered separately, not in grid)
+      'key_takeaway', 'ai_observations', 'detailed_analysis',
+      'observations'
+    ]
+  },
+
+  // Per-type overrides (merged with _default)
+  drilling_permit: {
+    hide: [
+      'bottom_hole_location', 'surface_location'
+    ]
+  },
+
+  completion_report: {
+    hide: [
+      'bottom_hole_location', 'lateral_details',
+      'formation_tops', 'first_sales'
+    ]
+  },
+
+  division_order: {
+    hide: ['well_number']
+  },
+
+  // OCC Orders - hide bureaucratic/technical details, keep actionable info
+  increased_density_order: {
+    hide: [
+      'officials',              // ALJ, commissioners, hearing location - process detail
+      'legal_description',      // Duplicate of top-level S/T/R - already shown condensed
+      'recoverable_reserves',   // Engineering justification - not actionable
+      'companion_causes'        // Extract for linking, but clutters display
+    ]
+  },
+
+  pooling_order: {
+    hide: [
+      'officials',
+      'legal_description',
+      'additional_terms',              // Verbose legal text (subsequent wells info already in dedicated section)
+      'special_findings',              // Legal boilerplate about due diligence
+      'mailing_requirement',           // Process detail about mailing the order
+      'reasons_for_relief',            // Boilerplate justification for pooling
+      'order_date',                    // Duplicate of order_info.order_date
+      'administrative_law_judge_dates', // Internal process dates
+      'attorney_info'                  // Duplicate of attorney_information
+    ]
+  },
+
+  drilling_spacing_order: {
+    hide: [
+      'officials',
+      'legal_description'
+    ]
+  },
+
+  change_of_operator_order: {
+    hide: [
+      'officials',
+      'legal_description'
+    ]
+  },
+
+  location_exception_order: {
+    hide: [
+      'officials',
+      'legal_description',
+      'offset_wells',             // Used for well matching, not display
+      'unit_name',                // Used for well matching, not display
+      // Old v1 fields (may exist in previously-extracted docs)
+      'vertical_well_location',   // Detailed footages - engineering data
+      'conditions',               // Standard boilerplate
+      'related_orders',           // System can link these
+      'allowable',                // Always 100%
+      'offset_impact'             // Replaced by top-level offsets_adversely_affected
+    ]
+  },
+
+  multi_unit_horizontal_order: {
+    hide: [
+      'officials',
+      'legal_description',
+      'companion_causes'
+    ]
+  },
+
+  unitization_order: {
+    hide: [
+      'officials',
+      'legal_description'
+    ]
+  }
+};
+
+// Patterns for fields to hide (checked if not in explicit hide list)
+const HIDE_PATTERNS = [/^_/, /_confidence$/, /_normalized$/];
+
+/**
+ * Check if a field should be displayed in the document detail modal
+ * @param {string} fieldName - The field name to check
+ * @param {string} docType - The document type
+ * @returns {boolean} - true if field should be displayed
+ */
+function shouldDisplayField(fieldName, docType) {
+  const defaultConfig = DISPLAY_CONFIG._default;
+  const typeConfig = DISPLAY_CONFIG[docType] || {};
+
+  // Check explicit hide lists
+  const hideList = [...(defaultConfig.hide || []), ...(typeConfig.hide || [])];
+  if (hideList.includes(fieldName)) return false;
+
+  // Check patterns
+  for (const pattern of HIDE_PATTERNS) {
+    if (pattern.test(fieldName)) return false;
+  }
+
+  return true;
+}
+
+/**
+ * Condense a legal description object into a single readable line
+ * Format: S14-T17N-R8W, NE/4, Beckham County
+ *
+ * @param {object} legal - Legal description object with section, township, range, county, quarters
+ * @returns {string} - Condensed legal description
+ */
+function condenseLegal(legal) {
+  if (!legal || typeof legal !== 'object') return '';
+
+  // Handle sections array (multi-section documents)
+  if (legal.sections && Array.isArray(legal.sections)) {
+    return legal.sections.map(loc => {
+      if (typeof loc === 'object') {
+        return condenseLegal(loc);
+      }
+      return String(loc);
+    }).filter(s => s).join('\n');
+  }
+
+  const parts = [];
+
+  // Section-Township-Range
+  const section = legal.section || legal.sec;
+  const township = legal.township;
+  const range = legal.range;
+
+  if (section || township || range) {
+    let str = '';
+    if (section) str += `S${section}`;
+    if (township) str += (str ? '-' : '') + `T${township}`;
+    if (range) str += (str ? '-' : '') + `R${range}`;
+    if (str) parts.push(str);
+  }
+
+  // Quarters (NE/4, NW/4, etc.)
+  const quarters = legal.quarters || legal.quarter || legal.quarter_section;
+  if (quarters) {
+    if (Array.isArray(quarters)) {
+      parts.push(quarters.join(' '));
+    } else {
+      parts.push(String(quarters));
+    }
+  }
+
+  // County
+  let county = legal.county;
+  if (county) {
+    // Add "County" suffix if not present
+    county = String(county).trim();
+    if (!county.toLowerCase().endsWith('county')) {
+      county += ' County';
+    }
+    parts.push(county);
+  }
+
+  return parts.join(', ');
+}
+
+/**
+ * Format a snake_case value to readable text.
+ * Only converts values that look like identifiers (contain _ and no spaces).
+ * e.g., "closer_than_600_feet_to_offset_well" → "Closer Than 600 Feet To Offset Well"
+ *
+ * @param {string} text - The value to format
+ * @returns {string} - Formatted text
+ */
+function formatSnakeCaseValue(text) {
+  if (!text || typeof text !== 'string') return text;
+  // Only convert if it looks like a snake_case identifier (has _ and no spaces)
+  if (text.includes('_') && !text.includes(' ')) {
+    return text.split('_').map(word =>
+      word.charAt(0).toUpperCase() + word.slice(1)
+    ).join(' ');
+  }
+  return text;
+}
+
+/**
+ * Condense a sections array into readable lines.
+ * Input:  [{section: 7, township: "12N", range: "8W", is_target_section: true}, ...]
+ * Output: "S7-T12N-R8W (target)\nS6-T12N-R8W (target)"
+ *
+ * @param {Array} sections - Array of section objects
+ * @returns {string} - Condensed display string
+ */
+function condenseSections(sections) {
+  if (!Array.isArray(sections) || sections.length === 0) return '';
+  return sections.map(s => {
+    let str = '';
+    if (s.section) str += `S${s.section}`;
+    if (s.township) str += (str ? '-' : '') + `T${s.township}`;
+    if (s.range) str += (str ? '-' : '') + `R${s.range}`;
+
+    // Determine role from various possible field names
+    let role = '';
+    if (s.role) {
+      role = s.role.replace(/_/g, ' ');
+    } else if (s.is_surface_location === true) {
+      role = 'surface location';
+    } else if (s.is_target_section === true) {
+      role = 'target';
+    }
+    if (role) str += ` (${role})`;
+
+    // Append county if present
+    if (s.county) str += `, ${s.county} County`;
+
+    return str;
+  }).filter(s => s).join('\n');
+}
+
+/**
+ * Check if an array looks like a sections array (has section/township/range fields)
+ * @param {Array} arr - The array to check
+ * @returns {boolean}
+ */
+function isSectionsArray(arr) {
+  if (!Array.isArray(arr) || arr.length === 0) return false;
+  const first = arr[0];
+  return typeof first === 'object' && first !== null &&
+    first.section !== undefined && first.township !== undefined;
+}
+
+/**
+ * Clean markdown artifacts from a field value
+ * (Safety net for already-stored documents with markdown)
+ *
+ * @param {string} text - The text to clean
+ * @returns {string} - Cleaned text
+ */
+function cleanFieldValue(text) {
+  if (!text || typeof text !== 'string') return text;
+  // Strip ### headers
+  text = text.replace(/^#{1,6}\s*/gm, '');
+  // Remove **bold** markers (don't convert to HTML for field values)
+  text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+  // Remove *italic* markers
+  text = text.replace(/\*([^*]+)\*/g, '$1');
+  return text.trim();
+}

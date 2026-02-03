@@ -1037,7 +1037,7 @@
             right: 0;
             bottom: 0;
             background: rgba(0, 0, 0, 0.5);
-            z-index: 999999;
+            z-index: 9999999;
             align-items: center;
             justify-content: center;
             padding: 20px;
@@ -1364,7 +1364,7 @@
             bottom: 0;
             background: rgba(28, 43, 54, 0.7);
             backdrop-filter: blur(4px);
-            z-index: 10000;
+            z-index: 9999999;
             align-items: center;
             justify-content: center;
             animation: fadeIn 0.2s ease;

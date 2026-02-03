@@ -2,10 +2,10 @@ name = "puns-harvester"
 main = "src/index.ts"
 compatibility_date = "2024-01-01"
 
-# DISABLED - waiting for OTC production data re-import with correct 6-digit PUN format
-# Run at 2am CT (8am UTC) - off-peak for OCC servers
-# [triggers]
-# crons = ["0 8 * * *"]
+# PAUSED — was every 2 hours, paused to control costs
+# To resume: crons = ["0 6,8 * * *"]  (off-peak only: 12am & 2am CT)
+[triggers]
+crons = []
 
 [[d1_databases]]
 binding = "DB"
@@ -17,7 +17,7 @@ database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
 REQUEST_DELAY_MS = "3000"          # Base delay between requests (3 seconds)
 REQUEST_DELAY_JITTER_MS = "2000"   # Random jitter (0-2 seconds)
 BATCH_SIZE = "100"                 # Wells to process per run (matches daily cap)
-DAILY_CAP = "100"                  # Maximum wells per day
+DAILY_CAP = "1000"                 # Maximum wells per day (batch harvest mode)
 TIMEOUT_SAFETY_MS = "540000"       # Stop 1 minute before worker timeout (9 min)
 
 # OCC Fetcher service URL

@@ -1,0 +1,128 @@
+        // =============================================
+        // SUGGESTED INSIGHTS
+        // =============================================
+        async function loadInsights() {
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 12000);
+
+                const response = await fetch('/api/intelligence/insights', {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    console.error('Insights API error:', response.status);
+                    renderInsightsFallback();
+                    return;
+                }
+
+                const data = await response.json();
+                renderInsights(data.insights || []);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Insights request timed out');
+                } else {
+                    console.error('Failed to load insights:', error);
+                }
+                renderInsightsFallback();
+            }
+        }
+
+        function renderInsights(insights) {
+            const container = document.getElementById('insightsList');
+
+            if (!insights || insights.length === 0) {
+                container.innerHTML = `
+                    <div class="insight-item">
+                        <div class="insight-indicator info"></div>
+                        <div class="insight-content">
+                            <div class="insight-title">Getting started</div>
+                            <div class="insight-description">
+                                Add properties and wells to your dashboard, then come back here for personalized insights based on your portfolio.
+                            </div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = insights.map(insight => {
+                const severity = insight.severity || 'info';
+                const actionHtml = insight.action
+                    ? `<div class="insight-action"><button class="btn ${getActionBtnClass(severity)}" onclick="handleInsightAction('${escapeAttr(insight.actionId || '')}')">${escapeHtml(insight.action)}</button></div>`
+                    : '';
+
+                return `
+                    <div class="insight-item">
+                        <div class="insight-indicator ${severity}"></div>
+                        <div class="insight-content">
+                            <div class="insight-title">${escapeHtml(insight.title)}</div>
+                            <div class="insight-description">${escapeHtml(insight.description)}</div>
+                        </div>
+                        ${actionHtml}
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderInsightsFallback() {
+            const container = document.getElementById('insightsList');
+            container.innerHTML = `
+                <div class="insight-item">
+                    <div class="insight-indicator neutral"></div>
+                    <div class="insight-content">
+                        <div class="insight-description">Could not load insights. Try refreshing the page.</div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function getActionBtnClass(severity) {
+            switch (severity) {
+                case 'critical': return 'btn-primary';
+                case 'warning': return 'btn-secondary';
+                default: return 'btn-ghost';
+            }
+        }
+
+        function handleInsightAction(actionId) {
+            if (actionId === 'deduction-audit') {
+                loadDeductionReport();
+                return;
+            }
+            console.log('Insight action:', actionId);
+            showToast('Report generation coming soon', 'info');
+        }
+
+        // =============================================
+        // UTILITY FUNCTIONS
+        // =============================================
+        function escapeHtml(str) {
+            if (!str) return '';
+            return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function escapeAttr(str) {
+            if (!str) return '';
+            return str.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        function showToast(message, type, duration) {
+            const existing = document.querySelector('.toast');
+            if (existing) existing.remove();
+
+            const toast = document.createElement('div');
+            toast.className = `toast ${type || ''}`;
+            toast.textContent = message;
+            document.body.appendChild(toast);
+
+            requestAnimationFrame(() => {
+                toast.classList.add('show');
+            });
+
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, duration || 3000);
+        }

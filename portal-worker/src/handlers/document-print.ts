@@ -223,7 +223,14 @@ function escapeHtml(s: string | null | undefined): string {
  */
 function formatMarkdown(s: string | null | undefined): string {
   if (!s) return '';
-  let text = escapeHtml(s);
+
+  // Strip --- horizontal rules before escaping
+  let text = s.replace(/^---+$/gm, '');
+
+  text = escapeHtml(text);
+
+  // Convert ### headers to styled section headers
+  text = text.replace(/^#{1,6}\s+(.+)$/gm, '<br><strong style="font-size: 15px; display: inline-block; margin-top: 8px;">$1</strong>');
 
   // Clean up malformed markdown patterns from AI:
   // 1. Remove orphaned ** at end of lines (like "Headline:**")
@@ -242,6 +249,9 @@ function formatMarkdown(s: string | null | undefined): string {
 
   // 5. Convert *italic* to <em> (but not if it was part of **)
   text = text.replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>');
+
+  // 6. Convert markdown bullet lists (- item) to bullet characters
+  text = text.replace(/^- (.+)$/gm, '&bull; $1');
 
   return text;
 }
@@ -275,10 +285,13 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     case 'royalty_deed':
     case 'warranty_deed':
     case 'quitclaim_deed':
+    case 'gift_deed':
+    case 'trust_funding':
       extractedFieldsHtml = generateDeedFields(data.extractedData);
       break;
     case 'lease':
     case 'oil_and_gas_lease':
+    case 'oil_gas_lease':
       extractedFieldsHtml = generateLeaseFields(data.extractedData);
       break;
     case 'pooling_order':
@@ -300,6 +313,22 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
       break;
     case 'completion_report':
       extractedFieldsHtml = generateCompletionReportFields(data.extractedData);
+      break;
+    case 'drilling_permit':
+      extractedFieldsHtml = generateDrillingPermitFields(data.extractedData);
+      break;
+    case 'assignment_of_lease':
+    case 'assignment':
+      extractedFieldsHtml = generateAssignmentFields(data.extractedData);
+      break;
+    case 'change_of_operator_order':
+      extractedFieldsHtml = generateChangeOfOperatorFields(data.extractedData);
+      break;
+    case 'multi_unit_horizontal_order':
+      extractedFieldsHtml = generateMultiUnitHorizontalFields(data.extractedData);
+      break;
+    case 'death_certificate':
+      extractedFieldsHtml = generateDeathCertificateFields(data.extractedData);
       break;
     case 'correspondence':
     case 'letter':
@@ -715,38 +744,7 @@ function generateDocumentPrintHtml(data: DocumentPrintData): string {
     </div>
   </div>
 
-  <!-- Debug: View Raw Data (hidden when printing) -->
-  <div class="debug-section">
-    <details>
-      <summary style="cursor: pointer; padding: 12px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 6px; font-weight: 600; color: #92400e;">
-        🔍 Debug: View Raw Data (click to expand)
-      </summary>
-      <div style="margin-top: 12px; padding: 16px; background: #1e293b; border-radius: 6px; overflow-x: auto;">
-        <div style="margin-bottom: 16px;">
-          <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Raw ai_observations / detailed_analysis:</div>
-          <pre style="color: #e2e8f0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0;">${escapeHtml(data.detailedAnalysis) || '(empty)'}</pre>
-        </div>
-        <div style="margin-bottom: 16px;">
-          <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Raw key_takeaway:</div>
-          <pre style="color: #e2e8f0; font-family: monospace; font-size: 12px; white-space: pre-wrap; word-break: break-word; margin: 0;">${escapeHtml(data.keyTakeaway) || '(empty)'}</pre>
-        </div>
-        <div>
-          <div style="color: #94a3b8; font-size: 11px; text-transform: uppercase; margin-bottom: 4px;">Full extractedData JSON:</div>
-          <pre style="color: #e2e8f0; font-family: monospace; font-size: 11px; white-space: pre-wrap; word-break: break-word; margin: 0; max-height: 400px; overflow-y: auto;">${escapeHtml(JSON.stringify(data.extractedData, null, 2))}</pre>
-        </div>
-      </div>
-    </details>
-  </div>
 
-  <style>
-    .debug-section {
-      max-width: 8.5in;
-      margin: 20px auto 0 auto;
-    }
-    @media print {
-      .debug-section { display: none !important; }
-    }
-  </style>
 </body>
 </html>`;
 }
@@ -878,92 +876,247 @@ function generateDeedFields(data: any): string {
 }
 
 function generateLeaseFields(data: any): string {
-  const lessor = data.lessor || {};
-  const lessee = data.lessee || {};
+  // Handle both flat and nested lessor/lessee structures
+  const lessor = typeof data.lessor === 'string' ? { name: data.lessor } : (data.lessor || {});
+  const lessee = typeof data.lessee === 'string' ? { name: data.lessee } : (data.lessee || {});
   const legalDescription = data.legal_description || {};
-  const primaryTerm = data.primary_term || {};
+  const recording = data.recording || data.recording_info || {};
+  const primaryTerm = (typeof data.primary_term === 'object' && data.primary_term) ? data.primary_term : {};
   const royalty = data.royalty || {};
   const bonusConsideration = data.bonus_consideration || {};
+  const consideration = (typeof data.consideration === 'object' && data.consideration) ? data.consideration : {};
+  const tracts = data.tracts || [];
+
+  // Primary term: handle multiple formats
+  let primaryTermDisplay = '';
+  if (primaryTerm.years || primaryTerm.months) {
+    const parts: string[] = [];
+    if (primaryTerm.years) parts.push(`${primaryTerm.years} year${primaryTerm.years > 1 ? 's' : ''}`);
+    if (primaryTerm.months) parts.push(`${primaryTerm.months} month${primaryTerm.months > 1 ? 's' : ''}`);
+    primaryTermDisplay = parts.join(', ');
+  } else if (primaryTerm.duration) {
+    primaryTermDisplay = `${escapeHtml(primaryTerm.duration)} ${escapeHtml(primaryTerm.unit || 'years')}`;
+  } else if (data.primary_term_years) {
+    primaryTermDisplay = `${escapeHtml(String(data.primary_term_years))} years`;
+  }
+
+  // Royalty: handle oil/gas sub-objects, flat fraction, or flat rate
+  let royaltyDisplay = '';
+  if (royalty.oil?.fraction || royalty.gas?.fraction) {
+    const oilFrac = royalty.oil?.fraction || '';
+    const gasFrac = royalty.gas?.fraction || '';
+    if (oilFrac && gasFrac && oilFrac === gasFrac) {
+      royaltyDisplay = oilFrac;
+    } else {
+      const parts: string[] = [];
+      if (oilFrac) parts.push(`Oil: ${oilFrac}`);
+      if (gasFrac) parts.push(`Gas: ${gasFrac}`);
+      royaltyDisplay = parts.join(', ');
+    }
+  } else if (royalty.rate) {
+    royaltyDisplay = royalty.rate;
+  } else if (data.royalty_fraction) {
+    royaltyDisplay = String(data.royalty_fraction);
+  } else if (data.royalty_decimal) {
+    royaltyDisplay = String(data.royalty_decimal);
+  }
+
+  // Lease date: try multiple field names
+  const leaseDate = formatDate(data.lease_date || data.execution_date) || '';
+
+  // Recording date: try flat and nested
+  const recordingDate = formatDate(data.recording_date || recording.recording_date) || '';
+
+  // Book/page: try flat and nested recording object
+  const book = data.book || recording.book || '';
+  const page = data.page || recording.page || '';
+
+  // Bonus: try new consideration object, old bonus_consideration, and flat fields
+  const bonusDisplay = consideration.bonus_stated || consideration.total_bonus
+    ? escapeHtml(String(consideration.bonus_stated || `$${consideration.total_bonus}`))
+    : bonusConsideration.amount || data.bonus_paid
+      ? escapeHtml(String(bonusConsideration.amount || data.bonus_paid)) + (bonusConsideration.per_acre ? '/acre' : '')
+      : '';
+
+  // Delay rental
+  const delayRental = consideration.delay_rental || data.delay_rental || '';
+
+  // Location line from top-level TRS
+  const section = data.section;
+  const township = data.township;
+  const range = data.range;
+  const county = data.county || '';
+  let locationLine = '';
+  if (section || township || range) {
+    const trsParts: string[] = [];
+    if (section) trsParts.push(`S${section}`);
+    if (township) trsParts.push(`T${township}`);
+    if (range) trsParts.push(`R${range}`);
+    locationLine = trsParts.join('-');
+    if (county) locationLine += `, ${county} County`;
+  }
+
+  // Gross acres from tracts if not at top level
+  const grossAcres = data.gross_acres || (tracts.length > 0 ? tracts.reduce((sum: number, t: any) => sum + (t.acres || 0), 0) : 0);
+
+  // Build tracts/legal description
+  const tractsHtml = tracts.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Property Description</div>
+      ${tracts.map((tract: any, i: number) => {
+        const legal = tract.legal_description || tract.legal || {};
+        const quarters = legal.quarters || (legal.quarter_calls ? legal.quarter_calls.join(', ') : '') || '';
+        const tSection = legal.section || '';
+        const tTownship = legal.township || '';
+        const tRange = legal.range || '';
+        const tCounty = legal.county || '';
+        const acres = tract.acres || '';
+
+        return `
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; ${i > 0 ? 'margin-top: 8px;' : ''}">
+            <div style="font-weight: 600; color: #1e293b; margin-bottom: 6px;">
+              ${tSection && tTownship && tRange ? `Section ${escapeHtml(String(tSection))}-${escapeHtml(tTownship)}-${escapeHtml(tRange)}` : `Tract ${i + 1}`}
+              ${tCounty ? `, ${escapeHtml(tCounty)} County` : ''}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
+              ${quarters ? `<div><span style="color: #64748b;">Quarter:</span> ${escapeHtml(quarters)}</div>` : ''}
+              ${acres ? `<div><span style="color: #64748b;">Acres:</span> ${escapeHtml(String(acres))}${tract.acres_qualifier ? ` (${escapeHtml(tract.acres_qualifier)})` : ''}</div>` : ''}
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : legalDescription.full_text ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Legal Description</div>
+      <div class="legal-description">${escapeHtml(legalDescription.full_text)}</div>
+    </div>
+  ` : '';
+
+  // Lessor address line
+  const lessorAddress = [lessor.address, lessor.city, lessor.state, lessor.zip].filter(Boolean).join(', ');
+  const lesseeAddress = [lessee.address, lessee.city, lessee.state, lessee.zip].filter(Boolean).join(', ');
 
   return `
     <div class="parties-grid">
       <div class="party-box">
         <div class="party-label">Lessor (Mineral Owner)</div>
         <div class="party-name">${escapeHtml(lessor.name || 'Not specified')}</div>
-        ${lessor.address ? `<div class="party-detail">${escapeHtml(lessor.address)}</div>` : ''}
+        ${lessorAddress ? `<div class="party-detail">${escapeHtml(lessorAddress)}</div>` : ''}
       </div>
       <div class="party-box">
         <div class="party-label">Lessee (Oil Company)</div>
         <div class="party-name">${escapeHtml(lessee.name || 'Not specified')}</div>
-        ${lessee.address ? `<div class="party-detail">${escapeHtml(lessee.address)}</div>` : ''}
+        ${lesseeAddress ? `<div class="party-detail">${escapeHtml(lesseeAddress)}</div>` : ''}
       </div>
     </div>
 
     <div class="field-grid" style="margin-top: 16px;">
+      ${locationLine ? `
+      <div class="field-item">
+        <div class="field-label">Location</div>
+        <div class="field-value">${escapeHtml(locationLine)}</div>
+      </div>
+      ` : ''}
       <div class="field-item">
         <div class="field-label">Lease Date</div>
-        <div class="field-value">${formatDate(data.lease_date) || 'Not specified'}</div>
+        <div class="field-value">${leaseDate || 'Not specified'}</div>
       </div>
+      ${data.lease_form ? `
       <div class="field-item">
-        <div class="field-label">Recording Date</div>
-        <div class="field-value">${formatDate(data.recording_date) || 'Not specified'}</div>
+        <div class="field-label">Lease Form</div>
+        <div class="field-value">${escapeHtml(data.lease_form)}</div>
       </div>
+      ` : ''}
       <div class="field-item">
         <div class="field-label">Primary Term</div>
-        <div class="field-value highlight">${primaryTerm.duration ? escapeHtml(primaryTerm.duration) + ' ' + escapeHtml(primaryTerm.unit || 'years') : 'Not specified'}</div>
+        <div class="field-value highlight">${primaryTermDisplay || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Royalty Rate</div>
-        <div class="field-value highlight">${royalty.rate ? escapeHtml(royalty.rate) : 'Not specified'}</div>
+        <div class="field-value highlight">${royaltyDisplay || 'Not specified'}</div>
       </div>
+      ${grossAcres ? `
       <div class="field-item">
         <div class="field-label">Gross Acres</div>
-        <div class="field-value">${data.gross_acres ? escapeHtml(data.gross_acres) + ' acres' : 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(String(grossAcres))} acres</div>
       </div>
+      ` : ''}
+      ${data.net_mineral_acres ? `
       <div class="field-item">
         <div class="field-label">Net Mineral Acres</div>
-        <div class="field-value">${data.net_mineral_acres ? escapeHtml(data.net_mineral_acres) + ' NMA' : 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(String(data.net_mineral_acres))} NMA</div>
       </div>
-      ${
-        bonusConsideration.amount
-          ? `
+      ` : ''}
+      ${bonusDisplay ? `
       <div class="field-item">
-        <div class="field-label">Bonus Payment</div>
-        <div class="field-value">${escapeHtml(bonusConsideration.amount)}${bonusConsideration.per_acre ? '/acre' : ''}</div>
+        <div class="field-label">Bonus / Consideration</div>
+        <div class="field-value">${bonusDisplay}</div>
       </div>
-      `
-          : ''
-      }
+      ` : ''}
+      ${delayRental ? `
+      <div class="field-item">
+        <div class="field-label">Delay Rental</div>
+        <div class="field-value">${escapeHtml(String(delayRental))}</div>
+      </div>
+      ` : ''}
+      ${book ? `
       <div class="field-item">
         <div class="field-label">Book/Page</div>
-        <div class="field-value mono">${data.book ? `Book ${escapeHtml(data.book)}, Page ${escapeHtml(data.page)}` : 'Not specified'}</div>
+        <div class="field-value mono">Book ${escapeHtml(String(book))}${page ? `, Page ${escapeHtml(String(page))}` : ''}</div>
       </div>
+      ` : ''}
+      ${recordingDate ? `
+      <div class="field-item">
+        <div class="field-label">Recording Date</div>
+        <div class="field-value">${recordingDate}</div>
+      </div>
+      ` : ''}
     </div>
 
-    ${
-      legalDescription.full_text
-        ? `
-    <div style="margin-top: 16px;">
-      <div class="field-label" style="margin-bottom: 8px;">Legal Description</div>
-      <div class="legal-description">${escapeHtml(legalDescription.full_text)}</div>
-    </div>
-    `
-        : ''
-    }
+    ${tractsHtml}
   `;
 }
 
 function generatePoolingFields(data: any): string {
   const orderInfo = data.order_info || {};
   const applicant = data.applicant || {};
-  const pooledUnit = data.pooled_unit || data.unit || {};
+  const operator = data.operator || {};
+  const wellInfo = data.well_info || {};
+  const unitInfo = data.unit_info || data.pooled_unit || data.unit || {};
+  const formations = data.formations || [];
+  const electionOptions = data.election_options || data.pooling_options || [];
+
+  // Build formation display string from formations array
+  const formationNames = Array.isArray(formations)
+    ? formations.map((f: any) => f.name || f.formation_name || '').filter(Boolean).join(', ')
+    : '';
+  const formationDisplay = formationNames || data.formation || unitInfo.formation || '';
+
+  // Well name: check well_info first, then top-level
+  const wellName = wellInfo.proposed_well_name || wellInfo.well_name || wellInfo.name || data.well_name || '';
+
+  // Unit size: check unit_info first, then pooled_unit
+  const unitSize = unitInfo.unit_size_acres || unitInfo.size || unitInfo.acres || '';
+
+  // Cause number: extraction uses case_number
+  const causeNumber = orderInfo.case_number || orderInfo.cause_number || '';
+
+  // Applicant/Operator: try applicant name, fall back to operator name
+  const applicantName = applicant.name || operator.name || '';
 
   return `
     <div class="field-grid">
       <div class="field-item">
         <div class="field-label">Cause Number</div>
-        <div class="field-value mono">${escapeHtml(orderInfo.cause_number) || 'Not specified'}</div>
+        <div class="field-value mono">${escapeHtml(causeNumber) || 'Not specified'}</div>
       </div>
+      ${orderInfo.order_date && orderInfo.effective_date && orderInfo.order_date === orderInfo.effective_date ? `
+      <div class="field-item">
+        <div class="field-label">Order / Effective Date</div>
+        <div class="field-value">${formatDate(orderInfo.order_date)}</div>
+      </div>
+      ` : `
       <div class="field-item">
         <div class="field-label">Order Date</div>
         <div class="field-value">${formatDate(orderInfo.order_date) || 'Not specified'}</div>
@@ -972,41 +1125,46 @@ function generatePoolingFields(data: any): string {
         <div class="field-label">Effective Date</div>
         <div class="field-value">${formatDate(orderInfo.effective_date) || 'Not specified'}</div>
       </div>
+      `}
       <div class="field-item">
         <div class="field-label">Applicant/Operator</div>
-        <div class="field-value">${escapeHtml(applicant.name) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(applicantName) || 'Not specified'}</div>
       </div>
+      ${wellName ? `
       <div class="field-item">
         <div class="field-label">Well Name</div>
-        <div class="field-value">${escapeHtml(data.well_name) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(wellName)}</div>
       </div>
+      ` : ''}
       <div class="field-item">
         <div class="field-label">Formation/Zone</div>
-        <div class="field-value">${escapeHtml(data.formation || pooledUnit.formation) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(formationDisplay) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Unit Size</div>
-        <div class="field-value highlight">${pooledUnit.size ? escapeHtml(pooledUnit.size) + ' acres' : 'Not specified'}</div>
+        <div class="field-value highlight">${unitSize ? escapeHtml(String(unitSize)) + ' acres' : 'Not specified'}</div>
       </div>
     </div>
 
     ${
-      data.pooling_options && data.pooling_options.length > 0
+      electionOptions.length > 0
         ? `
     <div style="margin-top: 16px;">
-      <div class="field-label" style="margin-bottom: 8px;">Pooling Options</div>
+      <div class="field-label" style="margin-bottom: 8px;">Election Options</div>
       <table class="data-table">
         <thead>
-          <tr><th>Option</th><th>Bonus</th><th>Royalty</th></tr>
+          <tr><th>Option</th><th>Type</th><th>Bonus/NMA</th><th>Royalty</th><th>Default</th></tr>
         </thead>
         <tbody>
-          ${data.pooling_options
+          ${electionOptions
             .map(
               (opt: any, i: number) => `
             <tr ${i % 2 !== 0 ? 'class="alt"' : ''}>
-              <td>${escapeHtml(opt.name || opt.option || `Option ${i + 1}`)}</td>
-              <td>${escapeHtml(opt.bonus) || '-'}</td>
-              <td>${escapeHtml(opt.royalty) || '-'}</td>
+              <td>${escapeHtml(opt.option_number ? `Option ${opt.option_number}` : opt.name || opt.option || `Option ${i + 1}`)}</td>
+              <td>${escapeHtml(opt.option_type || opt.description || '') || '-'}</td>
+              <td>${opt.bonus_per_nma ? '$' + escapeHtml(String(opt.bonus_per_nma)) : (opt.cost_per_nma ? '$' + escapeHtml(String(opt.cost_per_nma)) + ' cost' : (escapeHtml(opt.bonus) || '-'))}</td>
+              <td>${escapeHtml(opt.royalty_rate || opt.royalty || '') || '-'}${opt.excess_royalty ? ' + ' + escapeHtml(opt.excess_royalty) + ' excess' : ''}</td>
+              <td>${opt.is_default ? 'Yes' : ''}</td>
             </tr>
           `
             )
@@ -1465,6 +1623,24 @@ function generateLocationExceptionFields(data: any): string {
 function generateIncreasedDensityFields(data: any): string {
   const orderInfo = data.order_info || {};
   const applicant = data.applicant || {};
+  const unitInfo = data.unit_info || {};
+  const wellAuth = data.well_authorization || {};
+  const targetFormations = data.target_formations || [];
+
+  // Formation: try nested target_formations first, fall back to flat field
+  const formation = targetFormations.length > 0
+    ? targetFormations.map((f: any) => f.name || f).filter(Boolean).join(', ')
+    : (data.formation || '');
+
+  // Wells allowed: try nested well_authorization first, fall back to flat fields
+  const wellsAllowed = wellAuth.additional_wells_authorized
+    || data.wells_allowed || data.additional_wells || '';
+
+  // Unit size: try nested unit_info first, fall back to flat field
+  const unitSize = unitInfo.unit_size_acres || data.unit_size_acres || data.unit_size || '';
+
+  // Well name from well_authorization
+  const wellName = wellAuth.well_name || '';
 
   return `
     <div class="field-grid">
@@ -1486,16 +1662,22 @@ function generateIncreasedDensityFields(data: any): string {
       </div>
       <div class="field-item">
         <div class="field-label">Formation/Zone</div>
-        <div class="field-value">${escapeHtml(data.formation) || 'Not specified'}</div>
+        <div class="field-value">${escapeHtml(formation) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Wells Allowed</div>
-        <div class="field-value highlight">${escapeHtml(data.wells_allowed || data.additional_wells) || 'Not specified'}</div>
+        <div class="field-value highlight">${escapeHtml(String(wellsAllowed)) || 'Not specified'}</div>
       </div>
       <div class="field-item">
         <div class="field-label">Unit Size</div>
-        <div class="field-value">${data.unit_size ? escapeHtml(data.unit_size) + ' acres' : 'Not specified'}</div>
+        <div class="field-value">${unitSize ? escapeHtml(String(unitSize)) + ' acres' : 'Not specified'}</div>
       </div>
+      ${wellName ? `
+      <div class="field-item">
+        <div class="field-label">Well Name</div>
+        <div class="field-value">${escapeHtml(wellName)}</div>
+      </div>
+      ` : ''}
     </div>
   `;
 }
@@ -1529,8 +1711,9 @@ function generateCompletionReportFields(data: any): string {
     wellTypeDisplay = data.well_type || '';
   }
 
-  // Extract completion date - check multiple locations
-  const completionDate = data.completion_date || completion.date ||
+  // Extract completion date - check multiple locations (extractor may nest in dates object)
+  const dates = data.dates || {};
+  const completionDate = data.completion_date || dates.completion_date || completion.date ||
     (production.test_date ? production.test_date : '');
 
   // Extract formation - check formation_zones array first, then fallback
@@ -1666,6 +1849,668 @@ function generateCorrespondenceFields(data: any): string {
   `;
 }
 
+function generateDrillingPermitFields(data: any): string {
+  // Combined well name + number
+  const wellName = data.well_name || '';
+  const wellNumber = data.well_number || '';
+  const fullWellName = [wellName, wellNumber].filter(Boolean).join(' ');
+
+  // Combined operator
+  const operatorName = data.operator_name || '';
+  const operatorAddress = data.operator_address || '';
+
+  // Location line
+  const section = data.section;
+  const township = data.township;
+  const range = data.range;
+  const county = data.county || '';
+  const locationParts: string[] = [];
+  if (section || township || range) {
+    let trs = '';
+    if (section) trs += `S${section}`;
+    if (township) trs += (trs ? '-' : '') + `T${township}`;
+    if (range) trs += (trs ? '-' : '') + `R${range}`;
+    locationParts.push(trs);
+  }
+  if (county) locationParts.push(`${county} County`);
+  const locationLine = locationParts.join(', ');
+
+  // Surface location
+  const surface = data.surface_location || {};
+  const surfaceParts: string[] = [];
+  if (surface.quarters) surfaceParts.push(surface.quarters);
+  if (surface.footage_ns || surface.footage_ew) {
+    const footages = [surface.footage_ns, surface.footage_ew].filter(Boolean).join(', ');
+    surfaceParts.push(footages);
+  }
+  if (surface.latitude && surface.longitude) {
+    surfaceParts.push(`${surface.latitude}, ${surface.longitude}`);
+  }
+  const surfaceLine = surfaceParts.join(' — ');
+
+  // Well type: check well_type field first, then target_formation if it looks like a well type
+  const gasOilTypes = ['gas', 'oil', 'oil & gas', 'oil and gas', 'injection', 'disposal', 'swi', 'swd'];
+  let wellType = data.well_type || '';
+  let targetFormation = data.target_formation || '';
+  // If target_formation is actually a well type (e.g., "GAS"), move it
+  if (targetFormation && gasOilTypes.includes(targetFormation.toLowerCase()) && !wellType) {
+    wellType = targetFormation;
+    targetFormation = '';
+  }
+
+  return `
+    <div class="field-grid">
+      ${fullWellName ? `
+      <div class="field-item">
+        <div class="field-label">Well</div>
+        <div class="field-value" style="font-weight: 600; font-size: 15px;">${escapeHtml(fullWellName)}</div>
+      </div>
+      ` : ''}
+      ${data.api_number ? `
+      <div class="field-item">
+        <div class="field-label">API Number</div>
+        <div class="field-value mono">${escapeHtml(data.api_number)}</div>
+      </div>
+      ` : ''}
+      ${locationLine ? `
+      <div class="field-item">
+        <div class="field-label">Location</div>
+        <div class="field-value">${escapeHtml(locationLine)}</div>
+      </div>
+      ` : ''}
+      ${data.permit_type ? `
+      <div class="field-item">
+        <div class="field-label">Permit Type</div>
+        <div class="field-value">${escapeHtml(data.permit_type)}</div>
+      </div>
+      ` : ''}
+      ${wellType ? `
+      <div class="field-item">
+        <div class="field-label">Well Type</div>
+        <div class="field-value">${escapeHtml(wellType)}</div>
+      </div>
+      ` : ''}
+      ${targetFormation ? `
+      <div class="field-item">
+        <div class="field-label">Target Formation</div>
+        <div class="field-value">${escapeHtml(targetFormation)}</div>
+      </div>
+      ` : ''}
+      ${data.issue_date ? `
+      <div class="field-item">
+        <div class="field-label">Issue Date</div>
+        <div class="field-value">${formatDate(data.issue_date)}</div>
+      </div>
+      ` : ''}
+      ${data.expiration_date ? `
+      <div class="field-item">
+        <div class="field-label">Expiration Date</div>
+        <div class="field-value">${formatDate(data.expiration_date)}</div>
+      </div>
+      ` : ''}
+      ${data.unit_size_acres ? `
+      <div class="field-item">
+        <div class="field-label">Unit Size</div>
+        <div class="field-value">${data.unit_size_acres} acres</div>
+      </div>
+      ` : ''}
+      ${data.spacing_order ? `
+      <div class="field-item">
+        <div class="field-label">Spacing Order</div>
+        <div class="field-value mono">${escapeHtml(data.spacing_order)}</div>
+      </div>
+      ` : ''}
+      ${data.target_depth_top || data.target_depth_bottom ? `
+      <div class="field-item">
+        <div class="field-label">Target Depth</div>
+        <div class="field-value">${data.target_depth_top ? escapeHtml(String(data.target_depth_top)) : '?'} — ${data.target_depth_bottom ? escapeHtml(String(data.target_depth_bottom)) : '?'} ft</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${operatorName ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 6px;">Operator</div>
+      <div style="background: #EFF6FF; border: 1px solid #BFDBFE; border-radius: 6px; padding: 12px;">
+        <div style="font-weight: 600; color: #1E40AF; font-size: 15px;">${escapeHtml(operatorName)}</div>
+        ${operatorAddress ? `<div style="font-size: 13px; color: #6B7280; margin-top: 4px;">${escapeHtml(operatorAddress)}</div>` : ''}
+      </div>
+    </div>
+    ` : ''}
+
+    ${surfaceLine ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 6px;">Surface Location</div>
+      <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; font-size: 13px;">
+        ${escapeHtml(surfaceLine)}
+      </div>
+    </div>
+    ` : ''}
+  `;
+}
+
+function generateAssignmentFields(data: any): string {
+  const assignor = data.assignor || {};
+  const assignee = data.assignee || {};
+  const underlyingLease = data.underlying_lease || {};
+  const recording = data.recording || {};
+  const reservation = data.reservation || {};
+  const tracts = data.tracts || [];
+
+  // Assignor name
+  const assignorName = assignor.name || 'Not specified';
+  // Assignee name with capacity
+  let assigneeName = assignee.name || 'Not specified';
+  if (assignee.capacity) assigneeName += ` (${assignee.capacity})`;
+
+  // Recording info
+  const book = recording.book || '';
+  const page = recording.page || '';
+  const instrumentNo = recording.instrument_number || '';
+
+  // Build tracts display (reuses deed pattern)
+  const tractsHtml = tracts.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Property Description</div>
+      ${tracts.map((tract: any, i: number) => {
+        const legal = tract.legal || tract.legal_description || {};
+        const interest = tract.interest || {};
+        const section = legal.section || '';
+        const township = legal.township || '';
+        const range = legal.range || '';
+        const county = legal.county || '';
+        const quarters = legal.quarter_calls?.join(', ') || legal.quarters || '';
+        const interestType = interest.type || '';
+        const interestDesc = interest.description || '';
+
+        return `
+          <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; ${i > 0 ? 'margin-top: 8px;' : ''}">
+            <div style="font-weight: 600; color: #1e293b; margin-bottom: 8px;">
+              ${section && township && range ? `Section ${escapeHtml(String(section))}-${escapeHtml(township)}-${escapeHtml(range)}` : 'Tract ' + (i + 1)}
+              ${county ? `, ${escapeHtml(county)} County` : ''}
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
+              ${quarters ? `<div><span style="color: #64748b;">Quarter:</span> ${escapeHtml(quarters)}</div>` : ''}
+              ${interestType ? `<div><span style="color: #64748b;">Interest Type:</span> ${escapeHtml(interestType.replace(/_/g, ' '))}</div>` : ''}
+            </div>
+            ${interestDesc ? `<div style="font-size: 12px; color: #475569; margin-top: 6px;">${escapeHtml(interestDesc)}</div>` : ''}
+          </div>
+        `;
+      }).join('')}
+    </div>
+  ` : '';
+
+  // Reservation section
+  const reservationHtml = reservation.type ? `
+    <div style="margin-top: 16px; background: #fefce8; border: 1px solid #facc15; border-radius: 6px; padding: 12px;">
+      <div class="field-label" style="margin-bottom: 6px;">Reserved Interest</div>
+      <div style="font-weight: 600; color: #854d0e; font-size: 14px;">
+        ${escapeHtml(reservation.type.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase()))}
+        ${reservation.fraction_text ? ` — ${escapeHtml(reservation.fraction_text)}` : ''}
+        ${reservation.fraction_decimal ? ` (${(reservation.fraction_decimal * 100).toFixed(4).replace(/\.?0+$/, '')}%)` : ''}
+      </div>
+      ${reservation.description ? `<div style="font-size: 12px; color: #713f12; margin-top: 6px;">${escapeHtml(reservation.description)}</div>` : ''}
+    </div>
+  ` : '';
+
+  // Underlying lease section
+  const leaseHtml = underlyingLease.lessor || underlyingLease.lessee ? `
+    <div style="margin-top: 16px; background: #f0f9ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 12px;">
+      <div class="field-label" style="margin-bottom: 6px;">Underlying Lease</div>
+      <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; font-size: 13px;">
+        ${underlyingLease.lessor ? `<div><span style="color: #64748b;">Lessor:</span> ${escapeHtml(underlyingLease.lessor)}</div>` : ''}
+        ${underlyingLease.lessee ? `<div><span style="color: #64748b;">Lessee:</span> ${escapeHtml(underlyingLease.lessee)}</div>` : ''}
+        ${underlyingLease.lease_date ? `<div><span style="color: #64748b;">Lease Date:</span> ${formatDate(underlyingLease.lease_date)}</div>` : ''}
+        ${underlyingLease.recording_book ? `<div><span style="color: #64748b;">Recorded:</span> Book ${escapeHtml(underlyingLease.recording_book)}${underlyingLease.recording_page ? `, Page ${escapeHtml(underlyingLease.recording_page)}` : ''}</div>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    <div class="parties-grid">
+      <div class="party-box">
+        <div class="party-label">Assignor</div>
+        <div class="party-name">${escapeHtml(assignorName)}</div>
+        ${assignor.address ? `<div class="party-detail">${escapeHtml(assignor.address)}</div>` : ''}
+      </div>
+      <div class="party-box">
+        <div class="party-label">Assignee</div>
+        <div class="party-name">${escapeHtml(assigneeName)}</div>
+        ${assignee.address ? `<div class="party-detail">${escapeHtml(assignee.address)}</div>` : ''}
+      </div>
+    </div>
+
+    <div class="field-grid" style="margin-top: 16px;">
+      <div class="field-item">
+        <div class="field-label">Execution Date</div>
+        <div class="field-value">${formatDate(data.execution_date) || 'Not specified'}</div>
+      </div>
+      ${book ? `
+      <div class="field-item">
+        <div class="field-label">Book/Page</div>
+        <div class="field-value mono">Book ${escapeHtml(book)}${page ? `, Page ${escapeHtml(page)}` : ''}</div>
+      </div>
+      ` : ''}
+      ${instrumentNo ? `
+      <div class="field-item">
+        <div class="field-label">Instrument #</div>
+        <div class="field-value mono">${escapeHtml(instrumentNo)}</div>
+      </div>
+      ` : ''}
+      ${data.consideration ? `
+      <div class="field-item">
+        <div class="field-label">Consideration</div>
+        <div class="field-value">${escapeHtml(data.consideration)}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${tractsHtml}
+    ${reservationHtml}
+    ${leaseHtml}
+  `;
+}
+
+function generateMultiUnitHorizontalFields(data: any): string {
+  const orderInfo = data.order_info || {};
+  const wellAuth = data.well_authorization || {};
+  const wellLoc = data.well_location || {};
+  const applicant = data.applicant || {};
+  const targetFormations = data.target_formations || [];
+  const allocations = data.allocation_factors || [];
+  const causeNumber = orderInfo.cause_number || orderInfo.case_number || '';
+
+  // Well name and type
+  const wellName = wellAuth.well_name || '';
+  const wellType = wellAuth.well_classification || wellAuth.well_type || '';
+
+  // Location line
+  const locationParts: string[] = [];
+  if (data.section || data.township || data.range) {
+    let trs = '';
+    if (data.section) trs += `S${data.section}`;
+    if (data.township) trs += (trs ? '-' : '') + `T${data.township}`;
+    if (data.range) trs += (trs ? '-' : '') + `R${data.range}`;
+    locationParts.push(trs);
+  }
+  if (data.county) locationParts.push(`${data.county} County`);
+  const locationLine = locationParts.join(', ');
+
+  // Allocation table
+  const allocationHtml = allocations.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Production Allocation by Section</div>
+      <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+        <thead>
+          <tr style="background: #1e3a5f; color: white;">
+            <th style="padding: 8px 12px; text-align: left;">Section</th>
+            <th style="padding: 8px 12px; text-align: right;">Lateral (ft)</th>
+            <th style="padding: 8px 12px; text-align: right;">Allocation</th>
+            <th style="padding: 8px 12px; text-align: left;">Role</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${allocations.map((a: any, i: number) => {
+            const trs = `S${a.section || '?'}-T${a.township || '?'}-R${a.range || '?'}`;
+            const roles: string[] = [];
+            if (a.is_surface_location) roles.push('Surface');
+            if (a.is_target_section) roles.push('Target');
+            return `
+              <tr style="background: ${i % 2 === 0 ? '#f8fafc' : 'white'}; border-bottom: 1px solid #e2e8f0;">
+                <td style="padding: 8px 12px; font-weight: 500;">${escapeHtml(trs)}</td>
+                <td style="padding: 8px 12px; text-align: right;">${a.completion_interval_length_ft ? a.completion_interval_length_ft.toLocaleString() : '—'}</td>
+                <td style="padding: 8px 12px; text-align: right; font-weight: 600; color: #1e40af;">${a.allocation_percentage ? a.allocation_percentage.toFixed(2) + '%' : '—'}</td>
+                <td style="padding: 8px 12px; font-size: 12px; color: #6B7280;">${roles.join(', ') || '—'}</td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  ` : '';
+
+  // Well path summary
+  const surfaceLoc = wellLoc.surface_location || {};
+  const firstPerf = wellLoc.first_perforation || {};
+  const lastPerf = wellLoc.last_perforation || {};
+  const wellPathHtml = (surfaceLoc.section || firstPerf.section || lastPerf.section) ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Well Path</div>
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;">
+        ${surfaceLoc.section ? `
+        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 6px; padding: 10px; text-align: center;">
+          <div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Surface</div>
+          <div style="font-weight: 600; color: #166534;">S${surfaceLoc.section}-T${surfaceLoc.township}-R${surfaceLoc.range}</div>
+          <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">${escapeHtml(surfaceLoc.footage_ns || '')} ${escapeHtml(surfaceLoc.footage_ew || '')}</div>
+        </div>
+        ` : ''}
+        ${firstPerf.section ? `
+        <div style="background: #eff6ff; border: 1px solid #93c5fd; border-radius: 6px; padding: 10px; text-align: center;">
+          <div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">First Perf</div>
+          <div style="font-weight: 600; color: #1e40af;">S${firstPerf.section}-T${firstPerf.township}-R${firstPerf.range}</div>
+          <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">${firstPerf.measured_depth_ft ? firstPerf.measured_depth_ft.toLocaleString() + ' ft MD' : ''}</div>
+        </div>
+        ` : ''}
+        ${lastPerf.section ? `
+        <div style="background: #fef2f2; border: 1px solid #fca5a5; border-radius: 6px; padding: 10px; text-align: center;">
+          <div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Last Perf</div>
+          <div style="font-weight: 600; color: #991b1b;">S${lastPerf.section}-T${lastPerf.township}-R${lastPerf.range}</div>
+          <div style="font-size: 11px; color: #6B7280; margin-top: 4px;">${lastPerf.measured_depth_ft ? lastPerf.measured_depth_ft.toLocaleString() + ' ft MD' : ''}</div>
+        </div>
+        ` : ''}
+      </div>
+      <div style="display: flex; gap: 16px; margin-top: 8px; font-size: 13px; color: #374151;">
+        ${wellLoc.lateral_total_length_ft ? `<span><strong>Total Lateral:</strong> ${wellLoc.lateral_total_length_ft.toLocaleString()} ft</span>` : ''}
+        ${wellLoc.total_measured_depth_ft ? `<span><strong>Total MD:</strong> ${wellLoc.total_measured_depth_ft.toLocaleString()} ft</span>` : ''}
+      </div>
+    </div>
+  ` : '';
+
+  // Target formations
+  const formationsHtml = targetFormations.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Target Formations</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        ${targetFormations.map((f: any) => {
+          const name = typeof f === 'string' ? f : f.name || '';
+          const depth = f.depth_range ? `${f.depth_range.top_ft?.toLocaleString() || '?'} — ${f.depth_range.bottom_ft?.toLocaleString() || '?'} ft` : '';
+          return `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: 500;">${escapeHtml(name)}${depth ? ` (${depth})` : ''}</span>`;
+        }).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  return `
+    ${wellName ? `
+    <div style="text-align: center; margin-bottom: 16px;">
+      <div style="font-size: 1.3rem; font-weight: 700; color: #1e293b;">${escapeHtml(wellName)}</div>
+      <div style="font-size: 13px; color: #64748b; margin-top: 4px;">
+        ${wellType ? escapeHtml(wellType.replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())) + ' Well' : ''}
+        ${wellAuth.api_number ? ` — API: ${escapeHtml(wellAuth.api_number)}` : ''}
+      </div>
+    </div>
+    ` : ''}
+
+    <div class="field-grid">
+      ${causeNumber ? `
+      <div class="field-item">
+        <div class="field-label">Cause Number</div>
+        <div class="field-value mono">${escapeHtml(causeNumber)}</div>
+      </div>
+      ` : ''}
+      ${orderInfo.order_number ? `
+      <div class="field-item">
+        <div class="field-label">Order Number</div>
+        <div class="field-value mono">${escapeHtml(orderInfo.order_number)}</div>
+      </div>
+      ` : ''}
+      ${orderInfo.order_date && orderInfo.order_date === (orderInfo as any).effective_date ? `
+      <div class="field-item">
+        <div class="field-label">Order / Effective Date</div>
+        <div class="field-value">${formatDate(orderInfo.order_date)}</div>
+      </div>
+      ` : `
+      ${orderInfo.order_date ? `
+      <div class="field-item">
+        <div class="field-label">Order Date</div>
+        <div class="field-value">${formatDate(orderInfo.order_date)}</div>
+      </div>
+      ` : ''}
+      `}
+      ${locationLine ? `
+      <div class="field-item">
+        <div class="field-label">Surface Location</div>
+        <div class="field-value">${escapeHtml(locationLine)}</div>
+      </div>
+      ` : ''}
+      ${applicant.name ? `
+      <div class="field-item">
+        <div class="field-label">Operator</div>
+        <div class="field-value">${escapeHtml(applicant.name)}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${allocationHtml}
+    ${wellPathHtml}
+    ${formationsHtml}
+  `;
+}
+
+function generateChangeOfOperatorFields(data: any): string {
+  const orderInfo = data.order_info || {};
+  const formerOp = data.former_operator || {};
+  const newOp = data.new_operator || {};
+  const affectedWells = data.affected_wells || [];
+  const targetFormations = data.target_formations || [];
+  const modifiedOrders = data.modified_orders || [];
+  const causeNumber = orderInfo.cause_number || orderInfo.case_number || '';
+
+  // Former/New operator party boxes
+  const formerAddress = [formerOp.address, formerOp.city, formerOp.state, formerOp.zip].filter(Boolean).join(', ');
+  const newAddress = [newOp.address, newOp.city, newOp.state, newOp.zip].filter(Boolean).join(', ');
+
+  // Affected wells list
+  const wellsHtml = affectedWells.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Affected Wells</div>
+      ${affectedWells.map((w: any) => `
+        <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 12px; margin-bottom: 6px;">
+          <div style="font-weight: 600; color: #1e293b;">${escapeHtml(w.well_name || 'Unknown')}</div>
+          <div style="display: flex; gap: 16px; flex-wrap: wrap; font-size: 13px; margin-top: 4px;">
+            ${w.api_number ? `<span style="color: #64748b;">API: <strong>${escapeHtml(w.api_number)}</strong></span>` : ''}
+            ${w.well_type ? `<span style="color: #64748b;">Type: ${escapeHtml(w.well_type)}</span>` : ''}
+            ${w.status ? `<span style="color: #64748b;">Status: ${escapeHtml(w.status)}</span>` : ''}
+          </div>
+          ${w.producing_formations && w.producing_formations.length > 0 ? `<div style="font-size: 12px; color: #6B7280; margin-top: 4px;">Producing: ${escapeHtml(w.producing_formations.join(', '))}</div>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  // Target formations
+  const formationsHtml = targetFormations.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Target Formations</div>
+      <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+        ${targetFormations.map((f: any) => `<span style="background: #DBEAFE; color: #1E40AF; padding: 4px 10px; border-radius: 4px; font-size: 13px; font-weight: 500;">${escapeHtml(typeof f === 'string' ? f : f.name || '')}</span>`).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  // Modified orders
+  const modOrdersHtml = modifiedOrders.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Modified Orders</div>
+      ${modifiedOrders.map((o: any) => `
+        <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 10px; margin-bottom: 6px; font-size: 13px;">
+          <div style="font-weight: 600; color: #92400E;">Order #${escapeHtml(o.order_number || '')} ${o.order_type ? `(${escapeHtml(o.order_type)})` : ''} ${o.order_date ? `— ${escapeHtml(o.order_date)}` : ''}</div>
+          ${o.modifications_made && o.modifications_made.length > 0 ? `<ul style="margin: 6px 0 0 16px; padding: 0; color: #78350F;">
+            ${o.modifications_made.map((m: string) => `<li>${escapeHtml(m)}</li>`).join('')}
+          </ul>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  return `
+    <div class="parties-grid">
+      <div class="party-box">
+        <div class="party-label">Former Operator</div>
+        <div class="party-name">${escapeHtml(formerOp.name || 'Not specified')}</div>
+        ${formerOp.otc_operator_number ? `<div class="party-detail">OTC #${escapeHtml(formerOp.otc_operator_number)}</div>` : ''}
+        ${formerAddress ? `<div class="party-detail">${escapeHtml(formerAddress)}</div>` : ''}
+      </div>
+      <div class="party-box">
+        <div class="party-label">New Operator</div>
+        <div class="party-name">${escapeHtml(newOp.name || 'Not specified')}</div>
+        ${newOp.otc_operator_number ? `<div class="party-detail">OTC #${escapeHtml(newOp.otc_operator_number)}</div>` : ''}
+        ${newAddress ? `<div class="party-detail">${escapeHtml(newAddress)}</div>` : ''}
+        ${newOp.wells_currently_operated ? `<div class="party-detail">${newOp.wells_currently_operated} wells operated</div>` : ''}
+      </div>
+    </div>
+
+    <div class="field-grid" style="margin-top: 16px;">
+      ${causeNumber ? `
+      <div class="field-item">
+        <div class="field-label">Cause Number</div>
+        <div class="field-value mono">${escapeHtml(causeNumber)}</div>
+      </div>
+      ` : ''}
+      ${orderInfo.order_number ? `
+      <div class="field-item">
+        <div class="field-label">Order Number</div>
+        <div class="field-value mono">${escapeHtml(orderInfo.order_number)}</div>
+      </div>
+      ` : ''}
+      ${orderInfo.order_date && orderInfo.effective_date && orderInfo.order_date === orderInfo.effective_date ? `
+      <div class="field-item">
+        <div class="field-label">Order / Effective Date</div>
+        <div class="field-value">${formatDate(orderInfo.order_date)}</div>
+      </div>
+      ` : `
+      ${orderInfo.order_date ? `
+      <div class="field-item">
+        <div class="field-label">Order Date</div>
+        <div class="field-value">${formatDate(orderInfo.order_date)}</div>
+      </div>
+      ` : ''}
+      ${orderInfo.effective_date ? `
+      <div class="field-item">
+        <div class="field-label">Effective Date</div>
+        <div class="field-value">${formatDate(orderInfo.effective_date)}</div>
+      </div>
+      ` : ''}
+      `}
+      ${data.section ? `
+      <div class="field-item">
+        <div class="field-label">Location</div>
+        <div class="field-value">S${data.section}-T${data.township}-R${data.range}${data.county ? `, ${escapeHtml(data.county)} County` : ''}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${wellsHtml}
+    ${formationsHtml}
+    ${modOrdersHtml}
+  `;
+}
+
+function generateDeathCertificateFields(data: any): string {
+  const decedent = data.decedent || {};
+  const residence = data.residence_at_death || {};
+  const parents = data.parents || {};
+  const marital = data.marital_status || {};
+  const chainOfTitle = data.chain_of_title || {};
+  const familyMembers = data.family_members || [];
+  const causeOfDeath = data.cause_of_death || {};
+  const disposition = data.disposition || {};
+  const certInfo = data.certificate_info || {};
+
+  // Residence line
+  const residenceParts = [residence.street_address, residence.city, residence.state, residence.zip_code].filter(Boolean);
+  const residenceLine = residenceParts.join(', ');
+
+  // Name variations for chain of title
+  const nameVariations = chainOfTitle.name_variations || [];
+  const children = chainOfTitle.children_names || [];
+
+  // Family members display
+  const familyHtml = familyMembers.length > 0 ? `
+    <div style="margin-top: 16px;">
+      <div class="field-label" style="margin-bottom: 8px;">Family Members Identified</div>
+      ${familyMembers.map((m: any) => `
+        <div style="display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px;">
+          <strong>${escapeHtml(m.name || '')}</strong>
+          ${m.relationship ? `<span style="color: #6B7280;">(${escapeHtml(m.relationship)})</span>` : ''}
+          ${m.role_on_certificate ? `<span style="background: #E0E7FF; color: #3730A3; font-size: 11px; padding: 1px 6px; border-radius: 3px;">${escapeHtml(m.role_on_certificate)}</span>` : ''}
+        </div>
+      `).join('')}
+    </div>
+  ` : '';
+
+  // Chain of title section (important for mineral rights)
+  const chainHtml = (nameVariations.length > 0 || children.length > 0) ? `
+    <div style="margin-top: 16px; background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 6px; padding: 14px;">
+      <div class="field-label" style="margin-bottom: 8px; color: #92400E;">Chain of Title Information</div>
+      ${nameVariations.length > 0 ? `
+        <div style="margin-bottom: 8px;">
+          <div style="font-size: 12px; color: #78350F; font-weight: 600; margin-bottom: 4px;">Name Variations (check mineral records under):</div>
+          <div style="font-size: 13px; color: #451A03;">${nameVariations.map((n: string) => escapeHtml(n)).join(' &bull; ')}</div>
+        </div>
+      ` : ''}
+      ${children.length > 0 ? `
+        <div>
+          <div style="font-size: 12px; color: #78350F; font-weight: 600; margin-bottom: 4px;">Children Identified:</div>
+          <div style="font-size: 13px; color: #451A03;">${children.map((n: string) => escapeHtml(n)).join(', ')}</div>
+        </div>
+      ` : ''}
+      ${chainOfTitle.has_surviving_spouse === false ? `
+        <div style="font-size: 12px; color: #78350F; margin-top: 6px;">No surviving spouse</div>
+      ` : chainOfTitle.surviving_spouse_name ? `
+        <div style="font-size: 12px; color: #78350F; margin-top: 6px;">Surviving Spouse: <strong>${escapeHtml(chainOfTitle.surviving_spouse_name)}</strong></div>
+      ` : ''}
+      ${chainOfTitle.domicile_county ? `
+        <div style="font-size: 12px; color: #78350F; margin-top: 4px;">Domicile: ${escapeHtml(chainOfTitle.domicile_county)} County, ${escapeHtml(chainOfTitle.domicile_state || '')}</div>
+      ` : ''}
+    </div>
+  ` : '';
+
+  return `
+    <div style="text-align: center; margin-bottom: 16px;">
+      <div style="font-size: 1.4rem; font-weight: 700; color: #1e293b;">${escapeHtml(decedent.full_name || 'Unknown')}</div>
+      ${decedent.date_of_birth || decedent.date_of_death ? `
+        <div style="font-size: 14px; color: #64748b; margin-top: 4px;">
+          ${decedent.date_of_birth ? formatDate(decedent.date_of_birth) : '?'} — ${decedent.date_of_death ? formatDate(decedent.date_of_death) : '?'}
+          ${decedent.age_at_death_years ? ` (age ${decedent.age_at_death_years})` : ''}
+        </div>
+      ` : ''}
+    </div>
+
+    <div class="field-grid">
+      ${residenceLine ? `
+      <div class="field-item full-width">
+        <div class="field-label">Residence at Death</div>
+        <div class="field-value">${escapeHtml(residenceLine)}</div>
+      </div>
+      ` : ''}
+      ${marital.status ? `
+      <div class="field-item">
+        <div class="field-label">Marital Status</div>
+        <div class="field-value">${escapeHtml(marital.status.charAt(0).toUpperCase() + marital.status.slice(1))}</div>
+      </div>
+      ` : ''}
+      ${parents.father?.full_name ? `
+      <div class="field-item">
+        <div class="field-label">Father</div>
+        <div class="field-value">${escapeHtml(parents.father.full_name)}</div>
+      </div>
+      ` : ''}
+      ${parents.mother?.full_name ? `
+      <div class="field-item">
+        <div class="field-label">Mother</div>
+        <div class="field-value">${escapeHtml(parents.mother.full_name)}</div>
+      </div>
+      ` : ''}
+      ${certInfo.state_file_number ? `
+      <div class="field-item">
+        <div class="field-label">State File Number</div>
+        <div class="field-value mono">${escapeHtml(certInfo.state_file_number)}</div>
+      </div>
+      ` : ''}
+      ${disposition.cemetery_name ? `
+      <div class="field-item">
+        <div class="field-label">Burial</div>
+        <div class="field-value">${escapeHtml(disposition.cemetery_name)}${disposition.date ? `, ${formatDate(disposition.date)}` : ''}</div>
+      </div>
+      ` : ''}
+    </div>
+
+    ${familyHtml}
+    ${chainHtml}
+  `;
+}
+
 function generateGenericFields(data: any): string {
   // Filter out meta fields, internal fields, and empty values
   const skipFields = [
@@ -1688,9 +2533,12 @@ function generateGenericFields(data: any): string {
     'end_page',
     // Doc type shown in header
     'doc_type',
+    'category',
   ];
   const entries = Object.entries(data).filter(([key, value]) => {
     if (skipFields.includes(key)) return false;
+    // Skip internal/system fields (prefixed with _)
+    if (key.startsWith('_')) return false;
     if (value === null || value === undefined || value === '') return false;
     if (typeof value === 'object' && Object.keys(value).length === 0) return false;
     return true;

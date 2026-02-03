@@ -1,0 +1,167 @@
+        let currentUser = null;
+
+        // =============================================
+        // AUTHENTICATION
+        // =============================================
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userName').textContent = user.name || user.email;
+                    return user;
+                } else {
+                    window.location.href = '/portal/login';
+                    return null;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/portal/login';
+                return null;
+            }
+        }
+
+        // Logout handler
+        document.getElementById('logoutBtn').addEventListener('click', async () => {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            } catch (e) { /* ignore */ }
+            window.location.href = '/portal/login';
+        });
+
+        // =============================================
+        // PAGE INITIALIZATION
+        // =============================================
+        document.addEventListener('DOMContentLoaded', async () => {
+            try {
+                currentUser = await checkAuth();
+                if (!currentUser) return;
+
+                // Load summary cards
+                loadSummaryCards();
+
+                // Load insights
+                loadInsights();
+
+                // Render default question category
+                renderQuestions('deductions');
+
+                // Set up category tab handlers
+                setupCategoryTabs();
+
+            } catch (error) {
+                console.error('Intelligence page init error:', error);
+            }
+        });
+
+        // =============================================
+        // SUMMARY CARDS
+        // =============================================
+        async function loadSummaryCards() {
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 12000);
+
+                const response = await fetch('/api/intelligence/summary', {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    console.error('Summary API error:', response.status);
+                    setSummaryError();
+                    return;
+                }
+
+                const data = await response.json();
+                renderSummaryCards(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Summary request timed out');
+                } else {
+                    console.error('Failed to load summary:', error);
+                }
+                setSummaryError();
+            }
+        }
+
+        function renderSummaryCards(data) {
+            // Active Wells
+            document.getElementById('summaryActiveWells').textContent = data.activeWells ?? '—';
+            const wellsDetail = document.getElementById('summaryWellsDetail');
+            if (data.countyCount) {
+                wellsDetail.textContent = `Across ${data.countyCount} counties`;
+            } else {
+                wellsDetail.textContent = 'No well data yet';
+            }
+
+            // Estimated Monthly Revenue
+            if (data.estimatedRevenue !== null && data.estimatedRevenue !== undefined) {
+                document.getElementById('summaryRevenue').textContent = formatCurrency(data.estimatedRevenue);
+                const revDetail = document.getElementById('summaryRevenueDetail');
+                if (data.revenueChange !== null && data.revenueChange !== undefined) {
+                    const sign = data.revenueChange >= 0 ? '+' : '';
+                    revDetail.textContent = `${sign}${data.revenueChange.toFixed(1)}% from prior month`;
+                    revDetail.className = `summary-detail ${data.revenueChange >= 0 ? 'success' : 'alert'}`;
+                } else {
+                    revDetail.textContent = 'Based on latest OTC data';
+                    revDetail.className = 'summary-detail neutral';
+                }
+            } else {
+                document.getElementById('summaryRevenue').textContent = '—';
+                document.getElementById('summaryRevenueDetail').textContent = 'No revenue data yet';
+            }
+
+            // Deduction Health
+            if (data.deductionFlags !== null && data.deductionFlags !== undefined) {
+                const analyzedText = data.wellsAnalyzed ? `${data.wellsAnalyzed} wells analyzed` : '';
+                if (data.deductionFlags > 0) {
+                    document.getElementById('summaryDeductions').textContent = `${data.deductionFlags} Flagged`;
+                    const dedDetail = document.getElementById('summaryDeductionsDetail');
+                    dedDetail.textContent = analyzedText || 'Above typical range';
+                    dedDetail.className = 'summary-detail warning';
+                } else {
+                    document.getElementById('summaryDeductions').textContent = 'Normal';
+                    const dedDetail = document.getElementById('summaryDeductionsDetail');
+                    dedDetail.textContent = analyzedText || 'All within range';
+                    dedDetail.className = 'summary-detail success';
+                }
+            } else {
+                document.getElementById('summaryDeductions').textContent = '—';
+                document.getElementById('summaryDeductionsDetail').textContent = 'No deduction data yet';
+            }
+
+            // Action Items
+            if (data.actionItems !== null && data.actionItems !== undefined) {
+                document.getElementById('summaryActions').textContent = data.actionItems;
+                const actDetail = document.getElementById('summaryActionsDetail');
+                if (data.nearestDeadline) {
+                    actDetail.textContent = data.nearestDeadline;
+                    actDetail.className = 'summary-detail alert';
+                } else if (data.actionItems === 0) {
+                    actDetail.textContent = 'No pending items';
+                    actDetail.className = 'summary-detail success';
+                }
+            } else {
+                document.getElementById('summaryActions').textContent = '0';
+                document.getElementById('summaryActionsDetail').textContent = 'No pending items';
+            }
+        }
+
+        function setSummaryError() {
+            document.getElementById('summaryActiveWells').textContent = '—';
+            document.getElementById('summaryWellsDetail').textContent = 'Could not load';
+            document.getElementById('summaryRevenue').textContent = '—';
+            document.getElementById('summaryRevenueDetail').textContent = 'Could not load';
+            document.getElementById('summaryDeductions').textContent = '—';
+            document.getElementById('summaryDeductionsDetail').textContent = 'Could not load';
+            document.getElementById('summaryActions').textContent = '—';
+            document.getElementById('summaryActionsDetail').textContent = 'Could not load';
+        }
+
+        function formatCurrency(amount) {
+            if (amount >= 10000) {
+                return '$' + (amount / 1000).toFixed(1) + 'K';
+            }
+            return '$' + amount.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+        }

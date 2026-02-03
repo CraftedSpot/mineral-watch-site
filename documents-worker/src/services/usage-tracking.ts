@@ -332,6 +332,118 @@ export class UsageTrackingService {
   }
 
   /**
+   * Deduct multiple credits at once (e.g., for county record extraction).
+   * Same three-bucket deduction order as deductCredit but handles N credits,
+   * splitting across buckets as needed (monthly → purchased → permanent).
+   *
+   * Returns true if all credits were successfully deducted, false if insufficient.
+   */
+  async deductCredits(userId: string, userPlan: string, amount: number): Promise<boolean> {
+    if (amount <= 0) return true;
+    if (amount === 1) return this.deductCredit(userId, userPlan);
+
+    const check = await this.checkCreditsAvailable(userId, userPlan);
+    if (check.totalAvailable < amount) {
+      console.log(`[Credits] User ${userId} needs ${amount} credits but only has ${check.totalAvailable}`);
+      return false;
+    }
+
+    const tierLimit = getTierLimit(userPlan);
+    const isLifetimeTier = tierLimit.isLifetime === true;
+    const billingPeriod = getCurrentBillingPeriod();
+    let remaining = amount;
+
+    if (isLifetimeTier) {
+      // Free tier: lifetime credits first, then purchased
+      if (remaining > 0 && check.permanentRemaining > 0) {
+        const fromLifetime = Math.min(remaining, check.permanentRemaining);
+        await this.db.prepare(`
+          UPDATE user_credit_balance
+          SET lifetime_credits_used = lifetime_credits_used + ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ?
+        `).bind(fromLifetime, userId).run();
+        console.log(`[Credits] Deducted ${fromLifetime} lifetime credits for user ${userId}`);
+        remaining -= fromLifetime;
+      }
+
+      if (remaining > 0 && check.purchasedRemaining > 0) {
+        const fromPurchased = Math.min(remaining, check.purchasedRemaining);
+        await this.db.prepare(`
+          UPDATE user_credit_balance
+          SET purchased_credits = purchased_credits - ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND purchased_credits >= ?
+        `).bind(fromPurchased, userId, fromPurchased).run();
+        console.log(`[Credits] Deducted ${fromPurchased} purchased credits for free tier user ${userId}`);
+        remaining -= fromPurchased;
+      }
+    } else {
+      // Paid tier: monthly → purchased → permanent/bonus
+      if (remaining > 0 && check.monthlyRemaining > 0) {
+        const fromMonthly = Math.min(remaining, check.monthlyRemaining);
+        await this.db.prepare(`
+          UPDATE document_usage
+          SET monthly_credits_used = monthly_credits_used + ?,
+              credits_used = credits_used + ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND billing_period_start = ?
+        `).bind(fromMonthly, fromMonthly, userId, billingPeriod).run();
+        console.log(`[Credits] Deducted ${fromMonthly} monthly credits for user ${userId}`);
+        remaining -= fromMonthly;
+      }
+
+      if (remaining > 0 && check.purchasedRemaining > 0) {
+        const fromPurchased = Math.min(remaining, check.purchasedRemaining);
+        await this.db.prepare(`
+          UPDATE user_credit_balance
+          SET purchased_credits = purchased_credits - ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND purchased_credits >= ?
+        `).bind(fromPurchased, userId, fromPurchased).run();
+
+        // Track in document_usage for analytics
+        await this.db.prepare(`
+          UPDATE document_usage
+          SET credits_used = credits_used + ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND billing_period_start = ?
+        `).bind(fromPurchased, userId, billingPeriod).run();
+        console.log(`[Credits] Deducted ${fromPurchased} purchased credits for user ${userId}`);
+        remaining -= fromPurchased;
+      }
+
+      if (remaining > 0 && check.permanentRemaining > 0) {
+        const fromPermanent = Math.min(remaining, check.permanentRemaining);
+        await this.db.prepare(`
+          UPDATE user_credit_balance
+          SET permanent_credits = permanent_credits - ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND permanent_credits >= ?
+        `).bind(fromPermanent, userId, fromPermanent).run();
+
+        // Track in document_usage for analytics
+        await this.db.prepare(`
+          UPDATE document_usage
+          SET credits_used = credits_used + ?,
+              updated_at = datetime('now', '-6 hours')
+          WHERE user_id = ? AND billing_period_start = ?
+        `).bind(fromPermanent, userId, billingPeriod).run();
+        console.log(`[Credits] Deducted ${fromPermanent} bonus credits for user ${userId}`);
+        remaining -= fromPermanent;
+      }
+    }
+
+    if (remaining > 0) {
+      console.error(`[Credits] Failed to deduct all credits for user ${userId}. ${remaining} remaining of ${amount} requested.`);
+      return false;
+    }
+
+    console.log(`[Credits] Successfully deducted ${amount} credits for user ${userId}`);
+    return true;
+  }
+
+  /**
    * Track document processing (called after successful extraction)
    * This handles the credit deduction and logging
    */

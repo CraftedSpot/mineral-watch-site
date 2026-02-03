@@ -106,6 +106,145 @@ const createNameVariations = (wellName: string): string[] => {
   return variations;
 };
 
+/**
+ * Match offset wells by API number against wells and client_wells tables.
+ * Returns array of matched airtable_record_id / airtable_id values.
+ */
+async function matchOffsetWells(
+  db: D1Database,
+  offsetWells: Array<{ well_name?: string; api_number?: string }>,
+  documentUserId: string | null,
+  documentOrgId: string | null
+): Promise<string[]> {
+  const matchedIds: string[] = [];
+
+  for (const offsetWell of offsetWells) {
+    const api = offsetWell.api_number;
+    if (!api) continue;
+
+    try {
+      // Try statewide wells table first (exact API match)
+      const well = await db.prepare(
+        `SELECT airtable_record_id as id FROM wells WHERE api_number = ? LIMIT 1`
+      ).bind(api).first();
+
+      if (well?.id) {
+        matchedIds.push(well.id as string);
+        console.log(`[LinkDocuments] Offset well matched (wells): API ${api} -> ${well.id}`);
+        continue;
+      }
+
+      // Fallback: try client_wells table (user/org scoped)
+      if (documentUserId || documentOrgId) {
+        const clientWell = await db.prepare(`
+          SELECT airtable_id as id FROM client_wells
+          WHERE api_number = ?
+            AND (user_id = ? OR organization_id = ?)
+          LIMIT 1
+        `).bind(api, documentUserId || '', documentOrgId || '').first();
+
+        if (clientWell?.id) {
+          matchedIds.push(clientWell.id as string);
+          console.log(`[LinkDocuments] Offset well matched (client_wells): API ${api} -> ${clientWell.id}`);
+          continue;
+        }
+      }
+
+      console.log(`[LinkDocuments] Offset well not found: API ${api} (${offsetWell.well_name || 'unnamed'})`);
+    } catch (error) {
+      console.error(`[LinkDocuments] Error matching offset well API ${api}:`, error);
+    }
+  }
+
+  return matchedIds;
+}
+
+const MAX_UNIT_NAME_MATCHES = 10;
+
+/**
+ * Match wells by unit_name, constrained by township/range.
+ * Uses LIKE '%unit_name%' on well_name with T/R cross-check to prevent overmatching.
+ */
+async function matchUnitNameWells(
+  db: D1Database,
+  unitName: string,
+  township: string | null,
+  range: string | null,
+  documentUserId: string | null,
+  documentOrgId: string | null
+): Promise<string[]> {
+  const matchedIds: string[] = [];
+
+  // Require township AND range to prevent overmatching
+  if (!township || !range) {
+    console.log(`[LinkDocuments] Unit name matching skipped: missing T/R (T: ${township}, R: ${range})`);
+    return matchedIds;
+  }
+
+  // Require unit_name to be at least 3 characters
+  if (unitName.length < 3) {
+    console.log(`[LinkDocuments] Unit name matching skipped: name too short ("${unitName}")`);
+    return matchedIds;
+  }
+
+  try {
+    // Search statewide wells table
+    const wellsResult = await db.prepare(`
+      SELECT airtable_record_id as id, well_name, api_number
+      FROM wells
+      WHERE UPPER(well_name) LIKE UPPER(?)
+        AND UPPER(township) = UPPER(?)
+        AND UPPER(range) = UPPER(?)
+      ORDER BY well_status = 'AC' DESC
+      LIMIT ?
+    `).bind(`%${unitName}%`, township, range, MAX_UNIT_NAME_MATCHES).all();
+
+    if (wellsResult.results) {
+      for (const well of wellsResult.results) {
+        if (well.id) {
+          matchedIds.push(well.id as string);
+          console.log(`[LinkDocuments] Unit name matched (wells): "${unitName}" -> ${well.well_name} (${well.id})`);
+        }
+      }
+    }
+
+    // Also search client_wells table (note: uses range_val not range)
+    if (documentUserId || documentOrgId) {
+      const remaining = MAX_UNIT_NAME_MATCHES - matchedIds.length;
+      if (remaining > 0) {
+        const clientResult = await db.prepare(`
+          SELECT airtable_id as id, well_name, api_number
+          FROM client_wells
+          WHERE (user_id = ? OR organization_id = ?)
+            AND UPPER(well_name) LIKE UPPER(?)
+            AND UPPER(township) = UPPER(?)
+            AND UPPER(range_val) = UPPER(?)
+          ORDER BY well_status = 'AC' DESC
+          LIMIT ?
+        `).bind(
+          documentUserId || '', documentOrgId || '',
+          `%${unitName}%`, township, range, remaining
+        ).all();
+
+        if (clientResult.results) {
+          for (const well of clientResult.results) {
+            if (well.id && !matchedIds.includes(well.id as string)) {
+              matchedIds.push(well.id as string);
+              console.log(`[LinkDocuments] Unit name matched (client_wells): "${unitName}" -> ${well.well_name} (${well.id})`);
+            }
+          }
+        }
+      }
+    }
+
+    console.log(`[LinkDocuments] Unit name "${unitName}" in T${township}-R${range}: matched ${matchedIds.length} wells`);
+  } catch (error) {
+    console.error(`[LinkDocuments] Error matching unit name "${unitName}":`, error);
+  }
+
+  return matchedIds;
+}
+
 // Function to link documents to properties and wells
 export async function linkDocumentToEntities(
   db: D1Database,
@@ -419,6 +558,17 @@ export async function linkDocumentToEntities(
                    getValue(extractedFields.applicant) || // Sometimes operator is listed as applicant
                    null;
   
+  // Extract offset wells and unit name for additional matching
+  const offsetWells = extractedFields.offset_wells;
+  const unitName = getValue(extractedFields.unit_name);
+
+  if (Array.isArray(offsetWells) && offsetWells.length > 0) {
+    console.log(`[LinkDocuments] Found ${offsetWells.length} offset wells in extracted data`);
+  }
+  if (unitName) {
+    console.log(`[LinkDocuments] Found unit name: "${unitName}"`);
+  }
+
   // Log well information for debugging
   if (wellsList && Array.isArray(wellsList)) {
     console.log(`[LinkDocuments] Wells array found with ${wellsList.length} wells`);
@@ -648,25 +798,67 @@ export async function linkDocumentToEntities(
     }
   }
   
+  // Build combined well ID list: primary + offset wells + unit name matches
+  const allWellIds: string[] = [];
+
+  // Primary well first (highest confidence — from existing cascade)
+  if (wellId) {
+    allWellIds.push(wellId);
+  }
+
+  // Offset wells matching (API-based, high confidence)
+  if (Array.isArray(offsetWells) && offsetWells.length > 0) {
+    try {
+      const offsetIds = await matchOffsetWells(db, offsetWells, documentUserId, documentOrgId);
+      for (const id of offsetIds) {
+        if (!allWellIds.includes(id)) {
+          allWellIds.push(id);
+        }
+      }
+    } catch (error) {
+      console.error(`[LinkDocuments] Error in offset wells matching:`, error);
+    }
+  }
+
+  // Unit name matching (name + T/R cross-check, lower confidence)
+  if (unitName && typeof unitName === 'string' && unitName.trim().length >= 3) {
+    try {
+      const unitIds = await matchUnitNameWells(
+        db, unitName.trim(), township, range, documentUserId, documentOrgId
+      );
+      for (const id of unitIds) {
+        if (!allWellIds.includes(id)) {
+          allWellIds.push(id);
+        }
+      }
+    } catch (error) {
+      console.error(`[LinkDocuments] Error in unit name matching:`, error);
+    }
+  }
+
+  const finalWellId = allWellIds.length > 0 ? allWellIds.join(',') : null;
+
+  console.log(`[LinkDocuments] Final well IDs: ${allWellIds.length} total (primary: ${wellId ? 1 : 0}, offset input: ${Array.isArray(offsetWells) ? offsetWells.length : 0}, unit: ${unitName || 'none'})`);
+
   // Update document with links
-  if (propertyId || wellId) {
+  if (propertyId || finalWellId) {
     try {
       await db.prepare(`
-        UPDATE documents 
-        SET property_id = ?, 
-            well_id = ? 
+        UPDATE documents
+        SET property_id = ?,
+            well_id = ?
         WHERE id = ?
-      `).bind(propertyId, wellId, documentId).run();
-      
-      console.log(`[LinkDocuments] Updated document ${documentId} with property_id: ${propertyId}, well_id: ${wellId}`);
+      `).bind(propertyId, finalWellId, documentId).run();
+
+      console.log(`[LinkDocuments] Updated document ${documentId} with property_id: ${propertyId}, well_id: ${finalWellId}`);
     } catch (error) {
       console.error(`[LinkDocuments] Error updating document links:`, error);
     }
   } else {
     console.log(`[LinkDocuments] No matches found for document ${documentId}`);
   }
-  
-  return { propertyId, wellId };
+
+  return { propertyId, wellId: finalWellId };
 }
 
 // Function to ensure link columns exist in documents table

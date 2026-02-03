@@ -5,7 +5,7 @@
  */
 
 // Authentication & Session Constants
-export const COOKIE_NAME = "mw_session_v3";
+export const COOKIE_NAME = "mw_session_v4";
 export const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours (for general tokens)
 export const INVITE_TOKEN_EXPIRY = 72 * 60 * 60 * 1000; // 72 hours (for organization invites)
 export const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
@@ -25,12 +25,12 @@ export const BASE_URL = "https://portal.mymineralwatch.com";
 // Plan Limits Configuration
 // Note: Additional seats can be purchased separately (TODO: implement seat purchasing)
 export const PLAN_LIMITS = {
-  "Free": { properties: 1, wells: 1, activityRecords: 5, seats: 1, docCreditsMonthly: 0, docCreditsBonus: 10 },
+  "Free": { properties: 1, wells: 1, activityRecords: 5, seats: 1, docCreditsMonthly: 3, docCreditsBonus: 0 },
   "Starter": { properties: 10, wells: 10, activityRecords: 25, seats: 1, docCreditsMonthly: 10, docCreditsBonus: 75 },
   "Standard": { properties: 50, wells: 50, activityRecords: 50, seats: 1, docCreditsMonthly: 25, docCreditsBonus: 300 },
   "Professional": { properties: 250, wells: 250, activityRecords: 100, seats: 1, docCreditsMonthly: 50, docCreditsBonus: 1000 },
   "Business": { properties: 500, wells: 500, activityRecords: 200, seats: 3, docCreditsMonthly: 100, docCreditsBonus: 2500 },
-  "Enterprise": { properties: Infinity, wells: Infinity, activityRecords: Infinity, seats: 5, docCreditsMonthly: 250, docCreditsBonus: 10000 }
+  "Enterprise": { properties: 1000, wells: 1000, activityRecords: 500, seats: 5, docCreditsMonthly: 150, docCreditsBonus: 5000 }
 } as const;
 
 // Cache TTL
@@ -62,8 +62,10 @@ export const PRICE_IDS = {
   standard_annual: 'price_1SZZbu9OfJmRCDOqYZm2Hbi6',    // $278/yr
   professional_monthly: 'price_1SZZbu9OfJmRCDOqOp2YjT1N', // $99/mo
   professional_annual: 'price_1SZZbt9OfJmRCDOquMh7kSyI',  // $950/yr
-  business_monthly: 'price_1SoRkO9OfJmRCDOqJHItcg9T',  // $199/mo
-  business_annual: 'price_1SoSwV9OfJmRCDOqxmuF4aBI'     // $1910/yr
+  business_monthly: 'price_1SoRkO9OfJmRCDOqJHItcg9T',  // $249/mo
+  business_annual: 'price_1SoSwV9OfJmRCDOqxmuF4aBI',    // $2,390/yr
+  enterprise_monthly: 'price_1SwRTW9OfJmRCDOqY3T0V1t5',  // $499/mo
+  enterprise_annual: 'price_1SwRWG9OfJmRCDOqDBOrwul2'     // $4,790/yr
 } as const;
 
 // Map price ID to plan name
@@ -75,5 +77,7 @@ export const PRICE_TO_PLAN = {
   [PRICE_IDS.professional_monthly]: 'Professional',
   [PRICE_IDS.professional_annual]: 'Professional',
   [PRICE_IDS.business_monthly]: 'Business',
-  [PRICE_IDS.business_annual]: 'Business'
+  [PRICE_IDS.business_annual]: 'Business',
+  [PRICE_IDS.enterprise_monthly]: 'Enterprise',
+  [PRICE_IDS.enterprise_annual]: 'Enterprise'
 } as const;

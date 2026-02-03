@@ -100,25 +100,35 @@ export async function getPropertiesByLocation(env, location) {
 export async function batchGetPropertiesByLocations(env, locations) {
   if (!locations || locations.length === 0) return [];
 
-  // Build OR conditions for all locations
-  const conditions = locations.map(() =>
-    '(p.section = ? AND p.township = ? AND p.range = ? AND p.meridian = ?)'
-  ).join(' OR ');
+  // D1 has a lower bind variable limit than standard SQLite (~100).
+  // Each location uses 4 variables, so chunk at 20 locations (80 variables).
+  const CHUNK_SIZE = 20;
+  const allResults = [];
 
-  const bindings = locations.flatMap(loc => [
-    loc.section, loc.township, loc.range, loc.meridian
-  ]);
+  for (let i = 0; i < locations.length; i += CHUNK_SIZE) {
+    const chunk = locations.slice(i, i + CHUNK_SIZE);
 
-  const results = await env.WELLS_DB.prepare(`
-    SELECT p.*, u.email as user_email, u.name as user_name, u.airtable_record_id as user_airtable_id
-    FROM properties p
-    LEFT JOIN users u ON u.airtable_record_id = p.user_id
-    WHERE (${conditions})
-    AND p.status = 'Active'
-  `).bind(...bindings).all();
+    const conditions = chunk.map(() =>
+      '(p.section = ? AND p.township = ? AND p.range = ? AND p.meridian = ?)'
+    ).join(' OR ');
 
-  console.log(`[D1] Batch loaded ${results.results.length} properties for ${locations.length} locations`);
-  return results.results.map(transformPropertyToAirtableFormat);
+    const bindings = chunk.flatMap(loc => [
+      loc.section, loc.township, loc.range, loc.meridian
+    ]);
+
+    const results = await env.WELLS_DB.prepare(`
+      SELECT p.*, u.email as user_email, u.name as user_name, u.airtable_record_id as user_airtable_id
+      FROM properties p
+      LEFT JOIN users u ON u.airtable_record_id = p.user_id
+      WHERE (${conditions})
+      AND p.status = 'Active'
+    `).bind(...bindings).all();
+
+    allResults.push(...results.results);
+  }
+
+  console.log(`[D1] Batch loaded ${allResults.length} properties for ${locations.length} locations (${Math.ceil(locations.length / CHUNK_SIZE)} chunks)`);
+  return allResults.map(transformPropertyToAirtableFormat);
 }
 
 /**
@@ -131,23 +141,34 @@ export async function batchGetPropertiesByLocations(env, locations) {
 export async function getAdjacentProperties(env, adjacentSections, meridian) {
   if (!adjacentSections || adjacentSections.length === 0) return [];
 
-  const conditions = adjacentSections.map(() =>
-    '(p.section = ? AND p.township = ? AND p.range = ?)'
-  ).join(' OR ');
+  // Each section uses 3 variables + 1 for meridian per chunk.
+  // D1 has a ~100 bind variable limit. Chunk at 30 sections (90 + 1 meridian = 91).
+  const CHUNK_SIZE = 30;
+  const allResults = [];
 
-  const bindings = adjacentSections.flatMap(s => [s.section, s.township, s.range]);
+  for (let i = 0; i < adjacentSections.length; i += CHUNK_SIZE) {
+    const chunk = adjacentSections.slice(i, i + CHUNK_SIZE);
 
-  const results = await env.WELLS_DB.prepare(`
-    SELECT p.*, u.email as user_email, u.name as user_name, u.airtable_record_id as user_airtable_id
-    FROM properties p
-    LEFT JOIN users u ON u.airtable_record_id = p.user_id
-    WHERE (${conditions})
-    AND p.meridian = ?
-    AND p.monitor_adjacent = 1
-    AND p.status = 'Active'
-  `).bind(...bindings, meridian).all();
+    const conditions = chunk.map(() =>
+      '(p.section = ? AND p.township = ? AND p.range = ?)'
+    ).join(' OR ');
 
-  return results.results.map(transformPropertyToAirtableFormat);
+    const bindings = chunk.flatMap(s => [s.section, s.township, s.range]);
+
+    const results = await env.WELLS_DB.prepare(`
+      SELECT p.*, u.email as user_email, u.name as user_name, u.airtable_record_id as user_airtable_id
+      FROM properties p
+      LEFT JOIN users u ON u.airtable_record_id = p.user_id
+      WHERE (${conditions})
+      AND p.meridian = ?
+      AND p.monitor_adjacent = 1
+      AND p.status = 'Active'
+    `).bind(...bindings, meridian).all();
+
+    allResults.push(...results.results);
+  }
+
+  return allResults.map(transformPropertyToAirtableFormat);
 }
 
 /**
@@ -405,6 +426,203 @@ function transformWellToAirtableFormat(row) {
     } : null,
     _d1: row
   };
+}
+
+// ============================================================================
+// Enhanced Weekly Digest Query Functions
+// ============================================================================
+
+/**
+ * Get all active users with their org notification settings.
+ * Caller filters in JS using getEffectiveNotificationMode().
+ * @param {Object} env - Worker environment
+ * @returns {Array} - Raw user+org rows
+ */
+export async function getAllActiveUsersWithOrg(env) {
+  const results = await env.WELLS_DB.prepare(`
+    SELECT u.*, o.default_notification_mode as org_notification_mode,
+           o.allow_user_override as org_allow_override
+    FROM users u
+    LEFT JOIN organizations o ON o.airtable_record_id = u.organization_id
+    WHERE u.status = 'Active'
+  `).all();
+
+  return results.results || [];
+}
+
+/**
+ * Get all active properties for a specific user
+ * @param {Object} env - Worker environment
+ * @param {string} userId - User's Airtable record ID
+ * @returns {Array} - Property rows with section/township/range/county
+ */
+export async function getPropertiesForUser(env, userId) {
+  if (!userId) return [];
+
+  const results = await env.WELLS_DB.prepare(`
+    SELECT section, township, range, meridian, county
+    FROM properties
+    WHERE user_id = ? AND status = 'Active'
+  `).bind(userId).all();
+
+  return results.results || [];
+}
+
+/**
+ * Get recent statewide activity in specified townships from last N days
+ * @param {Object} env - Worker environment
+ * @param {Array} townships - Array of {township, range} pairs
+ * @param {number} days - Number of days to look back (default 7)
+ * @returns {Array} - Statewide activity records
+ */
+export async function getNearbyActivity(env, townships, days = 7) {
+  if (!townships || townships.length === 0) return [];
+
+  const allResults = [];
+  // Each township pair uses 2 bind variables, plus 1 for the date.
+  // Chunk at 45 pairs (90 variables + 1 date = 91).
+  const CHUNK_SIZE = 45;
+
+  for (let i = 0; i < townships.length; i += CHUNK_SIZE) {
+    const chunk = townships.slice(i, i + CHUNK_SIZE);
+    const conditions = chunk.map(() =>
+      '(surface_township = ? AND surface_range = ?)'
+    ).join(' OR ');
+    const bindings = chunk.flatMap(t => [t.township, t.range]);
+
+    const results = await env.WELLS_DB.prepare(`
+      SELECT api_number, well_name, operator, county,
+             surface_section, surface_township, surface_range,
+             has_permit, has_completion, is_horizontal,
+             permit_date, completion_date, formation,
+             created_at
+      FROM statewide_activity
+      WHERE (${conditions})
+      AND created_at > datetime('now', '-${days} days')
+      ORDER BY created_at DESC
+    `).bind(...bindings).all();
+
+    allResults.push(...(results.results || []));
+  }
+
+  return allResults;
+}
+
+/**
+ * Get all distinct operators who have historically had wells in specified townships.
+ * Used to detect "new operators" entering an area.
+ * @param {Object} env - Worker environment
+ * @param {Array} townships - Array of {township, range} pairs
+ * @returns {Map<string, Set<string>>} - Map of "township|range" -> Set of uppercase operator names
+ */
+export async function getHistoricalOperators(env, townships) {
+  const operatorMap = new Map();
+  if (!townships || townships.length === 0) return operatorMap;
+
+  // Each pair uses 2 bind variables. Chunk at 45 pairs (90 variables).
+  const CHUNK_SIZE = 45;
+
+  for (let i = 0; i < townships.length; i += CHUNK_SIZE) {
+    const chunk = townships.slice(i, i + CHUNK_SIZE);
+    const conditions = chunk.map(() =>
+      '(township = ? AND range = ?)'
+    ).join(' OR ');
+    const bindings = chunk.flatMap(t => [t.township, t.range]);
+
+    const results = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT operator, township, range
+      FROM wells
+      WHERE (${conditions})
+      AND operator IS NOT NULL AND operator != ''
+    `).bind(...bindings).all();
+
+    for (const row of (results.results || [])) {
+      const key = `${row.township}|${row.range}`;
+      if (!operatorMap.has(key)) {
+        operatorMap.set(key, new Set());
+      }
+      operatorMap.get(key).add(row.operator.trim().toUpperCase());
+    }
+  }
+
+  return operatorMap;
+}
+
+/**
+ * Get activity counts by county for last N days from statewide_activity
+ * @param {Object} env - Worker environment
+ * @param {Array} counties - Array of county name strings
+ * @param {number} days - Number of days to look back (default 7)
+ * @returns {Map<string, Object>} - Map of county -> {permitCount, completionCount}
+ */
+export async function getCountyActivityStats(env, counties, days = 7) {
+  const statsMap = new Map();
+  if (!counties || counties.length === 0) return statsMap;
+
+  // 1 bind variable per county. Chunk at 90.
+  const CHUNK_SIZE = 90;
+
+  for (let i = 0; i < counties.length; i += CHUNK_SIZE) {
+    const chunk = counties.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+
+    const results = await env.WELLS_DB.prepare(`
+      SELECT county,
+        SUM(CASE WHEN has_permit = 1 THEN 1 ELSE 0 END) as permit_count,
+        SUM(CASE WHEN has_completion = 1 THEN 1 ELSE 0 END) as completion_count
+      FROM statewide_activity
+      WHERE UPPER(county) IN (${placeholders})
+      AND created_at > datetime('now', '-${days} days')
+      GROUP BY county
+    `).bind(...chunk.map(c => c.toUpperCase())).all();
+
+    for (const row of (results.results || [])) {
+      statsMap.set(row.county.toUpperCase(), {
+        permitCount: row.permit_count || 0,
+        completionCount: row.completion_count || 0
+      });
+    }
+  }
+
+  return statsMap;
+}
+
+/**
+ * Get docket filing counts by county for last N days
+ * @param {Object} env - Worker environment
+ * @param {Array} counties - Array of county name strings
+ * @param {number} days - Number of days to look back (default 7)
+ * @returns {Map<string, number>} - Map of county -> docket count
+ */
+export async function getDocketCountByCounty(env, counties, days = 7) {
+  const docketMap = new Map();
+  if (!counties || counties.length === 0) return docketMap;
+
+  const CHUNK_SIZE = 90;
+
+  for (let i = 0; i < counties.length; i += CHUNK_SIZE) {
+    const chunk = counties.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+
+    try {
+      const results = await env.WELLS_DB.prepare(`
+        SELECT county, COUNT(*) as docket_count
+        FROM occ_docket_entries
+        WHERE UPPER(county) IN (${placeholders})
+        AND docket_date > datetime('now', '-${days} days')
+        GROUP BY county
+      `).bind(...chunk.map(c => c.toUpperCase())).all();
+
+      for (const row of (results.results || [])) {
+        docketMap.set(row.county.toUpperCase(), row.docket_count || 0);
+      }
+    } catch (err) {
+      // occ_docket_entries table may not exist or have different schema
+      console.warn(`[D1] Docket count query failed: ${err.message}`);
+    }
+  }
+
+  return docketMap;
 }
 
 /**

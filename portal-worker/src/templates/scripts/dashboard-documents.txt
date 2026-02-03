@@ -5,40 +5,27 @@
         let currentDocumentFilename = null;
         let loadedDocuments = [];
         
-        // Documents Search, Filter & Sort State
-        let documentsSearchTerm = '';
-        let documentsCategory = 'all';
-        let documentsSortBy = 'date-desc';
-        
-        // Initialize Documents Controls (call this after user loads)
-        function initDocumentsControls() {
-            const hasSearch = currentUser?.plan !== 'Free';
-            
-            // Show/hide controls based on plan
-            document.getElementById('documentsControls').style.display = hasSearch ? 'flex' : 'none';
-            
-            if (!hasSearch) return;
-            
-            // Initialize sort options
-            updateDocumentsSortOptions();
-            
-            // Search input with debounce
-            const searchInput = document.getElementById('documentsSearch');
-            searchInput.addEventListener('input', (e) => {
-                documentsSearchTerm = e.target.value.toLowerCase();
-                debounceSearch(() => renderDocumentsList(loadedDocuments), 300);
-            });
-            
-            // Category filter - Searchable dropdown
-            initDocumentsCategoryDropdown();
-            
-            // Sort select
-            const sortSelect = document.getElementById('documentsSort');
-            sortSelect.addEventListener('change', (e) => {
-                documentsSortBy = e.target.value;
-                renderDocumentsList(loadedDocuments);
-            });
-        }
+        // Documents list controller (state + event binding via shared ListController)
+        const documentsController = createListController({
+            defaultFilter: 'all',
+            defaultSort: 'date-desc',
+            controlsId: 'documentsControls',
+            searchId: 'documentsSearch',
+            sortId: 'documentsSort',
+            debounceMs: 300,
+            requirePlan: true,
+            itemName: 'documents',
+            renderFn: () => renderDocumentsList(loadedDocuments),
+            filterFn: filterDocuments,
+            sortFn: sortDocuments,
+            onInit: () => {
+                updateDocumentsSortOptions();
+                initDocumentsCategoryDropdown();
+            }
+        });
+
+        // Alias for backward compat — initDocumentsControls is called from dashboard-init
+        const initDocumentsControls = () => documentsController.initControls();
         
         // Update sort options based on selected category
         function updateDocumentsSortOptions() {
@@ -264,13 +251,13 @@
             });
             
             // Add category-specific options if applicable
-            if (documentsCategory !== 'all' && categoryOptions[documentsCategory]) {
+            if (documentsController.filterBy !== 'all' && categoryOptions[documentsController.filterBy]) {
                 const separator = document.createElement('option');
                 separator.disabled = true;
                 separator.textContent = '──────────';
                 sortSelect.appendChild(separator);
-                
-                categoryOptions[documentsCategory].forEach(opt => {
+
+                categoryOptions[documentsController.filterBy].forEach(opt => {
                     const option = document.createElement('option');
                     option.value = opt.value;
                     option.textContent = opt.text;
@@ -284,7 +271,7 @@
             } else {
                 // Reset to default if previous selection is no longer valid
                 sortSelect.value = 'date-desc';
-                documentsSortBy = 'date-desc';
+                documentsController.sortBy = 'date-desc';
             }
         }
 
@@ -353,7 +340,7 @@
 
                     hasVisible = true;
                     const option = document.createElement('div');
-                    option.className = 'dropdown-option' + (cat.value === documentsCategory ? ' selected' : '');
+                    option.className = 'dropdown-option' + (cat.value === documentsController.filterBy ? ' selected' : '');
                     option.dataset.value = cat.value;
                     option.textContent = cat.label;
                     option.addEventListener('click', () => selectCategory(cat.value, cat.label));
@@ -367,7 +354,7 @@
 
             // Select a category
             function selectCategory(value, labelText) {
-                documentsCategory = value;
+                documentsController.filterBy = value;
                 hiddenInput.value = value;
                 label.textContent = labelText;
                 closeDropdown();
@@ -423,10 +410,10 @@
         }
 
         // Filter documents based on search and category
-        function filterDocuments(documents) {
+        function filterDocuments(documents, filterBy, searchTerm) {
             return documents.filter(doc => {
                 // Category filter
-                if (documentsCategory !== 'all') {
+                if (filterBy !== 'all') {
                     // Use category field if available, fall back to doc_type mapping
                     let docCategory;
                     
@@ -437,11 +424,14 @@
                         'mineral_deed': 'mineral_deeds',
                         'royalty_deed': 'royalty_deed',
                         'assignment': 'assignment',
+                        'assignment_of_lease': 'assignment',
                         'ratification': 'ratification',
                         'right_of_way': 'right_of_way',
 
                         // Leases
                         'lease': 'leases',
+                        'oil_and_gas_lease': 'leases',
+                        'oil_gas_lease': 'leases',
                         'release_of_lease': 'release_of_lease',
                         'lease_amendment': 'lease_amendment',
                         'lease_extension': 'lease_extension',
@@ -497,13 +487,13 @@
                     };
                     docCategory = docTypeToFilterValue[categoryOrDocType.toLowerCase()] || 'other';
                     
-                    if (docCategory !== documentsCategory) return false;
+                    if (docCategory !== filterBy) return false;
                 }
                 
                 // Search filter
-                if (!documentsSearchTerm) return true;
-                
-                const searchStr = documentsSearchTerm;  // Already lowercase from input handler
+                if (!searchTerm) return true;
+
+                const searchStr = searchTerm;  // Already lowercase from input handler
                 
                 // Basic field search
                 const basicMatch = (
@@ -528,11 +518,11 @@
         }
         
         // Sort documents
-        function sortDocuments(documents) {
+        function sortDocuments(documents, sortBy) {
             const sorted = [...documents];
-            
+
             sorted.sort((a, b) => {
-                switch (documentsSortBy) {
+                switch (sortBy) {
                     case 'date-desc':
                         return new Date(b.upload_date) - new Date(a.upload_date);
                     case 'date-asc':
@@ -552,8 +542,8 @@
                     case 'permit-date':
                     case 'production-date':
                     case 'effective-date':
-                        const aDate = getExtractedDate(a, documentsSortBy);
-                        const bDate = getExtractedDate(b, documentsSortBy);
+                        const aDate = getExtractedDate(a, sortBy);
+                        const bDate = getExtractedDate(b, sortBy);
                         return compareDates(aDate, bDate);
                     
                     case 'grantor':
@@ -562,15 +552,15 @@
                     case 'lessee':
                     case 'operator':
                     case 'well-name':
-                        const aValue = getExtractedString(a, documentsSortBy);
-                        const bValue = getExtractedString(b, documentsSortBy);
+                        const aValue = getExtractedString(a, sortBy);
+                        const bValue = getExtractedString(b, sortBy);
                         return aValue.localeCompare(bValue);
                     
                     case 'oil-volume':
                     case 'gas-volume':
                     case 'interest-decimal':
-                        const aNum = getExtractedNumber(a, documentsSortBy);
-                        const bNum = getExtractedNumber(b, documentsSortBy);
+                        const aNum = getExtractedNumber(a, sortBy);
+                        const bNum = getExtractedNumber(b, sortBy);
                         return bNum - aNum; // Descending for volumes
                     
                     default:
@@ -801,43 +791,14 @@
             ).join(' ');
         }
         
+        // Confidence scoring was removed from extraction prompts to reduce AI load.
+        // This stub function remains for backward compatibility with existing call sites.
         function getConfidenceIndicator(fieldName, fieldScores) {
-            const score = fieldScores?.[fieldName];
-            if (score === null || score === undefined) return '';
-            
-            const percentage = Math.round(score * 100);
-            const symbol = score >= 0.90 ? '✓' : score >= 0.50 ? '⚠' : '✕';
-            const className = score >= 0.90 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
-            const title = score >= 0.90 ? 'High confidence' : score >= 0.50 ? 'Medium confidence - may need review' : 'Low confidence - needs review';
-            
-            // Always include both symbol and percentage, use CSS to control visibility
-            let html = `<span class="confidence-indicator ${className}" title="${title}">${symbol}`;
-            html += ` <span class="confidence-percentage" style="font-style: italic; font-size: 0.85em;">(${percentage}%)</span>`;
-            html += `</span>`;
-            
-            return html;
+            return '';
         }
         
-        // Helper function to format field names for display
-        function formatFieldName(fieldName) {
-            // Special cases
-            const nameMap = {
-                'cd_number': 'CD Number',
-                'api_number': 'API Number',
-                'nri': 'Net Revenue Interest',
-                'orri': 'Overriding Royalty Interest',
-                'poa_type': 'Power of Attorney Type',
-                'property_name': 'Well/Lease Name'
-            };
-            
-            if (nameMap[fieldName]) return nameMap[fieldName];
-            
-            // Convert snake_case to Title Case
-            return fieldName.split('_').map(word => 
-                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-            ).join(' ');
-        }
-        
+        // formatFieldName is in shared-doc-helpers.txt
+
         // Helper to group fields into logical sections
         function groupFieldsBySection(data) {
             const groups = {
@@ -936,7 +897,7 @@
                     'attorney_firm', 'attorney_address', 'attorney_phone', 'attorney_fax'],
                 'Formations': ['formations'],
                 'Important Deadlines': ['deadlines'],
-                'Default Election': ['default_election'],
+                // default_election omitted — redundant with is_default badge in election_options
                 'Subsequent Wells': ['subsequent_wells',
                     // Flat subsequent wells field names that extractor may produce
                     'subsequent_wells_provisions_election_period', 'subsequent_wells_provisions_payment_deadline',
@@ -1227,10 +1188,13 @@
 
             // Key Takeaway - render prominently at the very top, outside sections
             if (data.key_takeaway) {
-                // Clean up formatting issues - remove random # and excessive whitespace
+                // Clean up formatting issues - remove markdown headers, rules, and excessive whitespace
                 let cleanedTakeaway = String(data.key_takeaway)
                     .trim()
-                    .replace(/^#\s*/gm, '') // Remove leading # from lines
+                    .replace(/^#{1,6}\s*/gm, '') // Remove leading # headers from lines
+                    .replace(/^---+$/gm, '') // Remove horizontal rules
+                    .replace(/\*\*([^*]+)\*\*/g, '$1') // Remove paired bold markers
+                    .replace(/\*\*/g, '') // Remove orphaned ** markers
                     .replace(/^\s+/gm, '') // Remove leading spaces from each line
                     .replace(/\t/g, ' ') // Replace tabs with spaces
                     .replace(/\n{3,}/g, '\n\n'); // Collapse multiple newlines
@@ -1425,9 +1389,14 @@
             ];
             
             // Render sections in defined order
+            const docType = data.doc_type;
             for (const sectionName of sectionOrder) {
                 const fields = groupedFields[sectionName];
                 if (!fields) continue;
+
+                // Filter out fields that shouldn't be displayed based on doc type
+                const visibleFieldNames = Object.keys(fields).filter(fn => shouldDisplayField(fn, docType));
+                if (visibleFieldNames.length === 0) continue;
 
                 // Skip Legal Description section if data has 'units' array (drilling/spacing orders)
                 // because the detailed legal info is shown in the Spacing Units section
@@ -1440,6 +1409,9 @@
                     continue;
                 }
 
+                // Note: When applicant is the operator, the applicant field is skipped individually
+                // (not the whole section) so attorney_information still renders.
+
                 // Build section content first to check if it's empty
                 let sectionContent = '';
                 let hasVisibleFields = false;
@@ -1449,6 +1421,11 @@
                 const legalDescFlatFields = ['section', 'township', 'range', 'county', 'state', 'meridian', 'quarters', 'quarter', 'quarter_section', 'lot_block', 'acres', 'acreage'];
 
                 for (const [fieldName, value] of Object.entries(fields)) {
+                    // Skip fields that shouldn't be displayed for this doc type
+                    if (!shouldDisplayField(fieldName, docType)) {
+                        continue;
+                    }
+
                     // Skip flat legal description fields if we already have the object
                     if (hasLegalDescObject && legalDescFlatFields.includes(fieldName.toLowerCase())) {
                         continue;
@@ -1473,49 +1450,31 @@
                         hasVisibleFields = true;
                         continue;
                     }
-                    // Special handling for nested objects
+                    // Special handling for legal_description - use condensed format
                     if (fieldName === 'legal_description' && typeof value === 'object') {
-                        // Handle legal description object
-                        for (const [subField, subValue] of Object.entries(value)) {
-                            // Skip confidence fields within legal description
-                            const subFieldLower = subField.toLowerCase();
-                            if (subFieldLower.endsWith('_confidence') ||
-                                subFieldLower.endsWith(' confidence') ||
-                                subFieldLower.includes('confidence_')) {
-                                continue;
-                            }
-
-                            if (subValue !== null && subValue !== undefined && subValue !== '') {
-                                // Special handling for sections array in legal_description
-                                if (subField === 'sections' && Array.isArray(subValue)) {
-                                    sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
-                                    sectionContent += `<label>Locations</label>`;
-                                    sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
-                                    subValue.forEach(loc => {
-                                        if (typeof loc === 'object') {
-                                            const section = loc.section || '';
-                                            const township = loc.township || '';
-                                            const range = loc.range || '';
-                                            const locStr = section ? `Section ${section}` + (township ? ` - ${township}` : '') + (range ? `-${range}` : '') : '';
-                                            if (locStr) {
-                                                sectionContent += `
-                                                    <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 6px 10px;">
-                                                        <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(locStr)}</span>
-                                                    </div>`;
-                                            }
-                                        }
-                                    });
-                                    sectionContent += `</div></div>`;
-                                    hasVisibleFields = true;
-                                } else {
+                        const condensed = condenseLegal(value);
+                        if (condensed) {
+                            // Handle multi-section (newline separated) with styled chips
+                            const locations = condensed.split('\n').filter(s => s.trim());
+                            if (locations.length > 1) {
+                                sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
+                                sectionContent += `<label>Legal Description</label>`;
+                                sectionContent += `<div style="display: flex; flex-wrap: wrap; gap: 8px;">`;
+                                locations.forEach(loc => {
                                     sectionContent += `
-                                        <div class="doc-field">
-                                            <label>${formatFieldName(subField)}</label>
-                                            <div class="doc-value">${escapeHtml(String(subValue))}${getConfidenceIndicator(`legal_${subField}`, fieldScores)}</div>
+                                        <div style="background: #F0F9FF; border: 1px solid #3B82F6; border-radius: 6px; padding: 6px 10px;">
+                                            <span style="font-weight: 500; color: #1E40AF;">${escapeHtml(loc)}</span>
                                         </div>`;
-                                    hasVisibleFields = true;
-                                }
+                                });
+                                sectionContent += `</div></div>`;
+                            } else {
+                                sectionContent += `
+                                    <div class="doc-field">
+                                        <label>Legal Description</label>
+                                        <div class="doc-value">${escapeHtml(condensed)}</div>
+                                    </div>`;
                             }
+                            hasVisibleFields = true;
                         }
                     } else if (fieldName.toLowerCase() === 'wells' && Array.isArray(value) && value.length > 0 && typeof value[0] === 'object' && (value[0].api_number !== undefined || value[0].well_name !== undefined)) {
                         // Special handling for wells array (well transfer) - BEFORE generic array handler
@@ -2774,19 +2733,47 @@
                             const email = value.email || '';
                             const fullAddress = [address, city, state, zip].filter(Boolean).join(', ').replace(/, ,/g, ',');
 
+                            // Check if applicant is same company (merge attorney info into this card)
+                            const applicantIsOperator = data.applicant && (
+                                data.applicant.is_operator === true ||
+                                (data.applicant.name && name && data.applicant.name.trim().toLowerCase() === name.trim().toLowerCase())
+                            );
+                            const mergedApplicant = applicantIsOperator ? data.applicant : null;
+                            const attorney = mergedApplicant ? (mergedApplicant.attorney || '') : '';
+                            const attorneyOba = mergedApplicant ? (mergedApplicant.attorney_oba || '') : '';
+                            const attorneyAddress = mergedApplicant ? (mergedApplicant.attorney_address || '') : '';
+                            const attorneyPhone = mergedApplicant ? (mergedApplicant.attorney_phone || '') : '';
+
                             sectionContent += `
                                 <div class="doc-field" style="grid-column: 1 / -1;">
                                     <div style="background: #EFF6FF; border: 1px solid #3B82F6; border-radius: 8px; padding: 14px;">
-                                        ${name ? `<div style="font-weight: 600; color: #1E40AF; font-size: 15px; margin-bottom: 8px;">${escapeHtml(name)}</div>` : ''}
+                                        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 8px;">
+                                            ${name ? `<div style="font-weight: 600; color: #1E40AF; font-size: 15px;">${escapeHtml(name)}</div>` : ''}
+                                            ${mergedApplicant ? `<span style="background: #DBEAFE; color: #1E40AF; font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 4px;">Applicant & Operator</span>` : ''}
+                                        </div>
                                         ${contactName ? `<div style="font-size: 13px; color: #374151;"><strong>Contact:</strong> ${escapeHtml(contactName)}</div>` : ''}
                                         ${fullAddress ? `<div style="font-size: 13px; color: #6B7280; margin-top: 4px;">${escapeHtml(fullAddress)}</div>` : ''}
                                         ${phone || email ? `<div style="margin-top: 8px; display: flex; gap: 16px; flex-wrap: wrap;">
                                             ${phone ? `<span style="font-size: 13px; color: #059669;">📞 ${escapeHtml(phone)}</span>` : ''}
                                             ${email ? `<span style="font-size: 13px; color: #3B82F6;">✉️ ${escapeHtml(email)}</span>` : ''}
                                         </div>` : ''}
+                                        ${attorney ? `
+                                            <div style="border-top: 1px solid #BFDBFE; padding-top: 8px; margin-top: 10px;">
+                                                <div style="font-size: 13px; color: #374151;"><strong>Attorney:</strong> ${escapeHtml(attorney)}${attorneyOba ? ` (OBA #${escapeHtml(attorneyOba)})` : ''}</div>
+                                                ${attorneyAddress ? `<div style="font-size: 12px; color: #6B7280; margin-top: 2px;">${escapeHtml(attorneyAddress)}</div>` : ''}
+                                                ${attorneyPhone ? `<div style="font-size: 12px; color: #059669; margin-top: 2px;">📞 ${escapeHtml(attorneyPhone)}</div>` : ''}
+                                            </div>
+                                        ` : ''}
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'applicant' && typeof value === 'object') {
+                            // Skip applicant card when already merged into operator section
+                            const opName = data.operator && data.operator.name ? data.operator.name.trim().toLowerCase() : '';
+                            const appName = value.name ? value.name.trim().toLowerCase() : '';
+                            if (opName && appName && (opName === appName || value.is_operator === true)) {
+                                // Don't render - info already shown in Operator card
+                                continue;
+                            }
                             // Special handling for applicant object (pooling order and increased density)
                             hasVisibleFields = true;
                             const name = value.name || '';
@@ -2846,8 +2833,12 @@
                                         ${orderNumber ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Order Number</label><div style="font-weight: 600; color: #1F2937;">${escapeHtml(orderNumber)}</div></div>` : ''}
                                         ${applicant ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Applicant</label><div style="font-weight: 500; color: #374151;">${escapeHtml(applicant)}</div></div>` : ''}
                                         ${hearingDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Hearing Date</label><div style="color: #374151;">${escapeHtml(hearingDate)}</div></div>` : ''}
-                                        ${orderDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Order Date</label><div style="color: #374151;">${escapeHtml(orderDate)}</div></div>` : ''}
-                                        ${effectiveDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Effective Date</label><div style="color: #374151;">${escapeHtml(effectiveDate)}</div></div>` : ''}
+                                        ${orderDate && effectiveDate && orderDate === effectiveDate ? `
+                                            <div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Order / Effective Date</label><div style="color: #374151;">${escapeHtml(orderDate)}</div></div>
+                                        ` : `
+                                            ${orderDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Order Date</label><div style="color: #374151;">${escapeHtml(orderDate)}</div></div>` : ''}
+                                            ${effectiveDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Effective Date</label><div style="color: #374151;">${escapeHtml(effectiveDate)}</div></div>` : ''}
+                                        `}
                                         ${aljName ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">ALJ</label><div style="color: #374151;">${escapeHtml(aljName)}</div></div>` : ''}
                                         ${aljReportDate ? `<div><label style="font-size: 11px; color: #6B7280; text-transform: uppercase;">ALJ Approval Date</label><div style="color: #374151;">${escapeHtml(aljReportDate)}</div></div>` : ''}
                                     </div>
@@ -3343,19 +3334,6 @@
                                             ${bonusDays ? `<div style="background: white; border-radius: 6px; padding: 10px;"><div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Bonus Payment</div><div style="font-weight: 500; color: #374151;">${bonusDays} days</div></div>` : ''}
                                             ${commencementDays ? `<div style="background: white; border-radius: 6px; padding: 10px;"><div style="font-size: 11px; color: #6B7280; text-transform: uppercase;">Operator Must Commence</div><div style="font-weight: 500; color: #374151;">${commencementDays} days</div></div>` : ''}
                                         </div>
-                                    </div>
-                                </div>`;
-                        } else if (fieldName === 'default_election' && typeof value === 'object') {
-                            // Special handling for default election object
-                            hasVisibleFields = true;
-                            const optionNum = value.option_number;
-                            const description = value.description || '';
-
-                            sectionContent += `
-                                <div class="doc-field" style="grid-column: 1 / -1;">
-                                    <div style="background: #DCFCE7; border: 2px solid #22C55E; border-radius: 8px; padding: 14px;">
-                                        <div style="font-weight: 600; color: #166534; font-size: 14px; margin-bottom: 6px;">🎯 Default Election${optionNum ? ` (Option ${optionNum})` : ''}</div>
-                                        ${description ? `<div style="font-size: 13px; color: #374151;">${escapeHtml(description)}</div>` : ''}
                                     </div>
                                 </div>`;
                         } else if (fieldName === 'subsequent_wells' && typeof value === 'object') {
@@ -5144,25 +5122,33 @@
                                     </div>`;
                             }
                         } else if (Array.isArray(value) && value.length > 0 && typeof value[0] === 'object') {
-                            // Generic handler for arrays of objects (catch-all for respondents, etc.)
+                            // Generic handler for arrays of objects (catch-all for respondents, sections, etc.)
                             hasVisibleFields = true;
                             sectionContent += `<div class="doc-field" style="grid-column: 1 / -1;">`;
                             sectionContent += `<label>${formatFieldName(fieldName)}</label>`;
-                            sectionContent += `<div style="display: flex; flex-direction: column; gap: 6px;">`;
-                            value.forEach(item => {
-                                if (typeof item === 'object' && item !== null) {
-                                    const parts = Object.entries(item)
-                                        .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
-                                        .map(([k, v]) => `<strong>${formatFieldName(k)}:</strong> ${escapeHtml(String(v))}`);
-                                    if (parts.length > 0) {
-                                        sectionContent += `
-                                            <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
-                                                ${parts.join(' • ')}
-                                            </div>`;
+
+                            // Sections arrays → condensed S7-T12N-R8W (target) format
+                            if (isSectionsArray(value)) {
+                                const condensed = condenseSections(value);
+                                sectionContent += `<div class="doc-value" style="white-space: pre-line;">${escapeHtml(condensed)}</div>`;
+                            } else {
+                                sectionContent += `<div style="display: flex; flex-direction: column; gap: 6px;">`;
+                                value.forEach(item => {
+                                    if (typeof item === 'object' && item !== null) {
+                                        const parts = Object.entries(item)
+                                            .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
+                                            .map(([k, v]) => `<strong>${formatFieldName(k)}:</strong> ${escapeHtml(typeof v === 'string' ? formatSnakeCaseValue(v) : String(v))}`);
+                                        if (parts.length > 0) {
+                                            sectionContent += `
+                                                <div style="background: #F3F4F6; border: 1px solid #D1D5DB; border-radius: 6px; padding: 8px 12px;">
+                                                    ${parts.join(' • ')}
+                                                </div>`;
+                                        }
                                     }
-                                }
-                            });
-                            sectionContent += `</div></div>`;
+                                });
+                                sectionContent += `</div>`;
+                            }
+                            sectionContent += `</div>`;
                         } else if (fieldName === 'commissioners' && Array.isArray(value)) {
                             // Special handling for commissioners array
                             if (value.length > 0) {
@@ -5821,10 +5807,13 @@
                                 let displayValue;
 
                                 if (Array.isArray(subValue)) {
-                                    // Render arrays as bullet lists
+                                    // Render arrays
                                     if (subValue.every(item => typeof item === 'string' || typeof item === 'number')) {
                                         // Simple array of strings/numbers
                                         displayValue = subValue.join(', ');
+                                    } else if (isSectionsArray(subValue)) {
+                                        // Sections array → condensed S7-T12N-R8W (target) format
+                                        displayValue = escapeHtml(condenseSections(subValue)).replace(/\n/g, '<br>');
                                     } else {
                                         // Array of objects - render each
                                         displayValue = '<ul style="margin: 4px 0; padding-left: 20px;">';
@@ -5832,7 +5821,7 @@
                                             if (typeof item === 'object') {
                                                 const parts = Object.entries(item)
                                                     .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
-                                                    .map(([k, v]) => `${formatFieldName(k)}: ${escapeHtml(String(v))}`);
+                                                    .map(([k, v]) => `${formatFieldName(k)}: ${escapeHtml(typeof v === 'string' ? formatSnakeCaseValue(v) : String(v))}`);
                                                 displayValue += `<li>${parts.join(' • ')}</li>`;
                                             } else {
                                                 displayValue += `<li>${escapeHtml(String(item))}</li>`;
@@ -5844,10 +5833,13 @@
                                     // Render nested objects as key-value pairs
                                     const parts = Object.entries(subValue)
                                         .filter(([k, v]) => v !== null && v !== undefined && v !== '' && String(v).toLowerCase() !== 'none')
-                                        .map(([k, v]) => `<strong>${formatFieldName(k)}:</strong> ${escapeHtml(String(v))}`);
+                                        .map(([k, v]) => `<strong>${formatFieldName(k)}:</strong> ${escapeHtml(typeof v === 'string' ? formatSnakeCaseValue(v) : String(v))}`);
                                     displayValue = parts.join(' • ');
                                 } else {
-                                    displayValue = escapeHtml(String(subValue));
+                                    // Clean any markdown artifacts and convert snake_case identifiers
+                                    let cleaned = cleanFieldValue(String(subValue));
+                                    cleaned = formatSnakeCaseValue(cleaned);
+                                    displayValue = escapeHtml(cleaned);
                                 }
 
                                 sectionContent += `
@@ -5860,16 +5852,18 @@
                     } else {
                         // Regular field
                         hasVisibleFields = true;
-                        
+
                         // Skip key_takeaway, ai_observations, and detailed_analysis - rendered at the top
                         if (fieldName === 'key_takeaway' || fieldName === 'ai_observations' || fieldName === 'detailed_analysis') {
                             // Already rendered at top of content
                             hasVisibleFields = false; // Don't count these as visible in sections
                         } else {
+                            // Clean any markdown artifacts from field values
+                            const cleanedValue = cleanFieldValue(String(value));
                             sectionContent += `
                                 <div class="doc-field">
                                     <label>${formatFieldName(fieldName)}</label>
-                                    <div class="doc-value">${escapeHtml(String(value))}${getConfidenceIndicator(fieldName, fieldScores)}</div>
+                                    <div class="doc-value">${escapeHtml(cleanedValue)}${getConfidenceIndicator(fieldName, fieldScores)}</div>
                                 </div>`;
                         }
                     }
@@ -5881,10 +5875,23 @@
                     const isObservations = sectionName === 'Observations' || sectionName === 'Observations';
                     const isExpanded = isObservations;
                     const sectionId = sectionName.toLowerCase().replace(/[^a-z0-9]/g, '-');
-                    
+
+                    // Rename sections when applicant is merged into operator
+                    let displayName = sectionName;
+                    if (data.applicant && data.operator) {
+                        const namesMatch = data.applicant.name && data.operator.name &&
+                            data.applicant.name.trim().toLowerCase() === data.operator.name.trim().toLowerCase();
+                        const isMerged = data.applicant.is_operator === true || namesMatch;
+                        if (isMerged && sectionName === 'Operator Information') {
+                            displayName = 'Operator / Applicant';
+                        } else if (isMerged && sectionName === 'Applicant Information') {
+                            displayName = 'Legal Representation';
+                        }
+                    }
+
                     content += `<div class="detail-section">`;
                     content += `<h4 class="detail-section-title collapsible ${isExpanded ? 'expanded' : ''}" onclick="toggleSection('${sectionId}')" data-section="${sectionId}">`;
-                    content += `<span class="section-chevron">&#9654;</span> ${sectionName}`;
+                    content += `<span class="section-chevron">&#9654;</span> ${displayName}`;
                     content += `</h4>`;
                     content += `<div class="doc-detail-grid" id="${sectionId}" style="display: ${isExpanded ? 'grid' : 'none'};">`;
                     content += sectionContent;
@@ -5924,24 +5931,10 @@
             }
         }
         
+        // Confidence scoring was removed from extraction prompts to reduce AI load.
+        // This stub function remains for backward compatibility with existing call sites.
         function calculateOverallScore(fieldScores) {
-            if (!fieldScores || Object.keys(fieldScores).length === 0) return null;
-            
-            // Only include fields that actually exist in the document
-            // (score > 0 means the field was found and extracted)
-            const scores = [];
-            
-            for (const [field, score] of Object.entries(fieldScores)) {
-                if (typeof score === 'number' && score > 0) {
-                    scores.push(score);
-                }
-            }
-            
-            if (scores.length === 0) return null;
-
-            // Calculate average of only the fields that exist
-            const avg = scores.reduce((sum, score) => sum + score, 0) / scores.length;
-            return avg;
+            return null;
         }
 
         // Helper function to render linked items sections in document modal
@@ -6067,30 +6060,7 @@
             document.getElementById('documentModalTitle').textContent = formatDocType(doc.category || doc.doc_type) || 'Document Details';
             
             // Update subtitle with filename and status
-            let subtitleText = doc.display_name || doc.filename;
-            if (doc.status === 'complete') {
-                // Parse extracted_data if it's a JSON string
-                let parsedData = doc.extracted_data;
-                if (typeof doc.extracted_data === 'string') {
-                    try {
-                        parsedData = JSON.parse(doc.extracted_data);
-                    } catch (e) {
-                        parsedData = {};
-                    }
-                }
-                // Calculate confidence from field_scores if available, otherwise use stored value
-                const fieldScores = parsedData?.field_scores || doc.field_scores;
-                let confidenceText = doc.confidence; // fallback to stored value
-                if (fieldScores && Object.keys(fieldScores).length > 0) {
-                    const overallScore = calculateOverallScore(fieldScores);
-                    if (overallScore !== null) {
-                        confidenceText = overallScore >= 0.90 ? 'high' : overallScore >= 0.50 ? 'medium' : 'low';
-                    }
-                }
-                if (confidenceText) {
-                    subtitleText += ` • ${confidenceText} confidence`;
-                }
-            }
+            const subtitleText = doc.display_name || doc.filename;
             document.getElementById('documentModalSubtitle').textContent = subtitleText;
             
             // Format the content based on what data is available
@@ -6258,7 +6228,7 @@
 
                         // Key Takeaway if available (always visible, prominent at top)
                         if (data.key_takeaway) {
-                            const cleanedTakeaway = data.key_takeaway.trim().replace(/^#\s*/gm, '').replace(/^\s+/gm, '').replace(/\t/g, ' ').replace(/\n{3,}/g, '\n\n');
+                            const cleanedTakeaway = data.key_takeaway.trim().replace(/^#{1,6}\s*/gm, '').replace(/^---+$/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').replace(/^\s+/gm, '').replace(/\t/g, ' ').replace(/\n{3,}/g, '\n\n');
                             content += `<div style="margin-bottom: 16px;">
                                 <details class="key-takeaway-block" open>
                                     <summary class="key-takeaway-trigger">
@@ -6345,96 +6315,6 @@
                     // Add linked items sections (Properties and Wells as separate collapsibles)
                     content += renderDocumentLinkedSections(doc);
 
-                    // Confidence Section with collapsible details
-                    if (fieldScores && Object.keys(fieldScores).length > 0) {
-                        const overallScore = calculateOverallScore(fieldScores);
-                        // Derive confidence level from calculated score for consistency with displayed percentage
-                        const confidenceLevel = overallScore >= 0.90 ? 'high' : overallScore >= 0.50 ? 'medium' : 'low';
-                        const confidenceText = confidenceLevel.charAt(0).toUpperCase() + confidenceLevel.slice(1);
-                        
-                        content += '<div class="confidence-section">';
-                        content += '<div class="confidence-header">';
-                        content += '<span class="confidence-label">Confidence</span>';
-                        content += `<span class="confidence-badge confidence-${confidenceLevel}">`;
-                        content += `● ${confidenceText}`;
-                        if (overallScore) {
-                            content += ` (${Math.round(overallScore * 100)}%)`;
-                        }
-                        content += '</span>';
-                        content += '<button class="confidence-toggle" onclick="toggleConfidenceDetails(this)">Show Details ▶</button>';
-                        content += '</div>';
-                        
-                        // Collapsible details section
-                        content += '<div class="confidence-details" style="display: none;">';
-                        content += '<div class="confidence-details-grid">';
-                        
-                        // Field mapping for display
-                        const fieldMapping = {
-                            'grantor_name': 'Grantor Name',
-                            'grantor_address': 'Grantor Address',
-                            'grantee_name': 'Grantee Name',
-                            'grantee_address': 'Grantee Address',
-                            'interest_conveyed': 'Interest Conveyed',
-                            'legal_section': 'Section',
-                            'legal_township': 'Township',
-                            'legal_range': 'Range',
-                            'legal_county': 'County',
-                            'legal_quarter': 'Quarter/Description',
-                            'legal_acres': 'Total Acres',
-                            'execution_date': 'Execution Date',
-                            'recording_book': 'Recording Book',
-                            'recording_page': 'Recording Page',
-                            'recording_date': 'Recording Date',
-                            'consideration': 'Consideration',
-                            // Division Order fields
-                            'well_name': 'Well Name',
-                            'api_number': 'API Number',
-                            'owner_number': 'Owner Number',
-                            'decimal_interest': 'Decimal Interest',
-                            'interest_type': 'Interest Type',
-                            'operator': 'Operator',
-                            'effective_date': 'Effective Date',
-                            'product_type': 'Product Type',
-                            // Pooling Order fields
-                            'cd_number': 'CD Number',
-                            'order_number': 'Order Number',
-                            'applicant': 'Applicant',
-                            'well_cost': 'Well Cost',
-                            'unit_size_acres': 'Unit Size',
-                            'formations': 'Formations',
-                            'election_deadline_days': 'Election Deadline',
-                            'election_options': 'Election Options',
-                            'order_date': 'Order Date',
-                            'election_mailing_address': 'Election Address'
-                        };
-                        
-                        // Sort fields by score (lowest first) for easier review
-                        const sortedFields = Object.entries(fieldScores)
-                            .filter(([field, score]) => score !== null && score !== undefined)
-                            .sort((a, b) => a[1] - b[1]);
-                        
-                        sortedFields.forEach(([field, score]) => {
-                            const displayName = fieldMapping[field] || field;
-                            const percentage = Math.round(score * 100);
-                            const indicator = score >= 0.90 ? '✓' : score >= 0.50 ? '⚠' : '✕';
-                            const indicatorClass = score >= 0.90 ? 'confidence-high' : score >= 0.50 ? 'confidence-medium' : 'confidence-low';
-                            
-                            content += `
-                                <div class="confidence-detail-item">
-                                    <span class="field-name">${displayName}</span>
-                                    <span class="field-score">
-                                        <span class="${indicatorClass}">${indicator}</span>
-                                        ${percentage}%
-                                    </span>
-                                </div>
-                            `;
-                        });
-                        
-                        content += '</div>';
-                        content += '</div>';
-                        content += '</div>';
-                    }
-                    
                     // Render all extracted fields dynamically (includes Observations at top)
                     content += renderExtractedData(data, fieldScores);
                     
@@ -7063,7 +6943,7 @@
             const printBtn = document.getElementById('printDocBtn');
             if (printBtn) {
                 const isParentDocument = doc.children && doc.children.length > 0;
-                const hasExtractedData = doc.extracted_data && doc.status === 'complete';
+                const hasExtractedData = doc.extracted_data && (doc.status === 'complete' || doc.status === 'processed');
                 printBtn.style.display = (hasExtractedData && !isParentDocument) ? 'flex' : 'none';
             }
             } catch (error) {
@@ -7835,20 +7715,12 @@
             const container = document.getElementById('documentsContent');
             
             const hasSearch = currentUser?.plan !== 'Free';
-            
-            // Apply filter and sort
+
+            // Apply filter and sort via controller pipeline
             let displayDocuments = documents;
             if (hasSearch && documents && documents.length > 0) {
-                displayDocuments = filterDocuments(documents);
-                displayDocuments = sortDocuments(displayDocuments);
-                
-                // Update results count
-                const countEl = document.getElementById('documentsResultsCount');
-                if (documentsSearchTerm || documentsCategory !== 'all') {
-                    countEl.textContent = `${displayDocuments.length} of ${documents.length} documents`;
-                } else {
-                    countEl.textContent = `${documents.length} documents`;
-                }
+                displayDocuments = documentsController.applyPipeline(documents);
+                documentsController.updateCount(displayDocuments.length, documents.length, 'documentsResultsCount');
             }
             
             // Handle empty states

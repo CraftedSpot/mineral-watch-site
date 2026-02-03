@@ -11,9 +11,9 @@
         const analyzedFilingsCache = {};
         const analyzedCompletionsCache = {};
 
-        async function processOccFiling(caseNumber, orderNumber, buttonEl) {
+        async function processOccFiling(caseNumber, orderNumber, buttonEl, force = false) {
             const stateKey = orderNumber || caseNumber;
-            console.log(`[OCC Process] Processing ${caseNumber} (order: ${orderNumber})`);
+            console.log(`[OCC Process] Processing ${caseNumber} (order: ${orderNumber})${force ? ' (force re-analyze)' : ''}`);
 
             // Helper to get current button from state (after DOM updates)
             const getCurrentButton = () => occProcessingStates[stateKey]?.buttonEl || buttonEl;
@@ -27,7 +27,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ caseNumber, orderNumber })
+                    body: JSON.stringify({ caseNumber, orderNumber, force })
                 });
 
                 const result = await response.json();
@@ -226,8 +226,8 @@
                             <button class="occ-reanalyze-btn"
                                     data-case-number="${escapeHtml(caseNumber)}"
                                     data-order-number="${escapeHtml(orderNumber)}"
-                                    onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
-                                    title="Re-process this document">Re-analyze</button>
+                                    onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this, true)"
+                                    title="Re-process this document (uses 1 credit)">Re-analyze</button>
                             <button class="occ-view-doc-btn"
                                     onclick="openDocumentDetail('${documentId}')"
                                     title="View analyzed document">View Doc ↗</button>
@@ -547,9 +547,7 @@
             }
 
             // Show Analyze button for filings with final orders (HEARD/RECOMMENDED)
-            // Show "Pending" text for Filed/Continued/Scheduled status
             const hasFinalOrder = filing.status === 'HEARD' || filing.status === 'RECOMMENDED';
-            const isPending = filing.status === 'FILED' || filing.status === 'CONTINUED' || filing.status === 'SCHEDULED';
             const orderNumber = filing.orderNumber || '';
             const caseNumber = filing.caseNumber || '';
 
@@ -570,8 +568,8 @@
                             class="occ-reanalyze-btn"
                             data-case-number="${escapeHtml(caseNumber)}"
                             data-order-number="${escapeHtml(orderNumber)}"
-                            onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
-                            title="Re-process this document"
+                            onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this, true)"
+                            title="Re-process this document (uses 1 credit)"
                         >Re-analyze</button>
                         <button class="occ-view-doc-btn" onclick="openDocumentDetail('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>
                     </div>
@@ -587,12 +585,6 @@
                             onclick="processOccFiling('${escapeHtml(caseNumber)}', '${escapeHtml(orderNumber)}', this)"
                             title="Uses 1 document credit"
                         >Analyze</button>
-                    </div>
-                `;
-            } else if (isPending) {
-                processButton = `
-                    <div class="occ-filing-actions">
-                        <span class="occ-pending-text" title="Final order not yet available">Pending</span>
                     </div>
                 `;
             }
@@ -611,12 +603,11 @@
                             <span class="occ-filing-status ${statusClass}">${escapeHtml(filing.statusDisplay)}</span>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center;">
-                        ${processButton}
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                         <div class="occ-filing-date">
                             ${dateDisplay}
-                            ${filing.sourceUrl ? `<a href="${escapeHtml(filing.sourceUrl)}" target="_blank" class="occ-filing-link" title="View on OCC">↗</a>` : ''}
                         </div>
+                        ${processButton}
                     </div>
                 </div>
             `;
@@ -700,51 +691,14 @@
                             ${report.pun ? `<span class="completion-report-pun">PUN: ${escapeHtml(report.pun)}</span>` : ''}
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 8px;">
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <div class="completion-report-date">${dateDisplay}</div>
                         <div class="occ-filing-actions">
                             ${actionButton}
                         </div>
-                        <div class="completion-report-date">${dateDisplay}</div>
                     </div>
                 </div>
             `;
-        }
-
-        // Format completion report date (e.g., "8/10/2011" -> "Aug 2011")
-        function formatCompletionDate(dateStr) {
-            if (!dateStr) return '';
-            try {
-                // Handle various date formats
-                const parts = dateStr.split('/');
-                if (parts.length >= 2) {
-                    const month = parseInt(parts[0]);
-                    const year = parts.length === 3 ? parts[2] : parts[1];
-                    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? '19' + year : '20' + year) : year;
-                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                    return `${monthNames[month - 1]} ${fullYear}`;
-                }
-                return dateStr;
-            } catch {
-                return dateStr;
-            }
-        }
-
-        // Parse completion date for sorting (returns timestamp, newest dates = higher numbers)
-        function parseCompletionDate(dateStr) {
-            if (!dateStr) return 0;
-            try {
-                const parts = dateStr.split('/');
-                if (parts.length >= 2) {
-                    const month = parseInt(parts[0]) - 1; // 0-indexed for Date
-                    const day = parts.length === 3 ? parseInt(parts[1]) : 1;
-                    const year = parts.length === 3 ? parts[2] : parts[1];
-                    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? 1900 + parseInt(year) : 2000 + parseInt(year)) : parseInt(year);
-                    return new Date(fullYear, month, day).getTime();
-                }
-                return 0;
-            } catch {
-                return 0;
-            }
         }
 
         // State tracking for completion report processing (mirrors OCC filing pattern)
@@ -974,37 +928,5 @@
             }
         }
 
-        function getOccStatusClass(status) {
-            const statusMap = {
-                'HEARD': 'heard',
-                'RECOMMENDED': 'heard',
-                'CONTINUED': 'continued',
-                'SCHEDULED': 'scheduled',
-                'DISMISSED': 'dismissed',
-                'WITHDRAWN': 'dismissed'
-            };
-            return statusMap[status] || 'filed';
-        }
-
-        function formatOccDate(dateStr) {
-            if (!dateStr) return '';
-            try {
-                const date = new Date(dateStr);
-                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-            } catch (e) {
-                return dateStr;
-            }
-        }
-
-        function isOccHearingUpcoming(dateStr, status) {
-            if (status !== 'SCHEDULED') return false;
-            if (!dateStr) return false;
-            try {
-                const hearingDate = new Date(dateStr);
-                const today = new Date();
-                const daysUntil = (hearingDate - today) / (1000 * 60 * 60 * 24);
-                return daysUntil > 0 && daysUntil <= 30;
-            } catch (e) {
-                return false;
-            }
-        }
+        // OCC helpers (getOccStatusClass, formatOccDate, isOccHearingUpcoming,
+        // formatCompletionDate, parseCompletionDate) are in shared-occ-helpers.txt

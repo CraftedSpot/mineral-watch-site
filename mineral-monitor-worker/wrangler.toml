@@ -25,13 +25,13 @@ DRY_RUN = "false"
 cpu_ms = 300000  # 5 minutes CPU time for completion processing
 
 # Cron Triggers (UTC)
+# Daily digest: Every day at 7 AM CT (13:00 UTC) - sends yesterday's queued alerts
 # Daily monitor: Every day at 8 AM CT (14:00 UTC) - permits, completions, status changes
 # Weekly monitor: Sunday at 8 AM CT (14:00 UTC) - operator transfers, bulk status check
 # Docket monitor: Mon-Fri at 12 PM CT (18:00 UTC) - court filings (moved later so OCC has time to post)
-# Daily digest: Tue-Sat 00:00 UTC = Mon-Fri 6 PM CT - digest emails
-# Weekly digest: Mon 00:00 UTC = Sunday 6 PM CT - weekly digest emails
+# Weekly report: Mon 00:00 UTC = Sunday 6 PM CT - weekly regional report emails
 [triggers]
-crons = ["0 14 * * *", "0 14 * * 7", "0 18 * * 1-5", "0 0 * * 2-6", "0 0 * * 1"]
+crons = ["0 13 * * *", "0 14 * * *", "0 14 * * 7", "0 18 * * 1-5", "0 0 * * 1"]
 
 # KV Namespace for health tracking and caching
 [[kv_namespaces]]

@@ -1,0 +1,375 @@
+        // Event listeners
+        document.getElementById('toggle-land-grid').addEventListener('change', toggleLandGrid);
+        document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
+        document.getElementById('toggle-section-numbers').addEventListener('change', toggleSectionNumbers);
+        document.getElementById('toggle-wells').addEventListener('change', toggleWells);
+        document.getElementById('nearby-wells-select').addEventListener('change', toggleNearbyWells);
+
+        // Nearby Filings button dropdown
+        const filingsBtn = document.getElementById('filingsBtn');
+        const filingsMenu = document.getElementById('filingsMenu');
+        let filingsMenuOpen = false;
+
+        filingsBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            filingsMenuOpen = !filingsMenuOpen;
+            filingsMenu.classList.toggle('show', filingsMenuOpen);
+        });
+
+        // Close filings menu when clicking outside
+        document.addEventListener('click', function(event) {
+            if (filingsMenuOpen && !filingsMenu.contains(event.target) && event.target !== filingsBtn) {
+                filingsMenuOpen = false;
+                filingsMenu.classList.remove('show');
+            }
+        });
+
+        // Update filings button state
+        function updateFilingsButton() {
+            const showPermits = document.getElementById('toggle-permits').checked;
+            const showCompletions = document.getElementById('toggle-completions').checked;
+
+            if (showPermits || showCompletions) {
+                filingsBtn.classList.add('active');
+                filingsBtn.classList.remove('inactive');
+            } else {
+                filingsBtn.classList.remove('active');
+                filingsBtn.classList.add('inactive');
+            }
+        }
+
+        // Filings checkbox handlers
+        document.getElementById('toggle-permits').addEventListener('change', function() {
+            togglePermits();
+            updateFilingsButton();
+        });
+        document.getElementById('toggle-completions').addEventListener('change', function() {
+            toggleCompletions();
+            updateFilingsButton();
+        });
+
+        // Heatmap button dropdown (similar to Overlays)
+        const heatmapBtn = document.getElementById('heatmapBtn');
+        const heatmapMenu = document.getElementById('heatmapMenu');
+        let heatmapMenuOpen = false;
+
+        heatmapBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            heatmapMenuOpen = !heatmapMenuOpen;
+            heatmapMenu.classList.toggle('show', heatmapMenuOpen);
+        });
+
+        // Close heatmap menu when clicking outside
+        document.addEventListener('click', function(event) {
+            if (heatmapMenuOpen && !heatmapMenu.contains(event.target) && event.target !== heatmapBtn) {
+                heatmapMenuOpen = false;
+                heatmapMenu.classList.remove('show');
+            }
+        });
+
+        // Heatmap checkbox handlers
+        document.getElementById('toggle-heatmap-permits').addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-completions').addEventListener('change', updateHeatmapLayers);
+        // OCC Application heatmap checkbox handlers
+        document.getElementById('toggle-heatmap-pooling')?.addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-density')?.addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-spacing')?.addEventListener('change', updateHeatmapLayers);
+        document.getElementById('toggle-heatmap-horizontal')?.addEventListener('change', updateHeatmapLayers);
+
+        // Production choropleth dropdown
+        document.getElementById('production-select').addEventListener('change', toggleProductionChoropleth);
+
+        // Initialize on page load
+        document.addEventListener('DOMContentLoaded', async function() {
+            // Check authentication first
+            await checkAuth();
+
+            try {
+                // Only show loading screen if boundaries aren't cached
+                const hasCache = hasCachedBoundaries();
+                if (!hasCache) {
+                    showLoading('Loading map data...', 'First-time setup - this only happens once');
+                }
+
+                // Load boundary data
+                await Promise.all([
+                    loadCountyData(),
+                    loadTownshipData()
+                ]);
+
+                // Hide loading if we showed it
+                if (!hasCache) {
+                    hideLoading();
+                }
+
+                // Add layers that are checked by default (land grid combines counties + townships)
+                if (document.getElementById('toggle-land-grid').checked) {
+                    if (countyLayer) map.addLayer(countyLayer);
+                    if (townshipLayer) map.addLayer(townshipLayer);
+                }
+
+                // Add county labels if checked by default
+                if (document.getElementById('toggle-county-labels').checked) {
+                    createCountyLabels();
+                    if (countyLabelsLayer.getLayers().length > 0) {
+                        map.addLayer(countyLabelsLayer);
+                    }
+                }
+
+                // Note: Properties and wells layers are added automatically when loaded
+                // Section numbers will be added when sections are loaded (zoom 12+)
+
+                // Load properties after map is ready
+                setTimeout(async () => {
+                    try {
+                        // Load all data in parallel for better performance
+                        const [propertiesResult, wellsResult, activityResult] = await Promise.allSettled([
+                            loadUserProperties(),
+                            loadTrackedWells(),
+                            loadActivityData()
+                        ]);
+
+                        // Log any failures but don't stop the map from working
+                        if (propertiesResult.status === 'rejected') {
+                            console.error('Failed to load properties:', propertiesResult.reason);
+                        }
+                        if (wellsResult.status === 'rejected') {
+                            console.error('Failed to load wells:', wellsResult.reason);
+                        }
+                        if (activityResult.status === 'rejected') {
+                            console.error('Failed to load activity data:', activityResult.reason);
+                        }
+
+                        // Check if we need to center on a specific property from URL
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const propertyId = urlParams.get('property');
+                        const wellId = urlParams.get('well');
+
+                        if (propertyId && propertiesResult.status === 'fulfilled') {
+                            // Find the property in loaded data
+                            const property = userProperties.find(p => p.id === propertyId);
+                            if (property && propertyMarkers[propertyId]) {
+                                const marker = propertyMarkers[propertyId];
+                                const bounds = marker.getBounds();
+                                map.fitBounds(bounds, { maxZoom: 15, padding: [50, 50] });
+
+                                // Open the popup after a short delay to ensure the map has centered
+                                setTimeout(() => {
+                                    marker.openPopup();
+                                }, 500);
+                            }
+                        }
+
+                        // Check if we need to center on a specific well from URL
+                        else if (wellId && wellsResult.status === 'fulfilled') {
+                            // Wells should be loaded now, but use a short retry in case of timing issues
+                            let retryCount = 0;
+                            const maxRetries = 10; // Reduced since wells should already be loaded
+
+                            const tryZoomToWell = () => {
+                                // Find the well in loaded data
+                                const well = trackedWells.find(w => w.id === wellId);
+                                if (well && wellMarkers[wellId] && wellsLayer) {
+                                    const marker = wellMarkers[wellId];
+
+                                    // Use MarkerClusterGroup's zoomToShowLayer method
+                                    wellsLayer.zoomToShowLayer(marker, () => {
+                                        // This callback fires after the zoom/spiderfy animation
+                                        setTimeout(() => {
+                                            marker.openPopup();
+                                        }, 100);
+                                    });
+                                } else if (retryCount < maxRetries) {
+                                    // Retry in case of timing issues
+                                    retryCount++;
+                                    setTimeout(tryZoomToWell, 100);
+                                } else {
+                                    console.warn(`Could not zoom to well ${wellId} after ${maxRetries} retries`);
+                                }
+                            };
+
+                            // Start trying immediately since wells should be loaded
+                            tryZoomToWell();
+                        }
+
+                    } catch (error) {
+                        console.error('Error loading properties:', error);
+                    }
+                }, 1000);
+
+            } catch (error) {
+                console.error('Error initializing map:', error);
+                hideLoading();
+                updateStatus('Map loaded with limited data');
+            }
+        });
+
+        // Search functionality
+        let searchTimeout;
+        let allSearchableItems = [];
+
+        // Build searchable index when data is loaded
+        function updateSearchIndex() {
+            allSearchableItems = [];
+
+            // Add properties
+            if (userProperties) {
+                userProperties.forEach(prop => {
+                    allSearchableItems.push({
+                        type: 'property',
+                        name: `S${prop.fields.SEC} T${prop.fields.TWN} R${prop.fields.RNG}`,
+                        details: `${prop.fields.COUNTY || ''} County${prop.fields.Notes ? ' • ' + prop.fields.Notes : ''}`,
+                        data: prop,
+                        searchText: `${prop.fields.SEC} ${prop.fields.TWN} ${prop.fields.RNG} ${prop.fields.COUNTY || ''} ${prop.fields.Notes || ''}`.toLowerCase()
+                    });
+                });
+            }
+
+            // Add tracked wells
+            if (trackedWells) {
+                trackedWells.forEach(well => {
+                    const fields = well.fields;
+                    allSearchableItems.push({
+                        type: 'well',
+                        name: fields['Well Name'] || `API ${fields['API Number']}`,
+                        details: `${fields.Operator || 'Unknown'} • ${fields['Well Status'] || 'Unknown'}`,
+                        data: well,
+                        searchText: `${fields['Well Name'] || ''} ${fields['API Number'] || ''} ${fields.Operator || ''} ${fields.Formation || ''}`.toLowerCase()
+                    });
+                });
+            }
+
+            // Add nearby wells when layer is active
+            if (allNearbyWells && allNearbyWells.length > 0 && nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
+                allNearbyWells.forEach(well => {
+                    if (!well.latitude || !well.longitude) return;
+                    const wellName = well.well_name ? (well.well_number ? `${well.well_name} ${well.well_number}` : well.well_name) : '';
+                    allSearchableItems.push({
+                        type: 'nearby',
+                        name: wellName || `API ${well.api_number || 'Unknown'}`,
+                        details: `${well.operator || 'Unknown'} • S${well.section || '?'} T${well.township || '?'} R${well.range || '?'}`,
+                        data: { id: well.api_number, lat: well.latitude, lng: well.longitude },
+                        searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''}`.toLowerCase()
+                    });
+                });
+            }
+
+            console.log(`Search index updated with ${allSearchableItems.length} items`);
+        }
+
+        // Perform search
+        function performSearch(query) {
+            if (!query || query.length < 2) {
+                document.getElementById('searchResults').innerHTML = '';
+                document.getElementById('searchResults').classList.remove('active');
+                return;
+            }
+
+            const searchTerm = query.toLowerCase();
+            const results = allSearchableItems.filter(item =>
+                item.searchText.includes(searchTerm)
+            ).slice(0, 10); // Limit to 10 results
+
+            displaySearchResults(results);
+        }
+
+        // Display search results
+        function displaySearchResults(results) {
+            const container = document.getElementById('searchResults');
+
+            if (results.length === 0) {
+                container.innerHTML = '<div class="search-no-results">No results found</div>';
+            } else {
+                const typeLabels = { property: 'Property', well: 'Tracked', nearby: 'Nearby' };
+                container.innerHTML = results.map(item => `
+                    <div class="search-result-item" data-type="${item.type}" data-id="${item.data.id}" ${item.data.lat ? `data-lat="${item.data.lat}" data-lng="${item.data.lng}"` : ''}>
+                        <div class="search-result-type type-${item.type}">${typeLabels[item.type] || item.type}</div>
+                        <div class="search-result-name">${item.name}</div>
+                        <div class="search-result-details">${item.details}</div>
+                    </div>
+                `).join('');
+            }
+
+            container.classList.add('active');
+        }
+
+        // Handle search input
+        document.getElementById('mapSearch').addEventListener('input', (e) => {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(e.target.value);
+            }, 300);
+        });
+
+        // Handle clicking on search results
+        document.getElementById('searchResults').addEventListener('click', (e) => {
+            const resultItem = e.target.closest('.search-result-item');
+            if (!resultItem) return;
+
+            const type = resultItem.dataset.type;
+            const id = resultItem.dataset.id;
+
+            // Clear search
+            document.getElementById('mapSearch').value = '';
+            document.getElementById('searchResults').classList.remove('active');
+
+            // Find and zoom to the item
+            if (type === 'property') {
+                const property = userProperties.find(p => p.id === id);
+                if (property && propertyMarkers[id]) {
+                    const marker = propertyMarkers[id];
+                    // For properties we have polygons, get the bounds center
+                    const bounds = marker.getBounds();
+                    map.fitBounds(bounds, { maxZoom: 14 });
+                    marker.openPopup();
+                }
+            } else if (type === 'well') {
+                const well = trackedWells.find(w => w.id === id);
+                if (well && wellMarkers[id]) {
+                    const marker = wellMarkers[id];
+                    map.setView(marker.getLatLng(), 14);
+                    marker.openPopup();
+                }
+            } else if (type === 'nearby') {
+                const lat = parseFloat(resultItem.dataset.lat);
+                const lng = parseFloat(resultItem.dataset.lng);
+                if (lat && lng) {
+                    map.setView([lat, lng], 14);
+                    // Find and open the nearby well's popup
+                    if (nearbyWellsLayer) {
+                        nearbyWellsLayer.eachLayer(layer => {
+                            const pos = layer.getLatLng();
+                            if (Math.abs(pos.lat - lat) < 0.0001 && Math.abs(pos.lng - lng) < 0.0001) {
+                                setTimeout(() => layer.openPopup(), 300);
+                            }
+                        });
+                    }
+                }
+            }
+        });
+
+        // Close search results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.map-search-container')) {
+                document.getElementById('searchResults').classList.remove('active');
+            }
+        });
+
+        // Update search index when properties are loaded
+        const originalLoadUserProperties = loadUserProperties;
+        loadUserProperties = async function() {
+            await originalLoadUserProperties();
+            updateSearchIndex();
+        };
+
+        // Update search index when wells are loaded
+        const originalLoadTrackedWells = loadTrackedWells;
+        loadTrackedWells = async function() {
+            await originalLoadTrackedWells();
+            updateSearchIndex();
+        };
+
+        // Add logout button event listener
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+
+        console.log('🗺️ Oklahoma Land Survey Map initialized');

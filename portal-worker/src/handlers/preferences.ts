@@ -60,7 +60,9 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
     }
     if (typeof body.notificationOverride === 'string') {
       // Validate notification mode
-      const validModes = ['Use Org Default', 'Instant', 'Daily Digest', 'Weekly Digest', 'Instant + Weekly', 'None'];
+      const validModes = ['Use Org Default', 'Daily + Weekly', 'Daily Digest', 'Weekly Report', 'None',
+        // Legacy modes (accepted for backward compatibility, normalized on read)
+        'Instant + Weekly', 'Instant', 'Weekly Digest'];
       if (validModes.includes(body.notificationOverride)) {
         fields['Notification Override'] = body.notificationOverride;
       }
@@ -91,6 +93,19 @@ export async function handleUpdatePreferences(request: Request, env: Env) {
 
     const updatedUser = await updateResponse.json();
     console.log(`[Preferences] Successfully updated preferences for user ${user.id}`);
+
+    // Dual-write notification override to D1 for digest processing
+    if (fields['Notification Override'] && env.WELLS_DB) {
+      try {
+        await env.WELLS_DB.prepare(
+          `UPDATE users SET notification_override = ? WHERE airtable_record_id = ?`
+        ).bind(fields['Notification Override'] as string, user.id).run();
+        console.log(`[Preferences] D1 notification_override synced for ${user.id}`);
+      } catch (d1Err) {
+        // Non-fatal: Airtable is source of truth, D1 is best-effort
+        console.warn(`[Preferences] D1 sync failed (non-fatal): ${(d1Err as Error).message}`);
+      }
+    }
 
     return jsonResponse({
       success: true,

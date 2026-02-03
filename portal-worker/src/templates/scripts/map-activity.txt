@@ -1,0 +1,1065 @@
+        // Toggle functions
+        function toggleLandGrid() {
+            const checkbox = document.getElementById('toggle-land-grid');
+            if (checkbox.checked) {
+                if (countyLayer && !map.hasLayer(countyLayer)) map.addLayer(countyLayer);
+                if (townshipLayer && !map.hasLayer(townshipLayer)) map.addLayer(townshipLayer);
+            } else {
+                if (countyLayer && map.hasLayer(countyLayer)) map.removeLayer(countyLayer);
+                if (townshipLayer && map.hasLayer(townshipLayer)) map.removeLayer(townshipLayer);
+            }
+            ensureLayerOrder();
+        }
+
+        function toggleProperties() {
+            const checkbox = document.getElementById('toggle-properties');
+            if (checkbox.checked && propertiesLayer) {
+                if (!map.hasLayer(propertiesLayer)) {
+                    map.addLayer(propertiesLayer);
+                    // Ensure properties stay on top for clicking
+                    propertiesLayer.bringToFront();
+                }
+            } else if (propertiesLayer) {
+                if (map.hasLayer(propertiesLayer)) map.removeLayer(propertiesLayer);
+            }
+            ensureLayerOrder();
+        }
+
+        function toggleWells() {
+            const checkbox = document.getElementById('toggle-wells');
+            // Legend elements removed - will be added back later
+
+            if (checkbox.checked && wellsLayer) {
+                if (!map.hasLayer(wellsLayer)) map.addLayer(wellsLayer);
+            } else if (wellsLayer) {
+                if (map.hasLayer(wellsLayer)) map.removeLayer(wellsLayer);
+            }
+            ensureLayerOrder();
+        }
+
+        function togglePermits() {
+            const checkbox = document.getElementById('toggle-permits');
+            if (checkbox.checked && permitsLayer) {
+                if (!map.hasLayer(permitsLayer)) map.addLayer(permitsLayer);
+            } else if (permitsLayer) {
+                if (map.hasLayer(permitsLayer)) map.removeLayer(permitsLayer);
+            }
+            ensureLayerOrder();
+        }
+
+        function toggleCompletions() {
+            const checkbox = document.getElementById('toggle-completions');
+            if (checkbox.checked && completionsLayer) {
+                if (!map.hasLayer(completionsLayer)) map.addLayer(completionsLayer);
+            } else if (completionsLayer) {
+                if (map.hasLayer(completionsLayer)) map.removeLayer(completionsLayer);
+            }
+            ensureLayerOrder();
+        }
+
+        function toggleCountyLabels() {
+            const checkbox = document.getElementById('toggle-county-labels');
+            if (checkbox.checked) {
+                if (!map.hasLayer(countyLabelsLayer)) {
+                    createCountyLabels();
+                    map.addLayer(countyLabelsLayer);
+                }
+            } else {
+                if (map.hasLayer(countyLabelsLayer)) {
+                    map.removeLayer(countyLabelsLayer);
+                }
+            }
+        }
+
+
+        // Smooth fade effects based on zoom level
+        function updateLayerVisibility() {
+            const zoom = map.getZoom();
+
+            // County labels: hide completely when zoomed out, fade in at medium zoom
+            if (map.hasLayer(countyLabelsLayer)) {
+                if (zoom < 8) {
+                    // Hide county labels when viewing whole state
+                    map.removeLayer(countyLabelsLayer);
+                } else {
+                    // Show and adjust opacity for readable zoom levels
+                    if (!map.hasLayer(countyLabelsLayer)) {
+                        map.addLayer(countyLabelsLayer);
+                    }
+                    const labelOpacity = zoom < 10 ? 0.7 : zoom < 12 ? 0.9 : 1;
+                    const labelSize = zoom < 10 ? '12px' : zoom < 12 ? '14px' : '16px';
+
+                    document.querySelectorAll('.county-label div').forEach(label => {
+                        label.style.opacity = labelOpacity;
+                        label.style.fontSize = labelSize;
+                        label.style.transition = 'opacity 0.3s ease, font-size 0.3s ease';
+                    });
+                }
+            } else if (zoom >= 8 && document.getElementById('toggle-county-labels').checked) {
+                // Re-add labels if zoom level is now appropriate and checkbox is checked
+                if (countyLabelsLayer.getLayers().length > 0) {
+                    map.addLayer(countyLabelsLayer);
+                }
+            }
+
+            // Township lines: fade slightly at high zoom when sections are visible
+            if (townshipLayer && map.hasLayer(townshipLayer)) {
+                const townshipOpacity = zoom < 10 ? 0.6 : zoom < 12 ? 0.5 : 0.4;
+                // Check if it's a GeoJSON layer (has setStyle) or a LayerGroup (fallback)
+                if (typeof townshipLayer.setStyle === 'function') {
+                    townshipLayer.setStyle({
+                        opacity: townshipOpacity
+                    });
+                } else {
+                    // For LayerGroup fallback, iterate through layers
+                    townshipLayer.eachLayer(function(layer) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                opacity: townshipOpacity
+                            });
+                        }
+                    });
+                }
+            }
+
+            // County boundaries: consistent but slightly fade at very high zoom
+            if (countyLayer && map.hasLayer(countyLayer)) {
+                const countyOpacity = zoom < 12 ? 0.8 : 0.6;
+                // Check if it's a GeoJSON layer (has setStyle) or a LayerGroup (fallback)
+                if (typeof countyLayer.setStyle === 'function') {
+                    countyLayer.setStyle({
+                        opacity: countyOpacity
+                    });
+                } else {
+                    // For LayerGroup fallback, iterate through layers
+                    countyLayer.eachLayer(function(layer) {
+                        if (layer.setStyle) {
+                            layer.setStyle({
+                                opacity: countyOpacity
+                            });
+                        }
+                    });
+                }
+            }
+        }
+
+        // Section Number Toggle - uses real OCC API data
+        function toggleSectionNumbers() {
+            const checkbox = document.getElementById('toggle-section-numbers');
+            showSectionNumbers = checkbox.checked;
+
+            if (showSectionNumbers) {
+                const zoom = map.getZoom();
+                if (zoom >= 12) {
+                    // Re-render sections to include labels
+                    sectionBounds = null; // Force refresh
+                    updateSectionLines();
+                } else {
+                    updateStatus('Zoom in to see section numbers (zoom 12+)');
+                    setTimeout(() => updateStatus('Map ready'), 2000);
+                }
+            } else {
+                // Hide labels
+                if (map.hasLayer(sectionLabelsLayer)) {
+                    map.removeLayer(sectionLabelsLayer);
+                }
+            }
+        }
+
+        // Update section labels when map moves (if enabled)
+        function updateSectionLabelsOnMove() {
+            if (showSectionNumbers && map.getZoom() >= 12) {
+                // Labels are recreated when sections are loaded via updateSectionLines
+                // This just ensures they stay in sync
+            }
+        }
+
+        // Apply fade effects on zoom
+        map.on('zoomend', function() {
+            updateLayerVisibility();
+            // Section labels are updated via updateSectionLines
+        });
+        map.on('zoom', updateLayerVisibility);  // Smooth during zoom
+
+        // Helper function to parse TRS from activity location string
+        function parseTRSFromActivity(locationStr) {
+            if (!locationStr) return null;
+
+            // Try different formats
+            // Format 1: "S15 T22N R19W"
+            let match = locationStr.match(/S(\d+)\s+T(\d+[NS])\s+R(\d+[EW])/i);
+
+            // Format 2: "15-22N-19W"
+            if (!match) {
+                match = locationStr.match(/(\d+)-(\d+[NS])-(\d+[EW])/i);
+            }
+
+            // Format 3: More flexible with optional spaces
+            if (!match) {
+                match = locationStr.match(/S?\s*(\d+)\s*[-T]\s*(\d+[NS])\s*[-R]\s*(\d+[EW])/i);
+            }
+
+            if (!match) {
+                return null;
+            }
+
+            return {
+                section: match[1],
+                township: match[2],
+                range: match[3]
+            };
+        }
+
+        // Check if a location is within radius of any user property
+        function isNearUserProperty(lat, lng) {
+            if (!userProperties || userProperties.length === 0) return false;
+
+            const activityPoint = L.latLng(lat, lng);
+            const radiusMeters = ACTIVITY_PROXIMITY_RADIUS * 1609.34; // Convert miles to meters
+
+            // Check if any property is within radius
+            return userProperties.some(property => {
+                const propBounds = property.bounds;
+                if (!propBounds) return false;
+
+                // Get center of property bounds
+                const propCenter = propBounds.getCenter();
+                const distance = activityPoint.distanceTo(propCenter);
+
+                return distance <= radiusMeters;
+            });
+        }
+
+        // Load recent activity data (permits and completions)
+        async function loadActivityData() {
+            try {
+                updateStatus('Loading recent activity...');
+
+                // Fetch recent activity from the API (last 90 days)
+                // Use statewide endpoint to get ALL activity from both tables
+                const response = await fetch('/api/activity/statewide?days=90');
+                if (!response.ok) {
+                    throw new Error('Failed to load activity data');
+                }
+
+                const activities = await response.json();
+                console.log(`Loaded ${activities.length} recent activities`);
+
+                // Clear existing layers
+                permitsLayer.clearLayers();
+                completionsLayer.clearLayers();
+
+                // Collect points for heatmaps
+                const permitPoints = [];
+                const completionPoints = [];
+
+                let processedCount = 0;
+                const totalActivities = activities.length;
+
+                // Process each activity
+                for (const activity of activities) {
+                    const fields = activity.fields || {};
+
+                    // First priority: Use stored Latitude/Longitude if available
+                    let lat, lng;
+                    if (fields.Latitude && fields.Longitude) {
+                        lat = parseFloat(fields.Latitude);
+                        lng = parseFloat(fields.Longitude);
+                        console.log(`Using stored coords for ${fields['API Number']}: ${lat}, ${lng}`);
+                    } else {
+                        // Fallback: Try to parse TRS and use section geometry
+                        const trs = parseTRSFromActivity(fields['Section-Township-Range']);
+                        if (!trs) {
+                            console.warn(`Could not parse TRS for activity ${fields['API Number']}, location string: "${fields['Section-Township-Range']}"`);
+                            // Skip this activity if we can't determine location
+                            continue;
+                        }
+
+                        // We'll fetch the section geometry to place the marker
+                        const cacheKey = `${trs.section}-${trs.township}-${trs.range}`;
+                        let sectionGeometry = null;
+
+                        // Check if we already have this section geometry cached
+                        if (geometryCache[cacheKey]) {
+                            sectionGeometry = geometryCache[cacheKey];
+                        } else {
+                            // Try to fetch it using the county from the activity
+                            const county = fields.County;
+                            if (county) {
+                                try {
+                                    sectionGeometry = await fetchSectionGeometry(trs.section, trs.township, trs.range, county);
+                                    if (sectionGeometry) {
+                                        console.log(`Fetched geometry for activity in ${cacheKey}`);
+                                    }
+                                } catch (err) {
+                                    console.warn(`Failed to fetch section geometry for ${cacheKey}:`, err);
+                                }
+                            }
+                        }
+
+                        // If we have section geometry, calculate the center point
+                        if (sectionGeometry && sectionGeometry.geometry) {
+                            // Calculate the centroid of the section
+                            const bounds = L.geoJSON(sectionGeometry).getBounds();
+                            const center = bounds.getCenter();
+                            lat = center.lat;
+                            lng = center.lng;
+                            console.log(`Placing activity at section center: ${lat}, ${lng}`);
+                        } else {
+                            // Last resort: try to parse coordinates from Map Link
+                            const coords = parseOccMapLink(fields['OCC Map Link']);
+                            if (coords) {
+                                lat = coords.lat;
+                                lng = coords.lon;
+                            } else {
+                                console.warn(`Cannot determine location for activity ${fields['API Number']}`);
+                                continue;
+                            }
+                        }
+                    }
+
+                    // Collect points for heatmap
+                    const isPermit = fields['Activity Type'] === 'New Permit';
+                    if (isPermit) {
+                        permitPoints.push([lat, lng, 1]); // lat, lng, intensity
+                    } else {
+                        completionPoints.push([lat, lng, 1]);
+                    }
+
+                    // Only show individual markers for user's activities that are near their properties
+                    const isUserActivity = fields.isUserActivity;
+                    const showIndividualMarker = isUserActivity && isNearUserProperty(lat, lng);
+
+                    // Determine which layer to add to
+                    if (fields['Activity Type'] === 'New Permit' && showIndividualMarker) {
+                        // Create yellow circle marker for permits near properties
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 12,  // Pixel radius (doesn't change with zoom)
+                            fillColor: '#FDE047',  // Yellow
+                            color: '#F59E0B',  // Darker yellow border
+                            weight: 2.5,
+                            opacity: 1,
+                            fillOpacity: 0.7
+                        });
+
+                        // Add enhanced popup with Track Well button
+                        const apiNumber = fields['API Number'] || '';
+                        const popupContent = `
+                                    <div class="popup-header">
+                                        <span class="popup-tag permit">Drilling Permit</span>
+                                    </div>
+                                    <div class="popup-well-name">${toTitleCase(fields['Well Name'] || 'Unknown Well')}</div>
+                                    <div class="popup-details">
+                                        ${toTitleCase(fields.Operator || 'Unknown Operator')}<br>
+                                        ${fields['Section-Township-Range'] || ''} • ${fields.County || 'Unknown'}<br>
+                                        Filed: ${new Date(fields['Detected At']).toLocaleDateString()}
+                                    </div>
+                                    <div class="popup-actions">
+                                        <button class="popup-btn popup-btn-secondary" onclick="expandActivityCard('permit', ${JSON.stringify(fields).replace(/"/g, '&quot;')}); return false;">More →</button>
+                                    </div>
+                        `;
+                        marker.bindPopup(popupContent, { maxWidth: 350, className: 'high-z-popup' });
+
+                        permitsLayer.addLayer(marker);
+
+                        // Check if this is a horizontal/directional well permit and create lateral path
+                        // Log permit fields to see what data we have
+                        if (fields['API Number']?.includes('35')) { // Oklahoma API numbers start with 35
+                            console.log(`Permit ${fields['API Number']} fields:`, Object.keys(fields).filter(key => key.toLowerCase().includes('drill') || key.toLowerCase().includes('pbh') || key.toLowerCase().includes('section')));
+                        }
+
+                        if ((fields['Drill Type'] === 'HH' || fields['Drill Type'] === 'DH') &&
+                            fields['PBH Section'] && fields['PBH Township'] && fields['PBH Range']) {
+
+                            // Get bottom hole TRS
+                            const bhTRS = {
+                                section: fields['PBH Section'],
+                                township: fields['PBH Township'],
+                                range: fields['PBH Range']
+                            };
+
+                            // Try to get bottom hole geometry
+                            const bhCacheKey = `${bhTRS.section}-${bhTRS.township}-${bhTRS.range}`;
+                            let bhGeometry = geometryCache[bhCacheKey];
+
+                            if (!bhGeometry && fields.County) {
+                                try {
+                                    bhGeometry = await fetchSectionGeometry(bhTRS.section, bhTRS.township, bhTRS.range, fields.County);
+                                    if (bhGeometry) {
+                                        geometryCache[bhCacheKey] = bhGeometry;
+                                    }
+                                } catch (err) {
+                                    console.warn(`Failed to fetch BH geometry for permit ${fields['API Number']}:`, err);
+                                }
+                            }
+
+                            if (bhGeometry && bhGeometry.geometry) {
+                                const bhBounds = L.geoJSON(bhGeometry).getBounds();
+                                const bhCenter = bhBounds.getCenter();
+
+                                // Create lateral path
+                                const path = drawLateralPath(
+                                    { lat, lng }, // Surface location
+                                    { lat: bhCenter.lat, lng: bhCenter.lng }, // BH location
+                                    { fields }, // Well data
+                                    'permit' // Path type
+                                );
+
+                                if (path) {
+                                    // Add lateral path to permits layer
+                                    permitsLayer.addLayer(path);
+                                    console.log(`Created lateral path for permit ${fields['API Number']}`);
+                                }
+                            }
+                        }
+
+                    } else if (fields['Activity Type'] === 'Well Completed' && showIndividualMarker) {
+                        // Create blue circle marker for completions near properties
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 12,  // Pixel radius (doesn't change with zoom)
+                            fillColor: '#3B82F6',  // Blue
+                            color: '#1D4ED8',  // Darker blue border
+                            weight: 2.5,
+                            opacity: 1,
+                            fillOpacity: 0.7
+                        });
+
+                        // Add enhanced popup
+                        const apiNumber = fields['API Number'] || '';
+                        const popupContent = `
+                                    <div class="popup-header">
+                                        <span class="popup-tag completed">Well Completed</span>
+                                    </div>
+                                    <div class="popup-well-name">${toTitleCase(fields['Well Name'] || 'Unknown Well')}</div>
+                                    <div class="popup-details">
+                                        ${toTitleCase(fields.Operator || 'Unknown Operator')}<br>
+                                        ${fields.Formation || fields['Formation Name'] ? `${toTitleCase(fields.Formation || fields['Formation Name'])}<br>` : ''}
+                                        ${fields['Section-Township-Range'] || ''} • ${fields.County || 'Unknown'}<br>
+                                        Completed: ${new Date(fields['Detected At']).toLocaleDateString()}
+                                    </div>
+                                    <div class="popup-actions">
+                                        <button class="popup-btn popup-btn-secondary" onclick="expandActivityCard('completion', ${JSON.stringify(fields).replace(/"/g, '&quot;')}); return false;">More →</button>
+                                    </div>
+                        `;
+                        marker.bindPopup(popupContent, { maxWidth: 350, className: 'high-z-popup' });
+
+                        completionsLayer.addLayer(marker);
+
+                        // Check if this is a horizontal well completion and create lateral path
+                        // Log completion fields to see what data we have
+                        if (fields['API Number']?.includes('35')) { // Oklahoma API numbers start with 35
+                            console.log(`Completion ${fields['API Number']} fields:`, Object.keys(fields).filter(key => key.toLowerCase().includes('drill') || key.toLowerCase().includes('bh') || key.toLowerCase().includes('section') || key.toLowerCase().includes('location')));
+                        }
+
+                        const isHorizontal = fields['Drill Type'] === 'HORIZONTAL HOLE' ||
+                                           fields['Drill Type'] === 'HH' ||
+                                           fields['Location Type Sub'] === 'HH';
+
+                        if (isHorizontal && fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
+                            // Get bottom hole TRS
+                            const bhTRS = {
+                                section: fields['BH Section'],
+                                township: fields['BH Township'],
+                                range: fields['BH Range']
+                            };
+
+                            // Try to get bottom hole geometry
+                            const bhCacheKey = `${bhTRS.section}-${bhTRS.township}-${bhTRS.range}`;
+                            let bhGeometry = geometryCache[bhCacheKey];
+
+                            if (!bhGeometry && fields.County) {
+                                try {
+                                    bhGeometry = await fetchSectionGeometry(bhTRS.section, bhTRS.township, bhTRS.range, fields.County);
+                                    if (bhGeometry) {
+                                        geometryCache[bhCacheKey] = bhGeometry;
+                                    }
+                                } catch (err) {
+                                    console.warn(`Failed to fetch BH geometry for completion ${fields['API Number']}:`, err);
+                                }
+                            }
+
+                            if (bhGeometry && bhGeometry.geometry) {
+                                const bhBounds = L.geoJSON(bhGeometry).getBounds();
+                                const bhCenter = bhBounds.getCenter();
+
+                                // Create lateral path
+                                const path = drawLateralPath(
+                                    { lat, lng }, // Surface location
+                                    { lat: bhCenter.lat, lng: bhCenter.lng }, // BH location
+                                    { fields }, // Well data
+                                    'completion' // Path type
+                                );
+
+                                if (path) {
+                                    // Add lateral path to completions layer
+                                    completionsLayer.addLayer(path);
+                                    console.log(`Created lateral path for completion ${fields['API Number']}`);
+                                }
+                            }
+                        }
+                    }
+
+                    processedCount++;
+                    if (processedCount % 5 === 0 || processedCount === totalActivities) {
+                        updateStatus(`Loading activity ${processedCount} of ${totalActivities}...`);
+                    }
+                }
+
+                // Create heat layers with collected points BEFORE checking toggles
+                console.log('🔥 Heatmap data collected:', {
+                    permitPoints: permitPoints.length,
+                    completionPoints: completionPoints.length,
+                    samplePermits: permitPoints.slice(0, 3),
+                    sampleCompletions: completionPoints.slice(0, 3)
+                });
+
+                // Store points globally for debugging
+                window.debugPermitData = {
+                    permitPoints: permitPoints,
+                    completionPoints: completionPoints
+                };
+
+                if ((permitPoints.length > 0 || completionPoints.length > 0) && typeof L.heatLayer === 'function') {
+                    try {
+                        // Create combined heatmap with different gradients for permits vs completions
+                        // Yellow gradient for permits
+                        if (permitPoints.length > 0) {
+                            permitHeatmapLayer = L.heatLayer(permitPoints, {
+                                radius: 40,   // Optimized radius
+                                blur: 20,     // Blur ≤ half of radius to prevent edge artifacts
+                                max: 0.3,     // Adjusted max intensity
+                                minOpacity: 0.3,
+                                gradient: {
+                                    0.0: 'rgba(255, 255, 0, 0)',
+                                    0.1: 'rgba(255, 255, 0, 0.4)',
+                                    0.2: 'rgba(253, 224, 71, 0.6)',
+                                    0.4: 'rgba(245, 158, 11, 0.8)',
+                                    0.6: 'rgba(234, 88, 12, 0.9)',
+                                    1.0: 'rgba(220, 38, 38, 1)'
+                                }
+                            });
+                            console.log('✅ Created permit heatmap layer with', permitPoints.length, 'points');
+                        }
+
+                        // Blue gradient for completions
+                        if (completionPoints.length > 0) {
+                            completionHeatmapLayer = L.heatLayer(completionPoints, {
+                                radius: 40,   // Matching radius for consistency
+                                blur: 20,     // Blur ≤ half of radius to prevent edge artifacts
+                                max: 0.3,     // Matching max intensity
+                                minOpacity: 0.3,
+                                gradient: {
+                                    0.0: 'rgba(59, 130, 246, 0)',
+                                    0.1: 'rgba(59, 130, 246, 0.4)',
+                                    0.2: 'rgba(96, 165, 250, 0.6)',
+                                    0.4: 'rgba(59, 130, 246, 0.8)',
+                                    0.6: 'rgba(29, 78, 216, 0.9)',
+                                    1.0: 'rgba(124, 58, 237, 1)'
+                                }
+                            });
+                            console.log('✅ Created completion heatmap layer with', completionPoints.length, 'points');
+                        }
+
+                        // Create combined layer group
+                        const layers = [];
+                        if (permitHeatmapLayer) layers.push(permitHeatmapLayer);
+                        if (completionHeatmapLayer) layers.push(completionHeatmapLayer);
+
+                        if (layers.length > 0) {
+                            activityHeatmapLayer = L.layerGroup(layers);
+                            console.log('🔥 Activity heatmap layer created with', layers.length, 'sublayers');
+
+                            // Check checkbox states and add appropriate layers
+                            const showPermits = document.getElementById('toggle-heatmap-permits').checked;
+                            const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+                            if (showPermits && permitHeatmapLayer) {
+                                map.addLayer(permitHeatmapLayer);
+                            }
+                            if (showCompletions && completionHeatmapLayer) {
+                                map.addLayer(completionHeatmapLayer);
+                            }
+                            if (showPermits || showCompletions) {
+                                console.log('📍 Heatmap added to map automatically');
+                                ensureLayerOrder();
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('Heatmap plugin not available, falling back to markers');
+                        // Fallback: create simple circle markers
+                        activityHeatmapLayer = L.featureGroup();
+
+                        // Add permit markers
+                        permitPoints.forEach(([lat, lng]) => {
+                            const marker = L.circleMarker([lat, lng], {
+                                radius: 4,
+                                fillColor: '#FDE047',
+                                color: '#F59E0B',
+                                weight: 1,
+                                opacity: 0.6,
+                                fillOpacity: 0.3
+                            });
+                            activityHeatmapLayer.addLayer(marker);
+                        });
+
+                        // Add completion markers
+                        completionPoints.forEach(([lat, lng]) => {
+                            const marker = L.circleMarker([lat, lng], {
+                                radius: 4,
+                                fillColor: '#3B82F6',
+                                color: '#1D4ED8',
+                                weight: 1,
+                                opacity: 0.6,
+                                fillOpacity: 0.3
+                            });
+                            activityHeatmapLayer.addLayer(marker);
+                        });
+                    }
+                } else if (permitPoints.length > 0 || completionPoints.length > 0) {
+                    console.warn('Heatmap plugin not loaded, using fallback markers');
+                    // Same fallback code as above
+                    activityHeatmapLayer = L.featureGroup();
+
+                    permitPoints.forEach(([lat, lng]) => {
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 4,
+                            fillColor: '#FDE047',
+                            color: '#F59E0B',
+                            weight: 1,
+                            opacity: 0.6,
+                            fillOpacity: 0.3
+                        });
+                        activityHeatmapLayer.addLayer(marker);
+                    });
+
+                    completionPoints.forEach(([lat, lng]) => {
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 4,
+                            fillColor: '#3B82F6',
+                            color: '#1D4ED8',
+                            weight: 1,
+                            opacity: 0.6,
+                            fillOpacity: 0.3
+                        });
+                        activityHeatmapLayer.addLayer(marker);
+                    });
+                }
+
+                // Add layers to map if toggles are checked
+                if (document.getElementById('toggle-permits').checked && !map.hasLayer(permitsLayer)) {
+                    map.addLayer(permitsLayer);
+                }
+                if (document.getElementById('toggle-completions').checked && !map.hasLayer(completionsLayer)) {
+                    map.addLayer(completionsLayer);
+                }
+                // Check if heatmap is enabled and add appropriate layers based on checkboxes
+                const showPermits = document.getElementById('toggle-heatmap-permits').checked;
+                const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+                if (showPermits && permitHeatmapLayer && !map.hasLayer(permitHeatmapLayer)) {
+                    map.addLayer(permitHeatmapLayer);
+                }
+                if (showCompletions && completionHeatmapLayer && !map.hasLayer(completionHeatmapLayer)) {
+                    map.addLayer(completionHeatmapLayer);
+                }
+                if (showPermits || showCompletions) {
+                    console.log('✅ Added heatmap layers to map');
+                }
+                // Ensure properties remain on top
+                ensureLayerOrder();
+
+                // Load OCC Application heatmap data (non-blocking)
+                loadOccDocketHeatmap();
+
+                // Count only user's activities for the counters
+                const userActivities = activities.filter(a => a.fields.isUserActivity);
+                const permitCount = userActivities.filter(a => a.fields['Activity Type'] === 'New Permit').length;
+                const completionCount = userActivities.filter(a => a.fields['Activity Type'] === 'Well Completed').length;
+
+                // Count total activities for heatmap
+                const totalPermits = activities.filter(a => a.fields['Activity Type'] === 'New Permit').length;
+                const totalCompletions = activities.filter(a => a.fields['Activity Type'] === 'Well Completed').length;
+
+                updateStatus(`Loaded ${totalPermits} statewide permits, ${totalCompletions} completions (${permitCount} + ${completionCount} yours)`);
+
+                // Update count displays with user's counts only
+                document.getElementById('permitCount').textContent = permitCount;
+                document.getElementById('completionCount').textContent = completionCount;
+
+                // Clear the status after 3 seconds
+                setTimeout(() => updateStatus('Map ready'), 3000);
+
+            } catch (error) {
+                console.error('Error loading activity data:', error);
+                updateStatus('Failed to load activity data');
+            }
+        }
+
+        // Load OCC docket entries for heatmap (runs independently, non-blocking)
+        async function loadOccDocketHeatmap() {
+            try {
+                console.log('📋 Loading OCC docket heatmap data...');
+                const docketResponse = await fetch('/api/docket-heatmap?days=90');
+                if (!docketResponse.ok) {
+                    console.warn('Failed to fetch OCC docket data:', docketResponse.status);
+                    return;
+                }
+
+                const docketData = await docketResponse.json();
+                console.log(`📋 Loaded ${docketData.count} OCC docket entries for heatmap`);
+
+                if (!docketData.entries || docketData.entries.length === 0) {
+                    console.log('📋 No OCC docket entries found');
+                    return;
+                }
+
+                const poolingPoints = [];
+                const densityPoints = [];
+                const spacingPoints = [];
+                const horizontalPoints = [];
+
+                for (const entry of docketData.entries) {
+                    if (!entry.section || !entry.township || !entry.range) continue;
+
+                    // Get coordinates for this TRS location
+                    const cacheKey = `${entry.section}-${entry.township}-${entry.range}`;
+                    let lat, lng;
+
+                    if (geometryCache[cacheKey]) {
+                        const bounds = L.geoJSON(geometryCache[cacheKey]).getBounds();
+                        const center = bounds.getCenter();
+                        lat = center.lat;
+                        lng = center.lng;
+                    } else {
+                        // Try to fetch geometry
+                        try {
+                            const geom = await fetchSectionGeometry(entry.section, entry.township, entry.range, entry.county);
+                            if (geom && geom.geometry) {
+                                const bounds = L.geoJSON(geom).getBounds();
+                                const center = bounds.getCenter();
+                                lat = center.lat;
+                                lng = center.lng;
+                            }
+                        } catch (err) {
+                            continue;
+                        }
+                    }
+
+                    if (!lat || !lng) continue;
+
+                    const point = [lat, lng, 1];
+                    switch (entry.relief_type) {
+                        case 'POOLING': poolingPoints.push(point); break;
+                        case 'INCREASED_DENSITY': densityPoints.push(point); break;
+                        case 'SPACING': spacingPoints.push(point); break;
+                        case 'HORIZONTAL_WELL': horizontalPoints.push(point); break;
+                    }
+                }
+
+                console.log('📋 OCC Application points:', {
+                    pooling: poolingPoints.length,
+                    density: densityPoints.length,
+                    spacing: spacingPoints.length,
+                    horizontal: horizontalPoints.length
+                });
+
+                // Create heatmap layers if we have L.heatLayer
+                if (typeof L.heatLayer !== 'function') {
+                    console.warn('Heatmap plugin not available for OCC layers');
+                    return;
+                }
+
+                // Purple gradient for Pooling
+                if (poolingPoints.length > 0) {
+                    poolingHeatmapLayer = L.heatLayer(poolingPoints, {
+                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                        gradient: {
+                            0.0: 'rgba(147, 51, 234, 0)',
+                            0.3: 'rgba(147, 51, 234, 0.5)',
+                            0.6: 'rgba(126, 34, 206, 0.8)',
+                            1.0: 'rgba(88, 28, 135, 1)'
+                        }
+                    });
+                    console.log('✅ Created pooling heatmap layer with', poolingPoints.length, 'points');
+                }
+
+                // Green gradient for Increased Density
+                if (densityPoints.length > 0) {
+                    densityHeatmapLayer = L.heatLayer(densityPoints, {
+                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                        gradient: {
+                            0.0: 'rgba(34, 197, 94, 0)',
+                            0.3: 'rgba(34, 197, 94, 0.5)',
+                            0.6: 'rgba(22, 163, 74, 0.8)',
+                            1.0: 'rgba(15, 118, 51, 1)'
+                        }
+                    });
+                    console.log('✅ Created density heatmap layer with', densityPoints.length, 'points');
+                }
+
+                // Magenta gradient for Spacing Unit
+                if (spacingPoints.length > 0) {
+                    spacingHeatmapLayer = L.heatLayer(spacingPoints, {
+                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                        gradient: {
+                            0.0: 'rgba(236, 72, 153, 0)',
+                            0.3: 'rgba(236, 72, 153, 0.5)',
+                            0.6: 'rgba(219, 39, 119, 0.8)',
+                            1.0: 'rgba(190, 24, 93, 1)'
+                        }
+                    });
+                    console.log('✅ Created spacing heatmap layer with', spacingPoints.length, 'points');
+                }
+
+                // Orange gradient for Horizontal Well
+                if (horizontalPoints.length > 0) {
+                    horizontalHeatmapLayer = L.heatLayer(horizontalPoints, {
+                        radius: 40, blur: 20, max: 0.3, minOpacity: 0.3,
+                        gradient: {
+                            0.0: 'rgba(249, 115, 22, 0)',
+                            0.3: 'rgba(249, 115, 22, 0.5)',
+                            0.6: 'rgba(234, 88, 12, 0.8)',
+                            1.0: 'rgba(194, 65, 12, 1)'
+                        }
+                    });
+                    console.log('✅ Created horizontal heatmap layer with', horizontalPoints.length, 'points');
+                }
+
+                // Add layers based on checkbox states
+                if (document.getElementById('toggle-heatmap-pooling')?.checked && poolingHeatmapLayer) {
+                    map.addLayer(poolingHeatmapLayer);
+                }
+                if (document.getElementById('toggle-heatmap-density')?.checked && densityHeatmapLayer) {
+                    map.addLayer(densityHeatmapLayer);
+                }
+                if (document.getElementById('toggle-heatmap-spacing')?.checked && spacingHeatmapLayer) {
+                    map.addLayer(spacingHeatmapLayer);
+                }
+                if (document.getElementById('toggle-heatmap-horizontal')?.checked && horizontalHeatmapLayer) {
+                    map.addLayer(horizontalHeatmapLayer);
+                }
+
+                ensureLayerOrder();
+                console.log('📋 OCC docket heatmap layers ready');
+
+            } catch (error) {
+                console.warn('Error loading OCC docket heatmap data:', error);
+            }
+        }
+
+        // Toggle activity heatmap based on checkbox states
+        function updateHeatmapLayers() {
+            const showPermits = document.getElementById('toggle-heatmap-permits').checked;
+            const showCompletions = document.getElementById('toggle-heatmap-completions').checked;
+            const showPooling = document.getElementById('toggle-heatmap-pooling')?.checked;
+            const showDensity = document.getElementById('toggle-heatmap-density')?.checked;
+            const showSpacing = document.getElementById('toggle-heatmap-spacing')?.checked;
+            const showHorizontal = document.getElementById('toggle-heatmap-horizontal')?.checked;
+
+            // Update permit heatmap layer
+            if (showPermits && permitHeatmapLayer) {
+                if (!map.hasLayer(permitHeatmapLayer)) {
+                    map.addLayer(permitHeatmapLayer);
+                    console.log('🔥 Showing permit heatmap');
+                }
+            } else if (permitHeatmapLayer && map.hasLayer(permitHeatmapLayer)) {
+                map.removeLayer(permitHeatmapLayer);
+            }
+
+            // Update completion heatmap layer
+            if (showCompletions && completionHeatmapLayer) {
+                if (!map.hasLayer(completionHeatmapLayer)) {
+                    map.addLayer(completionHeatmapLayer);
+                    console.log('🔥 Showing completion heatmap');
+                }
+            } else if (completionHeatmapLayer && map.hasLayer(completionHeatmapLayer)) {
+                map.removeLayer(completionHeatmapLayer);
+            }
+
+            // Update OCC Application heatmap layers
+            // Pooling layer (purple)
+            if (showPooling && poolingHeatmapLayer) {
+                if (!map.hasLayer(poolingHeatmapLayer)) {
+                    map.addLayer(poolingHeatmapLayer);
+                    console.log('📋 Showing pooling heatmap');
+                }
+            } else if (poolingHeatmapLayer && map.hasLayer(poolingHeatmapLayer)) {
+                map.removeLayer(poolingHeatmapLayer);
+            }
+
+            // Density layer (green)
+            if (showDensity && densityHeatmapLayer) {
+                if (!map.hasLayer(densityHeatmapLayer)) {
+                    map.addLayer(densityHeatmapLayer);
+                    console.log('📋 Showing density heatmap');
+                }
+            } else if (densityHeatmapLayer && map.hasLayer(densityHeatmapLayer)) {
+                map.removeLayer(densityHeatmapLayer);
+            }
+
+            // Spacing layer (magenta)
+            if (showSpacing && spacingHeatmapLayer) {
+                if (!map.hasLayer(spacingHeatmapLayer)) {
+                    map.addLayer(spacingHeatmapLayer);
+                    console.log('📋 Showing spacing heatmap');
+                }
+            } else if (spacingHeatmapLayer && map.hasLayer(spacingHeatmapLayer)) {
+                map.removeLayer(spacingHeatmapLayer);
+            }
+
+            // Horizontal layer (orange)
+            if (showHorizontal && horizontalHeatmapLayer) {
+                if (!map.hasLayer(horizontalHeatmapLayer)) {
+                    map.addLayer(horizontalHeatmapLayer);
+                    console.log('📋 Showing horizontal heatmap');
+                }
+            } else if (horizontalHeatmapLayer && map.hasLayer(horizontalHeatmapLayer)) {
+                map.removeLayer(horizontalHeatmapLayer);
+            }
+
+            // Update button state - active if any heatmap is shown
+            const anyHeatmapActive = showPermits || showCompletions || showPooling || showDensity || showSpacing || showHorizontal;
+            const heatmapBtn = document.getElementById('heatmapBtn');
+            if (anyHeatmapActive) {
+                heatmapBtn.classList.add('active');
+                heatmapBtn.classList.remove('inactive');
+            } else {
+                heatmapBtn.classList.remove('active');
+                heatmapBtn.classList.add('inactive');
+            }
+
+            if (anyHeatmapActive) {
+                ensureLayerOrder();
+            }
+
+            showActivityHeatmap = anyHeatmapActive;
+        }
+
+        // Toggle production choropleth
+        function toggleProductionChoropleth() {
+            const select = document.getElementById('production-select');
+            const value = select.value;
+
+            // Update active state
+            if (value !== 'off') {
+                select.classList.add('active');
+            } else {
+                select.classList.remove('active');
+            }
+
+            // Reset or apply choropleth
+            if (value === 'off') {
+                resetCountyChoropleth();
+                currentProductionType = null;
+            } else {
+                loadCountyProductionChoropleth(value);
+            }
+        }
+
+        // Reset county layer to default styling
+        function resetCountyChoropleth() {
+            if (!countyLayer) return;
+
+            countyLayer.eachLayer(function(layer) {
+                layer.setStyle({
+                    fillColor: '#3498db',
+                    fillOpacity: 0.1,
+                    color: '#1C2B36',
+                    weight: 3
+                });
+                // Remove any production popup
+                layer.unbindPopup();
+            });
+            console.log('🗺️ Reset county choropleth styling');
+        }
+
+        // Load and apply county production choropleth
+        async function loadCountyProductionChoropleth(productType) {
+            if (!countyLayer) {
+                console.warn('County layer not loaded yet');
+                return;
+            }
+
+            console.log(`🗺️ Loading ${productType} production choropleth`);
+
+            try {
+                // Fetch production data
+                const response = await fetch(`/api/map/county-production?product=${productType}`);
+                const data = await response.json();
+
+                if (!data.success || !data.data) {
+                    console.error('Failed to load production data:', data);
+                    return;
+                }
+
+                countyProductionData = data.data;
+                currentProductionType = productType;
+
+                // Define color scale (logarithmic)
+                const maxVolume = data.maxVolume || 1;
+                const getColor = (volume) => {
+                    if (!volume || volume <= 0) return '#f0f0f0'; // No data - light gray
+
+                    // Logarithmic scale for better distribution
+                    const logMax = Math.log10(maxVolume);
+                    const logVal = Math.log10(volume);
+                    const ratio = logVal / logMax;
+
+                    // Color gradient: light yellow -> orange -> red -> dark red
+                    if (productType === 'oil') {
+                        // Oil: Yellow -> Orange -> Red
+                        if (ratio < 0.25) return '#ffffcc';
+                        if (ratio < 0.50) return '#ffeda0';
+                        if (ratio < 0.65) return '#feb24c';
+                        if (ratio < 0.80) return '#f03b20';
+                        return '#bd0026';
+                    } else {
+                        // Gas: Light blue -> Blue -> Purple
+                        if (ratio < 0.25) return '#deebf7';
+                        if (ratio < 0.50) return '#9ecae1';
+                        if (ratio < 0.65) return '#4292c6';
+                        if (ratio < 0.80) return '#2171b5';
+                        return '#084594';
+                    }
+                };
+
+                // Apply styling to county layer
+                countyLayer.eachLayer(function(layer) {
+                    const feature = layer.feature;
+                    if (!feature || !feature.properties) return;
+
+                    // Get county FIPS code for matching production data (production API uses FIPS codes as keys)
+                    const countyNo = feature.properties.fips_code || feature.properties.COUNTY_FIPS_NO || feature.properties.COUNTY_NO || feature.properties.id;
+                    const countyName = feature.properties.COUNTY_NAME || feature.properties.name || 'Unknown';
+                    const prodData = countyProductionData[countyNo];
+
+                    const volume = prodData ? prodData.volume : 0;
+                    const fillColor = getColor(volume);
+
+                    layer.setStyle({
+                        fillColor: fillColor,
+                        fillOpacity: 0.7,
+                        color: '#1C2B36',
+                        weight: 2
+                    });
+
+                    // Add popup with production info
+                    const volumeFormatted = volume ? volume.toLocaleString() : '0';
+                    const valueFormatted = prodData && prodData.value ? '$' + prodData.value.toLocaleString(undefined, {maximumFractionDigits: 0}) : '$0';
+                    const unit = productType === 'oil' ? 'BBL' : 'MCF';
+
+                    layer.bindPopup(`
+                        <div class="popup-title">${countyName} County</div>
+                        <div style="padding: 8px 0;">
+                            <strong>${productType === 'oil' ? 'Oil' : 'Gas'} Production (12 mo)</strong><br>
+                            Volume: ${volumeFormatted} ${unit}<br>
+                            Value: ${valueFormatted}
+                        </div>
+                    `, { className: 'high-z-popup' });
+                });
+
+                console.log(`🗺️ Applied ${productType} choropleth to ${Object.keys(countyProductionData).length} counties`);
+
+            } catch (error) {
+                console.error('Error loading county production:', error);
+            }
+        }
+

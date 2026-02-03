@@ -92,6 +92,62 @@ def clamp_confidence_scores(extracted_data: dict, max_confidence: float) -> dict
 
 
 # ============================================================================
+# SCHEMA WHITELIST ENFORCEMENT
+# ============================================================================
+
+# Allowed top-level fields per document type. Fields not in the whitelist are stripped.
+# System fields (prefixed with _) are always allowed.
+SCHEMA_WHITELISTS = {
+    "pooling_order": {
+        "doc_type", "section", "township", "range", "county", "state",
+        "order_info", "applicant", "operator", "unit_info", "well_info",
+        "formations", "election_options", "deadlines", "default_election",
+        "subsequent_wells", "lease_exhibits", "notes", "key_takeaway",
+        "ai_observations", "detailed_analysis",
+        # System fields added by post-processing
+        "field_scores", "document_confidence",
+    },
+    "force_pooling_order": None,  # Same as pooling_order (resolved below)
+}
+# Alias: force_pooling_order uses same whitelist as pooling_order
+SCHEMA_WHITELISTS["force_pooling_order"] = SCHEMA_WHITELISTS["pooling_order"]
+
+
+def enforce_schema_whitelist(extracted_data: dict) -> dict:
+    """
+    Post-processing: Strip fields not in the schema whitelist for the document type.
+    This catches cases where the model invents extra fields despite prompt instructions.
+
+    System fields (prefixed with _) are always preserved.
+    Only applies to document types with a defined whitelist.
+    """
+    if not extracted_data:
+        return extracted_data
+
+    doc_type = extracted_data.get("doc_type")
+    whitelist = SCHEMA_WHITELISTS.get(doc_type)
+    if not whitelist:
+        return extracted_data  # No whitelist defined for this doc type
+
+    stripped_fields = []
+    keys_to_remove = []
+    for key in extracted_data:
+        if key.startswith("_"):
+            continue  # Always keep system fields
+        if key not in whitelist:
+            keys_to_remove.append(key)
+            stripped_fields.append(key)
+
+    for key in keys_to_remove:
+        del extracted_data[key]
+
+    if stripped_fields:
+        logger.info(f"[SchemaWhitelist] Stripped {len(stripped_fields)} non-schema fields from {doc_type}: {stripped_fields}")
+
+    return extracted_data
+
+
+# ============================================================================
 # API AND PUN VALIDATION
 # ============================================================================
 
@@ -314,7 +370,7 @@ def validate_and_correct_extracted_data(extracted_data: dict) -> dict:
             validation_issues.extend(pun_result["issues"])
 
     # Validate PUNs in allocation_factors for multi-unit wells
-    allocation_factors = extracted_data.get("allocation_factors", [])
+    allocation_factors = extracted_data.get("allocation_factors") or []
     for i, factor in enumerate(allocation_factors):
         pun = factor.get("pun") or factor.get("pun_normalized")
         if pun:
@@ -499,6 +555,78 @@ DIVISION_ORDER_SCHEMA = {
     }
 }
 
+CHECK_STUB_SCHEMA = {
+    "required": {
+        "doc_type", "operator"
+    },
+    "expected": {
+        "owner_name", "check_amount", "check_date",
+        "key_takeaway", "detailed_analysis"
+    },
+    "known": {
+        # Core check stub fields
+        "doc_type", "operator", "operator_name",
+        "owner_name", "owner_number",
+        "check_number", "check_date", "check_amount",
+        # Wells array (validated separately)
+        "wells",
+        # Well-level fields (inside wells array)
+        "well_name", "well_number", "county", "state",
+        "production_months",
+        # Product-level fields (inside wells.products array)
+        "products", "product_type", "volume", "volume_unit",
+        "price_per_unit", "decimal_interest",
+        "gross_sales", "total_taxes", "total_deductions",
+        "net_sales", "owner_amount", "well_owner_total",
+        # Linking fields
+        "api_number", "property_name", "property_number",
+        "section", "township", "range",
+        # Analysis fields
+        "key_takeaway", "detailed_analysis", "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason"
+    }
+}
+
+JOINT_INTEREST_BILLING_SCHEMA = {
+    "required": {
+        "doc_type", "operator"
+    },
+    "expected": {
+        "owner_name", "amount_due", "decimal_interest",
+        "key_takeaway", "detailed_analysis"
+    },
+    "known": {
+        # Core JIB fields
+        "doc_type", "operator", "operator_name",
+        "owner_name", "owner_number",
+        "property_name", "property_number",
+        "well_name", "afe_number",
+        "invoice_date", "service_period",
+        "decimal_interest",
+        # Expenses array
+        "expenses", "category", "description", "gross_amount",
+        # Totals
+        "total_gross", "total_owner_amount",
+        "prepayments_applied", "amount_due",
+        # Aging (for summary statements)
+        "aging", "current", "days_30", "days_60", "days_90", "days_120_plus", "total_due",
+        "balance_forward",
+        # Linking fields
+        "api_number", "county", "state", "section", "township", "range",
+        # Analysis fields
+        "key_takeaway", "detailed_analysis", "ai_observations",
+        # Internal fields
+        "_confidence_clamped", "_max_confidence_allowed", "_document_confidence_adjusted",
+        "_validation_issues", "_review_flags", "_schema_validation",
+        "_pipeline_type", "_page_count", "_coarse_type", "_split_metadata",
+        "_start_page", "_end_page", "_detected_title", "_split_reason"
+    }
+}
+
 # Map doc_type to schema
 DOC_TYPE_SCHEMAS = {
     "completion_report": COMPLETION_REPORT_SCHEMA,
@@ -518,6 +646,10 @@ DOC_TYPE_SCHEMAS = {
     "lease": OIL_GAS_LEASE_SCHEMA,
     # Division orders
     "division_order": DIVISION_ORDER_SCHEMA,
+    # Check stubs / revenue payments
+    "check_stub": CHECK_STUB_SCHEMA,
+    # Joint Interest Billing (operating expense invoices)
+    "joint_interest_billing": JOINT_INTEREST_BILLING_SCHEMA,
 }
 
 
@@ -1409,7 +1541,7 @@ COARSE_TYPES = [
     "lease",          # oil & gas lease, assignment of lease, ratification
     "order",          # OCC orders (pooling, spacing, density, location exception)
     "permit",         # drilling permits, completion reports
-    "check",          # check stubs, royalty statements
+    "check",          # check stubs, royalty statements, JIBs, operating expense invoices
     "tax",            # tax records, assessments
     "title_opinion",  # attorney title opinions
     "affidavit",      # affidavits of heirship, death, identity
@@ -1471,12 +1603,22 @@ TITLE_PATTERNS = [
     (r"FORM\s+1000", "permit"),
     (r"COMPLETION\s+REPORT", "permit"),
     (r"FORM\s+1002", "permit"),
-    # Check/Statement
+    # Check/Statement (revenue payments)
     (r"CHECK\s+STUB", "check"),
     (r"ROYALTY\s+STATEMENT", "check"),
     (r"REVENUE\s+STATEMENT", "check"),
     (r"OWNER\s+STATEMENT", "check"),
     (r"DIVISION\s+ORDER", "check"),  # Division orders are payment-related
+    (r"SUPPLEMENTAL\s+CHECK\s+VOUCHER", "check"),
+    (r"CHECK\s+DETAIL", "check"),
+    (r"OPERATING\s+STATEMENT", "check"),
+    # JIBs (operating expense invoices)
+    (r"JOINT\s+OWNER\s+INVOICE", "check"),
+    (r"JOINT\s+INTEREST\s+BILLING", "check"),
+    (r"INVOICE\s+FOR\s+OPERATING\s+EXPENSES", "check"),
+    (r"OPERATOR\s+INVOICE", "check"),
+    (r"WELL\s+WORK\s+COSTS", "check"),
+    (r"LEASE\s+OPERATING\s+EXPENSE", "check"),
     # Tax
     (r"TAX\s+STATEMENT", "tax"),
     (r"AD\s+VALOREM", "tax"),
@@ -1683,7 +1825,7 @@ COARSE DOCUMENT TYPES (pick exactly one):
 - lease: Oil & gas leases, assignments of lease, lease ratifications, memoranda of lease
 - order: OCC/Commission orders (pooling, spacing, density, location exception)
 - permit: Drilling permits, completion reports, well permits (Form 1000, 1002)
-- check: Check stubs, royalty statements, payment statements, division orders
+- check: Check stubs, royalty statements, payment statements, division orders, JIBs, joint owner invoices, operating expense invoices
 - tax: Tax records, ad valorem assessments, tax statements
 - title_opinion: Attorney title opinions, title runsheets
 - affidavit: Affidavits of heirship, affidavits of death, identity affidavits
@@ -2095,7 +2237,8 @@ Valid document types:
 - lease
 - drilling_permit
 - title_opinion
-- check_stub (royalty statements, payment stubs)
+- check_stub (royalty check stubs, revenue statements, payment stubs showing well-level revenue with decimal interest)
+- joint_interest_billing (JIBs, joint owner invoices, operating expense invoices billed to working/mineral interest owners)
 - pooling_order (forced pooling orders with election options - use this for pooling specifically)
 - increased_density_order (authorizes additional wells in existing unit - look for "INCREASED WELL DENSITY")
 - change_of_operator_order (transfer of operatorship from one company to another - look for "CHANGE OF OPERATOR")
@@ -3504,19 +3647,63 @@ For TITLE OPINIONS:
   "title_requirements": ["Probate of Jane Doe Estate", "Release of mortgage"]
 }
 
-For CHECK STUBS / ROYALTY STATEMENTS:
+For CHECK STUBS / ROYALTY STATEMENTS (revenue payments TO the owner):
 {
   "doc_type": "check_stub",
+  "operator": "Continental Resources",
   "owner_name": "John A. Smith",
-  "operator_name": "Continental Resources",
-  "well_name": "Smith 1-16H",
+  "owner_number": "SMI100",
+  "check_number": "123456",
   "check_date": "2024-01-15",
-  "production_month": "12",
-  "production_year": "2023",
-  "gross_revenue": "$2,500.00",
-  "net_revenue": "$2,125.00",
+  "check_amount": 2125.00,
+  "wells": [
+    {
+      "well_name": "Smith 1-16H",
+      "well_number": "112345",
+      "production_months": ["2023-12"],
+      "products": [
+        {
+          "product_type": "oil",
+          "volume": 150,
+          "volume_unit": "BBL",
+          "decimal_interest": 0.00390625,
+          "gross_sales": 2500.00,
+          "total_taxes": 175.00,
+          "total_deductions": 200.00,
+          "net_sales": 2125.00,
+          "owner_amount": 2125.00
+        }
+      ],
+      "well_owner_total": 2125.00
+    }
+  ]
+}
+
+For JOINT INTEREST BILLING / JIBs (operating expense invoices billed TO the owner):
+{
+  "doc_type": "joint_interest_billing",
+  "operator": "Continental Resources",
+  "owner_name": "John A. Smith",
+  "owner_number": "SMI100",
+  "property_name": "Smith Unit",
+  "property_number": "491574",
+  "well_name": "Smith 1-16H Rod Repair",
+  "afe_number": "2024-050",
+  "invoice_date": "2024-01-15",
+  "service_period": "2023-12",
   "decimal_interest": 0.00390625,
-  "api_number": "35-051-12345"
+  "expenses": [
+    {
+      "category": "well_work",
+      "description": "Pumping services, rod replacement",
+      "gross_amount": 8500.00,
+      "owner_amount": 33.20
+    }
+  ],
+  "total_gross": 8500.00,
+  "total_owner_amount": 33.20,
+  "prepayments_applied": 0.00,
+  "amount_due": 33.20
 }
 
 For OCC ORDERS (Spacing, Increased Density, Location Exception - NOT Pooling):
@@ -7567,104 +7754,100 @@ These are REQUIRED for property linking - the dashboard uses these to match docu
 """
 
 # ============================================================================
-# POOLING ORDER FOCUSED EXTRACTION PROMPT
+# POOLING ORDER FOCUSED EXTRACTION PROMPT (v2 lean)
 # ============================================================================
 
 # Document types that should use the POOLING ORDER focused prompt
 # Includes "order" coarse_type so all OCC orders route here (pooling is most common)
 POOLING_DOC_TYPES = ["order", "pooling_order", "force_pooling_order"]
 
-POOLING_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners understand force pooling orders from the Oklahoma Corporation Commission.
-Your task is to extract comprehensive pooling order terms and explain election options clearly so owners can make informed decisions.
+POOLING_EXTRACTION_PROMPT_TEMPLATE = """You are extracting data from an Oklahoma Corporation Commission force pooling order.
 
 CURRENT DATE: {current_date}
 
-DATE ANALYSIS RULES:
-- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
-- All dates in documents are valid - do not flag any date as "in the future" or a typo based on your knowledge cutoff
-- Calculate election deadline based on effective_date + election_period_days
-- CRITICAL: Note if election deadline has PASSED as of CURRENT DATE
+FOCUS: Election options and deadlines. Mineral owners need the financial terms of each option,
+when they must respond, and what happens if they don't. Extract ALL election options with ALL financial terms.
 
-ELECTION DEADLINE CALCULATION:
-1. Find the ORDER DATE or EFFECTIVE DATE
-2. Add the election_period_days (typically 20 days)
-3. Calculate election_deadline = effective_date + election_period_days
-4. If CURRENT DATE is past election_deadline, note in key_takeaway: "DEADLINE PASSED - owner likely defaulted to Option [X]"
+DATE RULES:
+- Use ONLY the CURRENT DATE provided above - NEVER use your training data cutoff
+- All dates in documents are valid
+- Calculate election_deadline = effective_date + election_period_days
+- Compare election_deadline to CURRENT DATE to determine if this is ACTIVE or HISTORICAL
 
-IMPORTANT: Structure your response as follows:
+HISTORICAL vs ACTIVE ORDERS:
+Many pooling orders are years or decades old. Compare the election deadline to CURRENT DATE:
+- If the deadline has PASSED: This is a HISTORICAL RECORD. Write the analysis in past tense
+  as a factual summary of what happened. Do not write instructions on "how to respond" or
+  create urgency — the deadline is long gone. Focus on: what was ordered, what the default
+  outcome was, and whether subsequent wells provisions apply going forward.
+- If the deadline has NOT passed: This is an ACTIVE order requiring owner action. Write the
+  analysis as advice: explain options, recommend reviewing carefully, provide operator contact.
+
+RESPONSE FORMAT:
 1. FIRST: The JSON object with extracted data
 2. THEN: After the JSON, add TWO sections:
 
    KEY TAKEAWAY:
-   - 2-3 sentences maximum
-   - WHO filed it (operator name)
-   - WHAT well and formation(s)
-   - WHERE (section-township-range, county)
-   - WHEN owner needs to respond (election deadline)
-   - DEFAULT consequence if they don't respond (bonus amount, NRI delivered)
-   - Flag if deadline has already passed
+   - 2-3 sentences maximum, plain text only
+   - WHO filed it, WHAT well, WHERE (S-T-R, County), WHEN deadline
+   - If HISTORICAL: State the deadline passed and what default applied
+   - If ACTIVE: State the deadline and default consequence
+   - NO markdown formatting (no **, no #, no ---)
 
    DETAILED ANALYSIS:
-   - Write as an experienced mineral rights advisor
-   - Plain English explanation of what force pooling means for this owner
-   - Compare election options (cash vs participation vs royalty trade-offs)
-   - Explain key deadlines (election period, payment deadlines)
-   - Describe default consequences if owner doesn't respond
-   - Provide operator contact info (name, address, email) for sending elections
-   - Explain subsequent well provisions if applicable
+   - Plain text only, NO markdown formatting (no **, no #, no ---, no bullet lists)
+   - If HISTORICAL (deadline passed): MAX 150 words. Factual summary of the order and its
+     outcome. Note subsequent wells provisions if they could still apply. Do not write
+     response instructions. Operator contact info.
+   - If ACTIVE (deadline upcoming): MAX 350 words. This is where your insights matter most.
+     Compare election options with specific financial terms. Explain which option might suit
+     different owner situations. Highlight the default consequence. Walk through response
+     steps and deadlines. Include operator contact info. Give the mineral owner everything
+     they need to make an informed decision.
 
-EXTRACTION RULES:
-- Extract raw values directly (strings, numbers, dates) - NOT wrapped in objects
-- Use null if a field is not found or illegible
-- NEVER hallucinate plausible-sounding values for illegible text
-- It is BETTER to return null than to guess incorrectly
+LEGAL DESCRIPTION (TRS) - CRITICAL:
+- SECTION is 1-36 within a township
+- TOWNSHIP contains "N" or "S" (range 1-30 in Oklahoma)
+- RANGE contains "E" or "W" (range 1-30 in Oklahoma)
+- For top-level linking fields, use the unit's primary section
 
-LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
-Oklahoma uses the Section-Township-Range (TRS) system:
-- SECTION is the number (1-36) within a township
-- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
-- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
-- QUARTERS: Read from smallest to largest (e.g., "SE/4" = Southeast quarter)
+COMMON TRS MISTAKE: If township looks like "25N" or "36N", STOP - you likely confused section with township.
 
-COMMON MISTAKE TO AVOID:
-- If you extract a township like "25N" or "36N", STOP - you likely confused section number with township
-- Township numbers are typically 1-30. Section numbers are 1-36.
-
-SOURCE OF TRUTH RULES:
-- The DOCUMENT TEXT is the source of truth. Extract what the document says, period.
-- IGNORE filenames, captions, or any external metadata - they may be wrong.
-
-CRITICAL - FIELD NAME ENFORCEMENT:
-You MUST use ONLY the exact field names shown in the schema below. Do NOT invent new field names.
-- Use "attorney_information" NOT "Legal Representation Attorney" or "Attorney Info"
-- Use "order_info.commissioners" NOT "Order Execution Commissioners"
-- Use "additional_parties.respondents_with_known_addresses" NOT "Exhibit A Respondents Known Addresses"
-- Use "subsequent_wells" NOT "Additional Provisions Subsequent Wells"
-- Use "notes" for any additional provisions NOT captured elsewhere
-If information doesn't fit an existing field, put it in "notes" as a text summary. Do NOT create new top-level fields.
+SOURCE OF TRUTH: The DOCUMENT TEXT is the source of truth. IGNORE filenames or metadata.
 
 =============================================================================
-DOCUMENT TYPES FOR THIS PROMPT: pooling_order, force_pooling_order
+STRICT SCHEMA - ONLY use the exact fields shown in the example below.
+Do NOT invent new field names. Any extra fields waste tokens and will be discarded.
+If info doesn't fit a schema field, put it in "notes" as brief text. Do NOT create new fields.
 =============================================================================
 
-POOLING ORDERS (Force pooling orders requiring mineral owner response):
+=============================================================================
+DO NOT EXTRACT - These waste tokens and don't help mineral owners:
+=============================================================================
+- commissioners (OCC commissioner names/titles)
+- attorney_information / attorney_info (applicant's attorney details)
+- additional_parties / respondents (list of pooled mineral owners)
+- special_findings (legal boilerplate about due diligence)
+- mailing_requirement (process detail about mailing the order)
+- reasons_for_relief (boilerplate justification for pooling)
+- additional_terms (duplicate of structured fields)
+- administrative_law_judge / ALJ details
 
-Pooling orders compel unleased mineral owners to participate in well development. Extract ALL election options
-with their specific financial terms - this is critical for owners to make informed decisions.
-
-ELECTION OPTION TYPES:
-- "participate" - Working interest participation (owner pays proportionate costs, shares in production)
-- "cash_bonus" - Cash payment per NMA, standard royalty, no excess royalty
-- "cash_bonus_excess_royalty" - Cash payment plus excess royalty (reduced NRI to operator)
+ELECTION OPTION TYPES (use these exact values for option_type):
+- "participate" - Working interest participation (owner pays costs, shares production)
+- "cash_bonus" - Cash payment per NMA, standard royalty only
+- "cash_bonus_excess_royalty" - Cash payment plus excess royalty (reduced NRI)
 - "no_cash_higher_royalty" - No cash bonus, higher excess royalty
-- "non_consent" - Risk penalty option (150-300% cost recovery before sharing in production)
-- "statutory" - Falls under OCC statutory terms (52 O.S. §87.1)
+- "non_consent" - Risk penalty option (150-300% cost recovery)
+- "statutory" - OCC statutory terms (52 O.S. §87.1)
 
-POOLING ORDER EXAMPLE:
+=============================================================================
+POOLING ORDER EXAMPLE
+=============================================================================
 {{
   "doc_type": "pooling_order",
 
-  // TOP-LEVEL LINKING FIELDS (REQUIRED - from unit_info.legal_description)
+  // TOP-LEVEL LINKING FIELDS (REQUIRED - from unit legal description)
   "section": "3",
   "township": "1N",
   "range": "8E",
@@ -7676,23 +7859,11 @@ POOLING ORDER EXAMPLE:
     "order_number": "639589",
     "hearing_date": "2015-03-10",
     "order_date": "2015-03-17",
-    "effective_date": "2015-03-17",
-    "alj_report_date": "2015-03-15",
-    "commissioners": [
-      {{"name": "Bob Anthony", "title": "Chairman"}},
-      {{"name": "Dana L. Murphy", "title": "Vice Chairman"}},
-      {{"name": "J. Todd Hiett", "title": "Commissioner"}}
-    ]
+    "effective_date": "2015-03-17"
   }},
 
   "applicant": {{
-    "name": "Canyon Creek Energy Operating LLC"
-  }},
-
-  "attorney_information": {{
-    "administrative_law_judge": "John Smith",
-    "applicant_attorney": "Jane Doe",
-    "applicant_attorney_firm": "Hall Estill"
+    "name": "Canyon Creek Energy Holdings LLC"
   }},
 
   "operator": {{
@@ -7707,16 +7878,9 @@ POOLING ORDER EXAMPLE:
   }},
 
   "unit_info": {{
-    "legal_description": {{
-      "section": "3",
-      "township": "1N",
-      "range": "8E",
-      "county": "Coal",
-      "meridian": "IM",
-      "quarters": "SE/4"
-    }},
     "unit_description": "The SE/4 of Section 3, Township 1 North, Range 8 East, IM, Coal County",
-    "unit_size_acres": 160
+    "unit_size_acres": 160,
+    "quarters": "SE/4"
   }},
 
   "well_info": {{
@@ -7794,46 +7958,80 @@ POOLING ORDER EXAMPLE:
     "excludes_replacement_wells": true
   }},
 
-  "notes": "Additional provisions such as operator's lien, dispute resolution, etc.",
+  "lease_exhibits": [
+    {{
+      "section": "3",
+      "township": "1N",
+      "range": "8E",
+      "county": "Coal",
+      "quarters": "SE/4",
+      "lessor": "Smith Family Trust",
+      "lessee": "Canyon Creek Energy",
+      "bonus_per_nma": 350.00,
+      "royalty": "3/16",
+      "royalty_decimal": 0.1875,
+      "lease_date": "2014-06",
+      "term_years": 3,
+      "acres": 40
+    }}
+  ],
 
-  "additional_parties": {{
-    "respondents_with_known_addresses": [
-      {{"name": "Osage Exploration and Development, Inc.", "address": "2445 Fifth Ave., Suite 310, San Diego, CA 92101"}}
-    ],
-    "respondents_with_unknown_addresses": 5,
-    "respondents_dismissed": 2
-  }},
+  "notes": "Re-entry of existing wellbore. Operator has plugging agreement and security on file.",
 
-  "key_takeaway": "REQUIRED - One sentence: Force pooling order filed by [Operator] for the [Well Name] well in [quarters] of Section [S]-[T]-[R], [County] County. Election deadline is [date] (or PASSED if in the past). Default is Option [X] ($[bonus]/NMA, [NRI] NRI delivered).",
+  "key_takeaway": "Force pooling order filed by Canyon Creek Energy for the Hockett 1-3 well (re-entry) in SE/4 of Section 3-1N-8E, Coal County. The election deadline of April 6, 2015 has long passed. Non-respondents were defaulted to Option 2: $350/NMA cash bonus with 3/16 total royalty.",
 
-  "detailed_analysis": "REQUIRED - 3-5 paragraphs covering: (1) what this order means for the mineral owner in plain English; (2) comparison of election options with pros/cons; (3) key deadlines and consequences of missing them; (4) subsequent wells provisions if applicable; (5) how to respond and who to contact."
+  "detailed_analysis": "Canyon Creek Energy pooled unleased interests in the SE/4 of Section 3-1N-8E for the Hockett 1-3 vertical re-entry covering five formations (Cromwell, Upper Booch, Lower Booch, Hartshorne, Gilcrease). Three options were offered: Option 1 participate at $5,541.25/NMA, Option 2 (default) $350/NMA cash plus 1/16 excess royalty (3/16 total, 81.25% NRI), Option 3 no cash with 1/8 excess royalty (1/4 total, 75% NRI). The election deadline passed April 6, 2015 and non-respondents were defaulted to Option 2. Subsequent wells provisions apply with 20-day notice for future wells in these formations. Operator: Canyon Creek Energy Operating LLC, (918) 561-6737, bgray@cceok.com."
 }}
 
 =============================================================================
-EXTRACTION NOTES FOR POOLING ORDERS:
+EXTRACTION NOTES:
 =============================================================================
 
-ELECTION OPTIONS - EXTRACT ALL:
-- Each option should have option_number, option_type, and is_default
-- Extract ALL financial terms: bonus_per_nma, cost_per_nma, royalty_rate, excess_royalty, nri_delivered
-- The DEFAULT option is critical - this is what happens if the owner doesn't respond
+ELECTION OPTIONS - EXTRACT ALL with ALL financial terms:
+- option_number, option_type, is_default are required for every option
+- Extract: bonus_per_nma, cost_per_nma, royalty_rate, excess_royalty, nri_delivered
+- The DEFAULT option is critical - what happens if owner doesn't respond
 
-DEADLINES - CALCULATE WHEN POSSIBLE:
+DEADLINES - CALCULATE:
 - election_deadline = effective_date + election_period_days
-- If only "20 days from date of order" is stated, calculate the actual date
+- If stated as "20 days from date of order", calculate the actual date
 
-SUBSEQUENT WELLS PROVISION:
-- This is critical for mineral owners - does this order cover future wells?
-- Extract notice period and payment deadlines for subsequent wells
-- Note if replacement wells are excluded
+SUBSEQUENT WELLS:
+- Does this order cover future wells? Extract notice period and deadlines.
+
+LEASE EXHIBITS / COMPARABLE LEASES:
+- Many pooling orders include exhibits listing existing leases in the area as evidence
+- Look for: exhibit pages, appendices, "evidence of leasing activity", comparable lease tables
+- Extract EACH lease with: section, township, range, county, quarters, lessor, lessee,
+  bonus_per_nma, royalty (fraction), royalty_decimal, lease_date (YYYY-MM or YYYY-MM-DD),
+  term_years, acres
+- If no lease exhibits exist, return empty array: "lease_exhibits": []
+- NEVER invent lease data — only extract what is explicitly stated in the document
 
 TOP-LEVEL TRS FIELDS:
-Always include top-level section, township, range, county, state fields.
-These are REQUIRED for property linking - the dashboard uses these to match documents to properties.
+Always include section, township, range, county, state. REQUIRED for property linking.
 
-FORMATIONS:
-Extract all formation names and any associated depth ranges or order numbers.
-Multiple formations means the pooling order covers multiple depth intervals.
+NOTES FIELD:
+Brief text only (1-2 sentences). Use for: re-entry status, deleted formations, plugging agreements,
+or other notable provisions. Do NOT duplicate information already in structured fields.
+
+=============================================================================
+BEFORE YOU RESPOND - QUALITY CHECKLIST:
+=============================================================================
+1. ONLY schema fields: Your JSON contains ONLY the fields shown in the example above.
+   Do NOT add commissioners, attorney info, additional_parties, respondents, special_findings,
+   mailing requirements, reasons_for_relief, or any other invented fields. Extra fields are
+   discarded and waste your output tokens. Spend that effort on #2-4 instead.
+2. Election options are COMPLETE: Every option has option_number, option_type, is_default,
+   and ALL financial terms (bonus_per_nma, cost_per_nma, royalty_rate, excess_royalty, nri_delivered).
+   Double-check the math - does NRI match the royalty + excess royalty calculation?
+3. Deadline calculation is CORRECT: election_deadline = effective_date + election_period_days.
+   Verify the arithmetic. If CURRENT DATE is past the deadline, key_takeaway says "DEADLINE PASSED".
+4. Analysis length matches order status: HISTORICAL orders get concise analysis (under 150 words).
+   ACTIVE orders get thorough analysis (up to 350 words) with option comparisons and response guidance.
+   Always plain text, no markdown. Focus on what the mineral owner needs to know.
+5. Lease exhibits: If the document includes exhibit pages or comparable lease tables, extract them
+   into lease_exhibits. If none exist, return empty array []. Never invent lease data.
 """
 
 # ============================================================================
@@ -7841,7 +8039,13 @@ Multiple formations means the pooling order covers multiple depth intervals.
 # ============================================================================
 
 # Document types that should use the DIVISION ORDER focused prompt
-DIVISION_ORDER_DOC_TYPES = ["division_order", "check"]
+DIVISION_ORDER_DOC_TYPES = ["division_order"]
+
+# Document types that should use the CHECK STUB focused prompt
+CHECK_STUB_DOC_TYPES = ["check_stub", "check"]
+
+# Document types that should use the JIB focused prompt
+JOINT_INTEREST_BILLING_DOC_TYPES = ["joint_interest_billing"]
 
 DIVISION_ORDER_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners verify their division orders and payment information.
 Your task is to extract ownership interest details accurately so owners can verify their payments match their records.
@@ -8025,6 +8229,256 @@ In the detailed_analysis "Action Required & Contact Information" section:
 - ALWAYS use operator_phone/operator_email for "contact for questions"
 - If no operator contact found, say "contact [operator_name] by mail at the address above"
 - NEVER tell the owner to contact themselves using owner_phone/owner_email
+"""
+
+# ============================================================================
+# CHECK STUB / ROYALTY STATEMENT FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+CHECK_STUB_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners verify their royalty payments and revenue checks.
+Your task is to extract payment details accurately so owners can reconcile deposits and verify decimals match their division orders.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo
+- Production months are typically 2-4 months before check date (normal operator lag)
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - State operator, total check amount, and production month(s) covered
+   - Note the number of wells and key decimal interest(s)
+   - Flag if deductions exceed 25% of gross or if payments are >3 months behind production
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Use this EXACT format with plain text section headings (NO markdown):
+
+     Payment Summary:
+     [Total payment amount, check date, production months covered]
+
+     Per-Well Breakdown:
+     [List each well with decimal interest and owner amount]
+
+     Items to Verify:
+     [Compare decimals to division orders, flag unusual deductions, note missing wells]
+
+   - CRITICAL: Do NOT use **bold** or any markdown - output plain text only
+   - Keep each section concise (2-4 sentences each)
+
+DECIMAL INTEREST - CRITICAL:
+- Extract the decimal interest EXACTLY as shown (e.g., 0.00781763)
+- This is the most important field - owners compare it to their division order
+- Decimals may differ between oil and gas for the same well (different unit allocations)
+- Common locations: "NET DECIMAL", "INTEREST", "FCTR", "Owner Decimal" column
+- On GROSS lines, 1.00000 means 8/8 (full interest) basis - the NET line has the owner decimal
+
+CHECK STUB FORMAT HANDLING:
+- "GROSS" rows show full-interest (8/8) production values
+- "NET" rows show owner's decimal-adjusted values
+- Extract volumes and prices from GROSS rows, decimal from NET rows
+- Product codes: O=Oil, G=Gas, C=Condensate, P=Plant Products, K=Other
+- Revenue type: RO=Royalty Oil, RG=Royalty Gas, RP=Royalty Plant, RE=Royalty Excise
+- "SEE ATTACHED VOUCHER" on check face means real data is on supplemental pages
+
+AGGREGATION RULES:
+- If multiple purchasers for same well/product/month: SUM amounts, use the SAME decimal
+- Taxes: sum all tax types (severance, marginal, excise, resource) into total_taxes
+- Deductions: sum all post-production deductions (gathering, compression, transport, marketing, processing) into total_deductions
+- Do NOT extract purchaser-level detail (Plains Marketing, Ancova Energy, etc.)
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata.
+
+CHECK STUB EXAMPLE:
+{{
+  "doc_type": "check_stub",
+
+  "operator": "Fossil Creek Energy Corporation",
+
+  "owner_name": "Price Oil & Gas Company Ltd",
+  "owner_number": "PRI230",
+
+  "check_number": "066105",
+  "check_date": "2025-12-05",
+  "check_amount": 40.96,
+
+  "wells": [
+    {{
+      "well_name": "G.W. CECIL 1-9",
+      "well_number": "173250",
+      "county": null,
+      "state": null,
+      "production_months": ["2025-08", "2025-09", "2025-10"],
+      "products": [
+        {{
+          "product_type": "gas",
+          "volume": 2414,
+          "volume_unit": "MCF",
+          "price_per_unit": null,
+          "decimal_interest": 0.00781763,
+          "gross_sales": 5376.69,
+          "total_taxes": 227.08,
+          "total_deductions": 1196.62,
+          "net_sales": 3452.68,
+          "owner_amount": 40.96
+        }}
+      ],
+      "well_owner_total": 40.96
+    }}
+  ],
+
+  "key_takeaway": "Revenue check from Fossil Creek Energy for $40.96 covering Aug-Oct 2025 gas production from G.W. CECIL 1-9. Gas decimal 0.00781763. Deductions are 22% of gross.",
+
+  "detailed_analysis": "Payment Summary:\\nFossil Creek Energy issued check #066105 dated 12/05/2025 for $40.96 to Price Oil & Gas Company Ltd (owner PRI230). Covers gas production from August through October 2025.\\n\\nPer-Well Breakdown:\\n- G.W. CECIL 1-9 (#173250): $40.96 owner share. Gas decimal 0.00781763 applied to 2,414 MCF gross production ($5,376.69 gross sales). Taxes $227.08, deductions $1,196.62.\\n\\nItems to Verify:\\n1. Compare gas decimal 0.00781763 to your division order for this well.\\n2. Deductions are 22% of gross - within normal range for gas wells with gathering/compression charges.\\n3. Three months of production on one check suggests possible payment catch-up."
+}}
+
+DO NOT EXTRACT:
+- Operator/owner addresses
+- Tax ID numbers or EINs
+- Per-purchaser breakdowns (aggregate to well level)
+- Individual tax type breakdowns (just total_taxes)
+- MMBTU factors or BTU conversion details
+- Lump sum or preplant marketing detail
+"""
+
+# ============================================================================
+# JOINT INTEREST BILLING (JIB) FOCUSED EXTRACTION PROMPT
+# ============================================================================
+
+JOINT_INTEREST_BILLING_EXTRACTION_PROMPT_TEMPLATE = """You are an experienced mineral rights advisor helping mineral owners verify operating expense charges billed to their interest.
+Your task is to extract billing details accurately so owners can verify charges are legitimate, reasonable, and billed at the correct decimal interest.
+
+CURRENT DATE: {current_date}
+
+DATE ANALYSIS RULES:
+- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
+- All dates in documents are valid - do not flag any date as "in the future" or a typo
+
+IMPORTANT: Structure your response as follows:
+1. FIRST: The JSON object with extracted data
+2. THEN: After the JSON, add TWO sections:
+
+   KEY TAKEAWAY:
+   - 2-3 sentences maximum
+   - State operator, amount due, and property/well name
+   - Note the decimal interest and expense type (operating vs workover)
+   - Flag if AFE present (workover/capital expense requiring approval)
+
+   DETAILED ANALYSIS:
+   - Write as an experienced mineral rights advisor
+   - Use this EXACT format with plain text section headings (NO markdown):
+
+     Billing Summary:
+     [Amount due, operator, property/well, service period]
+
+     Charge Breakdown:
+     [Expense categories with gross and owner amounts]
+
+     Items to Verify:
+     [Decimal matches division order, AFE approval if workover, reasonableness of charges]
+
+   - CRITICAL: Do NOT use **bold** or any markdown - output plain text only
+   - Keep each section concise (2-4 sentences each)
+
+DECIMAL INTEREST - CRITICAL:
+- Extract the owner decimal EXACTLY as shown (e.g., 0.00302500)
+- Should be the SAME across all line items on the invoice
+- If it varies between line items, use the most common value and note discrepancy in analysis
+- Common locations: "Owner Decimal" column, separate decimal column next to amounts
+
+JIB DOCUMENT TYPES:
+- "Joint Owner Invoice" / "Invoice for Operating Expenses" = Individual JIB (one property's charges)
+- "Joint Owner Statement" = Summary cover page (aging buckets, aggregate balance) - extract aging fields
+- "Operator Invoice" / "Operating Statement" = May combine revenue and expenses
+- All are doc_type "joint_interest_billing"
+
+EXPENSE CATEGORY MAPPING:
+- "Lease Operating Expense" items (power, fuel, pumper, admin, supervision) → category: "lease_operating"
+- "Well Work Costs" items (hot oil, pumping services, completion unit, rod work) → category: "well_work"
+- "Equipment Maintenance" items (pump replacement, rod string, tubing) → category: "equipment_maintenance"
+- Drilling/completion costs under an AFE → category: "drilling_completion"
+- Environmental (SWD, remediation) → category: "environmental"
+- Anything else → category: "other"
+
+AGGREGATION RULES:
+- Group individual vendor line items into expense categories
+- Description: summarize key services, don't list every vendor name
+- Example: 5 vendors doing pump work → "Pumping services, subsurface equipment, completion unit"
+
+SOURCE OF TRUTH RULES:
+- The DOCUMENT is the source of truth. Extract what the document says, period.
+- IGNORE filenames, captions, or any external metadata.
+
+JIB EXAMPLE:
+{{
+  "doc_type": "joint_interest_billing",
+
+  "operator": "Kirkpatrick Oil Company, Inc.",
+
+  "owner_name": "Joel S Price Trust",
+  "owner_number": "0017436",
+
+  "property_name": "Cheval Unit",
+  "property_number": "491574",
+  "well_name": "Cheval 14-5 Pump & Clean Out",
+  "afe_number": "2025-095",
+
+  "invoice_date": "2025-12-10",
+  "service_period": "2025-10",
+
+  "decimal_interest": 0.00302500,
+
+  "expenses": [
+    {{
+      "category": "equipment_maintenance",
+      "description": "Downhole pump replacement",
+      "gross_amount": 5284.64,
+      "owner_amount": 15.99
+    }},
+    {{
+      "category": "well_work",
+      "description": "Pumping services, subsurface equipment, rental equipment, casing crews, completion unit",
+      "gross_amount": 9890.48,
+      "owner_amount": 29.93
+    }}
+  ],
+
+  "total_gross": 15175.12,
+  "total_owner_amount": 45.92,
+  "prepayments_applied": 0.00,
+  "amount_due": 45.92,
+
+  "key_takeaway": "JIB from Kirkpatrick Oil for $45.92 owner share on Cheval Unit (AFE 2025-095, Cheval 14-5 well work). Decimal: 0.00302500. Gross charges: $15,175 for pump replacement and well services.",
+
+  "detailed_analysis": "Billing Summary:\\nKirkpatrick Oil billed Joel S Price Trust (owner 0017436) for $45.92 on the Cheval Unit (PUN 491574). This covers workover operations on Cheval 14-5 under AFE 2025-095, service period October 2025.\\n\\nCharge Breakdown:\\n- Equipment Maintenance: $5,284.64 gross / $15.99 your share (downhole pump replacement)\\n- Well Work Costs: $9,890.48 gross / $29.93 your share (pumping services, subsurface equipment, casing crews, completion unit)\\n\\nItems to Verify:\\n1. Confirm decimal 0.00302500 matches your division order for Cheval Unit.\\n2. AFE 2025-095 present - this is a workover expense. Verify you received and approved the AFE before work began.\\n3. $15,175 gross is within reasonable range for a pump changeout with completion unit work."
+}}
+
+FOR JOINT OWNER STATEMENTS (Summary/Cover pages with aging):
+Add these fields to the JSON:
+{{
+  "aging": {{
+    "current": 423.68,
+    "days_30": 372.53,
+    "days_60": 0.00,
+    "days_90": 0.00,
+    "days_120_plus": 0.00,
+    "total_due": 796.21
+  }},
+  "balance_forward": 372.53
+}}
+
+DO NOT EXTRACT:
+- Operator/owner/vendor addresses
+- Vendor reference or invoice numbers
+- Owner statement numbers
+- Remit-to information
 """
 
 # ============================================================================
@@ -8466,85 +8920,69 @@ Use the FIRST section from the first unit if multiple units exist.
 # Document types that should use the LOCATION EXCEPTION focused prompt
 LOCATION_EXCEPTION_DOC_TYPES = ["location_exception_order"]
 
-LOCATION_EXCEPTION_EXTRACTION_PROMPT_TEMPLATE = """You are a specialized document processor for Oklahoma Corporation Commission location exception orders.
-Your task is to extract key information about wells that are permitted to drill closer to boundaries than standard setbacks allow.
+LOCATION_EXCEPTION_EXTRACTION_PROMPT_TEMPLATE = """You are extracting data from an Oklahoma Corporation Commission location exception order.
 
 CURRENT DATE: {current_date}
 
-DATE ANALYSIS RULES:
-- Use ONLY the CURRENT DATE provided above when reasoning about time - NEVER use your training data cutoff
-- All dates in documents are valid - do not flag any date as "in the future" or a typo
+FOCUS: What exception was granted and which sections are affected. Mineral owners need to understand
+if their section might be included in this well's production. Location exceptions are INFORMATIONAL ONLY -
+no owner action is required.
+
+DATE RULES:
+- Use ONLY the CURRENT DATE provided above - NEVER use your training data cutoff
+- All dates in documents are valid
 - Calculate expiration dates if order has time limit
 
-IMPORTANT: Structure your response as follows:
+RESPONSE FORMAT:
 1. FIRST: The JSON object with extracted data
 2. THEN: After the JSON, add TWO sections:
 
    KEY TAKEAWAY:
    - 2-3 sentences maximum
-   - State what exception was granted (reduced setback distance)
-   - Identify the well and its location
-   - Note if expiration date applies
+   - State what exception was granted (standard vs granted setback)
+   - Identify the well and sections involved
+   - Note if expiration applies
+   - State "No action required - informational only"
 
    DETAILED ANALYSIS:
    - Write as an experienced mineral rights advisor
-   - Explain what this exception means for mineral owners in the affected area
-   - Note if this is informational only vs requires action
-   - Discuss implications for neighboring mineral owners (offset protection)
+   - Explain what this exception means for mineral owners in affected sections
+   - Note that location exceptions don't require owner response
+   - Mention what to watch for next (pooling orders, division orders)
+   - Do NOT use **bold** or markdown formatting in any field values
 
-For EACH field you extract:
-1. Provide the value (or null if not found)
-
-HANDWRITTEN DOCUMENT RULES:
-- If you cannot clearly read handwritten characters, use null
-- NEVER hallucinate plausible-sounding values for illegible handwritten text
-- It is BETTER to return null than to guess incorrectly
-
-LEGAL DESCRIPTION (TRS) PARSING - CRITICAL:
-Oklahoma uses the Section-Township-Range (TRS) system:
-- SECTION is the number (1-36) within a township
-- TOWNSHIP contains "N" or "S" direction (valid range: 1-30 in Oklahoma)
-- RANGE contains "E" or "W" direction (valid range: 1-30 in Oklahoma)
-
-COMMON MISTAKE TO AVOID:
-- Township numbers are typically 1-30. Section numbers are 1-36.
-- If you extract township "25N" or "36N", you likely confused section with township
-
-SOURCE OF TRUTH: The DOCUMENT TEXT is the source of truth. Extract what the document says.
+LEGAL DESCRIPTION (TRS) - CRITICAL:
+- SECTION is 1-36 within a township
+- TOWNSHIP contains "N" or "S" (range 1-30 in Oklahoma)
+- RANGE contains "E" or "W" (range 1-30 in Oklahoma)
+- For top-level linking fields, use the FIRST TARGET section, not surface location
 
 =============================================================================
-UNDERSTANDING LOCATION EXCEPTION ORDERS
+DO NOT EXTRACT - These fields waste tokens and don't help mineral owners:
 =============================================================================
-
-Location exception orders allow wells to be drilled closer to unit/section boundaries than
-standard setbacks require. This is common for:
-
-1. HORIZONTAL WELLS - The lateral path may need to pass near section lines
-   - Standard lateral setback is typically 165 feet from unit boundary
-   - Exception may grant 0-165 feet depending on offset well protection
-
-2. VERTICAL WELLS - Well may need to be closer to boundary due to surface restrictions
-   - Standard setback is typically 660 feet from unit boundary
-   - Exception may allow 330 feet or closer
-
-KEY TERMINOLOGY:
-- FNL = Feet from North Line
-- FSL = Feet from South Line
-- FEL = Feet from East Line
-- FWL = Feet from West Line
-- Surface Location = Where the wellhead is drilled at surface
-- Target Section = Section where production occurs (may differ from surface location)
-- Lateral Path = Underground horizontal path of wellbore
+- officials (ALJ, commissioners, hearing location)
+- lateral_path with detailed lateral_points (measured depths, TVD, footages from lines)
+- vertical_well_location detailed footages (FSL, FEL numbers)
+- related_orders / companion_causes
+- conditions array (standard boilerplate)
+- applicant attorney information
+- allowable percentages (always 100%)
 
 =============================================================================
-JSON SCHEMA
+EXTRACT FOR MATCHING (not displayed, but used for linking to user's wells):
 =============================================================================
+- offset_wells: array of referenced/offset wells with well_name and api_number
+  (These are wells MENTIONED in the order, not the subject well)
+- unit_name: string - the named unit if mentioned (e.g., "Glorietta", "Lohmeyer")
+  Extract from well name pattern or explicit unit references
 
-For HORIZONTAL LOCATION EXCEPTION ORDER:
+=============================================================================
+HORIZONTAL LOCATION EXCEPTION EXAMPLE
+=============================================================================
 {{
   "doc_type": "location_exception_order",
 
-  // TOP-LEVEL LINKING FIELDS (REQUIRED) - Use target section, not surface location
+  // TOP-LEVEL LINKING FIELDS (REQUIRED - use first target section)
   "section": 26,
   "township": "17N",
   "range": "8W",
@@ -8555,21 +8993,12 @@ For HORIZONTAL LOCATION EXCEPTION ORDER:
     "cause_number": "CD2024-003810",
     "order_number": "754630",
     "order_date": "2024-11-05",
-    "effective_date": "2024-11-05",
-    "hearing_date": "2024-10-15"
-  }},
-
-  "officials": {{
-    "administrative_law_judge": "Paul E. Porter",
-    "alj_approval_date": "2024-10-28",
-    "hearing_location": "Jim Thorpe Building, Oklahoma City",
-    "commissioners": ["J. Todd Hiett", "Bob Anthony", "Kim David"]
+    "effective_date": "2024-11-05"
   }},
 
   "applicant": {{
     "name": "Ovintiv USA Inc.",
-    "role": "Operator",
-    "attorney": "John Smith"
+    "role": "Operator"
   }},
 
   "well_orientation": "horizontal",
@@ -8578,14 +9007,13 @@ For HORIZONTAL LOCATION EXCEPTION ORDER:
     "well_name": "Lohmeyer 1708 2H-26X",
     "api_number": "35-073-27140",
     "operator": "Ovintiv USA Inc.",
-    "well_type": "new_drill|re_entry|re_completion",
+    "well_type": "new_drill",
     "spacing_unit_acres": 640
   }},
 
   "target_formations": [
     {{
       "name": "Mississippian",
-      "qualifier": "less Chester",
       "is_primary": true
     }}
   ],
@@ -8619,108 +9047,38 @@ For HORIZONTAL LOCATION EXCEPTION ORDER:
   "exception_details": {{
     "standard_setback_ft": 165,
     "granted_setback_ft": 147,
-    "actual_setback_ft": 147,
-    "exception_type": "lateral_path|reduced_setback|surface_location",
-    "exception_reason": "Horizontal lateral path through multiple sections"
-  }},
-
-  "lateral_path": {{
-    "surface_location": {{
-      "section": 23,
-      "township": "17N",
-      "range": "8W",
-      "footage_fnl": 200,
-      "footage_fel": 1430
-    }},
-    "lateral_points": [
-      {{
-        "point_type": "first_perforation",
-        "section": 26,
-        "township": "17N",
-        "range": "8W",
-        "measured_depth_ft": 10540,
-        "true_vertical_depth_ft": 7490,
-        "footage_fnl": 156,
-        "footage_fel": 2326
-      }},
-      {{
-        "point_type": "section_crossing",
-        "section": 35,
-        "township": "17N",
-        "range": "8W",
-        "measured_depth_ft": 15348,
-        "true_vertical_depth_ft": 7488,
-        "footage_fsl": 0,
-        "footage_fel": 2241,
-        "line_crossed": "south",
-        "description": "Crosses from Section 26 to Section 35"
-      }},
-      {{
-        "point_type": "last_perforation",
-        "section": 35,
-        "township": "17N",
-        "range": "8W",
-        "measured_depth_ft": 20608,
-        "true_vertical_depth_ft": 7537,
-        "footage_fsl": 1316,
-        "footage_fel": 2159
-      }},
-      {{
-        "point_type": "terminus_bhl",
-        "section": 35,
-        "township": "17N",
-        "range": "8W",
-        "measured_depth_ft": 20783,
-        "true_vertical_depth_ft": 7550,
-        "footage_fsl": 1359,
-        "footage_fel": 2155,
-        "description": "Bottom Hole Location"
-      }}
-    ],
-    "total_lateral_length_ft": 10243,
-    "drilling_direction": "north to south"
-  }},
-
-  "allowable": {{
-    "oil_allowable_percent": 100,
-    "gas_allowable_percent": 100
-  }},
-
-  "offset_impact": {{
-    "offsets_adversely_affected": false,
-    "offset_protection_required": false,
-    "offset_wells_identified": []
+    "exception_type": "lateral_path",
+    "exception_reason": "Horizontal lateral path requires proximity to section line"
   }},
 
   "expiration": {{
     "expires": false
   }},
 
-  "related_orders": {{
-    "references": [
-      {{
-        "order_number": "712345",
-        "type": "spacing_order",
-        "description": "Establishes drilling unit"
-      }}
-    ]
+  "offset_impact": {{
+    "offsets_adversely_affected": false
   }},
 
-  "conditions": [
-    "Exception granted for specific well location only",
-    "Does not establish precedent for future wells"
+  "unit_name": "Lohmeyer",
+
+  "offset_wells": [
+    {{
+      "well_name": "Parker 1-23H",
+      "api_number": "35-073-26890"
+    }}
   ],
 
-  "key_takeaway": "Location exception granted for Lohmeyer 1708 2H-26X horizontal well, allowing lateral path within 147 feet of section lines (vs 165 ft standard). Well will produce from Sections 26 and 35, T17N-R8W, Kingfisher County.",
+  "key_takeaway": "Location exception granted for Lohmeyer 1708 2H-26X horizontal well, allowing lateral within 147 feet of section lines (vs 165 ft standard). Well crosses Sections 26 and 35, T17N-R8W, Kingfisher County. No action required - informational only.",
 
-  "detailed_analysis": "This location exception allows Ovintiv to drill a horizontal Mississippian well with the lateral passing through multiple sections. The reduced setback (147 ft vs 165 ft standard) was granted because the wellbore trajectory requires proximity to the south line of Section 26 where it crosses into Section 35. No adverse impact to offset wells was found. Mineral owners in Sections 26 and 35 will share in production proportionally."
+  "detailed_analysis": "Ovintiv received approval to drill a horizontal Mississippian well closer to section boundaries than normally allowed (147 ft vs 165 ft standard). The lateral runs through Sections 26 and 35.\n\nFor mineral owners in Sections 26 and 35:\n- Your minerals may be included in this well's production\n- Watch for pooling orders or division orders that follow\n- The closer setback was granted because the wellbore path requires proximity to the section line\n\nNo action required - location exceptions are informational. No offset wells were found to be adversely affected."
 }}
 
-For VERTICAL LOCATION EXCEPTION ORDER:
+=============================================================================
+VERTICAL LOCATION EXCEPTION EXAMPLE
+=============================================================================
 {{
   "doc_type": "location_exception_order",
 
-  // TOP-LEVEL LINKING FIELDS (REQUIRED)
   "section": 17,
   "township": "9N",
   "range": "7W",
@@ -8731,21 +9089,12 @@ For VERTICAL LOCATION EXCEPTION ORDER:
     "cause_number": "CD2015-001234",
     "order_number": "647505",
     "order_date": "2015-06-30",
-    "effective_date": "2015-06-30",
-    "hearing_date": "2015-06-15"
-  }},
-
-  "officials": {{
-    "administrative_law_judge": "Keith Thomas",
-    "alj_approval_date": "2015-06-25",
-    "hearing_location": "Jim Thorpe Building, Oklahoma City",
-    "commissioners": ["Bob Anthony", "Todd Hiett", "Dana Murphy"]
+    "effective_date": "2015-06-30"
   }},
 
   "applicant": {{
     "name": "Triad Energy Corporation",
-    "role": "Operator",
-    "attorney": "Jane Doe"
+    "role": "Operator"
   }},
 
   "well_orientation": "vertical",
@@ -8755,7 +9104,6 @@ For VERTICAL LOCATION EXCEPTION ORDER:
     "api_number": "35-051-20123",
     "operator": "Triad Energy Corporation",
     "well_type": "re_entry",
-    "previous_formation": "Hunton",
     "spacing_unit_acres": 80
   }},
 
@@ -8782,99 +9130,42 @@ For VERTICAL LOCATION EXCEPTION ORDER:
     "standard_setback_ft": 660,
     "granted_setback_ft": 330,
     "exception_type": "reduced_setback",
-    "exception_reason": "Re-entry of existing wellbore to access Hoxbar formation"
+    "exception_reason": "Re-entry of existing wellbore to access deeper Hoxbar formation"
   }},
 
-  "vertical_well_location": {{
-    "footage_from_south": 330,
-    "footage_from_east": 990,
-    "quarter_section": "SE/4",
-    "footages_description": "330 feet FSL and 990 feet FEL of Section 17"
-  }},
-
-  "allowable": {{
-    "oil_allowable_percent": 100,
-    "gas_allowable_percent": 100
+  "expiration": {{
+    "expires": true,
+    "expiration_date": "2016-06-30"
   }},
 
   "offset_impact": {{
     "offsets_adversely_affected": false
   }},
 
-  "expiration": {{
-    "expires": true,
-    "expiration_period": "one year",
-    "expiration_date": "2016-06-30"
-  }},
+  "unit_name": "Sanders",
 
-  "related_orders": {{
-    "references": [
-      {{
-        "order_number": "456789",
-        "type": "spacing_order",
-        "description": "Establishes 80-acre drilling unit"
-      }}
-    ]
-  }},
+  "offset_wells": [],
 
-  "conditions": [
-    "Exception granted for specific well location only",
-    "Does not alter established spacing pattern"
-  ],
+  "key_takeaway": "Re-entry location exception for Sanders 1-17 well, allowing completion 330 feet from boundary (vs 660 ft standard) to access Hoxbar formation. Authorization expires June 30, 2016. No action required.",
 
-  "key_takeaway": "Re-entry location exception for the Sanders 1-17 well, allowing completion 330 feet from the south line (vs 660 ft standard) to access the Hoxbar formation. Authorization expires June 30, 2016.",
-
-  "detailed_analysis": "This location exception allows Triad Energy to re-enter an existing wellbore that previously produced from the depleted Hunton formation. The reduced setback permits targeting the Hoxbar formation which underlies the existing well. The 80-acre spacing unit and one-year expiration are typical for vertical well re-entries. No offset wells were found to be adversely affected."
+  "detailed_analysis": "Triad Energy received approval to re-enter an existing well to target the Hoxbar formation. The reduced setback (330 ft vs 660 ft) allows accessing the deeper zone from the existing wellbore.\n\nImportant: This authorization expires June 30, 2016.\n\nNo action required - location exceptions are informational. If you own minerals in Section 17-9N-7W, you may see production from this re-entry."
 }}
 
 =============================================================================
-EXTRACTION NOTES FOR LOCATION EXCEPTION ORDERS
+QUALITY CHECKLIST
 =============================================================================
-
-HORIZONTAL VS VERTICAL DETECTION:
-- Look for "HORIZONTAL WELL" or "HORIZONTAL DRILLING" → horizontal
-- Look for lateral path, completion interval, section crossings → horizontal
-- Look for vertical footage descriptions (FSL/FEL only) → vertical
-- Surface location different from target section → likely horizontal
-
-SECTION DETERMINATION FOR TOP-LEVEL FIELDS:
-- For HORIZONTAL wells: Use the first TARGET section (where production occurs), not surface location
-- For VERTICAL wells: Surface and target are the same section
-- This ensures property linking connects to where minerals are actually produced
-
-LATERAL PATH EXTRACTION (HORIZONTAL WELLS):
-- Extract ALL lateral points: surface, first perf, section crossings, last perf, terminus
-- Footage references: FNL (from north), FSL (from south), FEL (from east), FWL (from west)
-- Note which section lines are crossed and in what direction
-- Total lateral length is critical for allocation calculations
-
-EXCEPTION TYPES:
-- "lateral_path": Horizontal lateral passes near section boundaries
-- "reduced_setback": Vertical or horizontal well closer to boundary than standard
-- "surface_location": Surface hole location exception (separate from lateral exception)
-
-FORMATION QUALIFIERS:
-- "Mississippian less Chester" means Mississippian formation excluding Chester member
-- Extract the full formation name with qualifiers
-
-EXPIRATION:
-- Vertical re-entries often expire in 1 year
-- Horizontal wells may not have expiration
-- Note expiration prominently in key_takeaway if present
-
-OFFSET PROTECTION:
-- Location exceptions should note if offset wells are adversely affected
-- "No offsets adversely affected" is common finding
-- If affected, may require additional protection measures
-
-TARGET FORMATIONS - FIELD NAME CONSISTENCY:
-- Use "name" (not "formation_name") for formation name field
-- This matches the dashboard handlers for consistent display
-
-TOP-LEVEL TRS FIELDS:
-Always include top-level section, township, range, county fields.
-These are REQUIRED for property linking.
-For horizontal wells, use the FIRST TARGET section (is_target_section=true).
+Before returning extraction:
+- Top-level section/township/range uses first TARGET section, not surface location
+- order_info has cause_number, order_number, order_date
+- well_info has well_name, operator, well_type
+- location.sections lists all sections with is_surface_location and is_target_section
+- exception_details has standard_setback_ft and granted_setback_ft
+- expiration.expires is boolean, expiration_date only if true
+- offset_wells has well_name and api_number for each referenced/offset well (empty array if none)
+- unit_name extracted from well name pattern or explicit unit references (null if unclear)
+- key_takeaway states: exception granted, sections affected, no action required
+- detailed_analysis explains what it means for mineral owners
+- NO officials, lateral_points, attorney info, conditions, or related_orders
 """
 
 # ============================================================================
@@ -9249,6 +9540,12 @@ def get_extraction_prompt(ocr_quality_warning: str = None, doc_type: str = None)
     elif doc_type and doc_type in DIVISION_ORDER_DOC_TYPES:
         logger.info(f"Using FOCUSED DIVISION ORDER prompt for doc_type={doc_type}")
         prompt = DIVISION_ORDER_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in CHECK_STUB_DOC_TYPES:
+        logger.info(f"Using FOCUSED CHECK STUB prompt for doc_type={doc_type}")
+        prompt = CHECK_STUB_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
+    elif doc_type and doc_type in JOINT_INTEREST_BILLING_DOC_TYPES:
+        logger.info(f"Using FOCUSED JIB prompt for doc_type={doc_type}")
+        prompt = JOINT_INTEREST_BILLING_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
     elif doc_type and doc_type in SPACING_DOC_TYPES:
         logger.info(f"Using FOCUSED SPACING prompt for doc_type={doc_type}")
         prompt = SPACING_EXTRACTION_PROMPT_TEMPLATE.replace("{current_date}", current_date)
@@ -9440,7 +9737,7 @@ DOCUMENT TYPES (if not one of these, return "other"):
 - pooling_order, increased_density_order, change_of_operator_order, multi_unit_horizontal_order, unitization_order
 - drilling_and_spacing_order, horizontal_drilling_and_spacing_order, location_exception_order
 - drilling_permit, completion_report, well_transfer, title_opinion
-- check_stub, occ_order, suspense_notice, joa
+- check_stub, joint_interest_billing, occ_order, suspense_notice, joa
 - affidavit_of_heirship, death_certificate, trust_funding, limited_partnership, assignment_of_lease, quit_claim_deed, ownership_entity, legal_document, correspondence
 - tax_record, map
 
@@ -9480,6 +9777,16 @@ WELL TRANSFER DETECTION:
 - well_transfer: Look for "WELL TRANSFER", "FORM 1073", "1073MW", "CHANGE OF OPERATOR" (form, not order), "Notice of transfer of multiple oil or gas well ownership". Key indicators: former operator, new operator, API numbers list, transfer effective date, wells transferred count, operator OCC/OTC numbers. Contains list of wells with locations. NOT change_of_operator_order (which is an OCC ORDER authorizing operator change, not the transfer FORM itself). Well transfers are administrative forms filed AFTER the OCC approves the operator change.
 - multi_unit_horizontal_order: Look for "MULTIUNIT HORIZONTAL" or "MULTI-UNIT HORIZONTAL" or "MULTIUNIT WELL" in the title. Key indicators: horizontal well crossing multiple section boundaries, allocation percentages per section, completion interval lengths, production split between units. Contains tables showing section-by-section allocation factors. NOT horizontal_drilling_and_spacing_order (which establishes spacing rules, not production allocation).
 - occ_order: ONLY use this for OCC orders that don't fit the specific types above.
+
+FINANCIAL DOCUMENT TYPE DETECTION (check_stub vs joint_interest_billing vs division_order):
+
+- check_stub: REVENUE PAYMENTS to mineral/royalty owners. Look for "CHECK", "CHECK STUB", "ROYALTY STATEMENT", "REVENUE STATEMENT", "SUPPLEMENTAL CHECK VOUCHER", "OWNER STATEMENT" (with revenue detail). CRITICAL DISTINGUISHING FEATURES: (1) Check number and check date, (2) Per-WELL revenue breakdown with production volumes (BBL, MCF), (3) GROSS SALES / NET SALES / OWNER AMOUNT columns, (4) Production month (MO/YR or RUN date), (5) DECIMAL INTEREST applied to calculate owner's share of revenue, (6) Tax deductions (severance, excise). This shows money PAID TO the owner. NOT joint_interest_billing (which bills expenses TO the owner). NOT division_order (which certifies interest without payment detail).
+
+- joint_interest_billing: EXPENSE INVOICES billed to working/mineral interest owners. Look for "JOINT OWNER INVOICE", "JOINT INTEREST BILLING", "JIB", "INVOICE FOR OPERATING EXPENSES", "OPERATOR INVOICE", or "JOINT OWNER STATEMENT" (with expense/aging detail). CRITICAL DISTINGUISHING FEATURES: (1) VENDOR names and service descriptions (pumping, equipment, power, fuel), (2) GROSS AMOUNT and OWNER AMOUNT for each charge, (3) Expense categories: Lease Operating Expense, Well Work Costs, Equipment Maintenance, (4) AFE Name/Number for workover projects, (5) "Amount Due: Your Share" or "Total Billable Amount", (6) May have aging buckets (Current/30/60/90/120+). This shows money OWED BY the owner. NOT check_stub (which pays revenue TO the owner). NOT division_order.
+
+- division_order: OWNERSHIP CERTIFICATION authorizing payment distribution. Look for "DIVISION ORDER", "TRANSFER ORDER". CRITICAL DISTINGUISHING FEATURES: (1) Certifies decimal interest ownership, (2) Has signature block for owner to sign and return, (3) Lists interest types (Royalty, Working, ORRI, NRI), (4) Effective date for payment authorization, (5) NO production volumes or payment amounts. NOT check_stub or joint_interest_billing.
+
+QUICK TEST: If the document shows PRODUCTION VOLUMES and PAYMENT AMOUNTS per well → check_stub. If it shows EXPENSE LINE ITEMS with vendors and services → joint_interest_billing. If it asks you to SIGN AND RETURN → division_order.
 
 Examples of "other" documents (oil and gas docs that don't fit defined categories):
 - Farmout agreements, surface use agreements, pipeline agreements
@@ -9669,9 +9976,12 @@ async def detect_documents(image_paths: list[str]) -> dict:
         }
 
 
-async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False, doc_type: str = None) -> dict:
+async def extract_single_document(image_paths: list[str], start_page: int = 1, end_page: int = None, ocr_quality_warning: str = None, max_confidence: float = None, ocr_quality_score: float = None, is_handwritten: bool = False, doc_type: str = None, pdf_path: str = None) -> dict:
     """
-    Extract data from a single document using batching for large documents.
+    Extract data from a single document by sending all pages in one API call.
+
+    Sonnet handles document splitting upstream (two-stage pipeline), so each call
+    to this function receives pages for exactly one document - no internal batching needed.
 
     Args:
         image_paths: List of ALL page images from the PDF
@@ -9682,6 +9992,8 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
         ocr_quality_score: Optional OCR quality score (0.0-1.0) for review flag computation
         is_handwritten: Optional flag indicating document contains handwriting
         doc_type: Optional document type from classification (enables focused prompt selection)
+        pdf_path: Optional path to original PDF — when provided, sends as native document
+                  block instead of per-page images (avoids per-page image API costs)
 
     Returns:
         Extracted data dictionary with confidence scores (clamped if max_confidence provided)
@@ -9698,437 +10010,224 @@ async def extract_single_document(image_paths: list[str], start_page: int = 1, e
     if max_confidence and max_confidence < 1.0:
         logger.info(f"Confidence ceiling: {max_confidence:.2f} (will be enforced in post-processing)")
 
-    # Get the pages for this document
-    doc_pages = []
-    for i in range(start_page - 1, end_page):
-        if i < len(image_paths):
-            doc_pages.append((i + 1, image_paths[i]))
+    # Build content for Claude API call
+    if pdf_path and doc_type:
+        # NATIVE PDF PATH: Send entire PDF as a single document block.
+        # This avoids per-page image costs — Claude handles the PDF natively.
+        # Used for known doc types (harvested documents) where the PDF is available.
+        logger.info(f"Using native PDF document block (cost-efficient) for {pdf_path}")
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+        pdf_b64 = base64.standard_b64encode(pdf_bytes).decode('utf-8')
+        logger.info(f"PDF size: {len(pdf_bytes)} bytes, base64 length: {len(pdf_b64)}")
+        content = [
+            {
+                "type": "document",
+                "source": {
+                    "type": "base64",
+                    "media_type": "application/pdf",
+                    "data": pdf_b64
+                }
+            },
+            {
+                "type": "text",
+                "text": get_extraction_prompt(ocr_quality_warning, doc_type)
+            }
+        ]
+    else:
+        # STANDARD PATH: Send per-page images
+        doc_pages = []
+        for i in range(start_page - 1, end_page):
+            if i < len(image_paths):
+                doc_pages.append((i + 1, image_paths[i]))
 
-    total_pages = len(doc_pages)
+        total_pages = len(doc_pages)
 
-    # If document is small enough, process in one batch
-    if total_pages <= PAGES_PER_BATCH:
         content = await process_image_batch(doc_pages, f"all {total_pages} pages")
         content.append({
             "type": "text",
             "text": get_extraction_prompt(ocr_quality_warning, doc_type)
         })
 
-        # Call Claude for extraction with retry logic
-        async def make_extraction_call():
-            return client.messages.create(
-                model=CONFIG.CLAUDE_MODEL,
-                max_tokens=4096,
-                messages=[
-                    {"role": "user", "content": content}
-                ]
-            )
-        
-        logger.info(f"Calling Claude API for extraction ({CONFIG.CLAUDE_MODEL})")
-        response = await retry_with_backoff(make_extraction_call)
-        
-        # Parse response
-        response_text = response.content[0].text
-        logger.debug(f"Claude response: {response_text[:500]}...")
-        
-        # Extract JSON from response
-        json_str = response_text.strip()
-
-        # Log raw response details for debugging
-        logger.info(f"Raw response length: {len(json_str)}, first 100 chars: {repr(json_str[:100])}")
-
-        # Try to find JSON in the response - multiple strategies
-        # Strategy 1: Look for ```json blocks
-        # IMPORTANT: Use rfind to find the LAST ``` before KEY TAKEAWAY, since content
-        # inside JSON strings (like detailed_analysis) may contain ```
-        if "```json" in json_str:
-            json_start_pos = json_str.find("```json")
-            start = json_start_pos + 7
-
-            # Find the end: look for ``` that's followed by KEY TAKEAWAY or end of content
-            # First, find where KEY TAKEAWAY starts (if present)
-            key_takeaway_pos = json_str.find("KEY TAKEAWAY:")
-            search_region = json_str[start:key_takeaway_pos] if key_takeaway_pos != -1 else json_str[start:]
-
-            # Find the LAST ``` in the search region (before KEY TAKEAWAY)
-            last_fence_in_region = search_region.rfind("```")
-            if last_fence_in_region != -1:
-                end = start + last_fence_in_region
-            else:
-                end = -1
-
-            logger.info(f"Strategy 1: found ```json at {json_start_pos}, KEY TAKEAWAY at {key_takeaway_pos}, closing ``` at {end}")
-            if end != -1:
-                extracted = json_str[start:end].strip()
-                logger.info(f"Strategy 1 extracted length: {len(extracted)}, first 100 chars: {repr(extracted[:100])}")
-                logger.info(f"Strategy 1 extracted last 100 chars: {repr(extracted[-100:]) if len(extracted) > 100 else repr(extracted)}")
-                json_str = extracted
-            else:
-                logger.warning(f"Strategy 1: No closing ``` found")
-        # Strategy 2: Look for ``` blocks (without json specifier)
-        elif json_str.startswith("```"):
-            lines = json_str.split("\n")
-            if lines[0].startswith("```"):
-                lines = lines[1:]  # Remove opening fence
-            # Find and remove closing fence
-            for i, line in enumerate(lines):
-                if line.strip() == "```":
-                    lines = lines[:i]
-                    break
-            json_str = "\n".join(lines).strip()
-            logger.debug(f"Extracted JSON from ``` block, length: {len(json_str)}")
-
-        # Strategy 3: Find the JSON object by matching braces (string-aware)
-        if "{" in json_str and "}" in json_str:
-            # Find the first {
-            start = json_str.find("{")
-            # Find matching closing } by counting braces, but skip braces inside strings
-            brace_count = 0
-            end = start
-            in_string = False
-            escape_next = False
-            for i, char in enumerate(json_str[start:], start):
-                if escape_next:
-                    escape_next = False
-                    continue
-                if char == '\\' and in_string:
-                    escape_next = True
-                    continue
-                if char == '"' and not escape_next:
-                    in_string = not in_string
-                    continue
-                if not in_string:
-                    if char == "{":
-                        brace_count += 1
-                    elif char == "}":
-                        brace_count -= 1
-                        if brace_count == 0:
-                            end = i + 1
-                            break
-            if end > start:
-                json_str = json_str[start:end]
-                logger.debug(f"Extracted JSON by brace matching, length: {len(json_str)}")
-        
-        try:
-            final_json_str = json_str.strip()
-
-            # Final cleanup - ensure no markdown fences remain
-            if final_json_str.startswith("```"):
-                # Remove opening fence (could be ```json or just ```)
-                first_newline = final_json_str.find("\n")
-                if first_newline != -1:
-                    final_json_str = final_json_str[first_newline + 1:]
-            if final_json_str.endswith("```"):
-                final_json_str = final_json_str[:-3]
-            final_json_str = final_json_str.strip()
-
-            # Also try to extract just the JSON object if there's extra content
-            if not final_json_str.startswith("{"):
-                brace_start = final_json_str.find("{")
-                if brace_start != -1:
-                    final_json_str = final_json_str[brace_start:]
-            if not final_json_str.endswith("}"):
-                brace_end = final_json_str.rfind("}")
-                if brace_end != -1:
-                    final_json_str = final_json_str[:brace_end + 1]
-
-            print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
-            print(f"[DEBUG] JSON first 300 chars: {repr(final_json_str[:300])}", flush=True)
-            extracted_data = json.loads(final_json_str)
-            print(f"[DEBUG] Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}", flush=True)
-
-            # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections after the JSON
-            key_takeaway = None
-            detailed_analysis = None
-
-            if "KEY TAKEAWAY:" in response_text:
-                kt_start = response_text.find("KEY TAKEAWAY:")
-                kt_end = response_text.find("DETAILED ANALYSIS:", kt_start) if "DETAILED ANALYSIS:" in response_text else len(response_text)
-                if kt_start != -1:
-                    key_takeaway = response_text[kt_start + 13:kt_end].strip()
-                    # Clean up any markdown formatting
-                    if key_takeaway.startswith("```"):
-                        key_takeaway = key_takeaway[3:].strip()
-                    if key_takeaway.endswith("```"):
-                        key_takeaway = key_takeaway[:-3].strip()
-                    # Remove trailing # and ** markdown artifacts
-                    key_takeaway = key_takeaway.rstrip('#').strip().strip('*').strip()
-
-            if "DETAILED ANALYSIS:" in response_text:
-                da_start = response_text.find("DETAILED ANALYSIS:")
-                if da_start != -1:
-                    detailed_analysis = response_text[da_start + 18:].strip()
-                    # Clean up any markdown formatting
-                    if detailed_analysis.startswith("```"):
-                        detailed_analysis = detailed_analysis[3:].strip()
-                    if detailed_analysis.endswith("```"):
-                        detailed_analysis = detailed_analysis[:-3].strip()
-                    # Remove ** markdown artifacts
-                    detailed_analysis = detailed_analysis.strip('*').strip()
-
-            # Add to extracted data
-            if key_takeaway:
-                extracted_data["key_takeaway"] = key_takeaway
-            if detailed_analysis:
-                extracted_data["ai_observations"] = detailed_analysis  # Keep ai_observations for backward compatibility
-
-            # Fallback: check for old OBSERVATIONS format for backward compatibility
-            if not detailed_analysis and "OBSERVATIONS:" in response_text:
-                obs_start = response_text.find("OBSERVATIONS:")
-                if obs_start != -1:
-                    observations = response_text[obs_start + 13:].strip()
-                    if observations.startswith("```"):
-                        observations = observations[3:].strip()
-                    if observations.endswith("```"):
-                        observations = observations[:-3].strip()
-                    if observations:
-                        extracted_data["ai_observations"] = observations
-
-            # POST-PROCESSING: Clamp confidence scores based on OCR quality
-            if max_confidence and max_confidence < 1.0:
-                extracted_data = clamp_confidence_scores(extracted_data, max_confidence)
-                logger.info(f"Applied confidence clamping (max: {max_confidence:.2f})")
-
-            # POST-PROCESSING: Validate and correct API/PUN formats
-            extracted_data = validate_and_correct_extracted_data(extracted_data)
-
-            # POST-PROCESSING: Validate schema adherence
-            schema_validation = validate_extracted_schema(extracted_data)
-            extracted_data["_schema_validation"] = schema_validation
-            if schema_validation["total_issues"] > 0:
-                logger.warning(f"Schema validation issues: {schema_validation['all_issues']}")
-            else:
-                logger.info(f"Schema validation passed for doc_type={extracted_data.get('doc_type')}")
-
-            # POST-PROCESSING: Recalculate document_confidence from field_scores
-            # Override Sonnet's self-reported confidence with our calculation
-            field_scores = extracted_data.get("field_scores", {})
-            if field_scores:
-                calculated_confidence = calculate_document_confidence(
-                    field_scores,
-                    extracted_data.get("doc_type"),
-                    extracted_data
-                )
-                sonnet_confidence = extracted_data.get("document_confidence", "medium")
-                if calculated_confidence != sonnet_confidence:
-                    logger.info(f"Overriding document_confidence: Sonnet said '{sonnet_confidence}', calculated '{calculated_confidence}'")
-                    extracted_data["document_confidence"] = calculated_confidence
-                    extracted_data["_confidence_recalculated"] = True
-
-            # POST-PROCESSING: Compute review flags based on external signals
-            review_flags = compute_review_flags(
-                extracted_data,
-                ocr_quality=ocr_quality_score if ocr_quality_score is not None else 0.8,
-                is_handwritten=is_handwritten
-            )
-            extracted_data["_review_flags"] = review_flags
-            if review_flags["needs_review"]:
-                logger.warning(f"Document flagged for review: {review_flags['summary']}")
-            else:
-                logger.info(f"Review check passed: {review_flags['summary']}")
-
-            return extracted_data
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse extraction response: {e}")
-            logger.error(f"Error at position {e.pos}, line {e.lineno}, col {e.colno}")
-            logger.error(f"JSON string being parsed (first 500 chars): {repr(json_str[:500])}")
-            logger.error(f"Full response was: {response_text}")
-            return {"error": "Failed to parse response", "raw_response": response_text}
+    # Call Claude for extraction with retry logic
+    async def make_extraction_call():
+        return client.messages.create(
+            model=CONFIG.CLAUDE_MODEL,
+            max_tokens=16384,
+            messages=[
+                {"role": "user", "content": content}
+            ]
+        )
     
-    # For larger documents, we need to process in batches
-    logger.info(f"Document has {total_pages} pages, processing in batches of {PAGES_PER_BATCH}")
+    logger.info(f"Calling Claude API for extraction ({CONFIG.CLAUDE_MODEL})")
+    response = await retry_with_backoff(make_extraction_call)
     
-    # Strategy for large documents:
-    # 1. Process first batch to get main document info
-    # 2. Process remaining batches looking for additional info
-    # 3. Merge results
+    # Parse response
+    response_text = response.content[0].text
+    logger.debug(f"Claude response: {response_text[:500]}...")
     
-    extracted_data = None
-    
-    for batch_num, i in enumerate(range(0, total_pages, PAGES_PER_BATCH)):
-        batch = doc_pages[i:i + PAGES_PER_BATCH]
-        batch_description = f"pages {batch[0][0]}-{batch[-1][0]} of {total_pages}"
-        
-        content = await process_image_batch(batch, batch_description)
+    # Extract JSON from response
+    json_str = response_text.strip()
 
-        if batch_num == 0:
-            # First batch - full extraction
-            content.append({
-                "type": "text",
-                "text": get_extraction_prompt(ocr_quality_warning, doc_type)
-            })
+    # Log raw response details for debugging
+    logger.info(f"Raw response length: {len(json_str)}, first 100 chars: {repr(json_str[:100])}")
+
+    # Try to find JSON in the response - multiple strategies
+    # Strategy 1: Look for ```json blocks
+    # IMPORTANT: Use rfind to find the LAST ``` before KEY TAKEAWAY, since content
+    # inside JSON strings (like detailed_analysis) may contain ```
+    if "```json" in json_str:
+        json_start_pos = json_str.find("```json")
+        start = json_start_pos + 7
+
+        # Find the end: look for ``` that's followed by KEY TAKEAWAY or end of content
+        # First, find where KEY TAKEAWAY starts (if present)
+        key_takeaway_pos = json_str.find("KEY TAKEAWAY:")
+        search_region = json_str[start:key_takeaway_pos] if key_takeaway_pos != -1 else json_str[start:]
+
+        # Find the LAST ``` in the search region (before KEY TAKEAWAY)
+        last_fence_in_region = search_region.rfind("```")
+        if last_fence_in_region != -1:
+            end = start + last_fence_in_region
         else:
-            # Subsequent batches - look for additional/missing info
-            content.append({
-                "type": "text",
-                "text": f"""This is batch {batch_num + 1} of a multi-page document. 
-The first batch contained the main document information. 
-Please check these pages for any additional important information that might have been missed, 
-such as:
-- Additional parties (grantors/grantees, lessors/lessees)
-- Exhibits or attachments with property descriptions
-- Amendment or modification information
-- Additional legal descriptions or property details
+            end = -1
 
-If you find additional information, provide it in the same JSON format as before.
-If these pages don't contain significant new information, return: {{"additional_info": "none"}}
-"""
-            })
-        
-        # Make API call with retry logic
-        # Use higher token limit for first batch to handle complex documents like unitization orders
-        async def make_batch_call():
-            return client.messages.create(
-                model=CONFIG.CLAUDE_MODEL,
-                max_tokens=16384 if batch_num == 0 else 4096,
-                messages=[
-                    {"role": "user", "content": content}
-                ]
-            )
-        
-        logger.info(f"Processing batch {batch_num + 1}/{(total_pages + PAGES_PER_BATCH - 1) // PAGES_PER_BATCH}")
-        response = await retry_with_backoff(make_batch_call)
-        
-        # Parse response
-        response_text = response.content[0].text
-        json_str = response_text.strip()
-        
-        # Try to find JSON in the response
-        # First, check if it's wrapped in ```json blocks
-        if "```json" in json_str:
-            start = json_str.find("```json") + 7
-            end = json_str.find("```", start)
-            if end != -1:
-                json_str = json_str[start:end].strip()
-            else:
-                # Truncated response - no closing ```, try to extract JSON by braces
-                logger.warning("Response appears truncated (no closing ```), attempting brace extraction")
-                if "{" in json_str:
-                    brace_start = json_str.find("{")
-                    brace_end = json_str.rfind("}") + 1
-                    if brace_start != -1 and brace_end > brace_start:
-                        json_str = json_str[brace_start:brace_end]
-                    else:
-                        # Really truncated - no closing brace either
-                        logger.error("Response severely truncated - no closing brace found")
-        # Otherwise, look for the first { and last }
-        elif "{" in json_str and "}" in json_str:
-            # Find the first { and last } to extract just the JSON
-            start = json_str.find("{")
-            end = json_str.rfind("}") + 1
-            if start != -1 and end != 0:
-                json_str = json_str[start:end]
-        
-        try:
-            final_batch_json = json_str.strip()
+        logger.info(f"Strategy 1: found ```json at {json_start_pos}, KEY TAKEAWAY at {key_takeaway_pos}, closing ``` at {end}")
+        if end != -1:
+            extracted = json_str[start:end].strip()
+            logger.info(f"Strategy 1 extracted length: {len(extracted)}, first 100 chars: {repr(extracted[:100])}")
+            logger.info(f"Strategy 1 extracted last 100 chars: {repr(extracted[-100:]) if len(extracted) > 100 else repr(extracted)}")
+            json_str = extracted
+        else:
+            logger.warning(f"Strategy 1: No closing ``` found")
+    # Strategy 2: Look for ``` blocks (without json specifier)
+    elif json_str.startswith("```"):
+        lines = json_str.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]  # Remove opening fence
+        # Find and remove closing fence
+        for i, line in enumerate(lines):
+            if line.strip() == "```":
+                lines = lines[:i]
+                break
+        json_str = "\n".join(lines).strip()
+        logger.debug(f"Extracted JSON from ``` block, length: {len(json_str)}")
 
-            # Final cleanup - ensure no markdown fences remain
-            if final_batch_json.startswith("```"):
-                first_newline = final_batch_json.find("\n")
-                if first_newline != -1:
-                    final_batch_json = final_batch_json[first_newline + 1:]
-            if final_batch_json.endswith("```"):
-                final_batch_json = final_batch_json[:-3]
-            final_batch_json = final_batch_json.strip()
+    # Strategy 3: Find the JSON object by matching braces (string-aware)
+    if "{" in json_str and "}" in json_str:
+        # Find the first {
+        start = json_str.find("{")
+        # Find matching closing } by counting braces, but skip braces inside strings
+        brace_count = 0
+        end = start
+        in_string = False
+        escape_next = False
+        for i, char in enumerate(json_str[start:], start):
+            if escape_next:
+                escape_next = False
+                continue
+            if char == '\\' and in_string:
+                escape_next = True
+                continue
+            if char == '"' and not escape_next:
+                in_string = not in_string
+                continue
+            if not in_string:
+                if char == "{":
+                    brace_count += 1
+                elif char == "}":
+                    brace_count -= 1
+                    if brace_count == 0:
+                        end = i + 1
+                        break
+        if end > start:
+            json_str = json_str[start:end]
+            logger.debug(f"Extracted JSON by brace matching, length: {len(json_str)}")
+    
+    try:
+        final_json_str = json_str.strip()
 
-            # Extract just the JSON object
-            if not final_batch_json.startswith("{"):
-                brace_start = final_batch_json.find("{")
-                if brace_start != -1:
-                    final_batch_json = final_batch_json[brace_start:]
-            if not final_batch_json.endswith("}"):
-                brace_end = final_batch_json.rfind("}")
-                if brace_end != -1:
-                    final_batch_json = final_batch_json[:brace_end + 1]
+        # Final cleanup - ensure no markdown fences remain
+        if final_json_str.startswith("```"):
+            # Remove opening fence (could be ```json or just ```)
+            first_newline = final_json_str.find("\n")
+            if first_newline != -1:
+                final_json_str = final_json_str[first_newline + 1:]
+        if final_json_str.endswith("```"):
+            final_json_str = final_json_str[:-3]
+        final_json_str = final_json_str.strip()
 
-            print(f"[DEBUG-BATCH] Attempting to parse batch JSON, length: {len(final_batch_json)}", flush=True)
-            print(f"[DEBUG-BATCH] JSON first 300 chars: {repr(final_batch_json[:300])}", flush=True)
-            batch_data = json.loads(final_batch_json)
-            print(f"[DEBUG-BATCH] Successfully parsed batch JSON, doc_type: {batch_data.get('doc_type')}", flush=True)
+        # Also try to extract just the JSON object if there's extra content
+        if not final_json_str.startswith("{"):
+            brace_start = final_json_str.find("{")
+            if brace_start != -1:
+                final_json_str = final_json_str[brace_start:]
+        if not final_json_str.endswith("}"):
+            brace_end = final_json_str.rfind("}")
+            if brace_end != -1:
+                final_json_str = final_json_str[:brace_end + 1]
 
-            if batch_num == 0:
-                # First batch becomes our base data
-                extracted_data = batch_data
+        print(f"[DEBUG] Attempting to parse JSON, length: {len(final_json_str)}", flush=True)
+        print(f"[DEBUG] JSON first 300 chars: {repr(final_json_str[:300])}", flush=True)
+        extracted_data = json.loads(final_json_str)
+        print(f"[DEBUG] Successfully parsed JSON, doc_type: {extracted_data.get('doc_type')}", flush=True)
 
-                # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections (first batch only)
-                key_takeaway = None
-                detailed_analysis = None
+        # Look for KEY TAKEAWAY and DETAILED ANALYSIS sections after the JSON
+        key_takeaway = None
+        detailed_analysis = None
 
-                if "KEY TAKEAWAY:" in response_text:
-                    kt_start = response_text.find("KEY TAKEAWAY:")
-                    kt_end = response_text.find("DETAILED ANALYSIS:", kt_start) if "DETAILED ANALYSIS:" in response_text else len(response_text)
-                    if kt_start != -1:
-                        key_takeaway = response_text[kt_start + 13:kt_end].strip()
-                        if key_takeaway.startswith("```"):
-                            key_takeaway = key_takeaway[3:].strip()
-                        if key_takeaway.endswith("```"):
-                            key_takeaway = key_takeaway[:-3].strip()
-                        # Remove trailing # and ** markdown artifacts
-                        key_takeaway = key_takeaway.rstrip('#').strip().strip('*').strip()
+        if "KEY TAKEAWAY:" in response_text:
+            kt_start = response_text.find("KEY TAKEAWAY:")
+            kt_end = response_text.find("DETAILED ANALYSIS:", kt_start) if "DETAILED ANALYSIS:" in response_text else len(response_text)
+            if kt_start != -1:
+                key_takeaway = response_text[kt_start + 13:kt_end].strip()
+                # Clean up any markdown formatting
+                if key_takeaway.startswith("```"):
+                    key_takeaway = key_takeaway[3:].strip()
+                if key_takeaway.endswith("```"):
+                    key_takeaway = key_takeaway[:-3].strip()
+                # Remove trailing # and ** markdown artifacts
+                key_takeaway = key_takeaway.rstrip('#').strip().strip('*').strip()
 
-                if "DETAILED ANALYSIS:" in response_text:
-                    da_start = response_text.find("DETAILED ANALYSIS:")
-                    if da_start != -1:
-                        detailed_analysis = response_text[da_start + 18:].strip()
-                        if detailed_analysis.startswith("```"):
-                            detailed_analysis = detailed_analysis[3:].strip()
-                        if detailed_analysis.endswith("```"):
-                            detailed_analysis = detailed_analysis[:-3].strip()
-                        # Remove ** markdown artifacts
-                        detailed_analysis = detailed_analysis.strip('*').strip()
+        if "DETAILED ANALYSIS:" in response_text:
+            da_start = response_text.find("DETAILED ANALYSIS:")
+            if da_start != -1:
+                detailed_analysis = response_text[da_start + 18:].strip()
+                # Clean up any markdown formatting
+                if detailed_analysis.startswith("```"):
+                    detailed_analysis = detailed_analysis[3:].strip()
+                if detailed_analysis.endswith("```"):
+                    detailed_analysis = detailed_analysis[:-3].strip()
+                # Remove ** markdown artifacts
+                detailed_analysis = detailed_analysis.strip('*').strip()
 
-                if key_takeaway:
-                    extracted_data["key_takeaway"] = key_takeaway
-                    logger.info(f"Extracted key takeaway from batch 1: {key_takeaway[:100]}...")
-                if detailed_analysis:
-                    extracted_data["ai_observations"] = detailed_analysis
-                    logger.info(f"Extracted detailed analysis from batch 1: {detailed_analysis[:100]}...")
+        # Add to extracted data
+        if key_takeaway:
+            extracted_data["key_takeaway"] = key_takeaway
+        if detailed_analysis:
+            extracted_data["ai_observations"] = detailed_analysis  # Keep ai_observations for backward compatibility
 
-                # Fallback: check for old OBSERVATIONS format
-                if not detailed_analysis and "OBSERVATIONS:" in response_text:
-                    obs_start = response_text.find("OBSERVATIONS:")
-                    if obs_start != -1:
-                        observations = response_text[obs_start + 13:].strip()
-                        if observations.startswith("```"):
-                            observations = observations[3:].strip()
-                        if observations.endswith("```"):
-                            observations = observations[:-3].strip()
-                        if observations:
-                            extracted_data["ai_observations"] = observations
-                            logger.info(f"Extracted observations from batch 1: {observations[:100]}...")
-            else:
-                # Merge additional data if found
-                if "additional_info" not in batch_data or batch_data["additional_info"] != "none":
-                    logger.info(f"Found additional information in batch {batch_num + 1}")
-                    # Merge logic would go here - append to arrays, update fields, etc.
-                    # This is simplified - you'd want more sophisticated merging
-                    if isinstance(batch_data, dict) and isinstance(extracted_data, dict):
-                        for key, value in batch_data.items():
-                            if key not in extracted_data and value is not None:
-                                extracted_data[key] = value
-                            elif isinstance(value, list) and isinstance(extracted_data.get(key), list):
-                                # Merge lists (e.g., multiple grantors)
-                                for item in value:
-                                    if item not in extracted_data[key]:
-                                        extracted_data[key].append(item)
-        
-        except json.JSONDecodeError as e:
-            logger.error(f"Failed to parse batch {batch_num + 1} response: {e}")
-            logger.error(f"Raw response_text (first 2000 chars): {response_text[:2000] if response_text else 'EMPTY'}")
-            logger.error(f"Extracted json_str (first 500 chars): {json_str[:500] if json_str else 'EMPTY'}")
-        
-        # Add delay between batches to avoid rate limits
-        if i + PAGES_PER_BATCH < total_pages:
-            logger.info(f"Waiting {BATCH_DELAY_SECONDS} seconds before next batch...")
-            await asyncio.sleep(BATCH_DELAY_SECONDS)
+        # Fallback: check for old OBSERVATIONS format for backward compatibility
+        if not detailed_analysis and "OBSERVATIONS:" in response_text:
+            obs_start = response_text.find("OBSERVATIONS:")
+            if obs_start != -1:
+                observations = response_text[obs_start + 13:].strip()
+                if observations.startswith("```"):
+                    observations = observations[3:].strip()
+                if observations.endswith("```"):
+                    observations = observations[:-3].strip()
+                if observations:
+                    extracted_data["ai_observations"] = observations
 
-    # POST-PROCESSING: Clamp confidence scores based on OCR quality
-    if extracted_data and max_confidence and max_confidence < 1.0:
-        extracted_data = clamp_confidence_scores(extracted_data, max_confidence)
-        logger.info(f"Applied confidence clamping (max: {max_confidence:.2f})")
+        # POST-PROCESSING: Enforce schema whitelist (strip invented fields)
+        extracted_data = enforce_schema_whitelist(extracted_data)
 
-    # POST-PROCESSING: Validate and correct API/PUN formats
-    if extracted_data:
+        # POST-PROCESSING: Clamp confidence scores based on OCR quality
+        if max_confidence and max_confidence < 1.0:
+            extracted_data = clamp_confidence_scores(extracted_data, max_confidence)
+            logger.info(f"Applied confidence clamping (max: {max_confidence:.2f})")
+
+        # POST-PROCESSING: Validate and correct API/PUN formats
         extracted_data = validate_and_correct_extracted_data(extracted_data)
 
         # POST-PROCESSING: Validate schema adherence
@@ -10166,10 +10265,16 @@ If these pages don't contain significant new information, return: {{"additional_
         else:
             logger.info(f"Review check passed: {review_flags['summary']}")
 
-    return extracted_data or {"error": "Failed to extract data from document"}
+        return extracted_data
+    except json.JSONDecodeError as e:
+        logger.error(f"Failed to parse extraction response: {e}")
+        logger.error(f"Error at position {e.pos}, line {e.lineno}, col {e.colno}")
+        logger.error(f"JSON string being parsed (first 500 chars): {repr(json_str[:500])}")
+        logger.error(f"Full response was: {response_text}")
+        return {"error": "Failed to parse response", "raw_response": response_text}
 
 
-async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False) -> dict:
+async def extract_document_data(image_paths: list[str], _rotation_attempted: bool = False, pdf_path: str = None, flexible_pipeline: bool = False, known_doc_type: str = None) -> dict:
     """
     Main entry point for document extraction.
     Uses two-stage pipeline: Stage 1 (page-level classification + splitting) and Stage 2 (per-document extraction).
@@ -10180,11 +10285,25 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
         pdf_path: Optional path to original PDF for deterministic text-based splitting
         flexible_pipeline: If True, skip rigid splitting and let Sonnet handle everything in one pass.
                           Use for phone images, direct image uploads, or when strict splitting fails.
+        known_doc_type: If set, skip classification and detection stages entirely and go straight
+                       to extraction with this doc_type. Use for fetched documents where the type
+                       is already known (e.g., 'completion_report' from OCC 1002A harvester).
 
     Returns:
         Combined extraction results
     """
     logger.info(f"Starting extraction for {len(image_paths)}-page document")
+
+    # FAST PATH: When doc type is already known (fetched documents, not user uploads),
+    # skip classification and detection — go straight to extraction with focused prompt.
+    # Saves 2 of 3 API calls (~67% cost reduction).
+    if known_doc_type:
+        logger.info(f"KNOWN DOC TYPE: '{known_doc_type}' — skipping classify/detect, extracting directly")
+        result = await extract_single_document(image_paths, doc_type=known_doc_type, pdf_path=pdf_path)
+        result["_pipeline_type"] = "known_doc_type"
+        result["_known_doc_type"] = known_doc_type
+        result["_page_count"] = len(image_paths)
+        return result
 
     # Step 0: For single-page docs, use quick classification path
     if len(image_paths) == 1:
@@ -10436,6 +10555,13 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             }
 
         # Extract the single document with focused prompt based on classification
+        # If coarse_type is "unknown" (heuristics couldn't determine type),
+        # fall back to quick classification result which uses vision on page images
+        effective_doc_type = coarse_type if coarse_type not in ("other", "unknown") else None
+        if not effective_doc_type and classification.get("doc_type") not in (None, "other", "unknown", "multi_document"):
+            effective_doc_type = classification.get("doc_type")
+            logger.info(f"Coarse type '{coarse_type}' unknown - using quick classification: {effective_doc_type}")
+
         result = await extract_single_document(
             image_paths,
             chunk["page_start"] + 1,  # Convert to 1-based
@@ -10444,9 +10570,10 @@ async def extract_document_data(image_paths: list[str], _rotation_attempted: boo
             ocr_quality.get('max_confidence'),
             ocr_quality.get('quality_score'),
             ocr_quality.get('is_likely_handwritten', False),
-            doc_type=coarse_type if coarse_type != "other" else None
+            doc_type=effective_doc_type
         )
         result["_coarse_type"] = coarse_type
+        result["_quick_classification"] = classification.get("doc_type")
         result["_split_metadata"] = split_result.get("split_metadata")
         return result
 

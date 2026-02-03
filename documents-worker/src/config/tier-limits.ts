@@ -19,11 +19,10 @@ export interface TierLimit {
 }
 
 export const TIER_LIMITS: Record<string, TierLimit> = {
-  // Free tier - 10 lifetime credits (trial, not monthly)
+  // Free tier - 3 monthly credits
   'Free': {
-    monthly: 0,       // No monthly allocation
-    bonus: 10,        // 10 lifetime credits as trial
-    isLifetime: true
+    monthly: 3,
+    bonus: 0
   },
 
   // Paid tiers - monthly reset + bonus for annual
@@ -48,10 +47,10 @@ export const TIER_LIMITS: Record<string, TierLimit> = {
     bonus: 2500       // 2500 permanent credits for annual (25 months worth)
   },
 
-  // Enterprise - white glove, effectively unlimited
+  // Enterprise 1K - 1000 properties, white glove annual bonus
   'Enterprise': {
-    monthly: 250,
-    bonus: 10000      // Large bonus pool for annual enterprise
+    monthly: 150,
+    bonus: 5000       // 5000 permanent credits for annual
   }
 };
 

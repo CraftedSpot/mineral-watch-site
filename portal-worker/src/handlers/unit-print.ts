@@ -254,30 +254,38 @@ async function fetchUnitPrintData(
   // Get well API numbers (use first 10 digits for matching since client_wells may have 10 or 14 digit APIs)
   const wellApiNumbers = formattedWells.map(w => w.api.substring(0, 10));
   if (wellApiNumbers.length > 0 && currentUserAirtableId) {
-    // Build conditions for partial API matching (first 10 digits)
-    const conditions = wellApiNumbers.map(() => 'SUBSTR(cw.api_number, 1, 10) = ?').join(' OR ');
+    // D1 has a ~100 bind variable limit. Each well uses 1 variable + 1 for owner.
+    // Chunk at 90 wells to stay safely under the limit.
+    const CHUNK_SIZE = 90;
+    const allLinkResults: any[] = [];
 
-    // Join client_wells to get Airtable IDs, then join property_well_links
-    // Filter to only current user's properties (p.owner matches user's Airtable ID)
-    // Deduplicate: same TRS + same group should only appear once
-    // But if group_name is NULL, keep separate records (user may have multiple interests)
-    const linksResult = await env.WELLS_DB.prepare(`
-      SELECT
-        p.airtable_record_id,
-        p.section,
-        p.township,
-        p.range,
-        p.county,
-        p.group_name
-      FROM client_wells cw
-      JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
-      JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
-      WHERE (${conditions})
-        AND pwl.status IN ('Active', 'Linked')
-        AND p.owner = ?
-      GROUP BY p.airtable_record_id
-      ORDER BY p.county, p.section
-    `).bind(...wellApiNumbers, currentUserAirtableId).all();
+    for (let i = 0; i < wellApiNumbers.length; i += CHUNK_SIZE) {
+      const chunk = wellApiNumbers.slice(i, i + CHUNK_SIZE);
+      const conditions = chunk.map(() => 'SUBSTR(cw.api_number, 1, 10) = ?').join(' OR ');
+
+      const linksResult = await env.WELLS_DB.prepare(`
+        SELECT
+          p.airtable_record_id,
+          p.section,
+          p.township,
+          p.range,
+          p.county,
+          p.group_name
+        FROM client_wells cw
+        JOIN property_well_links pwl ON pwl.well_airtable_id = cw.airtable_id
+        JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
+        WHERE (${conditions})
+          AND pwl.status IN ('Active', 'Linked')
+          AND p.owner = ?
+        GROUP BY p.airtable_record_id
+        ORDER BY p.county, p.section
+      `).bind(...chunk, currentUserAirtableId).all();
+
+      allLinkResults.push(...(linksResult.results || []));
+    }
+
+    // Use allLinkResults instead of linksResult.results below
+    const linksResult = { results: allLinkResults };
 
     // Deduplicate: if group_name exists, dedupe by TRS + group
     // If group_name is NULL, dedupe by record ID only (preserve separate interests)
@@ -387,26 +395,44 @@ async function fetchUnitPrintData(
 
   if (uniqueTRS.size > 0) {
     // Build query for all TRS combinations
+    // D1/SQLite has a 999 bind variable limit. Each TRS uses 4 variables.
+    // D1 has a ~100 bind variable limit. Chunk at 20 TRS combos (80 variables).
     const trsArray = Array.from(uniqueTRS.values());
-    const conditions = trsArray.map(() => '(section = ? AND township = ? AND range = ? AND meridian = ?)').join(' OR ');
-    const params = trsArray.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+    const TRS_CHUNK_SIZE = 20;
+    const allFilingsRows: any[] = [];
 
-    const filingsResult = await env.WELLS_DB.prepare(`
-      SELECT
-        case_number,
-        relief_type,
-        applicant,
-        section,
-        township,
-        range,
-        hearing_date,
-        status,
-        docket_date
-      FROM occ_docket_entries
-      WHERE ${conditions}
-      ORDER BY hearing_date DESC
-      LIMIT 20
-    `).bind(...params).all();
+    for (let i = 0; i < trsArray.length; i += TRS_CHUNK_SIZE) {
+      const chunk = trsArray.slice(i, i + TRS_CHUNK_SIZE);
+      const conditions = chunk.map(() => '(section = ? AND township = ? AND range = ? AND meridian = ?)').join(' OR ');
+      const params = chunk.flatMap(t => [t.section, t.township, t.range, t.meridian]);
+
+      const chunkResult = await env.WELLS_DB.prepare(`
+        SELECT
+          case_number,
+          relief_type,
+          applicant,
+          section,
+          township,
+          range,
+          hearing_date,
+          status,
+          docket_date
+        FROM occ_docket_entries
+        WHERE ${conditions}
+        ORDER BY hearing_date DESC
+        LIMIT 20
+      `).bind(...params).all();
+
+      allFilingsRows.push(...(chunkResult.results || []));
+    }
+
+    // Sort merged results and take top 20
+    allFilingsRows.sort((a: any, b: any) => {
+      const dateA = a.hearing_date || '';
+      const dateB = b.hearing_date || '';
+      return dateB.localeCompare(dateA);
+    });
+    const filingsResult = { results: allFilingsRows.slice(0, 20) };
 
     // Format filings
     const reliefTypeMap: Record<string, string> = {

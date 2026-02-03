@@ -1,0 +1,830 @@
+
+        // Format location for modal display (T10N R07W 06 instead of S06 T10N R07W)
+        function formatLocationForModal(location) {
+            if (!location) return '';
+            // Extract parts from location string like "S06 T10N R07W"
+            const match = location.match(/S?(\d+)\s+(T\d+[NS])\s+(R\d+[EW])/i);
+            if (match) {
+                const section = match[1];
+                const township = match[2];
+                const range = match[3];
+                return `${township} ${range} ${section}`;
+            }
+            return location;
+        }
+
+        // Expand activity card - show detailed modal for permits/completions
+        function expandActivityCard(activityType, fields) {
+            const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
+            const apiNumber = fields['API Number'] || 'Unknown';
+            const operator = toTitleCase(fields.Operator || 'Unknown');
+            const county = toTitleCase(fields.County || '');
+            const location = fields['Section-Township-Range'] || '';
+            const detectedAt = fields['Detected At'] ? new Date(fields['Detected At']).toLocaleDateString() : '';
+            const alertLevel = fields['Alert Level'] || 'N/A';
+            const operatorPhone = fields['Operator Phone'] || '';
+            const formation = fields.Formation || fields['Formation Name'] || '';
+            const occLink = fields['OCC Link'] || '';
+            const occMapLink = fields['OCC Map Link'] || '';
+
+            // Set modal title based on activity type
+            const modalTitle = activityType === 'permit' ? 'Drilling Permit' : 'Well Completion';
+            const activityDate = activityType === 'permit' ? `Filed ${detectedAt}` : `Completed ${detectedAt}`;
+
+            document.getElementById('wellModalTitle').textContent = wellName;
+            document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
+
+            // Build modal body content
+            let bodyContent = `
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Activity Type</div>
+                    <div class="well-detail-value">
+                        <span class="well-status-badge" style="background: ${activityType === 'permit' ? '#A7F3D0' : '#DBEAFE'}; color: ${activityType === 'permit' ? '#065F46' : '#1E40AF'};">
+                            ${modalTitle} • ${activityDate}
+                        </span>
+                    </div>
+                </div>
+
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Operator</div>
+                    <div class="well-detail-value">${operator}</div>
+                </div>
+
+                ${formation && activityType === 'completion' ? `
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Formation</div>
+                    <div class="well-detail-value">${toTitleCase(formation)}</div>
+                </div>
+                ` : ''}
+
+                ${operatorPhone ? `
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Operator Phone</div>
+                    <div class="well-detail-value">${operatorPhone}</div>
+                </div>
+                ` : ''}
+
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Location</div>
+                    <div class="well-detail-value">${formatLocationForModal(location)}${county ? `, ${county}` : ''}</div>
+                </div>
+
+                <div class="well-detail-section">
+                    <div class="well-detail-label">Alert Level</div>
+                    <div class="well-detail-value">${alertLevel}</div>
+                </div>
+
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('wellModalBody').innerHTML = bodyContent;
+
+            // Build modal actions
+            let actionsContent = '';
+
+            if (apiNumber && apiNumber !== 'Unknown') {
+                actionsContent += `
+                    <button class="well-modal-btn well-modal-btn-primary" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal();">
+                        Track This Well
+                    </button>
+                `;
+            }
+
+            if (occLink && activityType === 'permit') {
+                actionsContent += `
+                    <a href="${occLink}" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
+                        Drilling Permit ↗
+                    </a>
+                `;
+            }
+
+            // Only show Well Records for completions
+            if (apiNumber && apiNumber !== 'Unknown' && activityType === 'completion') {
+                actionsContent += `
+                    <div class="occ-warning" style="position: relative; flex: 1;">
+                        <a href="https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; width: 100%; text-align: center;">
+                            Well Records ↗ <span class="info-icon" title="Look for form 1002A (completion report) for production data and the Survey for the lateral path">ⓘ</span>
+                        </a>
+                        <div class="occ-tooltip" style="left: 50%; transform: translateX(-50%);">
+                            <strong>OCC Website Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                        </div>
+                        <div class="well-records-tooltip">Look for form 1002A (completion report) for production data and the Survey for the lateral path</div>
+                    </div>
+                `;
+            }
+
+            if (occMapLink && occMapLink !== '#') {
+                actionsContent += `
+                    <a href="${occMapLink}" target="_blank" class="well-modal-btn well-modal-btn-primary" style="display: block; text-align: center;">
+                        OCC Map ↗
+                    </a>
+                `;
+            }
+
+            actionsContent += `
+                <button class="well-modal-btn well-modal-btn-secondary" onclick="closeWellModal()">
+                    Close
+                </button>
+            `;
+
+            document.getElementById('wellModalActions').innerHTML = actionsContent;
+
+            // Show modal
+            document.getElementById('wellModal').classList.add('active');
+
+            // Close popup if open
+            map.closePopup();
+
+            // Load OCC filings - parse section/township/range from location
+            if (location) {
+                const locMatch = location.match(/S?(\d+)\s+(T\d+[NS])\s+(R\d+[EW])/i);
+                if (locMatch) {
+                    const section = locMatch[1];
+                    const township = locMatch[2].replace('T', '');
+                    const range = locMatch[3].replace('R', '');
+                    loadMapOccFilings(section, township, range, 'IM');
+                }
+            }
+
+            // Add tooltip hover functionality
+            setTimeout(() => {
+                const tooltipTrigger = document.querySelector('.info-icon');
+                const tooltip = document.querySelector('.well-records-tooltip');
+                if (tooltipTrigger && tooltip) {
+                    tooltipTrigger.addEventListener('mouseenter', () => {
+                        tooltip.style.opacity = '1';
+                        tooltip.style.visibility = 'visible';
+                    });
+                    tooltipTrigger.addEventListener('mouseleave', () => {
+                        tooltip.style.opacity = '0';
+                        tooltip.style.visibility = 'hidden';
+                    });
+                    // Also show tooltip on button hover
+                    const button = tooltipTrigger.closest('.well-modal-btn');
+                    if (button) {
+                        button.addEventListener('mouseenter', () => {
+                            tooltip.style.opacity = '1';
+                            tooltip.style.visibility = 'visible';
+                        });
+                        button.addEventListener('mouseleave', () => {
+                            tooltip.style.opacity = '0';
+                            tooltip.style.visibility = 'hidden';
+                        });
+                    }
+                }
+            }, 100);
+        }
+
+        // Track a well (add to user's tracked wells)
+        async function trackWell(apiNumber, wellName) {
+            try {
+                console.log('trackWell called with:', { apiNumber, wellName });
+                updateStatus('Adding well to tracking...');
+
+                const requestBody = {
+                    apiNumber: apiNumber,  // No space, camelCase
+                    wellName: wellName     // No space, camelCase
+                };
+                console.log('Sending request body:', requestBody);
+
+                const response = await fetch('/api/wells', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    credentials: 'include',
+                    body: JSON.stringify(requestBody)
+                });
+
+                if (response.ok) {
+                    showToast(`✅ ${wellName} added to tracking`, 'success');
+                    updateStatus('Map ready');
+
+                    // Reload wells to show the new tracked well
+                    setTimeout(() => {
+                        loadWells();
+                    }, 1000);
+                } else {
+                    const error = await response.json();
+                    showToast(`❌ ${error.error || 'Failed to track well'}`, 'error');
+                    updateStatus('Map ready');
+                }
+            } catch (error) {
+                console.error('Error tracking well:', error);
+                showToast('❌ Failed to track well', 'error');
+                updateStatus('Map ready');
+            }
+        }
+
+        // Convert text to title case (handles all caps)
+        function toTitleCase(str) {
+            if (!str) return '';
+            return str.toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
+        }
+
+        // Get user-friendly status label
+        function getStatusLabel(status) {
+            const statusMap = {
+                'AC': 'Active',
+                'PA': 'Plugged & Abandoned',
+                'OR': 'Operator Released',
+                'STFD': 'Shut-in Temporarily',
+                'NE': 'New',
+                'EX': 'Expired',
+                'TM': 'Temporarily Abandoned',
+                'TA': 'Temporarily Abandoned'
+            };
+            return statusMap[status] || status || 'Unknown';
+        }
+
+        // Expand nearby well card - show detailed modal for wells from D1 database
+        function expandNearbyWellCard(wellData) {
+            if (!wellData) {
+                console.warn('No well data provided');
+                return;
+            }
+
+            // Debug: Log the wellData to see what we're receiving
+            console.log('expandNearbyWellCard received data:', wellData);
+            console.log('Operator info:', {
+                operator: wellData.operator,
+                phone: wellData.phone,
+                operator_phone: wellData.operator_phone,
+                contact_name: wellData.contact_name
+            });
+
+            // Build well title from well_name + well_number
+            const wellBaseName = wellData.well_name || `API ${wellData.api_number}`;
+            const wellNumber = wellData.well_number || '';
+            const wellName = toTitleCase(wellNumber ? `${wellBaseName} ${wellNumber}` : wellBaseName);
+
+            const apiNumber = wellData.api_number || 'Unknown';
+            const operator = toTitleCase(wellData.operator || 'Unknown');
+            const operatorPhone = wellData.phone || wellData.operator_phone || '';
+            const contactName = toTitleCase(wellData.contact_name || '');
+            const wellStatus = (wellData.well_status || 'Unknown').toUpperCase();
+            const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
+            const wellType = wellData.well_type || 'Oil Well';
+            const county = toTitleCase(wellData.county || '');
+            const section = wellData.section || '';
+            const township = wellData.township || '';
+            const range = wellData.range || '';
+            const meridian = wellData.meridian || '';
+            const completionDate = wellData.completion_date || '';
+            const spudDate = wellData.spud_date || '';
+
+            // Completion data for display
+            const formationName = wellData.formation_name || '';
+            const tvd = wellData.true_vertical_depth || null;
+            const totalDepth = wellData.measured_total_depth || null;
+            const displayDepth = tvd || totalDepth; // Prefer TVD if available
+            const ipOil = wellData.ip_oil_bbl || null;
+            const ipGas = wellData.ip_gas_mcf || null;
+
+            // Format location string to match Tracked Wells (T10N R07W 06 format)
+            const locationStr = section && township && range
+                ? `T${township} R${range} ${section.toString().padStart(2, '0')}`
+                : 'Location not available';
+
+            // Status badge color
+            const statusBgColor = statusColor + '20'; // 20% opacity version
+
+            // Build OCC Map link from coordinates (matching Tracked Wells format)
+            const occMapLink = wellData.latitude && wellData.longitude
+                ? `https://gis.occ.ok.gov/portal/apps/webappviewer/index.html?id=ba9b8612132f4106be6e3553dc0b827b&marker=${wellData.longitude},${wellData.latitude},,,,&markertemplate=%7B%22title%22%3A%22${encodeURIComponent(wellName.toUpperCase())}%22%2C%22longitude%22%3A${wellData.longitude}%2C%22latitude%22%3A${wellData.latitude}%2C%22isIncludeShareUrl%22%3Atrue%7D&level=19`
+                : '';
+
+            // Set modal title with completion date badge
+            const titleHtml = `
+                <span>${wellName}</span>
+                ${completionDate ? `<span class="well-date-badge">${completionDate}</span>` : ''}
+            `;
+            document.getElementById('wellModalTitle').innerHTML = titleHtml;
+            document.getElementById('wellModalSubtitle').textContent = `API: ${apiNumber}`;
+
+            // Determine direction (Horizontal/Vertical) based on lateral_length
+            const lateralLength = wellData.lateral_length || 0;
+            const direction = lateralLength > 0 ? 'Horizontal' : 'Vertical';
+
+            // Build modal body content matching Tracked Wells layout
+            let bodyContent = `
+                <!-- Status Row -->
+                <div class="status-row">
+                    <div class="status-item">
+                        <span class="status-label">Status</span>
+                        <span class="status-badge" style="background: ${statusBgColor}; color: ${statusColor};">${getStatusLabel(wellStatus)}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Well Type</span>
+                        <span class="status-value">${wellType || 'N/A'}</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Direction</span>
+                        <span class="status-badge ${direction.toLowerCase()}">${direction}</span>
+                    </div>
+                </div>
+
+                <!-- Operator / Location Row -->
+                <div class="operator-location-row">
+                    <!-- Operator Box -->
+                    <div class="info-box">
+                        <div class="section-label">Operator</div>
+                        <div class="section-value" style="margin-bottom: 4px;">${operator}</div>
+                        ${operatorPhone || contactName ? `
+                            <div class="contact-line" style="font-size: 13px; color: #64748b;">
+                                ${operatorPhone ? `<a href="tel:${operatorPhone.replace(/\D/g, '')}">${operatorPhone}</a>` : ''}
+                                ${operatorPhone && contactName ? ' • ' : ''}
+                                ${contactName || ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                    <!-- Location Box -->
+                    <div class="info-box">
+                        <div class="section-label">Location</div>
+                        <div class="section-value" style="margin-bottom: 4px;">${locationStr}</div>
+                        <div style="font-size: 13px; color: #64748b;">${county ? `${county} County` : 'Unknown'}</div>
+                    </div>
+                </div>
+            `;
+
+            // Add formation/depth row if data available (using same box style)
+            if ((formationName && formationName.trim()) || (displayDepth && displayDepth > 0) || ipOil || ipGas) {
+                bodyContent += `
+                    <div class="operator-location-row">
+                        ${(formationName && formationName.trim()) || (displayDepth && displayDepth > 0) ? `
+                        <div class="info-box">
+                            <div class="section-label">Formation & Depth</div>
+                            <div class="section-value" style="margin-bottom: 4px;">${formationName && formationName.trim() ? toTitleCase(formationName) : 'N/A'}</div>
+                            ${displayDepth && displayDepth > 0 ? `<div style="font-size: 13px; color: #64748b;">${displayDepth.toLocaleString()} ft</div>` : ''}
+                        </div>
+                        ` : ''}
+                        ${ipOil || ipGas ? `
+                        <div class="info-box">
+                            <div class="section-label">Initial Production</div>
+                            <div class="section-value" style="margin-bottom: 4px;">
+                                ${ipOil ? `${ipOil} BBL/day` : ''}
+                                ${ipOil && ipGas ? ' • ' : ''}
+                                ${ipGas ? `${ipGas.toLocaleString()} MCF/day` : ''}
+                            </div>
+                            <div style="font-size: 13px; color: #64748b;">${ipOil ? 'Oil' : ''}${ipOil && ipGas ? ' & ' : ''}${ipGas ? 'Gas' : ''}</div>
+                        </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
+
+            // Add OTC Production Summary Section (will be populated dynamically)
+            bodyContent += `
+                <!-- OTC Production Summary Section -->
+                <div id="wellModalOTCProduction" class="production-section" style="display: none; margin-top: 16px;">
+                    <div class="production-header">
+                        <span class="production-title">OTC Production</span>
+                        <span class="formation-badge" id="wellModalOTCStatus">—</span>
+                    </div>
+                    <div id="wellModalOTCContent">
+                        <!-- Populated dynamically -->
+                    </div>
+                </div>
+            `;
+
+            // Add OCC Filings section
+            bodyContent += `
+                <!-- OCC Filings Section -->
+                <div class="occ-filings-section" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapOccFilings()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-occ-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">OCC Filings</span>
+                            <span id="map-occ-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;">—</span>
+                        </div>
+                    </div>
+                    <div id="map-occ-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="map-occ-direct" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Populated dynamically -->
+                        </div>
+                        <div id="map-occ-adjacent-wrapper" style="display: none;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin: 16px 0 8px 0; padding-top: 12px; border-top: 2px dashed #ddd; font-size: 12px; color: #666; text-transform: uppercase; letter-spacing: 0.5px;">
+                                <span>Adjacent Activity</span>
+                                <span id="map-occ-adjacent-count" style="background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 11px;">0</span>
+                            </div>
+                            <div id="map-occ-adjacent" style="max-height: 200px; overflow-y: auto;">
+                                <!-- Populated dynamically -->
+                            </div>
+                        </div>
+                        <div id="map-occ-empty" style="display: none; color: #6b7280; font-size: 14px; padding: 12px 0; font-style: italic;">
+                            No OCC filings found for this section
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Add Well Records section (Completion Reports) - Collapsible with loading badge
+            bodyContent += `
+                <!-- Well Records Section (Completion Reports) - Collapsible -->
+                <div class="occ-filings-section" id="nearbyWellRecordsSection" style="margin-top: 16px;">
+                    <div class="occ-filings-header" onclick="toggleMapWellRecords()">
+                        <div style="display: flex; align-items: center; gap: 8px;">
+                            <span id="map-well-records-arrow" style="transition: transform 0.2s;">▶</span>
+                            <span style="font-weight: 500;">Well Records</span>
+                            <span id="wellModalWellRecordsCount" class="loading-badge"><span class="pulse-dot"></span>Loading</span>
+                        </div>
+                    </div>
+                    <div id="map-well-records-content" style="display: none; padding: 0 16px 16px;">
+                        <div id="wellModalCompletionReports" style="max-height: 300px; overflow-y: auto;">
+                            <div class="skeleton-row">
+                                <div class="skeleton-left">
+                                    <div class="skeleton-loader skeleton-badge"></div>
+                                    <div class="skeleton-details">
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                        <div class="skeleton-loader skeleton-detail"></div>
+                                    </div>
+                                </div>
+                                <div class="skeleton-right">
+                                    <div class="skeleton-loader skeleton-btn"></div>
+                                    <div class="skeleton-loader skeleton-date"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('wellModalBody').innerHTML = bodyContent;
+
+            // Build actions matching Tracked Wells layout using grid
+            const wellRecordsUrl = `https://public.occ.ok.gov/OGCDWellRecords/Search.aspx?searchcommand=%7B%5BOG%20Well%20Records%5D%3A%5BAPI%20Number%5D%3D%22${apiNumber}%2A%22%7D&cr=1`;
+
+            let actionsContent = `
+                <div class="map-well-footer-grid">
+                    <div class="map-well-footer-left">
+                        <button class="action-btn primary well-blue" onclick="centerMapOnModalWell()">MW Map ↗</button>
+                        ${occMapLink ? `<a href="${occMapLink}" target="_blank" class="action-btn primary well-blue">OCC Map ↗</a>` : ''}
+                    </div>
+                    <div class="map-well-footer-right">
+                        ${apiNumber && apiNumber !== 'Unknown' ? `
+                        <div class="occ-warning" style="position: relative;">
+                            <a href="${wellRecordsUrl}" target="_blank" class="action-btn primary well-blue">OCC Records</a>
+                            <span class="occ-warning-icon" tabindex="0" onclick="this.parentElement.classList.toggle('show-tooltip')" onblur="this.parentElement.classList.remove('show-tooltip')">!</span>
+                            <div class="occ-tooltip">
+                                <strong>OCC Records Note:</strong> If you see a cookie error on OCC's site, try signing out of OCC first or open this link in an incognito/private window.
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${apiNumber && apiNumber !== 'Unknown' ? `
+                        <button class="action-btn track-well" onclick="trackWell('${apiNumber}', '${wellName.replace(/'/g, "\\'")}'); closeWellModal(); return false;">+ Track</button>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+
+            document.getElementById('wellModalActions').innerHTML = actionsContent;
+
+            // Show modal
+            document.getElementById('wellModal').classList.add('active');
+
+            // Close popup if open
+            map.closePopup();
+
+            // Store values in hidden inputs for other functions (centerMapOnModalWell, loadMapWellRecords)
+            document.getElementById('wellModalApiNumber').value = apiNumber || '';
+            document.getElementById('wellModalLat').value = wellData.latitude || '';
+            document.getElementById('wellModalLon').value = wellData.longitude || '';
+            document.getElementById('wellModalSection').value = section || '';
+            document.getElementById('wellModalTownship').value = township || '';
+            document.getElementById('wellModalRange').value = range || '';
+            document.getElementById('wellModalMeridian').value = meridian || 'IM';
+
+            // Load OTC production data
+            if (apiNumber && apiNumber !== 'Unknown') {
+                loadMapOTCProduction(apiNumber);
+            }
+
+            // Load OCC filings
+            if (section && township && range) {
+                loadMapOccFilings(section, township, range, meridian || 'IM');
+            }
+
+            // Load Well Records (completion reports) for this well
+            if (apiNumber && apiNumber !== 'Unknown') {
+                loadMapCompletionReports(apiNumber);
+            } else {
+                // No API number - show message
+                document.getElementById('wellModalWellRecordsCount').className = '';
+                document.getElementById('wellModalWellRecordsCount').style.cssText = 'background: #e5e7eb; padding: 2px 8px; border-radius: 12px; font-size: 12px;';
+                document.getElementById('wellModalWellRecordsCount').textContent = '0';
+                document.getElementById('wellModalCompletionReports').innerHTML = '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 8px 0;">No API number available</div>';
+            }
+        }
+
+        // Show toast notification
+        function showToast(message, type = 'info') {
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type}`;
+            toast.innerHTML = `
+                <div style="padding: 12px 16px; background: ${type === 'success' ? '#10B981' : '#EF4444'}; color: white; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); font-size: 14px;">
+                    ${message}
+                </div>
+            `;
+
+            toast.style.cssText = `
+                position: fixed;
+                top: 80px;
+                right: 20px;
+                z-index: 10000;
+                animation: slideIn 0.3s ease;
+            `;
+
+            document.body.appendChild(toast);
+
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+
+        // Add property section to map with styling
+        function addPropertyToMap(property, geometry) {
+            if (!geometry) return;
+
+            const fields = property.fields || property;
+
+            // Use section polygon styling (subtle red, solid borders)
+            const layer = L.geoJSON(geometry, {
+                style: {
+                    color: '#DC2626',        // --your-property-dark
+                    weight: 2,
+                    fillColor: '#FCA5A5',   // --your-property
+                    fillOpacity: 0.2,       // More subtle than before
+                    opacity: 0.7            // Solid borders for properties
+                }
+            });
+
+            // Store bounds for proximity checking
+            property.bounds = layer.getBounds();
+
+            // Build ownership details
+            const riAcres = parseFloat(fields['RI Acres']) || 0;
+            const wiAcres = parseFloat(fields['WI Acres']) || 0;
+            const totalUserAcres = riAcres + wiAcres;
+            const sectionTotalAcres = geometry.properties?.gisacre ? Math.round(geometry.properties.gisacre) : 640;
+
+            let ownershipText = '';
+            if (totalUserAcres > 0) {
+                const parts = [];
+                if (riAcres > 0) parts.push(`${riAcres} RI`);
+                if (wiAcres > 0) parts.push(`${wiAcres} WI`);
+                ownershipText = `Your ${parts.join(' + ')} acres (of ${sectionTotalAcres} total)`;
+            } else {
+                ownershipText = `${sectionTotalAcres} acres total`;
+            }
+
+            // Create popup content with dual-tag system
+            const popupContent = `
+                <div class="popup-header">
+                    <span class="popup-tag your-property">Your Property</span>
+                </div>
+                <div class="popup-well-name">${toTitleCase(fields.COUNTY || fields.County || 'Unknown')} County</div>
+                <div class="popup-details">
+                    <strong>S${fields.SEC || fields.Section} T${fields.TWN || fields.Township} R${fields.RNG || fields.Range}</strong><br>
+                    ${ownershipText}<br>
+                    ${(riAcres > 0 || wiAcres > 0) ? `<em>Your ownership: ${riAcres > 0 ? riAcres + ' RI' : ''}${(riAcres > 0 && wiAcres > 0) ? ' + ' : ''}${wiAcres > 0 ? wiAcres + ' WI' : ''} acres</em><br>` : ''}
+                    ${fields.Notes ? `<em>"${fields.Notes}"</em><br>` : ''}
+                </div>
+            `;
+
+            layer.bindPopup(popupContent, {
+                maxWidth: 300,
+                className: 'high-z-popup'
+            });
+
+            // Add hover effects
+            layer.on('mouseover', function() {
+                this.setStyle({ fillOpacity: 0.4, weight: 3 });
+            });
+
+            layer.on('mouseout', function() {
+                this.setStyle({ fillOpacity: 0.2, weight: 2 });
+            });
+
+            propertiesLayer.addLayer(layer);
+
+            // Store marker reference for search
+            propertyMarkers[property.id] = layer;
+        }
+
+        // Batch fetch geometries for multiple sections
+        async function batchFetchGeometries(propertyBatch) {
+            const batchSize = 20; // OCC API can handle ~20 sections per request
+            const results = [];
+
+            for (let i = 0; i < propertyBatch.length; i += batchSize) {
+                const batch = propertyBatch.slice(i, i + batchSize);
+
+                // Update progress
+                const progress = Math.min(i + batchSize, propertyBatch.length);
+                document.querySelector('.loading-text').textContent =
+                    `Loading property boundaries... (${progress}/${propertyBatch.length})`;
+
+                // Group by PLSS ID (township/range) for efficient querying
+                const plssGroups = {};
+                batch.forEach(prop => {
+                    const { plssId } = prop;
+                    if (!plssGroups[plssId]) plssGroups[plssId] = [];
+                    plssGroups[plssId].push(prop);
+                });
+
+                // Fetch each PLSS group
+                for (const [plssId, props] of Object.entries(plssGroups)) {
+                    const sections = props.map(p => p.section).join("','");
+
+                    const url = `${OCC_API_BASE}/${SECTION_LAYER}/query?` +
+                        `where=plssid='${plssId}' AND frstdivno IN ('${sections}')` +
+                        `&outFields=frstdivno,frstdivlab,gisacre,plssid,survtyptxt` +
+                        `&f=geojson` +
+                        `&outSR=4326`;
+
+                    try {
+                        const proxyUrl = `${OCC_PROXY}?url=${encodeURIComponent(url)}`;
+                        console.log(`Batch fetching ${props.length} sections for ${plssId}`);
+                        const response = await fetch(proxyUrl);
+
+                        if (response.ok) {
+                            const data = await response.json();
+
+                            // Match features back to properties
+                            data.features?.forEach(feature => {
+                                const sectionNum = feature.properties.frstdivno;
+                                const matchingProp = props.find(p => p.section === sectionNum);
+                                if (matchingProp) {
+                                    results.push({
+                                        property: matchingProp.property,
+                                        geometry: feature
+                                    });
+
+                                    // Cache individually for future single requests
+                                    const cacheKey = `${sectionNum}-${matchingProp.township}-${matchingProp.range}`;
+                                    geometryCache[cacheKey] = feature;
+                                    localStorage.setItem(`mw_section_${cacheKey}`, JSON.stringify(feature));
+                                }
+                            });
+                        } else {
+                            console.warn(`Batch request failed for ${plssId}:`, response.status);
+                        }
+                    } catch (error) {
+                        console.warn(`Error in batch request for ${plssId}:`, error);
+                    }
+
+                    // Small delay between batches
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                }
+            }
+
+            return results;
+        }
+
+        // Load and display user properties with batch optimization
+        async function loadUserProperties() {
+            try {
+                // Check if this is first load
+                const hasCache = localStorage.getItem('propertyGeometryCache');
+                if (!hasCache) {
+                    showLoading('Loading your properties for the first time...',
+                        'This may take a moment. Future loads will be instant.');
+                } else {
+                    showLoading('Loading your properties...');
+                }
+                updateStatus('Loading properties...');
+
+                // Fetch properties from API
+                userProperties = await fetchUserProperties();
+
+                if (userProperties.length === 0) {
+                    console.log('No properties found');
+                    updateStatus('No properties to display');
+                    hideLoading();
+                    return;
+                }
+
+                const total = userProperties.length;
+                console.log(`Loading ${total} properties with batch optimization`);
+
+                // Normalize and prepare all properties
+                const normalizedProperties = [];
+                const propertiesNeedingGeometry = [];
+
+                for (const property of userProperties) {
+                    const fields = property.fields || property;
+
+                    // Extract section, township, range - handle various field name formats
+                    let section = (fields.SEC || fields.Section || '').toString().trim();
+                    let township = (fields.TWN || fields.Township || '').toString().trim();
+                    let range = (fields.RNG || fields.Range || '').toString().trim();
+
+                    // Remove common prefixes and normalize
+                    section = section.replace(/^(S|SEC|SECTION)\s*/i, '').trim();
+                    township = township.replace(/^(T|TOWN|TOWNSHIP)\s*/i, '').replace(/\s+/g, '').toUpperCase();
+                    range = range.replace(/^(R|RANGE)\s*/i, '').replace(/\s+/g, '').toUpperCase();
+
+                    // Validate normalized formats
+                    if (!section || !/^\d+$/.test(section) || !township || !/^\d+[NS]$/.test(township) || !range || !/^\d+[EW]$/.test(range)) {
+                        console.warn('Invalid property format:', { section, township, range });
+                        continue;
+                    }
+
+                    const county = fields.COUNTY || fields.County || '';
+                    const cacheKey = `${section}-${township}-${range}`;
+
+                    // Check if already cached
+                    if (geometryCache[cacheKey] || localStorage.getItem(`mw_section_${cacheKey}`)) {
+                        // Load from cache immediately
+                        const geometry = geometryCache[cacheKey] || JSON.parse(localStorage.getItem(`mw_section_${cacheKey}`));
+                        addPropertyToMap(property, geometry);
+                        console.log(`Loaded from cache: S${section} T${township} R${range}`);
+                    } else {
+                        // Add to batch fetch list
+                        const plssData = getPlssId(township, range, county);
+                        if (plssData) {
+                            propertiesNeedingGeometry.push({
+                                property,
+                                section,
+                                township,
+                                range,
+                                county,
+                                plssId: plssData.id
+                            });
+                        }
+                    }
+                }
+
+                updateStatus(`${propertiesNeedingGeometry.length} properties need geometry fetch`);
+
+                // Batch fetch remaining geometries
+                if (propertiesNeedingGeometry.length > 0) {
+                    document.querySelector('.loading-text').textContent =
+                        `Loading ${propertiesNeedingGeometry.length} property boundaries...`;
+                    document.querySelector('.loading-subtext').textContent =
+                        'First-time setup - caching for instant future loads';
+                    document.querySelector('.loading-subtext').style.display = 'block';
+
+                    const geometryResults = await batchFetchGeometries(propertiesNeedingGeometry);
+
+                    // Add batch results to map
+                    geometryResults.forEach(({ property, geometry }) => {
+                        addPropertyToMap(property, geometry);
+                    });
+
+                    console.log(`✅ Batch loaded ${geometryResults.length} geometries`);
+                }
+
+                // Add properties layer to map
+                if (propertiesLayer.getLayers().length > 0) {
+                    map.addLayer(propertiesLayer);
+                    // Ensure properties are on top for clicking
+                    propertiesLayer.bringToFront();
+                    // Fit map to show properties and counties
+                    const allLayers = L.featureGroup([propertiesLayer, countyLayer]);
+                    if (allLayers.getLayers().length > 0) {
+                        map.fitBounds(allLayers.getBounds(), { padding: [50, 50] });
+                    }
+                }
+
+                updateStatus(`${total} properties loaded`);
+                // Update property count display
+                document.getElementById('propertyCount').textContent = total;
+                hideLoading();
+
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                updateStatus('Error loading properties');
+                hideLoading();
+            }
+        }
+

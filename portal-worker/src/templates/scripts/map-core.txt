@@ -1,0 +1,213 @@
+        
+
+        // Initialize map centered on Oklahoma
+        const map = L.map('map').setView([35.5, -97.5], 7);
+        
+        // Force popup pane to have high z-index
+        // Leaflet uses 'popupPane' by default for popups
+        setTimeout(() => {
+            const popupPane = map.getPane('popupPane');
+            if (popupPane) {
+                popupPane.style.zIndex = '1500';
+                popupPane.style.position = 'relative';
+            }
+        }, 100);
+        
+        // Add Esri Light Gray Canvas basemap - perfect for data visualization
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19
+        }).addTo(map);
+        
+        // Add Esri reference overlay (place names, etc.) with subtle opacity
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '',
+            maxZoom: 19,
+            opacity: 0.8
+        }).addTo(map);
+        
+        
+        // Map click handler for location identification - DISABLED
+        // (Was showing unreadable info in top-right corner)
+        /*
+        map.on('click', async function(e) {
+            const lat = e.latlng.lat;
+            const lon = e.latlng.lng;
+            
+            // Only identify if clicked within Oklahoma bounds (roughly)
+            if (lat < 33.6 || lat > 37.0 || lon < -103.0 || lon > -94.4) {
+                return; // Outside Oklahoma
+            }
+            
+            try {
+                updateStatus('Identifying location...');
+                const location = await identifyLocation(lat, lon);
+                
+                if (location) {
+                    createLocationInfoBox(
+                        location.county, 
+                        location.township, 
+                        location.range, 
+                        location.section,
+                        location.meridian,
+                        lat, 
+                        lon
+                    );
+                    updateStatus('Map ready');
+                } else {
+                    updateStatus('Location not found');
+                    setTimeout(() => updateStatus('Map ready'), 2000);
+                }
+            } catch (error) {
+                console.error('Error identifying location:', error);
+                updateStatus('Location identification failed');
+                setTimeout(() => updateStatus('Map ready'), 2000);
+            }
+        });
+        */
+        
+        // Add zoom/move handlers for section lines
+        map.on('zoomend moveend', updateSectionLines);
+
+        // Layer variables
+        let countyLayer;
+        let townshipLayer;
+        let countyLabelsLayer = L.layerGroup();
+        let propertiesLayer = L.featureGroup();
+        let wellsLayer = null; // Will be initialized as MarkerClusterGroup in loadTrackedWells
+        // Lateral paths are now integrated into well rendering
+        let permitsLayer = L.featureGroup();
+        let completionsLayer = L.featureGroup();
+        let sectionLayer = L.featureGroup();
+        let sectionLabelsLayer = L.layerGroup();  // For section number labels from OCC API
+        let nearbyWellsLayer = null; // Initialize later after map is ready
+        let lateralsLayer = L.featureGroup(); // Layer for horizontal well laterals
+        let activityHeatmapLayer = null; // Will be created as heat layer
+        let permitHeatmapLayer = null; // Separate heat layer for permits
+        let completionHeatmapLayer = null; // Separate heat layer for completions
+        // OCC Application heatmap layers
+        let poolingHeatmapLayer = null;
+        let densityHeatmapLayer = null;
+        let spacingHeatmapLayer = null;
+        let horizontalHeatmapLayer = null;
+        let countyProductionData = null; // Cached county production data for choropleth
+        let currentProductionType = null; // 'oil' or 'gas'
+        let showSectionNumbers = true;  // Default to showing section numbers
+        let showActivityHeatmap = true; // Default to on for heatmap
+        let locationInfoBox;
+        
+        // Define proximity radius for individual markers (in miles)
+        const ACTIVITY_PROXIMITY_RADIUS = 5; // 5 miles around properties
+        
+        // Property loading state
+        let userProperties = [];
+        let geometryCache = {};
+        let sectionCache = {};
+        let sectionBounds = null;
+        let wellsById = {};  // Lookup for wells by Airtable record ID
+        
+        // For search functionality
+        let propertyMarkers = {};
+        let wellMarkers = {};
+        let trackedWells = [];
+        
+        // OCC API Configuration
+        const OCC_API_BASE = 'https://gis.occ.ok.gov/server/rest/services/Hosted/STR/FeatureServer';
+        const OCC_PROXY = '/api/occ-proxy';
+        const SECTION_LAYER = 226; // OK_SEC layer
+        
+        // Property status colors
+        const STATUS_COLORS = {
+            active: '#22C55E',   // Green - permits nearby
+            recent: '#F59E0B',   // Yellow - activity in last 30 days  
+            quiet: '#3B82F6',    // Blue - no recent activity
+            default: '#8B5CF6'   // Purple - default
+        };
+        
+        // Well status colors
+        const WELL_STATUS_COLORS = {
+            'AC': '#22C55E',     // Active - Green
+            'PA': '#6B7280',     // Plugged & Abandoned - Gray
+            'ND': '#F97316',     // New Drill - Orange
+            'SI': '#3B82F6',     // Shut In - Blue
+            'TA': '#DC2626',     // Temp Abandoned - Red
+            default: '#8B5CF6'   // Default - Purple
+        };
+        
+        // Top operator colors
+        const OPERATOR_COLORS = {
+            'DEVON': '#1E40AF',              // Blue
+            'CONTINENTAL': '#DC2626',        // Red
+            'MEWBOURNE': '#059669',          // Green
+            'MARATHON': '#7C3AED',           // Purple
+            'EOG': '#F59E0B',               // Amber
+            'OVINTIV': '#0891B2',           // Cyan
+            'CIMAREX': '#EC4899',           // Pink
+            'GULFPORT': '#84CC16',          // Lime
+            'CITIZENS': '#F97316',          // Orange
+            'CHESAPEAKE': '#06B6D4',        // Sky
+            default: '#6B7280'              // Gray
+        };
+        
+        // =============================================
+        // AUTHENTICATION
+        // =============================================
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/me', {
+                    credentials: 'include'
+                });
+                
+                if (response.ok) {
+                    const user = await response.json();
+                    document.getElementById('userName').textContent = user.name || user.email;
+                    return user;
+                } else {
+                    window.location.href = '/portal/login';
+                    return null;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/portal/login';
+                return null;
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', {
+                    method: 'POST',
+                    credentials: 'include'
+                });
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+            window.location.href = '/portal/login';
+        }
+
+        // Update status
+        function updateStatus(message) {
+            // Log to console only - no UI updates
+            console.log('Status:', message);
+        }
+        
+        function showLoading(message = 'Loading map data...', subtext = '') {
+            const loadingEl = document.getElementById('mapLoading');
+            if (loadingEl) {
+                loadingEl.style.display = 'flex';
+                const textEl = loadingEl.querySelector('.loading-text');
+                const subtextEl = loadingEl.querySelector('.loading-subtext');
+                if (textEl) textEl.textContent = message;
+                if (subtextEl) {
+                    subtextEl.textContent = subtext;
+                    subtextEl.style.display = subtext ? 'block' : 'none';
+                }
+            }
+        }
+        
+        function hideLoading() {
+            const loadingEl = document.getElementById('mapLoading');
+            if (loadingEl) {
+                loadingEl.style.display = 'none';
+            }
+        }

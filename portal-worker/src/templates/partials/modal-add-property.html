@@ -18,25 +18,28 @@
                         <!-- County -->
                         <div class="details-row">
                             <span class="details-label">County</span>
-                            <select id="county" required onchange="autoSetMeridian(this.value); updateLocationDisplay();" style="padding: 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 200px;">
-                                <option value="">Select County</option>
-                                <option>Alfalfa</option><option>Atoka</option><option>Beaver</option><option>Beckham</option><option>Blaine</option><option>Bryan</option><option>Caddo</option><option>Canadian</option><option>Carter</option><option>Cherokee</option><option>Choctaw</option><option>Cimarron</option><option>Cleveland</option><option>Coal</option><option>Comanche</option><option>Cotton</option><option>Craig</option><option>Creek</option><option>Custer</option><option>Delaware</option><option>Dewey</option><option>Ellis</option><option>Garfield</option><option>Garvin</option><option>Grady</option><option>Grant</option><option>Greer</option><option>Harmon</option><option>Harper</option><option>Haskell</option><option>Hughes</option><option>Jackson</option><option>Jefferson</option><option>Johnston</option><option>Kay</option><option>Kingfisher</option><option>Kiowa</option><option>Latimer</option><option>Le Flore</option><option>Lincoln</option><option>Logan</option><option>Love</option><option>Major</option><option>Marshall</option><option>Mayes</option><option>McClain</option><option>McCurtain</option><option>McIntosh</option><option>Murray</option><option>Muskogee</option><option>Noble</option><option>Nowata</option><option>Okfuskee</option><option>Oklahoma</option><option>Okmulgee</option><option>Osage</option><option>Ottawa</option><option>Pawnee</option><option>Payne</option><option>Pittsburg</option><option>Pontotoc</option><option>Pottawatomie</option><option>Pushmataha</option><option>Roger Mills</option><option>Rogers</option><option>Seminole</option><option>Sequoyah</option><option>Stephens</option><option>Texas</option><option>Tillman</option><option>Tulsa</option><option>Wagoner</option><option>Washington</option><option>Washita</option><option>Woods</option><option>Woodward</option>
-                            </select>
+                            <div class="county-search-wrapper" style="position: relative; width: 200px;">
+                                <input type="text" id="countySearch" placeholder="Type to search..." autocomplete="off" required
+                                       style="padding: 6px 28px 6px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; font-family: inherit; background: white; width: 100%; box-sizing: border-box;">
+                                <span style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); pointer-events: none; color: #94a3b8; font-size: 10px;">&#9660;</span>
+                                <input type="hidden" id="county" value="">
+                                <div id="countyDropdown" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: white; border: 1px solid var(--border); border-top: none; border-radius: 0 0 4px 4px; z-index: 100; box-shadow: 0 4px 12px rgba(0,0,0,0.1);"></div>
+                            </div>
                         </div>
                         
                         <!-- Legal Description -->
                         <div class="details-row" style="align-items: center;">
                             <span class="details-label">Legal</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <input type="text" id="section" placeholder="Sec" pattern="^[0-9]{1,2}$" title="Section number (1-36)" required 
+                                <input type="text" id="section" placeholder="Sec" title="Section number (1-36)" required
                                        style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; width: 50px; text-align: center;"
                                        oninput="updateLocationDisplay()">
                                 <span>-</span>
-                                <input type="text" id="township" placeholder="Twn" pattern="^[0-9]{1,2}[NS]$" title="e.g., 12N" required
+                                <input type="text" id="township" placeholder="Twn" title="e.g., 12N or 12n" required
                                        style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; width: 60px; text-align: center; text-transform: uppercase;"
                                        oninput="updateLocationDisplay()">
                                 <span>-</span>
-                                <input type="text" id="range" placeholder="Rng" pattern="^[0-9]{1,2}[WE]$" title="e.g., 4W" required
+                                <input type="text" id="range" placeholder="Rng" title="e.g., 4W or 4w" required
                                        style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px; width: 60px; text-align: center; text-transform: uppercase;"
                                        oninput="updateLocationDisplay()">
                                 <select id="meridian" style="padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 13px; font-family: inherit; background: white;">

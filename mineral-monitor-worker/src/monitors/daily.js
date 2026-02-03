@@ -244,6 +244,52 @@ function addSectionsForRecord(record, sectionsSet, recordType = 'permit') {
 }
 
 /**
+ * Deduplicate alerts by user - collapse multiple matches for the same well
+ * into a single alert per user with the highest priority alert level.
+ * This prevents users with properties in multiple sections along a horizontal
+ * well path from receiving duplicate notifications for the same well.
+ * @param {Array} alerts - Array of alert objects with user, alertLevel, matchedLocation, reason
+ * @returns {Array} - Deduplicated array with one alert per user (highest priority)
+ */
+function deduplicateAlertsByUser(alerts) {
+  // Alert level priority (lower number = higher priority)
+  const alertPriority = {
+    'YOUR PROPERTY': 1,
+    'HORIZONTAL PATH THROUGH PROPERTY': 2,
+    'TRACKED WELL': 3,
+    'ADJACENT SECTION': 4,
+    'ADJACENT TO YOUR PROPERTY': 4,
+    'HORIZONTAL PATH ADJACENT': 5
+  };
+
+  const userBest = new Map(); // userId -> best alert
+
+  for (const alert of alerts) {
+    const userId = alert.user.id;
+    const existing = userBest.get(userId);
+
+    if (!existing) {
+      userBest.set(userId, alert);
+      continue;
+    }
+
+    // Keep the alert with higher priority (lower number)
+    const existingPriority = alertPriority[existing.alertLevel] || 99;
+    const newPriority = alertPriority[alert.alertLevel] || 99;
+
+    if (newPriority < existingPriority) {
+      userBest.set(userId, alert);
+    }
+  }
+
+  const deduped = Array.from(userBest.values());
+  if (deduped.length < alerts.length) {
+    console.log(`[Daily] Deduplicated alerts: ${alerts.length} → ${deduped.length} (collapsed ${alerts.length - deduped.length} duplicate user matches)`);
+  }
+  return deduped;
+}
+
+/**
  * OPTIMIZATION: Find matches using preloaded property map and batch-loaded users
  * @param {Object} location - Section, Township, Range, Meridian
  * @param {Map} propertyMap - Pre-loaded property map
@@ -858,8 +904,11 @@ async function processPermit(permit, env, results, dryRun = false, propertyMap =
     console.error(`[Daily] Error storing well location for permit ${api10}:`, err.message);
   }
   
-  // 5. Send alerts (with deduplication check using preloaded set)
-  for (const alert of alertsToSend) {
+  // 5. Deduplicate alerts by user (collapse multiple property matches for same well)
+  const dedupedAlerts = deduplicateAlertsByUser(alertsToSend);
+
+  // Send alerts (with deduplication check using preloaded set)
+  for (const alert of dedupedAlerts) {
     // OPTIMIZATION: Use preloaded alert set instead of individual queries (skip in test mode)
     const alreadyAlerted = !isTestMode && recentAlerts 
       ? hasRecentAlertInSet(recentAlerts, api10, activityType, alert.user.id)
@@ -1288,14 +1337,19 @@ async function processCompletion(completion, env, results, dryRun = false, prope
     console.error(`[Daily] Error storing well location for completion ${api10}:`, err.message);
   }
   
-  // 5. Send alerts
+  // 5. Deduplicate alerts by user (collapse multiple property matches for same well)
+  const dedupedAlerts = deduplicateAlertsByUser(alertsToSend);
+
+  // Log pre-dedup details for debugging
   if (alertsToSend.length > 1) {
-    console.log(`[Daily] Completion ${api10} has ${alertsToSend.length} alerts for user ${alertsToSend[0].user.email}:`);
-    alertsToSend.forEach((a, i) => {
+    console.log(`[Daily] Completion ${api10} had ${alertsToSend.length} raw matches, ${dedupedAlerts.length} after dedup:`);
+    dedupedAlerts.forEach((a, i) => {
       console.log(`  ${i+1}. Alert Level: ${a.alertLevel}, Reason: ${a.reason}, Location: ${a.matchedLocation}`);
     });
   }
-  for (const alert of alertsToSend) {
+
+  // Send alerts
+  for (const alert of dedupedAlerts) {
     // OPTIMIZATION: Use preloaded alert set (skip in test mode)
     const alreadyAlerted = !isTestMode && recentAlerts 
       ? hasRecentAlertInSet(recentAlerts, api10, 'Well Completed', alert.user.id)

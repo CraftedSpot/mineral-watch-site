@@ -321,9 +321,41 @@ export async function handleComputePunRollups(
   try {
     const startTime = Date.now();
 
+    // Parse optional county parameter for scoped processing
+    // When county is provided (e.g., "043"), only process PUNs for that county
+    // This avoids D1/Worker timeouts when processing all 185K+ PUNs at once
+    let county: string | null = null;
+    try {
+      const body = (await request.json()) as { county?: string };
+      county = body?.county || null;
+    } catch {
+      // No body or invalid JSON - process all PUNs
+    }
+
+    // Validate county format (3 digits)
+    if (county && !/^\d{3}$/.test(county)) {
+      return jsonResponse(
+        { error: "Invalid county format. Must be 3 digits (e.g., '043')." },
+        400
+      );
+    }
+
+    const countyCondition = county ? "AND pun LIKE ?" : "";
+    const countyBinding: string[] = county ? [`${county}-%`] : [];
+    const logPrefix = county ? `[PunRollup:${county}]` : "[PunRollup]";
+
+    // Helper to run a prepared statement with optional county binding appended
+    const runQuery = async (sql: string, bindings: (string | number)[] = []) => {
+      const allBindings = [...bindings, ...countyBinding];
+      if (allBindings.length > 0) {
+        return env.WELLS_DB!.prepare(sql).bind(...allBindings).run();
+      }
+      return env.WELLS_DB!.prepare(sql).run();
+    };
+
     // Step 1: Update first/last production months and totals
-    console.log("[PunRollup] Step 1: Updating first/last months and totals...");
-    const aggregateResult = await env.WELLS_DB!.prepare(`
+    console.log(`${logPrefix} Step 1: Updating first/last months and totals...`);
+    const aggregateResult = await runQuery(`
       UPDATE puns SET
         first_prod_month = (
           SELECT MIN(year_month) FROM otc_production WHERE otc_production.pun = puns.pun
@@ -340,12 +372,13 @@ export async function handleComputePunRollups(
           WHERE otc_production.pun = puns.pun AND product_code IN ('5', '6')
         )
       WHERE EXISTS (SELECT 1 FROM otc_production WHERE otc_production.pun = puns.pun)
-    `).run();
+      ${countyCondition}
+    `);
     const step1Changes = aggregateResult.meta.changes;
 
     // Step 2: Update peak month (month with highest oil production)
-    console.log("[PunRollup] Step 2: Updating peak month...");
-    const peakResult = await env.WELLS_DB!.prepare(`
+    console.log(`${logPrefix} Step 2: Updating peak month...`);
+    const peakResult = await runQuery(`
       UPDATE puns SET
         peak_month = (
           SELECT year_month FROM otc_production
@@ -362,11 +395,12 @@ export async function handleComputePunRollups(
           LIMIT 1
         )
       WHERE EXISTS (SELECT 1 FROM otc_production WHERE otc_production.pun = puns.pun AND product_code IN ('1', '3'))
-    `).run();
+      ${countyCondition}
+    `);
     const step2Changes = peakResult.meta.changes;
 
     // Step 3: Update is_stale and months_since_production
-    console.log("[PunRollup] Step 3: Updating staleness flags...");
+    console.log(`${logPrefix} Step 3: Updating staleness flags...`);
     const currentYearMonth = new Date().toISOString().slice(0, 7).replace("-", "");
     const sixMonthsAgo = (() => {
       const d = new Date();
@@ -374,7 +408,7 @@ export async function handleComputePunRollups(
       return d.toISOString().slice(0, 7).replace("-", "");
     })();
 
-    const staleResult = await env.WELLS_DB!.prepare(`
+    const staleResult = await runQuery(`
       UPDATE puns SET
         is_stale = CASE WHEN last_prod_month < ? THEN 1 ELSE 0 END,
         months_since_production = CASE
@@ -385,12 +419,12 @@ export async function handleComputePunRollups(
           )
         END
       WHERE last_prod_month IS NOT NULL
-    `).bind(sixMonthsAgo, currentYearMonth, currentYearMonth).run();
+      ${countyCondition}
+    `, [sixMonthsAgo, currentYearMonth, currentYearMonth]);
     const step3Changes = staleResult.meta.changes;
 
     // Step 4: Compute decline rate (compare recent 3 months avg to same period last year)
-    // This is complex, so we'll do a simplified version
-    console.log("[PunRollup] Step 4: Updating decline rates...");
+    console.log(`${logPrefix} Step 4: Updating decline rates...`);
     const recentMonthEnd = currentYearMonth;
     const recentMonthStart = (() => {
       const d = new Date();
@@ -409,8 +443,7 @@ export async function handleComputePunRollups(
       return d.toISOString().slice(0, 7).replace("-", "");
     })();
 
-    // Simplified decline rate: compare total of recent 3 months to same period last year
-    const declineResult = await env.WELLS_DB!.prepare(`
+    const declineResult = await runQuery(`
       UPDATE puns SET
         decline_rate_12m = (
           SELECT
@@ -429,14 +462,18 @@ export async function handleComputePunRollups(
           )
         )
       WHERE EXISTS (SELECT 1 FROM otc_production WHERE pun = puns.pun AND product_code IN ('1', '3'))
-    `).bind(recentMonthStart, recentMonthEnd, yearAgoStart, yearAgoEnd).run();
+      ${countyCondition}
+    `, [recentMonthStart, recentMonthEnd, yearAgoStart, yearAgoEnd]);
     const step4Changes = declineResult.meta.changes;
 
     const duration = Date.now() - startTime;
 
     return jsonResponse({
       success: true,
-      message: "PUN rollups computed successfully",
+      message: county
+        ? `PUN rollups computed for county ${county}`
+        : "PUN rollups computed successfully",
+      county: county || "all",
       stats: {
         step1_aggregates: step1Changes,
         step2_peak_month: step2Changes,

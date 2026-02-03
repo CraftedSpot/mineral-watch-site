@@ -127,13 +127,19 @@ async function markEntriesAlerted(db, entryIds) {
   if (entryIds.length === 0) return;
 
   const now = new Date().toISOString();
-  const placeholders = entryIds.map(() => '?').join(',');
+  // D1 has a ~100 bind variable limit. 1 variable per ID + 1 for timestamp.
+  const CHUNK_SIZE = 90;
 
-  await db.prepare(`
-    UPDATE occ_docket_entries
-    SET alerted_at = ?
-    WHERE id IN (${placeholders})
-  `).bind(now, ...entryIds).run();
+  for (let i = 0; i < entryIds.length; i += CHUNK_SIZE) {
+    const chunk = entryIds.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => '?').join(',');
+
+    await db.prepare(`
+      UPDATE occ_docket_entries
+      SET alerted_at = ?
+      WHERE id IN (${placeholders})
+    `).bind(now, ...chunk).run();
+  }
 }
 
 /**

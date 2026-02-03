@@ -1,0 +1,652 @@
+        // =============================================
+        // DEDUCTION REPORT VIEWER — Command Center Layout
+        // =============================================
+
+        const PRODUCT_NAMES = {
+            '1': 'Oil', '3': 'NGL / Condensate',
+            '5': 'Residue Gas', '6': 'Casinghead Gas'
+        };
+
+        const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+        function formatReportMonth(yyyymm) {
+            if (!yyyymm || yyyymm.length < 6) return yyyymm || '';
+            const year = yyyymm.substring(0, 4);
+            const month = parseInt(yyyymm.substring(4, 6), 10);
+            return MONTH_ABBR[month - 1] + ' ' + year;
+        }
+
+        function formatCurrencyFull(amount) {
+            if (amount == null) return '—';
+            return '$' + Math.round(amount).toLocaleString('en-US');
+        }
+
+        function deductionClass(pct) {
+            if (pct >= 35) return 'value-danger';
+            if (pct >= 25) return 'value-warning';
+            return '';
+        }
+
+        function cleanCountyName(county) {
+            if (!county) return '';
+            // Strip "043-" style prefix if present
+            return county.replace(/^\d{3}-/, '');
+        }
+
+        let expandedWells = new Set();
+        let lastReportData = null;
+
+        // =============================================
+        // SORTABLE TABLE — Reusable Pattern
+        // =============================================
+
+        // Column definitions: key, label, type, sticky class (optional), print-hide (optional)
+        const FLAGGED_WELLS_COLUMNS = [
+            { key: 'well_name', label: 'Well', type: 'string', sticky: 'sticky sticky-well', hasExpand: true },
+            { key: 'operator', label: 'Operator', type: 'string', sticky: 'sticky sticky-operator' },
+            { key: 'county', label: 'County', type: 'string', transform: cleanCountyName },
+            { key: 'agg_deduction_pct', label: 'Deduction %', type: 'percent' },
+            { key: 'county_avg_pct', label: 'County Avg', type: 'percent' },
+            { key: 'variance_points', label: 'Variance', type: 'variance' },
+            { key: 'total_gross', label: 'Total Gross', type: 'currency' },
+            { key: 'total_deductions', label: 'Total Deductions', type: 'currency' },
+            { key: 'total_net', label: 'Net Value', type: 'currency' },
+            { key: '_oil', label: 'Oil', type: 'currency', printHide: true },
+            { key: '_gas', label: 'Gas', type: 'currency', printHide: true },
+            { key: '_ngl', label: 'NGL', type: 'currency', printHide: true }
+        ];
+
+        let currentSort = { key: 'agg_deduction_pct', dir: 'desc' }; // Default sort
+
+        function sortData(data, key, dir) {
+            return [...data].sort((a, b) => {
+                let aVal = a[key];
+                let bVal = b[key];
+
+                // Handle computed columns
+                if (key === '_oil') {
+                    const ap = a.products.find(p => p.product_code === '1');
+                    const bp = b.products.find(p => p.product_code === '1');
+                    aVal = ap ? ap.gross_value : 0;
+                    bVal = bp ? bp.gross_value : 0;
+                } else if (key === '_gas') {
+                    const ap = a.products.find(p => p.product_code === '5' || p.product_code === '6');
+                    const bp = b.products.find(p => p.product_code === '5' || p.product_code === '6');
+                    aVal = ap ? ap.gross_value : 0;
+                    bVal = bp ? bp.gross_value : 0;
+                } else if (key === '_ngl') {
+                    const ap = a.products.find(p => p.product_code === '3');
+                    const bp = b.products.find(p => p.product_code === '3');
+                    aVal = ap ? ap.gross_value : 0;
+                    bVal = bp ? bp.gross_value : 0;
+                }
+
+                // Handle nulls
+                if (aVal == null && bVal == null) return 0;
+                if (aVal == null) return dir === 'asc' ? 1 : -1;
+                if (bVal == null) return dir === 'asc' ? -1 : 1;
+
+                // String comparison
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+
+                // Numeric comparison
+                return dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        function handleSort(key) {
+            // Toggle direction if same column, otherwise default to desc for numbers, asc for strings
+            if (currentSort.key === key) {
+                currentSort.dir = currentSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                const col = FLAGGED_WELLS_COLUMNS.find(c => c.key === key);
+                currentSort = { key, dir: col && col.type === 'string' ? 'asc' : 'desc' };
+            }
+            renderFlaggedWellsTable();
+        }
+
+        function renderSortArrow(key) {
+            if (currentSort.key !== key) {
+                return '<span class="sort-arrows"><span class="sort-arrow">▲</span><span class="sort-arrow">▼</span></span>';
+            }
+            return currentSort.dir === 'asc'
+                ? '<span class="sort-arrows"><span class="sort-arrow active">▲</span><span class="sort-arrow">▼</span></span>'
+                : '<span class="sort-arrows"><span class="sort-arrow">▲</span><span class="sort-arrow active">▼</span></span>';
+        }
+
+        function renderTableHeader() {
+            return FLAGGED_WELLS_COLUMNS.map(col => {
+                const classes = [col.sticky, col.printHide ? 'print-hide' : '', 'sortable'].filter(Boolean).join(' ');
+                return `<th class="${classes}" onclick="handleSort('${col.key}')">${escapeHtml(col.label)}${renderSortArrow(col.key)}</th>`;
+            }).join('');
+        }
+
+        function renderFlaggedWellsTable() {
+            if (!lastReportData || !lastReportData.flaggedWells) return;
+
+            const sorted = sortData(lastReportData.flaggedWells, currentSort.key, currentSort.dir);
+
+            // Update header arrows
+            const thead = document.querySelector('#flaggedWellsBody')?.closest('table')?.querySelector('thead tr');
+            if (thead) {
+                thead.innerHTML = renderTableHeader();
+            }
+
+            // Render body
+            const tbody = document.getElementById('flaggedWellsBody');
+            if (!tbody) return;
+
+            let html = '';
+            for (const well of sorted) {
+                html += renderWellRow(well);
+            }
+            tbody.innerHTML = html;
+
+            // Restore expanded state
+            for (const api of expandedWells) {
+                const detailRow = document.getElementById('detail-' + api);
+                const expandIcon = document.getElementById('expand-' + api);
+                if (detailRow) detailRow.style.display = 'table-row';
+                if (expandIcon) expandIcon.className = 'expand-icon open';
+            }
+        }
+
+        function renderWellRow(well) {
+            const pctClass = deductionClass(well.agg_deduction_pct);
+            const countyAvg = well.county_avg_pct != null ? well.county_avg_pct + '%' : '—';
+            const variance = well.variance_points != null ? '+' + well.variance_points + ' pts' : '—';
+
+            const oilProd = well.products.find(p => p.product_code === '1');
+            const gasProd = well.products.find(p => p.product_code === '5' || p.product_code === '6');
+            const nglProd = well.products.find(p => p.product_code === '3');
+
+            return `
+                <tr class="well-row" onclick="toggleWellDetail('${well.api_number}')">
+                    <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}</td>
+                    <td class="sticky sticky-operator">${escapeHtml(well.operator || '—')}</td>
+                    <td>${escapeHtml(cleanCountyName(well.county))}</td>
+                    <td class="${pctClass}">${well.agg_deduction_pct}%</td>
+                    <td>${countyAvg}</td>
+                    <td class="${well.variance_points != null && well.variance_points > 15 ? 'value-danger' : ''}">${variance}</td>
+                    <td>${formatCurrencyFull(well.total_gross)}</td>
+                    <td>${formatCurrencyFull(well.total_deductions)}</td>
+                    <td>${formatCurrencyFull(well.total_net)}</td>
+                    <td class="print-hide">${oilProd ? formatCurrencyFull(oilProd.gross_value) : '—'}</td>
+                    <td class="print-hide">${gasProd ? formatCurrencyFull(gasProd.gross_value) : '—'}</td>
+                    <td class="print-hide">${nglProd ? formatCurrencyFull(nglProd.gross_value) : '—'}</td>
+                </tr>
+                <tr class="well-detail-row" id="detail-${well.api_number}" style="display: none;">
+                    <td colspan="12">${buildWellDetail(well)}</td>
+                </tr>
+            `;
+        }
+
+        async function loadDeductionReport() {
+            // Show report viewer, hide main page content
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = 'none';
+            if (hero) hero.style.display = 'none';
+            viewer.style.display = 'block';
+            window.scrollTo(0, 0);
+
+            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Analyzing deduction data across your portfolio...</div>';
+            document.getElementById('reportSubtitle').textContent = 'Loading...';
+            document.getElementById('reportStatus').textContent = '';
+            document.getElementById('reportStatus').className = 'report-status';
+            document.getElementById('reportMeta').textContent = '';
+
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 15000);
+
+                const response = await fetch('/api/intelligence/deduction-report', {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('API returned ' + response.status);
+                }
+
+                const data = await response.json();
+                renderDeductionReport(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Deduction report request timed out');
+                } else {
+                    console.error('Failed to load deduction report:', error);
+                }
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load the deduction report. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadDeductionReport()">Retry</button>
+                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderDeductionReport(data) {
+            const { flaggedWells, portfolio, summary } = data;
+            lastReportData = data;
+            expandedWells = new Set();
+
+            // Header
+            const counties = [...new Set(flaggedWells.map(w => w.county).filter(Boolean))];
+            document.getElementById('reportSubtitle').textContent = flaggedWells.length > 0
+                ? `${flaggedWells.length} wells flagged across ${counties.length || '—'} count${counties.length !== 1 ? 'ies' : 'y'}`
+                : 'No flagged wells';
+
+            if (flaggedWells.length === 0) {
+                document.getElementById('reportStatus').innerHTML = '<span>&#10003;</span> All Clear';
+                document.getElementById('reportStatus').className = 'report-status success';
+            } else {
+                document.getElementById('reportStatus').innerHTML = '<span>&#9679;</span> Action Recommended';
+                document.getElementById('reportStatus').className = 'report-status critical';
+            }
+
+            const latestFormatted = summary.latest_month ? formatReportMonth(summary.latest_month) : 'N/A';
+            document.getElementById('reportMeta').textContent = 'Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' · Data through ' + latestFormatted;
+
+            if (flaggedWells.length === 0) {
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="hud-metrics">
+                        <div class="hud-badge">
+                            <div class="hud-badge-value success">${portfolio.avg_deduction_pct}%</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Portfolio Avg</div>
+                                <div class="hud-badge-status healthy">Healthy</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">0</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Flagged Wells</div>
+                                <div class="hud-badge-status healthy">All Clear</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">${portfolio.total_wells_analyzed}</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Wells Analyzed</div>
+                                <div class="hud-badge-status">${summary.analysis_period}</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-summary-card">
+                        <h2 class="report-summary-title">Summary</h2>
+                        <p class="report-summary-text">
+                            All <strong>${portfolio.total_wells_analyzed} wells</strong> with multi-product financial data were analyzed
+                            over the past ${summary.analysis_period}. No wells exceeded the 25% aggregate deduction threshold.
+                            Your portfolio average is <strong>${portfolio.avg_deduction_pct}%</strong>.
+                        </p>
+                    </div>
+                    <div class="report-footer">
+                        <p>Data sourced from Oklahoma Tax Commission gross production reports.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const worstWell = flaggedWells[0];
+
+            let html = '';
+
+            // HUD Metrics Bar
+            const portfolioStatus = portfolio.avg_deduction_pct > 20 ? 'warning' : 'success';
+            const portfolioLabel = portfolio.avg_deduction_pct > 20 ? 'Above Average' : 'Healthy';
+            html += `
+                <div class="hud-metrics">
+                    <div class="hud-badge">
+                        <div class="hud-badge-value ${portfolioStatus}">${portfolio.avg_deduction_pct}%</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Portfolio Avg</div>
+                            <div class="hud-badge-status ${portfolioStatus === 'success' ? 'healthy' : ''}">${portfolioLabel}</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value danger">${summary.flagged_count}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Flagged Wells</div>
+                            <div class="hud-badge-status alert">Action Recommended</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value warning">${formatCurrencyFull(summary.total_excess_deductions)}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Est. Excess</div>
+                            <div class="hud-badge-status">${summary.analysis_period}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Executive Summary
+            html += `
+                <div class="report-summary-card">
+                    <h2 class="report-summary-title">Summary</h2>
+                    <p class="report-summary-text">
+                        Based on analysis of <strong>${portfolio.total_wells_analyzed}</strong> of your actively producing wells with complete OTC financial records <span class="info-icon" title="Analysis requires wells with multiple product types (oil, gas, NGL) to accurately calculate deduction rates. Single-product wells are excluded to avoid false positives from standard gas processing accounting.">ⓘ</span>,
+                        <span class="summary-highlight">${summary.flagged_count} well${summary.flagged_count !== 1 ? 's' : ''}</span>
+                        ha${summary.flagged_count !== 1 ? 've' : 's'} aggregate deductions above 25%.
+                        The highest rate is <strong>${summary.worst_deduction_pct}%</strong> on ${escapeHtml(worstWell.well_name)},
+                        compared to your portfolio average of <strong>${portfolio.avg_deduction_pct}%</strong>.
+                    </p>
+                </div>
+            `;
+
+            // Comparison Bar Chart
+            const worstPct = summary.worst_deduction_pct;
+            const portfolioPct = portfolio.avg_deduction_pct;
+            const countyAvgPct = worstWell.county_avg_pct;
+            const maxPct = Math.max(worstPct, portfolioPct, countyAvgPct || 0, 10);
+
+            html += `
+                <div class="chart-section">
+                    <h3 class="chart-title">Deduction Rate Comparison</h3>
+                    <div class="bar-chart">
+                        <div class="bar-row">
+                            <div class="bar-label">${escapeHtml(worstWell.well_name)}</div>
+                            <div class="bar-container">
+                                <div class="bar-fill bar-flagged" style="width: ${Math.round((worstPct / maxPct) * 100)}%;">
+                                    <span class="bar-value">${worstPct}%</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${countyAvgPct != null ? `
+                        <div class="bar-row">
+                            <div class="bar-label">${escapeHtml(cleanCountyName(worstWell.county))} County Avg</div>
+                            <div class="bar-container">
+                                <div class="bar-fill bar-county" style="width: ${Math.max(Math.round((countyAvgPct / maxPct) * 100), 8)}%;">
+                                    <span class="bar-value">${countyAvgPct}%</span>
+                                </div>
+                            </div>
+                        </div>` : ''}
+                        <div class="bar-row">
+                            <div class="bar-label">Portfolio Average</div>
+                            <div class="bar-container">
+                                <div class="bar-fill bar-portfolio" style="width: ${Math.max(Math.round((portfolioPct / maxPct) * 100), 8)}%;">
+                                    <span class="bar-value">${portfolioPct}%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Print-only Summary Table (simple, no scroll, top 5 offenders)
+            const topOffenders = flaggedWells.slice(0, 5);
+            html += `
+                <div class="print-summary-table">
+                    <h3 class="chart-title">Top Flagged Wells</h3>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>Well</th>
+                                <th>Operator</th>
+                                <th>County</th>
+                                <th>Deduction %</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${topOffenders.map(well => `
+                                <tr>
+                                    <td>${escapeHtml(well.well_name)}</td>
+                                    <td>${escapeHtml(well.operator || '—')}</td>
+                                    <td>${escapeHtml(cleanCountyName(well.county))}</td>
+                                    <td class="${deductionClass(well.agg_deduction_pct)}">${well.agg_deduction_pct}%</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${flaggedWells.length > 5 ? `<p class="summary-note">+ ${flaggedWells.length - 5} more wells flagged. See full data export for details.</p>` : ''}
+                </div>
+            `;
+
+            // Per-Well Breakdown Table with Horizontal Scroll + Sticky Columns + Sortable Headers (screen only)
+            currentSort = { key: 'agg_deduction_pct', dir: 'desc' }; // Reset to default sort
+            html += `
+                <div class="report-data-section screen-only">
+                    <div class="report-data-header">
+                        <h3 class="report-data-title">Flagged Wells</h3>
+                        <div class="report-data-actions">
+                            <button class="btn btn-ghost" id="expandAllBtn" onclick="toggleExpandAll()" style="font-size: 0.8rem;">Expand All</button>
+                            <button class="btn btn-secondary" onclick="exportDeductionCsv()" style="font-size: 0.8rem;">Export Data</button>
+                        </div>
+                    </div>
+                    <div class="table-scroll-container">
+                        <table class="report-data-table">
+                            <thead>
+                                <tr>${renderTableHeader()}</tr>
+                            </thead>
+                            <tbody id="flaggedWellsBody">
+                                ${flaggedWells.map(well => renderWellRow(well)).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            `;
+
+            // Recommendation Card
+            html += `
+                <div class="recommendation-card">
+                    <h3 class="recommendation-title">Recommended Action</h3>
+                    <p class="recommendation-text">
+                        Your lease may contain a "market enhancement" or "no deductions" clause that restricts these costs.
+                        We recommend reviewing your lease terms and, if warranted, sending a formal inquiry to the operator
+                        requesting an itemized breakdown of deductions and citing specific lease provisions.
+                    </p>
+                    <div class="recommendation-actions">
+                        <button class="btn btn-outline-white" onclick="showToast('Lease upload coming in a future update', 'info')">Upload Lease for Review</button>
+                    </div>
+                </div>
+            `;
+
+            // Footer
+            html += `
+                <div class="report-footer">
+                    <p>
+                        Data sourced from Oklahoma Tax Commission gross production reports.
+                        <br>Analysis date: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = html;
+        }
+
+        function buildWellDetail(well) {
+            let html = '<div class="well-detail-content">';
+
+            // Product breakdown
+            html += '<h5>Product Breakdown (' + escapeHtml(well.well_name) + ')</h5>';
+            html += '<table class="detail-table"><thead><tr><th>Product</th><th>Gross Value</th><th>Deductions</th><th>Rate</th></tr></thead><tbody>';
+            for (const p of well.products) {
+                const pctClass = deductionClass(p.deduction_pct);
+                html += '<tr>';
+                html += '<td>' + escapeHtml(p.product_name) + '</td>';
+                html += '<td>' + formatCurrencyFull(p.gross_value) + '</td>';
+                html += '<td>' + formatCurrencyFull(p.market_deduction) + '</td>';
+                html += '<td class="' + pctClass + '">' + p.deduction_pct + '%</td>';
+                html += '</tr>';
+            }
+            html += '</tbody></table>';
+
+            // Residue gas note
+            if (well.residueGasNote) {
+                html += '<div class="residue-gas-note"><strong>Note:</strong> This well\'s Residue Gas shows high deductions. This is typical when natural gas is processed — the valuable NGLs are extracted and reported separately as Casinghead Gas. The aggregate rate across all products reflects the true economic impact.</div>';
+            }
+
+            // Monthly trend
+            if (well.monthly && well.monthly.length > 0) {
+                html += '<h5>Monthly Trend</h5>';
+                html += '<table class="detail-table"><thead><tr><th>Month</th><th>Gross</th><th>Deductions</th><th>Rate</th><th>Net</th></tr></thead><tbody>';
+                for (const m of well.monthly) {
+                    const pctClass = deductionClass(m.deduction_pct);
+                    html += '<tr>';
+                    html += '<td>' + formatReportMonth(m.year_month) + '</td>';
+                    html += '<td>' + formatCurrencyFull(m.gross_value) + '</td>';
+                    html += '<td>' + formatCurrencyFull(m.market_deduction) + '</td>';
+                    html += '<td class="' + pctClass + '">' + m.deduction_pct + '%</td>';
+                    html += '<td>' + formatCurrencyFull(m.net_value) + '</td>';
+                    html += '</tr>';
+                }
+                html += '</tbody></table>';
+            }
+
+            html += '</div>';
+            return html;
+        }
+
+        function toggleWellDetail(apiNumber) {
+            const detailRow = document.getElementById('detail-' + apiNumber);
+            const expandIcon = document.getElementById('expand-' + apiNumber);
+            if (!detailRow) return;
+
+            if (expandedWells.has(apiNumber)) {
+                detailRow.style.display = 'none';
+                if (expandIcon) expandIcon.className = 'expand-icon';
+                expandedWells.delete(apiNumber);
+            } else {
+                detailRow.style.display = 'table-row';
+                if (expandIcon) expandIcon.className = 'expand-icon open';
+                expandedWells.add(apiNumber);
+            }
+            updateExpandAllBtn();
+        }
+
+        function toggleExpandAll() {
+            const detailRows = document.querySelectorAll('.well-detail-row');
+            const expandIcons = document.querySelectorAll('.expand-icon');
+            const allExpanded = expandedWells.size === detailRows.length;
+
+            if (allExpanded) {
+                // Collapse all
+                detailRows.forEach(row => { row.style.display = 'none'; });
+                expandIcons.forEach(icon => { icon.className = 'expand-icon'; });
+                expandedWells.clear();
+            } else {
+                // Expand all
+                detailRows.forEach(row => { row.style.display = 'table-row'; });
+                expandIcons.forEach(icon => { icon.className = 'expand-icon open'; });
+                if (lastReportData) {
+                    lastReportData.flaggedWells.forEach(w => expandedWells.add(w.api_number));
+                }
+            }
+            updateExpandAllBtn();
+        }
+
+        function updateExpandAllBtn() {
+            const btn = document.getElementById('expandAllBtn');
+            const detailRows = document.querySelectorAll('.well-detail-row');
+            if (btn) {
+                btn.textContent = expandedWells.size === detailRows.length ? 'Collapse All' : 'Expand All';
+            }
+        }
+
+        function closeReport() {
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = '';
+            if (hero) hero.style.display = '';
+            viewer.style.display = 'none';
+            window.scrollTo(0, 0);
+        }
+
+        function exportDeductionCsv() {
+            if (!lastReportData || !lastReportData.flaggedWells) {
+                showToast('No report data to export', 'error');
+                return;
+            }
+
+            const rows = [];
+
+            // Ultra-flattened header: one row per well
+            rows.push([
+                // Identifier (1-5)
+                'Well Name', 'Operator', 'API Number', 'County', 'Status',
+                // Current Month Snapshot (6-9)
+                'Latest Month', 'Month Gross', 'Month Deductions', 'Month Net',
+                // 6-Month Product Breakdown (10-17)
+                '6M Oil Gross', '6M Oil Deductions',
+                '6M Residue Gas Gross', '6M Residue Gas Deductions',
+                '6M Casinghead Gas Gross', '6M Casinghead Gas Deductions',
+                '6M NGL Gross', '6M NGL Deductions',
+                // Totals (18-20)
+                '6M Total Gross', '6M Total Deductions', '6M Total Net',
+                // Intelligence Benchmarks (21-23)
+                'Aggregate Deduction %', 'County Avg %', 'Variance Points'
+            ].join(','));
+
+            for (const well of lastReportData.flaggedWells) {
+                const status = well.variance_points != null && well.variance_points > 15
+                    ? 'High Priority'
+                    : 'Above Average';
+
+                // Get latest month data
+                const latestMonth = well.monthly && well.monthly.length > 0 ? well.monthly[0] : null;
+
+                // Extract product values
+                const oil = well.products.find(p => p.product_code === '1') || { gross_value: 0, market_deduction: 0 };
+                const residueGas = well.products.find(p => p.product_code === '5') || { gross_value: 0, market_deduction: 0 };
+                const casingheadGas = well.products.find(p => p.product_code === '6') || { gross_value: 0, market_deduction: 0 };
+                const ngl = well.products.find(p => p.product_code === '3') || { gross_value: 0, market_deduction: 0 };
+
+                rows.push([
+                    // Identifier
+                    csvEscape(well.well_name),
+                    csvEscape(well.operator || ''),
+                    well.api_number,
+                    csvEscape(cleanCountyName(well.county)),
+                    status,
+                    // Current Month Snapshot
+                    latestMonth ? formatReportMonth(latestMonth.year_month) : '',
+                    latestMonth ? latestMonth.gross_value : '',
+                    latestMonth ? latestMonth.market_deduction : '',
+                    latestMonth ? latestMonth.net_value : '',
+                    // 6-Month Product Breakdown
+                    oil.gross_value || '',
+                    oil.market_deduction || '',
+                    residueGas.gross_value || '',
+                    residueGas.market_deduction || '',
+                    casingheadGas.gross_value || '',
+                    casingheadGas.market_deduction || '',
+                    ngl.gross_value || '',
+                    ngl.market_deduction || '',
+                    // Totals
+                    well.total_gross,
+                    well.total_deductions,
+                    well.total_net,
+                    // Intelligence Benchmarks
+                    well.agg_deduction_pct + '%',
+                    well.county_avg_pct != null ? well.county_avg_pct + '%' : '',
+                    well.variance_points != null ? well.variance_points : ''
+                ].join(','));
+            }
+
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'deduction-audit-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        function csvEscape(str) {
+            if (!str) return '';
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        }
+

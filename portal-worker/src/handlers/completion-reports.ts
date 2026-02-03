@@ -559,6 +559,168 @@ export async function handleGetProductionSummary(
 }
 
 /**
+ * GET /api/wells/{api}/decimal-interest
+ *
+ * Returns OTC-reported decimal interest data for a well.
+ * Uses well_pun_links to find PUNs, then queries otc_production_financial
+ * for decimal_equivalent values. Deduplicates to most recent month per PUN.
+ */
+export async function handleGetDecimalInterest(
+  apiNumber: string,
+  env: Env
+): Promise<Response> {
+  if (!env.WELLS_DB) {
+    return jsonResponse({ error: 'Database not available' }, 500);
+  }
+
+  try {
+    // Normalize API number
+    const apiNormalized = apiNumber.replace(/-/g, '');
+    const api10 = apiNormalized.substring(0, 10);
+
+    // Check KV cache first
+    const cacheKey = `decimal:${api10}`;
+    if (env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get(cacheKey, 'json');
+        if (cached) {
+          return jsonResponse(cached);
+        }
+      } catch (cacheError) {
+        console.error('Cache read error:', cacheError);
+      }
+    }
+
+    // Get PUN links for this well
+    const linksResult = await env.WELLS_DB.prepare(`
+      SELECT pun, base_pun
+      FROM well_pun_links
+      WHERE api_number = ? OR api_number = ?
+    `).bind(apiNumber, api10).all();
+
+    const links = linksResult.results as Array<{ pun: string; base_pun: string | null }>;
+
+    if (!links?.length) {
+      const noDataResponse = {
+        success: true,
+        hasData: false,
+        decimals: [],
+        summary: { pun_count: 0, latest_month: null, has_data: false },
+        cachedAt: Date.now()
+      };
+      if (env.OCC_CACHE) {
+        try {
+          await env.OCC_CACHE.put(cacheKey, JSON.stringify(noDataResponse), {
+            expirationTtl: 21600 // 6 hours for "no data"
+          });
+        } catch (cacheError) {
+          console.error('Cache write error:', cacheError);
+        }
+      }
+      return jsonResponse(noDataResponse);
+    }
+
+    // Get unique base_puns for the query
+    const basePuns = [...new Set(links.map(l => l.base_pun).filter(Boolean))] as string[];
+    if (!basePuns.length) {
+      const noDataResponse = {
+        success: true,
+        hasData: false,
+        decimals: [],
+        summary: { pun_count: 0, latest_month: null, has_data: false },
+        cachedAt: Date.now()
+      };
+      return jsonResponse(noDataResponse);
+    }
+
+    const placeholders = basePuns.map(() => '?').join(',');
+
+    // Query OTC financial data for decimal_equivalent
+    const result = await env.WELLS_DB.prepare(`
+      SELECT DISTINCT
+          wpl.pun,
+          opf.decimal_equivalent,
+          opf.year_month,
+          opf.product_code,
+          opf.reporting_company_id,
+          opf.gross_value
+      FROM well_pun_links wpl
+      JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+      WHERE wpl.base_pun IN (${placeholders})
+        AND opf.decimal_equivalent > 0
+      ORDER BY opf.year_month DESC
+    `).bind(...basePuns).all();
+
+    const rows = result.results as Array<{
+      pun: string;
+      decimal_equivalent: number;
+      year_month: string;
+      product_code: string | null;
+      reporting_company_id: string | null;
+      gross_value: number | null;
+    }>;
+
+    // Dedupe: keep only most recent year_month per PUN
+    const seen = new Map<string, typeof rows[0]>();
+    for (const row of rows) {
+      if (!seen.has(row.pun) || row.year_month > (seen.get(row.pun)!.year_month)) {
+        seen.set(row.pun, row);
+      }
+    }
+    const decimals = Array.from(seen.values());
+
+    // Format latest month for display
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    let latestMonthFormatted: string | null = null;
+    if (decimals.length > 0) {
+      const ym = decimals[0].year_month;
+      const year = ym.substring(0, 4);
+      const month = parseInt(ym.substring(4, 6), 10);
+      latestMonthFormatted = `${monthNames[month - 1]} ${year}`;
+    }
+
+    const responseData = {
+      success: true,
+      hasData: decimals.length > 0,
+      decimals: decimals.map(d => ({
+        pun: d.pun,
+        decimal_equivalent: d.decimal_equivalent,
+        year_month: d.year_month,
+        product_code: d.product_code,
+        reporting_company_id: d.reporting_company_id,
+        gross_value: d.gross_value
+      })),
+      summary: {
+        pun_count: decimals.length,
+        latest_month: latestMonthFormatted,
+        has_data: decimals.length > 0
+      },
+      cachedAt: Date.now()
+    };
+
+    // Cache response (24h for data, 6h for no-data)
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(cacheKey, JSON.stringify(responseData), {
+          expirationTtl: decimals.length > 0 ? 86400 : 21600
+        });
+      } catch (cacheError) {
+        console.error('Cache write error:', cacheError);
+      }
+    }
+
+    return jsonResponse(responseData);
+
+  } catch (error) {
+    console.error('Error in handleGetDecimalInterest:', error);
+    return jsonResponse({
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
  * POST /api/wells/{api}/analyze-completion
  *
  * Requires authentication. Triggers:

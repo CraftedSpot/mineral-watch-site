@@ -38,7 +38,8 @@ import {
   myPropertiesMapHtml,
   oklahomaMapHtml,
   adminBackfillHtml,
-  learnHtml
+  learnHtml,
+  intelligenceHtml
 } from './templates/index.js';
 
 import {
@@ -160,10 +161,15 @@ import {
   handleComputePunRollups,
   handleGetPunProductionStats,
   handleTruncatePunProduction,
+  // OTC financial upload handlers
+  handleUploadFinancialData,
+  handleGetFinancialStats,
+  handleTruncateFinancial,
   // Completion reports handlers
   handleGetCompletionReports,
   handleAnalyzeCompletion,
   handleGetProductionSummary,
+  handleGetDecimalInterest,
   // Completions-to-wells sync handlers
   handleSyncCompletionsToWells,
   handleSyncSingleCompletion,
@@ -174,7 +180,12 @@ import {
   handleDocumentPrint,
   // PLSS sections handlers
   handleGetPlssSection,
-  handleGetPlssSectionsBatch
+  handleGetPlssSectionsBatch,
+  // County records handlers
+  handleCountyRecordsCounties,
+  handleCountyRecordsInstrumentTypes,
+  handleCountyRecordsSearch,
+  handleCountyRecordsRetrieve
 } from './handlers/index.js';
 
 import type { Env } from './types/env.js';
@@ -270,6 +281,9 @@ var index_default = {
       }
       if (path === "/portal/oklahoma-map" || path === "/portal/oklahoma-map/") {
         return servePage(oklahomaMapHtml, request, env);
+      }
+      if (path === "/portal/intelligence" || path === "/portal/intelligence/") {
+        return servePage(intelligenceHtml, request, env);
       }
       if (path === "/portal/learn" || path === "/portal/learn/") {
         return servePage(learnHtml, request, env);
@@ -501,11 +515,23 @@ var index_default = {
       console.log(msg);
     }
     
-    // Get token from URL parameters instead of template injection
+    // Get token and redirect from URL parameters
     const urlParams = new URLSearchParams(window.location.search);
     const fullToken = urlParams.get('token');
-    
+    const rawRedirect = urlParams.get('redirect');
+
+    // Validate redirect to prevent open redirect attacks
+    function safeRedirect(path) {
+      if (!path) return '/portal';
+      if (!path.startsWith('/')) return '/portal';
+      if (path.startsWith('//')) return '/portal';
+      if (path.includes('://')) return '/portal';
+      return path;
+    }
+    const redirectPath = safeRedirect(rawRedirect);
+
     addDebug('Token from URL: ' + (fullToken ? fullToken.substring(0, 20) + '...' : 'missing'));
+    if (rawRedirect) addDebug('Redirect: ' + redirectPath);
     
     if (!fullToken) {
       addDebug('ERROR: No token found in URL');
@@ -561,9 +587,9 @@ var index_default = {
             if (data.success) {
               // Clear timeout since we succeeded
               clearTimeout(timeoutId);
-              addDebug('Login successful, redirecting...');
-              // Successful verification
-              window.location.href = data.redirect || '/portal';
+              addDebug('Login successful, redirecting to ' + redirectPath);
+              // Successful verification - use redirect from URL param (validated)
+              window.location.href = redirectPath;
             }
           } catch (jsonError) {
             addDebug('JSON parse error: ' + jsonError.message);
@@ -602,10 +628,10 @@ var index_default = {
                   document.cookie = "${COOKIE_NAME}=" + data.sessionToken + "; path=/; secure; samesite=lax; max-age=2592000";
                   console.log('Set session cookie for invite verification');
                   
-                  // Redirect to dashboard after small delay (longer for mobile)
+                  // Redirect after small delay (longer for mobile)
                   const redirectDelay = isMobile ? 500 : 100;
                   setTimeout(() => {
-                    window.location.href = "/portal";
+                    window.location.href = redirectPath;
                   }, redirectDelay);
                 } else {
                   // Verification failed - redirect to login with error
@@ -670,8 +696,12 @@ var index_default = {
           return handleVerifyInvite(request, env, url);
         }
 
-        // JWT token - redirect to set-session endpoint
-        return Response.redirect(`${BASE_URL}/api/auth/set-session?token=${token}`, 302);
+        // JWT/HMAC token - redirect to set-session endpoint
+        const redirect = url.searchParams.get("redirect");
+        const setSessionUrl = redirect
+          ? `${BASE_URL}/api/auth/set-session?token=${encodeURIComponent(token)}&redirect=${encodeURIComponent(redirect)}`
+          : `${BASE_URL}/api/auth/set-session?token=${token}`;
+        return Response.redirect(setSessionUrl, 302);
       }
       
       // Handle email change verification
@@ -938,6 +968,12 @@ var index_default = {
         return handleGetProductionSummary(productionSummaryMatch[1], env);
       }
 
+      // Decimal interest endpoint
+      const decimalInterestMatch = path.match(/^\/api\/wells\/([a-zA-Z0-9]+)\/decimal-interest$/);
+      if (decimalInterestMatch && request.method === "GET") {
+        return handleGetDecimalInterest(decimalInterestMatch[1], env);
+      }
+
       // Nearby wells endpoints (D1 database queries)
       if (path === "/api/nearby-wells" && (request.method === "GET" || request.method === "POST")) {
         return handleNearbyWells(request, env);
@@ -1076,6 +1112,20 @@ var index_default = {
         return handleGetPlssSectionsBatch(request, env);
       }
 
+      // County records endpoints (OKCountyRecords integration)
+      if (path === "/api/county-records/counties" && request.method === "GET") {
+        return handleCountyRecordsCounties(request, env);
+      }
+      if (path === "/api/county-records/instrument-types" && request.method === "GET") {
+        return handleCountyRecordsInstrumentTypes(request, env);
+      }
+      if (path === "/api/county-records/search" && request.method === "POST") {
+        return handleCountyRecordsSearch(request, env, ctx);
+      }
+      if (path === "/api/county-records/retrieve" && request.method === "POST") {
+        return handleCountyRecordsRetrieve(request, env);
+      }
+
       // OTC file sync endpoints (for Fly.io automation)
       if (path === "/api/otc-sync/files" && request.method === "GET") {
         return handleGetOtcSyncFiles(request, env);
@@ -1106,6 +1156,15 @@ var index_default = {
       }
       if (path === "/api/otc-sync/pun-production-stats" && request.method === "GET") {
         return handleGetPunProductionStats(request, env);
+      }
+      if (path === "/api/otc-sync/upload-financial" && request.method === "POST") {
+        return handleUploadFinancialData(request, env);
+      }
+      if (path === "/api/otc-sync/financial-stats" && request.method === "GET") {
+        return handleGetFinancialStats(request, env);
+      }
+      if (path === "/api/otc-sync/truncate-financial" && request.method === "POST") {
+        return handleTruncateFinancial(request, env);
       }
       // Manual trigger for OTC sync (calls Fly machine)
       if (path === "/api/otc-sync/trigger" && request.method === "POST") {
@@ -1185,6 +1244,20 @@ var index_default = {
         return handleSyncSingleCompletion(request, env, syncSingleCompletionMatch[1]);
       }
       
+      // Intelligence API endpoints
+      if (path === "/api/intelligence/summary" && request.method === "GET") {
+        const { handleGetIntelligenceSummary } = await import('./handlers/intelligence.js');
+        return handleGetIntelligenceSummary(request, env);
+      }
+      if (path === "/api/intelligence/insights" && request.method === "GET") {
+        const { handleGetIntelligenceInsights } = await import('./handlers/intelligence.js');
+        return handleGetIntelligenceInsights(request, env);
+      }
+      if (path === "/api/intelligence/deduction-report" && request.method === "GET") {
+        const { handleGetDeductionReport } = await import('./handlers/intelligence.js');
+        return handleGetDeductionReport(request, env);
+      }
+
       // Debug endpoint
       if (path === "/api/debug-airtable" && request.method === "GET") {
         return handleDebugAirtable(request, env);

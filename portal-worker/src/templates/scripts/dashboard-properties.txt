@@ -325,9 +325,12 @@
             document.getElementById('addPropertyModal').style.display = 'flex'; 
         });
         
-        function closePropertyModal() { 
-            document.getElementById('addPropertyModal').style.display = 'none'; 
-            document.getElementById('addPropertyForm').reset(); 
+        function closePropertyModal() {
+            document.getElementById('addPropertyModal').style.display = 'none';
+            document.getElementById('addPropertyForm').reset();
+            document.getElementById('countySearch').value = '';
+            document.getElementById('county').value = '';
+            document.getElementById('countyDropdown').style.display = 'none';
             document.getElementById('propertyNotes').value = ''; // Clear notes field
             document.getElementById('addPropertyRIAcres').value = '';
             document.getElementById('addPropertyWIAcres').value = '';
@@ -348,7 +351,106 @@
             }
         }
         window.autoSetMeridian = autoSetMeridian; // Make available globally
-        
+
+        // Searchable county dropdown
+        (function initCountySearch() {
+            const counties = ['Alfalfa','Atoka','Beaver','Beckham','Blaine','Bryan','Caddo','Canadian','Carter','Cherokee','Choctaw','Cimarron','Cleveland','Coal','Comanche','Cotton','Craig','Creek','Custer','Delaware','Dewey','Ellis','Garfield','Garvin','Grady','Grant','Greer','Harmon','Harper','Haskell','Hughes','Jackson','Jefferson','Johnston','Kay','Kingfisher','Kiowa','Latimer','Le Flore','Lincoln','Logan','Love','Major','Marshall','Mayes','McClain','McCurtain','McIntosh','Murray','Muskogee','Noble','Nowata','Okfuskee','Oklahoma','Okmulgee','Osage','Ottawa','Pawnee','Payne','Pittsburg','Pontotoc','Pottawatomie','Pushmataha','Roger Mills','Rogers','Seminole','Sequoyah','Stephens','Texas','Tillman','Tulsa','Wagoner','Washington','Washita','Woods','Woodward'];
+            const searchInput = document.getElementById('countySearch');
+            const hiddenInput = document.getElementById('county');
+            const dropdown = document.getElementById('countyDropdown');
+
+            function renderList(filter) {
+                const q = (filter || '').toLowerCase();
+                const matches = q ? counties.filter(c => c.toLowerCase().startsWith(q)) : counties;
+                if (matches.length === 0) {
+                    dropdown.innerHTML = '<div style="padding: 8px 12px; color: #94a3b8; font-size: 13px;">No match</div>';
+                } else {
+                    dropdown.innerHTML = matches.map(c => {
+                        var label = c;
+                        if (q) {
+                            label = '<strong>' + c.substring(0, q.length) + '</strong>' + c.substring(q.length);
+                        }
+                        return '<div class="county-option" data-value="' + c + '" style="padding: 7px 12px; font-size: 14px; cursor: pointer;">' + label + '</div>';
+                    }).join('');
+                }
+                dropdown.style.display = 'block';
+            }
+
+            searchInput.addEventListener('focus', () => renderList(searchInput.value));
+            searchInput.addEventListener('input', () => {
+                hiddenInput.value = ''; // clear until a valid selection
+                renderList(searchInput.value);
+            });
+
+            dropdown.addEventListener('click', (e) => {
+                const option = e.target.closest('.county-option');
+                if (!option) return;
+                const val = option.dataset.value;
+                searchInput.value = val;
+                hiddenInput.value = val;
+                dropdown.style.display = 'none';
+                autoSetMeridian(val);
+                updateLocationDisplay();
+            });
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                const options = dropdown.querySelectorAll('.county-option');
+                const active = dropdown.querySelector('.county-option.active');
+                if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!active && options.length) { options[0].classList.add('active'); options[0].style.background = '#f0f9ff'; }
+                    else if (active && active.nextElementSibling?.classList.contains('county-option')) {
+                        active.classList.remove('active'); active.style.background = '';
+                        active.nextElementSibling.classList.add('active'); active.nextElementSibling.style.background = '#f0f9ff';
+                        active.nextElementSibling.scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    if (active && active.previousElementSibling?.classList.contains('county-option')) {
+                        active.classList.remove('active'); active.style.background = '';
+                        active.previousElementSibling.classList.add('active'); active.previousElementSibling.style.background = '#f0f9ff';
+                        active.previousElementSibling.scrollIntoView({ block: 'nearest' });
+                    }
+                } else if (e.key === 'Enter' && active) {
+                    e.preventDefault();
+                    active.click();
+                } else if (e.key === 'Escape') {
+                    dropdown.style.display = 'none';
+                }
+            });
+
+            // Hover highlight
+            dropdown.addEventListener('mouseover', (e) => {
+                const option = e.target.closest('.county-option');
+                if (!option) return;
+                dropdown.querySelectorAll('.county-option').forEach(o => { o.classList.remove('active'); o.style.background = ''; });
+                option.classList.add('active');
+                option.style.background = '#f0f9ff';
+            });
+            dropdown.addEventListener('mouseout', (e) => {
+                const option = e.target.closest('.county-option');
+                if (option) { option.classList.remove('active'); option.style.background = ''; }
+            });
+
+            // Close on click outside
+            document.addEventListener('click', (e) => {
+                if (!e.target.closest('.county-search-wrapper')) {
+                    dropdown.style.display = 'none';
+                    // Auto-match if user typed a valid county name
+                    if (searchInput.value && !hiddenInput.value) {
+                        const match = counties.find(c => c.toLowerCase() === searchInput.value.trim().toLowerCase());
+                        if (match) {
+                            searchInput.value = match;
+                            hiddenInput.value = match;
+                            autoSetMeridian(match);
+                            updateLocationDisplay();
+                        }
+                    }
+                }
+            });
+        })();
+
         // Update location display in Add Property header
         function updateLocationDisplay() {
             const county = document.getElementById('county').value;
@@ -395,33 +497,49 @@
         document.getElementById('addPropertyForm').addEventListener('submit', async e => {
             e.preventDefault();
             
-            // Get form values
-            const section = document.getElementById('section').value.trim();
-            const township = document.getElementById('township').value.trim().toUpperCase();
-            const range = document.getElementById('range').value.trim().toUpperCase();
+            // Get form values - normalize on the client side for display, but
+            // the backend does full normalization (prefix stripping, case, defaults)
+            let section = document.getElementById('section').value.trim();
+            let township = document.getElementById('township').value.trim().toUpperCase();
+            let range = document.getElementById('range').value.trim().toUpperCase();
             const notes = document.getElementById('propertyNotes').value.trim();
-            
-            // Additional validation
-            if (!/^[0-9]{1,2}$/.test(section) || parseInt(section) < 1 || parseInt(section) > 36) {
+
+            // Strip common prefixes users might type
+            section = section.replace(/^(s|sec|section)\s*/i, '');
+            township = township.replace(/^(T|TWN|TOWN|TOWNSHIP)\s*/i, '').replace(/\s+/g, '');
+            range = range.replace(/^(R|RNG|RANGE)\s*/i, '').replace(/\s+/g, '');
+
+            // Light validation - let backend do the heavy lifting
+            const secNum = parseInt(section, 10);
+            if (isNaN(secNum) || secNum < 1 || secNum > 36) {
                 showToast('Section must be a number between 1 and 36', 'error');
                 return;
             }
-            
-            if (!/^[0-9]{1,2}[NS]$/.test(township)) {
-                showToast('Township format: number + N or S (e.g., 12N)', 'error');
+
+            // Accept just a number for township/range - backend will add default direction
+            if (!/^\d{1,2}[NSns]?$/.test(township)) {
+                showToast('Township: number + N or S (e.g., 12N). Direction defaults to N.', 'error');
+                return;
+            }
+
+            if (!/^\d{1,2}[EWew]?$/.test(range)) {
+                showToast('Range: number + W or E (e.g., 4W). Direction defaults to W.', 'error');
                 return;
             }
             
-            if (!/^[0-9]{1,2}[WE]$/.test(range)) {
-                showToast('Range format: number + W or E (e.g., 4W)', 'error');
+            // Validate county selection
+            const countyValue = document.getElementById('county').value;
+            if (!countyValue) {
+                showToast('Please select a county from the list', 'error');
+                document.getElementById('countySearch').focus();
                 return;
             }
-            
-            const data = { 
-                COUNTY: document.getElementById('county').value, 
-                SEC: section, 
-                TWN: township, 
-                RNG: range, 
+
+            const data = {
+                COUNTY: countyValue,
+                SEC: section,
+                TWN: township,
+                RNG: range,
                 MERIDIAN: document.getElementById('meridian').value,
                 Notes: notes,
                 Group: document.getElementById('addPropertyGroup').value.trim(),
@@ -580,6 +698,12 @@
                 modalStack.push({ type: 'property', id: propId, element: propModal });
             }
             
+            // Show/hide county records section based on org
+            const crSection = document.getElementById('county-records-section');
+            if (crSection) {
+                crSection.style.display = isCountyRecordsEnabled() ? 'block' : 'none';
+            }
+
             // Load linked wells and OCC filings after modal is shown to avoid race condition
             console.log('[PropertyDetails] Opening property:', propId);
             setTimeout(() => {
@@ -711,35 +835,8 @@
             }
         }
         
-        function getMatchReasonStyle(reason) {
-            switch(reason) {
-                case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
-                case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
-                case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
-                case 'Adjacent Section': return 'background: #fef3c7; color: #92400e;';
-                default: return 'background: #e5e7eb; color: #374151;';
-            }
-        }
+        // getMatchReasonStyle(), getMatchReasonLabel(), getStatusStyle() are now in shared-utils.txt
 
-        function getMatchReasonLabel(reason) {
-            switch(reason) {
-                case 'Surface Location': return 'Surface';
-                case 'Bottom Hole': return 'Bottom Hole';
-                case 'Lateral Path': return 'Lateral';
-                case 'Adjacent Section': return 'Adjacent';
-                default: return reason;
-            }
-        }
-        
-        function getStatusStyle(status) {
-            switch(status) {
-                case 'AC': return 'background: #dcfce7; color: #166534;';
-                case 'TA': return 'background: #fef9c3; color: #854d0e;';
-                case 'PA': return 'background: #f3f4f6; color: #6b7280;';
-                default: return 'background: #e5e7eb; color: #374151;';
-            }
-        }
-        
         function openManualLinkWell() {
             // Manual well linking to properties - feature coming soon
             showToast('Manual well linking coming soon', 'info');
@@ -937,6 +1034,717 @@
             // Manual property linking to wells - feature coming soon
             showToast('Manual property linking coming soon', 'info');
         }
+
+        // ── County Records ──────────────────────────────────────────────────
+
+        // Beta: only show for specific organizations
+        const COUNTY_RECORDS_ALLOWED_ORGS = ['rec9fYy8Xwl3jNAbf']; // Price Minerals
+
+        function isCountyRecordsEnabled() {
+            return currentUser && COUNTY_RECORDS_ALLOWED_ORGS.includes(currentUser.organizationId);
+        }
+
+        // Mode-based type filtering with exact normalized matching
+        // Normalize: lowercase, & → and, strip all non-alphanumeric
+        function normalizeType(type) {
+            return (type || '').toLowerCase().replace(/&/g, 'and').replace(/[^a-z0-9]/g, '');
+        }
+
+        // Leases & Activity types
+        const CR_LEASES_ACTIVITY = [
+            'Oil & Gas Lease',
+            'Memorandum Of Oil & Gas',
+            'Memorandum of Lease',
+            'Ratification',
+            'Amendment O & G',
+            'Assignment',
+            'Partial Assignment',
+            'Pooling',
+            'Pooling Order',
+            'Spacing',
+        ].map(normalizeType);
+
+        // Title Document types
+        const CR_TITLE_DOCS = [
+            'Mineral Deed',
+            'Mineral & Royalty Deed',
+            'Quit Claim Deed/ Mineral Interest',
+            'Trustee Mineral Deed',
+            'Warranty Deed',
+            'Quit Claim Deed',
+            'Deed & Conveyance',
+            'Convey',
+            'Affidavit of Heirship',
+        ].map(normalizeType);
+
+        // Always-hidden types
+        const CR_BLACKLIST = [
+            'SURFACE GRANT',
+            'Final Decree',
+            'Journal Entry',
+            'CERTIFICATE',
+            'CORR/WD',
+            'Notice',
+            'REPORT',
+            'Subordination Agreement',
+        ].map(normalizeType);
+
+        // Filter mode: 'both', 'leases', or 'title'
+        let crFilterMode = 'both';
+
+        function isBlacklistedType(type) {
+            return CR_BLACKLIST.includes(normalizeType(type));
+        }
+
+        // Used by the auto-fetch loop: keep anything in either mode list (not blacklisted)
+        function isRelevantInstrumentType(type) {
+            if (!type) return false;
+            if (isBlacklistedType(type)) return false;
+            const norm = normalizeType(type);
+            return CR_LEASES_ACTIVITY.includes(norm) || CR_TITLE_DOCS.includes(norm);
+        }
+
+        // Used by the renderer: filter based on current mode
+        function isVisibleInstrumentType(type) {
+            if (!type) return false;
+            if (isBlacklistedType(type)) return false;
+            const norm = normalizeType(type);
+            if (crFilterMode === 'leases') return CR_LEASES_ACTIVITY.includes(norm);
+            if (crFilterMode === 'title') return CR_TITLE_DOCS.includes(norm);
+            return CR_LEASES_ACTIVITY.includes(norm) || CR_TITLE_DOCS.includes(norm);
+        }
+
+        const countyRecordsState = {
+            loaded: false,
+            loading: false,
+            allResults: [],
+            currentPage: 0,
+            totalResults: 0,
+            totalPages: 0,
+            county: '',
+            section: '',
+            township: '',
+            range: '',
+        };
+
+        // State tracking for county record retrieval processing (mirrors OCC pattern)
+        const crProcessingStates = {};
+        const CR_POLL_INTERVAL = 5000;
+        const CR_MAX_POLL_DURATION = 5 * 60 * 1000;
+        const CR_MAX_PAGE_COUNT = 50;
+        const CR_TARGET_RESULTS_PER_LOAD = 15;
+        const CR_MAX_PAGES_PER_LOAD = 5;
+
+        function resetCountyRecordsState() {
+            // Stop any active polling
+            for (const key in crProcessingStates) {
+                if (crProcessingStates[key].pollInterval) {
+                    clearInterval(crProcessingStates[key].pollInterval);
+                }
+                delete crProcessingStates[key];
+            }
+
+            countyRecordsState.loaded = false;
+            countyRecordsState.loading = false;
+            countyRecordsState.allResults = [];
+            countyRecordsState.currentPage = 0;
+            countyRecordsState.totalResults = 0;
+            countyRecordsState.totalPages = 0;
+            countyRecordsState.county = '';
+            countyRecordsState.section = '';
+            countyRecordsState.township = '';
+            countyRecordsState.range = '';
+            crFilterMode = 'both';
+            updateCrModeToggle();
+            const modeToggleEl = document.getElementById('county-records-mode-toggle');
+            if (modeToggleEl) modeToggleEl.style.display = 'none';
+
+            const countEl = document.getElementById('county-records-count');
+            if (countEl) countEl.textContent = '\u2014';
+            const listEl = document.getElementById('county-records-list');
+            if (listEl) listEl.innerHTML = '';
+            const emptyEl = document.getElementById('county-records-empty');
+            if (emptyEl) emptyEl.style.display = 'none';
+            const filtersEl = document.getElementById('county-records-filters');
+            if (filtersEl) filtersEl.style.display = 'none';
+            const paginationEl = document.getElementById('county-records-pagination');
+            if (paginationEl) paginationEl.style.display = 'none';
+            const contentEl = document.getElementById('county-records-content');
+            if (contentEl) contentEl.style.display = 'none';
+            const arrowEl = document.getElementById('county-records-arrow');
+            if (arrowEl) arrowEl.style.transform = 'rotate(0deg)';
+        }
+
+        // Counties not covered by OKCountyRecords.com (use separate systems)
+        const UNSUPPORTED_COUNTIES = [
+            'caddo', 'canadian', 'cleveland', 'creek', 'garfield',
+            'hughes', 'oklahoma', 'payne', 'rogers', 'tulsa',
+            'wagoner', 'woods',
+        ];
+
+        function isCountySupported(county) {
+            return !UNSUPPORTED_COUNTIES.includes((county || '').toLowerCase().replace(' county', '').trim());
+        }
+
+        function toggleCountyRecords() {
+            const content = document.getElementById('county-records-content');
+            const arrow = document.getElementById('county-records-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+
+                // Lazy load on first expand
+                if (!countyRecordsState.loaded && !countyRecordsState.loading) {
+                    const propId = document.getElementById('propertyDetailsId').value;
+                    const prop = loadedProperties.find(p => p.id === propId);
+                    if (prop) {
+                        const f = prop.fields;
+                        if (!f['COUNTY'] || !f.SEC || !f.TWN || !f.RNG) {
+                            document.getElementById('county-records-list').innerHTML =
+                                '<div style="color: #6b7280; font-size: 13px; font-style: italic; padding: 12px 0;">County, section, township, and range are required to search county records</div>';
+                            return;
+                        }
+                        if (!isCountySupported(f['COUNTY'])) {
+                            document.getElementById('county-records-list').innerHTML =
+                                `<div style="color: #6b7280; font-size: 13px; padding: 12px 0;"><strong>${escapeHtml(f['COUNTY'])} County</strong> is not available through our county records provider. This county uses a separate recording system.</div>`;
+                            document.getElementById('county-records-list').style.display = 'block';
+                            document.getElementById('county-records-count').textContent = '—';
+                            return;
+                        }
+                        loadCountyRecords(f['COUNTY'], f.SEC, f.TWN, f.RNG, 1);
+                    }
+                }
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        async function loadCountyRecords(county, section, township, range, startPage) {
+            countyRecordsState.loading = true;
+            countyRecordsState.county = county;
+            countyRecordsState.section = section;
+            countyRecordsState.township = township;
+            countyRecordsState.range = range;
+
+            const listEl = document.getElementById('county-records-list');
+            const emptyEl = document.getElementById('county-records-empty');
+            const loadMoreBtn = document.getElementById('county-records-load-more');
+
+            if (startPage === 1) {
+                listEl.innerHTML = '<div style="padding: 12px; color: #6b7280;">Searching county records...</div>';
+                emptyEl.style.display = 'none';
+            } else if (loadMoreBtn) {
+                loadMoreBtn.textContent = 'Loading...';
+                loadMoreBtn.disabled = true;
+            }
+
+            try {
+                const prevCount = startPage === 1 ? 0 : countyRecordsState.allResults.length;
+                let currentPage = startPage;
+                let pagesLoaded = 0;
+
+                // Fetch pages until we have enough relevant results or hit limits
+                while (pagesLoaded < CR_MAX_PAGES_PER_LOAD) {
+                    const response = await fetch('/api/county-records/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ county, section, township, range, page: currentPage }),
+                    });
+
+                    if (!response.ok) {
+                        const err = await response.json().catch(() => ({}));
+                        throw new Error(err.error || 'Search failed');
+                    }
+
+                    const data = await response.json();
+                    countyRecordsState.currentPage = data.page || currentPage;
+                    countyRecordsState.totalPages = data.total_pages || 1;
+
+                    const relevantResults = (data.results || []).filter(r => isRelevantInstrumentType(r.instrument_type));
+
+                    if (startPage === 1 && pagesLoaded === 0) {
+                        countyRecordsState.allResults = relevantResults;
+                    } else {
+                        countyRecordsState.allResults = countyRecordsState.allResults.concat(relevantResults);
+                    }
+
+                    pagesLoaded++;
+                    currentPage++;
+
+                    // Stop if we have enough new relevant results
+                    const newCount = countyRecordsState.allResults.length - prevCount;
+                    if (newCount >= CR_TARGET_RESULTS_PER_LOAD) break;
+
+                    // Stop if no more pages
+                    if (currentPage > countyRecordsState.totalPages) break;
+                }
+
+                countyRecordsState.totalResults = countyRecordsState.allResults.length;
+                countyRecordsState.loaded = true;
+
+                // Update count badge with visible results count
+                const visibleCount = countyRecordsState.allResults.filter(r => isVisibleInstrumentType(r.instrument_type)).length;
+                document.getElementById('county-records-count').textContent = String(visibleCount);
+
+                renderCountyRecords();
+                updateCountyRecordsTypeFilter();
+            } catch (error) {
+                console.error('[CountyRecords] Search error:', error);
+                if (startPage === 1) {
+                    listEl.innerHTML = '<div style="padding: 12px; color: #dc2626;">Failed to search county records. Please try again.</div>';
+                } else {
+                    showToast('Failed to load more results', 'error');
+                }
+            } finally {
+                countyRecordsState.loading = false;
+                if (loadMoreBtn) {
+                    loadMoreBtn.textContent = 'Load More';
+                    loadMoreBtn.disabled = false;
+                }
+            }
+        }
+
+        function updateCountyRecordsTypeFilter() {
+            const select = document.getElementById('county-records-type-filter');
+            const types = new Set();
+            for (const r of countyRecordsState.allResults) {
+                if (r.instrument_type && isVisibleInstrumentType(r.instrument_type)) {
+                    types.add(r.instrument_type);
+                }
+            }
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">All Types</option>';
+            Array.from(types).sort().forEach(t => {
+                const opt = document.createElement('option');
+                opt.value = t;
+                opt.textContent = t;
+                select.appendChild(opt);
+            });
+            select.value = currentVal;
+        }
+
+        function getFilteredCountyRecords() {
+            // First filter by visibility tier (whitelist, or whitelist+graylist if toggled)
+            let results = countyRecordsState.allResults.filter(r => isVisibleInstrumentType(r.instrument_type));
+
+            const typeFilter = document.getElementById('county-records-type-filter').value;
+            const dateFrom = document.getElementById('county-records-date-from').value;
+            const dateTo = document.getElementById('county-records-date-to').value;
+
+            if (typeFilter) {
+                results = results.filter(r => r.instrument_type === typeFilter);
+            }
+            if (dateFrom) {
+                results = results.filter(r => r.instrument_date && r.instrument_date >= dateFrom);
+            }
+            if (dateTo) {
+                results = results.filter(r => r.instrument_date && r.instrument_date <= dateTo);
+            }
+            return results;
+        }
+
+        function filterCountyRecords() {
+            renderCountyRecords();
+        }
+
+        function clearCountyRecordsFilters() {
+            document.getElementById('county-records-type-filter').value = '';
+            document.getElementById('county-records-date-from').value = '';
+            document.getElementById('county-records-date-to').value = '';
+            renderCountyRecords();
+        }
+
+        function setCrFilterMode(mode) {
+            crFilterMode = mode;
+            updateCrModeToggle();
+            // Update count badge to reflect visible results
+            const visibleCount = countyRecordsState.allResults.filter(r => isVisibleInstrumentType(r.instrument_type)).length;
+            document.getElementById('county-records-count').textContent = String(visibleCount);
+            updateCountyRecordsTypeFilter();
+            renderCountyRecords();
+        }
+
+        function updateCrModeToggle() {
+            ['both', 'leases', 'title'].forEach(m => {
+                const btn = document.getElementById('cr-mode-' + m);
+                if (btn) {
+                    btn.style.background = m === crFilterMode ? '#374151' : 'white';
+                    btn.style.color = m === crFilterMode ? 'white' : '#374151';
+                }
+            });
+        }
+
+        function renderCountyRecords() {
+            const listEl = document.getElementById('county-records-list');
+            const emptyEl = document.getElementById('county-records-empty');
+            const filtersEl = document.getElementById('county-records-filters');
+            const paginationEl = document.getElementById('county-records-pagination');
+            const showingEl = document.getElementById('county-records-showing');
+            const loadMoreBtn = document.getElementById('county-records-load-more');
+
+            const filtered = getFilteredCountyRecords();
+
+            if (countyRecordsState.allResults.length === 0) {
+                listEl.innerHTML = '';
+                listEl.style.display = 'none';
+                emptyEl.style.display = 'block';
+                filtersEl.style.display = 'none';
+                paginationEl.style.display = 'none';
+                return;
+            }
+
+            // Show filters when we have results
+            filtersEl.style.display = 'flex';
+
+            // Show mode toggle when we have results
+            const modeToggle = document.getElementById('county-records-mode-toggle');
+            if (modeToggle) modeToggle.style.display = 'block';
+
+            if (filtered.length === 0) {
+                listEl.innerHTML = '<div style="padding: 12px; color: #6b7280; font-style: italic;">No records match the current filters</div>';
+                listEl.style.display = 'block';
+                emptyEl.style.display = 'none';
+                paginationEl.style.display = 'none';
+                return;
+            }
+
+            listEl.innerHTML = filtered.map(r => renderCountyRecordItem(r)).join('');
+            listEl.style.display = 'block';
+            emptyEl.style.display = 'none';
+
+            // Start polling for any records still processing
+            for (const r of filtered) {
+                if (r.in_library && r.document_id && r.doc_status && r.doc_status !== 'complete' && r.doc_status !== 'processed') {
+                    const sanitized = (r.number || '').replace(/[^a-zA-Z0-9]/g, '-');
+                    const container = document.getElementById('cr-action-' + sanitized);
+                    if (container && !crProcessingStates[r.number]) {
+                        const btn = container.querySelector('button');
+                        crProcessingStates[r.number] = {
+                            status: 'processing',
+                            documentId: r.document_id,
+                            buttonEl: btn,
+                            pollStartTime: Date.now()
+                        };
+                        startCrDocumentPolling(r.number, r.document_id);
+                    }
+                }
+            }
+
+            // Pagination
+            const hasMore = countyRecordsState.currentPage < countyRecordsState.totalPages;
+            const filterNote = filtered.length !== countyRecordsState.allResults.length
+                ? ` (${filtered.length} matching filter)` : '';
+            paginationEl.style.display = 'block';
+            if (hasMore) {
+                showingEl.textContent = `${countyRecordsState.totalResults} records loaded${filterNote}`;
+                loadMoreBtn.style.display = 'inline-block';
+            } else {
+                showingEl.textContent = `${countyRecordsState.totalResults} records${filterNote}`;
+                loadMoreBtn.style.display = 'none';
+            }
+        }
+
+        function renderCountyRecordItem(record) {
+            const sanitizedNumber = (record.number || '').replace(/[^a-zA-Z0-9]/g, '-');
+            const containerId = 'cr-action-' + sanitizedNumber;
+            const date = record.instrument_date
+                ? new Date(record.instrument_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                : '';
+            const grantorStr = (record.grantors || []).slice(0, 2).join(', ');
+            const granteeStr = (record.grantees || []).slice(0, 2).join(', ');
+            const partiesHtml = grantorStr && granteeStr
+                ? `<span style="color: #374151;">${escapeHtml(grantorStr)}</span> <span style="color: #9ca3af;">\u2192</span> <span style="color: #374151;">${escapeHtml(granteeStr)}</span>`
+                : grantorStr ? escapeHtml(grantorStr) : granteeStr ? escapeHtml(granteeStr) : '';
+            const pages = record.page_count ? `${record.page_count} pg` : '';
+
+            let actionHtml;
+            if (record.in_library && record.document_id) {
+                if (record.doc_status === 'complete' || record.doc_status === 'processed') {
+                    actionHtml = `<button class="occ-process-btn complete" onclick="event.stopPropagation(); openDocumentDetail('${record.document_id}')" title="View analyzed document">Analyzed</button>`;
+                } else {
+                    actionHtml = `<button class="occ-process-btn processing" disabled title="Document is being processed"><span class="spinner-sm"></span> Processing...</button>`;
+                }
+            } else if (record.in_library) {
+                actionHtml = `<button class="occ-process-btn complete" disabled title="In library">Analyzed</button>`;
+            } else {
+                const recPageCount = record.page_count || (record.images || []).length || 0;
+                if (recPageCount > CR_MAX_PAGE_COUNT) {
+                    actionHtml = `<button class="occ-process-btn" disabled style="opacity: 0.5; cursor: not-allowed;" title="Documents over ${CR_MAX_PAGE_COUNT} pages are not supported">${recPageCount} pg</button>`;
+                } else {
+                    actionHtml = `<button class="occ-process-btn" onclick="event.stopPropagation(); retrieveCountyRecordByNumber('${escapeHtml(record.number)}')" title="5 credits">Retrieve</button>`;
+                }
+            }
+
+            // Type badge color
+            const typeLower = (record.instrument_type || '').toLowerCase();
+            let badgeBg = '#e5e7eb'; let badgeColor = '#374151';
+            if (typeLower.includes('deed') || typeLower.includes('conveyance')) { badgeBg = '#dbeafe'; badgeColor = '#1e40af'; }
+            else if (typeLower.includes('mortgage') || typeLower.includes('lien')) { badgeBg = '#fef3c7'; badgeColor = '#92400e'; }
+            else if (typeLower.includes('lease') || typeLower.includes('assignment')) { badgeBg = '#d1fae5'; badgeColor = '#065f46'; }
+            else if (typeLower.includes('order') || typeLower.includes('judgment')) { badgeBg = '#ede9fe'; badgeColor = '#5b21b6'; }
+
+            return `
+                <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 3px;">
+                                <span style="font-size: 11px; padding: 1px 6px; border-radius: 3px; background: ${badgeBg}; color: ${badgeColor}; white-space: nowrap;">${escapeHtml(record.instrument_type || 'Unknown')}</span>
+                                ${date ? `<span style="font-size: 12px; color: #6b7280;">${date}</span>` : ''}
+                                ${pages ? `<span style="font-size: 11px; color: #9ca3af;">${pages}</span>` : ''}
+                            </div>
+                            ${partiesHtml ? `<div style="font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${partiesHtml}</div>` : ''}
+                        </div>
+                        <div id="${containerId}" style="flex-shrink: 0;">${actionHtml}</div>
+                    </div>
+                </div>`;
+        }
+
+        function loadMoreCountyRecords() {
+            if (countyRecordsState.loading) return;
+            const nextPage = countyRecordsState.currentPage + 1;
+            if (nextPage > countyRecordsState.totalPages) return;
+            loadCountyRecords(
+                countyRecordsState.county,
+                countyRecordsState.section,
+                countyRecordsState.township,
+                countyRecordsState.range,
+                nextPage
+            );
+        }
+
+        async function retrieveCountyRecordByNumber(instrumentNumber) {
+            const record = countyRecordsState.allResults.find(r => r.number === instrumentNumber);
+            if (!record) {
+                showToast('Record not found', 'error');
+                return;
+            }
+
+            const pageCount = record.page_count || (record.images || []).length || 0;
+
+            // Block documents over the page limit
+            if (pageCount > CR_MAX_PAGE_COUNT) {
+                showConfirm(
+                    `<div style="text-align: left; font-size: 14px; line-height: 1.6;">` +
+                    `<div style="margin-bottom: 8px;"><strong>${escapeHtml(record.instrument_type || 'Document')}</strong></div>` +
+                    `<div style="margin-bottom: 12px; color: #6b7280;">${escapeHtml(record.number)} &bull; ${pageCount} pages</div>` +
+                    `<div style="color: #b91c1c; margin-bottom: 8px;">Documents over ${CR_MAX_PAGE_COUNT} pages are not currently supported for automated retrieval and extraction.</div>` +
+                    `<div style="font-size: 12px; color: #6b7280;">Large documents may contain multiple instruments or extensive exhibits. Support for larger documents may be added in a future update.</div>` +
+                    `</div>`,
+                    { title: 'Document Too Large', confirmText: 'OK', cancelText: null }
+                );
+                return;
+            }
+
+            // Check "don't show again" preference
+            const skipConfirm = localStorage.getItem('cr_skip_confirm') === 'true';
+
+            if (!skipConfirm) {
+                let body = `<div style="text-align: left; font-size: 14px; line-height: 1.6;">`;
+                body += `<div style="margin-bottom: 8px;"><strong>${escapeHtml(record.instrument_type || 'Document')}</strong></div>`;
+                body += `<div style="margin-bottom: 12px; color: #6b7280;">${escapeHtml(record.number)} &bull; ${pageCount} page${pageCount !== 1 ? 's' : ''}</div>`;
+                body += `<div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 10px 12px; margin-bottom: 12px;">`;
+                body += `<div style="display: flex; justify-content: space-between;"><span>Retrieval + extraction</span><span style="font-weight: 600;">5 credits</span></div>`;
+                body += `</div>`;
+                body += `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">The original document will be available for viewing and download with a county clerk watermark.</div>`;
+                body += `<div style="font-size: 12px; color: #6b7280; margin-bottom: 8px;">If this is a multi-document instrument, each additional document contained within will be extracted separately and charged 1 additional credit.</div>`;
+                body += `<div style="font-size: 12px; color: #6b7280; margin-bottom: 12px;">Feel free to leave the page — your document will appear in the Documents tab when processing is complete.</div>`;
+                body += `<label style="display: flex; align-items: center; gap: 6px; font-size: 12px; color: #6b7280; cursor: pointer;"><input type="checkbox" id="cr-skip-confirm-checkbox" style="cursor: pointer;"> Don't show this again</label>`;
+                body += `</div>`;
+
+                const confirmed = await showConfirm(body, {
+                    title: 'Retrieve County Record',
+                    confirmText: 'Retrieve (5 credits)',
+                    cancelText: 'Cancel',
+                });
+
+                if (!confirmed) return;
+
+                // Save preference if checked
+                const skipCheckbox = document.getElementById('cr-skip-confirm-checkbox');
+                if (skipCheckbox && skipCheckbox.checked) {
+                    localStorage.setItem('cr_skip_confirm', 'true');
+                }
+            }
+
+            retrieveCountyRecord(record.county, record.number, record.images || [], record.instrument_type || '');
+        }
+
+        async function retrieveCountyRecord(county, instrumentNumber, images, instrumentType) {
+            const sanitized = instrumentNumber.replace(/[^a-zA-Z0-9]/g, '-');
+            const containerId = 'cr-action-' + sanitized;
+            const container = document.getElementById(containerId);
+
+            // Track state and show fetching
+            crProcessingStates[instrumentNumber] = { status: 'fetching' };
+            updateCrButtonState(container, 'fetching', null, instrumentNumber);
+
+            try {
+                const response = await fetch('/api/county-records/retrieve', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        county,
+                        instrument_number: instrumentNumber,
+                        images,
+                        instrument_type: instrumentType,
+                    }),
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'processing') {
+                    crProcessingStates[instrumentNumber].status = 'processing';
+                    updateCrButtonState(container, 'processing', null, instrumentNumber);
+                    showToast('Document is being processed. Check back shortly.', 'info');
+                    return;
+                }
+
+                if (!response.ok || data.error) {
+                    throw new Error(data.error || 'Retrieval failed');
+                }
+
+                // Success — update the record in state
+                const record = countyRecordsState.allResults.find(r => r.number === instrumentNumber);
+                if (record) {
+                    record.in_library = true;
+                    record.retrieve_credits = 0;
+                    record.document_id = data.document_id;
+                }
+
+                showToast(`Document retrieved! ${data.credits_charged || 5} credits used.`, 'success');
+                if (typeof loadUsageStats === 'function') loadUsageStats();
+
+                // Check actual document status — it may still be processing
+                if (data.document_id) {
+                    try {
+                        const docRes = await fetch(`/api/documents/${data.document_id}`, { credentials: 'include' });
+                        const docData = docRes.ok ? await docRes.json() : null;
+                        const actualStatus = docData?.document?.status || 'processing';
+
+                        if (record) record.doc_status = actualStatus;
+
+                        if (actualStatus === 'complete' || actualStatus === 'processed') {
+                            crProcessingStates[instrumentNumber] = { status: 'complete', documentId: data.document_id };
+                            updateCrButtonState(container, 'complete', data.document_id, instrumentNumber);
+                        } else {
+                            // Still processing — show Processing and start polling
+                            crProcessingStates[instrumentNumber] = {
+                                status: 'processing',
+                                documentId: data.document_id,
+                                pollStartTime: Date.now(),
+                            };
+                            updateCrButtonState(container, 'processing', null, instrumentNumber);
+                            startCrDocumentPolling(instrumentNumber, data.document_id);
+                        }
+                    } catch (e) {
+                        // Fallback: assume complete
+                        if (record) record.doc_status = 'complete';
+                        crProcessingStates[instrumentNumber] = { status: 'complete', documentId: data.document_id };
+                        updateCrButtonState(container, 'complete', data.document_id, instrumentNumber);
+                    }
+                }
+
+            } catch (error) {
+                console.error('[CountyRecords] Retrieve error:', error);
+                showToast(error.message || 'Failed to retrieve document', 'error');
+                crProcessingStates[instrumentNumber] = { status: 'error' };
+                updateCrButtonState(container, 'error', null, instrumentNumber);
+            }
+        }
+
+        function updateCrButtonState(container, state, documentId, instrumentNumber) {
+            if (!container) return;
+
+            switch (state) {
+                case 'fetching':
+                    container.innerHTML = `<button class="occ-process-btn fetching" disabled title="Retrieving document..."><span class="spinner-sm"></span> Retrieving...</button>`;
+                    break;
+                case 'processing':
+                    container.innerHTML = `<button class="occ-process-btn processing" disabled title="Processing document..."><span class="spinner-sm"></span> Processing...</button>`;
+                    break;
+                case 'complete':
+                    if (documentId) {
+                        container.innerHTML = `<button class="occ-process-btn complete" onclick="event.stopPropagation(); openDocumentDetail('${documentId}')" title="View analyzed document">Analyzed</button>`;
+                    } else {
+                        container.innerHTML = `<button class="occ-process-btn complete" disabled title="In library">Analyzed</button>`;
+                    }
+                    break;
+                case 'error':
+                    container.innerHTML = `<button class="occ-process-btn error" onclick="event.stopPropagation(); retrieveCountyRecordByNumber('${escapeHtml(instrumentNumber)}')" title="Click to retry">Retry</button>`;
+                    break;
+                default:
+                    container.innerHTML = `<button class="occ-process-btn" onclick="event.stopPropagation(); retrieveCountyRecordByNumber('${escapeHtml(instrumentNumber)}')" title="5 credits">Retrieve</button>`;
+            }
+
+            // Update state tracking with new button reference
+            if (instrumentNumber && crProcessingStates[instrumentNumber]) {
+                crProcessingStates[instrumentNumber].buttonEl = container.querySelector('button');
+            }
+        }
+
+        function startCrDocumentPolling(instrumentNumber, documentId) {
+            const state = crProcessingStates[instrumentNumber];
+            if (!state || state.pollInterval) return;
+
+            console.log(`[CountyRecords Poll] Starting polling for ${documentId}`);
+            const sanitized = instrumentNumber.replace(/[^a-zA-Z0-9]/g, '-');
+            const containerId = 'cr-action-' + sanitized;
+
+            state.pollInterval = setInterval(async () => {
+                const currentState = crProcessingStates[instrumentNumber];
+                if (!currentState) {
+                    clearInterval(state.pollInterval);
+                    return;
+                }
+
+                if (Date.now() - currentState.pollStartTime > CR_MAX_POLL_DURATION) {
+                    console.log(`[CountyRecords Poll] Max duration exceeded for ${documentId}`);
+                    clearInterval(currentState.pollInterval);
+                    currentState.pollInterval = null;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${documentId}`, { credentials: 'include' });
+                    if (!response.ok) return;
+
+                    const data = await response.json();
+                    const doc = data.document;
+                    if (!doc) return;
+
+                    console.log(`[CountyRecords Poll] Document ${documentId} status: ${doc.status}`);
+                    const container = document.getElementById(containerId);
+
+                    if (doc.status === 'complete' || doc.status === 'processed') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'complete';
+
+                        const record = countyRecordsState.allResults.find(r => r.number === instrumentNumber);
+                        if (record) {
+                            record.doc_status = 'complete';
+                        }
+
+                        updateCrButtonState(container, 'complete', documentId, instrumentNumber);
+                        showToast('Document analysis complete!', 'success');
+                        if (typeof loadUsageStats === 'function') loadUsageStats();
+                    } else if (doc.status === 'processing' && currentState.status !== 'processing') {
+                        currentState.status = 'processing';
+                        updateCrButtonState(container, 'processing', null, instrumentNumber);
+                    } else if (doc.status === 'error' || doc.status === 'failed') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'error';
+                        updateCrButtonState(container, 'error', null, instrumentNumber);
+                        showToast('Document processing failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(`[CountyRecords Poll] Error polling ${documentId}:`, err);
+                }
+            }, CR_POLL_INTERVAL);
+        }
+
 /* __SPLIT_PROPS_D__ */
         async function savePropertyDetails() {
             const propId = document.getElementById('propertyDetailsId').value;
@@ -1017,6 +1825,7 @@
         }
         
         function closePropertyDetailsModal() {
+            resetCountyRecordsState();
             const modal = document.getElementById('propertyDetailsModal');
             modal.style = '';
             // Reset z-index for next time

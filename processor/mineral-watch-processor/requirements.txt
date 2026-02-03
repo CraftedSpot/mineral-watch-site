@@ -4,8 +4,8 @@ httpx>=0.27.0
 # HTTP server for health checks
 aiohttp>=3.9.0
 
-# Anthropic Claude API
-anthropic>=0.40.0
+# Anthropic Claude API (>=0.49.0 required for type: 'document' PDF support)
+anthropic>=0.49.0
 
 # Environment variable handling (optional, for local dev)
 python-dotenv>=1.0.0

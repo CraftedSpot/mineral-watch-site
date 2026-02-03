@@ -1893,45 +1893,61 @@ def name_assignment_of_lease(data: Dict[str, Any]) -> str:
     """Assignment of Lease - {Assignor} to {Assignee} - {Legal} - {Date}
 
     For assignment of oil and gas lease documents.
-    Uses assignors[], assignees[], legal_description, effective_date from schema.
+    Handles both plural (assignors[]) and singular (assignor{}) extraction formats.
     """
     parts = ["Assignment of Lease"]
 
-    # Get first assignor name (short form)
+    # Get assignor name - handle both plural array and singular object
+    assignor_name = ''
     assignors = data.get('assignors', [])
     if assignors and isinstance(assignors, list) and len(assignors) > 0:
-        first_assignor = assignors[0]
-        if isinstance(first_assignor, dict):
-            assignor_name = first_assignor.get('name', '')
-            if assignor_name:
-                # Use short form - first word or first 20 chars
-                short_name = assignor_name.split()[0] if ' ' in assignor_name else assignor_name[:20]
-                if len(assignors) > 1:
-                    short_name += f" +{len(assignors)-1}"
-                parts.append(short_name)
+        first = assignors[0]
+        if isinstance(first, dict):
+            assignor_name = first.get('name', '')
+    elif data.get('assignor'):
+        assignor = data['assignor']
+        if isinstance(assignor, dict):
+            assignor_name = assignor.get('name', '')
+        elif isinstance(assignor, str):
+            assignor_name = assignor
 
-    # Get first assignee name (short form)
+    # Get assignee name - handle both plural array and singular object
+    assignee_name = ''
     assignees = data.get('assignees', [])
     if assignees and isinstance(assignees, list) and len(assignees) > 0:
-        first_assignee = assignees[0]
-        if isinstance(first_assignee, dict):
-            assignee_name = first_assignee.get('name', '')
-            if assignee_name:
-                # Use short form - first word or first 20 chars
-                short_name = assignee_name.split()[0] if ' ' in assignee_name else assignee_name[:20]
-                if len(assignees) > 1:
-                    short_name += f" +{len(assignees)-1}"
-                # Add "to" prefix for clarity
-                parts.append(f"to {short_name}")
+        first = assignees[0]
+        if isinstance(first, dict):
+            assignee_name = first.get('name', '')
+    elif data.get('assignee'):
+        assignee = data['assignee']
+        if isinstance(assignee, dict):
+            assignee_name = assignee.get('name', '')
+        elif isinstance(assignee, str):
+            assignee_name = assignee
 
-    # Get legal description (short form)
+    # Format party transfer using last names
+    transfer = format_party_transfer(assignor_name, assignee_name, use_last_names=True)
+    if transfer:
+        parts.append(transfer)
+
+    # Get legal description - check top-level, then tracts[0].legal
     legal = data.get('legal_description', {})
+    if not isinstance(legal, dict) or not legal:
+        tracts = data.get('tracts', [])
+        if tracts and isinstance(tracts, list) and len(tracts) > 0:
+            first_tract = tracts[0]
+            if isinstance(first_tract, dict):
+                legal = first_tract.get('legal', first_tract.get('legal_description', {})) or {}
+
     if isinstance(legal, dict):
         section = legal.get('section')
         township = legal.get('township')
         range_val = legal.get('range')
-        if section and township and range_val:
-            parts.append(f"S{section}-{township}-{range_val}")
+        trs = format_legal_description(str(section) if section else None,
+                                       str(township) if township else None,
+                                       str(range_val) if range_val else None)
+        if trs:
+            parts.append(trs)
 
     # Get effective date or execution date
     effective_date = data.get('effective_date')

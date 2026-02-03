@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligence - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+/* __INTEL_CSS__ */
+/* __INTEL_REPORTS_CSS__ */
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/map">Map</a>
+                    <a href="/portal/intelligence" class="active">Intelligence</a>
+                    <a href="/portal/account">Account</a>
+                    <a href="/portal/learn">Learn</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Summary Cards in Navy Zone -->
+    <div class="intel-hero">
+        <div class="container">
+            <div class="intel-hero-header">
+                <h1>Intelligence</h1>
+                <p class="intel-subtitle">Insights and analysis across your mineral portfolio</p>
+            </div>
+            <div class="summary-cards">
+                <div class="summary-card" id="cardActiveWells">
+                    <div class="summary-label">Active Wells</div>
+                    <div class="summary-value" id="summaryActiveWells">—</div>
+                    <div class="summary-detail neutral" id="summaryWellsDetail">Loading...</div>
+                </div>
+                <div class="summary-card" id="cardRevenue">
+                    <div class="summary-label">Est. Monthly Revenue</div>
+                    <div class="summary-value" id="summaryRevenue">—</div>
+                    <div class="summary-detail neutral" id="summaryRevenueDetail">Loading...</div>
+                </div>
+                <div class="summary-card" id="cardDeductions">
+                    <div class="summary-label">Deduction Health</div>
+                    <div class="summary-value" id="summaryDeductions">—</div>
+                    <div class="summary-detail neutral" id="summaryDeductionsDetail">Loading...</div>
+                </div>
+                <div class="summary-card" id="cardActions">
+                    <div class="summary-label">Action Items</div>
+                    <div class="summary-value" id="summaryActions">—</div>
+                    <div class="summary-detail neutral" id="summaryActionsDetail">Loading...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main>
+        <div class="container">
+
+            <!-- Suggested Insights -->
+            <section class="insights-section" id="insightsSection">
+                <div class="section-header">
+                    <h2 class="section-title">Suggested for You</h2>
+                    <span class="section-meta">Based on your portfolio data</span>
+                </div>
+                <div id="insightsList">
+                    <div class="insight-item">
+                        <div class="insight-indicator neutral"></div>
+                        <div class="insight-content">
+                            <div class="insight-description">Analyzing your portfolio...</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Guided Questions -->
+            <section class="questions-section">
+                <div class="section-header">
+                    <h2 class="section-title">Explore Your Data</h2>
+                </div>
+
+                <div class="category-tabs" id="categoryTabs">
+                    <button class="category-tab active" data-category="deductions">Cost & Deductions</button>
+                    <button class="category-tab" data-category="performance">Well Performance</button>
+                    <button class="category-tab" data-category="lease">Lease & Revenue</button>
+                    <button class="category-tab" data-category="risk">Risk & Deadlines</button>
+                </div>
+
+                <div class="questions-grid" id="questionsGrid">
+                    <!-- Populated by JS -->
+                </div>
+
+                <div class="custom-question">
+                    <input type="text" id="customQuestionInput" placeholder="Ask a different question about your portfolio...">
+                    <button class="btn btn-primary" id="customQuestionBtn">Ask</button>
+                </div>
+            </section>
+
+            <!-- Recent Reports -->
+            <section class="reports-section" id="reportsSection">
+                <div class="reports-header">
+                    <h2 class="section-title">Recent Reports</h2>
+                </div>
+                <div id="reportsList" class="reports-list">
+                    <div class="reports-empty">
+                        <p>No reports yet. Click a question above to generate your first report.</p>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Report Viewer (hidden by default, shown when a report is loaded) -->
+    <div id="reportViewer" style="display: none;">
+        <div class="report-header">
+            <div class="container">
+                <div class="report-breadcrumb">
+                    <a href="#" onclick="closeReport(); return false;">Intelligence</a>
+                    <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span id="reportBreadcrumb">Deduction Audit</span>
+                </div>
+                <div class="report-title-row">
+                    <div>
+                        <h1 class="report-title" id="reportTitle">Deduction Audit Report</h1>
+                        <p class="report-subtitle" id="reportSubtitle">Loading...</p>
+                    </div>
+                    <div class="report-status" id="reportStatus"></div>
+                </div>
+            </div>
+        </div>
+        <div class="report-actions-bar">
+            <div class="container">
+                <div class="report-actions-content">
+                    <div class="report-meta" id="reportMeta"></div>
+                    <div class="report-actions">
+                        <button class="btn btn-ghost" onclick="closeReport()">
+                            <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Back
+                        </button>
+                        <button class="btn btn-secondary" onclick="window.print()">Print Summary</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div class="report-content" id="reportContent">
+                <div class="report-loading">Analyzing deduction data...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+/* __INTEL_INIT__ */
+/* __INTEL_INSIGHTS__ */
+/* __INTEL_QUESTIONS__ */
+/* __INTEL_REPORTS__ */
+    </script>
+</body>
+</html>

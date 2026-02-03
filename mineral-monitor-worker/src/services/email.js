@@ -7,6 +7,7 @@ import { normalizeSection } from '../utils/normalize.js';
 import { getOCCWellRecordsLink, getOCCCookieNotice } from '../utils/occLink.js';
 
 const POSTMARK_API_URL = 'https://api.postmarkapp.com/email';
+const EMAIL_TOKEN_EXPIRY = 7 * 24 * 60 * 60 * 1000; // 7 days
 
 /**
  * Send a simple email via Postmark
@@ -60,6 +61,56 @@ async function generateTrackToken(userId, apiNumber, expiration, secret) {
   const hashArray = new Uint8Array(hashBuffer);
   const hashHex = Array.from(hashArray).map(b => b.toString(16).padStart(2, '0')).join('');
   return hashHex;
+}
+
+/**
+ * Generate an HMAC-SHA256 signed auth token (same format as auth-worker)
+ * @param {Object} env - Worker environment (needs AUTH_SECRET)
+ * @param {Object} payload - Token payload { email, id, exp, iat }
+ * @returns {Promise<string>} - URL-safe base64 token: "payload.signature"
+ */
+async function generateAuthToken(env, payload) {
+  const encoder = new TextEncoder();
+  const data = JSON.stringify(payload);
+  const key = await crypto.subtle.importKey(
+    'raw', encoder.encode(env.AUTH_SECRET),
+    { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
+  );
+  const signature = await crypto.subtle.sign('HMAC', key, encoder.encode(data));
+  const sigBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  const dataBase64 = btoa(data)
+    .replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+  return `${dataBase64}.${sigBase64}`;
+}
+
+/**
+ * Generate an auto-login URL for email links
+ * @param {Object} env - Worker environment
+ * @param {string} email - User's email address
+ * @param {string} userId - Airtable user record ID
+ * @param {string} [redirectPath] - Path to redirect to after login (e.g., '/map?well=1234567890')
+ * @returns {Promise<string|null>} - Full auto-login URL, or null if AUTH_SECRET not configured
+ */
+export async function generateEmailLoginUrl(env, email, userId, redirectPath) {
+  if (!env.AUTH_SECRET) return null;
+  try {
+    const token = await generateAuthToken(env, {
+      email: email.toLowerCase().trim(),
+      id: userId,
+      exp: Date.now() + EMAIL_TOKEN_EXPIRY,
+      iat: Date.now()
+    });
+    const base = 'https://portal.mymineralwatch.com/portal/verify';
+    const params = `token=${encodeURIComponent(token)}`;
+    if (redirectPath) {
+      return `${base}?${params}&redirect=${encodeURIComponent(redirectPath)}`;
+    }
+    return `${base}?${params}`;
+  } catch (err) {
+    console.warn(`[Email] Failed to generate login URL: ${err.message}`);
+    return null;
+  }
 }
 
 /**
@@ -139,6 +190,11 @@ export async function sendAlertEmail(env, data) {
     statusChange
   } = data;
   
+  // Generate auto-login MW map link if we have apiNumber and userId
+  if (apiNumber && userId) {
+    data.mwMapUrl = await generateEmailLoginUrl(env, to, userId, `/map?well=${apiNumber}`);
+  }
+
   const subject = buildSubject(alertLevel, activityType, county, statusChange);
   const htmlBody = await buildHtmlBody(data, env);
   const textBody = buildTextBody(data);
@@ -491,9 +547,11 @@ async function buildHtmlBody(data, env) {
     // Status change data
     statusChange,
     // Permit expiration data
-    expirationDetails
+    expirationDetails,
+    // Auto-login MW map URL
+    mwMapUrl
   } = data;
-  
+
   const levelStyle = getAlertLevelStyle(alertLevel);
   const activityStyle = getActivityStyle(activityType);
   
@@ -754,7 +812,11 @@ async function buildHtmlBody(data, env) {
                         <a href="${occLink}" style="display: inline-block; background: #C05621; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">View OCC Filing →</a>
                       </td>
                       ` : ''}
-                      ${mapLink ? `
+                      ${mwMapUrl ? `
+                      <td align="center" style="padding: 2px;">
+                        <a href="${mwMapUrl}" style="display: inline-block; background: #0D9488; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">View on Map →</a>
+                      </td>
+                      ` : mapLink ? `
                       <td align="center" style="padding: 2px;">
                         <a href="${mapLink}" style="display: inline-block; background: #1C2B36; color: #ffffff; padding: 12px 20px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 13px; text-align: center; white-space: nowrap;">OCC Map →</a>
                       </td>
@@ -852,7 +914,9 @@ function buildTextBody(data) {
     // Status change data
     statusChange,
     // Permit expiration data
-    expirationDetails
+    expirationDetails,
+    // Auto-login MW map URL
+    mwMapUrl
   } = data;
 
   const explanation = getExplanation(activityType, alertLevel, isMultiSection, false, statusChange);
@@ -889,7 +953,7 @@ WHAT THIS MEANS:
 ${explanation.meaning}
 
 ${explanation.tip ? `TIP: ${explanation.tip}\n` : ''}
-${occLink ? `View OCC Filing: ${occLink}\n` : ''}${mapLink ? `View on OCC Map: ${mapLink}\n` : ''}
+${occLink ? `View OCC Filing: ${occLink}\n` : ''}${mwMapUrl ? `View on Mineral Watch Map: ${mwMapUrl}\n` : mapLink ? `View on OCC Map: ${mapLink}\n` : ''}
 ---
 
 Note: This alert indicates activity near your mineral interests. It does not guarantee you hold rights in the spacing unit or will receive royalties.
@@ -916,9 +980,13 @@ export async function sendDigestEmail(env, digestData) {
   const {
     to,
     userName,
+    userId,
     frequency,
     alerts,
-    highlights
+    highlights,
+    nearbyActivity,
+    newOperators,
+    countyStats
   } = digestData;
 
   const totalAlerts =
@@ -928,7 +996,28 @@ export async function sendDigestEmail(env, digestData) {
     (alerts.expirations?.length || 0) +
     (alerts.transfers?.length || 0);
 
-  const subject = `${frequency === 'weekly' ? 'Weekly' : 'Daily'} Digest: ${totalAlerts} New Alert${totalAlerts !== 1 ? 's' : ''} | Mineral Watch`;
+  const nearbyCount = nearbyActivity?.length || 0;
+  const isWeeklyDigest = frequency === 'weekly' && (nearbyCount > 0 || newOperators?.length > 0 || countyStats?.length > 0);
+
+  let subject;
+  if (frequency === 'daily') {
+    subject = totalAlerts === 1
+      ? `Daily Update: 1 New Alert | Mineral Watch`
+      : `Daily Update: ${totalAlerts} New Alerts | Mineral Watch`;
+  } else if (isWeeklyDigest) {
+    const parts = [];
+    if (totalAlerts > 0) parts.push(`${totalAlerts} Alert${totalAlerts !== 1 ? 's' : ''}`);
+    if (nearbyCount > 0) parts.push(`${nearbyCount} Nearby`);
+    subject = `Weekly Report${parts.length > 0 ? ': ' + parts.join(', ') : ''} | Mineral Watch`;
+  } else {
+    subject = `Weekly Report: ${totalAlerts} New Alert${totalAlerts !== 1 ? 's' : ''} | Mineral Watch`;
+  }
+
+  // Generate auto-login portal URL
+  const portalLoginUrl = userId
+    ? await generateEmailLoginUrl(env, to, userId, '/portal')
+    : null;
+  digestData.portalLoginUrl = portalLoginUrl || 'https://portal.mymineralwatch.com/portal';
 
   const htmlBody = buildDigestHtmlBody(digestData);
   const textBody = buildDigestTextBody(digestData);
@@ -963,7 +1052,8 @@ export async function sendDigestEmail(env, digestData) {
  * Build HTML body for digest email
  */
 function buildDigestHtmlBody(digestData) {
-  const { userName, frequency, alerts, highlights } = digestData;
+  const { userName, frequency, alerts, highlights, nearbyActivity, nearbyOverflow, newOperators, countyStats, portalLoginUrl } = digestData;
+  const portalUrl = portalLoginUrl || 'https://portal.mymineralwatch.com/portal';
 
   const totalAlerts =
     (alerts.permits?.length || 0) +
@@ -972,38 +1062,183 @@ function buildDigestHtmlBody(digestData) {
     (alerts.expirations?.length || 0) +
     (alerts.transfers?.length || 0);
 
+  const isWeeklyDigest = frequency === 'weekly' && (nearbyActivity?.length > 0 || newOperators?.length > 0 || countyStats?.length > 0);
   const periodText = frequency === 'weekly' ? 'this week' : 'today';
+  const title = frequency === 'daily' ? 'Daily Update' : isWeeklyDigest ? 'Weekly Report' : 'Weekly Report';
+
+  // Build greeting text
+  let greetingText;
+  if (frequency === 'daily') {
+    greetingText = `Hi ${userName || 'there'}, here's your daily update with ${totalAlerts} new alert${totalAlerts !== 1 ? 's' : ''}.`;
+  } else if (isWeeklyDigest && totalAlerts === 0) {
+    greetingText = `Hi ${userName || 'there'}, here's what happened in your area ${periodText}.`;
+  } else if (isWeeklyDigest) {
+    greetingText = `Hi ${userName || 'there'}, here's your weekly report with ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} and area activity.`;
+  } else {
+    greetingText = `Hi ${userName || 'there'}, here's a summary of ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} from ${periodText}.`;
+  }
 
   // Build highlights section
   let highlightsHtml = '';
   if (highlights && highlights.length > 0) {
     highlightsHtml = `
       <div style="background: #FEF3C7; border: 1px solid #F59E0B; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
-        <h3 style="margin: 0 0 12px; font-size: 14px; color: #92400E; font-weight: 700;">⚠️ Requires Attention</h3>
+        <h3 style="margin: 0 0 12px; font-size: 14px; color: #92400E; font-weight: 700;">Requires Attention</h3>
         ${highlights.map(h => `
-          <p style="margin: 0 0 8px; font-size: 14px; color: #92400E;">• ${h.message}</p>
+          <p style="margin: 0 0 8px; font-size: 14px; color: #92400E;">&bull; ${h.message}</p>
         `).join('')}
       </div>
     `;
   }
 
-  // Build sections for each alert type
-  const sections = [];
+  // Build property alert sections
+  const propertySections = [];
 
   if (alerts.expirations && alerts.expirations.length > 0) {
-    sections.push(buildAlertSection('Permit Expirations', alerts.expirations, '#DC2626', '⏰'));
+    propertySections.push(buildAlertSection('Permit Expirations', alerts.expirations, '#DC2626', ''));
   }
   if (alerts.permits && alerts.permits.length > 0) {
-    sections.push(buildAlertSection('New Permits', alerts.permits, '#2563EB', '📋'));
+    propertySections.push(buildAlertSection('New Permits', alerts.permits, '#2563EB', ''));
   }
   if (alerts.completions && alerts.completions.length > 0) {
-    sections.push(buildAlertSection('Well Completions', alerts.completions, '#059669', '🛢️'));
+    propertySections.push(buildAlertSection('Well Completions', alerts.completions, '#059669', ''));
   }
   if (alerts.transfers && alerts.transfers.length > 0) {
-    sections.push(buildAlertSection('Operator Transfers', alerts.transfers, '#7C3AED', '🔄'));
+    propertySections.push(buildAlertSection('Operator Transfers', alerts.transfers, '#7C3AED', ''));
   }
   if (alerts.statusChanges && alerts.statusChanges.length > 0) {
-    sections.push(buildAlertSection('Status Changes', alerts.statusChanges, '#0891B2', '📊'));
+    propertySections.push(buildAlertSection('Status Changes', alerts.statusChanges, '#0891B2', ''));
+  }
+
+  // Wrap property alerts in a "Your Properties" header if weekly digest
+  let propertyHtml = propertySections.join('');
+  if (isWeeklyDigest && propertySections.length > 0) {
+    propertyHtml = `
+      <h2 style="font-size: 16px; color: #1C2B36; margin: 0 0 16px; font-family: Georgia, serif; font-weight: 700; border-bottom: 2px solid #1C2B36; padding-bottom: 8px;">
+        Your Properties
+      </h2>
+      ${propertyHtml}
+    `;
+  }
+
+  // Build "Activity in Your Area" section
+  let nearbyHtml = '';
+  if (nearbyActivity && nearbyActivity.length > 0) {
+    const nearbyItems = nearbyActivity.map(act => {
+      const actType = act.has_completion ? 'Completion' : 'Permit';
+      const hzTag = act.is_horizontal ? ' (Hz)' : '';
+      return `
+        <tr>
+          <td style="padding: 10px 0; border-bottom: 1px solid #F1F5F9;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td>
+                  <p style="margin: 0 0 3px; font-size: 14px; font-weight: 600; color: #1C2B36;">
+                    ${act.well_name || act.api_number || 'Unknown Well'}${hzTag}
+                  </p>
+                  <p style="margin: 0; font-size: 12px; color: #64748B;">
+                    ${act.operator ? `${act.operator} &bull; ` : ''}${act.county ? `${act.county} County &bull; ` : ''}S${act.surface_section} T${act.surface_township} R${act.surface_range}
+                  </p>
+                </td>
+                <td width="90" align="right" valign="top">
+                  <span style="display: inline-block; background: #EEF2FF; color: #4F46E5; font-size: 10px; padding: 3px 8px; border-radius: 4px; font-weight: 600;">
+                    ${actType}
+                  </span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    const overflowNote = nearbyOverflow > 0
+      ? `<tr><td style="padding: 12px 0; text-align: center;"><a href="${portalUrl}" style="color: #4F46E5; font-size: 13px; text-decoration: none; font-weight: 600;">View ${nearbyOverflow} more in portal &rarr;</a></td></tr>`
+      : '';
+
+    nearbyHtml = `
+      <h2 style="font-size: 18px; color: #1C2B36; margin: 24px 0 4px; font-family: Georgia, serif; font-weight: 700; border-bottom: 2px solid #4F46E5; padding-bottom: 8px;">
+        Activity in Your Area
+      </h2>
+      <p style="font-size: 13px; color: #64748B; margin: 0 0 16px;">Recent permits and completions near your properties — beyond your tracked alerts</p>
+      <div style="margin-bottom: 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="background: #4F46E5; padding: 10px 16px;">
+              <span style="color: #ffffff; font-size: 13px; font-weight: 700;">${nearbyActivity.length} Nearby${nearbyOverflow > 0 ? ` of ${nearbyActivity.length + nearbyOverflow} total` : ''}</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 0 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${nearbyItems}
+                ${overflowNote}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
+  }
+
+  // Build "New Operators in Your Area" section
+  let newOpsHtml = '';
+  if (newOperators && newOperators.length > 0) {
+    const opItems = newOperators.map(op => `
+      <p style="margin: 0 0 8px; font-size: 14px; color: #92400E;">
+        &bull; <strong>${op.operator}</strong> filed their first permit near ${op.location}${op.county ? ` (${op.county} County)` : ''}
+      </p>
+    `).join('');
+
+    newOpsHtml = `
+      <div style="background: #FFFBEB; border: 1px solid #D97706; border-radius: 8px; padding: 16px; margin-bottom: 24px;">
+        <h3 style="margin: 0 0 12px; font-size: 14px; color: #92400E; font-weight: 700;">New Operators in Your Area</h3>
+        ${opItems}
+      </div>
+    `;
+  }
+
+  // Build "County Roundup" section
+  let countyHtml = '';
+  if (countyStats && countyStats.length > 0) {
+    const countyRows = countyStats.map(cs => {
+      const parts = [];
+      if (cs.permits > 0) parts.push(`${cs.permits} permit${cs.permits !== 1 ? 's' : ''}`);
+      if (cs.completions > 0) parts.push(`${cs.completions} completion${cs.completions !== 1 ? 's' : ''}`);
+      if (cs.dockets > 0) parts.push(`${cs.dockets} docket filing${cs.dockets !== 1 ? 's' : ''}`);
+      return `
+        <tr>
+          <td style="padding: 8px 0; border-bottom: 1px solid #F1F5F9;">
+            <p style="margin: 0; font-size: 14px;">
+              <strong style="color: #1C2B36;">${cs.county} County:</strong>
+              <span style="color: #64748B;">${parts.join(', ')}</span>
+            </p>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    countyHtml = `
+      <h2 style="font-size: 16px; color: #1C2B36; margin: 24px 0 16px; font-family: Georgia, serif; font-weight: 700; border-bottom: 2px solid #334E68; padding-bottom: 8px;">
+        County Roundup
+      </h2>
+      <div style="margin-bottom: 24px;">
+        <table width="100%" cellpadding="0" cellspacing="0" style="border: 1px solid #E2E8F0; border-radius: 8px; overflow: hidden;">
+          <tr>
+            <td style="background: #334E68; padding: 10px 16px;">
+              <span style="color: #ffffff; font-size: 13px; font-weight: 700;">This Week&rsquo;s Activity</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding: 4px 16px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${countyRows}
+              </table>
+            </td>
+          </tr>
+        </table>
+      </div>
+    `;
   }
 
   return `
@@ -1028,7 +1263,7 @@ function buildDigestHtmlBody(digestData) {
                     <span style="color: #ffffff; font-size: 20px; font-weight: 700; font-family: Georgia, serif;">Mineral Watch</span>
                   </td>
                   <td align="right">
-                    <span style="color: #94A3B8; font-size: 12px;">${frequency === 'weekly' ? 'Weekly' : 'Daily'} Digest</span>
+                    <span style="color: #94A3B8; font-size: 12px;">${title}</span>
                   </td>
                 </tr>
               </table>
@@ -1040,21 +1275,27 @@ function buildDigestHtmlBody(digestData) {
             <td style="padding: 24px;">
 
               <!-- Greeting -->
-              <h1 style="font-size: 20px; color: #1C2B36; margin: 0 0 8px; font-family: Georgia, serif; font-weight: 700;">
-                Your ${frequency === 'weekly' ? 'Weekly' : 'Daily'} Activity Digest
+              <h1 style="font-size: 26px; color: #0D9488; margin: 0 0 8px; font-family: Georgia, serif; font-weight: 700;">
+                Your ${title}
               </h1>
               <p style="font-size: 15px; color: #334E68; margin: 0 0 20px;">
-                Hi ${userName || 'there'}, here's a summary of ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} from ${periodText}.
+                ${greetingText}
               </p>
 
               ${highlightsHtml}
 
-              ${sections.join('')}
+              ${propertyHtml}
+
+              ${nearbyHtml}
+
+              ${newOpsHtml}
+
+              ${countyHtml}
 
               <!-- View in Portal Button -->
               <div style="text-align: center; margin-top: 24px;">
-                <a href="https://portal.mymineralwatch.com/activity" style="display: inline-block; background: #1C2B36; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
-                  View All Activity in Portal
+                <a href="${portalUrl}" style="display: inline-block; background: #0D9488; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; font-size: 14px;">
+                  View in Portal
                 </a>
               </div>
 
@@ -1147,7 +1388,7 @@ function buildAlertSection(title, alerts, color, icon) {
  * Build text body for digest email
  */
 function buildDigestTextBody(digestData) {
-  const { userName, frequency, alerts, highlights } = digestData;
+  const { userName, frequency, alerts, highlights, nearbyActivity, nearbyOverflow, newOperators, countyStats, portalLoginUrl } = digestData;
 
   const totalAlerts =
     (alerts.permits?.length || 0) +
@@ -1156,22 +1397,36 @@ function buildDigestTextBody(digestData) {
     (alerts.expirations?.length || 0) +
     (alerts.transfers?.length || 0);
 
-  const periodText = frequency === 'weekly' ? 'this week' : 'today';
+  const isWeeklyDigest = frequency === 'weekly' && (nearbyActivity?.length > 0 || newOperators?.length > 0 || countyStats?.length > 0);
+  const title = frequency === 'daily' ? 'DAILY UPDATE' : isWeeklyDigest ? 'WEEKLY REPORT' : 'WEEKLY REPORT';
 
   let text = `
-MINERAL WATCH - ${frequency.toUpperCase()} DIGEST
+MINERAL WATCH - ${title}
 ${'='.repeat(40)}
 
 Hi ${userName || 'there'},
-
-Here's a summary of ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} from ${periodText}.
 `;
+
+  if (frequency === 'daily') {
+    text += `\nHere's your daily update with ${totalAlerts} new alert${totalAlerts !== 1 ? 's' : ''}.\n`;
+  } else if (isWeeklyDigest && totalAlerts === 0) {
+    text += `\nHere's what happened in your area this week.\n`;
+  } else if (isWeeklyDigest) {
+    text += `\nHere's your weekly report with ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} and area activity.\n`;
+  } else {
+    text += `\nHere's a summary of ${totalAlerts} alert${totalAlerts !== 1 ? 's' : ''} from this week.\n`;
+  }
 
   if (highlights && highlights.length > 0) {
     text += `
-⚠️ REQUIRES ATTENTION:
+REQUIRES ATTENTION:
 ${highlights.map(h => `• ${h.message}`).join('\n')}
 `;
+  }
+
+  // Property alerts
+  if (totalAlerts > 0 && isWeeklyDigest) {
+    text += `\nYOUR PROPERTIES\n${'='.repeat(30)}\n`;
   }
 
   const sections = [
@@ -1200,9 +1455,55 @@ ${'-'.repeat(30)}
     }
   }
 
+  // Nearby activity
+  if (nearbyActivity && nearbyActivity.length > 0) {
+    text += `
+ACTIVITY IN YOUR AREA (${nearbyActivity.length}${nearbyOverflow > 0 ? ` of ${nearbyActivity.length + nearbyOverflow}` : ''})
+${'='.repeat(30)}
+`;
+    for (const act of nearbyActivity) {
+      const actType = act.has_completion ? 'Completion' : 'Permit';
+      text += `• [${actType}] ${act.well_name || act.api_number || 'Unknown'}`;
+      if (act.operator) text += ` - ${act.operator}`;
+      if (act.county) text += ` - ${act.county} County`;
+      text += ` - S${act.surface_section} T${act.surface_township} R${act.surface_range}\n`;
+    }
+    if (nearbyOverflow > 0) {
+      text += `\n  View ${nearbyOverflow} more: ${portalLoginUrl || 'https://portal.mymineralwatch.com/portal'}\n`;
+    }
+  }
+
+  // New operators
+  if (newOperators && newOperators.length > 0) {
+    text += `
+NEW OPERATORS IN YOUR AREA
+${'-'.repeat(30)}
+`;
+    for (const op of newOperators) {
+      text += `• ${op.operator} filed their first permit near ${op.location}`;
+      if (op.county) text += ` (${op.county} County)`;
+      text += '\n';
+    }
+  }
+
+  // County roundup
+  if (countyStats && countyStats.length > 0) {
+    text += `
+COUNTY ROUNDUP
+${'-'.repeat(30)}
+`;
+    for (const cs of countyStats) {
+      const parts = [];
+      if (cs.permits > 0) parts.push(`${cs.permits} permit${cs.permits !== 1 ? 's' : ''}`);
+      if (cs.completions > 0) parts.push(`${cs.completions} completion${cs.completions !== 1 ? 's' : ''}`);
+      if (cs.dockets > 0) parts.push(`${cs.dockets} docket filing${cs.dockets !== 1 ? 's' : ''}`);
+      text += `• ${cs.county} County: ${parts.join(', ')}\n`;
+    }
+  }
+
   text += `
 ---
-View all activity: https://portal.mymineralwatch.com/activity
+View all activity: ${portalLoginUrl || 'https://portal.mymineralwatch.com/portal'}
 Manage preferences: https://portal.mymineralwatch.com/account
 
 Mineral Watch Oklahoma

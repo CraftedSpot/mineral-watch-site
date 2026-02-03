@@ -34,6 +34,10 @@ export interface Env {
   SYNC_API_KEY?: string;
   PROCESSING_API_KEY?: string;
   OTC_SYNC_AUTH_TOKEN?: string;  // Auth token for triggering OTC Fly machine
+
+  // OKCountyRecords integration
+  OKCR_API_KEY?: string;
+  OKCR_API_BASE?: string;
 }
 
 /**

@@ -218,11 +218,23 @@
         }
         
         .search-result-type {
-            font-size: 11px;
-            color: #94A3B8;
+            font-size: 10px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             margin-bottom: 2px;
+            display: inline-block;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font-weight: 600;
+        }
+        .search-result-type.type-property {
+            background: #DCFCE7; color: #166534;
+        }
+        .search-result-type.type-well {
+            background: #DBEAFE; color: #1E40AF;
+        }
+        .search-result-type.type-nearby {
+            background: #F3F4F6; color: #6B7280;
         }
         
         .search-result-name {
@@ -2499,7 +2511,7 @@
                         type="text" 
                         class="map-search-input" 
                         id="mapSearch"
-                        placeholder="Search tracked wells, properties, or operators..."
+                        placeholder="Search wells, properties, or operators..."
                         autocomplete="off"
                     >
                     <svg class="map-search-icon" width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
@@ -3020,12 +3032,20 @@
 
             <!-- Modal Footer -->
             <div style="padding: 16px 24px; border-top: 1px solid #e5e7eb; display: flex; justify-content: space-between; gap: 10px; flex-shrink: 0; background: white;">
-                <button onclick="viewMapDocumentPDF()" id="mapViewOriginalBtn" style="background: var(--slate-blue); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;">
-                    <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
-                    </svg>
-                    View Original
-                </button>
+                <div style="display: flex; gap: 10px;">
+                    <button onclick="viewMapDocumentPDF()" id="mapViewOriginalBtn" style="background: var(--slate-blue); color: white; border: none; padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"/>
+                        </svg>
+                        View Original
+                    </button>
+                    <button onclick="printMapDocumentSummary()" style="background: white; color: var(--slate-blue); border: 1px solid var(--slate-blue); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer; display: flex; align-items: center; gap: 8px;" title="Print or save as PDF">
+                        <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/>
+                        </svg>
+                        Print Summary
+                    </button>
+                </div>
                 <button onclick="closeMapDocumentDetail()" style="background: transparent; color: var(--oil-navy); border: 1px solid var(--border); padding: 10px 20px; border-radius: 8px; font-weight: 500; cursor: pointer;">Close</button>
             </div>
         </div>
@@ -3053,6 +3073,170 @@
     </div>
 
     <script>
+        // === Shared Utilities (used by both dashboard and map) ===
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            const str = String(text);
+            return str
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        function escapeHtmlAttr(str) {
+            if (!str) return '';
+            return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+        }
+
+        function getMatchReasonStyle(reason) {
+            switch(reason) {
+                case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
+                case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
+                case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
+                case 'Adjacent Section': return 'background: #fef3c7; color: #92400e;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+
+        function getMatchReasonLabel(reason) {
+            switch(reason) {
+                case 'Surface Location': return 'Surface';
+                case 'Bottom Hole': return 'Bottom Hole';
+                case 'Lateral Path': return 'Lateral';
+                case 'Adjacent Section': return 'Adjacent';
+                default: return reason;
+            }
+        }
+
+        function getStatusStyle(status) {
+            switch(status) {
+                case 'AC': return 'background: #dcfce7; color: #166534;';
+                case 'TA': return 'background: #fef9c3; color: #854d0e;';
+                case 'PA': return 'background: #f3f4f6; color: #6b7280;';
+                default: return 'background: #e5e7eb; color: #374151;';
+            }
+        }
+
+        // === Shared Display Config (controls which extracted fields are shown) ===
+
+        const DISPLAY_CONFIG = {
+            _default: {
+                hide: [
+                    'api_number_normalized', 'api_normalized',
+                    'bottom_hole_location', 'lateral_details', 'lateral_path',
+                    'formation_tops', 'first_sales',
+                    'well_number',
+                    'field_scores', 'document_confidence', '_schema_validation',
+                    'skip_extraction', 'raw_response', 'error',
+                    'doc_type', 'category',
+                    'key_takeaway', 'ai_observations', 'detailed_analysis',
+                    'observations'
+                ]
+            },
+            drilling_permit: { hide: ['bottom_hole_location', 'surface_location'] },
+            completion_report: { hide: ['bottom_hole_location', 'lateral_details', 'formation_tops', 'first_sales'] },
+            division_order: { hide: ['well_number'] },
+            // OCC Orders - hide bureaucratic/technical details
+            increased_density_order: { hide: ['officials', 'legal_description', 'recoverable_reserves', 'companion_causes'] },
+            pooling_order: { hide: ['officials', 'legal_description', 'additional_terms', 'special_findings', 'mailing_requirement', 'reasons_for_relief', 'order_date', 'administrative_law_judge_dates', 'attorney_info'] },
+            drilling_spacing_order: { hide: ['officials', 'legal_description'] },
+            change_of_operator_order: { hide: ['officials', 'legal_description'] },
+            location_exception_order: { hide: ['officials', 'legal_description', 'offset_wells', 'unit_name', 'vertical_well_location', 'conditions', 'related_orders', 'allowable', 'offset_impact'] },
+            multi_unit_horizontal_order: { hide: ['officials', 'legal_description', 'companion_causes'] },
+            unitization_order: { hide: ['officials', 'legal_description'] }
+        };
+
+        const HIDE_PATTERNS = [/^_/, /_confidence$/, /_normalized$/];
+
+        function shouldDisplayField(fieldName, docType) {
+            const defaultConfig = DISPLAY_CONFIG._default;
+            const typeConfig = DISPLAY_CONFIG[docType] || {};
+            const hideList = [...(defaultConfig.hide || []), ...(typeConfig.hide || [])];
+            if (hideList.includes(fieldName)) return false;
+            for (const pattern of HIDE_PATTERNS) {
+                if (pattern.test(fieldName)) return false;
+            }
+            return true;
+        }
+
+        function condenseLegal(legal) {
+            if (!legal || typeof legal !== 'object') return '';
+            if (legal.sections && Array.isArray(legal.sections)) {
+                return legal.sections.map(loc => typeof loc === 'object' ? condenseLegal(loc) : String(loc)).filter(s => s).join('\n');
+            }
+            const parts = [];
+            const section = legal.section || legal.sec;
+            const township = legal.township;
+            const range = legal.range;
+            if (section || township || range) {
+                let str = '';
+                if (section) str += `S${section}`;
+                if (township) str += (str ? '-' : '') + `T${township}`;
+                if (range) str += (str ? '-' : '') + `R${range}`;
+                if (str) parts.push(str);
+            }
+            const quarters = legal.quarters || legal.quarter || legal.quarter_section;
+            if (quarters) {
+                parts.push(Array.isArray(quarters) ? quarters.join(' ') : String(quarters));
+            }
+            let county = legal.county;
+            if (county) {
+                county = String(county).trim();
+                if (!county.toLowerCase().endsWith('county')) county += ' County';
+                parts.push(county);
+            }
+            return parts.join(', ');
+        }
+
+        function cleanFieldValue(text) {
+            if (!text || typeof text !== 'string') return text;
+            text = text.replace(/^#{1,6}\s*/gm, '');
+            text = text.replace(/\*\*([^*]+)\*\*/g, '$1');
+            text = text.replace(/\*([^*]+)\*/g, '$1');
+            return text.trim();
+        }
+
+        function formatSnakeCaseValue(text) {
+            if (!text || typeof text !== 'string') return text;
+            if (text.includes('_') && !text.includes(' ')) {
+                return text.split('_').map(word =>
+                    word.charAt(0).toUpperCase() + word.slice(1)
+                ).join(' ');
+            }
+            return text;
+        }
+
+        function condenseSections(sections) {
+            if (!Array.isArray(sections) || sections.length === 0) return '';
+            return sections.map(s => {
+                let str = '';
+                if (s.section) str += `S${s.section}`;
+                if (s.township) str += (str ? '-' : '') + `T${s.township}`;
+                if (s.range) str += (str ? '-' : '') + `R${s.range}`;
+                let role = '';
+                if (s.role) {
+                    role = s.role.replace(/_/g, ' ');
+                } else if (s.is_surface_location === true) {
+                    role = 'surface location';
+                } else if (s.is_target_section === true) {
+                    role = 'target';
+                }
+                if (role) str += ` (${role})`;
+                if (s.county) str += `, ${s.county} County`;
+                return str;
+            }).filter(s => s).join('\n');
+        }
+
+        function isSectionsArray(arr) {
+            if (!Array.isArray(arr) || arr.length === 0) return false;
+            const first = arr[0];
+            return typeof first === 'object' && first !== null &&
+                first.section !== undefined && first.township !== undefined;
+        }
+
         // Toggle collapse/expand for map controls
         function toggleControls() {
             const controlsBar = document.getElementById('mapControlsBar');
@@ -5129,7 +5313,7 @@
                                     <div style="font-size: 12px; color: #6b7280;">${p.county || '—'}${p.acres && !p.nma ? ' • ' + p.acres + ' acres' : ''}</div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                                    <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${mapMatchReasonStyle(p.matchReason)}">${mapMatchReasonLabel(p.matchReason)}</span>
+                                    <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(p.matchReason)}">${getMatchReasonLabel(p.matchReason)}</span>
                                     ${isUnlinked
                                         ? `<button onclick="event.stopPropagation(); mapRelinkProperty('${p.linkId}', '${wellId}')" title="Re-link${unlinkedDate ? ' (unlinked ' + unlinkedDate + ')' : ''}" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #2563eb; background: #eff6ff; color: #2563eb; cursor: pointer;">Relink</button>`
                                         : `<button onclick="event.stopPropagation(); mapUnlinkProperty('${p.linkId}', '${wellId}')" title="Unlink" style="font-size: 11px; padding: 2px 8px; border-radius: 4px; border: 1px solid #d1d5db; background: #f9fafb; color: #6b7280; cursor: pointer;">Unlink</button>`
@@ -5329,25 +5513,8 @@
             }
         }
 
-        // Match reason helpers for map linked properties
-        function mapMatchReasonStyle(reason) {
-            switch(reason) {
-                case 'Surface Location': return 'background: #dbeafe; color: #1d4ed8;';
-                case 'Bottom Hole': return 'background: #cffafe; color: #0e7490;';
-                case 'Lateral Path': return 'background: #f3e8ff; color: #7c3aed;';
-                case 'Adjacent Section': return 'background: #fef3c7; color: #92400e;';
-                default: return 'background: #e5e7eb; color: #374151;';
-            }
-        }
-        function mapMatchReasonLabel(reason) {
-            switch(reason) {
-                case 'Surface Location': return 'Surface';
-                case 'Bottom Hole': return 'Bottom Hole';
-                case 'Lateral Path': return 'Lateral';
-                case 'Adjacent Section': return 'Adjacent';
-                default: return reason;
-            }
-        }
+        // getMatchReasonStyle() and getMatchReasonLabel() are now defined in shared utilities at top of script
+
         async function mapUnlinkProperty(linkId, wellId) {
             if (!confirm('Remove this property link?')) return;
             try {
@@ -6007,7 +6174,6 @@
             }
 
             const hasFinalOrder = filing.status === 'HEARD' || filing.status === 'RECOMMENDED';
-            const isPending = filing.status === 'FILED' || filing.status === 'CONTINUED' || filing.status === 'SCHEDULED';
             const orderNumber = filing.orderNumber || '';
             const caseNumber = filing.caseNumber || '';
             const buttonId = `occ-btn-${(orderNumber || caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
@@ -6024,12 +6190,6 @@
                         >Analyze</button>
                     </div>
                 `;
-            } else if (isPending) {
-                processButton = `
-                    <div class="occ-filing-actions">
-                        <span class="occ-pending-text" title="Final order not yet available">Pending</span>
-                    </div>
-                `;
             }
 
             return `
@@ -6037,21 +6197,20 @@
                     <div class="occ-filing-main">
                         <div class="occ-filing-type">
                             ${isUpcoming ? '<span class="occ-hearing-warning" title="Hearing within 30 days">⚠️</span>' : ''}
-                            ${escapeHtmlContent(filing.reliefTypeDisplay)}
+                            ${escapeHtml(filing.reliefTypeDisplay)}
                             ${adjacentNote}
                         </div>
-                        <div class="occ-filing-applicant">${escapeHtmlContent(filing.applicant) || 'Unknown Applicant'}</div>
+                        <div class="occ-filing-applicant">${escapeHtml(filing.applicant) || 'Unknown Applicant'}</div>
                         <div class="occ-filing-details">
-                            <span class="occ-filing-case">${escapeHtmlContent(filing.caseNumber)}</span>
-                            <span class="occ-filing-status ${statusClass}">${escapeHtmlContent(filing.statusDisplay)}</span>
+                            <span class="occ-filing-case">${escapeHtml(filing.caseNumber)}</span>
+                            <span class="occ-filing-status ${statusClass}">${escapeHtml(filing.statusDisplay)}</span>
                         </div>
                     </div>
-                    <div style="display: flex; align-items: center;">
-                        ${processButton}
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
                         <div class="occ-filing-date">
                             ${dateDisplay}
-                            ${filing.sourceUrl ? `<a href="${escapeHtmlAttr(filing.sourceUrl)}" target="_blank" class="occ-filing-link" title="View on OCC">↗</a>` : ''}
                         </div>
+                        ${processButton}
                     </div>
                 </div>
             `;
@@ -6093,19 +6252,7 @@
             }
         }
 
-        function escapeHtmlAttr(str) {
-            if (!str) return '';
-            return String(str).replace(/'/g, "\\'").replace(/"/g, '&quot;');
-        }
-
-        function escapeHtmlContent(str) {
-            if (!str) return '';
-            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        }
-
-        function escapeHtml(str) {
-            return escapeHtmlContent(str);
-        }
+        // escapeHtml() and escapeHtmlAttr() are now defined in shared utilities at top of script
 
         // Process OCC filing (Analyze button click)
         async function processMapOccFiling(caseNumber, orderNumber, buttonEl) {
@@ -6333,12 +6480,78 @@
         // Format field name for display
         function formatMapFieldName(fieldName) {
             if (!fieldName) return '';
+            const nameMap = {
+                'cd_number': 'CD Number',
+                'api_number': 'API Number',
+                'nri': 'Net Revenue Interest',
+                'orri': 'Overriding Royalty Interest',
+                'poa_type': 'Power of Attorney Type',
+                'property_name': 'Well/Lease Name'
+            };
+            if (nameMap[fieldName]) return nameMap[fieldName];
             return fieldName
                 .replace(/_/g, ' ')
                 .replace(/\b\w/g, l => l.toUpperCase());
         }
 
-        // Open document detail modal
+        // Format analysis text: escape HTML then convert markdown to HTML
+        function formatMapAnalysisText(text) {
+            if (!text) return '';
+            // Strip --- horizontal rules before escaping
+            text = text.replace(/^---+$/gm, '');
+            let escaped = escapeHtml(text);
+            // Convert ### headers to styled section headers
+            escaped = escaped.replace(/^#{1,6}\s+(.+)$/gm, '<br><strong style="font-size: 15px; display: inline-block; margin-top: 8px;">$1</strong>');
+            // Convert **text** to <strong>text</strong>
+            escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+            // Convert markdown bullet lists (- item) to styled bullets
+            escaped = escaped.replace(/^- (.+)$/gm, '&bull; $1');
+            escaped = escaped.replace(/\n/g, '<br>');
+            return escaped;
+        }
+
+        // Format a value for display in document detail (handles arrays, objects, primitives)
+        function formatMapFieldValue(value) {
+            if (value === null || value === undefined || value === '') return null;
+            if (Array.isArray(value)) {
+                if (value.length === 0) return null;
+                if (typeof value[0] === 'object') {
+                    // Sections array → condensed format (S7-T12N-R8W (target))
+                    if (isSectionsArray(value)) {
+                        return condenseSections(value);
+                    }
+                    return value.map(v => v.name || v.formation || v.description || v.option_type || JSON.stringify(v)).join(', ');
+                }
+                return value.join(', ');
+            }
+            if (typeof value === 'object') {
+                // Object with sections array → condense the sections
+                if (value.sections && Array.isArray(value.sections) && isSectionsArray(value.sections)) {
+                    return condenseSections(value.sections);
+                }
+                // Render object fields as a mini list
+                const entries = Object.entries(value).filter(([k, v]) => v !== null && v !== undefined && v !== '');
+                if (entries.length === 0) return null;
+                return entries.map(([k, v]) => {
+                    let displayV;
+                    if (typeof v === 'string') {
+                        displayV = formatSnakeCaseValue(v);
+                    } else if (typeof v === 'object') {
+                        displayV = formatMapFieldValue(v);
+                    } else {
+                        displayV = String(v);
+                    }
+                    return `${formatMapFieldName(k)}: ${displayV}`;
+                }).join(', ');
+            }
+            // String values — convert snake_case identifiers to readable text
+            if (typeof value === 'string') {
+                return formatSnakeCaseValue(value);
+            }
+            return String(value);
+        }
+
+        // Open document detail modal (matches dashboard document detail behavior)
         async function openMapDocumentDetail(docId, displayName) {
             console.log('Opening document detail:', docId, displayName);
             mapCurrentDocumentId = docId;
@@ -6365,18 +6578,13 @@
                 mapCurrentDocumentFilename = doc.display_name || doc.filename || displayName;
 
                 // Update header
-                document.getElementById('mapDocModalTitle').textContent = formatMapDocType(doc.category || doc.doc_type) || 'OCC Document';
-
-                let subtitleText = doc.display_name || doc.filename || displayName;
-                if (doc.status === 'complete' && doc.confidence) {
-                    subtitleText += ` • ${doc.confidence} confidence`;
-                }
-                document.getElementById('mapDocModalSubtitle').textContent = subtitleText;
+                document.getElementById('mapDocModalTitle').textContent = formatMapDocType(doc.category || doc.doc_type) || 'Document Details';
+                document.getElementById('mapDocModalSubtitle').textContent = doc.display_name || doc.filename || displayName;
 
                 // Build content
                 let content = '';
 
-                // Status row
+                // Status + Type row
                 const statusColor = doc.status === 'complete' ? '#1D6F5C' :
                                    doc.status === 'failed' ? '#DC2626' :
                                    doc.status === 'manual_review' ? '#D97706' : '#F59E0B';
@@ -6403,77 +6611,51 @@
                 // Parse extracted data if available
                 if (doc.extracted_data) {
                     try {
-                        const extractedData = JSON.parse(doc.extracted_data);
+                        const extractedData = typeof doc.extracted_data === 'string' ? JSON.parse(doc.extracted_data) : doc.extracted_data;
+                        const docType = extractedData.doc_type || doc.doc_type;
 
-                        // Key OCC order fields to display
-                        const keyFields = [
-                            { key: 'cd_number', label: 'CD Number' },
-                            { key: 'order_number', label: 'Order Number' },
-                            { key: 'cause_number', label: 'Cause Number' },
-                            { key: 'applicant', label: 'Applicant' },
-                            { key: 'operator', label: 'Operator' },
-                            { key: 'well_name', label: 'Well Name' },
-                            { key: 'county', label: 'County' },
-                            { key: 'formations', label: 'Formations' },
-                            { key: 'unit_size_acres', label: 'Unit Size' },
-                            { key: 'effective_date', label: 'Effective Date' },
-                            { key: 'order_date', label: 'Order Date' },
-                            { key: 'election_deadline_days', label: 'Election Deadline' }
-                        ];
-
-                        // Collect fields that have values
-                        const fieldsWithValues = keyFields.filter(f => {
-                            const val = extractedData[f.key];
-                            return val !== null && val !== undefined && val !== '';
-                        });
-
-                        if (fieldsWithValues.length > 0) {
-                            content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px;">';
-                            content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Extracted Information</h4>';
-                            content += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">';
-
-                            fieldsWithValues.forEach(field => {
-                                let value = extractedData[field.key];
-                                // Format arrays
-                                if (Array.isArray(value)) {
-                                    // Handle array of objects (like formations with name/depth)
-                                    if (value.length > 0 && typeof value[0] === 'object') {
-                                        value = value.map(v => v.name || v.formation || JSON.stringify(v)).join(', ');
-                                    } else {
-                                        value = value.join(', ');
-                                    }
-                                }
-                                // Format unit size
-                                if (field.key === 'unit_size_acres' && value) {
-                                    value = value + ' acres';
-                                }
-                                // Format election deadline
-                                if (field.key === 'election_deadline_days' && value) {
-                                    value = value + ' days';
-                                }
-
-                                content += `
-                                    <div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
-                                        <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">${field.label}</div>
-                                        <div style="font-size: 14px; color: var(--oil-navy);">${escapeHtmlContent(String(value))}</div>
-                                    </div>`;
-                            });
-
-                            content += '</div></div>';
-                        }
-
-                        // Show observations if available
-                        if (extractedData.ai_observations || extractedData.observations) {
-                            const obs = extractedData.ai_observations || extractedData.observations;
-                            content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px;">';
-                            content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">AI Observations</h4>';
-                            content += `<div style="background: #f9fafb; padding: 12px; border-radius: 8px; font-size: 13px; line-height: 1.6; color: #4b5563; white-space: pre-wrap;">${escapeHtmlContent(obs)}</div>`;
+                        // Check for processor error
+                        if (extractedData.error) {
+                            content += '<div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin-bottom: 20px;">';
+                            content += `<h4 style="margin: 0 0 8px 0; color: #B91C1C; font-size: 14px; font-weight: 600;">Error: ${escapeHtml(extractedData.error)}</h4>`;
+                            content += '<p style="margin: 0; color: #7F1D1D; font-size: 13px;">The document processor encountered an error. Please try re-analyzing the document.</p>';
                             content += '</div>';
                         }
 
-                        // Show election options if available
+                        // Key Takeaway (prominent, open by default)
+                        if (extractedData.key_takeaway) {
+                            const cleanedTakeaway = String(extractedData.key_takeaway).trim()
+                                .replace(/^#{1,6}\s*/gm, '').replace(/^---+$/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').replace(/^\s+/gm, '').replace(/\t/g, ' ').replace(/\n{3,}/g, '\n\n');
+                            content += `<div style="margin-bottom: 16px;">
+                                <details open style="border: 1px solid #d1fae5; border-radius: 8px; overflow: hidden;">
+                                    <summary style="padding: 12px 16px; background: #ecfdf5; cursor: pointer; font-weight: 600; font-size: 14px; color: #065f46; display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 10px; transition: transform 0.2s;">&#9654;</span>
+                                        Key Takeaway
+                                    </summary>
+                                    <div style="padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #1a1a2e; white-space: pre-wrap;">${escapeHtml(cleanedTakeaway)}</div>
+                                </details>
+                            </div>`;
+                        }
+
+                        // Detailed Analysis (collapsible, closed by default)
+                        const analysisText = extractedData.ai_observations || extractedData.detailed_analysis || extractedData.observations;
+                        if (analysisText) {
+                            const cleanedAnalysis = String(analysisText).trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
+                            content += `<div style="margin-bottom: 20px;">
+                                <details style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                                    <summary style="padding: 12px 16px; background: #f9fafb; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--oil-navy); display: flex; align-items: center; gap: 8px;">
+                                        <span style="font-size: 10px; transition: transform 0.2s;">&#9654;</span>
+                                        View Detailed Analysis
+                                        <span style="font-size: 12px; color: #9ca3af; font-weight: 400; margin-left: auto;">Click to expand</span>
+                                    </summary>
+                                    <div style="padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #4b5563;">${formatMapAnalysisText(cleanedAnalysis)}</div>
+                                </details>
+                            </div>`;
+                        }
+
+                        // Election Options (special rendering — same as before)
                         if (extractedData.election_options && Array.isArray(extractedData.election_options) && extractedData.election_options.length > 0) {
-                            content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-top: 16px;">';
+                            content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">';
                             content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Election Options</h4>';
                             content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
 
@@ -6488,7 +6670,7 @@
                                 content += `
                                     <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
                                         <div style="font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">${formatMapFieldName(option.option_type || option.type || 'Option ' + (idx + 1))}</div>
-                                        ${option.description ? `<div style="font-size: 13px; color: #4b5563;">${escapeHtmlContent(option.description)}</div>` : ''}
+                                        ${option.description ? `<div style="font-size: 13px; color: #4b5563;">${escapeHtml(option.description)}</div>` : ''}
                                         ${option.bonus_per_acre ? `<div style="font-size: 13px; color: #4b5563; margin-top: 4px;">Bonus: $${option.bonus_per_acre}/acre</div>` : ''}
                                         ${option.royalty_rate ? `<div style="font-size: 13px; color: #4b5563;">Royalty: ${option.royalty_rate}</div>` : ''}
                                     </div>`;
@@ -6497,15 +6679,65 @@
                             content += '</div></div>';
                         }
 
+                        // Dynamically display extracted fields using shared display config
+                        const displayFields = Object.entries(extractedData).filter(([key, val]) => {
+                            // Use shared display config to determine if field should be shown
+                            if (!shouldDisplayField(key, docType)) return false;
+                            if (val === null || val === undefined || val === '') return false;
+                            // Skip arrays of complex objects that need special rendering
+                            if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && key !== 'formations') return false;
+                            return true;
+                        });
+
+                        if (displayFields.length > 0) {
+                            content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px;">';
+                            content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Extracted Information</h4>';
+                            content += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">';
+
+                            displayFields.forEach(([key, value]) => {
+                                let displayVal;
+
+                                // Special handling for legal_description - use condensed format
+                                if (key === 'legal_description' && typeof value === 'object') {
+                                    displayVal = condenseLegal(value);
+                                } else {
+                                    displayVal = formatMapFieldValue(value);
+                                }
+                                if (!displayVal) return;
+
+                                // Clean any markdown artifacts from field values
+                                displayVal = cleanFieldValue(displayVal);
+
+                                // Format special fields
+                                if (key === 'unit_size_acres') displayVal += ' acres';
+                                if (key === 'election_deadline_days') displayVal += ' days';
+
+                                content += `
+                                    <div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
+                                        <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">${formatMapFieldName(key)}</div>
+                                        <div style="font-size: 14px; color: var(--oil-navy); white-space: pre-line;">${escapeHtml(displayVal)}</div>
+                                    </div>`;
+                            });
+
+                            content += '</div></div>';
+                        }
+
                     } catch (e) {
                         console.error('Error parsing extracted data:', e);
+                        content += '<div style="padding: 16px; color: #DC2626;">Error displaying extracted data</div>';
                     }
-                }
-
-                // If no extracted data, show basic info
-                if (!doc.extracted_data || content.indexOf('Extracted Information') === -1) {
-                    content += '<div style="background: #f3f4f6; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-top: 16px;">';
-                    content += '<p style="margin: 0; color: #4b5563; font-size: 14px;">Click "View Original" to see the full document.</p>';
+                } else {
+                    // No extracted data — show processing or pending state
+                    content += '<div style="text-align: center; padding: 40px 20px; background: #f9fafb; border-radius: 8px; margin: 20px 0;">';
+                    content += '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; display: block; opacity: 0.3;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
+                    if (doc.status === 'failed') {
+                        content += '<p style="margin: 0; color: #DC2626; font-size: 14px; font-weight: 500;">Document processing failed</p>';
+                        content += '<p style="margin: 8px 0 0; color: #6b7280; font-size: 13px;">You can try re-analyzing or view the original document.</p>';
+                    } else if (doc.status === 'processing' || doc.status === 'pending') {
+                        content += '<p style="margin: 0; color: #6b7280; font-size: 14px;">Document is still being processed...</p>';
+                    } else {
+                        content += '<p style="margin: 0; color: #6b7280; font-size: 14px;">No extracted data available for this document.</p>';
+                    }
                     content += '</div>';
                 }
 
@@ -6533,6 +6765,12 @@
                 // Close detail modal first (optional - could keep it open behind)
                 closeMapDocumentDetail();
                 viewMapDocument(mapCurrentDocumentId, mapCurrentDocumentFilename, mapCurrentDocumentContentType);
+            }
+        }
+
+        function printMapDocumentSummary() {
+            if (mapCurrentDocumentId) {
+                window.open(`/print/document?id=${mapCurrentDocumentId}`, '_blank');
             }
         }
 
@@ -6585,7 +6823,7 @@
                     // Display image
                     viewerContainer.innerHTML = `
                         <div style="width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 20px;">
-                            <img src="${objectUrl}" alt="${escapeHtmlContent(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
+                            <img src="${objectUrl}" alt="${escapeHtml(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain;"/>
                         </div>
                     `;
                 } else {
@@ -6594,7 +6832,7 @@
                         <iframe
                             src="${objectUrl}"
                             style="width: 100%; height: 100%; border: none;"
-                            title="${escapeHtmlContent(filename || 'Document')}"
+                            title="${escapeHtml(filename || 'Document')}"
                         ></iframe>
                     `;
                 }
@@ -9014,6 +9252,8 @@
                 if (filterPanel) filterPanel.style.display = 'none';
                 const wellCount = document.getElementById('nearbyWellCount');
                 if (wellCount) wellCount.textContent = '0';
+                // Remove nearby wells from search index
+                updateSearchIndex();
             }
         }
         
@@ -9784,8 +10024,11 @@
             }
 
             ensureLayerOrder();
+
+            // Rebuild search index to include/exclude nearby wells
+            updateSearchIndex();
         }
-        
+
         // Event listeners
         document.getElementById('toggle-land-grid').addEventListener('change', toggleLandGrid);
         document.getElementById('toggle-county-labels').addEventListener('change', toggleCountyLabels);
@@ -9999,7 +10242,7 @@
         // Build searchable index when data is loaded
         function updateSearchIndex() {
             allSearchableItems = [];
-            
+
             // Add properties
             if (userProperties) {
                 userProperties.forEach(prop => {
@@ -10012,7 +10255,7 @@
                     });
                 });
             }
-            
+
             // Add tracked wells
             if (trackedWells) {
                 trackedWells.forEach(well => {
@@ -10026,7 +10269,22 @@
                     });
                 });
             }
-            
+
+            // Add nearby wells when layer is active
+            if (allNearbyWells && allNearbyWells.length > 0 && nearbyWellsLayer && map.hasLayer(nearbyWellsLayer)) {
+                allNearbyWells.forEach(well => {
+                    if (!well.latitude || !well.longitude) return;
+                    const wellName = well.well_name ? (well.well_number ? `${well.well_name} ${well.well_number}` : well.well_name) : '';
+                    allSearchableItems.push({
+                        type: 'nearby',
+                        name: wellName || `API ${well.api_number || 'Unknown'}`,
+                        details: `${well.operator || 'Unknown'} • S${well.section || '?'} T${well.township || '?'} R${well.range || '?'}`,
+                        data: { id: well.api_number, lat: well.latitude, lng: well.longitude },
+                        searchText: `${wellName} ${well.api_number || ''} ${well.operator || ''} ${well.formation_name || ''} ${well.county || ''} ${well.section || ''} ${well.township || ''} ${well.range || ''}`.toLowerCase()
+                    });
+                });
+            }
+
             console.log(`Search index updated with ${allSearchableItems.length} items`);
         }
         
@@ -10053,9 +10311,10 @@
             if (results.length === 0) {
                 container.innerHTML = '<div class="search-no-results">No results found</div>';
             } else {
+                const typeLabels = { property: 'Property', well: 'Tracked', nearby: 'Nearby' };
                 container.innerHTML = results.map(item => `
-                    <div class="search-result-item" data-type="${item.type}" data-id="${item.data.id}">
-                        <div class="search-result-type">${item.type}</div>
+                    <div class="search-result-item" data-type="${item.type}" data-id="${item.data.id}" ${item.data.lat ? `data-lat="${item.data.lat}" data-lng="${item.data.lng}"` : ''}>
+                        <div class="search-result-type type-${item.type}">${typeLabels[item.type] || item.type}</div>
                         <div class="search-result-name">${item.name}</div>
                         <div class="search-result-details">${item.details}</div>
                     </div>
@@ -10101,6 +10360,21 @@
                     const marker = wellMarkers[id];
                     map.setView(marker.getLatLng(), 14);
                     marker.openPopup();
+                }
+            } else if (type === 'nearby') {
+                const lat = parseFloat(resultItem.dataset.lat);
+                const lng = parseFloat(resultItem.dataset.lng);
+                if (lat && lng) {
+                    map.setView([lat, lng], 14);
+                    // Find and open the nearby well's popup
+                    if (nearbyWellsLayer) {
+                        nearbyWellsLayer.eachLayer(layer => {
+                            const pos = layer.getLatLng();
+                            if (Math.abs(pos.lat - lat) < 0.0001 && Math.abs(pos.lng - lng) < 0.0001) {
+                                setTimeout(() => layer.openPopup(), 300);
+                            }
+                        });
+                    }
                 }
             }
         });

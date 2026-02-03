@@ -1,0 +1,91 @@
+        // === Shared List Controller ===
+        // Manages search/filter/sort state and event binding for list views.
+        // Domain-specific filter/sort logic is passed in via config callbacks.
+
+        function createListController(config) {
+            let searchTerm = '';
+            let filterBy = config.defaultFilter || 'all';
+            let sortBy = config.defaultSort || 'date-desc';
+
+            function initControls() {
+                // Gate controls behind plan check if configured
+                if (config.controlsId) {
+                    const controlsEl = document.getElementById(config.controlsId);
+                    if (controlsEl) {
+                        const hasSearch = !config.requirePlan || (currentUser?.plan && currentUser.plan !== 'Free');
+                        controlsEl.style.display = hasSearch ? 'flex' : 'none';
+                        if (!hasSearch) return;
+                    }
+                }
+
+                // Search input
+                if (config.searchId) {
+                    const searchEl = document.getElementById(config.searchId);
+                    if (searchEl) {
+                        searchEl.addEventListener('input', (e) => {
+                            searchTerm = e.target.value.toLowerCase().trim();
+                            if (config.debounceMs) {
+                                debounceSearch(() => config.renderFn(), config.debounceMs);
+                            } else {
+                                config.renderFn();
+                            }
+                        });
+                    }
+                }
+
+                // Filter select
+                if (config.filterId) {
+                    const filterEl = document.getElementById(config.filterId);
+                    if (filterEl) {
+                        filterEl.addEventListener('change', (e) => {
+                            filterBy = e.target.value;
+                            if (config.onFilterChange) config.onFilterChange(filterBy);
+                            config.renderFn();
+                        });
+                    }
+                }
+
+                // Sort select
+                if (config.sortId) {
+                    const sortEl = document.getElementById(config.sortId);
+                    if (sortEl) {
+                        sortEl.addEventListener('change', (e) => {
+                            sortBy = e.target.value;
+                            config.renderFn();
+                        });
+                    }
+                }
+
+                // Run any additional init
+                if (config.onInit) config.onInit();
+            }
+
+            function applyPipeline(items) {
+                let result = config.filterFn(items, filterBy, searchTerm);
+                result = config.sortFn(result, sortBy);
+                return result;
+            }
+
+            function updateCount(filtered, total, elementId) {
+                const el = document.getElementById(elementId);
+                if (!el) return;
+                if (searchTerm || filterBy !== (config.defaultFilter || 'all')) {
+                    el.textContent = `${filtered} of ${total} ${config.itemName || 'items'}`;
+                } else {
+                    el.textContent = `${total} ${config.itemName || 'items'}`;
+                }
+            }
+
+            return {
+                get searchTerm() { return searchTerm; },
+                set searchTerm(v) { searchTerm = v; },
+                get filterBy() { return filterBy; },
+                set filterBy(v) { filterBy = v; },
+                get sortBy() { return sortBy; },
+                set sortBy(v) { sortBy = v; },
+                initControls,
+                applyPipeline,
+                updateCount
+            };
+        }
+

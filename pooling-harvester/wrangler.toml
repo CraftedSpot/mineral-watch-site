@@ -1,0 +1,28 @@
+name = "pooling-harvester"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+
+# Every 6 hours, all days — backlog catchup mode (was: weekdays 2 PM CT only)
+# Revert to "0 20 * * 1-5" once backlog is cleared
+[triggers]
+crons = ["0 */6 * * *"]
+
+[[d1_databases]]
+binding = "DB"
+database_name = "oklahoma-wells"
+database_id = "9afdff90-6719-46dd-97d2-6ca3777b17c9"
+
+[vars]
+REQUEST_DELAY_MS = "5000"
+REQUEST_DELAY_JITTER_MS = "3000"
+BATCH_SIZE = "25"
+DAILY_CAP = "150"
+TIMEOUT_SAFETY_MS = "540000"
+MAX_RETRY_ATTEMPTS = "5"
+RETRY_BACKOFF_DAYS = "3"
+OCC_FETCHER_URL = "https://occ-fetcher.photog12.workers.dev"
+
+# Service binding for worker-to-worker communication
+[[services]]
+binding = "OCC_FETCHER"
+service = "occ-fetcher"

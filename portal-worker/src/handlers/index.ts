@@ -186,11 +186,19 @@ export {
   handleTruncatePunProduction
 } from './otc-production-upload.js';
 
+// OTC financial upload handlers
+export {
+  handleUploadFinancialData,
+  handleGetFinancialStats,
+  handleTruncateFinancial
+} from './otc-financial-upload.js';
+
 // Completion reports handlers
 export {
   handleGetCompletionReports,
   handleAnalyzeCompletion,
-  handleGetProductionSummary
+  handleGetProductionSummary,
+  handleGetDecimalInterest
 } from './completion-reports.js';
 
 // Completions-to-wells sync handlers
@@ -215,3 +223,11 @@ export {
   handleGetPlssSection,
   handleGetPlssSectionsBatch
 } from './plss-sections.js';
+
+// County records handlers (OKCountyRecords integration)
+export {
+  handleCountyRecordsCounties,
+  handleCountyRecordsInstrumentTypes,
+  handleCountyRecordsSearch,
+  handleCountyRecordsRetrieve
+} from './county-records.js';

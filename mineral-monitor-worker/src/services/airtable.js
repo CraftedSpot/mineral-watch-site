@@ -244,3 +244,52 @@ export function userWantsAlert(user, activityType) {
       return true;
   }
 }
+
+/**
+ * Get notification overrides for all active users from Airtable.
+ * D1's notification_override column may be stale, so we query Airtable
+ * directly for the source-of-truth preference.
+ *
+ * @param {Object} env - Worker environment
+ * @returns {Map<string, string>} - Map of Airtable record ID -> notification override value
+ */
+export async function getUserNotificationOverrides(env) {
+  const overrides = new Map();
+  let offset = null;
+
+  do {
+    let url = `${AIRTABLE_API_BASE}/${env.AIRTABLE_BASE_ID}/${env.AIRTABLE_USERS_TABLE}`;
+    url += `?fields[]=Notification Override`;
+    url += `&filterByFormula={Status}='Active'`;
+    url += `&pageSize=100`;
+    if (offset) {
+      url += `&offset=${encodeURIComponent(offset)}`;
+    }
+
+    const response = await fetch(url, {
+      headers: {
+        'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.error(`[Airtable] Failed to fetch notification overrides: ${response.status} - ${error}`);
+      break;
+    }
+
+    const data = await response.json();
+    for (const record of (data.records || [])) {
+      const override = record.fields?.['Notification Override'];
+      if (override) {
+        overrides.set(record.id, override);
+      }
+    }
+
+    offset = data.offset || null;
+  } while (offset);
+
+  console.log(`[Airtable] Fetched notification overrides: ${overrides.size} users with overrides`);
+  return overrides;
+}

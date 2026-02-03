@@ -1,0 +1,88 @@
+        // Toggle collapse/expand for map controls
+        function toggleControls() {
+            const controlsBar = document.getElementById('mapControlsBar');
+            controlsBar.classList.toggle('collapsed');
+        }
+        
+        // New Map Controls Logic
+        
+        // Primary toggle buttons
+        document.querySelectorAll('.primary-toggles .toggle-btn').forEach(btn => {
+            const checkbox = btn.querySelector('input');
+            checkbox.addEventListener('change', function() {
+                btn.classList.toggle('active', this.checked);
+            });
+        });
+        
+        // Overlays dropdown
+        const overlaysBtn = document.getElementById('overlaysBtn');
+        const overlaysMenu = document.getElementById('overlaysMenu');
+        let overlaysOpen = false;
+        
+        overlaysBtn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            overlaysOpen = !overlaysOpen;
+            overlaysMenu.classList.toggle('show', overlaysOpen);
+            this.classList.toggle('active', overlaysOpen);
+        });
+        
+        // Close overlays when clicking outside
+        document.addEventListener('click', function(event) {
+            if (overlaysOpen && !overlaysMenu.contains(event.target)) {
+                overlaysOpen = false;
+                overlaysMenu.classList.remove('show');
+                overlaysBtn.classList.remove('active');
+            }
+        });
+        
+        // Update overlays button state
+        function updateOverlaysButton() {
+            const overlays = ['land-grid', 'section-numbers', 'county-labels'];
+            const activeCount = overlays.filter(id =>
+                document.getElementById(`toggle-${id}`).checked
+            ).length;
+
+            const btn = document.getElementById('overlaysBtn');
+            const btnText = btn.querySelector('span');
+
+            if (activeCount === 0) {
+                btnText.textContent = 'Overlays';
+                btn.classList.add('inactive');
+                btn.classList.remove('active');
+            } else {
+                btnText.textContent = 'Overlays';
+                btn.classList.remove('inactive');
+                btn.classList.add('active');
+            }
+
+            // Update "All" checkbox
+            const allCheckbox = document.getElementById('toggle-all-overlays');
+            allCheckbox.checked = activeCount === overlays.length;
+            allCheckbox.indeterminate = activeCount > 0 && activeCount < overlays.length;
+        }
+        
+        // Handle overlay checkboxes
+        document.querySelectorAll('.overlays-menu input[type="checkbox"]:not(#toggle-all-overlays)').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                updateOverlaysButton();
+            });
+        });
+        
+        // Handle "All Overlays" checkbox
+        document.getElementById('toggle-all-overlays').addEventListener('change', function() {
+            const overlays = ['land-grid', 'section-numbers', 'county-labels'];
+            const checked = this.checked;
+            
+            overlays.forEach(id => {
+                const checkbox = document.getElementById(`toggle-${id}`);
+                if (checkbox) {
+                    checkbox.checked = checked;
+                    checkbox.dispatchEvent(new Event('change'));
+                }
+            });
+            
+            updateOverlaysButton();
+        });
+        
+        // Initialize overlay button state
+        updateOverlaysButton();

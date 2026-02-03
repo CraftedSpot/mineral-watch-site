@@ -1,0 +1,71 @@
+        // === Shared OCC Helpers (used by both dashboard and map) ===
+
+        function getOccStatusClass(status) {
+            const statusMap = {
+                'HEARD': 'heard',
+                'RECOMMENDED': 'heard',
+                'CONTINUED': 'continued',
+                'SCHEDULED': 'scheduled',
+                'DISMISSED': 'dismissed',
+                'WITHDRAWN': 'dismissed'
+            };
+            return statusMap[status] || 'filed';
+        }
+
+        function formatOccDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function isOccHearingUpcoming(dateStr, status) {
+            if (status !== 'SCHEDULED') return false;
+            if (!dateStr) return false;
+            try {
+                const hearingDate = new Date(dateStr);
+                const today = new Date();
+                const daysUntil = (hearingDate - today) / (1000 * 60 * 60 * 24);
+                return daysUntil > 0 && daysUntil <= 30;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function formatCompletionDate(dateStr) {
+            if (!dateStr) return '';
+            try {
+                const parts = dateStr.split('/');
+                if (parts.length >= 2) {
+                    const month = parseInt(parts[0]);
+                    const year = parts.length === 3 ? parts[2] : parts[1];
+                    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? '19' + year : '20' + year) : year;
+                    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return `${monthNames[month - 1]} ${fullYear}`;
+                }
+                return dateStr;
+            } catch {
+                return dateStr;
+            }
+        }
+
+        function parseCompletionDate(dateStr) {
+            if (!dateStr) return 0;
+            try {
+                const parts = dateStr.split('/');
+                if (parts.length >= 2) {
+                    const month = parseInt(parts[0]) - 1;
+                    const day = parts.length === 3 ? parseInt(parts[1]) : 1;
+                    const year = parts.length === 3 ? parts[2] : parts[1];
+                    const fullYear = year.length === 2 ? (parseInt(year) > 50 ? 1900 + parseInt(year) : 2000 + parseInt(year)) : parseInt(year);
+                    return new Date(fullYear, month, day).getTime();
+                }
+                return 0;
+            } catch {
+                return 0;
+            }
+        }
+

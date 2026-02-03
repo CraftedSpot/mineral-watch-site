@@ -36,6 +36,10 @@ const PRICE_TO_PLAN = {
   // Business - $249/mo, $2390/yr
   "price_1SoRkO9OfJmRCDOqJHItcg9T": "Business", // monthly $249
   "price_1SoSwV9OfJmRCDOqxmuF4aBI": "Business",  // annual $2390
+
+  // Enterprise 1K - $499/mo, $4790/yr
+  "price_1SwRTW9OfJmRCDOqY3T0V1t5": "Enterprise", // monthly $499
+  "price_1SwRWG9OfJmRCDOqDBOrwul2": "Enterprise",  // annual $4790
 };
 
 // Annual price IDs for bonus credit detection
@@ -44,6 +48,7 @@ const ANNUAL_PRICE_IDS = new Set([
   "price_1SZZbu9OfJmRCDOqYZm2Hbi6",  // Standard annual
   "price_1SZZbt9OfJmRCDOquMh7kSyI",  // Professional annual
   "price_1SoSwV9OfJmRCDOqxmuF4aBI",  // Business annual
+  "price_1SwRWG9OfJmRCDOqDBOrwul2",  // Enterprise annual
 ]);
 
 // Credit pack price IDs (one-time purchases)
@@ -59,12 +64,12 @@ const DOCUMENTS_WORKER_URL = 'https://documents-worker.photog12.workers.dev';
 
 // Plan limits for email content
 const PLAN_LIMITS = {
-  'Free': { properties: 1, wells: 1, docCredits: 10, docCreditsBonus: 0, isLifetime: true },
+  'Free': { properties: 1, wells: 1, docCredits: 3, docCreditsBonus: 0 },
   'Starter': { properties: 10, wells: 10, docCredits: 10, docCreditsBonus: 75 },
   'Standard': { properties: 50, wells: 50, docCredits: 25, docCreditsBonus: 300 },
   'Professional': { properties: 250, wells: 250, docCredits: 50, docCreditsBonus: 1000 },
   'Business': { properties: 500, wells: 500, docCredits: 100, docCreditsBonus: 2500 },
-  'Enterprise': { properties: 'Unlimited', wells: 'Unlimited', docCredits: 250, docCreditsBonus: 10000 }
+  'Enterprise': { properties: 1000, wells: 1000, docCredits: 150, docCreditsBonus: 5000 }
 };
 
 export default {
@@ -164,11 +169,13 @@ async function handleCheckoutComplete(session, env) {
 
   console.log(`Checkout complete: ${customerEmail}, Plan: ${plan}, Annual: ${isAnnual}`);
 
-  // Capture shipping address for Business tier (free book!)
+  // Capture shipping address for book-eligible tiers (Standard and above get a free book)
+  const BOOK_ELIGIBLE_PLANS = ['Standard', 'Professional', 'Business', 'Enterprise'];
+  const isBookEligible = BOOK_ELIGIBLE_PLANS.includes(plan);
   let shippingAddress = null;
 
   // Debug logging for shipping
-  console.log(`[Shipping Debug] Plan: ${plan}`);
+  console.log(`[Shipping Debug] Plan: ${plan}, Book eligible: ${isBookEligible}`);
   console.log(`[Shipping Debug] shipping_details: ${!!session.shipping_details}`);
   console.log(`[Shipping Debug] collected_information?.shipping_details: ${!!session.collected_information?.shipping_details}`);
 
@@ -179,7 +186,7 @@ async function handleCheckoutComplete(session, env) {
     || session.shipping;
 
   // If no shipping in session, try fetching from Stripe Customer (for existing customers upgrading)
-  if (plan === 'Business' && !shippingData && stripeCustomerId) {
+  if (isBookEligible && !shippingData && stripeCustomerId) {
     console.log(`[Shipping] No shipping in session, fetching from Stripe Customer: ${stripeCustomerId}`);
     try {
       const customerResponse = await fetch(
@@ -200,11 +207,24 @@ async function handleCheckoutComplete(session, env) {
     }
   }
 
-  if (plan === 'Business' && shippingData) {
+  if (isBookEligible && shippingData) {
     shippingAddress = formatShippingAddress(shippingData);
-    console.log(`[Shipping] Business tier - captured shipping address for ${customerEmail}: ${shippingAddress}`);
-  } else if (plan === 'Business') {
-    console.log(`[Shipping] Business tier but NO shipping data found anywhere for ${customerEmail}`);
+    console.log(`[Shipping] ${plan} tier - captured shipping address for ${customerEmail}: ${shippingAddress}`);
+  } else if (isBookEligible) {
+    console.log(`[Shipping] ${plan} tier but NO shipping data found anywhere for ${customerEmail}`);
+  }
+
+  // Check custom field for book opt-out
+  let wantsBook = true;
+  if (session.custom_fields && Array.isArray(session.custom_fields)) {
+    const bookField = session.custom_fields.find(f =>
+      f.key?.toLowerCase().includes('book') || f.label?.toLowerCase().includes('book')
+    );
+    if (bookField) {
+      const value = (bookField.text?.value || bookField.dropdown?.value || '').toLowerCase();
+      wantsBook = value !== 'no' && value !== 'false' && value !== 'n';
+      console.log(`[Book] Custom field value: "${value}", wants book: ${wantsBook}`);
+    }
   }
 
   // Check if user already exists
@@ -226,10 +246,10 @@ async function handleCheckoutComplete(session, env) {
       'Plan History': updatedHistory
     };
 
-    // Add shipping address for Business tier
+    // Add shipping address and book status for book-eligible tiers
     if (shippingAddress) {
       updateFields['Shipping Address'] = shippingAddress;
-      updateFields['Book Status'] = 'Pending';
+      updateFields['Book Status'] = wantsBook ? 'Pending' : 'Opted Out';
     }
 
     await updateUser(env, existingUser.id, updateFields);
@@ -253,10 +273,10 @@ async function handleCheckoutComplete(session, env) {
       'Plan History': historyEntry
     };
 
-    // Add shipping address for Business tier
+    // Add shipping address and book status for book-eligible tiers
     if (shippingAddress) {
       createFields['Shipping Address'] = shippingAddress;
-      createFields['Book Status'] = 'Pending';
+      createFields['Book Status'] = wantsBook ? 'Pending' : 'Opted Out';
     }
 
     const newUser = await createUser(env, createFields);
@@ -268,8 +288,18 @@ async function handleCheckoutComplete(session, env) {
     }
   }
 
-  // Send paid welcome email (includes book mention for Business tier)
-  await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits, shippingAddress, isAnnual);
+  // Send paid welcome email (includes book section if eligible and opted in)
+  await sendPaidWelcomeEmail(env, customerEmail, customerName, plan, limits, shippingAddress, isAnnual, wantsBook);
+
+  // Notify admin of new signup/upgrade
+  await sendAdminNotification(env, {
+    type: existingUser ? 'upgrade' : 'new_signup',
+    email: customerEmail,
+    name: customerName,
+    plan,
+    isAnnual,
+    amount: session.amount_total ? `$${(session.amount_total / 100).toFixed(2)}` : 'N/A'
+  });
 }
 
 /**
@@ -509,7 +539,7 @@ async function handleSubscriptionDeleted(subscription, env) {
 /**
  * Send welcome email for paid signups with magic link
  */
-async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddress = null, isAnnual = false) {
+async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddress = null, isAnnual = false, wantsBook = true) {
   // Generate magic link token
   let magicLinkUrl = `${BASE_URL}/portal`; // Default fallback
 
@@ -528,15 +558,32 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
 
   const subject = `Welcome to Mineral Watch ${plan} - You're All Set`;
 
-  // Business tier gets extra features mentioned
+  // Tier-specific features
   const isBusinessTier = plan === 'Business';
-  const bookSection = isBusinessTier ? `
+  const isEnterpriseTier = plan === 'Enterprise';
+  const bookEligiblePlans = ['Standard', 'Professional', 'Business', 'Enterprise'];
+  const isBookEligible = bookEligiblePlans.includes(plan) && wantsBook;
+  const bookSection = isBookEligible ? `
         <!-- Free Book Section -->
         <div style="background: #FEF3C7; border-radius: 6px; padding: 24px; margin: 30px 0; border-left: 4px solid #D97706;">
           <h3 style="margin: 0 0 12px; color: #92400E; font-size: 16px;">📚 Your Free Book is On Its Way!</h3>
           <p style="margin: 0; color: #78350F; line-height: 1.6;">
-            As a Business subscriber, you'll receive a complimentary copy of <strong>"The Mineral Rights Guide"</strong>.
+            As a ${plan} subscriber, you'll receive a complimentary copy of <strong>"The Mineral Rights Guide"</strong>.
             We'll ship it to the address you provided. Please allow 2-3 weeks for delivery.
+          </p>
+        </div>
+` : '';
+  const enterpriseSection = isEnterpriseTier ? `
+        <!-- Enterprise Welcome Section -->
+        <div style="background: #EBF5FF; border-radius: 6px; padding: 24px; margin: 30px 0; border-left: 4px solid #2B6CB0;">
+          <h3 style="margin: 0 0 12px; color: #2A4365; font-size: 16px;">Enterprise 1K — White Glove Onboarding</h3>
+          <p style="margin: 0 0 12px; color: #2C5282; line-height: 1.6;">
+            Welcome to our Enterprise tier. You have capacity for up to <strong>1,000 properties</strong> and <strong>1,000 wells</strong>,
+            plus <strong>5 team member seats</strong> for your organization.
+          </p>
+          <p style="margin: 0; color: #2C5282; line-height: 1.6;">
+            Need help getting set up? We offer <strong>dedicated onboarding support</strong> for Enterprise customers — just reply to this email
+            and we'll schedule a walkthrough to get your portfolio loaded.
           </p>
         </div>
 ` : '';
@@ -551,7 +598,10 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
 
   const businessFeatures = isBusinessTier ? `
             <li><strong>3 team member seats</strong> for your organization</li>
-            <li>Priority support</li>` : '';
+            <li>Priority support</li>` : isEnterpriseTier ? `
+            <li><strong>5 team member seats</strong> for your organization</li>
+            <li>Dedicated support</li>
+            <li>Bulk upload + data export</li>` : '';
 
   const htmlBody = `
 <!DOCTYPE html>
@@ -581,7 +631,7 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
         <div style="text-align: center; margin: 30px 0;">
           <a href="${magicLinkUrl}" style="display: inline-block; background: #C05621; color: white; padding: 14px 32px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 16px;">Go to Dashboard →</a>
         </div>
-        ${bookSection}
+        ${bookSection}${enterpriseSection}
         <!-- Plan Details Box -->
         <div style="background: #F7FAFC; border-radius: 6px; padding: 24px; margin: 30px 0;">
           <h3 style="margin: 0 0 16px; color: #1C2B36; font-size: 16px;">Your ${plan} Plan Includes:</h3>
@@ -642,16 +692,29 @@ async function sendPaidWelcomeEmail(env, email, name, plan, limits, shippingAddr
 </html>
   `;
 
-  const bookText = isBusinessTier ? `
+  const bookText = isBookEligible ? `
 YOUR FREE BOOK IS ON ITS WAY!
-As a Business subscriber, you'll receive a complimentary copy of "The Mineral Rights Guide".
+As a ${plan} subscriber, you'll receive a complimentary copy of "The Mineral Rights Guide".
 We'll ship it to the address you provided. Please allow 2-3 weeks for delivery.
+
+` : '';
+
+  const enterpriseText = isEnterpriseTier ? `
+ENTERPRISE 1K — WHITE GLOVE ONBOARDING
+Welcome to our Enterprise tier. You have capacity for up to 1,000 properties and 1,000 wells,
+plus 5 team member seats for your organization.
+
+Need help getting set up? We offer dedicated onboarding support for Enterprise customers —
+just reply to this email and we'll schedule a walkthrough to get your portfolio loaded.
 
 ` : '';
 
   const businessFeaturesText = isBusinessTier ? `
 - 3 team member seats for your organization
-- Priority support` : '';
+- Priority support` : isEnterpriseTier ? `
+- 5 team member seats for your organization
+- Dedicated support
+- Bulk upload + data export` : '';
 
   // Document credits text (for all paid tiers)
   const docCreditsText = limits.docCredits
@@ -666,7 +729,7 @@ We'll ship it to the address you provided. Please allow 2-3 weeks for delivery.
 Thanks for subscribing to Mineral Watch ${plan}! Your account is active and ready to go.
 
 Go to Dashboard: ${magicLinkUrl}
-${bookText}
+${bookText}${enterpriseText}
 Your ${plan} Plan Includes:
 - ${limits.properties} properties with adjacent section monitoring
 - ${limits.wells} wells by API number${docCreditsText}${bonusCreditsText}
@@ -921,6 +984,37 @@ We'd love to know why you left. Just reply to this email—feedback helps us imp
 /**
  * Send email via Postmark
  */
+/**
+ * Send admin notification for new signups and upgrades
+ */
+async function sendAdminNotification(env, { type, email, name, plan, isAnnual, amount }) {
+  const emoji = type === 'new_signup' ? '🆕' : '⬆️';
+  const label = type === 'new_signup' ? 'New Signup' : 'Plan Upgrade';
+  const billing = isAnnual ? 'Annual' : 'Monthly';
+  const subject = `${emoji} ${label}: ${name || email} → ${plan} (${billing})`;
+  const textBody = `${label}\n\nName: ${name || 'N/A'}\nEmail: ${email}\nPlan: ${plan} (${billing})\nAmount: ${amount}\nTime: ${new Date().toISOString()}`;
+
+  try {
+    await fetch('https://api.postmarkapp.com/email', {
+      method: 'POST',
+      headers: {
+        'Accept': 'application/json',
+        'Content-Type': 'application/json',
+        'X-Postmark-Server-Token': env.POSTMARK_API_KEY
+      },
+      body: JSON.stringify({
+        From: 'system@mymineralwatch.com',
+        To: 'james@mymineralwatch.com',
+        Subject: subject,
+        TextBody: textBody
+      })
+    });
+    console.log(`[Admin] Notified: ${subject}`);
+  } catch (err) {
+    console.error('[Admin] Failed to send notification:', err.message);
+  }
+}
+
 async function sendEmail(env, to, subject, htmlBody, textBody) {
   try {
     const response = await fetch('https://api.postmarkapp.com/email', {

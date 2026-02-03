@@ -318,14 +318,13 @@
                             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 250px; max-width: 400px;">
                                 <select id="prefNotificationMode" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
                                     <option value="Use Org Default">Use Organization Default</option>
-                                    <option value="Instant">Instant - Get alerts immediately</option>
-                                    <option value="Daily Digest">Daily Digest - Summary at 6 PM CT</option>
-                                    <option value="Weekly Digest">Weekly Digest - Summary on Sunday</option>
-                                    <option value="Instant + Weekly">Both - Instant + Weekly Summary</option>
+                                    <option value="Daily + Weekly">Daily Updates + Weekly Report (Recommended)</option>
+                                    <option value="Daily Digest">Daily Updates Only</option>
+                                    <option value="Weekly Report">Weekly Report Only</option>
                                     <option value="None">None - No notifications</option>
                                 </select>
                                 <p id="notificationModeHint" style="font-size: 12px; color: var(--slate-blue); margin-top: 6px;">
-                                    Digests bundle all your alerts into a single email for easier reading.
+                                    Daily updates arrive each morning with your property alerts. Weekly reports include regional activity.
                                 </p>
                             </div>
                         </div>
@@ -422,10 +421,9 @@
                             <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
                                 <label for="orgNotificationMode" style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 6px;">Default Notification Mode</label>
                                 <select id="orgNotificationMode" style="width: 100%; padding: 10px 12px; border: 1px solid var(--border); border-radius: 4px; font-size: 14px;">
-                                    <option value="Instant">Instant - Send alerts immediately</option>
-                                    <option value="Daily Digest">Daily Digest - Summary at 6 PM CT</option>
-                                    <option value="Weekly Digest">Weekly Digest - Summary on Sunday</option>
-                                    <option value="Instant + Weekly">Both - Instant + Weekly Summary</option>
+                                    <option value="Daily + Weekly">Daily Updates + Weekly Report (Recommended)</option>
+                                    <option value="Daily Digest">Daily Updates Only</option>
+                                    <option value="Weekly Report">Weekly Report Only</option>
                                     <option value="None">None - No notifications</option>
                                 </select>
                             </div>
@@ -503,12 +501,12 @@
         window.closeToast = closeToast;
         
         const planConfigs = {
-            'Free': { properties: 1, wells: 1, members: 1, features: ['1 property', '1 well', '10 document credits (lifetime trial)', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
+            'Free': { properties: 1, wells: 1, members: 1, features: ['1 property', '1 well', '3 document credits/month', 'Adjacent monitoring', 'Daily scans', 'Email alerts'] },
             'Starter': { properties: 10, wells: 10, members: 1, features: ['10 properties', '10 wells', '10 document credits/month', 'Adjacent monitoring', 'Daily scans', 'Email alerts', 'Email support'] },
-            'Standard': { properties: 50, wells: 50, members: 1, features: ['50 properties', '50 wells', '25 document credits/month', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Export data'] },
-            'Professional': { properties: 250, wells: 250, members: 1, features: ['250 properties', '250 wells', '50 document credits/month', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload', 'Export data', 'Organization management'] },
+            'Standard': { properties: 50, wells: 50, members: 1, features: ['50 properties', '50 wells', '25 document credits/month', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Export data', 'Free copy of The Mineral Rights Guide'] },
+            'Professional': { properties: 250, wells: 250, members: 1, features: ['250 properties', '250 wells', '50 document credits/month', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Bulk upload', 'Export data', 'Organization management', 'Free copy of The Mineral Rights Guide'] },
             'Business': { properties: 500, wells: 500, members: 3, features: ['500 properties', '500 wells', '100 document credits/month', '3 team members', 'Adjacent monitoring', 'Daily scans', 'Priority support', 'Dedicated support', 'Export data', 'Free copy of The Mineral Rights Guide'] },
-            'Enterprise': { properties: Infinity, wells: Infinity, members: 5, features: ['Unlimited properties', 'Unlimited wells', '250 document credits/month', '5+ team members', 'All features', 'Dedicated support', 'Export data'] }
+            'Enterprise': { properties: 1000, wells: 1000, members: 5, features: ['1,000 properties', '1,000 wells', '150 document credits/month', '5+ team members', 'All features', 'Dedicated support', 'Export data', 'Free copy of The Mineral Rights Guide'] }
         };
         
         let currentUser = null;
@@ -1033,12 +1031,12 @@
             } else {
                 // Hide "Use Org Default" option - not in an org
                 modeSelect.querySelector('option[value="Use Org Default"]').style.display = 'none';
-                // Set default to Instant if not set (for non-org users)
+                // Set default to Daily + Weekly if not set (for non-org users)
                 const currentMode = user.notificationOverride && user.notificationOverride !== 'Use Org Default'
                     ? user.notificationOverride
-                    : 'Instant';
+                    : 'Daily + Weekly';
                 modeSelect.value = currentMode;
-                modeHint.textContent = 'Digests bundle all your alerts into a single email for easier reading.';
+                modeHint.textContent = 'Daily updates arrive each morning with your property alerts. Weekly reports include regional activity.';
             }
 
             // Add change listener to update hint
@@ -1050,13 +1048,15 @@
         function updateNotificationModeHint(mode, orgDefault) {
             const hint = document.getElementById('notificationModeHint');
             if (mode === 'Use Org Default') {
-                hint.textContent = `Your organization default: ${orgDefault || 'Instant'}`;
+                hint.textContent = `Your organization default: ${orgDefault || 'Daily + Weekly'}`;
             } else if (mode === 'None') {
                 hint.textContent = 'You will not receive any alert notifications.';
-            } else if (mode === 'Instant + Weekly') {
-                hint.textContent = 'Get alerts immediately plus a weekly summary every Sunday.';
-            } else {
-                hint.textContent = 'Digests bundle all your alerts into a single email for easier reading.';
+            } else if (mode === 'Daily + Weekly') {
+                hint.textContent = 'Morning email with your property alerts plus a weekly report with regional activity.';
+            } else if (mode === 'Daily Digest') {
+                hint.textContent = 'Morning email with your property alerts. No weekly report.';
+            } else if (mode === 'Weekly Report') {
+                hint.textContent = 'All alerts bundled into a weekly report with regional activity every Sunday.';
             }
         }
 
