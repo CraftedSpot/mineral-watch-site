@@ -1,5 +1,5 @@
         // =============================================
-        // INTELLIGENCE TABS & OPERATOR DIRECTORY
+        // INTELLIGENCE TABS & OPERATOR TOOLS
         // =============================================
 
         // Tab switching
@@ -34,32 +34,299 @@
         });
 
         // =============================================
-        // OPERATOR DIRECTORY
+        // OPERATOR EFFICIENCY INDEX (Financial metrics)
         // =============================================
 
-        let directoryPage = 0;
-        let directoryPageSize = 50;
-        let directoryTotalCount = 0;
-        let currentDirectoryOperators = [];
-        let directorySort = { key: 'well_count', dir: 'desc' }; // Default sort
+        let allEfficiencyOperators = []; // Full dataset from server
+        let efficiencyOperators = []; // Filtered for display
+        let efficiencySort = { key: 'well_count', dir: 'desc' };
+        let efficiencySearchTerm = '';
 
-        // Directory sorting
+        function loadOperatorEfficiency() {
+            document.querySelector('main').style.display = 'none';
+            document.querySelector('.intel-hero').style.display = 'none';
+            document.getElementById('operatorEfficiencyViewer').style.display = 'block';
+
+            setupEfficiencyListeners();
+            fetchOperatorEfficiency();
+        }
+
+        function closeOperatorEfficiency() {
+            document.getElementById('operatorEfficiencyViewer').style.display = 'none';
+            document.querySelector('main').style.display = 'block';
+            document.querySelector('.intel-hero').style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+
+        function setupEfficiencyListeners() {
+            if (window._efficiencyListenersSetup) return;
+            window._efficiencyListenersSetup = true;
+
+            // Search with debounce - client-side filtering
+            let searchTimeout;
+            document.getElementById('efficiencySearchInput').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    efficiencySearchTerm = e.target.value.trim();
+                    applyEfficiencyFilters();
+                }, 150);
+            });
+
+            // Min wells change - requires server reload
+            document.getElementById('efficiencyMinWells').addEventListener('change', () => {
+                fetchOperatorEfficiency();
+            });
+        }
+
+        async function fetchOperatorEfficiency() {
+            const minWells = document.getElementById('efficiencyMinWells').value;
+            const params = new URLSearchParams({
+                min_wells: minWells,
+                limit: 1000 // Load all at once for client-side sorting
+            });
+
+            const contentEl = document.getElementById('efficiencyContent');
+            contentEl.innerHTML = '<div class="report-loading">Loading efficiency data...</div>';
+
+            try {
+                const response = await fetch(`/api/operators/efficiency?${params}`);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to load efficiency data');
+                }
+
+                const data = await response.json();
+                allEfficiencyOperators = data.operators;
+                efficiencySearchTerm = document.getElementById('efficiencySearchInput').value.trim();
+
+                updateEfficiencyStats(data);
+                applyEfficiencyFilters();
+
+            } catch (error) {
+                contentEl.innerHTML = `
+                    <div class="directory-error">${escapeHtml(error.message)}</div>
+                `;
+                showToast(error.message, 'error');
+            }
+        }
+
+        function updateEfficiencyStats(data) {
+            document.getElementById('efficiencySubtitle').textContent =
+                `${formatNumber(data.operators.length)} operators · 6-month analysis`;
+
+            // Calculate distribution from full dataset
+            const dist = data.operators.reduce((acc, op) => {
+                if (op.net_value_return >= 0) acc.positive++;
+                else if (op.net_value_return > -1000000) acc.neutral++;
+                else if (op.net_value_return > -10000000) acc.warning++;
+                else acc.danger++;
+                return acc;
+            }, { positive: 0, neutral: 0, warning: 0, danger: 0 });
+
+            document.getElementById('efficiencyStats').innerHTML = `
+                <span class="legend-pill success" title="Positive Net Return">${dist.positive}</span>
+                <span class="legend-pill neutral" title="Neutral ($0 to -$1M)">${dist.neutral}</span>
+                <span class="legend-pill warning" title="Moderate (-$1M to -$10M)">${dist.warning}</span>
+                <span class="legend-pill danger" title="Significant (below -$10M)">${dist.danger}</span>
+            `;
+        }
+
+        function handleEfficiencySort(key) {
+            if (efficiencySort.key === key) {
+                efficiencySort.dir = efficiencySort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                // Default directions: desc for numbers (show highest/lowest first), asc for name
+                const defaultAsc = ['net_value_return', 'pcrr', 'name'];
+                efficiencySort.key = key;
+                efficiencySort.dir = defaultAsc.includes(key) ? 'asc' : 'desc';
+            }
+            applyEfficiencyFilters(); // Client-side sort, no refetch needed
+        }
+
+        function renderEfficiencySortArrow(key) {
+            if (efficiencySort.key !== key) {
+                return '<span class="sort-arrows"><span class="sort-arrow">▲</span><span class="sort-arrow">▼</span></span>';
+            }
+            return efficiencySort.dir === 'asc'
+                ? '<span class="sort-arrows"><span class="sort-arrow active">▲</span><span class="sort-arrow">▼</span></span>'
+                : '<span class="sort-arrows"><span class="sort-arrow">▲</span><span class="sort-arrow active">▼</span></span>';
+        }
+
+        function sortEfficiencyData(data, key, dir) {
+            const sortKey = key === 'name' ? 'operator_name'
+                          : key === 'deductions' ? 'residue_deductions'
+                          : key;
+            return [...data].sort((a, b) => {
+                let aVal = a[sortKey];
+                let bVal = b[sortKey];
+
+                if (aVal == null && bVal == null) return 0;
+                if (aVal == null) return dir === 'asc' ? 1 : -1;
+                if (bVal == null) return dir === 'asc' ? -1 : 1;
+
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+
+                return dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        function applyEfficiencyFilters() {
+            const search = efficiencySearchTerm.toLowerCase();
+            efficiencyOperators = allEfficiencyOperators.filter(op => {
+                if (!search) return true;
+                return op.operator_name.toLowerCase().includes(search) ||
+                       op.operator_number.includes(search);
+            });
+            renderEfficiencyTable();
+        }
+
+        function renderEfficiencyTable() {
+            if (!efficiencyOperators || efficiencyOperators.length === 0) {
+                document.getElementById('efficiencyContent').innerHTML = `
+                    <div class="directory-empty">${efficiencySearchTerm ? 'No operators match your search' : 'No operators found'}</div>
+                `;
+                return;
+            }
+
+            // Sort the data client-side
+            const sortedOperators = sortEfficiencyData(efficiencyOperators, efficiencySort.key, efficiencySort.dir);
+
+            // Show count if filtered
+            const countHtml = efficiencySearchTerm
+                ? `<div class="search-result-count">Showing ${efficiencyOperators.length} of ${allEfficiencyOperators.length} operators</div>`
+                : '';
+
+            let html = countHtml + `
+                <table class="directory-table efficiency-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="handleEfficiencySort('name')">Operator${renderEfficiencySortArrow('name')}</th>
+                            <th class="text-right sortable" onclick="handleEfficiencySort('well_count')" title="Number of active wells">Wells${renderEfficiencySortArrow('well_count')}</th>
+                            <th class="text-right sortable" onclick="handleEfficiencySort('deductions')" title="Processing fees taken (Product 5 - Residue Gas)">Deductions${renderEfficiencySortArrow('deductions')}</th>
+                            <th class="text-right sortable" onclick="handleEfficiencySort('pcrr_value')" title="Value returned from extracted liquids (Product 6 - NGLs)">NGL Returned${renderEfficiencySortArrow('pcrr_value')}</th>
+                            <th class="text-right sortable" onclick="handleEfficiencySort('net_value_return')" title="NGL Returned minus Deductions. Positive = more returned than taken.">Net Return${renderEfficiencySortArrow('net_value_return')}</th>
+                            <th class="text-right sortable" onclick="handleEfficiencySort('pcrr')" title="Post-Production Cost Recovery Ratio: NGL ÷ Deductions × 100. Over 100% is favorable.">PCRR${renderEfficiencySortArrow('pcrr')}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sortedOperators.forEach(op => {
+                const pcrrClass = op.pcrr == null ? 'neutral'
+                    : op.pcrr >= 100 ? 'success'
+                    : op.pcrr >= 30 ? 'medium' : 'danger';
+                const returnClass = op.net_value_return == null ? 'neutral'
+                    : op.net_value_return >= 0 ? 'success'
+                    : op.net_value_return <= -10000000 ? 'danger'
+                    : op.net_value_return <= -1000000 ? 'medium' : 'neutral';
+
+                html += `
+                    <tr onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" style="cursor: pointer;">
+                        <td>
+                            <div class="op-name">${escapeHtml(op.operator_name)}</div>
+                            <div class="op-meta">#${escapeHtml(op.operator_number)}</div>
+                        </td>
+                        <td class="text-right">${formatNumber(op.well_count)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.residue_deductions)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.pcrr_value)}</td>
+                        <td class="text-right"><span class="metric-pill ${returnClass}">${formatCurrencyShort(op.net_value_return)}</span></td>
+                        <td class="text-right"><span class="metric-pill ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}</span></td>
+                        <td class="text-right">
+                            <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            document.getElementById('efficiencyContent').innerHTML = html;
+        }
+
+        function exportEfficiencyCSV() {
+            if (!allEfficiencyOperators || allEfficiencyOperators.length === 0) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            // Format number with commas
+            function formatCSVNumber(val, decimals = 2) {
+                if (val == null) return '';
+                return val.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+            }
+
+            // CSV header row
+            const headers = [
+                'Operator Number',
+                'Operator Name',
+                'Status',
+                'Primary County',
+                'Well Count',
+                'Total Gross ($)',
+                'Deductions ($)',
+                'Deduction %',
+                'NGL Returned ($)',
+                'Net Return ($)',
+                'PCRR %'
+            ];
+
+            // Build CSV rows
+            const rows = allEfficiencyOperators.map(op => [
+                op.operator_number,
+                `"${(op.operator_name || '').replace(/"/g, '""')}"`, // Escape quotes in name
+                op.status || '',
+                op.primary_county || '',
+                op.well_count || 0,
+                op.total_gross != null ? `"${formatCSVNumber(op.total_gross)}"` : '',
+                op.residue_deductions != null ? `"${formatCSVNumber(op.residue_deductions)}"` : '',
+                op.deduction_pct != null ? formatCSVNumber(op.deduction_pct, 1) : '',
+                op.pcrr_value != null ? `"${formatCSVNumber(op.pcrr_value)}"` : '',
+                op.net_value_return != null ? `"${formatCSVNumber(op.net_value_return)}"` : '',
+                op.pcrr != null ? formatCSVNumber(op.pcrr, 1) : ''
+            ]);
+
+            // Combine into CSV string
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+            // Create download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `operator-efficiency-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`Exported ${allEfficiencyOperators.length} operators`, 'success');
+        }
+
+        // =============================================
+        // OPERATOR DIRECTORY (Contact info, no financials)
+        // =============================================
+
+        let allDirectoryOperators = [];
+        let currentDirectoryOperators = [];
+        let directorySort = { key: 'well_count', dir: 'desc' };
+        let directorySearchTerm = '';
+
         function sortDirectoryData(data, key, dir) {
             return [...data].sort((a, b) => {
                 let aVal = a[key];
                 let bVal = b[key];
 
-                // Handle nulls
                 if (aVal == null && bVal == null) return 0;
                 if (aVal == null) return dir === 'asc' ? -1 : 1;
                 if (bVal == null) return dir === 'asc' ? 1 : -1;
 
-                // String comparison
                 if (typeof aVal === 'string' && typeof bVal === 'string') {
                     return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
                 }
 
-                // Numeric comparison
                 return dir === 'asc' ? aVal - bVal : bVal - aVal;
             });
         }
@@ -68,10 +335,20 @@
             if (directorySort.key === key) {
                 directorySort.dir = directorySort.dir === 'asc' ? 'desc' : 'asc';
             } else {
-                // Default to desc for numbers, asc for name
                 directorySort = { key, dir: key === 'operator_name' ? 'asc' : 'desc' };
             }
-            renderDirectoryTable(currentDirectoryOperators, { has_more: directoryTotalCount > (directoryPage + 1) * directoryPageSize });
+            applyDirectoryFilters();
+        }
+
+        function applyDirectoryFilters() {
+            const search = directorySearchTerm.toLowerCase();
+            currentDirectoryOperators = allDirectoryOperators.filter(op => {
+                if (!search) return true;
+                return op.operator_name.toLowerCase().includes(search) ||
+                       op.operator_number.includes(search) ||
+                       (op.city && op.city.toLowerCase().includes(search));
+            });
+            renderDirectoryTable(currentDirectoryOperators);
         }
 
         function renderDirectorySortArrow(key) {
@@ -84,15 +361,11 @@
         }
 
         function loadOperatorDirectory() {
-            // Hide main content, show directory viewer
             document.querySelector('main').style.display = 'none';
             document.querySelector('.intel-hero').style.display = 'none';
             document.getElementById('operatorDirectoryViewer').style.display = 'block';
 
-            // Setup event listeners
             setupDirectoryListeners();
-
-            // Load data
             fetchOperatorDirectory();
         }
 
@@ -104,48 +377,26 @@
         }
 
         function setupDirectoryListeners() {
-            // Only setup once
             if (window._directoryListenersSetup) return;
             window._directoryListenersSetup = true;
 
-            // Search with debounce
             let searchTimeout;
-            document.getElementById('directorySearchInput').addEventListener('input', () => {
+            document.getElementById('directorySearchInput').addEventListener('input', (e) => {
                 clearTimeout(searchTimeout);
                 searchTimeout = setTimeout(() => {
-                    directoryPage = 0;
-                    fetchOperatorDirectory();
-                }, 300);
+                    directorySearchTerm = e.target.value.trim();
+                    applyDirectoryFilters();
+                }, 150);
             });
 
-            // Sort change
-            document.getElementById('directorySortSelect').addEventListener('change', () => {
-                directoryPage = 0;
-                fetchOperatorDirectory();
-            });
-
-            // Min wells change
             document.getElementById('directoryMinWells').addEventListener('change', () => {
-                directoryPage = 0;
                 fetchOperatorDirectory();
             });
         }
 
         async function fetchOperatorDirectory() {
-            const search = document.getElementById('directorySearchInput').value.trim();
-            const sort = document.getElementById('directorySortSelect').value;
             const minWells = document.getElementById('directoryMinWells').value;
-
-            const params = new URLSearchParams({
-                sort,
-                min_wells: minWells,
-                limit: directoryPageSize.toString(),
-                offset: (directoryPage * directoryPageSize).toString()
-            });
-
-            if (search) {
-                params.set('search', search);
-            }
+            const params = new URLSearchParams({ min_wells: minWells });
 
             document.getElementById('directoryContent').innerHTML = '<div class="report-loading">Loading operators...</div>';
 
@@ -157,11 +408,13 @@
                 }
 
                 const data = await response.json();
-                currentDirectoryOperators = data.operators;
-                directoryTotalCount = data.total_count;
+                allDirectoryOperators = data.operators;
+                directorySearchTerm = document.getElementById('directorySearchInput').value.trim();
 
-                updateDirectoryStats(data);
-                renderDirectoryTable(data.operators, data.pagination);
+                document.getElementById('directorySubtitle').textContent =
+                    `${formatNumber(data.total_count)} operators`;
+
+                applyDirectoryFilters();
 
             } catch (error) {
                 document.getElementById('directoryContent').innerHTML = `
@@ -171,49 +424,28 @@
             }
         }
 
-        function updateDirectoryStats(data) {
-            // Use distribution from backend
-            const dist = data.distribution;
-
-            if (dist && dist.total_operators > 0) {
-                document.getElementById('directorySubtitle').textContent =
-                    `${formatNumber(dist.total_operators)} operators · ${formatNumber(dist.total_wells)} wells`;
-
-                document.getElementById('directoryStats').innerHTML = `
-                    <span class="legend-pill success" title="Positive Net Return: Returned more value than deducted">${dist.positive}</span>
-                    <span class="legend-pill neutral" title="Neutral: Net Return between $0 and -$1M">${dist.neutral}</span>
-                    <span class="legend-pill warning" title="Moderate: Net Return between -$1M and -$10M">${dist.warning}</span>
-                    <span class="legend-pill danger" title="Significant: Net Return below -$10M">${dist.danger}</span>
-                `;
-            } else {
-                document.getElementById('directorySubtitle').textContent =
-                    `${formatNumber(data.total_count)} operators`;
-                document.getElementById('directoryStats').innerHTML = '';
-            }
-        }
-
-        function renderDirectoryTable(operators, pagination) {
+        function renderDirectoryTable(operators) {
             if (!operators || operators.length === 0) {
                 document.getElementById('directoryContent').innerHTML = `
-                    <div class="directory-empty">No operators found matching your criteria</div>
+                    <div class="directory-empty">${directorySearchTerm ? 'No operators match your search' : 'No operators found'}</div>
                 `;
                 return;
             }
 
-            // Sort the data
             const sortedOperators = sortDirectoryData(operators, directorySort.key, directorySort.dir);
 
-            let html = `
-                <table class="directory-table">
+            const countHtml = directorySearchTerm
+                ? `<div class="search-result-count">Showing ${operators.length} of ${allDirectoryOperators.length} operators</div>`
+                : '';
+
+            let html = countHtml + `
+                <table class="directory-table compact-directory">
                     <thead>
                         <tr>
                             <th class="sortable" onclick="handleDirectorySort('operator_name')">Operator${renderDirectorySortArrow('operator_name')}</th>
-                            <th class="text-right sortable" onclick="handleDirectorySort('well_count')" title="Number of active wells">Wells${renderDirectorySortArrow('well_count')}</th>
-                            <th class="text-right sortable" onclick="handleDirectorySort('residue_deductions')" title="Processing fees taken from revenue (Product 5 - Residue Gas)">Deductions${renderDirectorySortArrow('residue_deductions')}</th>
-                            <th class="text-right sortable" onclick="handleDirectorySort('pcrr_value')" title="Value returned from extracted liquids (Product 6 - NGLs from plant)">NGL Returned${renderDirectorySortArrow('pcrr_value')}</th>
-                            <th class="text-right sortable" onclick="handleDirectorySort('net_value_return')" title="NGL Returned minus Deductions. Positive means more value returned than taken. Negative means value was extracted.">Net Return${renderDirectorySortArrow('net_value_return')}</th>
-                            <th class="text-right sortable" onclick="handleDirectorySort('pcrr')" title="Post-Production Cost Recovery Ratio: NGL Returned ÷ Deductions × 100. Higher is better - over 100% means more returned than taken.">PCRR${renderDirectorySortArrow('pcrr')}</th>
-                            <th class="text-right sortable" onclick="handleDirectorySort('county_variance')" title="Difference between this operator's deduction rate and the median rate for operators in their primary county. Positive means they deduct more than peers in the same area.">vs County${renderDirectorySortArrow('county_variance')}</th>
+                            <th class="sortable" onclick="handleDirectorySort('well_count')">Wells${renderDirectorySortArrow('well_count')}</th>
+                            <th>Contact</th>
+                            <th>Mailing Address</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -221,37 +453,49 @@
             `;
 
             sortedOperators.forEach(op => {
-                // PCRR: >100% is good (more returned than taken), <10% is concerning
-                const pcrrClass = op.pcrr == null ? 'neutral'
-                    : op.pcrr >= 100 ? 'success'
-                    : op.pcrr >= 30 ? 'medium' : 'danger';
-                // Net return: positive = good (returned more), negative = bad (extracted value)
-                const returnClass = op.net_value_return == null ? 'neutral'
-                    : op.net_value_return >= 0 ? 'success'
-                    : op.net_value_return <= -10000000 ? 'danger'
-                    : op.net_value_return <= -1000000 ? 'medium' : 'neutral';
-                // County variance: negative = good (below county avg), positive = bad (above county avg)
-                const varianceClass = op.county_variance == null ? 'neutral'
-                    : op.county_variance <= -5 ? 'success'
-                    : op.county_variance >= 10 ? 'danger'
-                    : op.county_variance >= 5 ? 'medium' : 'neutral';
-                const varianceDisplay = op.county_variance != null
-                    ? (op.county_variance > 0 ? '+' : '') + op.county_variance + ' pts'
-                    : '—';
+                const statusBadge = op.status === 'OPEN'
+                    ? '<span class="status-active">Active</span>'
+                    : op.status === 'CLOSED'
+                        ? '<span class="status-inactive">Inactive</span>'
+                        : '';
+
+                // Contact: name + phone stacked
+                let contactHtml = '';
+                if (op.contact_name) {
+                    contactHtml += `<div class="contact-name">${escapeHtml(op.contact_name)}</div>`;
+                }
+                if (op.phone) {
+                    contactHtml += `<div class="contact-phone"><a href="tel:${escapeHtml(op.phone)}" onclick="event.stopPropagation();">${escapeHtml(op.phone)}</a></div>`;
+                }
+                if (!contactHtml) contactHtml = '—';
+
+                // Full mailing address
+                let addressHtml = '';
+                if (op.address) {
+                    addressHtml += `<div class="address-line">${escapeHtml(op.address)}</div>`;
+                }
+                if (op.city || op.state || op.zip) {
+                    const cityStateZip = [
+                        op.city,
+                        op.state,
+                        op.zip
+                    ].filter(Boolean).join(op.city && op.state ? ', ' : ' ').replace(/, (\d)/, ' $1');
+                    if (cityStateZip) {
+                        addressHtml += `<div class="address-line">${escapeHtml(cityStateZip)}</div>`;
+                    }
+                }
+                if (!addressHtml) addressHtml = '—';
 
                 html += `
                     <tr onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" style="cursor: pointer;">
                         <td>
                             <div class="op-name">${escapeHtml(op.operator_name)}</div>
-                            <div class="op-meta">#${escapeHtml(op.operator_number)} ${op.status === 'OPEN' ? '<span class="status-active">Active</span>' : op.status === 'CLOSED' ? '<span class="status-inactive">Inactive</span>' : ''}</div>
+                            <div class="op-meta">#${escapeHtml(op.operator_number)} ${statusBadge}</div>
                         </td>
-                        <td class="text-right">${formatNumber(op.well_count)}</td>
-                        <td class="text-right">${formatCurrencyShort(op.residue_deductions)}</td>
-                        <td class="text-right">${formatCurrencyShort(op.pcrr_value)}</td>
-                        <td class="text-right"><span class="metric-pill ${returnClass}">${formatCurrencyShort(op.net_value_return)}</span></td>
-                        <td class="text-right"><span class="metric-pill ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}</span></td>
-                        <td class="text-right"><span class="metric-pill ${varianceClass}">${varianceDisplay}</span></td>
-                        <td class="text-right">
+                        <td class="wells-cell">${formatNumber(op.well_count)}</td>
+                        <td class="contact-cell">${contactHtml}</td>
+                        <td class="address-cell">${addressHtml}</td>
+                        <td class="arrow-cell">
                             <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
                         </td>
                     </tr>
@@ -259,40 +503,11 @@
             });
 
             html += '</tbody></table>';
-
-            // Pagination
-            if (directoryTotalCount > directoryPageSize) {
-                const totalPages = Math.ceil(directoryTotalCount / directoryPageSize);
-                const currentPageNum = directoryPage + 1;
-
-                html += `
-                    <div class="directory-pagination">
-                        <button class="btn btn-secondary" onclick="directoryPrevPage()" ${directoryPage === 0 ? 'disabled' : ''}>Previous</button>
-                        <span class="page-info">Page ${currentPageNum} of ${totalPages}</span>
-                        <button class="btn btn-secondary" onclick="directoryNextPage()" ${!pagination.has_more ? 'disabled' : ''}>Next</button>
-                    </div>
-                `;
-            }
-
             document.getElementById('directoryContent').innerHTML = html;
         }
 
-        function directoryPrevPage() {
-            if (directoryPage > 0) {
-                directoryPage--;
-                fetchOperatorDirectory();
-            }
-        }
-
-        function directoryNextPage() {
-            if ((directoryPage + 1) * directoryPageSize < directoryTotalCount) {
-                directoryPage++;
-                fetchOperatorDirectory();
-            }
-        }
-
         // =============================================
-        // OPERATOR DETAIL MODAL
+        // OPERATOR DETAIL MODAL (shared by both views)
         // =============================================
 
         async function openOperatorDetail(operatorNumber) {
@@ -300,8 +515,10 @@
             const modalBody = document.getElementById('modalBody');
             const modalTitle = document.getElementById('modalOperatorName');
 
-            // Find operator in current list for immediate name display
-            const op = currentDirectoryOperators.find(o => o.operator_number === operatorNumber);
+            // Try to find name from either list
+            const fromEff = allEfficiencyOperators.find(o => o.operator_number === operatorNumber);
+            const fromDir = currentDirectoryOperators.find(o => o.operator_number === operatorNumber);
+            const op = fromEff || fromDir;
             modalTitle.textContent = op ? op.operator_name : `Operator ${operatorNumber}`;
 
             modal.style.display = 'flex';
@@ -314,14 +531,16 @@
 
             try {
                 const response = await fetch(`/api/operators/${operatorNumber}`);
+                const data = await response.json();
+
                 if (!response.ok) {
-                    throw new Error('Failed to load operator details');
+                    throw new Error(data.message || data.error || 'Failed to load operator details');
                 }
 
-                const data = await response.json();
                 renderOperatorModal(data);
 
             } catch (error) {
+                console.error('[Operator Detail] Error:', error);
                 modalBody.innerHTML = `
                     <div style="text-align: center; padding: 2rem; color: var(--danger-red);">
                         ${escapeHtml(error.message)}
@@ -336,7 +555,9 @@
 
             const summary = data.summary;
             const contact = data.contact;
-            const efficiency = data.efficiency;
+
+            const netValueReturn = summary.pcrr_value - summary.residue_deductions;
+            const netReturnClass = netValueReturn >= 0 ? 'positive' : netValueReturn <= -1000000 ? 'negative' : '';
 
             let html = `
                 <div class="modal-stats">
@@ -350,56 +571,43 @@
                     </div>
                     <div class="modal-stat">
                         <div class="modal-stat-value">${summary.deduction_ratio}%</div>
-                        <div class="modal-stat-label">Deduction Ratio</div>
+                        <div class="modal-stat-label">Deduction Rate</div>
                     </div>
                     <div class="modal-stat">
-                        <div class="modal-stat-value ${efficiency.pcrr >= 100 ? 'positive' : efficiency.pcrr < 10 ? 'negative' : ''}">${summary.pcrr != null ? summary.pcrr + '%' : 'N/A'}</div>
+                        <div class="modal-stat-value ${summary.pcrr >= 100 ? 'positive' : summary.pcrr < 10 ? 'negative' : ''}">${summary.pcrr != null ? summary.pcrr + '%' : 'N/A'}</div>
                         <div class="modal-stat-label">PCRR</div>
                     </div>
                 </div>
             `;
 
-            // Efficiency Scorecard
-            if (efficiency) {
-                const tierColors = {
-                    outperformer: 'success',
-                    standard: 'info',
-                    outlier: 'danger',
-                    dry_gas_focus: 'warning'
-                };
-                const tierLabels = {
-                    outperformer: 'Outperformer',
-                    standard: 'Standard',
-                    outlier: 'Outlier',
-                    dry_gas_focus: 'Dry Gas Profile'
-                };
-
-                html += `
-                    <div class="modal-section efficiency-scorecard">
-                        <h3>Efficiency Scorecard</h3>
-                        <div class="scorecard-grid">
-                            <div class="scorecard-metric">
-                                <div class="metric-value ${efficiency.pcrr >= 100 ? 'positive' : efficiency.pcrr < 10 ? 'negative' : ''}">${efficiency.pcrr ?? 'N/A'}%</div>
-                                <div class="metric-label">PCRR</div>
-                                <div class="metric-context">vs 100% break-even</div>
-                            </div>
-                            <div class="scorecard-metric">
-                                <div class="metric-value ${efficiency.county_variance < 0 ? 'positive' : efficiency.county_variance > 20 ? 'negative' : ''}">${efficiency.county_variance !== null ? (efficiency.county_variance > 0 ? '+' : '') + efficiency.county_variance + ' pts' : '—'}</div>
-                                <div class="metric-label">County Variance</div>
-                                <div class="metric-context">vs regional median</div>
-                            </div>
+            // Financial Breakdown
+            html += `
+                <div class="modal-section financial-breakdown">
+                    <h3>Financial Breakdown (6 Months)</h3>
+                    <div class="breakdown-grid">
+                        <div class="breakdown-row">
+                            <span class="breakdown-label">Total Production Value</span>
+                            <span class="breakdown-value">${formatCurrencyShort(summary.total_gross)}</span>
                         </div>
-                        <div class="tier-display">
-                            <span class="tier-label">Efficiency Tier:</span>
-                            <span class="tier-badge ${tierColors[efficiency.tier]}">${tierLabels[efficiency.tier]}</span>
+                        <div class="breakdown-row deduction">
+                            <span class="breakdown-label">Processing Deductions (Prod 5)</span>
+                            <span class="breakdown-value">-${formatCurrencyShort(summary.residue_deductions)}</span>
                         </div>
-                        <div class="auditor-note ${efficiency.tier}">
-                            <div class="note-header">Technical Assessment</div>
-                            <p class="note-text">${escapeHtml(efficiency.technical_auditor_note)}</p>
+                        <div class="breakdown-row return">
+                            <span class="breakdown-label">NGL Returned (Prod 6)</span>
+                            <span class="breakdown-value">+${formatCurrencyShort(summary.pcrr_value)}</span>
+                        </div>
+                        <div class="breakdown-row net ${netReturnClass}">
+                            <span class="breakdown-label"><strong>Net Value Return</strong></span>
+                            <span class="breakdown-value"><strong>${formatCurrencyShort(netValueReturn)}</strong></span>
                         </div>
                     </div>
-                `;
-            }
+                    <div class="breakdown-context">
+                        <p><strong>PCRR</strong> = NGL Returned ÷ Deductions × 100</p>
+                        <p>Over 100% = More value returned than deducted (favorable)</p>
+                    </div>
+                </div>
+            `;
 
             // Contact info
             if (contact && (contact.phone || contact.address || contact.contact_name)) {
@@ -452,14 +660,24 @@
                 `;
             }
 
-            // Counties
+            // Top Counties with metrics
             if (data.counties && data.counties.length > 0) {
                 html += `
                     <div class="modal-section">
                         <h3>Top Counties</h3>
                         <div class="county-pills">
-                            ${data.counties.slice(0, 5).map(c => `<span class="county-pill">${escapeHtml(c.county || 'Unknown')} (${c.well_count})</span>`).join('')}
+                            ${data.counties.slice(0, 5).map(c => `<span class="county-pill">${escapeHtml(c.county || 'Unknown')} <small>(${c.well_count} wells)</small></span>`).join('')}
                         </div>
+                    </div>
+                `;
+            }
+
+            // All counties
+            if (data.all_counties && data.all_counties.length > 0) {
+                html += `
+                    <div class="modal-section">
+                        <h3>All Counties (${data.all_counties.length})</h3>
+                        <p class="counties-list">${data.all_counties.join(', ')}</p>
                     </div>
                 `;
             }
@@ -479,7 +697,10 @@
             if (e.key === 'Escape') closeOperatorModal();
         });
 
-        // Utility functions for directory
+        // =============================================
+        // UTILITY FUNCTIONS
+        // =============================================
+
         function formatNumber(num) {
             if (num == null) return '—';
             return num.toLocaleString();
@@ -487,7 +708,6 @@
 
         function formatCurrencyShort(amount) {
             if (amount == null || isNaN(amount)) return '—';
-            // Handle negative amounts (value returned > deductions)
             const isNegative = amount < 0;
             const absAmount = Math.abs(amount);
             let formatted;
@@ -507,7 +727,6 @@
             return months[parseInt(yyyymm.substring(4, 6), 10) - 1] + ' ' + yyyymm.substring(2, 4);
         }
 
-        // escapeHtml for directory (if not already defined)
         if (typeof escapeHtml === 'undefined') {
             window.escapeHtml = function(str) {
                 if (!str) return '';

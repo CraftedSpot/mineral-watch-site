@@ -1266,12 +1266,17 @@ var index_default = {
         return handleGetOperatorComparison(request, env);
       }
 
-      // Operator Directory API
+      // Operator Directory API (contact info, no financial data - fast)
       if (path === "/api/operators/directory" && request.method === "GET") {
         const { handleGetOperatorDirectory } = await import('./handlers/operators.js');
         return handleGetOperatorDirectory(request, env);
       }
-      // Operator detail - must check after /directory to avoid path conflicts
+      // Operator Efficiency Index API (PCRR, deductions - paginated)
+      if (path === "/api/operators/efficiency" && request.method === "GET") {
+        const { handleGetOperatorEfficiency } = await import('./handlers/operators.js');
+        return handleGetOperatorEfficiency(request, env);
+      }
+      // Operator detail - must check after /directory and /efficiency to avoid path conflicts
       const operatorDetailMatch = path.match(/^\/api\/operators\/(\d+)$/);
       if (operatorDetailMatch && request.method === "GET") {
         const { handleGetOperatorDetail } = await import('./handlers/operators.js');
