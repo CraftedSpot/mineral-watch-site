@@ -33,13 +33,14 @@ import {
 import { 
   dashboardHtml, 
   loginHtml, 
-  accountHtml, 
+  accountHtml,
   upgradeHtml,
   myPropertiesMapHtml,
   oklahomaMapHtml,
   adminBackfillHtml,
   learnHtml,
-  intelligenceHtml
+  intelligenceHtml,
+  operatorsHtml
 } from './templates/index.js';
 
 import {
@@ -284,6 +285,9 @@ var index_default = {
       }
       if (path === "/portal/intelligence" || path === "/portal/intelligence/") {
         return servePage(intelligenceHtml, request, env);
+      }
+      if (path === "/portal/operators" || path === "/portal/operators/") {
+        return servePage(operatorsHtml, request, env);
       }
       if (path === "/portal/learn" || path === "/portal/learn/") {
         return servePage(learnHtml, request, env);
@@ -1256,6 +1260,22 @@ var index_default = {
       if (path === "/api/intelligence/deduction-report" && request.method === "GET") {
         const { handleGetDeductionReport } = await import('./handlers/intelligence.js');
         return handleGetDeductionReport(request, env);
+      }
+      if (path === "/api/intelligence/operator-comparison" && request.method === "GET") {
+        const { handleGetOperatorComparison } = await import('./handlers/intelligence.js');
+        return handleGetOperatorComparison(request, env);
+      }
+
+      // Operator Directory API
+      if (path === "/api/operators/directory" && request.method === "GET") {
+        const { handleGetOperatorDirectory } = await import('./handlers/operators.js');
+        return handleGetOperatorDirectory(request, env);
+      }
+      // Operator detail - must check after /directory to avoid path conflicts
+      const operatorDetailMatch = path.match(/^\/api\/operators\/(\d+)$/);
+      if (operatorDetailMatch && request.method === "GET") {
+        const { handleGetOperatorDetail } = await import('./handlers/operators.js');
+        return handleGetOperatorDetail(request, env, operatorDetailMatch[1]);
       }
 
       // Debug endpoint

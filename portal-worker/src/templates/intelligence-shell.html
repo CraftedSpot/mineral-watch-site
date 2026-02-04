@@ -20,7 +20,6 @@
                     <a href="/portal/map">Map</a>
                     <a href="/portal/intelligence" class="active">Intelligence</a>
                     <a href="/portal/account">Account</a>
-                    <a href="/portal/learn">Learn</a>
                 </nav>
                 <div class="user-menu">
                     <span class="user-name" id="userName">Loading...</span>
@@ -64,6 +63,15 @@
 
     <main>
         <div class="container">
+
+            <!-- Top-level Intelligence Tabs -->
+            <div class="intel-tabs" id="intelTabs">
+                <button class="intel-tab active" data-tab="portfolio">My Portfolio</button>
+                <button class="intel-tab" data-tab="operators">Operators</button>
+            </div>
+
+            <!-- Portfolio Tab Content -->
+            <div class="intel-tab-content active" id="portfolioContent">
 
             <!-- Suggested Insights -->
             <section class="insights-section insights-loading" id="insightsSection">
@@ -116,6 +124,61 @@
                 </div>
             </section>
 
+            </div><!-- End Portfolio Tab Content -->
+
+            <!-- Operators Tab Content -->
+            <div class="intel-tab-content" id="operatorsContent" style="display: none;">
+
+                <section class="market-section">
+                    <div class="section-header">
+                        <h2 class="section-title">Operator Research Tools</h2>
+                        <span class="section-meta">Statewide efficiency metrics and benchmarking</span>
+                    </div>
+
+                    <div class="market-tools-grid">
+                        <div class="market-tool-card" onclick="loadOperatorDirectory()">
+                            <div class="tool-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                                    <circle cx="12" cy="7" r="4"/>
+                                </svg>
+                            </div>
+                            <div class="tool-content">
+                                <h3>Operator Efficiency Index</h3>
+                                <p>Browse Oklahoma operators with PCRR efficiency metrics, county benchmarking, and contact information</p>
+                            </div>
+                            <div class="tool-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                        </div>
+
+                        <div class="market-tool-card disabled" title="Coming soon">
+                            <div class="tool-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                    <polyline points="14 2 14 8 20 8"/>
+                                    <line x1="16" y1="13" x2="8" y2="13"/>
+                                    <line x1="16" y1="17" x2="8" y2="17"/>
+                                </svg>
+                            </div>
+                            <div class="tool-content">
+                                <h3>Pooling Orders</h3>
+                                <p>Research pooling orders and bonus terms by location</p>
+                                <span class="coming-soon-badge">Coming Soon</span>
+                            </div>
+                            <div class="tool-arrow">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M9 5l7 7-7 7"/>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+            </div><!-- End Operators Tab Content -->
+
         </div>
     </main>
 
@@ -158,11 +221,81 @@
         </div>
     </div>
 
+    <!-- Operator Directory Viewer (hidden by default) -->
+    <div id="operatorDirectoryViewer" style="display: none;">
+        <div class="report-header">
+            <div class="container">
+                <div class="report-breadcrumb">
+                    <a href="#" onclick="closeOperatorDirectory(); return false;">Intelligence</a>
+                    <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>Market Research</span>
+                    <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    <span>Operator Directory</span>
+                </div>
+                <div class="report-title-row">
+                    <div>
+                        <h1 class="report-title">Operator Directory</h1>
+                        <p class="report-subtitle" id="directorySubtitle">Browse Oklahoma operators</p>
+                    </div>
+                    <div class="directory-stats" id="directoryStats"></div>
+                </div>
+            </div>
+        </div>
+        <div class="report-actions-bar">
+            <div class="container">
+                <div class="report-actions-content">
+                    <div class="directory-search">
+                        <input type="text" id="directorySearchInput" placeholder="Search operators..." autocomplete="off">
+                    </div>
+                    <div class="directory-filters">
+                        <select id="directorySortSelect">
+                            <option value="well_count">Most Wells</option>
+                            <option value="value_return">Lowest Value Return</option>
+                            <option value="pcrr">Lowest PCRR</option>
+                            <option value="deduction_ratio">Highest Deduction Rate</option>
+                            <option value="name">Name (A-Z)</option>
+                        </select>
+                        <select id="directoryMinWells">
+                            <option value="5">5+ wells</option>
+                            <option value="10">10+ wells</option>
+                            <option value="20" selected>20+ wells</option>
+                            <option value="50">50+ wells</option>
+                        </select>
+                        <button class="btn btn-ghost" onclick="closeOperatorDirectory()">
+                            <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                            Back
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="container">
+            <div id="directoryContent" class="directory-content">
+                <div class="report-loading">Loading operators...</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Operator Detail Modal -->
+    <div class="modal-overlay" id="operatorModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalOperatorName">Operator Details</h2>
+                <button class="modal-close" onclick="closeOperatorModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="loading-spinner"></div>
+                <span>Loading details...</span>
+            </div>
+        </div>
+    </div>
+
     <script>
 /* __INTEL_INIT__ */
 /* __INTEL_INSIGHTS__ */
 /* __INTEL_QUESTIONS__ */
 /* __INTEL_REPORTS__ */
+/* __INTEL_OPERATORS__ */
     </script>
 </body>
 </html>

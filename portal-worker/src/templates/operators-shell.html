@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator Directory - Mineral Watch</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
+    <style>
+/* __OPERATORS_CSS__ */
+    </style>
+</head>
+<body>
+    <header>
+        <div class="container">
+            <div class="header-inner">
+                <a href="/" class="logo">Mineral Watch</a>
+                <nav class="nav-links">
+                    <a href="/portal">Dashboard</a>
+                    <a href="/portal/map">Map</a>
+                    <a href="/portal/intelligence" class="active">Intelligence</a>
+                    <a href="/portal/account">Account</a>
+                </nav>
+                <div class="user-menu">
+                    <span class="user-name" id="userName">Loading...</span>
+                    <button class="btn-logout" id="logoutBtn">Log Out</button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <div class="operators-hero">
+        <div class="container">
+            <div class="hero-content">
+                <div class="hero-text">
+                    <h1>Operator Directory</h1>
+                    <p class="hero-subtitle">Research Oklahoma operators by deduction ratios and NGL recovery metrics</p>
+                </div>
+                <div class="hero-stats" id="heroStats">
+                    <div class="hero-stat">
+                        <span class="stat-value" id="statOperatorCount">—</span>
+                        <span class="stat-label">Operators</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="stat-value" id="statStatewideDed">—</span>
+                        <span class="stat-label">Avg Deduction Rate</span>
+                    </div>
+                    <div class="hero-stat">
+                        <span class="stat-value" id="statStatewideNGL">—</span>
+                        <span class="stat-label">Avg NGL Recovery</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <main>
+        <div class="container">
+            <!-- Search and Filters -->
+            <div class="search-section">
+                <div class="search-box">
+                    <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Search by operator name..." autocomplete="off">
+                </div>
+                <div class="filter-controls">
+                    <div class="filter-group">
+                        <label>Sort by</label>
+                        <select id="sortSelect">
+                            <option value="well_count">Most Wells</option>
+                            <option value="deduction_ratio">Highest Deductions</option>
+                            <option value="ngl_recovery">Lowest NGL Recovery</option>
+                            <option value="name">Name (A-Z)</option>
+                        </select>
+                    </div>
+                    <div class="filter-group">
+                        <label>Min. Wells</label>
+                        <select id="minWellsSelect">
+                            <option value="5">5+</option>
+                            <option value="10">10+</option>
+                            <option value="20" selected>20+</option>
+                            <option value="50">50+</option>
+                            <option value="100">100+</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Results Info -->
+            <div class="results-info" id="resultsInfo">
+                <span id="resultCount">Loading operators...</span>
+            </div>
+
+            <!-- Operator Table -->
+            <div class="operators-table-container">
+                <table class="operators-table" id="operatorsTable">
+                    <thead>
+                        <tr>
+                            <th class="col-name">Operator</th>
+                            <th class="col-wells">Wells</th>
+                            <th class="col-gross">6-Mo Gross</th>
+                            <th class="col-deduction">Deduction Ratio</th>
+                            <th class="col-ngl">NGL Recovery</th>
+                            <th class="col-actions"></th>
+                        </tr>
+                    </thead>
+                    <tbody id="operatorsTableBody">
+                        <tr class="loading-row">
+                            <td colspan="6">
+                                <div class="loading-spinner"></div>
+                                <span>Loading operators...</span>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Pagination -->
+            <div class="pagination" id="pagination" style="display: none;">
+                <button class="btn btn-secondary" id="prevBtn" disabled>Previous</button>
+                <span class="page-info" id="pageInfo">Page 1</span>
+                <button class="btn btn-secondary" id="nextBtn">Next</button>
+            </div>
+
+            <!-- Methodology Note -->
+            <div class="methodology-note">
+                <h3>About These Metrics</h3>
+                <div class="metric-explanations">
+                    <div class="metric-item">
+                        <strong>Deduction Ratio</strong>
+                        <p>Percentage of gross production value taken as deductions. Calculated as: (Residue Gas Deductions) / (Total Gross Value) x 100. Higher values mean more is deducted before you receive payment.</p>
+                    </div>
+                    <div class="metric-item">
+                        <strong>NGL Recovery</strong>
+                        <p>Measures how much liquid value is returned relative to gas deductions. Calculated as: (NGL + Casinghead Value) / (Residue Gas Deductions) x 100. Higher values indicate more value returned to mineral owners through processed liquids.</p>
+                    </div>
+                </div>
+                <p class="methodology-disclaimer">Data sourced from Oklahoma Tax Commission production records. Metrics reflect the past 6 months of reported production across all wells operated by each company. These are aggregate statistics and may not reflect individual well performance.</p>
+            </div>
+        </div>
+    </main>
+
+    <!-- Operator Detail Modal -->
+    <div class="modal-overlay" id="operatorModal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalOperatorName">Operator Details</h2>
+                <button class="modal-close" onclick="closeOperatorModal()">&times;</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="loading-spinner"></div>
+                <span>Loading details...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast" id="toast"></div>
+
+    <script>
+/* __OPERATORS_JS__ */
+    </script>
+</body>
+</html>

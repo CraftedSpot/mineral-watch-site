@@ -1,0 +1,462 @@
+        // =============================================
+        // OPERATOR DIRECTORY
+        // =============================================
+
+        let currentPage = 0;
+        let pageSize = 100;
+        let totalCount = 0;
+        let currentOperators = [];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            setupUser();
+            setupEventListeners();
+            await loadOperators();
+        });
+
+        // Setup user info and logout
+        function setupUser() {
+            fetch('/api/user')
+                .then(r => r.json())
+                .then(data => {
+                    if (data.user) {
+                        document.getElementById('userName').textContent = data.user.name || data.user.email;
+                    }
+                })
+                .catch(() => {});
+
+            document.getElementById('logoutBtn').addEventListener('click', async () => {
+                await fetch('/api/logout', { method: 'POST' });
+                window.location.href = '/portal/login';
+            });
+        }
+
+        // Setup event listeners
+        function setupEventListeners() {
+            // Search with debounce
+            let searchTimeout;
+            document.getElementById('searchInput').addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    currentPage = 0;
+                    loadOperators();
+                }, 300);
+            });
+
+            // Sort change
+            document.getElementById('sortSelect').addEventListener('change', () => {
+                currentPage = 0;
+                loadOperators();
+            });
+
+            // Min wells change
+            document.getElementById('minWellsSelect').addEventListener('change', () => {
+                currentPage = 0;
+                loadOperators();
+            });
+
+            // Pagination
+            document.getElementById('prevBtn').addEventListener('click', () => {
+                if (currentPage > 0) {
+                    currentPage--;
+                    loadOperators();
+                }
+            });
+
+            document.getElementById('nextBtn').addEventListener('click', () => {
+                if ((currentPage + 1) * pageSize < totalCount) {
+                    currentPage++;
+                    loadOperators();
+                }
+            });
+
+            // Close modal on overlay click
+            document.getElementById('operatorModal').addEventListener('click', (e) => {
+                if (e.target.id === 'operatorModal') {
+                    closeOperatorModal();
+                }
+            });
+
+            // ESC key closes modal
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeOperatorModal();
+                }
+            });
+        }
+
+        // Load operators from API
+        async function loadOperators() {
+            const search = document.getElementById('searchInput').value.trim();
+            const sort = document.getElementById('sortSelect').value;
+            const minWells = document.getElementById('minWellsSelect').value;
+
+            const params = new URLSearchParams({
+                sort,
+                min_wells: minWells,
+                limit: pageSize.toString(),
+                offset: (currentPage * pageSize).toString()
+            });
+
+            if (search) {
+                params.set('search', search);
+            }
+
+            showTableLoading();
+
+            try {
+                const response = await fetch(`/api/operators/directory?${params}`);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to load operators');
+                }
+
+                const data = await response.json();
+                currentOperators = data.operators;
+                totalCount = data.total_count;
+
+                updateHeroStats(data);
+                renderOperatorsTable(data.operators);
+                updatePagination(data.pagination);
+                updateResultCount(data.operators.length, totalCount, search);
+
+            } catch (error) {
+                showToast(error.message, 'error');
+                showTableError(error.message);
+            }
+        }
+
+        // Update hero stats
+        function updateHeroStats(data) {
+            document.getElementById('statOperatorCount').textContent = formatNumber(data.total_count);
+
+            if (data.statewide) {
+                document.getElementById('statStatewideDed').textContent = data.statewide.deduction_ratio + '%';
+                document.getElementById('statStatewideNGL').textContent =
+                    data.statewide.ngl_recovery_ratio != null
+                        ? data.statewide.ngl_recovery_ratio + '%'
+                        : '—';
+            }
+        }
+
+        // Render operators table
+        function renderOperatorsTable(operators) {
+            const tbody = document.getElementById('operatorsTableBody');
+
+            if (!operators || operators.length === 0) {
+                tbody.innerHTML = `
+                    <tr class="empty-row">
+                        <td colspan="6">No operators found matching your criteria</td>
+                    </tr>
+                `;
+                return;
+            }
+
+            tbody.innerHTML = operators.map(op => `
+                <tr data-operator="${escapeHtml(op.operator_number)}">
+                    <td class="col-name">
+                        <div class="operator-name">${escapeHtml(op.operator_name)}</div>
+                        <div class="operator-number">#${escapeHtml(op.operator_number)}</div>
+                    </td>
+                    <td class="col-wells">${formatNumber(op.well_count)}</td>
+                    <td class="col-gross">${formatCurrency(op.total_gross)}</td>
+                    <td class="col-deduction">
+                        <span class="metric-badge ${getDeductionClass(op.deduction_ratio)}">${op.deduction_ratio}%</span>
+                    </td>
+                    <td class="col-ngl">
+                        ${op.ngl_recovery_ratio != null
+                            ? `<span class="metric-badge ${getNGLClass(op.ngl_recovery_ratio)}">${op.ngl_recovery_ratio}%</span>`
+                            : '<span class="metric-badge neutral">N/A</span>'}
+                    </td>
+                    <td class="col-actions">
+                        <button class="btn-detail" onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" title="View Details">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M9 5l7 7-7 7"/>
+                            </svg>
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        // Get CSS class for deduction ratio
+        function getDeductionClass(ratio) {
+            if (ratio >= 30) return 'high';
+            if (ratio >= 15) return 'medium';
+            return 'low';
+        }
+
+        // Get CSS class for NGL recovery
+        function getNGLClass(ratio) {
+            if (ratio == null) return 'neutral';
+            if (ratio >= 100) return 'low'; // Higher is better, so "low" danger
+            if (ratio >= 50) return 'medium';
+            return 'high'; // Low NGL recovery is concerning
+        }
+
+        // Update pagination
+        function updatePagination(pagination) {
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const pageInfo = document.getElementById('pageInfo');
+            const paginationDiv = document.getElementById('pagination');
+
+            if (totalCount <= pageSize) {
+                paginationDiv.style.display = 'none';
+                return;
+            }
+
+            paginationDiv.style.display = 'flex';
+
+            prevBtn.disabled = currentPage === 0;
+            nextBtn.disabled = !pagination.has_more;
+
+            const startItem = currentPage * pageSize + 1;
+            const endItem = Math.min((currentPage + 1) * pageSize, totalCount);
+            pageInfo.textContent = `${startItem}-${endItem} of ${formatNumber(totalCount)}`;
+        }
+
+        // Update result count text
+        function updateResultCount(shown, total, search) {
+            const info = document.getElementById('resultsInfo');
+            if (search) {
+                info.innerHTML = `<span id="resultCount">Showing ${shown} operators matching "<strong>${escapeHtml(search)}</strong>"</span>`;
+            } else {
+                info.innerHTML = `<span id="resultCount">Showing ${shown} of ${formatNumber(total)} operators</span>`;
+            }
+        }
+
+        // Show loading state
+        function showTableLoading() {
+            document.getElementById('operatorsTableBody').innerHTML = `
+                <tr class="loading-row">
+                    <td colspan="6">
+                        <div class="loading-spinner"></div>
+                        <span>Loading operators...</span>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Show error state
+        function showTableError(message) {
+            document.getElementById('operatorsTableBody').innerHTML = `
+                <tr class="empty-row">
+                    <td colspan="6">
+                        <span style="color: var(--danger-red);">${escapeHtml(message)}</span>
+                    </td>
+                </tr>
+            `;
+        }
+
+        // Open operator detail modal
+        async function openOperatorDetail(operatorNumber) {
+            const modal = document.getElementById('operatorModal');
+            const modalBody = document.getElementById('modalBody');
+            const modalTitle = document.getElementById('modalOperatorName');
+
+            // Find operator in current list for immediate name display
+            const op = currentOperators.find(o => o.operator_number === operatorNumber);
+            modalTitle.textContent = op ? op.operator_name : `Operator ${operatorNumber}`;
+
+            modal.style.display = 'flex';
+            modalBody.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <div class="loading-spinner"></div>
+                    <span>Loading details...</span>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/operators/${operatorNumber}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load operator details');
+                }
+
+                const data = await response.json();
+                renderOperatorDetail(data);
+
+            } catch (error) {
+                modalBody.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: var(--danger-red);">
+                        ${escapeHtml(error.message)}
+                    </div>
+                `;
+            }
+        }
+
+        // Render operator detail in modal
+        function renderOperatorDetail(data) {
+            const modalBody = document.getElementById('modalBody');
+            document.getElementById('modalOperatorName').textContent = data.operator_name;
+
+            const summary = data.summary;
+            const contact = data.contact;
+
+            let html = `
+                <div class="modal-summary">
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${formatNumber(summary.well_count)}</div>
+                        <div class="modal-stat-label">Wells</div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${formatCurrency(summary.total_gross)}</div>
+                        <div class="modal-stat-label">6-Mo Gross</div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${summary.deduction_ratio}%</div>
+                        <div class="modal-stat-label">Deduction Ratio</div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${summary.ngl_recovery_ratio != null ? summary.ngl_recovery_ratio + '%' : 'N/A'}</div>
+                        <div class="modal-stat-label">NGL Recovery</div>
+                    </div>
+                </div>
+            `;
+
+            // Contact info section
+            if (contact && (contact.phone || contact.address || contact.contact_name)) {
+                const statusBadge = contact.status === 'OPEN'
+                    ? '<span class="status-badge status-open">Active</span>'
+                    : contact.status === 'CLOSED'
+                        ? '<span class="status-badge status-closed">Inactive</span>'
+                        : '';
+
+                const addressParts = [contact.address, contact.city, contact.state, contact.zip].filter(Boolean);
+                const fullAddress = addressParts.length > 0
+                    ? `${contact.address || ''}<br>${contact.city || ''}, ${contact.state || ''} ${contact.zip || ''}`.trim()
+                    : null;
+
+                html += `
+                    <div class="modal-section contact-section">
+                        <h3>Contact Information ${statusBadge}</h3>
+                        <div class="contact-grid">
+                            ${contact.contact_name ? `
+                                <div class="contact-item">
+                                    <span class="contact-label">Contact</span>
+                                    <span class="contact-value">${escapeHtml(contact.contact_name)}</span>
+                                </div>
+                            ` : ''}
+                            ${contact.phone ? `
+                                <div class="contact-item">
+                                    <span class="contact-label">Phone</span>
+                                    <a href="tel:${escapeHtml(contact.phone)}" class="contact-value contact-link">${escapeHtml(contact.phone)}</a>
+                                </div>
+                            ` : ''}
+                            ${fullAddress ? `
+                                <div class="contact-item contact-address">
+                                    <span class="contact-label">Address</span>
+                                    <span class="contact-value">${contact.address ? escapeHtml(contact.address) : ''}<br>${contact.city ? escapeHtml(contact.city) : ''}, ${contact.state ? escapeHtml(contact.state) : ''} ${contact.zip ? escapeHtml(contact.zip) : ''}</span>
+                                </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Monthly trend
+            if (data.monthly && data.monthly.length > 0) {
+                html += `
+                    <div class="modal-section">
+                        <h3>Monthly Trend (${data.analysis_period})</h3>
+                        <table class="modal-table">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th style="text-align: right;">Gross</th>
+                                    <th style="text-align: right;">Deductions</th>
+                                    <th style="text-align: right;">Ded. Ratio</th>
+                                    <th style="text-align: right;">NGL Recovery</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.monthly.map(m => `
+                                    <tr>
+                                        <td>${formatMonth(m.year_month)}</td>
+                                        <td style="text-align: right;">${formatCurrency(m.total_gross)}</td>
+                                        <td style="text-align: right;">${formatCurrency(m.residue_deductions)}</td>
+                                        <td style="text-align: right;">${m.deduction_ratio}%</td>
+                                        <td style="text-align: right;">${m.ngl_recovery_ratio != null ? m.ngl_recovery_ratio + '%' : 'N/A'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            // County breakdown
+            if (data.counties && data.counties.length > 0) {
+                html += `
+                    <div class="modal-section">
+                        <h3>Counties</h3>
+                        <table class="modal-table">
+                            <thead>
+                                <tr>
+                                    <th>County</th>
+                                    <th style="text-align: right;">Wells</th>
+                                    <th style="text-align: right;">Gross</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.counties.map(c => `
+                                    <tr>
+                                        <td>${escapeHtml(c.county || 'Unknown')}</td>
+                                        <td style="text-align: right;">${formatNumber(c.well_count)}</td>
+                                        <td style="text-align: right;">${formatCurrency(c.total_gross)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            modalBody.innerHTML = html;
+        }
+
+        // Close operator detail modal
+        function closeOperatorModal() {
+            document.getElementById('operatorModal').style.display = 'none';
+        }
+
+        // Utility functions
+        function escapeHtml(str) {
+            if (!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        }
+
+        function formatNumber(num) {
+            if (num == null) return '—';
+            return num.toLocaleString();
+        }
+
+        function formatCurrency(amount) {
+            if (amount == null) return '—';
+            if (amount >= 1000000) {
+                return '$' + (amount / 1000000).toFixed(1) + 'M';
+            }
+            if (amount >= 1000) {
+                return '$' + (amount / 1000).toFixed(0) + 'K';
+            }
+            return '$' + amount.toFixed(0);
+        }
+
+        function formatMonth(yyyymm) {
+            if (!yyyymm || yyyymm.length !== 6) return yyyymm;
+            const year = yyyymm.substring(0, 4);
+            const month = parseInt(yyyymm.substring(4, 6), 10);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return `${months[month - 1]} ${year}`;
+        }
+
+        function showToast(message, type = 'info') {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.className = 'toast ' + type + ' show';
+            setTimeout(() => {
+                toast.classList.remove('show');
+            }, 3000);
+        }

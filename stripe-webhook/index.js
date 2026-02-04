@@ -17,7 +17,11 @@
 
 const BASE_ID = 'app3j3X29Uvp5stza';
 const USERS_TABLE = '👤 Users';
+const ORG_TABLE = '🏢 Organization';
 const BASE_URL = 'https://portal.mymineralwatch.com';
+
+// Plans that get an Organization
+const ORG_ELIGIBLE_PLANS = ['Professional', 'Business', 'Enterprise'];
 
 // PRICE_TO_PLAN MAPPING - LIVE MODE ONLY
 const PRICE_TO_PLAN = {
@@ -255,6 +259,17 @@ async function handleCheckoutComplete(session, env) {
     await updateUser(env, existingUser.id, updateFields);
     console.log(`Updated existing user: ${customerEmail} -> ${plan}`);
 
+    // Create Organization if upgrading TO Professional/Business/Enterprise and user doesn't have one
+    const hasOrg = existingUser.fields.Organization && existingUser.fields.Organization.length > 0;
+    if (ORG_ELIGIBLE_PLANS.includes(plan) && !hasOrg) {
+      try {
+        await createOrganizationForUser(env, existingUser.id, existingUser.fields.Name || customerName, customerEmail, plan);
+      } catch (orgErr) {
+        console.error(`Failed to create org for upgraded user ${customerEmail}:`, orgErr);
+        // Don't fail the whole checkout - user can be fixed manually
+      }
+    }
+
     // Grant annual bonus credits for existing users who upgraded to annual
     if (isAnnual) {
       await grantAnnualBonusCredits(env, existingUser.id, plan, customerEmail);
@@ -281,6 +296,16 @@ async function handleCheckoutComplete(session, env) {
 
     const newUser = await createUser(env, createFields);
     console.log(`Created new user: ${customerEmail} with ${plan} plan`);
+
+    // Create Organization for Professional/Business/Enterprise plans
+    if (newUser?.id && ORG_ELIGIBLE_PLANS.includes(plan)) {
+      try {
+        await createOrganizationForUser(env, newUser.id, customerName, customerEmail, plan);
+      } catch (orgErr) {
+        console.error(`Failed to create org for new user ${customerEmail}:`, orgErr);
+        // Don't fail the whole checkout - user can be fixed manually
+      }
+    }
 
     // Grant annual bonus credits for new annual subscribers
     if (isAnnual && newUser?.id) {
@@ -452,6 +477,17 @@ async function handleSubscriptionUpdated(subscription, env, previousAttributes =
   await updateUser(env, user.id, updateFields);
 
   console.log(`Updated user ${userEmail}: Plan=${newPlan}, Status=${airtableStatus}`);
+
+  // Create Organization if upgrading TO Professional/Business/Enterprise and user doesn't have one
+  const hasOrg = user.fields.Organization && user.fields.Organization.length > 0;
+  if (planChanged && ORG_ELIGIBLE_PLANS.includes(newPlan) && !hasOrg && status === 'active') {
+    try {
+      await createOrganizationForUser(env, user.id, userName, userEmail, newPlan);
+      console.log(`Created org for ${userEmail} upgrading to ${newPlan} via billing portal`);
+    } catch (orgErr) {
+      console.error(`Failed to create org for upgraded user ${userEmail}:`, orgErr);
+    }
+  }
 
   // Grant annual bonus if switching to an annual plan
   // Triggers when:
@@ -1219,7 +1255,7 @@ async function createUser(env, fields) {
  */
 async function updateUser(env, recordId, fields) {
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${recordId}`;
-  
+
   const response = await fetch(url, {
     method: 'PATCH',
     headers: {
@@ -1228,13 +1264,69 @@ async function updateUser(env, recordId, fields) {
     },
     body: JSON.stringify({ fields })
   });
-  
+
   if (!response.ok) {
     const err = await response.text();
     throw new Error(`Airtable update failed: ${err}`);
   }
-  
+
   return await response.json();
+}
+
+/**
+ * Create an Organization for Professional/Business/Enterprise users
+ * Links the user as Owner and Admin
+ */
+async function createOrganizationForUser(env, userId, userName, userEmail, plan) {
+  // Determine max users based on plan
+  const maxUsers = {
+    'Professional': 1,
+    'Business': 3,
+    'Enterprise': 5
+  }[plan] || 1;
+
+  const orgName = userName || userEmail.split('@')[0];
+
+  // Create the Organization
+  const orgUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORG_TABLE)}`;
+
+  const orgResponse = await fetch(orgUrl, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${env.AIRTABLE_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      fields: {
+        'Name': orgName,
+        'Plan': plan === 'Enterprise' ? 'Enterprise 1K' : plan,
+        'Max Users': maxUsers,
+        'Owner': [userId],
+        '👤 Users': [userId],
+        'Default Notification Mode': 'Instant + Weekly'
+      }
+    })
+  });
+
+  if (!orgResponse.ok) {
+    const err = await orgResponse.text();
+    console.error(`Failed to create organization: ${err}`);
+    throw new Error(`Airtable create org failed: ${err}`);
+  }
+
+  const org = await orgResponse.json();
+  const orgId = org.id;
+  console.log(`Created organization ${orgId} for user ${userId} (${plan})`);
+
+  // Update user with Organization link and Admin role
+  await updateUser(env, userId, {
+    'Organization': [orgId],
+    'Role': 'Admin'
+  });
+
+  console.log(`Linked user ${userId} to organization ${orgId} as Admin`);
+
+  return org;
 }
 
 /**

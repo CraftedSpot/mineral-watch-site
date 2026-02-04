@@ -115,19 +115,19 @@
                 document.getElementById('summaryRevenueDetail').textContent = 'No revenue data yet';
             }
 
-            // Deduction Health
+            // Deduction Health - neutral presentation
             if (data.deductionFlags !== null && data.deductionFlags !== undefined) {
                 const analyzedText = data.wellsAnalyzed ? `${data.wellsAnalyzed} wells analyzed` : '';
                 if (data.deductionFlags > 0) {
-                    document.getElementById('summaryDeductions').textContent = `${data.deductionFlags} Flagged`;
+                    document.getElementById('summaryDeductions').textContent = `${data.deductionFlags} High`;
                     const dedDetail = document.getElementById('summaryDeductionsDetail');
-                    dedDetail.textContent = analyzedText || 'Above typical range';
-                    dedDetail.className = 'summary-detail warning';
+                    dedDetail.textContent = analyzedText || 'Wells with high deductions';
+                    dedDetail.className = 'summary-detail neutral';
                 } else {
-                    document.getElementById('summaryDeductions').textContent = 'Normal';
+                    document.getElementById('summaryDeductions').textContent = '0 High';
                     const dedDetail = document.getElementById('summaryDeductionsDetail');
-                    dedDetail.textContent = analyzedText || 'All within range';
-                    dedDetail.className = 'summary-detail success';
+                    dedDetail.textContent = analyzedText || 'No high deduction wells';
+                    dedDetail.className = 'summary-detail neutral';
                 }
             } else {
                 document.getElementById('summaryDeductions').textContent = '—';

@@ -78,6 +78,7 @@
         .question-text { font-size: 0.9rem; font-weight: 500; color: var(--oil-navy); flex: 1; }
         .question-badge { font-size: 0.65rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
         .badge-alert { background: var(--danger-red-light); color: var(--danger-red); }
+        .badge-neutral { background: #f0f0f0; color: #666; }
         .badge-new { background: var(--success-bg); color: var(--success); }
         .badge-info { background: var(--accent-blue-light); color: var(--accent-blue); }
         .question-arrow { color: var(--text-muted); flex-shrink: 0; }
@@ -146,10 +147,35 @@
             background: var(--text-muted) !important;
         }
 
+        /* Top-level Intelligence Tabs */
+        .intel-tabs { display: flex; gap: 0; margin-bottom: 1.5rem; border-bottom: 2px solid var(--border); }
+        .intel-tab { padding: 0.875rem 1.5rem; font-size: 0.95rem; font-weight: 600; color: var(--slate-blue); background: none; border: none; cursor: pointer; position: relative; transition: color 0.15s ease; }
+        .intel-tab:hover { color: var(--oil-navy); }
+        .intel-tab.active { color: var(--oil-navy); }
+        .intel-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: var(--oil-navy); }
+        .intel-tab-content { display: none; }
+        .intel-tab-content.active { display: block; }
+
+        /* Market Research Section */
+        .market-section { margin-bottom: 2rem; }
+        .market-tools-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
+        .market-tool-card { background: white; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; display: flex; align-items: flex-start; gap: 1rem; cursor: pointer; transition: all 0.15s ease; }
+        .market-tool-card:hover:not(.disabled) { border-color: var(--accent-blue); box-shadow: 0 4px 12px rgba(52,152,219,0.1); }
+        .market-tool-card.disabled { opacity: 0.6; cursor: not-allowed; }
+        .tool-icon { width: 48px; height: 48px; background: var(--accent-blue-light); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .tool-icon svg { width: 24px; height: 24px; stroke: var(--accent-blue); }
+        .tool-content { flex: 1; }
+        .tool-content h3 { font-size: 1rem; font-weight: 600; color: var(--oil-navy); margin-bottom: 0.25rem; }
+        .tool-content p { font-size: 0.85rem; color: var(--slate-blue); line-height: 1.4; }
+        .tool-arrow { color: var(--text-muted); flex-shrink: 0; align-self: center; }
+        .tool-arrow svg { width: 20px; height: 20px; }
+        .coming-soon-badge { display: inline-block; font-size: 0.65rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; background: var(--warning-amber-light); color: var(--warning-amber); text-transform: uppercase; letter-spacing: 0.3px; margin-top: 0.5rem; }
+
         /* Responsive */
         @media (max-width: 900px) {
             .summary-cards { grid-template-columns: repeat(2, 1fr); }
             .questions-grid { grid-template-columns: 1fr; }
+            .market-tools-grid { grid-template-columns: 1fr; }
         }
         @media (max-width: 600px) {
             .summary-cards { grid-template-columns: 1fr; }

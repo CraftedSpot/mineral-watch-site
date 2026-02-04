@@ -13,5 +13,6 @@ import oklahomaMapHtml from './map-builder.js';
 import adminBackfillHtml from './admin-backfill.html';
 import learnHtml from './learn.html';
 import intelligenceHtml from './intelligence-builder.js';
+import operatorsHtml from './operators-builder.js';
 
-export { dashboardHtml, loginHtml, accountHtml, upgradeHtml, myPropertiesMapHtml, oklahomaMapHtml, adminBackfillHtml, learnHtml, intelligenceHtml };
+export { dashboardHtml, loginHtml, accountHtml, upgradeHtml, myPropertiesMapHtml, oklahomaMapHtml, adminBackfillHtml, learnHtml, intelligenceHtml, operatorsHtml };

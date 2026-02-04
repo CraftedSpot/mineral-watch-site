@@ -10,6 +10,15 @@ import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
 
+// Intelligence features are currently limited to specific organizations during beta
+const INTELLIGENCE_ALLOWED_ORGS = [
+  'rec9fYy8Xwl3jNAbf', // Price Minerals
+];
+
+function isIntelligenceAllowed(orgId: string | undefined): boolean {
+  return orgId ? INTELLIGENCE_ALLOWED_ORGS.includes(orgId) : false;
+}
+
 /**
  * GET /api/intelligence/summary
  *
@@ -28,6 +37,16 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
     if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
 
     const userOrgId = userRecord.fields.Organization?.[0];
+
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({
+        activeWells: 0, countyCount: 0, estimatedRevenue: null,
+        revenueChange: null, deductionFlags: null, shutInWells: 0,
+        actionItems: 0, nearestDeadline: null,
+        _beta_restricted: true
+      });
+    }
 
     // Query wells by BOTH user_id and organization_id to capture all assigned wells
     const wellsQuery = userOrgId
@@ -121,6 +140,8 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
       // Requires 2+ product codes so we have the full financial picture
       // (avoids the "Residue Gas Trap" where gas-only shows 100% deductions
       // but the owner is actually paid via Casinghead Gas / NGL).
+      // Summary card uses 40% threshold for "high" wells (notable outliers).
+      // Full report uses 25% threshold for complete picture.
       // Process ALL wells in batches of 50.
       try {
         let totalFlagged = 0;
@@ -141,7 +162,7 @@ export async function handleGetIntelligenceSummary(request: Request, env: Env): 
               GROUP BY wpl.api_number
               HAVING SUM(opf.gross_value) > 500
                 AND COUNT(DISTINCT opf.product_code) > 1
-                AND SUM(opf.market_deduction) / SUM(opf.gross_value) > 0.25
+                AND SUM(opf.market_deduction) / SUM(opf.gross_value) > 0.50
                 AND SUM(opf.market_deduction) / SUM(opf.gross_value) < 1.0
             )
           `).bind(...apiBatch, sixMonthsAgo).first() as { flagged_count: number } | null;
@@ -248,6 +269,17 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     const userOrgId = userRecord.fields.Organization?.[0];
 
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({
+        insights: [{
+          severity: 'info',
+          title: 'Intelligence features coming soon',
+          description: 'Advanced deduction analysis and operator comparisons will be available in an upcoming release.'
+        }]
+      });
+    }
+
     // Query wells by BOTH user_id and organization_id to capture all assigned wells
     const wellsQuery = userOrgId
       ? `SELECT api_number, well_name, county FROM client_wells WHERE user_id = ? OR organization_id = ?`
@@ -307,6 +339,8 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
 
     // Insight 1: High deduction wells — aggregate rate across all product codes.
     // Requires multi-product data to avoid the "Residue Gas Trap."
+    // Insight card uses 40% threshold (notable outliers only).
+    // Full report uses 25% for complete picture.
     // Process ALL wells in batches of 50.
     let wellsAnalyzedCount = 0;
     try {
@@ -336,8 +370,8 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
         const batchResults = analyzedResult.results as Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
         allAnalyzedWells.push(...batchResults);
 
-        // Filter for flagged wells (>25% and <100%)
-        const flagged = batchResults.filter(r => r.agg_deduction_pct > 25 && r.agg_deduction_pct < 100);
+        // Filter for flagged wells (>50% for insight card, <100% to exclude anomalies)
+        const flagged = batchResults.filter(r => r.agg_deduction_pct > 50 && r.agg_deduction_pct < 100);
         allFlaggedWells.push(...flagged);
       }
 
@@ -358,11 +392,12 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
           ? wellNames.join(' and ')
           : `${wellNames[0]} and ${wellNames.length - 1} other${wellNames.length > 2 ? 's' : ''}`;
 
+        // Neutral language - present data, let user interpret
         insights.push({
-          severity: 'critical',
-          title: `High deductions on ${allFlaggedWells.length} well${allFlaggedWells.length > 1 ? 's' : ''}`,
-          description: `Based on analysis of ${wellsAnalyzedCount} of your actively producing wells with complete OTC financial records, ${nameList} ha${wellNames.length === 1 ? 's' : 've'} aggregate deductions of ${flaggedWells[0].agg_deduction_pct}% across all products.`,
-          action: 'View Analysis',
+          severity: 'info',
+          title: `${allFlaggedWells.length} well${allFlaggedWells.length > 1 ? 's' : ''} with high deduction ratios`,
+          description: `${wellsAnalyzedCount} wells analyzed. ${nameList} show${wellNames.length === 1 ? 's' : ''} ${flaggedWells[0].agg_deduction_pct}% aggregate deductions. View details to compare with industry data.`,
+          action: 'View Details',
           actionId: 'deduction-audit'
         });
       }
@@ -452,6 +487,12 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
     if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
 
     const userOrgId = userRecord.fields.Organization?.[0];
+
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
     const cacheId = userOrgId || authUser.id;
 
     // Check KV cache
@@ -706,11 +747,33 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       }
     }
 
+    // Get statewide average for context
+    let statewideAvgPct: number | null = null;
+    try {
+      const statewideResult = await env.WELLS_DB.prepare(`
+        SELECT
+          SUM(market_deduction) as total_deductions,
+          SUM(gross_value) as total_gross
+        FROM otc_production_financial
+        WHERE gross_value > 0
+          AND year_month >= ?
+      `).bind(sixMonthsAgo).first() as { total_deductions: number; total_gross: number } | null;
+
+      if (statewideResult && statewideResult.total_gross > 0) {
+        statewideAvgPct = Math.round((statewideResult.total_deductions / statewideResult.total_gross) * 1000) / 10;
+      }
+    } catch (e) {
+      console.error('[Deduction Report] Statewide avg error:', e);
+    }
+
     const response = {
       flaggedWells: flaggedWellsData,
       portfolio: {
         avg_deduction_pct: portfolioAvgPct,
         total_wells_analyzed: portfolioWellCount
+      },
+      statewide: {
+        avg_deduction_pct: statewideAvgPct
       },
       summary: {
         flagged_count: flaggedWellsData.length,
@@ -748,6 +811,201 @@ const PRODUCT_NAMES: Record<string, string> = {
   '5': 'Residue Gas',
   '6': 'Casinghead Gas'
 };
+
+/**
+ * GET /api/intelligence/operator-comparison
+ *
+ * Returns operator deduction and NGL recovery data for the user's wells.
+ * Neutral presentation - just data, no grades or judgments.
+ * Includes statewide median for context.
+ */
+export async function handleGetOperatorComparison(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check KV cache
+    if (env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get(`operator-comparison:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[Operator Comparison] Cache read error:', e);
+      }
+    }
+
+    // Get user's wells
+    const wellsQuery = userOrgId
+      ? `SELECT api_number, well_name, operator FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      : `SELECT api_number, well_name, operator FROM client_wells WHERE user_id = ?`;
+
+    const wellsResult = userOrgId
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    const wells = wellsResult.results as Array<{ api_number: string; well_name: string; operator: string | null }>;
+
+    if (!wells || wells.length === 0) {
+      return jsonResponse({ operators: [], statewide: null });
+    }
+
+    const api10s = [...new Set(wells.map(w => w.api_number).filter(Boolean).map(a => a.replace(/-/g, '').substring(0, 10)))];
+    const sixMonthsAgo = getMonthsAgo(6);
+
+    // Get operator numbers for user's wells via well_pun_links -> otc_leases
+    type OperatorWell = { api_number: string; operator_number: string };
+    const operatorWells: OperatorWell[] = [];
+
+    for (let i = 0; i < api10s.length; i += 50) {
+      const batch = api10s.slice(i, i + 50);
+      const placeholders = batch.map(() => '?').join(',');
+      const result = await env.WELLS_DB.prepare(`
+        SELECT DISTINCT wpl.api_number, ol.operator_number
+        FROM well_pun_links wpl
+        JOIN otc_leases ol ON wpl.base_pun = ol.base_pun
+        WHERE wpl.api_number IN (${placeholders})
+          AND ol.operator_number IS NOT NULL
+      `).bind(...batch).all();
+      operatorWells.push(...(result.results as OperatorWell[]));
+    }
+
+    const uniqueOperators = [...new Set(operatorWells.map(ow => ow.operator_number))];
+
+    if (uniqueOperators.length === 0) {
+      return jsonResponse({ operators: [], statewide: null });
+    }
+
+    // Query operator-level metrics: deduction ratio, NGL recovery ratio
+    const opPlaceholders = uniqueOperators.map(() => '?').join(',');
+
+    type OperatorMetrics = {
+      operator_number: string;
+      company_name: string;
+      well_count: number;
+      total_gross: number;
+      residue_deductions: number;
+      liquids_returned: number;
+      deduction_ratio: number;
+      ngl_recovery_ratio: number;
+    };
+
+    const metricsResult = await env.WELLS_DB.prepare(`
+      SELECT
+        ol.operator_number,
+        oc.company_name,
+        COUNT(DISTINCT ol.base_pun) as well_count,
+        ROUND(SUM(opf.gross_value), 0) as total_gross,
+        ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
+        ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+      WHERE ol.operator_number IN (${opPlaceholders})
+        AND opf.gross_value > 0
+        AND opf.year_month >= ?
+      GROUP BY ol.operator_number
+      HAVING well_count >= 1
+    `).bind(...uniqueOperators, sixMonthsAgo).all();
+
+    const operatorData = (metricsResult.results as Array<{
+      operator_number: string;
+      company_name: string;
+      well_count: number;
+      total_gross: number;
+      residue_deductions: number;
+      liquids_returned: number;
+    }>).map(row => {
+      const deductionRatio = row.total_gross > 0
+        ? Math.round((row.residue_deductions / row.total_gross) * 1000) / 10
+        : 0;
+      const nglRecoveryRatio = row.residue_deductions > 0
+        ? Math.round((row.liquids_returned / row.residue_deductions) * 1000) / 10
+        : null; // null if no deductions to compare against
+
+      // Count user's wells with this operator
+      const userWellCount = operatorWells.filter(ow => ow.operator_number === row.operator_number).length;
+
+      return {
+        operator_number: row.operator_number,
+        operator_name: row.company_name || `Operator ${row.operator_number}`,
+        your_wells: userWellCount,
+        total_wells: row.well_count,
+        total_gross: row.total_gross,
+        residue_deductions: row.residue_deductions,
+        liquids_returned: row.liquids_returned,
+        deduction_ratio: deductionRatio,
+        ngl_recovery_ratio: nglRecoveryRatio
+      };
+    });
+
+    // Sort by deduction ratio descending (highest first)
+    operatorData.sort((a, b) => b.deduction_ratio - a.deduction_ratio);
+
+    // Get statewide median/average for context (operators with 20+ wells, $100k+ deductions)
+    const statewideResult = await env.WELLS_DB.prepare(`
+      SELECT
+        COUNT(DISTINCT ol.operator_number) as operator_count,
+        ROUND(SUM(opf.gross_value), 0) as total_gross,
+        ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) as residue_deductions,
+        ROUND(SUM(CASE WHEN opf.product_code IN ('3', '6') THEN opf.gross_value ELSE 0 END), 0) as liquids_returned
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      WHERE opf.gross_value > 0
+        AND opf.year_month >= ?
+    `).bind(sixMonthsAgo).first() as {
+      operator_count: number;
+      total_gross: number;
+      residue_deductions: number;
+      liquids_returned: number;
+    } | null;
+
+    let statewide = null;
+    if (statewideResult && statewideResult.total_gross > 0) {
+      statewide = {
+        operator_count: statewideResult.operator_count,
+        deduction_ratio: Math.round((statewideResult.residue_deductions / statewideResult.total_gross) * 1000) / 10,
+        ngl_recovery_ratio: statewideResult.residue_deductions > 0
+          ? Math.round((statewideResult.liquids_returned / statewideResult.residue_deductions) * 1000) / 10
+          : null
+      };
+    }
+
+    const response = {
+      operators: operatorData,
+      statewide,
+      analysis_period: '6 months'
+    };
+
+    // Cache for 2 hours
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(`operator-comparison:${cacheId}`, JSON.stringify(response), { expirationTtl: 7200 });
+      } catch (e) {
+        console.error('[Operator Comparison] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Operator Comparison] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load operator comparison',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
 
 // =============================================
 // UTILITY FUNCTIONS

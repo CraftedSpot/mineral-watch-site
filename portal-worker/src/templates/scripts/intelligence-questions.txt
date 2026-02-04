@@ -4,7 +4,7 @@
 
         const questionsByCategory = {
             deductions: [
-                { id: 'excessive-deductions', text: 'Are my operators charging excessive deductions?', badge: null, badgeClass: '' },
+                { id: 'excessive-deductions', text: 'Which wells have high deduction ratios?', badge: null, badgeClass: '' },
                 { id: 'county-comparison', text: 'How do my deductions compare to county averages?', badge: null, badgeClass: '' },
                 { id: 'deduction-trend', text: 'Are deductions increasing over time on any wells?', badge: null, badgeClass: '' },
                 { id: 'effective-royalty', text: 'What is my effective royalty rate after deductions?', badge: null, badgeClass: '' }
@@ -23,7 +23,7 @@
             ],
             risk: [
                 { id: 'pending-deadlines', text: 'Do I have any pending deadlines?', badge: null, badgeClass: '' },
-                { id: 'operator-concern', text: 'Which operators should I be concerned about?', badge: null, badgeClass: '' },
+                { id: 'operator-comparison', text: 'How do my operators compare to industry data?', badge: null, badgeClass: '' },
                 { id: 'nearby-permits', text: 'Are there permits near me I should know about?', badge: null, badgeClass: '' },
                 { id: 'revenue-continuity', text: 'Am I being paid on all producing wells?', badge: null, badgeClass: '' }
             ]
@@ -66,6 +66,10 @@
                 loadDeductionReport();
                 return;
             }
+            if (questionId === 'operator-comparison') {
+                loadOperatorComparison();
+                return;
+            }
             console.log('Question clicked:', questionId);
             showToast('Report generation coming soon', 'info');
         }
@@ -74,12 +78,12 @@
         function updateQuestionBadges(summaryData) {
             if (!summaryData) return;
 
-            // Deduction flags
+            // Deduction flags - neutral badge
             if (summaryData.deductionFlags > 0) {
                 const q = questionsByCategory.deductions.find(q => q.id === 'excessive-deductions');
                 if (q) {
-                    q.badge = `${summaryData.deductionFlags} Flags`;
-                    q.badgeClass = 'badge-alert';
+                    q.badge = `${summaryData.deductionFlags} wells`;
+                    q.badgeClass = 'badge-neutral';
                 }
             }
 

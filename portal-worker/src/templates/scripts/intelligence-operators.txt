@@ -1,0 +1,518 @@
+        // =============================================
+        // INTELLIGENCE TABS & OPERATOR DIRECTORY
+        // =============================================
+
+        // Tab switching
+        function setupIntelTabs() {
+            const tabs = document.querySelectorAll('.intel-tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    const targetTab = tab.dataset.tab;
+
+                    // Update tab buttons
+                    tabs.forEach(t => t.classList.remove('active'));
+                    tab.classList.add('active');
+
+                    // Update content
+                    document.querySelectorAll('.intel-tab-content').forEach(content => {
+                        content.classList.remove('active');
+                        content.style.display = 'none';
+                    });
+
+                    const targetContent = document.getElementById(targetTab + 'Content');
+                    if (targetContent) {
+                        targetContent.classList.add('active');
+                        targetContent.style.display = 'block';
+                    }
+                });
+            });
+        }
+
+        // Initialize tabs on load
+        document.addEventListener('DOMContentLoaded', () => {
+            setupIntelTabs();
+        });
+
+        // =============================================
+        // OPERATOR DIRECTORY
+        // =============================================
+
+        let directoryPage = 0;
+        let directoryPageSize = 50;
+        let directoryTotalCount = 0;
+        let currentDirectoryOperators = [];
+        let directorySort = { key: 'well_count', dir: 'desc' }; // Default sort
+
+        // Directory sorting
+        function sortDirectoryData(data, key, dir) {
+            return [...data].sort((a, b) => {
+                let aVal = a[key];
+                let bVal = b[key];
+
+                // Handle nulls
+                if (aVal == null && bVal == null) return 0;
+                if (aVal == null) return dir === 'asc' ? -1 : 1;
+                if (bVal == null) return dir === 'asc' ? 1 : -1;
+
+                // String comparison
+                if (typeof aVal === 'string' && typeof bVal === 'string') {
+                    return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+
+                // Numeric comparison
+                return dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+        }
+
+        function handleDirectorySort(key) {
+            if (directorySort.key === key) {
+                directorySort.dir = directorySort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                // Default to desc for numbers, asc for name
+                directorySort = { key, dir: key === 'operator_name' ? 'asc' : 'desc' };
+            }
+            renderDirectoryTable(currentDirectoryOperators, { has_more: directoryTotalCount > (directoryPage + 1) * directoryPageSize });
+        }
+
+        function renderDirectorySortArrow(key) {
+            if (directorySort.key !== key) {
+                return '<span class="sort-arrows"><span class="sort-arrow">▲</span><span class="sort-arrow">▼</span></span>';
+            }
+            return directorySort.dir === 'asc'
+                ? '<span class="sort-arrows"><span class="sort-arrow active">▲</span><span class="sort-arrow">▼</span></span>'
+                : '<span class="sort-arrows"><span class="sort-arrow">▲</span><span class="sort-arrow active">▼</span></span>';
+        }
+
+        function loadOperatorDirectory() {
+            // Hide main content, show directory viewer
+            document.querySelector('main').style.display = 'none';
+            document.querySelector('.intel-hero').style.display = 'none';
+            document.getElementById('operatorDirectoryViewer').style.display = 'block';
+
+            // Setup event listeners
+            setupDirectoryListeners();
+
+            // Load data
+            fetchOperatorDirectory();
+        }
+
+        function closeOperatorDirectory() {
+            document.getElementById('operatorDirectoryViewer').style.display = 'none';
+            document.querySelector('main').style.display = 'block';
+            document.querySelector('.intel-hero').style.display = 'block';
+            window.scrollTo(0, 0);
+        }
+
+        function setupDirectoryListeners() {
+            // Only setup once
+            if (window._directoryListenersSetup) return;
+            window._directoryListenersSetup = true;
+
+            // Search with debounce
+            let searchTimeout;
+            document.getElementById('directorySearchInput').addEventListener('input', () => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    directoryPage = 0;
+                    fetchOperatorDirectory();
+                }, 300);
+            });
+
+            // Sort change
+            document.getElementById('directorySortSelect').addEventListener('change', () => {
+                directoryPage = 0;
+                fetchOperatorDirectory();
+            });
+
+            // Min wells change
+            document.getElementById('directoryMinWells').addEventListener('change', () => {
+                directoryPage = 0;
+                fetchOperatorDirectory();
+            });
+        }
+
+        async function fetchOperatorDirectory() {
+            const search = document.getElementById('directorySearchInput').value.trim();
+            const sort = document.getElementById('directorySortSelect').value;
+            const minWells = document.getElementById('directoryMinWells').value;
+
+            const params = new URLSearchParams({
+                sort,
+                min_wells: minWells,
+                limit: directoryPageSize.toString(),
+                offset: (directoryPage * directoryPageSize).toString()
+            });
+
+            if (search) {
+                params.set('search', search);
+            }
+
+            document.getElementById('directoryContent').innerHTML = '<div class="report-loading">Loading operators...</div>';
+
+            try {
+                const response = await fetch(`/api/operators/directory?${params}`);
+                if (!response.ok) {
+                    const err = await response.json();
+                    throw new Error(err.error || 'Failed to load operators');
+                }
+
+                const data = await response.json();
+                currentDirectoryOperators = data.operators;
+                directoryTotalCount = data.total_count;
+
+                updateDirectoryStats(data);
+                renderDirectoryTable(data.operators, data.pagination);
+
+            } catch (error) {
+                document.getElementById('directoryContent').innerHTML = `
+                    <div class="directory-error">${escapeHtml(error.message)}</div>
+                `;
+                showToast(error.message, 'error');
+            }
+        }
+
+        function updateDirectoryStats(data) {
+            // Use distribution from backend
+            const dist = data.distribution;
+
+            if (dist && dist.total_operators > 0) {
+                document.getElementById('directorySubtitle').textContent =
+                    `${formatNumber(dist.total_operators)} operators · ${formatNumber(dist.total_wells)} wells`;
+
+                document.getElementById('directoryStats').innerHTML = `
+                    <span class="legend-pill success" title="Positive Net Return: Returned more value than deducted">${dist.positive}</span>
+                    <span class="legend-pill neutral" title="Neutral: Net Return between $0 and -$1M">${dist.neutral}</span>
+                    <span class="legend-pill warning" title="Moderate: Net Return between -$1M and -$10M">${dist.warning}</span>
+                    <span class="legend-pill danger" title="Significant: Net Return below -$10M">${dist.danger}</span>
+                `;
+            } else {
+                document.getElementById('directorySubtitle').textContent =
+                    `${formatNumber(data.total_count)} operators`;
+                document.getElementById('directoryStats').innerHTML = '';
+            }
+        }
+
+        function renderDirectoryTable(operators, pagination) {
+            if (!operators || operators.length === 0) {
+                document.getElementById('directoryContent').innerHTML = `
+                    <div class="directory-empty">No operators found matching your criteria</div>
+                `;
+                return;
+            }
+
+            // Sort the data
+            const sortedOperators = sortDirectoryData(operators, directorySort.key, directorySort.dir);
+
+            let html = `
+                <table class="directory-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable" onclick="handleDirectorySort('operator_name')">Operator${renderDirectorySortArrow('operator_name')}</th>
+                            <th class="text-right sortable" onclick="handleDirectorySort('well_count')" title="Number of active wells">Wells${renderDirectorySortArrow('well_count')}</th>
+                            <th class="text-right sortable" onclick="handleDirectorySort('residue_deductions')" title="Processing fees taken from revenue (Product 5 - Residue Gas)">Deductions${renderDirectorySortArrow('residue_deductions')}</th>
+                            <th class="text-right sortable" onclick="handleDirectorySort('pcrr_value')" title="Value returned from extracted liquids (Product 6 - NGLs from plant)">NGL Returned${renderDirectorySortArrow('pcrr_value')}</th>
+                            <th class="text-right sortable" onclick="handleDirectorySort('net_value_return')" title="NGL Returned minus Deductions. Positive means more value returned than taken. Negative means value was extracted.">Net Return${renderDirectorySortArrow('net_value_return')}</th>
+                            <th class="text-right sortable" onclick="handleDirectorySort('pcrr')" title="Post-Production Cost Recovery Ratio: NGL Returned ÷ Deductions × 100. Higher is better - over 100% means more returned than taken.">PCRR${renderDirectorySortArrow('pcrr')}</th>
+                            <th class="text-right sortable" onclick="handleDirectorySort('county_variance')" title="Difference between this operator's deduction rate and the median rate for operators in their primary county. Positive means they deduct more than peers in the same area.">vs County${renderDirectorySortArrow('county_variance')}</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            sortedOperators.forEach(op => {
+                // PCRR: >100% is good (more returned than taken), <10% is concerning
+                const pcrrClass = op.pcrr == null ? 'neutral'
+                    : op.pcrr >= 100 ? 'success'
+                    : op.pcrr >= 30 ? 'medium' : 'danger';
+                // Net return: positive = good (returned more), negative = bad (extracted value)
+                const returnClass = op.net_value_return == null ? 'neutral'
+                    : op.net_value_return >= 0 ? 'success'
+                    : op.net_value_return <= -10000000 ? 'danger'
+                    : op.net_value_return <= -1000000 ? 'medium' : 'neutral';
+                // County variance: negative = good (below county avg), positive = bad (above county avg)
+                const varianceClass = op.county_variance == null ? 'neutral'
+                    : op.county_variance <= -5 ? 'success'
+                    : op.county_variance >= 10 ? 'danger'
+                    : op.county_variance >= 5 ? 'medium' : 'neutral';
+                const varianceDisplay = op.county_variance != null
+                    ? (op.county_variance > 0 ? '+' : '') + op.county_variance + ' pts'
+                    : '—';
+
+                html += `
+                    <tr onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" style="cursor: pointer;">
+                        <td>
+                            <div class="op-name">${escapeHtml(op.operator_name)}</div>
+                            <div class="op-meta">#${escapeHtml(op.operator_number)} ${op.status === 'OPEN' ? '<span class="status-active">Active</span>' : op.status === 'CLOSED' ? '<span class="status-inactive">Inactive</span>' : ''}</div>
+                        </td>
+                        <td class="text-right">${formatNumber(op.well_count)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.residue_deductions)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.pcrr_value)}</td>
+                        <td class="text-right"><span class="metric-pill ${returnClass}">${formatCurrencyShort(op.net_value_return)}</span></td>
+                        <td class="text-right"><span class="metric-pill ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}</span></td>
+                        <td class="text-right"><span class="metric-pill ${varianceClass}">${varianceDisplay}</span></td>
+                        <td class="text-right">
+                            <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+
+            // Pagination
+            if (directoryTotalCount > directoryPageSize) {
+                const totalPages = Math.ceil(directoryTotalCount / directoryPageSize);
+                const currentPageNum = directoryPage + 1;
+
+                html += `
+                    <div class="directory-pagination">
+                        <button class="btn btn-secondary" onclick="directoryPrevPage()" ${directoryPage === 0 ? 'disabled' : ''}>Previous</button>
+                        <span class="page-info">Page ${currentPageNum} of ${totalPages}</span>
+                        <button class="btn btn-secondary" onclick="directoryNextPage()" ${!pagination.has_more ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+            }
+
+            document.getElementById('directoryContent').innerHTML = html;
+        }
+
+        function directoryPrevPage() {
+            if (directoryPage > 0) {
+                directoryPage--;
+                fetchOperatorDirectory();
+            }
+        }
+
+        function directoryNextPage() {
+            if ((directoryPage + 1) * directoryPageSize < directoryTotalCount) {
+                directoryPage++;
+                fetchOperatorDirectory();
+            }
+        }
+
+        // =============================================
+        // OPERATOR DETAIL MODAL
+        // =============================================
+
+        async function openOperatorDetail(operatorNumber) {
+            const modal = document.getElementById('operatorModal');
+            const modalBody = document.getElementById('modalBody');
+            const modalTitle = document.getElementById('modalOperatorName');
+
+            // Find operator in current list for immediate name display
+            const op = currentDirectoryOperators.find(o => o.operator_number === operatorNumber);
+            modalTitle.textContent = op ? op.operator_name : `Operator ${operatorNumber}`;
+
+            modal.style.display = 'flex';
+            modalBody.innerHTML = `
+                <div style="text-align: center; padding: 2rem;">
+                    <div class="loading-spinner"></div>
+                    <span>Loading details...</span>
+                </div>
+            `;
+
+            try {
+                const response = await fetch(`/api/operators/${operatorNumber}`);
+                if (!response.ok) {
+                    throw new Error('Failed to load operator details');
+                }
+
+                const data = await response.json();
+                renderOperatorModal(data);
+
+            } catch (error) {
+                modalBody.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: var(--danger-red);">
+                        ${escapeHtml(error.message)}
+                    </div>
+                `;
+            }
+        }
+
+        function renderOperatorModal(data) {
+            const modalBody = document.getElementById('modalBody');
+            document.getElementById('modalOperatorName').textContent = data.operator_name;
+
+            const summary = data.summary;
+            const contact = data.contact;
+            const efficiency = data.efficiency;
+
+            let html = `
+                <div class="modal-stats">
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${formatNumber(summary.well_count)}</div>
+                        <div class="modal-stat-label">Wells</div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${formatCurrencyShort(summary.total_gross)}</div>
+                        <div class="modal-stat-label">6-Mo Gross</div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-value">${summary.deduction_ratio}%</div>
+                        <div class="modal-stat-label">Deduction Ratio</div>
+                    </div>
+                    <div class="modal-stat">
+                        <div class="modal-stat-value ${efficiency.pcrr >= 100 ? 'positive' : efficiency.pcrr < 10 ? 'negative' : ''}">${summary.pcrr != null ? summary.pcrr + '%' : 'N/A'}</div>
+                        <div class="modal-stat-label">PCRR</div>
+                    </div>
+                </div>
+            `;
+
+            // Efficiency Scorecard
+            if (efficiency) {
+                const tierColors = {
+                    outperformer: 'success',
+                    standard: 'info',
+                    outlier: 'danger',
+                    dry_gas_focus: 'warning'
+                };
+                const tierLabels = {
+                    outperformer: 'Outperformer',
+                    standard: 'Standard',
+                    outlier: 'Outlier',
+                    dry_gas_focus: 'Dry Gas Profile'
+                };
+
+                html += `
+                    <div class="modal-section efficiency-scorecard">
+                        <h3>Efficiency Scorecard</h3>
+                        <div class="scorecard-grid">
+                            <div class="scorecard-metric">
+                                <div class="metric-value ${efficiency.pcrr >= 100 ? 'positive' : efficiency.pcrr < 10 ? 'negative' : ''}">${efficiency.pcrr ?? 'N/A'}%</div>
+                                <div class="metric-label">PCRR</div>
+                                <div class="metric-context">vs 100% break-even</div>
+                            </div>
+                            <div class="scorecard-metric">
+                                <div class="metric-value ${efficiency.county_variance < 0 ? 'positive' : efficiency.county_variance > 20 ? 'negative' : ''}">${efficiency.county_variance !== null ? (efficiency.county_variance > 0 ? '+' : '') + efficiency.county_variance + ' pts' : '—'}</div>
+                                <div class="metric-label">County Variance</div>
+                                <div class="metric-context">vs regional median</div>
+                            </div>
+                        </div>
+                        <div class="tier-display">
+                            <span class="tier-label">Efficiency Tier:</span>
+                            <span class="tier-badge ${tierColors[efficiency.tier]}">${tierLabels[efficiency.tier]}</span>
+                        </div>
+                        <div class="auditor-note ${efficiency.tier}">
+                            <div class="note-header">Technical Assessment</div>
+                            <p class="note-text">${escapeHtml(efficiency.technical_auditor_note)}</p>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Contact info
+            if (contact && (contact.phone || contact.address || contact.contact_name)) {
+                const statusBadge = contact.status === 'OPEN'
+                    ? '<span class="contact-status active">Active</span>'
+                    : contact.status === 'CLOSED'
+                        ? '<span class="contact-status inactive">Inactive</span>'
+                        : '';
+
+                html += `
+                    <div class="modal-section contact-box">
+                        <h3>Contact Information ${statusBadge}</h3>
+                        <div class="contact-grid">
+                            ${contact.contact_name ? `<div class="contact-row"><span class="contact-label">Contact</span><span>${escapeHtml(contact.contact_name)}</span></div>` : ''}
+                            ${contact.phone ? `<div class="contact-row"><span class="contact-label">Phone</span><a href="tel:${escapeHtml(contact.phone)}">${escapeHtml(contact.phone)}</a></div>` : ''}
+                            ${contact.address ? `<div class="contact-row"><span class="contact-label">Address</span><span>${escapeHtml(contact.address)}<br>${escapeHtml(contact.city || '')}, ${escapeHtml(contact.state || '')} ${escapeHtml(contact.zip || '')}</span></div>` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Monthly trend
+            if (data.monthly && data.monthly.length > 0) {
+                html += `
+                    <div class="modal-section">
+                        <h3>Monthly Trend</h3>
+                        <table class="modal-table">
+                            <thead>
+                                <tr>
+                                    <th>Month</th>
+                                    <th class="text-right">Gross</th>
+                                    <th class="text-right">Deductions</th>
+                                    <th class="text-right">Ded %</th>
+                                    <th class="text-right">PCRR</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.monthly.slice(0, 6).map(m => `
+                                    <tr>
+                                        <td>${formatMonthShort(m.year_month)}</td>
+                                        <td class="text-right">${formatCurrencyShort(m.total_gross)}</td>
+                                        <td class="text-right">${formatCurrencyShort(m.residue_deductions)}</td>
+                                        <td class="text-right">${m.deduction_ratio}%</td>
+                                        <td class="text-right">${m.pcrr != null ? m.pcrr + '%' : '—'}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+                `;
+            }
+
+            // Counties
+            if (data.counties && data.counties.length > 0) {
+                html += `
+                    <div class="modal-section">
+                        <h3>Top Counties</h3>
+                        <div class="county-pills">
+                            ${data.counties.slice(0, 5).map(c => `<span class="county-pill">${escapeHtml(c.county || 'Unknown')} (${c.well_count})</span>`).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            modalBody.innerHTML = html;
+        }
+
+        function closeOperatorModal() {
+            document.getElementById('operatorModal').style.display = 'none';
+        }
+
+        // Close modal on overlay click or ESC
+        document.getElementById('operatorModal')?.addEventListener('click', (e) => {
+            if (e.target.id === 'operatorModal') closeOperatorModal();
+        });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeOperatorModal();
+        });
+
+        // Utility functions for directory
+        function formatNumber(num) {
+            if (num == null) return '—';
+            return num.toLocaleString();
+        }
+
+        function formatCurrencyShort(amount) {
+            if (amount == null || isNaN(amount)) return '—';
+            // Handle negative amounts (value returned > deductions)
+            const isNegative = amount < 0;
+            const absAmount = Math.abs(amount);
+            let formatted;
+            if (absAmount >= 1000000) {
+                formatted = '$' + (absAmount / 1000000).toFixed(1) + 'M';
+            } else if (absAmount >= 1000) {
+                formatted = '$' + (absAmount / 1000).toFixed(0) + 'K';
+            } else {
+                formatted = '$' + absAmount.toFixed(0);
+            }
+            return isNegative ? '-' + formatted : formatted;
+        }
+
+        function formatMonthShort(yyyymm) {
+            if (!yyyymm || yyyymm.length !== 6) return yyyymm;
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            return months[parseInt(yyyymm.substring(4, 6), 10) - 1] + ' ' + yyyymm.substring(2, 4);
+        }
+
+        // escapeHtml for directory (if not already defined)
+        if (typeof escapeHtml === 'undefined') {
+            window.escapeHtml = function(str) {
+                if (!str) return '';
+                const div = document.createElement('div');
+                div.textContent = str;
+                return div.innerHTML;
+            };
+        }
