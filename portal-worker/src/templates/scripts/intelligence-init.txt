@@ -43,12 +43,6 @@
                 // Load insights
                 loadInsights();
 
-                // Render default question category
-                renderQuestions('deductions');
-
-                // Set up category tab handlers
-                setupCategoryTabs();
-
             } catch (error) {
                 console.error('Intelligence page init error:', error);
             }

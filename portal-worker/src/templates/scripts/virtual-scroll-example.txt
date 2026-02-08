@@ -1,0 +1,257 @@
+/**
+ * Example: Production Decline Report using VirtualTable
+ *
+ * This shows how to use VirtualTable for a list of 1000+ wells
+ * with instant sorting, filtering, and row click to open detail module.
+ */
+
+// Sample data structure (what the API would return)
+const wellsData = [
+    {
+        id: 'well_001',
+        name: 'SMITH 1-24H',
+        operator: 'Continental Resources',
+        county: 'Blaine',
+        formation: 'Woodford',
+        wellType: 'horizontal',
+        currentOil: 2450,      // BBL
+        currentGas: 8200,      // MCF
+        yoyChange: -18.5,      // percent
+        waterCut: 45.2,        // percent
+        status: 'active',
+        productionMonth: '2025-10'
+    },
+    // ... hundreds more
+];
+
+// Initialize the table
+function initProductionDeclineTable(wells) {
+    const container = document.getElementById('decline-table-container');
+
+    const table = new VirtualTable({
+        container: container,
+        rowHeight: 52,
+        maxHeight: 550,
+        data: wells,
+        defaultSort: 'yoyChange',
+        defaultSortDir: 'asc', // Show steepest declines first (most negative)
+
+        columns: [
+            {
+                key: 'name',
+                label: 'Well Name',
+                width: '180px',
+                sortable: true,
+                render: (val, row) => `<span class="vt-well-link" data-well-id="${row.id}">${escapeHtml(val)}</span>`
+            },
+            {
+                key: 'operator',
+                label: 'Operator',
+                width: '160px',
+                sortable: true,
+                className: 'vt-hide-mobile'
+            },
+            {
+                key: 'county',
+                label: 'County',
+                width: '100px',
+                sortable: true
+            },
+            {
+                key: 'formation',
+                label: 'Formation',
+                width: '100px',
+                sortable: true,
+                className: 'vt-hide-mobile'
+            },
+            {
+                key: 'currentOil',
+                label: 'Oil (BBL)',
+                width: '90px',
+                sortable: true,
+                className: 'numeric',
+                render: (val) => val ? val.toLocaleString() : '—'
+            },
+            {
+                key: 'currentGas',
+                label: 'Gas (MCF)',
+                width: '90px',
+                sortable: true,
+                className: 'numeric vt-hide-mobile',
+                render: (val) => val ? val.toLocaleString() : '—'
+            },
+            {
+                key: 'yoyChange',
+                label: 'YoY Change',
+                width: '100px',
+                sortable: true,
+                className: 'numeric',
+                render: (val, row) => renderYoyChange(val, row.status)
+            },
+            {
+                key: 'status',
+                label: 'Status',
+                width: '90px',
+                sortable: true,
+                className: 'status',
+                render: (val) => renderStatus(val)
+            }
+        ],
+
+        onRowClick: (well, index, event) => {
+            // Don't trigger if they clicked the well name link (handled separately)
+            if (event.target.classList.contains('vt-well-link')) return;
+            openWellDetail(well.id);
+        },
+
+        onSort: (key, dir) => {
+            console.log(`Sorted by ${key} ${dir}`);
+            // Could track analytics here
+        }
+    });
+
+    // Store reference for filter updates
+    window.declineTable = table;
+
+    // Bind well name link clicks (for keyboard accessibility)
+    container.addEventListener('click', (e) => {
+        const link = e.target.closest('.vt-well-link');
+        if (link) {
+            const wellId = link.dataset.wellId;
+            openWellDetail(wellId);
+        }
+    });
+
+    return table;
+}
+
+// Render helpers
+function renderYoyChange(val, status) {
+    if (status === 'idle') {
+        return '<span class="vt-change neutral">Idle</span>';
+    }
+    if (val == null) {
+        return '<span class="vt-change neutral">—</span>';
+    }
+
+    let className = 'neutral';
+    if (val > 0) className = 'positive';
+    else if (val < -20) className = 'negative';  // Steep decline
+    else if (val < 0) className = 'warning';     // Modest decline
+
+    const formatted = val.toFixed(1) + '%';
+    return `<span class="vt-change ${className}">${formatted}</span>`;
+}
+
+function renderStatus(status) {
+    const labels = {
+        'active': 'Active',
+        'declining': 'Declining',
+        'idle': 'Idle',
+        'shutin': 'Shut-in'
+    };
+    const label = labels[status] || status;
+    return `<span class="vt-status-badge ${status}">${label}</span>`;
+}
+
+function openWellDetail(wellId) {
+    // Open the existing Unit Production Report module as overlay
+    // This function should already exist in the codebase
+    if (typeof openUnitProductionReport === 'function') {
+        openUnitProductionReport(wellId);
+    } else {
+        console.log('Would open well detail for:', wellId);
+    }
+}
+
+// Filter functions
+function filterByCounty(county) {
+    if (!county || county === 'all') {
+        window.declineTable.resetFilter();
+    } else {
+        window.declineTable.filter(well => well.county === county);
+    }
+}
+
+function filterByStatus(status) {
+    if (!status || status === 'all') {
+        window.declineTable.resetFilter();
+    } else if (status === 'declining') {
+        window.declineTable.filter(well => well.yoyChange < 0 && well.status === 'active');
+    } else {
+        window.declineTable.filter(well => well.status === status);
+    }
+}
+
+function filterBySearch(query) {
+    if (!query) {
+        window.declineTable.resetFilter();
+        return;
+    }
+    const q = query.toLowerCase();
+    window.declineTable.filter(well =>
+        well.name.toLowerCase().includes(q) ||
+        well.operator.toLowerCase().includes(q) ||
+        well.county.toLowerCase().includes(q)
+    );
+}
+
+// Combined filter (when multiple filters active)
+function applyFilters(filters) {
+    const { county, status, search } = filters;
+
+    window.declineTable.filter(well => {
+        // County filter
+        if (county && county !== 'all' && well.county !== county) return false;
+
+        // Status filter
+        if (status && status !== 'all') {
+            if (status === 'declining' && (well.yoyChange >= 0 || well.status !== 'active')) return false;
+            else if (status !== 'declining' && well.status !== status) return false;
+        }
+
+        // Search filter
+        if (search) {
+            const q = search.toLowerCase();
+            if (!well.name.toLowerCase().includes(q) &&
+                !well.operator.toLowerCase().includes(q) &&
+                !well.county.toLowerCase().includes(q)) {
+                return false;
+            }
+        }
+
+        return true;
+    });
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+}
+
+/**
+ * HTML structure needed:
+ *
+ * <div class="decline-report-toolbar">
+ *     <input type="text" id="decline-search" placeholder="Search wells...">
+ *     <select id="decline-county-filter">
+ *         <option value="all">All Counties</option>
+ *         <!-- populated dynamically -->
+ *     </select>
+ *     <select id="decline-status-filter">
+ *         <option value="all">All Status</option>
+ *         <option value="active">Active</option>
+ *         <option value="declining">Declining</option>
+ *         <option value="idle">Idle</option>
+ *     </select>
+ * </div>
+ *
+ * <div id="decline-table-container"></div>
+ *
+ * <div class="vt-row-count">
+ *     Showing <span id="shown-count">287</span> of <span id="total-count">287</span> wells
+ * </div>
+ */

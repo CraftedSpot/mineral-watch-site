@@ -8,7 +8,12 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
+import { parseTownship, parseRange, getAdjacentLocations } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
+
+// Minimum annual BOE threshold for including a well in county YoY calculations.
+// Wells below this are intermittent/marginal and create extreme % swings (e.g. 1→10 BOE = +900%).
+const MIN_BOE_THRESHOLD = 50;
 
 // Intelligence features are currently limited to specific organizations during beta
 const INTELLIGENCE_ALLOWED_ORGS = [
@@ -449,6 +454,79 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       });
     }
 
+    // Insight 4: Recent pooling orders near user's properties (exact section match for proactive alert)
+    try {
+      // Get user's properties with TRS data
+      const propsQuery = userOrgId
+        ? `SELECT section, township, range FROM properties WHERE (user_id = ? OR organization_id = ?) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+        : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
+
+      const propsResult = userOrgId
+        ? await env.WELLS_DB.prepare(propsQuery).bind(authUser.id, userOrgId).all()
+        : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+
+      const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
+
+      if (props.length > 0) {
+        // Build unique TRS combinations for exact section match
+        const trsSet = new Set<string>();
+        for (const p of props) {
+          trsSet.add(`${p.section}|${p.township}|${p.range}`);
+        }
+
+        // Query for pooling orders in the last 90 days matching user's exact sections
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().substring(0, 10);
+
+        // Build OR conditions for TRS matches
+        const trsConditions: string[] = [];
+        const trsBindings: string[] = [];
+        for (const trs of trsSet) {
+          const [sec, twp, rng] = trs.split('|');
+          trsConditions.push('(section = ? AND township = ? AND range = ?)');
+          trsBindings.push(sec, twp, rng);
+        }
+
+        if (trsConditions.length > 0 && trsConditions.length <= 100) {
+          const poolingResult = await env.WELLS_DB.prepare(`
+            SELECT COUNT(*) as count, MIN(response_deadline) as nearest_deadline
+            FROM pooling_orders
+            WHERE order_date >= ?
+              AND (${trsConditions.join(' OR ')})
+          `).bind(ninetyDaysAgoStr, ...trsBindings).all();
+
+          const poolingData = poolingResult.results[0] as { count: number; nearest_deadline: string | null } | undefined;
+
+          if (poolingData && poolingData.count > 0) {
+            const count = poolingData.count;
+            const nearestDeadline = poolingData.nearest_deadline;
+
+            // Check if deadline is within 30 days
+            let isUrgent = false;
+            if (nearestDeadline) {
+              const deadlineDate = new Date(nearestDeadline);
+              const thirtyDaysFromNow = new Date();
+              thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+              isUrgent = deadlineDate < thirtyDaysFromNow;
+            }
+
+            insights.push({
+              severity: isUrgent ? 'warning' : 'info',
+              title: `${count} pooling order${count > 1 ? 's' : ''} filed on your properties`,
+              description: isUrgent
+                ? 'A response deadline is approaching. View the latest bonus rates and royalty options.'
+                : 'View the latest bonus rates and royalty options in your area.',
+              action: 'View Rates',
+              actionId: 'pooling-report'
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.error('[Insights] Pooling check error:', e instanceof Error ? e.message : e);
+    }
+
     // If no issues found, show a positive message
     if (insights.length === 0) {
       insights.push({
@@ -592,6 +670,9 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       county_avg_pct: number | null;
       variance_points: number | null;
       operator: string;
+      purchaser_id: string | null;
+      purchaser_name: string | null;
+      is_affiliated: boolean;
     }> = [];
 
     for (const [apiNum, entry] of wellMap) {
@@ -627,7 +708,10 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
         residueGasNote,
         county_avg_pct: null, // filled by county benchmark query
         variance_points: null,
-        operator: well?.operator || ''
+        operator: well?.operator || '',
+        purchaser_id: null, // filled by purchaser query
+        purchaser_name: null,
+        is_affiliated: false
       });
     }
 
@@ -728,6 +812,73 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       } catch (countyError) {
         console.error('[Deduction Report] County benchmark error:', countyError instanceof Error ? countyError.message : countyError);
         // Non-fatal — report still works without county benchmarks
+      }
+    }
+
+    // Query 4: Purchaser info for flagged wells (vertical integration detection)
+    if (flaggedApiNumbers.length > 0) {
+      try {
+        type PurchaserRow = {
+          api_number: string;
+          purchaser_id: string | null;
+          purchaser_name: string | null;
+          operator_number: string | null;
+        };
+        const purchaserRows: PurchaserRow[] = [];
+
+        for (let i = 0; i < flaggedApiNumbers.length; i += 50) {
+          const batch = flaggedApiNumbers.slice(i, i + 50);
+          const placeholders = batch.map(() => '?').join(',');
+          // Get purchaser_id for Product 5 (residue gas) for each well
+          // Use MAX to get a consistent purchaser when there are multiple
+          const result = await env.WELLS_DB.prepare(`
+            SELECT
+              wpl.api_number,
+              MAX(opf.purchaser_id) as purchaser_id,
+              MAX(ol.operator_number) as operator_number
+            FROM well_pun_links wpl
+            JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+            LEFT JOIN otc_leases ol ON wpl.base_pun = ol.base_pun
+            WHERE wpl.api_number IN (${placeholders})
+              AND opf.product_code = '5'
+              AND opf.purchaser_id IS NOT NULL
+              AND opf.purchaser_id != ''
+              AND opf.year_month >= ?
+            GROUP BY wpl.api_number
+          `).bind(...batch, sixMonthsAgo).all();
+          purchaserRows.push(...(result.results as PurchaserRow[]));
+        }
+
+        // Look up purchaser names
+        const purchaserIds = [...new Set(purchaserRows.map(r => r.purchaser_id).filter(Boolean))];
+        const purchaserNames = new Map<string, string>();
+        if (purchaserIds.length > 0) {
+          const nameResult = await env.WELLS_DB.prepare(`
+            SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${purchaserIds.map(() => '?').join(',')})
+          `).bind(...purchaserIds).all();
+          for (const row of nameResult.results as Array<{ company_id: string; company_name: string }>) {
+            purchaserNames.set(row.company_id, row.company_name);
+          }
+        }
+
+        // Attach purchaser info to flagged wells
+        for (const row of purchaserRows) {
+          const well = flaggedWellsData.find(w => w.api_number === row.api_number);
+          if (well && row.purchaser_id) {
+            well.purchaser_id = row.purchaser_id;
+            const purchaserName = purchaserNames.get(row.purchaser_id) || `Purchaser ${row.purchaser_id}`;
+            well.purchaser_name = purchaserName;
+            // Check if operator = purchaser (vertical integration)
+            // Compare by ID first, then by normalized name (handles transfers/outdated OTC data)
+            const operatorNameNorm = (well.operator || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            const purchaserNameNorm = purchaserName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+            well.is_affiliated = row.operator_number === row.purchaser_id ||
+              (operatorNameNorm.length > 5 && purchaserNameNorm.includes(operatorNameNorm.substring(0, 10)));
+          }
+        }
+      } catch (purchaserError) {
+        console.error('[Deduction Report] Purchaser info error:', purchaserError instanceof Error ? purchaserError.message : purchaserError);
+        // Non-fatal — report still works without purchaser info
       }
     }
 
@@ -1008,6 +1159,1472 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
 }
 
 // =============================================
+// POOLING REPORT
+// =============================================
+
+/**
+ * GET /api/intelligence/pooling-report
+ *
+ * Returns pooling orders near the user's properties with bonus rates,
+ * royalty options, operator activity, and county averages.
+ *
+ * Uses two-phase query optimization:
+ * 1. Get user's unique townships (±1) to filter pooling orders
+ * 2. Compute exact distance tiers in JavaScript
+ */
+export async function handleGetPoolingReport(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('refresh') === '1';
+
+    // Check KV cache
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`pooling-report:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[Pooling Report] Cache read error:', e);
+      }
+    }
+
+    // Step 1: Get user's properties with TRS data
+    const propsQuery = userOrgId
+      ? `SELECT id, section, township, range, county, airtable_record_id
+         FROM properties
+         WHERE (user_id = ? OR organization_id = ?)
+           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+      : `SELECT id, section, township, range, county, airtable_record_id
+         FROM properties
+         WHERE user_id = ?
+           AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
+
+    const propsResult = userOrgId
+      ? await env.WELLS_DB.prepare(propsQuery).bind(authUser.id, userOrgId).all()
+      : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+
+    const properties = propsResult.results as Array<{
+      id: string;
+      section: string;
+      township: string;
+      range: string;
+      county: string;
+      airtable_record_id: string;
+    }>;
+
+    if (!properties || properties.length === 0) {
+      const emptyResponse = {
+        summary: {
+          totalNearbyOrders: 0,
+          avgBonusPerAcre: null,
+          bonusRange: { min: null, max: null },
+          royaltyOptions: {},
+          topOperators: [],
+          dateRange: { earliest: null, latest: null }
+        },
+        byProperty: [],
+        countyAverages: [],
+        _message: 'No properties with location data found'
+      };
+      return jsonResponse(emptyResponse);
+    }
+
+    // Step 2: Build set of townships (±1) and ranges (±1) for broad filter
+    const townships = new Set<string>();
+    const ranges = new Set<string>();
+
+    for (const p of properties) {
+      const twp = parseTownship(p.township);
+      const rng = parseRange(p.range);
+      if (twp && rng) {
+        // Same township
+        townships.add(`${twp.num}${twp.dir}`);
+        // ±1 township (same direction)
+        townships.add(`${twp.num + 1}${twp.dir}`);
+        if (twp.num > 1) townships.add(`${twp.num - 1}${twp.dir}`);
+
+        // Same range
+        ranges.add(`${rng.num}${rng.dir}`);
+        // ±1 range (same direction)
+        ranges.add(`${rng.num + 1}${rng.dir}`);
+        if (rng.num > 1) ranges.add(`${rng.num - 1}${rng.dir}`);
+      }
+    }
+
+    if (townships.size === 0) {
+      const emptyResponse = {
+        summary: {
+          totalNearbyOrders: 0,
+          avgBonusPerAcre: null,
+          bonusRange: { min: null, max: null },
+          royaltyOptions: {},
+          topOperators: [],
+          dateRange: { earliest: null, latest: null }
+        },
+        byProperty: [],
+        countyAverages: [],
+        _message: 'Could not parse property locations'
+      };
+      return jsonResponse(emptyResponse);
+    }
+
+    // Step 3: Query pooling orders in those townships with election options
+    const twpArray = [...townships];
+    const rngArray = [...ranges];
+    const twpPlaceholders = twpArray.map(() => '?').join(',');
+    const rngPlaceholders = rngArray.map(() => '?').join(',');
+
+    const ordersResult = await env.WELLS_DB.prepare(`
+      SELECT
+        po.id, po.order_date, po.operator, po.formations, po.county,
+        po.section, po.township, po.range, po.unit_size_acres, po.well_type,
+        po.response_deadline, po.case_number, po.order_number, po.applicant,
+        peo.option_number, peo.option_type, peo.bonus_per_acre, peo.royalty_fraction
+      FROM pooling_orders po
+      LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+      WHERE po.township IN (${twpPlaceholders})
+        AND po.range IN (${rngPlaceholders})
+      ORDER BY po.order_date DESC, po.id, peo.option_number
+    `).bind(...twpArray, ...rngArray).all();
+
+    const orderRows = ordersResult.results as Array<{
+      id: string;
+      order_date: string;
+      operator: string;
+      formations: string;
+      county: string;
+      section: string;
+      township: string;
+      range: string;
+      unit_size_acres: number;
+      well_type: string;
+      response_deadline: string;
+      case_number: string;
+      order_number: string;
+      applicant: string;
+      option_number: number;
+      option_type: string;
+      bonus_per_acre: number;
+      royalty_fraction: string;
+    }>;
+
+    // Step 4: Group rows by order ID (since JOIN duplicates order data per option)
+    const orderMap = new Map<string, {
+      id: string;
+      orderDate: string;
+      operator: string;
+      formations: any[];
+      county: string;
+      section: string;
+      township: string;
+      range: string;
+      unitSizeAcres: number;
+      wellType: string;
+      responseDeadline: string;
+      caseNumber: string;
+      orderNumber: string;
+      applicant: string;
+      electionOptions: Array<{
+        optionNumber: number;
+        optionType: string;
+        bonusPerAcre: number | null;
+        royaltyFraction: string | null;
+      }>;
+    }>();
+
+    for (const row of orderRows) {
+      if (!orderMap.has(row.id)) {
+        let formations: any[] = [];
+        try {
+          formations = row.formations ? JSON.parse(row.formations) : [];
+        } catch (e) {
+          formations = [];
+        }
+
+        orderMap.set(row.id, {
+          id: row.id,
+          orderDate: row.order_date,
+          operator: row.operator || row.applicant || 'Unknown',
+          formations,
+          county: row.county,
+          section: row.section,
+          township: row.township,
+          range: row.range,
+          unitSizeAcres: row.unit_size_acres,
+          wellType: row.well_type,
+          responseDeadline: row.response_deadline,
+          caseNumber: row.case_number,
+          orderNumber: row.order_number,
+          applicant: row.applicant,
+          electionOptions: []
+        });
+      }
+
+      // Add election option if present
+      if (row.option_number !== null) {
+        const order = orderMap.get(row.id)!;
+        // Avoid duplicates
+        if (!order.electionOptions.some(o => o.optionNumber === row.option_number)) {
+          order.electionOptions.push({
+            optionNumber: row.option_number,
+            optionType: row.option_type,
+            bonusPerAcre: row.bonus_per_acre,
+            royaltyFraction: row.royalty_fraction
+          });
+        }
+      }
+    }
+
+    const orders = [...orderMap.values()];
+
+    // Step 5: For each order, find closest property and compute distance tier
+    type OrderWithDistance = typeof orders[0] & {
+      distanceTier: number;
+      distanceDescription: string;
+      nearestPropertyId: string | null;
+    };
+
+    const ordersWithDistance: OrderWithDistance[] = [];
+
+    for (const order of orders) {
+      let bestTier = { tier: 99, description: 'Distant', propertyId: null as string | null };
+
+      for (const prop of properties) {
+        const tier = getDistanceTier(
+          parseInt(prop.section), prop.township, prop.range,
+          order.section, order.township, order.range
+        );
+        if (tier.tier < bestTier.tier) {
+          bestTier = { tier: tier.tier, description: tier.description, propertyId: prop.id };
+        }
+      }
+
+      // Only include orders within distance tier 2 (same section, adjacent, or within 2 twp)
+      if (bestTier.tier <= 2) {
+        ordersWithDistance.push({
+          ...order,
+          distanceTier: bestTier.tier,
+          distanceDescription: bestTier.description,
+          nearestPropertyId: bestTier.propertyId
+        });
+      }
+    }
+
+    // Step 6: Group by property for byProperty response
+    const propertyOrdersMap = new Map<string, typeof ordersWithDistance>();
+    for (const order of ordersWithDistance) {
+      if (order.nearestPropertyId) {
+        if (!propertyOrdersMap.has(order.nearestPropertyId)) {
+          propertyOrdersMap.set(order.nearestPropertyId, []);
+        }
+        propertyOrdersMap.get(order.nearestPropertyId)!.push(order);
+      }
+    }
+
+    // Build byProperty response with enhanced stats
+    const byProperty: Array<{
+      propertyId: string;
+      propertyName: string;
+      section: string;
+      township: string;
+      range: string;
+      county: string;
+      orderCount: number;
+      avgBonus: number | null;
+      sameSectionCount: number;
+      adjacentCount: number;
+      nearbyOrders: typeof ordersWithDistance;
+    }> = [];
+
+    for (const prop of properties) {
+      const propOrders = propertyOrdersMap.get(prop.id);
+      if (propOrders && propOrders.length > 0) {
+        // Sort by distance tier, then by date descending
+        propOrders.sort((a, b) => {
+          if (a.distanceTier !== b.distanceTier) return a.distanceTier - b.distanceTier;
+          return b.orderDate.localeCompare(a.orderDate);
+        });
+
+        // Compute per-property stats
+        const propBonuses: number[] = [];
+        let sameSectionCount = 0;
+        let adjacentCount = 0;
+        for (const order of propOrders) {
+          if (order.distanceTier === 0) sameSectionCount++;
+          if (order.distanceTier === 1) adjacentCount++;
+          for (const opt of order.electionOptions) {
+            if (opt.bonusPerAcre !== null && opt.bonusPerAcre > 0) {
+              propBonuses.push(opt.bonusPerAcre);
+            }
+          }
+        }
+
+        byProperty.push({
+          propertyId: prop.id,
+          propertyName: `SEC ${prop.section} T${prop.township} R${prop.range}`,
+          section: prop.section,
+          township: prop.township,
+          range: prop.range,
+          county: prop.county,
+          orderCount: propOrders.length,
+          avgBonus: propBonuses.length > 0
+            ? Math.round(propBonuses.reduce((a, b) => a + b, 0) / propBonuses.length)
+            : null,
+          sameSectionCount,
+          adjacentCount,
+          nearbyOrders: propOrders
+        });
+      }
+    }
+
+    // Sort byProperty by number of nearby orders descending
+    byProperty.sort((a, b) => b.nearbyOrders.length - a.nearbyOrders.length);
+
+    // Step 7: Compute summary stats
+    const allBonuses: number[] = [];
+    const royaltyCountMap: Record<string, number> = {};
+    const operatorCountMap: Record<string, number> = {};
+    const orderDates: string[] = [];
+    const uniqueOrderIds = new Set<string>();
+
+    for (const order of ordersWithDistance) {
+      uniqueOrderIds.add(order.id);
+      if (order.orderDate) orderDates.push(order.orderDate);
+
+      if (order.operator) {
+        operatorCountMap[order.operator] = (operatorCountMap[order.operator] || 0) + 1;
+      }
+
+      for (const opt of order.electionOptions) {
+        if (opt.bonusPerAcre !== null && opt.bonusPerAcre > 0) {
+          allBonuses.push(opt.bonusPerAcre);
+        }
+        if (opt.royaltyFraction) {
+          royaltyCountMap[opt.royaltyFraction] = (royaltyCountMap[opt.royaltyFraction] || 0) + 1;
+        }
+      }
+    }
+
+    const topOperators = Object.entries(operatorCountMap)
+      .map(([name, orderCount]) => ({ name, orderCount }))
+      .sort((a, b) => b.orderCount - a.orderCount)
+      .slice(0, 5);
+
+    orderDates.sort();
+    const avgBonus = allBonuses.length > 0
+      ? Math.round(allBonuses.reduce((a, b) => a + b, 0) / allBonuses.length)
+      : null;
+
+    // Step 8: Compute enhanced county data (for My Markets tab)
+    const countyStatsMap = new Map<string, {
+      bonuses: number[];
+      count: number;
+      formations: Set<string>;
+      operators: Map<string, number>;
+      royalties: Map<string, number>;
+    }>();
+    for (const order of ordersWithDistance) {
+      if (!order.county) continue;
+      if (!countyStatsMap.has(order.county)) {
+        countyStatsMap.set(order.county, {
+          bonuses: [],
+          count: 0,
+          formations: new Set(),
+          operators: new Map(),
+          royalties: new Map()
+        });
+      }
+      const stats = countyStatsMap.get(order.county)!;
+      stats.count++;
+
+      // Track operator counts
+      if (order.operator) {
+        stats.operators.set(order.operator, (stats.operators.get(order.operator) || 0) + 1);
+      }
+
+      for (const opt of order.electionOptions) {
+        if (opt.bonusPerAcre !== null && opt.bonusPerAcre > 0) {
+          stats.bonuses.push(opt.bonusPerAcre);
+        }
+        if (opt.royaltyFraction) {
+          stats.royalties.set(opt.royaltyFraction, (stats.royalties.get(opt.royaltyFraction) || 0) + 1);
+        }
+      }
+      for (const f of order.formations) {
+        if (f && typeof f === 'object' && f.name) {
+          stats.formations.add(f.name);
+        } else if (typeof f === 'string') {
+          stats.formations.add(f);
+        }
+      }
+    }
+
+    const countyAverages = [...countyStatsMap.entries()].map(([county, stats]) => {
+      // Find most active operator (mode)
+      let mostActiveOperator = '';
+      let maxOpCount = 0;
+      for (const [op, count] of stats.operators) {
+        if (count > maxOpCount) {
+          maxOpCount = count;
+          mostActiveOperator = op;
+        }
+      }
+
+      // Find dominant royalty (mode)
+      let dominantRoyalty = '';
+      let maxRoyaltyCount = 0;
+      for (const [royalty, count] of stats.royalties) {
+        if (count > maxRoyaltyCount) {
+          maxRoyaltyCount = count;
+          dominantRoyalty = royalty;
+        }
+      }
+
+      return {
+        county,
+        avgBonus: stats.bonuses.length > 0
+          ? Math.round(stats.bonuses.reduce((a, b) => a + b, 0) / stats.bonuses.length)
+          : null,
+        minBonus: stats.bonuses.length > 0 ? Math.min(...stats.bonuses) : null,
+        maxBonus: stats.bonuses.length > 0 ? Math.max(...stats.bonuses) : null,
+        orderCount: stats.count,
+        formations: [...stats.formations],
+        mostActiveOperator,
+        dominantRoyalty
+      };
+    }).sort((a, b) => b.orderCount - a.orderCount);
+
+    // Step 9: Compute STATEWIDE stats for Market Research tab (NOT scoped to user townships)
+    // Query all pooling orders with election options for statewide analysis
+    const statewideResult = await env.WELLS_DB.prepare(`
+      SELECT
+        po.id, po.order_date, po.operator, po.formations, po.county,
+        peo.bonus_per_acre, peo.royalty_fraction
+      FROM pooling_orders po
+      LEFT JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+      WHERE po.order_date >= date('now', '-12 months')
+      ORDER BY po.order_date DESC
+    `).all();
+
+    const statewideRows = statewideResult.results as Array<{
+      id: string;
+      order_date: string;
+      operator: string;
+      formations: string;
+      county: string;
+      bonus_per_acre: number;
+      royalty_fraction: string;
+    }>;
+
+    // Group by order ID and aggregate
+    const statewideOrderMap = new Map<string, {
+      id: string;
+      orderDate: string;
+      operator: string;
+      formations: any[];
+      county: string;
+      bonuses: number[];
+    }>();
+
+    for (const row of statewideRows) {
+      if (!statewideOrderMap.has(row.id)) {
+        let formations: any[] = [];
+        try {
+          formations = row.formations ? JSON.parse(row.formations) : [];
+        } catch (e) {
+          formations = [];
+        }
+        statewideOrderMap.set(row.id, {
+          id: row.id,
+          orderDate: row.order_date,
+          operator: row.operator,
+          formations,
+          county: row.county,
+          bonuses: []
+        });
+      }
+      if (row.bonus_per_acre !== null && row.bonus_per_acre > 0) {
+        statewideOrderMap.get(row.id)!.bonuses.push(row.bonus_per_acre);
+      }
+    }
+
+    const statewideOrders = [...statewideOrderMap.values()];
+
+    // Top formations by avg bonus (statewide)
+    const formationBonusMap = new Map<string, number[]>();
+    for (const order of statewideOrders) {
+      for (const f of order.formations) {
+        const fName = (f && typeof f === 'object' && f.name) ? f.name : (typeof f === 'string' ? f : null);
+        if (!fName) continue;
+        if (!formationBonusMap.has(fName)) {
+          formationBonusMap.set(fName, []);
+        }
+        formationBonusMap.get(fName)!.push(...order.bonuses);
+      }
+    }
+    const topFormations = [...formationBonusMap.entries()]
+      .filter(([_, bonuses]) => bonuses.length >= 3) // At least 3 data points
+      .map(([name, bonuses]) => ({
+        name,
+        avgBonus: Math.round(bonuses.reduce((a, b) => a + b, 0) / bonuses.length),
+        orderCount: bonuses.length
+      }))
+      .sort((a, b) => b.avgBonus - a.avgBonus)
+      .slice(0, 5);
+
+    // Top paying operators (statewide)
+    const operatorBonusMap = new Map<string, number[]>();
+    for (const order of statewideOrders) {
+      if (!order.operator) continue;
+      if (!operatorBonusMap.has(order.operator)) {
+        operatorBonusMap.set(order.operator, []);
+      }
+      operatorBonusMap.get(order.operator)!.push(...order.bonuses);
+    }
+    const topPayingOperators = [...operatorBonusMap.entries()]
+      .filter(([_, bonuses]) => bonuses.length >= 3)
+      .map(([name, bonuses]) => ({
+        name,
+        avgBonus: Math.round(bonuses.reduce((a, b) => a + b, 0) / bonuses.length),
+        orderCount: bonuses.length
+      }))
+      .sort((a, b) => b.avgBonus - a.avgBonus)
+      .slice(0, 5);
+
+    // Hottest counties (orders in last 90 days, statewide)
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().substring(0, 10);
+    const recentCountyMap = new Map<string, number>();
+    for (const order of statewideOrders) {
+      if (order.orderDate && order.orderDate >= ninetyDaysAgoStr && order.county) {
+        recentCountyMap.set(order.county, (recentCountyMap.get(order.county) || 0) + 1);
+      }
+    }
+    const hottestCounties = [...recentCountyMap.entries()]
+      .map(([county, orderCount]) => ({ county, orderCount }))
+      .sort((a, b) => b.orderCount - a.orderCount)
+      .slice(0, 5);
+
+    // Get user's plan for tier gate
+    const userPlan = userRecord.fields.Plan || 'Free';
+
+    const response = {
+      summary: {
+        totalNearbyOrders: uniqueOrderIds.size,
+        avgBonusPerAcre: avgBonus,
+        bonusRange: {
+          min: allBonuses.length > 0 ? Math.min(...allBonuses) : null,
+          max: allBonuses.length > 0 ? Math.max(...allBonuses) : null
+        },
+        royaltyOptions: royaltyCountMap,
+        topOperators,
+        dateRange: {
+          earliest: orderDates.length > 0 ? orderDates[0] : null,
+          latest: orderDates.length > 0 ? orderDates[orderDates.length - 1] : null
+        },
+        countyCount: countyAverages.length
+      },
+      byProperty,
+      countyAverages,
+      // Market Research data (statewide insights)
+      marketResearch: {
+        topFormations,
+        topPayingOperators,
+        hottestCounties
+      },
+      // User tier for frontend gate display
+      userPlan
+    };
+
+    // Cache for 1 hour
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(`pooling-report:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 });
+      } catch (e) {
+        console.error('[Pooling Report] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Pooling Report] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load pooling report',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+// =============================================
+// PRODUCTION DECLINE REPORT
+// =============================================
+
+interface DeclineWell {
+  clientWellId: string;
+  wellId: string;
+  apiNumber: string;
+  wellName: string;
+  operator: string;
+  county: string;
+  formation: string;
+  wellType: string;
+  isHorizontal: boolean;
+  lastReportedMonth: string;
+  recentOilBBL: number;
+  recentGasMCF: number;
+  recentBOE: number;
+  yoyChangePct: number | null;
+  status: 'active' | 'idle';
+}
+
+/**
+ * GET /api/intelligence/production-decline
+ *
+ * Returns production decline analysis for user's wells:
+ * - Portfolio summary (active/idle counts, wells in decline)
+ * - Per-well metrics (recent production, YoY change, status)
+ * - Uses VirtualTable on frontend for 1000+ wells
+ */
+export async function handleGetProductionDecline(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    // Check KV cache
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`production-decline:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[Production Decline] Cache read error:', e);
+      }
+    }
+
+    // Calculate 24 months back from now
+    const now = new Date();
+    now.setMonth(now.getMonth() - 24);
+    const twentyFourMonthsAgo = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Step 1: Get user's wells with metadata from D1
+    // CTE approach with scoped production query for performance
+    const query = `
+      WITH user_wells AS (
+        SELECT cw.id as client_well_id, cw.api_number,
+               w.id as well_id, w.well_name, w.operator, w.county,
+               w.formation_name, w.well_type, w.is_horizontal
+        FROM client_wells cw
+        JOIN wells w ON w.api_number = cw.api_number
+        WHERE cw.user_id = ? OR cw.organization_id = ?
+      ),
+      production AS (
+        SELECT wpl.api_number, op.year_month,
+               SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as oil,
+               SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as gas
+        FROM well_pun_links wpl
+        JOIN otc_production op ON op.pun = wpl.pun
+        WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
+          AND op.year_month >= ?
+        GROUP BY wpl.api_number, op.year_month
+      )
+      SELECT uw.*, p.year_month, p.oil, p.gas
+      FROM user_wells uw
+      LEFT JOIN production p ON p.api_number = uw.api_number
+      ORDER BY uw.well_name, p.year_month DESC
+    `;
+
+    const result = await env.WELLS_DB.prepare(query)
+      .bind(authUser.id, userOrgId || '', twentyFourMonthsAgo)
+      .all();
+
+    const rows = result.results as Array<{
+      client_well_id: string;
+      api_number: string;
+      well_id: string;
+      well_name: string;
+      operator: string;
+      county: string;
+      formation_name: string;
+      well_type: string;
+      is_horizontal: number;
+      year_month: string | null;
+      oil: number | null;
+      gas: number | null;
+    }>;
+
+    // Step 2: Group rows by well and compute metrics
+    const wellMap = new Map<string, {
+      clientWellId: string;
+      wellId: string;
+      apiNumber: string;
+      wellName: string;
+      operator: string;
+      county: string;
+      formation: string;
+      wellType: string;
+      isHorizontal: boolean;
+      monthlyData: Array<{ yearMonth: string; oil: number; gas: number; boe: number }>;
+    }>();
+
+    // Get the latest data month from all production
+    let latestDataMonth = '000000';
+
+    for (const row of rows) {
+      const key = row.api_number;
+
+      if (!wellMap.has(key)) {
+        wellMap.set(key, {
+          clientWellId: row.client_well_id,
+          wellId: row.well_id,
+          apiNumber: row.api_number,
+          wellName: row.well_name || `API ${row.api_number}`,
+          operator: row.operator || 'Unknown',
+          county: row.county || 'Unknown',
+          formation: row.formation_name || 'Unknown',
+          wellType: row.well_type || 'Unknown',
+          isHorizontal: row.is_horizontal === 1,
+          monthlyData: []
+        });
+      }
+
+      if (row.year_month && (row.oil || row.gas)) {
+        const oil = row.oil || 0;
+        const gas = row.gas || 0;
+        const boe = oil + (gas / 6);
+
+        wellMap.get(key)!.monthlyData.push({
+          yearMonth: row.year_month,
+          oil,
+          gas,
+          boe
+        });
+
+        if (row.year_month > latestDataMonth) {
+          latestDataMonth = row.year_month;
+        }
+      }
+    }
+
+    // Step 3: Compute YoY and status for each well
+    const wells: DeclineWell[] = [];
+    let activeCount = 0;
+    let idleCount = 0;
+    let decliningCount = 0;
+    let steepDeclineCount = 0;
+    let portfolioOil = 0;
+    let portfolioGas = 0;
+
+    // Calculate the threshold for "active" (last 3 months from latest data month)
+    const latestYear = parseInt(latestDataMonth.substring(0, 4));
+    const latestMonth = parseInt(latestDataMonth.substring(4, 6));
+    let thresholdMonth = latestMonth - 3;
+    let thresholdYear = latestYear;
+    if (thresholdMonth <= 0) {
+      thresholdMonth += 12;
+      thresholdYear -= 1;
+    }
+    const activeThreshold = `${thresholdYear}${String(thresholdMonth).padStart(2, '0')}`;
+
+    for (const [_, wellData] of wellMap) {
+      // Sort monthly data descending (newest first)
+      wellData.monthlyData.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+
+      // Find most recent month with production
+      const recentData = wellData.monthlyData.find(m => m.oil > 0 || m.gas > 0);
+
+      let lastReportedMonth = '';
+      let recentOil = 0;
+      let recentGas = 0;
+      let recentBOE = 0;
+      let yoyChangePct: number | null = null;
+      let status: 'active' | 'idle' = 'idle';
+
+      if (recentData) {
+        lastReportedMonth = recentData.yearMonth;
+        recentOil = Math.round(recentData.oil);
+        recentGas = Math.round(recentData.gas);
+        recentBOE = Math.round(recentData.boe);
+
+        // Determine status based on last reported month
+        status = lastReportedMonth >= activeThreshold ? 'active' : 'idle';
+
+        // Calculate YoY (compare to same month last year)
+        const recentYear = parseInt(lastReportedMonth.substring(0, 4));
+        const recentMonth = parseInt(lastReportedMonth.substring(4, 6));
+        const priorYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
+
+        // Find same month last year (or nearby month)
+        const priorData = wellData.monthlyData.find(m => m.yearMonth === priorYearMonth) ||
+          wellData.monthlyData.find(m => {
+            const mYear = parseInt(m.yearMonth.substring(0, 4));
+            const mMonth = parseInt(m.yearMonth.substring(4, 6));
+            return mYear === recentYear - 1 && Math.abs(mMonth - recentMonth) <= 1;
+          });
+
+        if (priorData && priorData.boe > 0) {
+          yoyChangePct = Math.round(((recentBOE - priorData.boe) / priorData.boe) * 100);
+        }
+      }
+
+      // Add to portfolio totals (most recent month only for active wells)
+      if (status === 'active') {
+        activeCount++;
+        portfolioOil += recentOil;
+        portfolioGas += recentGas;
+      } else {
+        idleCount++;
+      }
+
+      // Count decliners
+      if (yoyChangePct !== null && yoyChangePct < 0) {
+        decliningCount++;
+        if (yoyChangePct < -20) {
+          steepDeclineCount++;
+        }
+      }
+
+      wells.push({
+        clientWellId: wellData.clientWellId,
+        wellId: wellData.wellId,
+        apiNumber: wellData.apiNumber,
+        wellName: wellData.wellName,
+        operator: wellData.operator,
+        county: wellData.county,
+        formation: wellData.formation,
+        wellType: wellData.wellType,
+        isHorizontal: wellData.isHorizontal,
+        lastReportedMonth,
+        recentOilBBL: recentOil,
+        recentGasMCF: recentGas,
+        recentBOE,
+        yoyChangePct,
+        status
+      });
+    }
+
+    // Sort by YoY ascending (steepest decline first) by default
+    wells.sort((a, b) => {
+      // Idle wells at the bottom
+      if (a.status === 'idle' && b.status !== 'idle') return 1;
+      if (a.status !== 'idle' && b.status === 'idle') return -1;
+      // Null YoY after real values
+      if (a.yoyChangePct === null && b.yoyChangePct !== null) return 1;
+      if (a.yoyChangePct !== null && b.yoyChangePct === null) return -1;
+      if (a.yoyChangePct === null && b.yoyChangePct === null) return 0;
+      // Sort by YoY ascending (most negative first)
+      return a.yoyChangePct! - b.yoyChangePct!;
+    });
+
+    // Step 4: Compute monthly portfolio totals for trend chart
+    const monthlyMap = new Map<string, { oil: number; gas: number }>();
+    for (const [_, wellData] of wellMap) {
+      for (const month of wellData.monthlyData) {
+        const existing = monthlyMap.get(month.yearMonth) || { oil: 0, gas: 0 };
+        existing.oil += month.oil;
+        existing.gas += month.gas;
+        monthlyMap.set(month.yearMonth, existing);
+      }
+    }
+
+    // Convert to sorted array (last 18 months for chart - matches Unit Production Report)
+    const allMonths = Array.from(monthlyMap.entries())
+      .map(([yearMonth, data]) => ({
+        yearMonth,
+        totalOil: Math.round(data.oil),
+        totalGas: Math.round(data.gas),
+        totalBOE: Math.round(data.oil + data.gas / 6)
+      }))
+      .sort((a, b) => a.yearMonth.localeCompare(b.yearMonth));
+
+    // Take last 18 months (industry standard uses 24 months for analysis, 18 for chart display)
+    const monthlyTotals = allMonths.slice(-18);
+
+    const response = {
+      latestDataMonth,
+      summary: {
+        totalWells: wells.length,
+        activeWells: activeCount,
+        idleWells: idleCount,
+        portfolioOilBBL: portfolioOil,
+        portfolioGasMCF: portfolioGas,
+        wellsInDecline: decliningCount,
+        wellsSteepDecline: steepDeclineCount
+      },
+      wells,
+      monthlyTotals
+    };
+
+    // Cache for 1 hour
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(`production-decline:${cacheId}`, JSON.stringify(response), { expirationTtl: 3600 });
+      } catch (e) {
+        console.error('[Production Decline] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Production Decline] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load production decline report',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+// =============================================
+// PRODUCTION DECLINE — MY MARKETS (COUNTY BENCHMARKS)
+// =============================================
+
+interface FormationSummary {
+  formation: string;
+  wellCount: number;
+  avgYoyChangePct: number | null;
+  activeWells: number;
+  idleWells: number;
+}
+
+interface CountyAggregate {
+  county: string;
+  totalWells: number;
+  activeWells: number;
+  idleWells: number;
+  avgYoyChangePct: number | null;
+  medianYoyChangePct: number | null;
+  weightedAvgYoyPct: number | null;
+  userWellCount: number;
+  userAvgYoyPct: number | null;
+  userMedianYoyPct: number | null;
+  userVsCountyDelta: number | null;
+  topFormations: FormationSummary[];
+}
+
+/**
+ * GET /api/intelligence/production-decline/markets
+ *
+ * Returns county benchmark data for the My Markets tab.
+ * Computes YoY decline metrics for ALL wells in each of the user's counties,
+ * allowing comparison of user's wells against county averages.
+ *
+ * Uses 24-hour cache TTL since county averages barely change day-to-day.
+ */
+export async function handleGetProductionDeclineMarkets(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    // Check KV cache (24-hour TTL for county aggregates)
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`production-decline-markets:${cacheId}`, 'json');
+        if (cached) {
+          console.log('[Production Decline Markets] Returning cached data');
+          return jsonResponse(cached);
+        }
+      } catch (e) {
+        console.error('[Production Decline Markets] Cache read error:', e);
+      }
+    }
+
+    console.log('[Production Decline Markets] Computing county benchmarks...');
+
+    // Step 1: Get user's wells with their counties and YoY data
+    const now = new Date();
+    now.setMonth(now.getMonth() - 24);
+    const twentyFourMonthsAgo = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    // Get user's wells with production data
+    const userWellsQuery = `
+      WITH user_wells AS (
+        SELECT cw.api_number, w.county, w.formation_name, w.is_horizontal
+        FROM client_wells cw
+        JOIN wells w ON w.api_number = cw.api_number
+        WHERE (cw.user_id = ? OR cw.organization_id = ?)
+          AND w.county IS NOT NULL
+      ),
+      production AS (
+        SELECT wpl.api_number, op.year_month,
+               SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as oil,
+               SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as gas
+        FROM well_pun_links wpl
+        JOIN otc_production op ON op.pun = wpl.pun
+        WHERE wpl.api_number IN (SELECT api_number FROM user_wells)
+          AND op.year_month >= ?
+        GROUP BY wpl.api_number, op.year_month
+      )
+      SELECT uw.api_number, uw.county, uw.formation_name, uw.is_horizontal,
+             p.year_month, p.oil, p.gas
+      FROM user_wells uw
+      LEFT JOIN production p ON p.api_number = uw.api_number
+      ORDER BY uw.county, uw.api_number, p.year_month DESC
+    `;
+
+    const userWellsResult = await env.WELLS_DB.prepare(userWellsQuery)
+      .bind(authUser.id, userOrgId || '', twentyFourMonthsAgo)
+      .all();
+
+    const userWellRows = userWellsResult.results as Array<{
+      api_number: string;
+      county: string;
+      formation_name: string | null;
+      is_horizontal: number | null;
+      year_month: string | null;
+      oil: number | null;
+      gas: number | null;
+    }>;
+
+    // Group user wells by api_number to compute their YoY
+    const userWellMap = new Map<string, {
+      county: string;
+      formation: string;
+      monthlyData: Array<{ yearMonth: string; oil: number; gas: number; boe: number }>;
+    }>();
+
+    let latestDataMonth = '000000';
+
+    for (const row of userWellRows) {
+      if (!userWellMap.has(row.api_number)) {
+        userWellMap.set(row.api_number, {
+          county: row.county,
+          formation: row.formation_name || 'Unknown',
+          monthlyData: []
+        });
+      }
+
+      if (row.year_month && (row.oil || row.gas)) {
+        const oil = row.oil || 0;
+        const gas = row.gas || 0;
+        userWellMap.get(row.api_number)!.monthlyData.push({
+          yearMonth: row.year_month,
+          oil,
+          gas,
+          boe: oil + gas / 6
+        });
+        if (row.year_month > latestDataMonth) {
+          latestDataMonth = row.year_month;
+        }
+      }
+    }
+
+    // Compute YoY for each user well
+    const userWellYoY = new Map<string, { county: string; yoyPct: number | null }>();
+
+    // Calculate active threshold (3 months from latest)
+    const latestYear = parseInt(latestDataMonth.substring(0, 4));
+    const latestMonth = parseInt(latestDataMonth.substring(4, 6));
+    let thresholdMonth = latestMonth - 3;
+    let thresholdYear = latestYear;
+    if (thresholdMonth <= 0) {
+      thresholdMonth += 12;
+      thresholdYear -= 1;
+    }
+    const activeThreshold = `${thresholdYear}${String(thresholdMonth).padStart(2, '0')}`;
+
+    for (const [apiNumber, wellData] of userWellMap) {
+      wellData.monthlyData.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+      const recentData = wellData.monthlyData.find(m => m.oil > 0 || m.gas > 0);
+
+      let yoyPct: number | null = null;
+      if (recentData) {
+        const recentYear = parseInt(recentData.yearMonth.substring(0, 4));
+        const recentMonth = parseInt(recentData.yearMonth.substring(4, 6));
+        const priorYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
+
+        const priorData = wellData.monthlyData.find(m => m.yearMonth === priorYearMonth) ||
+          wellData.monthlyData.find(m => {
+            const mYear = parseInt(m.yearMonth.substring(0, 4));
+            const mMonth = parseInt(m.yearMonth.substring(4, 6));
+            return mYear === recentYear - 1 && Math.abs(mMonth - recentMonth) <= 1;
+          });
+
+        if (priorData && priorData.boe > 0) {
+          yoyPct = Math.round(((recentData.boe - priorData.boe) / priorData.boe) * 100);
+        }
+      }
+
+      userWellYoY.set(apiNumber, { county: wellData.county, yoyPct });
+    }
+
+    // Get distinct counties from user's wells
+    const userCounties = [...new Set(Array.from(userWellMap.values()).map(w => w.county))].filter(Boolean);
+    console.log(`[Production Decline Markets] User has wells in ${userCounties.length} counties`);
+
+    if (userCounties.length === 0) {
+      return jsonResponse({ latestDataMonth, counties: [] });
+    }
+
+    // Step 2: For each county, compute aggregate metrics for ALL wells
+    const countyAggregates: CountyAggregate[] = [];
+
+    // Process counties in parallel (batch of 5 to avoid overwhelming D1)
+    const BATCH_SIZE = 5;
+    for (let i = 0; i < userCounties.length; i += BATCH_SIZE) {
+      const batch = userCounties.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(batch.map(async (county) => {
+        try {
+          return await computeCountyAggregate(
+            county,
+            twentyFourMonthsAgo,
+            activeThreshold,
+            userWellYoY,
+            env
+          );
+        } catch (err) {
+          console.error(`[Production Decline Markets] Error computing county ${county}:`, err);
+          return null;
+        }
+      }));
+
+      for (const result of batchResults) {
+        if (result) {
+          countyAggregates.push(result);
+        }
+      }
+    }
+
+    // Sort by user well count descending (most relevant counties first)
+    countyAggregates.sort((a, b) => b.userWellCount - a.userWellCount);
+
+    const response = {
+      latestDataMonth,
+      counties: countyAggregates
+    };
+
+    // Cache for 24 hours
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(
+          `production-decline-markets:${cacheId}`,
+          JSON.stringify(response),
+          { expirationTtl: 86400 } // 24 hours
+        );
+      } catch (e) {
+        console.error('[Production Decline Markets] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Production Decline Markets] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load market benchmarks',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
+ * Compute aggregate decline metrics for all wells in a county
+ */
+async function computeCountyAggregate(
+  county: string,
+  twentyFourMonthsAgo: string,
+  activeThreshold: string,
+  userWellYoY: Map<string, { county: string; yoyPct: number | null }>,
+  env: Env
+): Promise<CountyAggregate> {
+
+  // Query all wells in this county with their production
+  const query = `
+    WITH county_wells AS (
+      SELECT w.api_number, w.formation_name, w.is_horizontal
+      FROM wells w
+      WHERE w.county = ?
+    ),
+    production AS (
+      SELECT wpl.api_number, op.year_month,
+             SUM(CASE WHEN op.product_code IN ('1','3') THEN op.gross_volume ELSE 0 END) as oil,
+             SUM(CASE WHEN op.product_code IN ('5','6') THEN op.gross_volume ELSE 0 END) as gas
+      FROM well_pun_links wpl
+      JOIN otc_production op ON op.pun = wpl.pun
+      WHERE wpl.api_number IN (SELECT api_number FROM county_wells)
+        AND op.year_month >= ?
+      GROUP BY wpl.api_number, op.year_month
+    )
+    SELECT cw.api_number, cw.formation_name, cw.is_horizontal,
+           p.year_month, p.oil, p.gas
+    FROM county_wells cw
+    LEFT JOIN production p ON p.api_number = cw.api_number
+    ORDER BY cw.api_number, p.year_month DESC
+  `;
+
+  const result = await env.WELLS_DB.prepare(query)
+    .bind(county, twentyFourMonthsAgo)
+    .all();
+
+  const rows = result.results as Array<{
+    api_number: string;
+    formation_name: string | null;
+    is_horizontal: number | null;
+    year_month: string | null;
+    oil: number | null;
+    gas: number | null;
+  }>;
+
+  // Group by well
+  const wellMap = new Map<string, {
+    formation: string;
+    isHorizontal: boolean;
+    monthlyData: Array<{ yearMonth: string; oil: number; gas: number; boe: number }>;
+  }>();
+
+  for (const row of rows) {
+    if (!wellMap.has(row.api_number)) {
+      wellMap.set(row.api_number, {
+        formation: row.formation_name || 'Unknown',
+        isHorizontal: row.is_horizontal === 1,
+        monthlyData: []
+      });
+    }
+
+    if (row.year_month && (row.oil || row.gas)) {
+      const oil = row.oil || 0;
+      const gas = row.gas || 0;
+      wellMap.get(row.api_number)!.monthlyData.push({
+        yearMonth: row.year_month,
+        oil,
+        gas,
+        boe: oil + gas / 6
+      });
+    }
+  }
+
+  // Compute YoY for each county well
+  const countyYoYValues: number[] = [];
+  const weightedYoYPairs: Array<{ yoyPct: number; boe: number }> = [];
+  const formationMap = new Map<string, { yoyValues: number[]; activeCount: number; idleCount: number }>();
+  let activeCount = 0;
+  let idleCount = 0;
+  const minMonthlyBoe = MIN_BOE_THRESHOLD / 12;
+
+  for (const [_, wellData] of wellMap) {
+    wellData.monthlyData.sort((a, b) => b.yearMonth.localeCompare(a.yearMonth));
+    const recentData = wellData.monthlyData.find(m => m.oil > 0 || m.gas > 0);
+
+    // Track formation
+    if (!formationMap.has(wellData.formation)) {
+      formationMap.set(wellData.formation, { yoyValues: [], activeCount: 0, idleCount: 0 });
+    }
+    const formationStats = formationMap.get(wellData.formation)!;
+
+    if (!recentData) {
+      idleCount++;
+      formationStats.idleCount++;
+      continue;
+    }
+
+    // Determine active/idle
+    const isActive = recentData.yearMonth >= activeThreshold;
+    if (isActive) {
+      activeCount++;
+      formationStats.activeCount++;
+    } else {
+      idleCount++;
+      formationStats.idleCount++;
+    }
+
+    // Compute YoY
+    const recentYear = parseInt(recentData.yearMonth.substring(0, 4));
+    const recentMonth = parseInt(recentData.yearMonth.substring(4, 6));
+    const priorYearMonth = `${recentYear - 1}${String(recentMonth).padStart(2, '0')}`;
+
+    const priorData = wellData.monthlyData.find(m => m.yearMonth === priorYearMonth) ||
+      wellData.monthlyData.find(m => {
+        const mYear = parseInt(m.yearMonth.substring(0, 4));
+        const mMonth = parseInt(m.yearMonth.substring(4, 6));
+        return mYear === recentYear - 1 && Math.abs(mMonth - recentMonth) <= 1;
+      });
+
+    // Skip marginal wells below threshold — they create extreme % swings
+    if (priorData && priorData.boe >= minMonthlyBoe) {
+      const yoyPct = Math.round(((recentData.boe - priorData.boe) / priorData.boe) * 100);
+      countyYoYValues.push(yoyPct);
+      weightedYoYPairs.push({ yoyPct, boe: priorData.boe });
+      formationStats.yoyValues.push(yoyPct);
+    }
+  }
+
+  // Compute county mean
+  const avgYoyChangePct = countyYoYValues.length > 0
+    ? Math.round(countyYoYValues.reduce((a, b) => a + b, 0) / countyYoYValues.length)
+    : null;
+
+  // Compute county median
+  let medianYoyChangePct: number | null = null;
+  if (countyYoYValues.length > 0) {
+    const sorted = [...countyYoYValues].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    medianYoyChangePct = sorted.length % 2 !== 0
+      ? sorted[mid]
+      : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  // Compute volume-weighted average (prior-year BOE as weight)
+  let weightedAvgYoyPct: number | null = null;
+  if (weightedYoYPairs.length > 0) {
+    const totalBoe = weightedYoYPairs.reduce((sum, p) => sum + p.boe, 0);
+    if (totalBoe > 0) {
+      weightedAvgYoyPct = Math.round(
+        weightedYoYPairs.reduce((sum, p) => sum + p.yoyPct * p.boe, 0) / totalBoe
+      );
+    }
+  }
+
+  // Get user's wells in this county
+  const userWellsInCounty: number[] = [];
+  for (const [apiNumber, data] of userWellYoY) {
+    if (data.county === county && data.yoyPct !== null) {
+      userWellsInCounty.push(data.yoyPct);
+    }
+  }
+
+  const userWellCount = Array.from(userWellYoY.values()).filter(w => w.county === county).length;
+  const userAvgYoyPct = userWellsInCounty.length > 0
+    ? Math.round(userWellsInCounty.reduce((a, b) => a + b, 0) / userWellsInCounty.length)
+    : null;
+
+  // Compute user median YoY
+  let userMedianYoyPct: number | null = null;
+  if (userWellsInCounty.length > 0) {
+    const sorted = [...userWellsInCounty].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    userMedianYoyPct = sorted.length % 2 !== 0
+      ? sorted[mid]
+      : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  }
+
+  // Delta: median-vs-median comparison
+  const userVsCountyDelta = (userMedianYoyPct !== null && medianYoyChangePct !== null)
+    ? userMedianYoyPct - medianYoyChangePct
+    : null;
+
+  // Build formation summaries (top 5 by well count)
+  const topFormations: FormationSummary[] = Array.from(formationMap.entries())
+    .map(([formation, stats]) => ({
+      formation,
+      wellCount: stats.activeCount + stats.idleCount,
+      avgYoyChangePct: stats.yoyValues.length > 0
+        ? Math.round(stats.yoyValues.reduce((a, b) => a + b, 0) / stats.yoyValues.length)
+        : null,
+      activeWells: stats.activeCount,
+      idleWells: stats.idleCount
+    }))
+    .filter(f => f.wellCount >= 3 && f.formation !== 'Unknown' && f.formation !== '') // Exclude Unknown/empty + require meaningful data
+    .sort((a, b) => b.wellCount - a.wellCount)
+    .slice(0, 5);
+
+  return {
+    county: county.replace(/^\d{3}-/, ''), // Strip county code prefix
+    totalWells: wellMap.size,
+    activeWells: activeCount,
+    idleWells: idleCount,
+    avgYoyChangePct,
+    medianYoyChangePct,
+    weightedAvgYoyPct,
+    userWellCount,
+    userAvgYoyPct,
+    userMedianYoyPct,
+    userVsCountyDelta,
+    topFormations
+  };
+}
+
+/**
+ * Compute distance tier between a property and a pooling order
+ */
+function getDistanceTier(
+  propSection: number, propTwp: string, propRng: string,
+  orderSection: string, orderTwp: string, orderRng: string
+): { tier: number; description: string } {
+  const pTwp = parseTownship(propTwp);
+  const pRng = parseRange(propRng);
+  const oTwp = parseTownship(orderTwp);
+  const oRng = parseRange(orderRng);
+
+  if (!pTwp || !pRng || !oTwp || !oRng) return { tier: 99, description: 'Unknown' };
+
+  const sameTwp = pTwp.num === oTwp.num && pTwp.dir === oTwp.dir;
+  const sameRng = pRng.num === oRng.num && pRng.dir === oRng.dir;
+  const sameSection = propSection === parseInt(orderSection);
+
+  // Tier 0: Same section
+  if (sameTwp && sameRng && sameSection) {
+    return { tier: 0, description: 'Same section' };
+  }
+
+  // Tier 1: Adjacent section (8-connected neighbors)
+  const adjacents = getAdjacentLocations(propSection, propTwp, propRng);
+  const isAdjacent = adjacents.some(a =>
+    a.section === parseInt(orderSection) &&
+    a.township.toUpperCase() === orderTwp.toUpperCase() &&
+    a.range.toUpperCase() === orderRng.toUpperCase()
+  );
+  if (isAdjacent) {
+    return { tier: 1, description: 'Adjacent' };
+  }
+
+  // Tier 2: Within ±1 township and ±1 range (same direction)
+  const twpDiff = Math.abs(pTwp.num - oTwp.num);
+  const rngDiff = Math.abs(pRng.num - oRng.num);
+  if (twpDiff <= 1 && rngDiff <= 1 && pTwp.dir === oTwp.dir && pRng.dir === oRng.dir) {
+    return { tier: 2, description: 'Within 2 twp' };
+  }
+
+  return { tier: 99, description: 'Distant' };
+}
+
+// =============================================
 // UTILITY FUNCTIONS
 // =============================================
 
@@ -1026,4 +2643,1573 @@ function getMonthsAgo(n: number): string {
   const year = now.getFullYear();
   const month = String(now.getMonth() + 1).padStart(2, '0');
   return `${year}${month}`;
+}
+
+// =============================================
+// PRINT REPORT HANDLERS
+// =============================================
+
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatReportMonth(yyyymm: string): string {
+  if (!yyyymm || yyyymm.length < 6) return yyyymm || '';
+  const year = yyyymm.substring(0, 4);
+  const month = parseInt(yyyymm.substring(4, 6), 10);
+  return MONTH_ABBR[month - 1] + ' ' + year;
+}
+
+function escapeHtml(s: string): string {
+  if (!s) return '';
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+/**
+ * GET /print/intelligence/deduction-audit
+ * Generates a print-friendly HTML page for the Deduction Audit report
+ */
+export async function handleDeductionAuditPrint(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) {
+      const url = new URL(request.url);
+      return Response.redirect(`/portal/login?redirect=${encodeURIComponent(url.pathname)}`, 302);
+    }
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return new Response('User not found', { status: 404 });
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return new Response('Intelligence features not available for your account', { status: 403 });
+    }
+
+    // Fetch data using internal API call pattern (reuse cache)
+    const apiUrl = new URL('/api/intelligence/deduction-report', request.url);
+    const apiRequest = new Request(apiUrl.toString(), {
+      method: 'GET',
+      headers: request.headers
+    });
+    const apiResponse = await handleGetDeductionReport(apiRequest, env);
+    const data = await apiResponse.json() as any;
+
+    if (data.error) {
+      return new Response(`Error: ${data.error}`, { status: 500 });
+    }
+
+    const html = generateDeductionAuditPrintHtml(data, userRecord.fields.Name || 'User');
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+
+  } catch (error) {
+    console.error('[Deduction Audit Print] Error:', error);
+    return new Response(`Error generating report: ${error instanceof Error ? error.message : 'Unknown'}`, { status: 500 });
+  }
+}
+
+function generateDeductionAuditPrintHtml(data: any, userName: string): string {
+  const { flaggedWells, portfolio, summary } = data;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+  const fmtCurrency = (n: number) => n != null ? '$' + Math.round(n).toLocaleString() : '—';
+  const fmtPct = (n: number) => n != null ? n + '%' : '—';
+
+  // Top 15 wells for print summary
+  const topWells = (flaggedWells || []).slice(0, 15);
+
+  const wellRowsHtml = topWells.map((well: any, i: number) => {
+    const pctClass = well.agg_deduction_pct >= 50 ? 'danger' : well.agg_deduction_pct >= 35 ? 'warning' : '';
+    return `
+      <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+        <td class="bold">${escapeHtml(well.well_name)}</td>
+        <td>${escapeHtml(well.operator || '—')}</td>
+        <td>${escapeHtml((well.county || '').replace(/^\d{3}-/, ''))}</td>
+        <td class="right ${pctClass}">${fmtPct(well.agg_deduction_pct)}</td>
+        <td class="right">${fmtCurrency(well.total_gross)}</td>
+        <td class="right">${fmtCurrency(well.total_deductions)}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deduction Audit Report - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
+    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .print-btn.primary { background: #1C2B36; color: white; }
+    .print-btn.primary:hover { background: #334E68; }
+    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
+    .print-btn.secondary:hover { background: #f8fafc; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header .subtitle { font-size: 12px; opacity: 0.8; }
+    .header .brand { text-align: right; }
+    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
+    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
+    .summary-item { flex: 1; min-width: 120px; }
+    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
+    .summary-value.danger { color: #dc2626; }
+    .summary-value.warning { color: #d97706; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th { padding: 8px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table th.right { text-align: right; }
+    .data-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .data-table td.bold { font-weight: 600; color: #1C2B36; }
+    .data-table tr.alt { background: #f8fafc; }
+    .data-table .danger { color: #dc2626; font-weight: 600; }
+    .data-table .warning { color: #d97706; font-weight: 600; }
+    .insight-box { background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
+    .insight-title { font-size: 10px; font-weight: 600; color: #92400e; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .insight-text { font-size: 11px; color: #78350f; line-height: 1.5; }
+    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-controls { display: none !important; }
+      .print-container { box-shadow: none; width: 100%; }
+    }
+    @page { size: letter; margin: 0.25in; }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print Report
+    </button>
+  </div>
+
+  <div class="print-container">
+    <div class="header">
+      <div>
+        <h1>DEDUCTION AUDIT REPORT</h1>
+        <div class="subtitle">Analysis Period: ${summary?.analysis_period || '6 months'} ending ${formatReportMonth(summary?.latest_month || '')}</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Portfolio Summary</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Wells Analyzed</div>
+          <div class="summary-value">${fmt(portfolio?.total_wells_analyzed || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Portfolio Avg Rate</div>
+          <div class="summary-value">${fmtPct(portfolio?.avg_deduction_pct)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Flagged Wells</div>
+          <div class="summary-value ${summary?.flagged_count > 5 ? 'danger' : ''}">${fmt(summary?.flagged_count || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Worst Rate</div>
+          <div class="summary-value ${summary?.worst_deduction_pct >= 50 ? 'danger' : 'warning'}">${fmtPct(summary?.worst_deduction_pct)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Excess Deductions</div>
+          <div class="summary-value danger">${fmtCurrency(summary?.total_excess_deductions)}</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Wells Above 25% Deduction Rate (Top ${topWells.length})</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Well Name</th>
+            <th>Operator</th>
+            <th>County</th>
+            <th class="right">Ded %</th>
+            <th class="right">Gross Value</th>
+            <th class="right">Deductions</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${wellRowsHtml || '<tr><td colspan="6" style="text-align: center; color: #64748b;">No wells above threshold</td></tr>'}
+        </tbody>
+      </table>
+      ${flaggedWells?.length > 15 ? `<p class="note">+ ${flaggedWells.length - 15} more wells. See full report online for complete data.</p>` : ''}
+    </div>
+
+    <div class="section">
+      <div class="insight-box">
+        <div class="insight-title">Recommended Action</div>
+        <div class="insight-text">
+          Your lease may contain a "market enhancement" or "no deductions" clause that restricts processing costs.
+          Review your lease terms and, if warranted, send a formal inquiry to the operator requesting an itemized
+          breakdown of deductions and citing specific lease provisions.
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Generated by Mineral Watch • mymineralwatch.com • ${new Date().toLocaleDateString()}</span>
+      <span>Data sourced from Oklahoma Tax Commission gross production reports</span>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+/**
+ * GET /print/intelligence/production-decline
+ * Generates a print-friendly HTML page for the Production Decline report
+ */
+export async function handleProductionDeclinePrint(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) {
+      const url = new URL(request.url);
+      return Response.redirect(`/portal/login?redirect=${encodeURIComponent(url.pathname)}`, 302);
+    }
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return new Response('User not found', { status: 404 });
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return new Response('Intelligence features not available for your account', { status: 403 });
+    }
+
+    // Fetch decline data and markets data in parallel
+    const apiUrl = new URL('/api/intelligence/production-decline', request.url);
+    const marketsUrl = new URL('/api/intelligence/production-decline/markets?bust=1', request.url);
+    const [apiResponse, marketsResponse] = await Promise.all([
+      handleGetProductionDecline(new Request(apiUrl.toString(), { method: 'GET', headers: request.headers }), env),
+      handleGetProductionDeclineMarkets(new Request(marketsUrl.toString(), { method: 'GET', headers: request.headers }), env),
+    ]);
+    const data = await apiResponse.json() as any;
+    const marketsData = await marketsResponse.json() as any;
+
+    if (data.error) {
+      return new Response(`Error: ${data.error}`, { status: 500 });
+    }
+
+    const html = generateProductionDeclinePrintHtml(data, userRecord.fields.Name || 'User', marketsData);
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+
+  } catch (error) {
+    console.error('[Production Decline Print] Error:', error);
+    return new Response(`Error generating report: ${error instanceof Error ? error.message : 'Unknown'}`, { status: 500 });
+  }
+}
+
+function generateProductionDeclinePrintHtml(data: any, userName: string, marketsData?: any): string {
+  const { latestDataMonth, summary, wells, monthlyTotals } = data;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+
+  // Sort wells by YoY ascending (steepest decline first), filter to those with YoY data
+  const decliningWells = (wells || [])
+    .filter((w: any) => w.yoyChangePct !== null && w.yoyChangePct < 0)
+    .sort((a: any, b: any) => a.yoyChangePct - b.yoyChangePct)
+    .slice(0, 15);
+
+  // Generate chart SVG for monthly totals
+  const chartSvg = generateTrendChartSvg(monthlyTotals || []);
+
+  // Generate risk score bar chart from markets data
+  const riskChartSvg = generateRiskChartSvg(marketsData?.counties || []);
+
+  const wellRowsHtml = decliningWells.map((well: any, i: number) => {
+    const yoyClass = well.yoyChangePct <= -20 ? 'danger' : 'warning';
+    const statusClass = well.status === 'active' ? 'active' : 'idle';
+    return `
+      <tr class="${i % 2 !== 0 ? 'alt' : ''}">
+        <td class="bold">${escapeHtml(well.wellName)}</td>
+        <td>${escapeHtml(well.operator || '—')}</td>
+        <td>${escapeHtml((well.county || '').replace(/^\d{3}-/, ''))}</td>
+        <td class="center"><span class="type-badge">${well.isHorizontal ? 'H' : 'V'}</span></td>
+        <td class="right">${fmt(well.recentOilBBL)}</td>
+        <td class="right">${fmt(well.recentGasMCF)}</td>
+        <td class="right ${yoyClass}">${well.yoyChangePct}%</td>
+        <td class="center"><span class="status-badge ${statusClass}">${well.status === 'active' ? 'Active' : 'Idle'}</span></td>
+      </tr>
+    `;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Production Decline Analysis - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
+    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .print-btn.primary { background: #1C2B36; color: white; }
+    .print-btn.primary:hover { background: #334E68; }
+    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
+    .print-btn.secondary:hover { background: #f8fafc; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header .subtitle { font-size: 12px; opacity: 0.8; }
+    .header .brand { text-align: right; }
+    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
+    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
+    .summary-item { flex: 1; min-width: 100px; }
+    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
+    .summary-value.danger { color: #dc2626; }
+    .summary-value.warning { color: #d97706; }
+    .summary-value.success { color: #059669; }
+    .summary-sub { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .chart-container { margin: 12px 0; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th { padding: 8px 10px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table th.right { text-align: right; }
+    .data-table th.center { text-align: center; }
+    .data-table td { padding: 8px 10px; border-bottom: 1px solid #e2e8f0; }
+    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .data-table td.center { text-align: center; }
+    .data-table td.bold { font-weight: 600; color: #1C2B36; }
+    .data-table tr.alt { background: #f8fafc; }
+    .data-table .danger { color: #dc2626; font-weight: 600; }
+    .data-table .warning { color: #d97706; font-weight: 600; }
+    .type-badge { display: inline-block; width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 4px; font-size: 10px; font-weight: 700; background: #e2e8f0; color: #475569; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; }
+    .status-badge.active { background: #dcfce7; color: #166534; }
+    .status-badge.idle { background: #f3f4f6; color: #6b7280; }
+    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-controls { display: none !important; }
+      .print-container { box-shadow: none; width: 100%; }
+    }
+    @page { size: letter; margin: 0.25in; }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print Report
+    </button>
+  </div>
+
+  <div class="print-container">
+    <div class="header">
+      <div>
+        <h1>PRODUCTION DECLINE ANALYSIS</h1>
+        <div class="subtitle">Production through ${formatReportMonth(latestDataMonth || '')}</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Portfolio Summary</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Total Wells</div>
+          <div class="summary-value">${fmt(summary?.totalWells || 0)}</div>
+          <div class="summary-sub">${fmt(summary?.activeWells || 0)} active / ${fmt(summary?.idleWells || 0)} idle</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Portfolio Oil</div>
+          <div class="summary-value">${fmt(summary?.portfolioOilBBL || 0)}</div>
+          <div class="summary-sub">BBL (most recent)</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Portfolio Gas</div>
+          <div class="summary-value">${fmt(summary?.portfolioGasMCF || 0)}</div>
+          <div class="summary-sub">MCF (most recent)</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Wells Declining</div>
+          <div class="summary-value warning">${fmt(summary?.wellsInDecline || 0)}</div>
+          <div class="summary-sub">YoY production down</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Steep Decline</div>
+          <div class="summary-value danger">${fmt(summary?.wellsSteepDecline || 0)}</div>
+          <div class="summary-sub">YoY down 20%+</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Portfolio Production Trend (18 Months)</div>
+      <div class="chart-container">${chartSvg}</div>
+    </div>
+
+    ${riskChartSvg ? `
+    <div class="section">
+      <div class="section-title">Asset Intervention Priority (Risk Score)</div>
+      <div style="font-size: 9px; color: #64748b; margin-bottom: 8px;">Wells x Performance Gap — higher scores indicate more portfolio impact. Red = underperforming, Green = outperforming county median.</div>
+      <div class="chart-container">${riskChartSvg}</div>
+    </div>
+    ` : ''}
+
+    <div class="section">
+      <div class="section-title">Wells in Decline — 24-Month YoY Analysis (Top ${decliningWells.length})</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Well Name</th>
+            <th>Operator</th>
+            <th>County</th>
+            <th class="center">Type</th>
+            <th class="right">Oil (BBL)</th>
+            <th class="right">Gas (MCF)</th>
+            <th class="right">YoY</th>
+            <th class="center">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${wellRowsHtml || '<tr><td colspan="8" style="text-align: center; color: #64748b;">No declining wells found</td></tr>'}
+        </tbody>
+      </table>
+      ${(wells || []).filter((w: any) => w.yoyChangePct !== null && w.yoyChangePct < 0).length > 15 ? `<p class="note">+ more wells in decline. See full report online for complete data.</p>` : ''}
+    </div>
+
+    <div class="footer">
+      <span>Generated by Mineral Watch • mymineralwatch.com • ${new Date().toLocaleDateString()}</span>
+      <span>Data sourced from Oklahoma Tax Commission production reports</span>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+function generateTrendChartSvg(monthlyTotals: Array<{ yearMonth: string; totalBOE: number }>): string {
+  if (!monthlyTotals || monthlyTotals.length === 0) {
+    return '<div style="padding: 20px; text-align: center; color: #64748b; font-size: 12px;">No production data available</div>';
+  }
+
+  const data = monthlyTotals;
+  const padding = { top: 25, right: 50, bottom: 35, left: 60 };
+  const width = 700;
+  const height = 140;
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  const maxBOE = Math.max(...data.map(d => d.totalBOE), 1);
+  const yScale = (val: number) => chartHeight - (val / maxBOE) * chartHeight;
+  const xScale = (i: number) => data.length === 1 ? chartWidth / 2 : (i / (data.length - 1)) * chartWidth;
+
+  // Calculate 3-month moving average for trend/smoothing line
+  const calcMovingAvg = (values: number[], windowSize: number = 3): number[] => {
+    return values.map((_, i) => {
+      const start = Math.max(0, i - Math.floor(windowSize / 2));
+      const end = Math.min(values.length, i + Math.ceil(windowSize / 2));
+      const window = values.slice(start, end);
+      return window.reduce((sum, v) => sum + v, 0) / window.length;
+    });
+  };
+
+  const boeTrend = calcMovingAvg(data.map(d => d.totalBOE));
+
+  let svg = `<svg width="${width}" height="${height}" style="display: block;">`;
+  svg += `<g transform="translate(${padding.left}, ${padding.top})">`;
+
+  // Grid lines
+  [0, 0.5, 1].forEach(tick => {
+    svg += `<line x1="0" y1="${chartHeight * (1 - tick)}" x2="${chartWidth}" y2="${chartHeight * (1 - tick)}" stroke="#e2e8f0" stroke-width="1" ${tick !== 0 ? 'stroke-dasharray="4,4"' : ''}/>`;
+  });
+
+  // Y-axis labels
+  const ticks = [0, maxBOE * 0.5, maxBOE];
+  ticks.forEach(tick => {
+    const label = tick >= 1000 ? `${(tick / 1000).toFixed(0)}k` : tick.toFixed(0);
+    svg += `<text x="-8" y="${yScale(tick) + 4}" text-anchor="end" font-size="9" fill="#059669">${label}</text>`;
+  });
+
+  // X-axis labels - show every 3rd for 18 months to avoid crowding
+  const labelStep = data.length > 12 ? 3 : 2;
+  data.forEach((d, i) => {
+    if (i % labelStep === 0 || i === data.length - 1) {
+      const month = parseInt(d.yearMonth.substring(4, 6));
+      const year = d.yearMonth.substring(2, 4);
+      const label = `${MONTH_ABBR[month - 1]} '${year}`;
+      svg += `<text x="${xScale(i)}" y="${chartHeight + 18}" text-anchor="middle" font-size="8" fill="#64748b">${label}</text>`;
+    }
+  });
+
+  if (data.length > 1) {
+    // Draw smoothing/trend line FIRST (behind main line) - thicker, semi-transparent
+    const trendPath = boeTrend.map((v, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(v)}`).join(' ');
+    svg += `<path d="${trendPath}" fill="none" stroke="#059669" stroke-width="6" stroke-opacity="0.25" stroke-linecap="round" stroke-linejoin="round"/>`;
+
+    // Main line path on top
+    const path = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${xScale(i)} ${yScale(d.totalBOE)}`).join(' ');
+    svg += `<path d="${path}" fill="none" stroke="#059669" stroke-width="2"/>`;
+  }
+
+  // Data points
+  data.forEach((d, i) => {
+    svg += `<circle cx="${xScale(i)}" cy="${yScale(d.totalBOE)}" r="4" fill="#059669"/>`;
+  });
+
+  // Axis label
+  svg += `<text x="-35" y="-12" font-size="9" fill="#059669" font-weight="600">BOE</text>`;
+
+  // Note about period
+  svg += `<text x="${chartWidth / 2}" y="${chartHeight + 30}" text-anchor="middle" font-size="8" fill="#94a3b8">${data.length} months shown</text>`;
+
+  svg += '</g></svg>';
+  return svg;
+}
+
+function generateRiskChartSvg(counties: any[]): string {
+  if (!counties || counties.length === 0) return '';
+
+  // Compute risk scores: wells x negative delta (positive score = underperforming = risk)
+  const scores = counties
+    .filter((c: any) => c.userVsCountyDelta != null && c.userWellCount > 0)
+    .map((c: any) => ({
+      county: c.county,
+      score: Math.round(-c.userVsCountyDelta * c.userWellCount),
+      delta: c.userVsCountyDelta,
+      wells: c.userWellCount
+    }))
+    .sort((a, b) => b.score - a.score); // Highest risk first
+
+  if (scores.length < 2) return '';
+
+  const maxAbsScore = Math.max(...scores.map(s => Math.abs(s.score)), 1);
+
+  const barHeight = 18;
+  const barGap = 4;
+  const labelWidth = 80;
+  const valueWidth = 50;
+  const chartAreaWidth = 500;
+  const centerX = labelWidth + chartAreaWidth / 2;
+  const totalWidth = labelWidth + chartAreaWidth + valueWidth + 10;
+  const totalHeight = scores.length * (barHeight + barGap) + 10;
+
+  let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${totalWidth} ${totalHeight}" width="${totalWidth}" height="${totalHeight}" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;">`;
+
+  // Center line
+  svg += `<line x1="${centerX}" y1="0" x2="${centerX}" y2="${totalHeight}" stroke="#e2e8f0" stroke-width="1"/>`;
+
+  scores.forEach((s, i) => {
+    const y = i * (barHeight + barGap) + 2;
+    const barWidthPx = (Math.abs(s.score) / maxAbsScore) * (chartAreaWidth / 2);
+    const isRisk = s.score > 0;
+    const color = s.score > 0 ? '#dc2626' : (s.score < 0 ? '#059669' : '#d97706');
+
+    // County label
+    svg += `<text x="${labelWidth - 6}" y="${y + barHeight / 2 + 4}" text-anchor="end" font-size="9" font-weight="500" fill="#334155">${escapeHtml(s.county)}</text>`;
+
+    // Bar
+    if (s.score >= 0) {
+      svg += `<rect x="${centerX}" y="${y + 1}" width="${barWidthPx}" height="${barHeight - 2}" rx="2" fill="${color}"/>`;
+    } else {
+      svg += `<rect x="${centerX - barWidthPx}" y="${y + 1}" width="${barWidthPx}" height="${barHeight - 2}" rx="2" fill="${color}"/>`;
+    }
+
+    // Value label
+    svg += `<text x="${labelWidth + chartAreaWidth + 6}" y="${y + barHeight / 2 + 4}" font-size="8" font-weight="700" fill="${color}" font-family="'JetBrains Mono', monospace">${s.score}</text>`;
+  });
+
+  svg += '</svg>';
+  return svg;
+}
+
+// =============================================
+// SHUT-IN DETECTOR
+// =============================================
+
+// Tunable thresholds — adjust after launch based on flagging rates
+const HBP_MONTHS_THRESHOLD = 60;        // Flag wells with first production within this many months
+const SUDDEN_STOP_BOE_THRESHOLD = 50;   // Avg monthly BOE before stop to qualify as "sudden"
+const OPERATOR_IDLE_PCT_THRESHOLD = 0.5; // >50% idle wells triggers operator pattern flag
+const OPERATOR_MIN_WELLS = 3;            // Minimum wells per operator to evaluate pattern
+
+interface ShutInWell {
+  clientWellId: string;
+  wellName: string;
+  apiNumber: string;
+  operator: string;
+  county: string;
+  wellType: string;
+  pun: string | null;
+  status: 'recently_idle' | 'extended_idle' | 'no_recent_production' | 'no_data';
+  monthsIdle: number;
+  lastProdMonth: string | null;
+  firstProdMonth: string | null;
+  peakMonth: string | null;
+  declineRate12m: number | null;
+  riskFlags: string[];
+  taxPeriodStart: string | null;
+}
+
+/**
+ * GET /api/intelligence/shut-in-detector
+ *
+ * Identifies idle/shut-in wells in user's portfolio with risk flags:
+ * - HBP Risk: well within 5 years of first production and idle
+ * - Sudden Stop: significant production dropped to zero
+ * - Operator Pattern: >50% of operator's wells are idle
+ */
+export async function handleGetShutInDetector(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    // Check KV cache
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`shut-in-detector:${cacheId}`, 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[Shut-In Detector] Cache read error:', e);
+      }
+    }
+
+    // Step 1: Get ALL user wells with puns data (need all for operator pattern calc)
+    const allWellsQuery = `
+      SELECT cw.id as client_well_id, cw.api_number, cw.well_name as cw_well_name,
+             w.well_name as w_well_name, w.operator, w.county, w.well_type,
+             w.spud_date, w.completion_date,
+             wpl.pun,
+             p.is_stale, p.months_since_production,
+             p.first_prod_month, p.last_prod_month,
+             p.peak_month, p.decline_rate_12m,
+             tp.period_start_date as tp_start_date
+      FROM client_wells cw
+      JOIN wells w ON w.api_number = cw.api_number
+      LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
+      LEFT JOIN puns p ON p.pun = wpl.pun
+      LEFT JOIN (
+        SELECT pun,
+               MIN(period_start_date) as period_start_date
+        FROM otc_pun_tax_periods
+        GROUP BY pun
+      ) tp ON tp.pun = wpl.pun
+      WHERE cw.user_id = ? OR cw.organization_id = ?
+    `;
+
+    console.log('[Shut-In Detector] Querying wells for user:', authUser.id, 'org:', userOrgId || 'none');
+
+    const allWellsResult = await env.WELLS_DB!.prepare(allWellsQuery)
+      .bind(authUser.id, userOrgId || '')
+      .all();
+
+    console.log('[Shut-In Detector] Query returned', allWellsResult.results.length, 'rows');
+
+    const allRows = allWellsResult.results as Array<{
+      client_well_id: string;
+      api_number: string;
+      cw_well_name: string | null;
+      w_well_name: string | null;
+      operator: string | null;
+      county: string | null;
+      well_type: string | null;
+      spud_date: string | null;
+      completion_date: string | null;
+      pun: string | null;
+      is_stale: number | null;
+      months_since_production: number | null;
+      first_prod_month: string | null;
+      last_prod_month: string | null;
+      peak_month: string | null;
+      decline_rate_12m: number | null;
+      tp_start_date: string | null;
+    }>;
+
+    // Deduplicate by api_number (a well may have multiple PUNs — take the one with latest production)
+    const wellsByApi = new Map<string, typeof allRows[0]>();
+    for (const row of allRows) {
+      const existing = wellsByApi.get(row.api_number);
+      if (!existing) {
+        wellsByApi.set(row.api_number, row);
+      } else {
+        // Keep the row with more recent last_prod_month
+        if (row.last_prod_month && (!existing.last_prod_month || row.last_prod_month > existing.last_prod_month)) {
+          wellsByApi.set(row.api_number, row);
+        }
+      }
+    }
+
+    const allWells = Array.from(wellsByApi.values());
+
+    console.log('[Shut-In Detector] Deduped to', allWells.length, 'unique wells');
+
+    // Step 2: Classify all wells and compute operator stats
+    const operatorStats = new Map<string, { total: number; idle: number }>();
+    const idleWells: typeof allRows = [];
+
+    for (const well of allWells) {
+      const months = well.months_since_production;
+      const operator = well.operator || 'Unknown';
+
+      if (!operatorStats.has(operator)) {
+        operatorStats.set(operator, { total: 0, idle: 0 });
+      }
+      const stats = operatorStats.get(operator)!;
+      stats.total++;
+
+      // Idle = 3+ months since production OR no production data at all
+      const isIdle = (months !== null && months >= 3) || (well.last_prod_month === null && well.pun !== null) || well.pun === null;
+
+      if (isIdle) {
+        stats.idle++;
+        idleWells.push(well);
+      }
+    }
+
+    // Step 3: Compute operator pattern flags
+    const flaggedOperators = new Set<string>();
+    for (const [operator, stats] of operatorStats) {
+      if (stats.total >= OPERATOR_MIN_WELLS && (stats.idle / stats.total) > OPERATOR_IDLE_PCT_THRESHOLD) {
+        flaggedOperators.add(operator);
+      }
+    }
+
+    // Step 4: HBP Risk flag — wells with first production within threshold months
+    const now = new Date();
+    const currentYearMonth = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}`;
+
+    function monthsDiff(ym1: string, ym2: string): number {
+      const y1 = parseInt(ym1.substring(0, 4));
+      const m1 = parseInt(ym1.substring(4, 6));
+      const y2 = parseInt(ym2.substring(0, 4));
+      const m2 = parseInt(ym2.substring(4, 6));
+      return (y2 - y1) * 12 + (m2 - m1);
+    }
+
+    console.log('[Shut-In Detector] Idle wells:', idleWells.length, 'Flagged operators:', flaggedOperators.size);
+
+    // Step 5: Sudden Production Stop — need production history for idle wells
+    // Collect PUNs for the secondary query
+    const idlePuns = idleWells
+      .filter(w => w.pun && w.last_prod_month)
+      .map(w => ({ pun: w.pun!, lastProdMonth: w.last_prod_month! }));
+
+    const suddenStopPuns = new Set<string>();
+
+    console.log('[Shut-In Detector] Idle PUNs to check for sudden stop:', idlePuns.length);
+
+    try {
+      if (idlePuns.length > 0) {
+        // Find earliest last_prod_month to scope the query
+        const earliestLastProd = idlePuns.reduce((min, p) => p.lastProdMonth < min ? p.lastProdMonth : min, idlePuns[0].lastProdMonth);
+        // Go 12 months before the earliest last_prod_month
+        const earlyYear = parseInt(earliestLastProd.substring(0, 4));
+        const earlyMonth = parseInt(earliestLastProd.substring(4, 6));
+        let lookbackMonth = earlyMonth - 12;
+        let lookbackYear = earlyYear;
+        if (lookbackMonth <= 0) {
+          lookbackMonth += 12;
+          lookbackYear -= 1;
+        }
+        const lookbackStart = `${lookbackYear}${String(lookbackMonth).padStart(2, '0')}`;
+
+        // Batch query production data for idle PUNs
+        const punList = [...new Set(idlePuns.map(p => p.pun))];
+        console.log('[Shut-In Detector] Querying production for', punList.length, 'unique PUNs, lookback from', lookbackStart);
+        const punProdMap = new Map<string, Array<{ year_month: string; boe: number }>>();
+
+        // Limit batch size to 100 to avoid D1 query timeouts on otc_production (7M+ rows)
+        const BATCH_SIZE = 100;
+        for (let i = 0; i < punList.length; i += BATCH_SIZE) {
+          const batch = punList.slice(i, i + BATCH_SIZE);
+          const placeholders = batch.map(() => '?').join(',');
+          const prodResult = await env.WELLS_DB!.prepare(`
+            SELECT pun, year_month,
+                   COALESCE(SUM(CASE WHEN product_code IN ('1','3') THEN gross_volume ELSE 0 END), 0) +
+                   COALESCE(SUM(CASE WHEN product_code IN ('5','6') THEN gross_volume ELSE 0 END), 0) / 6.0 as boe
+            FROM otc_production
+            WHERE pun IN (${placeholders})
+              AND year_month >= ?
+            GROUP BY pun, year_month
+          `).bind(...batch, lookbackStart).all();
+
+          for (const row of prodResult.results as Array<{ pun: string; year_month: string; boe: number }>) {
+            if (!punProdMap.has(row.pun)) {
+              punProdMap.set(row.pun, []);
+            }
+            punProdMap.get(row.pun)!.push({ year_month: row.year_month, boe: row.boe });
+          }
+        }
+
+        console.log('[Shut-In Detector] Production data retrieved for', punProdMap.size, 'PUNs');
+
+        // For each idle PUN, compute avg monthly BOE in the 12 months ending at last_prod_month
+        for (const { pun, lastProdMonth } of idlePuns) {
+          const prodData = punProdMap.get(pun);
+          if (!prodData) continue;
+
+          // Filter to 12 months ending at lastProdMonth
+          const lpYear = parseInt(lastProdMonth.substring(0, 4));
+          const lpMonth = parseInt(lastProdMonth.substring(4, 6));
+          let startMonth = lpMonth - 11;
+          let startYear = lpYear;
+          if (startMonth <= 0) {
+            startMonth += 12;
+            startYear -= 1;
+          }
+          const windowStart = `${startYear}${String(startMonth).padStart(2, '0')}`;
+
+          const windowData = prodData.filter(d => d.year_month >= windowStart && d.year_month <= lastProdMonth);
+          if (windowData.length === 0) continue;
+
+          const avgBoe = windowData.reduce((sum, d) => sum + d.boe, 0) / windowData.length;
+          if (avgBoe > SUDDEN_STOP_BOE_THRESHOLD) {
+            suddenStopPuns.add(pun);
+          }
+        }
+      }
+    } catch (suddenStopError) {
+      console.error('[Shut-In Detector] Sudden stop query error (continuing without flag):', suddenStopError instanceof Error ? suddenStopError.message : suddenStopError);
+    }
+
+    // Step 6: Build final well list with flags
+    const shutInWells: ShutInWell[] = [];
+    let hbpRiskCount = 0;
+    let recentlyIdleCount = 0;
+    let extendedIdleCount = 0;
+    let noRecentProdCount = 0;
+    let noDataCount = 0;
+
+    for (const well of idleWells) {
+      const months = well.months_since_production;
+      let status: ShutInWell['status'];
+
+      if (well.last_prod_month === null) {
+        // No production data and no tax period info
+        status = 'no_data';
+        noDataCount++;
+      } else if (months !== null && months >= 12) {
+        status = 'no_recent_production';
+        noRecentProdCount++;
+      } else if (months >= 6) {
+        status = 'extended_idle';
+        extendedIdleCount++;
+      } else {
+        status = 'recently_idle';
+        recentlyIdleCount++;
+      }
+
+      const riskFlags: string[] = [];
+
+      // HBP Risk
+      if (well.first_prod_month) {
+        const wellAge = monthsDiff(well.first_prod_month, currentYearMonth);
+        if (wellAge <= HBP_MONTHS_THRESHOLD) {
+          riskFlags.push('HBP Risk');
+          hbpRiskCount++;
+        }
+      }
+
+      // Sudden Stop
+      if (well.pun && suddenStopPuns.has(well.pun)) {
+        riskFlags.push('Sudden Stop');
+      }
+
+      // Operator Pattern
+      if (well.operator && flaggedOperators.has(well.operator)) {
+        riskFlags.push('Operator Pattern');
+      }
+
+      shutInWells.push({
+        clientWellId: well.client_well_id,
+        wellName: well.w_well_name || well.cw_well_name || `API ${well.api_number}`,
+        apiNumber: well.api_number,
+        operator: well.operator || 'Unknown',
+        county: well.county || 'Unknown',
+        wellType: well.well_type || 'Unknown',
+        pun: well.pun,
+        status,
+        monthsIdle: months ?? 999,
+        lastProdMonth: well.last_prod_month,
+        firstProdMonth: well.first_prod_month,
+        peakMonth: well.peak_month,
+        declineRate12m: well.decline_rate_12m,
+        riskFlags,
+        taxPeriodStart: well.tp_start_date
+      });
+    }
+
+    console.log('[Shut-In Detector] Built', shutInWells.length, 'shut-in wells. HBP:', hbpRiskCount, 'Recent:', recentlyIdleCount, 'Extended:', extendedIdleCount, 'NoRecent:', noRecentProdCount, 'NoData:', noDataCount, 'Sudden stops:', suddenStopPuns.size);
+
+    const responseData = {
+      summary: {
+        totalIdle: shutInWells.length,
+        hbpRisk: hbpRiskCount,
+        recentlyIdle: recentlyIdleCount,
+        extendedIdle: extendedIdleCount,
+        noRecentProd: noRecentProdCount,
+        noData: noDataCount
+      },
+      wells: shutInWells,
+      generatedAt: new Date().toISOString()
+    };
+
+    // Cache the result
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(
+          `shut-in-detector:${cacheId}`,
+          JSON.stringify(responseData),
+          { expirationTtl: 3600 }
+        );
+      } catch (e) {
+        console.error('[Shut-In Detector] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(responseData);
+  } catch (error) {
+    console.error('[Shut-In Detector] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({ error: 'Failed to generate shut-in analysis' }, 500);
+  }
+}
+
+/**
+ * GET /print/intelligence/shut-in-detector
+ * Generates a print-friendly HTML page for the Shut-In Detector report
+ */
+export async function handleShutInDetectorPrint(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) {
+      const url = new URL(request.url);
+      return Response.redirect(`/portal/login?redirect=${encodeURIComponent(url.pathname)}`, 302);
+    }
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return new Response('User not found', { status: 404 });
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return new Response('Intelligence features not available for your account', { status: 403 });
+    }
+
+    // Fetch data using internal API call pattern (reuse cache)
+    const apiUrl = new URL('/api/intelligence/shut-in-detector', request.url);
+    const apiRequest = new Request(apiUrl.toString(), {
+      method: 'GET',
+      headers: request.headers
+    });
+    const apiResponse = await handleGetShutInDetector(apiRequest, env);
+    const data = await apiResponse.json() as any;
+
+    if (data.error) {
+      return new Response(`Error: ${data.error}`, { status: 500 });
+    }
+
+    const html = generateShutInDetectorPrintHtml(data, userRecord.fields.Name || 'User');
+    return new Response(html, {
+      headers: { 'Content-Type': 'text/html; charset=utf-8' }
+    });
+
+  } catch (error) {
+    console.error('[Shut-In Detector Print] Error:', error);
+    return new Response(`Error generating report: ${error instanceof Error ? error.message : 'Unknown'}`, { status: 500 });
+  }
+}
+
+function generateShutInDonutSvg(total: number, recentlyIdle: number, extendedIdle: number, noRecentProd: number): string {
+  if (total === 0) return '';
+
+  const r = 52;
+  const stroke = 18;
+  const cx = 70;
+  const cy = 70;
+  const circumference = 2 * Math.PI * r;
+
+  const segments = [
+    { label: 'Idle (3–6 mo)', count: recentlyIdle, color: '#f59e0b' },
+    { label: 'Extended Idle (6–12 mo)', count: extendedIdle, color: '#f97316' },
+    { label: 'Long-Term Idle (12+ mo)', count: noRecentProd, color: '#ef4444' }
+  ].filter(s => s.count > 0);
+
+  let offset = 0;
+  const arcs = segments.map(seg => {
+    const pct = seg.count / total;
+    const len = pct * circumference;
+    const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${stroke}" stroke-dasharray="${len.toFixed(2)} ${(circumference - len).toFixed(2)}" stroke-dashoffset="${(-offset).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"/>`;
+    offset += len;
+    return arc;
+  });
+
+  // Legend items positioned to the right of the donut
+  const legendX = 165;
+  const legendStartY = 22;
+  const legendItems = segments.map((seg, i) => {
+    const y = legendStartY + i * 22;
+    const pct = Math.round((seg.count / total) * 100);
+    return `<rect x="${legendX}" y="${y}" width="10" height="10" rx="2" fill="${seg.color}"/>
+      <text x="${legendX + 16}" y="${y + 9}" font-size="10" fill="#475569">${escapeHtml(seg.label)}</text>
+      <text x="${legendX + 195}" y="${y + 9}" font-size="10" font-weight="600" fill="#1C2B36" text-anchor="end">${seg.count}</text>
+      <text x="${legendX + 230}" y="${y + 9}" font-size="10" fill="#64748b" text-anchor="end">${pct}%</text>`;
+  }).join('\n');
+
+  return `<svg width="400" height="140" viewBox="0 0 400 140" style="display: block; margin: 0 auto;">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="${stroke}"/>
+    ${arcs.join('\n')}
+    <text x="${cx}" y="${cy - 4}" text-anchor="middle" font-size="22" font-weight="700" fill="#1C2B36">${total}</text>
+    <text x="${cx}" y="${cy + 12}" text-anchor="middle" font-size="9" fill="#64748b">idle wells</text>
+    ${legendItems}
+  </svg>`;
+}
+
+function generateShutInDetectorPrintHtml(data: any, userName: string): string {
+  const { summary, wells, generatedAt } = data;
+  const fmt = (n: number) => n?.toLocaleString() ?? '—';
+
+  // Sort by risk priority (HBP Risk first, then Sudden Stop, then Operator Pattern, then none), then months idle desc
+  const sortedWells = [...(wells || [])].sort((a: any, b: any) => {
+    const priorityA = a.riskFlags?.includes('HBP Risk') ? 0 : a.riskFlags?.includes('Sudden Stop') ? 1 : a.riskFlags?.includes('Operator Pattern') ? 2 : 3;
+    const priorityB = b.riskFlags?.includes('HBP Risk') ? 0 : b.riskFlags?.includes('Sudden Stop') ? 1 : b.riskFlags?.includes('Operator Pattern') ? 2 : 3;
+    if (priorityA !== priorityB) return priorityA - priorityB;
+    return (b.monthsIdle || 0) - (a.monthsIdle || 0);
+  });
+
+  // Top 10 wells for print summary (fits on one page)
+  const topWells = sortedWells.slice(0, 10);
+
+  // Compute 3-way split for donut (summary.extendedIdle combines 6-12 + 12+)
+  const recentlyIdleCount = (wells || []).filter((w: any) => w.status === 'recently_idle').length;
+  const extendedIdleCount = (wells || []).filter((w: any) => w.status === 'extended_idle').length;
+  const noRecentCount = (wells || []).filter((w: any) => w.status === 'no_recent_production').length;
+  const donutSvg = generateShutInDonutSvg(summary?.totalIdle || 0, recentlyIdleCount, extendedIdleCount, noRecentCount);
+
+  const statusLabel = (s: string) => {
+    switch (s) {
+      case 'recently_idle': return 'Recently Idle';
+      case 'extended_idle': return 'Extended Idle';
+      case 'no_recent_production': return 'No Recent Prod';
+      default: return s;
+    }
+  };
+
+  const statusClass = (s: string) => {
+    switch (s) {
+      case 'recently_idle': return 'warning';
+      case 'extended_idle': return 'danger';
+      case 'no_recent_production': return 'critical';
+      default: return '';
+    }
+  };
+
+  const formatMonth = (ym: string | null) => {
+    if (!ym || ym.length < 6) return '—';
+    return ym.substring(0, 4) + '-' + ym.substring(4, 6);
+  };
+
+  const riskPillsHtml = (flags: string[]) => {
+    if (!flags || flags.length === 0) return '<span style="color: #94a3b8;">None</span>';
+    return flags.map(f => {
+      const cls = f === 'HBP Risk' ? 'pill-hbp' : f === 'Sudden Stop' ? 'pill-sudden' : 'pill-operator';
+      return `<span class="risk-pill ${cls}">${escapeHtml(f)}</span>`;
+    }).join(' ');
+  };
+
+  const shortFlagLabel = (f: string) => f === 'Operator Pattern' ? 'Op Pattern' : f;
+
+  const wellRowsHtml = topWells.map((well: any, i: number) => {
+    const rowBorder = well.riskFlags?.includes('HBP Risk') ? 'border-left: 3px solid #dc2626;'
+      : well.riskFlags?.includes('Sudden Stop') ? 'border-left: 3px solid #ea580c;'
+      : well.riskFlags?.includes('Operator Pattern') ? 'border-left: 3px solid #2563eb;'
+      : 'border-left: 3px solid transparent;';
+    const flagsPrint = (well.riskFlags || []).length === 0
+      ? '<span style="color: #94a3b8;">None</span>'
+      : (well.riskFlags || []).map((f: string) => {
+          const cls = f === 'HBP Risk' ? 'pill-hbp' : f === 'Sudden Stop' ? 'pill-sudden' : 'pill-operator';
+          return `<span class="risk-pill ${cls}">${escapeHtml(shortFlagLabel(f))}</span>`;
+        }).join(' ');
+    return `
+      <tr class="${i % 2 !== 0 ? 'alt' : ''}" style="${rowBorder}">
+        <td class="bold">${escapeHtml(well.wellName)}</td>
+        <td>${escapeHtml(well.operator || '—')}</td>
+        <td>${escapeHtml((well.county || '').replace(/^\d{3}-/, ''))}</td>
+        <td class="center"><span class="status-badge ${statusClass(well.status)}">${statusLabel(well.status)}</span></td>
+        <td class="right">${well.monthsIdle === 999 ? '—' : well.monthsIdle}</td>
+        <td>${formatMonth(well.lastProdMonth)}</td>
+        <td>${flagsPrint}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Count wells by risk flag
+  const hbpWells = (wells || []).filter((w: any) => w.riskFlags?.includes('HBP Risk')).length;
+  const suddenWells = (wells || []).filter((w: any) => w.riskFlags?.includes('Sudden Stop')).length;
+  const operatorWells = (wells || []).filter((w: any) => w.riskFlags?.includes('Operator Pattern')).length;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Shut-In Detector Report - Mineral Watch</title>
+  <link href="https://fonts.googleapis.com/css2?family=Merriweather:wght@700&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: #f1f5f9; padding: 20px; -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    .print-controls { max-width: 8.5in; margin: 0 auto 16px; display: flex; justify-content: flex-end; gap: 12px; }
+    .print-btn { padding: 10px 20px; font-size: 14px; font-weight: 600; border: none; border-radius: 6px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+    .print-btn.primary { background: #1C2B36; color: white; }
+    .print-btn.primary:hover { background: #334E68; }
+    .print-btn.secondary { background: white; color: #475569; border: 1px solid #e2e8f0; }
+    .print-btn.secondary:hover { background: #f8fafc; }
+    .print-container { width: 8.5in; min-height: 11in; margin: 0 auto; background: white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); }
+    .header { background: linear-gradient(135deg, #1C2B36 0%, #334E68 100%); color: white; padding: 20px 24px; display: flex; justify-content: space-between; align-items: flex-start; }
+    .header h1 { font-size: 18px; font-weight: 700; margin-bottom: 6px; letter-spacing: 0.5px; }
+    .header .subtitle { font-size: 12px; opacity: 0.8; }
+    .header .brand { text-align: right; }
+    .header .brand-name { font-size: 20px; font-weight: 700; font-family: 'Merriweather', Georgia, serif; display: flex; align-items: center; gap: 6px; }
+    .header .brand-url { font-size: 10px; opacity: 0.8; margin-top: 4px; }
+    .section { padding: 16px 24px; border-bottom: 1px solid #e2e8f0; }
+    .section-title { font-size: 11px; font-weight: 700; color: #1C2B36; margin-bottom: 12px; letter-spacing: 0.5px; text-transform: uppercase; }
+    .summary-grid { display: flex; gap: 24px; flex-wrap: wrap; }
+    .summary-item { flex: 1; min-width: 100px; }
+    .summary-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+    .summary-value { font-size: 20px; font-weight: 700; color: #1C2B36; }
+    .summary-value.danger { color: #dc2626; }
+    .summary-value.warning { color: #d97706; }
+    .data-table { width: 100%; border-collapse: collapse; font-size: 10px; }
+    .data-table th { padding: 8px 8px; text-align: left; border-bottom: 2px solid #e2e8f0; font-weight: 600; color: #64748b; background: #f8fafc; font-size: 9px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .data-table th.right { text-align: right; }
+    .data-table th.center { text-align: center; }
+    .data-table td { padding: 7px 8px; border-bottom: 1px solid #e2e8f0; }
+    .data-table td.right { text-align: right; font-family: 'JetBrains Mono', monospace; }
+    .data-table td.center { text-align: center; }
+    .data-table td.bold { font-weight: 600; color: #1C2B36; }
+    .data-table tr.alt { background: #f8fafc; }
+    .data-table .danger { color: #dc2626; font-weight: 600; }
+    .data-table .warning { color: #d97706; font-weight: 600; }
+    .status-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 9px; font-weight: 600; text-transform: uppercase; white-space: nowrap; }
+    .status-badge.warning { background: #fef3c7; color: #92400e; }
+    .status-badge.danger { background: #fee2e2; color: #991b1b; }
+    .status-badge.critical { background: #fecaca; color: #7f1d1d; }
+    .risk-pill { display: inline-block; padding: 1px 6px; border-radius: 3px; font-size: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }
+    .pill-hbp { background: #fee2e2; color: #991b1b; }
+    .pill-sudden { background: #ffedd5; color: #9a3412; }
+    .pill-operator { background: #dbeafe; color: #1e40af; }
+    .risk-breakdown { display: flex; gap: 16px; margin-top: 12px; }
+    .risk-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: #475569; }
+    .risk-dot { width: 8px; height: 8px; border-radius: 50%; }
+    .risk-dot.hbp { background: #dc2626; }
+    .risk-dot.sudden { background: #ea580c; }
+    .risk-dot.operator { background: #2563eb; }
+    .insight-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 12px 16px; margin-top: 16px; }
+    .insight-title { font-size: 10px; font-weight: 600; color: #1e40af; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+    .insight-text { font-size: 11px; color: #1e3a5f; line-height: 1.5; }
+    .footer { padding: 12px 24px; font-size: 9px; color: #64748b; display: flex; justify-content: space-between; background: #f8fafc; }
+    .note { font-size: 9px; color: #64748b; margin-top: 8px; font-style: italic; }
+    @media print {
+      body { background: white; padding: 0; }
+      .print-controls { display: none !important; }
+      .print-container { box-shadow: none; width: 100%; }
+    }
+    @page { size: letter; margin: 0.25in; }
+  </style>
+</head>
+<body>
+  <div class="print-controls">
+    <button class="print-btn secondary" onclick="window.close()">← Back to Dashboard</button>
+    <button class="print-btn primary" onclick="window.print()">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <polyline points="6 9 6 2 18 2 18 9"></polyline>
+        <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+        <rect x="6" y="14" width="12" height="8"></rect>
+      </svg>
+      Print Report
+    </button>
+  </div>
+
+  <div class="print-container">
+    <div class="header">
+      <div>
+        <h1>SHUT-IN DETECTOR REPORT</h1>
+        <div class="subtitle">Wells with no reported production in 3+ months</div>
+      </div>
+      <div class="brand">
+        <div class="brand-name">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M12 6v6l4 2"/>
+          </svg>
+          MINERAL WATCH
+        </div>
+        <div class="brand-url">mymineralwatch.com</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Portfolio Summary</div>
+      <div class="summary-grid">
+        <div class="summary-item">
+          <div class="summary-label">Total Idle Wells</div>
+          <div class="summary-value">${fmt(summary?.totalIdle || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">HBP Risk</div>
+          <div class="summary-value ${summary?.hbpRisk > 0 ? 'danger' : ''}">${fmt(summary?.hbpRisk || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Idle (3–6 mo)</div>
+          <div class="summary-value ${summary?.recentlyIdle > 0 ? 'warning' : ''}">${fmt(summary?.recentlyIdle || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Extended Idle (6–12 mo)</div>
+          <div class="summary-value ${summary?.extendedIdle > 0 ? 'danger' : ''}">${fmt(summary?.extendedIdle || 0)}</div>
+        </div>
+        <div class="summary-item">
+          <div class="summary-label">Long-Term Idle (12+ mo)</div>
+          <div class="summary-value ${summary?.noRecentProd > 0 ? 'danger' : ''}">${fmt(summary?.noRecentProd || 0)}</div>
+        </div>
+      </div>
+      <div class="risk-breakdown">
+        <div class="risk-item"><span class="risk-dot hbp"></span> HBP Risk: ${hbpWells}</div>
+        <div class="risk-item"><span class="risk-dot sudden"></span> Sudden Stop: ${suddenWells}</div>
+        <div class="risk-item"><span class="risk-dot operator"></span> Operator Pattern: ${operatorWells}</div>
+      </div>
+    </div>
+
+    ${donutSvg ? `<div class="section">
+      <div class="section-title">Idle Well Distribution</div>
+      ${donutSvg}
+    </div>` : ''}
+
+    <div class="section">
+      <div class="section-title">Highest-Risk Wells (Top ${topWells.length})</div>
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Well Name</th>
+            <th>Operator</th>
+            <th>County</th>
+            <th class="center">Status</th>
+            <th class="right">Mo. Idle</th>
+            <th>Last Prod</th>
+            <th>Risk Flags</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${wellRowsHtml || '<tr><td colspan="7" style="text-align: center; color: #64748b;">No idle wells detected — all wells are actively producing</td></tr>'}
+        </tbody>
+      </table>
+      ${wells?.length > 10 ? `<p class="note">+ ${wells.length - 10} more wells. See full report online for complete data.</p>` : ''}
+    </div>
+
+    <div class="section">
+      <div class="insight-box">
+        <div class="insight-title">Understanding Risk Flags</div>
+        <div class="insight-text">
+          <strong>HBP Risk:</strong> Well's first production is within 60 months — going idle may jeopardize Held-By-Production status on associated leases.<br>
+          <strong>Sudden Stop:</strong> Well averaged 50+ BOE/month in its final 12 producing months before going idle — suggests an operational issue rather than natural decline.<br>
+          <strong>Operator Pattern:</strong> More than 50% of this operator's wells in your portfolio are idle — may indicate broader operational or financial issues.
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <span>Generated by Mineral Watch &bull; ${new Date().toLocaleDateString()}</span>
+      <span>Full report available at portal.mymineralwatch.com</span>
+    </div>
+  </div>
+</body>
+</html>`;
+}
+
+// =============================================
+// SHUT-IN DETECTOR — MY MARKETS
+// =============================================
+
+interface CountyIdleAggregate {
+  county: string;
+  countyCode: string;
+  totalWells: number;
+  idleWells: number;
+  idleRate: number;
+  userWellCount: number;
+  userIdleWells: number;
+  userIdleRate: number;
+  userVsCountyDelta: number | null;
+  topOperators: Array<{
+    operator: string;
+    totalWells: number;
+    idleWells: number;
+    idleRate: number;
+  }>;
+}
+
+/**
+ * GET /api/intelligence/shut-in-detector/markets
+ *
+ * Returns county-level idle well statistics with operator breakdown.
+ * Uses pre-computed puns table rollups (months_since_production, is_stale).
+ * Two queries per county: (1) accurate totals from puns only, (2) operator breakdown via joins.
+ */
+export async function handleGetShutInDetectorMarkets(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({ error: 'Intelligence features are not yet available for your account' }, 403);
+    }
+
+    const cacheId = userOrgId || authUser.id;
+
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
+    // Check KV cache (24-hour TTL for county aggregates)
+    if (env.OCC_CACHE && !skipCache) {
+      try {
+        const cached = await env.OCC_CACHE.get(`shut-in-markets:${cacheId}`, 'json');
+        if (cached) {
+          console.log('[Shut-In Markets] Returning cached data');
+          return jsonResponse(cached);
+        }
+      } catch (e) {
+        console.error('[Shut-In Markets] Cache read error:', e);
+      }
+    }
+
+    console.log('[Shut-In Markets] Computing county benchmarks...');
+
+    // Step 1: Get user wells with counties + idle status
+    const userWellsQuery = `
+      SELECT cw.api_number, w.county, w.operator,
+             p.months_since_production, p.is_stale
+      FROM client_wells cw
+      JOIN wells w ON w.api_number = cw.api_number
+      LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
+      LEFT JOIN puns p ON p.pun = wpl.pun
+      WHERE (cw.user_id = ? OR cw.organization_id = ?)
+        AND w.county IS NOT NULL
+    `;
+
+    const userWellsResult = await env.WELLS_DB!.prepare(userWellsQuery)
+      .bind(authUser.id, userOrgId || '')
+      .all();
+
+    const userWellRows = userWellsResult.results as Array<{
+      api_number: string;
+      county: string;
+      operator: string | null;
+      months_since_production: number | null;
+      is_stale: number | null;
+    }>;
+
+    // Deduplicate by api_number (take first occurrence)
+    const seenApis = new Set<string>();
+    const dedupedRows: typeof userWellRows = [];
+    for (const row of userWellRows) {
+      if (!seenApis.has(row.api_number)) {
+        seenApis.add(row.api_number);
+        dedupedRows.push(row);
+      }
+    }
+
+    // Build per-county user stats
+    const countyUserStats = new Map<string, { total: number; idle: number }>();
+    for (const row of dedupedRows) {
+      if (!countyUserStats.has(row.county)) {
+        countyUserStats.set(row.county, { total: 0, idle: 0 });
+      }
+      const stats = countyUserStats.get(row.county)!;
+      stats.total++;
+
+      const months = row.months_since_production;
+      const isIdle = (months !== null && months >= 3) || months === null;
+      if (isIdle) stats.idle++;
+    }
+
+    const userCounties = [...countyUserStats.keys()];
+    console.log(`[Shut-In Markets] User has wells in ${userCounties.length} counties`);
+
+    if (userCounties.length === 0) {
+      return jsonResponse({ counties: [] });
+    }
+
+    // Step 2: Process counties in batches of 5
+    const countyAggregates: CountyIdleAggregate[] = [];
+    const BATCH_SIZE = 5;
+
+    for (let i = 0; i < userCounties.length; i += BATCH_SIZE) {
+      const batch = userCounties.slice(i, i + BATCH_SIZE);
+
+      const batchResults = await Promise.all(batch.map(async (county) => {
+        try {
+          return await computeCountyIdleAggregate(county, countyUserStats.get(county)!, env);
+        } catch (err) {
+          console.error(`[Shut-In Markets] Error computing county ${county}:`, err);
+          return null;
+        }
+      }));
+
+      for (const result of batchResults) {
+        if (result) countyAggregates.push(result);
+      }
+    }
+
+    // Sort by user well count descending (most relevant counties first)
+    countyAggregates.sort((a, b) => b.userWellCount - a.userWellCount);
+
+    const response = { counties: countyAggregates };
+
+    // Cache for 24 hours
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put(
+          `shut-in-markets:${cacheId}`,
+          JSON.stringify(response),
+          { expirationTtl: 86400 }
+        );
+      } catch (e) {
+        console.error('[Shut-In Markets] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Shut-In Markets] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load market benchmarks',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
+ * Compute county-level idle well stats and operator breakdown.
+ * Two queries: (1) accurate totals from puns only, (2) operator ranking via joins.
+ */
+async function computeCountyIdleAggregate(
+  county: string,
+  userStats: { total: number; idle: number },
+  env: Env
+): Promise<CountyIdleAggregate> {
+  // Extract county code and name from "017-Canadian" format
+  const countyCode = county.substring(0, 3);
+  const countyName = county.replace(/^\d{3}-/, '');
+
+  // Query 1: County totals — DISTINCT pun counts via wells.county join
+  const totalsResult = await env.WELLS_DB!.prepare(`
+    SELECT COUNT(DISTINCT p.pun) as total_puns,
+           COUNT(DISTINCT CASE WHEN p.months_since_production >= 3
+                 OR p.months_since_production IS NULL THEN p.pun END) as idle_puns
+    FROM puns p
+    JOIN well_pun_links wpl ON wpl.pun = p.pun
+    JOIN wells w ON w.api_number = wpl.api_number
+    WHERE w.county = ?
+  `).bind(county).first() as { total_puns: number; idle_puns: number } | null;
+
+  const totalWells = totalsResult?.total_puns || 0;
+  const idleWells = totalsResult?.idle_puns || 0;
+  const idleRate = totalWells > 0 ? Math.round((idleWells / totalWells) * 1000) / 10 : 0;
+
+  // Query 2: Operator breakdown — top 5 by idle PUN count
+  const operatorResult = await env.WELLS_DB!.prepare(`
+    SELECT w.operator,
+           COUNT(DISTINCT p.pun) as total_puns,
+           COUNT(DISTINCT CASE WHEN p.months_since_production >= 3
+                 OR p.months_since_production IS NULL THEN p.pun END) as idle_puns
+    FROM puns p
+    JOIN well_pun_links wpl ON wpl.pun = p.pun
+    JOIN wells w ON w.api_number = wpl.api_number
+    WHERE w.county = ?
+    GROUP BY w.operator
+    ORDER BY idle_puns DESC
+    LIMIT 5
+  `).bind(county).all();
+
+  const topOperators = (operatorResult.results as Array<{
+    operator: string | null;
+    total_puns: number;
+    idle_puns: number;
+  }>).filter(r => r.operator).map(r => ({
+    operator: r.operator!,
+    totalWells: r.total_puns,
+    idleWells: r.idle_puns,
+    idleRate: r.total_puns > 0 ? Math.round((r.idle_puns / r.total_puns) * 1000) / 10 : 0
+  }));
+
+  // User stats
+  const userIdleRate = userStats.total > 0 ? Math.round((userStats.idle / userStats.total) * 1000) / 10 : 0;
+  const userVsCountyDelta = totalWells > 0 ? Math.round((userIdleRate - idleRate) * 10) / 10 : null;
+
+  return {
+    county: countyName,
+    countyCode,
+    totalWells,
+    idleWells,
+    idleRate,
+    userWellCount: userStats.total,
+    userIdleWells: userStats.idle,
+    userIdleRate,
+    userVsCountyDelta,
+    topOperators
+  };
 }

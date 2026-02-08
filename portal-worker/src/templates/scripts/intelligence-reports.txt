@@ -2,6 +2,31 @@
         // DEDUCTION REPORT VIEWER — Command Center Layout
         // =============================================
 
+        // Track which report is currently displayed for print functionality
+        let currentReportType = null; // 'deduction-audit' | 'production-decline' | 'pooling' | etc.
+
+        // Global print function that opens the dedicated print page
+        function openPrintSummary() {
+            if (!currentReportType) {
+                console.warn('No report type set for printing');
+                return;
+            }
+
+            const printUrls = {
+                'deduction-audit': '/print/intelligence/deduction-audit',
+                'production-decline': '/print/intelligence/production-decline',
+                'shut-in-detector': '/print/intelligence/shut-in-detector'
+            };
+
+            const printUrl = printUrls[currentReportType];
+            if (printUrl) {
+                window.open(printUrl, '_blank');
+            } else {
+                // Fallback for reports without dedicated print pages
+                window.print();
+            }
+        }
+
         const PRODUCT_NAMES = {
             '1': 'Oil', '3': 'NGL / Condensate',
             '5': 'Residue Gas', '6': 'Casinghead Gas'
@@ -41,22 +66,33 @@
         // =============================================
 
         // Column definitions: key, label, type, sticky class (optional), print-hide (optional)
+        // Ordered by importance: identifiers first, then key metrics, then context
         const FLAGGED_WELLS_COLUMNS = [
             { key: 'well_name', label: 'Well', type: 'string', sticky: 'sticky sticky-well', hasExpand: true },
             { key: 'operator', label: 'Operator', type: 'string', sticky: 'sticky sticky-operator' },
+            { key: 'agg_deduction_pct', label: 'Ded %', type: 'percent', title: 'Aggregate deduction rate across all products' },
+            { key: '_pcrr', label: 'PCRR %', type: 'pcrr', title: 'Post-Production Cost Recovery Ratio: NGL ÷ Deductions. Over 100% is favorable.' },
+            { key: '_net_return', label: 'Net Return', type: 'currency', title: 'NGL Returned minus Deductions' },
+            { key: 'variance_points', label: 'Variance', type: 'variance', title: 'Points above county average' },
             { key: 'county', label: 'County', type: 'string', transform: cleanCountyName },
-            { key: 'agg_deduction_pct', label: 'Deduction %', type: 'percent' },
             { key: 'county_avg_pct', label: 'County Avg', type: 'percent' },
-            { key: 'variance_points', label: 'Variance', type: 'variance' },
             { key: 'total_gross', label: 'Total Gross', type: 'currency' },
-            { key: 'total_deductions', label: 'Total Deductions', type: 'currency' },
-            { key: 'total_net', label: 'Net Value', type: 'currency' },
-            { key: '_oil', label: 'Oil', type: 'currency', printHide: true },
-            { key: '_gas', label: 'Gas', type: 'currency', printHide: true },
-            { key: '_ngl', label: 'NGL', type: 'currency', printHide: true }
+            { key: '_residue_deductions', label: 'Deductions', type: 'currency', title: 'Product 5 - Residue Gas processing fees' },
+            { key: '_ngl_returned', label: 'NGL Returned', type: 'currency', title: 'Product 6 - Value returned from plant' }
         ];
 
         let currentSort = { key: 'agg_deduction_pct', dir: 'desc' }; // Default sort
+
+        // Helper to extract PCRR metrics from well products
+        function getWellPcrrMetrics(well) {
+            const prod5 = well.products.find(p => p.product_code === '5');
+            const prod6 = well.products.find(p => p.product_code === '6');
+            const residueDeductions = prod5 ? prod5.market_deduction : 0;
+            const nglReturned = prod6 ? prod6.gross_value : 0;
+            const netReturn = nglReturned - residueDeductions;
+            const pcrr = residueDeductions > 0 ? Math.round((nglReturned / residueDeductions) * 1000) / 10 : null;
+            return { residueDeductions, nglReturned, netReturn, pcrr };
+        }
 
         function sortData(data, key, dir) {
             return [...data].sort((a, b) => {
@@ -64,21 +100,18 @@
                 let bVal = b[key];
 
                 // Handle computed columns
-                if (key === '_oil') {
-                    const ap = a.products.find(p => p.product_code === '1');
-                    const bp = b.products.find(p => p.product_code === '1');
-                    aVal = ap ? ap.gross_value : 0;
-                    bVal = bp ? bp.gross_value : 0;
-                } else if (key === '_gas') {
-                    const ap = a.products.find(p => p.product_code === '5' || p.product_code === '6');
-                    const bp = b.products.find(p => p.product_code === '5' || p.product_code === '6');
-                    aVal = ap ? ap.gross_value : 0;
-                    bVal = bp ? bp.gross_value : 0;
-                } else if (key === '_ngl') {
-                    const ap = a.products.find(p => p.product_code === '3');
-                    const bp = b.products.find(p => p.product_code === '3');
-                    aVal = ap ? ap.gross_value : 0;
-                    bVal = bp ? bp.gross_value : 0;
+                if (key === '_residue_deductions') {
+                    aVal = getWellPcrrMetrics(a).residueDeductions;
+                    bVal = getWellPcrrMetrics(b).residueDeductions;
+                } else if (key === '_ngl_returned') {
+                    aVal = getWellPcrrMetrics(a).nglReturned;
+                    bVal = getWellPcrrMetrics(b).nglReturned;
+                } else if (key === '_net_return') {
+                    aVal = getWellPcrrMetrics(a).netReturn;
+                    bVal = getWellPcrrMetrics(b).netReturn;
+                } else if (key === '_pcrr') {
+                    aVal = getWellPcrrMetrics(a).pcrr;
+                    bVal = getWellPcrrMetrics(b).pcrr;
                 }
 
                 // Handle nulls
@@ -119,7 +152,8 @@
         function renderTableHeader() {
             return FLAGGED_WELLS_COLUMNS.map(col => {
                 const classes = [col.sticky, col.printHide ? 'print-hide' : '', 'sortable'].filter(Boolean).join(' ');
-                return `<th class="${classes}" onclick="handleSort('${col.key}')">${escapeHtml(col.label)}${renderSortArrow(col.key)}</th>`;
+                const titleAttr = col.title ? ` title="${escapeHtml(col.title)}"` : '';
+                return `<th class="${classes}"${titleAttr} onclick="handleSort('${col.key}')">${escapeHtml(col.label)}${renderSortArrow(col.key)}</th>`;
             }).join('');
         }
 
@@ -161,32 +195,38 @@
             // Priority based on deduction rate: > 50% = high, 25-50% = medium
             const priorityClass = well.agg_deduction_pct > 50 ? 'priority-high' : 'priority-medium';
 
-            const oilProd = well.products.find(p => p.product_code === '1');
-            const gasProd = well.products.find(p => p.product_code === '5' || p.product_code === '6');
-            const nglProd = well.products.find(p => p.product_code === '3');
+            // PCRR metrics
+            const metrics = getWellPcrrMetrics(well);
+            const pcrrClass = metrics.pcrr == null ? ''
+                : metrics.pcrr >= 100 ? 'value-success'
+                : metrics.pcrr >= 30 ? '' : 'value-warning';
+            const netReturnClass = metrics.netReturn >= 0 ? 'value-success'
+                : metrics.netReturn > -10000 ? '' : 'value-danger';
 
             return `
                 <tr class="well-row ${priorityClass}" onclick="toggleWellDetail('${well.api_number}')">
                     <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}</td>
                     <td class="sticky sticky-operator">${escapeHtml(well.operator || '—')}</td>
-                    <td>${escapeHtml(cleanCountyName(well.county))}</td>
                     <td class="${pctClass}">${well.agg_deduction_pct}%</td>
-                    <td>${countyAvg}</td>
+                    <td class="${pcrrClass}">${metrics.pcrr != null ? metrics.pcrr + '%' : '—'}</td>
+                    <td class="${netReturnClass}">${formatCurrencyFull(metrics.netReturn)}</td>
                     <td class="${well.variance_points != null && well.variance_points > 15 ? 'value-danger' : ''}">${variance}</td>
+                    <td>${escapeHtml(cleanCountyName(well.county))}</td>
+                    <td>${countyAvg}</td>
                     <td>${formatCurrencyFull(well.total_gross)}</td>
-                    <td>${formatCurrencyFull(well.total_deductions)}</td>
-                    <td>${formatCurrencyFull(well.total_net)}</td>
-                    <td class="print-hide">${oilProd ? formatCurrencyFull(oilProd.gross_value) : '—'}</td>
-                    <td class="print-hide">${gasProd ? formatCurrencyFull(gasProd.gross_value) : '—'}</td>
-                    <td class="print-hide">${nglProd ? formatCurrencyFull(nglProd.gross_value) : '—'}</td>
+                    <td>${formatCurrencyFull(metrics.residueDeductions)}</td>
+                    <td>${formatCurrencyFull(metrics.nglReturned)}</td>
                 </tr>
                 <tr class="well-detail-row" id="detail-${well.api_number}" style="display: none;">
-                    <td colspan="12">${buildWellDetail(well)}</td>
+                    <td colspan="11">${buildWellDetail(well)}</td>
                 </tr>
             `;
         }
 
         async function loadDeductionReport() {
+            // Set report type for print functionality
+            currentReportType = 'deduction-audit';
+
             // Show report viewer, hide main page content
             const main = document.querySelector('main');
             const hero = document.querySelector('.intel-hero');
@@ -196,6 +236,9 @@
             viewer.style.display = 'block';
             window.scrollTo(0, 0);
 
+            // Update header for deduction report
+            document.getElementById('reportBreadcrumb').textContent = 'Deduction Audit';
+            document.getElementById('reportTitle').textContent = 'Deduction Audit Report';
             document.getElementById('reportContent').innerHTML = '<div class="report-loading">Analyzing deduction data across your portfolio...</div>';
             document.getElementById('reportSubtitle').textContent = 'Loading...';
             document.getElementById('reportStatus').textContent = '';
@@ -254,7 +297,8 @@
             }
 
             const latestFormatted = summary.latest_month ? formatReportMonth(summary.latest_month) : 'N/A';
-            document.getElementById('reportMeta').textContent = 'Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' · Data through ' + latestFormatted;
+            document.getElementById('reportMeta').innerHTML = 'Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' · Data through ' + latestFormatted +
+                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">OTC financial records are typically available with a 2-3 month delay</div>';
 
             if (flaggedWells.length === 0) {
                 const emptyStatewideText = statewide && statewide.avg_deduction_pct != null
@@ -429,7 +473,7 @@
                         <h3 class="report-data-title">Wells Above 25%</h3>
                         <div class="report-data-actions">
                             <button class="btn btn-ghost" id="expandAllBtn" onclick="toggleExpandAll()" style="font-size: 0.8rem;">Expand All</button>
-                            <button class="btn btn-secondary" onclick="exportDeductionCsv()" style="font-size: 0.8rem;">Export Data</button>
+                            <button class="btn btn-secondary" onclick="exportDeductionCsv()" style="font-size: 0.8rem;">Export CSV</button>
                         </div>
                     </div>
                     <div class="table-scroll-container">
@@ -475,6 +519,21 @@
 
         function buildWellDetail(well) {
             let html = '<div class="well-detail-content">';
+
+            // Purchaser info (vertical integration indicator)
+            if (well.purchaser_name) {
+                const affiliatedBadge = well.is_affiliated
+                    ? '<span class="affiliated-badge" title="The gas purchaser is the same entity as the operator">Affiliated</span>'
+                    : '<span class="third-party-badge" title="Third-party purchaser">Third Party</span>';
+                html += '<div class="purchaser-info">';
+                html += '<span class="purchaser-label">Gas Purchaser:</span> ';
+                html += '<span class="purchaser-name">' + escapeHtml(well.purchaser_name) + '</span> ';
+                html += affiliatedBadge;
+                if (well.is_affiliated) {
+                    html += '<div class="affiliated-note">This well\'s gas is sold to an entity with the same ID as the operator, which may indicate vertical integration.</div>';
+                }
+                html += '</div>';
+            }
 
             // Product breakdown
             html += '<h5>Product Breakdown (' + escapeHtml(well.well_name) + ')</h5>';
@@ -581,20 +640,25 @@
             const rows = [];
 
             // Ultra-flattened header: one row per well
+            // Ordered by importance: identifiers, key metrics, summary, then details
             rows.push([
-                // Identifier (1-5)
+                // Identifiers (1-5)
                 'Well Name', 'Operator', 'API Number', 'County', 'Status',
-                // Current Month Snapshot (6-9)
+                // Key Metrics (6-10)
+                'Deduction %', 'PCRR %', 'Net Return', 'Variance Points', 'County Avg %',
+                // Purchaser Info (11-13)
+                'Gas Purchaser', 'Purchaser ID', 'Affiliated',
+                // Summary (14-16)
+                'Total Gross', 'Deductions (Residue)', 'NGL Returned',
+                // Current Month Snapshot (17-20)
                 'Latest Month', 'Month Gross', 'Month Deductions', 'Month Net',
-                // 6-Month Product Breakdown (10-17)
+                // 6-Month Product Breakdown (21-28)
                 '6M Oil Gross', '6M Oil Deductions',
                 '6M Residue Gas Gross', '6M Residue Gas Deductions',
                 '6M Casinghead Gas Gross', '6M Casinghead Gas Deductions',
                 '6M NGL Gross', '6M NGL Deductions',
-                // Totals (18-20)
-                '6M Total Gross', '6M Total Deductions', '6M Total Net',
-                // Intelligence Benchmarks (21-23)
-                'Aggregate Deduction %', 'County Avg %', 'Variance Points'
+                // Legacy Totals (29-30)
+                '6M Total Deductions', '6M Total Net'
             ].join(','));
 
             for (const well of lastReportData.flaggedWells) {
@@ -611,13 +675,30 @@
                 const casingheadGas = well.products.find(p => p.product_code === '6') || { gross_value: 0, market_deduction: 0 };
                 const ngl = well.products.find(p => p.product_code === '3') || { gross_value: 0, market_deduction: 0 };
 
+                // PCRR metrics
+                const pcrrMetrics = getWellPcrrMetrics(well);
+
                 rows.push([
-                    // Identifier
+                    // Identifiers
                     csvEscape(well.well_name),
                     csvEscape(well.operator || ''),
                     well.api_number,
                     csvEscape(cleanCountyName(well.county)),
                     status,
+                    // Key Metrics
+                    well.agg_deduction_pct + '%',
+                    pcrrMetrics.pcrr != null ? pcrrMetrics.pcrr + '%' : '',
+                    pcrrMetrics.netReturn,
+                    well.variance_points != null ? well.variance_points : '',
+                    well.county_avg_pct != null ? well.county_avg_pct + '%' : '',
+                    // Purchaser Info
+                    csvEscape(well.purchaser_name || ''),
+                    well.purchaser_id || '',
+                    well.is_affiliated ? 'Yes' : (well.purchaser_id ? 'No' : ''),
+                    // Summary
+                    well.total_gross,
+                    pcrrMetrics.residueDeductions,
+                    pcrrMetrics.nglReturned,
                     // Current Month Snapshot
                     latestMonth ? formatReportMonth(latestMonth.year_month) : '',
                     latestMonth ? latestMonth.gross_value : '',
@@ -632,14 +713,9 @@
                     casingheadGas.market_deduction || '',
                     ngl.gross_value || '',
                     ngl.market_deduction || '',
-                    // Totals
-                    well.total_gross,
+                    // Legacy Totals
                     well.total_deductions,
-                    well.total_net,
-                    // Intelligence Benchmarks
-                    well.agg_deduction_pct + '%',
-                    well.county_avg_pct != null ? well.county_avg_pct + '%' : '',
-                    well.variance_points != null ? well.variance_points : ''
+                    well.total_net
                 ].join(','));
             }
 
@@ -730,7 +806,8 @@
                 : 'No operator data found';
 
             document.getElementById('reportStatus').textContent = '';
-            document.getElementById('reportMeta').textContent = 'Analysis period: ' + (analysis_period || '6 months') + ' · Data from Oklahoma Tax Commission';
+            document.getElementById('reportMeta').innerHTML = 'Analysis period: ' + (analysis_period || '6 months') + ' · Data from Oklahoma Tax Commission' +
+                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">OTC production and financial data is typically available with a 2-3 month delay</div>';
 
             if (operators.length === 0) {
                 document.getElementById('reportContent').innerHTML = `
@@ -744,6 +821,10 @@
                 `;
                 return;
             }
+
+            // Detect critical operators: >40% deduction ratio AND >20 of user's wells
+            const criticalOps = operators.filter(op => op.deduction_ratio > 40 && op.your_wells > 20);
+            const statewideAvg = statewide ? statewide.deduction_ratio : null;
 
             let html = '';
 
@@ -776,6 +857,23 @@
                 `;
             }
 
+            // Critical operator callout
+            if (criticalOps.length > 0) {
+                const calloutItems = criticalOps.map(op => {
+                    const aboveAvg = statewideAvg != null ? ` — significantly above the statewide average of ${statewideAvg}%` : '';
+                    return `<strong>${escapeHtml(op.operator_name)}</strong> manages ${op.your_wells} of your wells with a ${op.deduction_ratio}% deduction ratio${aboveAvg}`;
+                }).join('. ');
+
+                html += `
+                    <div class="report-summary-card" style="border-left: 4px solid var(--danger-red); background: var(--danger-red-light);">
+                        <h2 class="report-summary-title" style="color: var(--danger-red);">High-Impact Operator${criticalOps.length > 1 ? 's' : ''} Detected</h2>
+                        <p class="report-summary-text">
+                            ${calloutItems}. Operators with high deduction ratios across a large number of your wells have an outsized impact on your net revenue. Consider reviewing these deductions closely.
+                        </p>
+                    </div>
+                `;
+            }
+
             // Explanation card
             html += `
                 <div class="report-summary-card">
@@ -785,11 +883,15 @@
                         <strong>Deduction Ratio</strong> = Residue Gas deductions as a percentage of total gross value.
                         <strong>NGL Recovery Ratio</strong> = NGL/Casinghead value returned as a percentage of Residue Gas deductions.
                         Higher NGL recovery means more value returned relative to processing costs.
+                        NGL Recovery Ratios above 100% indicate the operator is returning more NGL value than they are deducting in processing costs, which is a positive outcome.
                     </p>
                 </div>
             `;
 
-            // Operator table - neutral presentation
+            // Build critical operator set for row styling
+            const criticalOpNames = new Set(criticalOps.map(op => op.operator_name));
+
+            // Operator table
             html += `
                 <div class="report-data-section">
                     <div class="report-data-header">
@@ -811,16 +913,25 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                ${operators.map(op => `
-                                    <tr>
-                                        <td class="sticky sticky-well">${escapeHtml(op.operator_name)}</td>
+                                ${operators.map(op => {
+                                    const isCritical = criticalOpNames.has(op.operator_name);
+                                    const rowStyle = isCritical ? ' style="border-left: 4px solid var(--danger-red);"' : '';
+                                    const badge = isCritical ? ' <span class="status-badge status-critical" style="font-size: 0.6rem; padding: 0.15rem 0.4rem; margin-left: 0.5rem;">High Impact</span>' : '';
+                                    const nglVal = op.ngl_recovery_ratio != null
+                                        ? (op.ngl_recovery_ratio > 100
+                                            ? `<span title="NGL recovery above 100% means more value returned than deducted — favorable for the mineral owner" style="cursor: help;">${op.ngl_recovery_ratio}% <span style="font-size: 0.7rem; color: var(--success);">&#9432;</span></span>`
+                                            : op.ngl_recovery_ratio + '%')
+                                        : '—';
+                                    return `
+                                    <tr${rowStyle}>
+                                        <td class="sticky sticky-well">${escapeHtml(op.operator_name)}${badge}</td>
                                         <td>${op.your_wells}</td>
                                         <td>${op.total_wells.toLocaleString()}</td>
                                         <td>${formatCurrencyFull(op.total_gross)}</td>
-                                        <td>${op.deduction_ratio}%</td>
-                                        <td>${op.ngl_recovery_ratio != null ? op.ngl_recovery_ratio + '%' : '—'}</td>
-                                    </tr>
-                                `).join('')}
+                                        <td class="${op.deduction_ratio > 40 ? 'value-danger' : ''}">${op.deduction_ratio}%</td>
+                                        <td>${nglVal}</td>
+                                    </tr>`;
+                                }).join('')}
                             </tbody>
                         </table>
                     </div>
@@ -883,5 +994,2669 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             showToast('CSV downloaded', 'success');
+        }
+
+        // =============================================
+        // POOLING RATE COMPARISON REPORT — Redesigned
+        // =============================================
+
+        let lastPoolingData = null;
+        let poolingExpandedProperties = new Set();
+        let poolingCurrentTab = 'properties';
+        let poolingSearchTerm = '';
+        let poolingSortKey = 'orderCount';
+        let poolingSortDir = 'desc';
+        let poolingCountyFilter = '';
+        let poolingDistanceFilter = '';
+        let poolingTableSort = { key: 'orderDate', dir: 'desc' };
+
+        async function loadPoolingReport(forceRefresh = false) {
+            // Show report viewer, hide main page content
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = 'none';
+            if (hero) hero.style.display = 'none';
+            viewer.style.display = 'block';
+            window.scrollTo(0, 0);
+
+            // Update header for pooling report
+            document.getElementById('reportBreadcrumb').textContent = 'Pooling Rate Comparison';
+            document.getElementById('reportTitle').textContent = 'Pooling Rate Comparison';
+            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Searching for pooling orders near your properties...</div>';
+            document.getElementById('reportSubtitle').textContent = 'Loading...';
+            document.getElementById('reportStatus').textContent = '';
+            document.getElementById('reportStatus').className = 'report-status';
+            document.getElementById('reportMeta').textContent = '';
+
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 20000);
+
+                const url = forceRefresh ? '/api/intelligence/pooling-report?refresh=1' : '/api/intelligence/pooling-report';
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('API returned ' + response.status);
+                }
+
+                const data = await response.json();
+                renderPoolingReport(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Pooling report request timed out');
+                } else {
+                    console.error('Failed to load pooling report:', error);
+                }
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load pooling data. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadPoolingReport()">Retry</button>
+                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Parse formations JSON and extract names
+        function parseFormations(formations) {
+            if (!formations) return [];
+            if (Array.isArray(formations)) {
+                return formations.map(f => {
+                    if (typeof f === 'string') return f;
+                    if (f && typeof f === 'object' && f.name) return f.name;
+                    return null;
+                }).filter(Boolean);
+            }
+            if (typeof formations === 'string') {
+                try {
+                    const parsed = JSON.parse(formations);
+                    return parseFormations(parsed);
+                } catch (e) {
+                    return [formations];
+                }
+            }
+            return [];
+        }
+
+        function renderPoolingReport(data) {
+            const { summary, byProperty, countyAverages, marketResearch, userPlan } = data;
+            lastPoolingData = data;
+            lastPoolingData.userPlan = userPlan || 'Free';
+            poolingExpandedProperties = new Set();
+            poolingCurrentTab = 'properties';
+            poolingSearchTerm = '';
+            poolingCountyFilter = '';
+            poolingDistanceFilter = '';
+
+            // Header subtitle
+            document.getElementById('reportSubtitle').textContent = summary.totalNearbyOrders > 0
+                ? 'Bonus rates and royalty options from OCC pooling orders near your properties'
+                : 'No recent pooling orders found nearby';
+
+            document.getElementById('reportStatus').textContent = '';
+            const dateRange = summary.dateRange;
+            const metaText = dateRange && dateRange.earliest && dateRange.latest
+                ? `${formatPoolingDate(dateRange.earliest)} – ${formatPoolingDate(dateRange.latest)} · Updated daily`
+                : 'Data from OCC pooling docket';
+            document.getElementById('reportMeta').innerHTML = `${metaText} <button class="btn-refresh-small" onclick="loadPoolingReport(true)" title="Refresh data">↻</button>` +
+                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Sourced from OCC pooling docket, updated daily</div>';
+
+            if (summary.totalNearbyOrders === 0) {
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="hud-metrics">
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">0</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Nearby Orders</div>
+                                <div class="hud-badge-status">None found</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">${byProperty.length}</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Properties Searched</div>
+                                <div class="hud-badge-status">Within 2 townships</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="report-summary-card">
+                        <h2 class="report-summary-title">No Recent Pooling Activity</h2>
+                        <p class="report-summary-text">
+                            We searched for pooling orders within 2 townships of your ${byProperty.length} properties
+                            and found no recent filings. This data is updated as new orders are published by the OCC.
+                        </p>
+                    </div>
+                    <div class="report-footer">
+                        <p>Data sourced from Oklahoma Corporation Commission pooling docket.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            let html = '';
+
+            // HUD Metrics Bar (4 columns)
+            const bonusRange = summary.bonusRange;
+            const bonusRangeText = bonusRange && bonusRange.min != null && bonusRange.max != null
+                ? `Range: $${bonusRange.min.toLocaleString()} – $${bonusRange.max.toLocaleString()}`
+                : '';
+            const topOp = summary.topOperators && summary.topOperators[0] ? summary.topOperators[0].name : '';
+            const topOpShort = topOp.length > 20 ? topOp.substring(0, 20) + '...' : topOp;
+
+            html += `
+                <div class="hud-metrics pooling-hud">
+                    <div class="hud-badge">
+                        <div class="hud-badge-value">${summary.totalNearbyOrders}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Nearby Orders</div>
+                            <div class="hud-badge-status">Within 2 townships of your properties</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value pooling-amber">${summary.avgBonusPerAcre != null ? '$' + Math.round(summary.avgBonusPerAcre).toLocaleString() : '—'}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Avg Bonus / Acre</div>
+                            <div class="hud-badge-status">${bonusRangeText}</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value pooling-emerald">${summary.topOperators ? summary.topOperators.length : '—'}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Active Operators</div>
+                            <div class="hud-badge-status">${topOpShort ? escapeHtml(topOpShort) + ' is most active' : 'In your area'}</div>
+                        </div>
+                    </div>
+                    <div class="hud-badge">
+                        <div class="hud-badge-value pooling-blue">${summary.countyCount || countyAverages.length}</div>
+                        <div class="hud-badge-content">
+                            <div class="hud-badge-label">Your Counties</div>
+                            <div class="hud-badge-status">${countyAverages[0] ? escapeHtml(countyAverages[0].county) + ' leads with ' + countyAverages[0].orderCount + ' orders' : ''}</div>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            // Section Tabs
+            const propertiesWithOrders = byProperty.filter(p => p.nearbyOrders && p.nearbyOrders.length > 0);
+            html += `
+                <div class="pooling-tabs">
+                    <button class="pooling-tab active" data-tab="properties" onclick="switchPoolingTab('properties')">
+                        My Properties <span class="tab-badge">${propertiesWithOrders.length}</span>
+                    </button>
+                    <button class="pooling-tab" data-tab="markets" onclick="switchPoolingTab('markets')">
+                        My Markets <span class="tab-badge">${countyAverages.length}</span>
+                    </button>
+                    <button class="pooling-tab" data-tab="research" onclick="switchPoolingTab('research')">
+                        Market Research
+                    </button>
+                </div>
+            `;
+
+            // Tab Contents Container
+            html += `<div id="pooling-tab-contents">`;
+
+            // TAB 1: MY PROPERTIES
+            html += `<div id="pooling-tab-properties" class="pooling-tab-content active">`;
+            html += renderPoolingPropertiesTab(summary, propertiesWithOrders, countyAverages);
+            html += `</div>`;
+
+            // TAB 2: MY MARKETS
+            html += `<div id="pooling-tab-markets" class="pooling-tab-content" style="display:none;">`;
+            html += renderPoolingMarketsTab(countyAverages);
+            html += `</div>`;
+
+            // TAB 3: MARKET RESEARCH
+            html += `<div id="pooling-tab-research" class="pooling-tab-content" style="display:none;">`;
+            html += renderPoolingResearchTab(marketResearch, userPlan);
+            html += `</div>`;
+
+            html += `</div>`; // Close tab contents
+
+            // Footer
+            html += `
+                <div class="report-footer">
+                    Data sourced from Oklahoma Corporation Commission pooling docket.<br>
+                    Showing orders filed within the past 12 months. · Updated daily.
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = html;
+
+            // Setup event listeners
+            setupPoolingFilters();
+        }
+
+        function renderPoolingPropertiesTab(summary, propertiesWithOrders, countyAverages) {
+            let html = '';
+
+            // Royalty Summary Strip
+            const royaltyOpts = summary.royaltyOptions || {};
+            const royaltyKeys = Object.keys(royaltyOpts).sort((a, b) => royaltyOpts[b] - royaltyOpts[a]);
+            if (royaltyKeys.length > 0) {
+                html += `
+                    <div class="pooling-royalty-summary">
+                        <div class="pooling-summary-label">Royalty Options in Your Area</div>
+                        <div class="pooling-royalty-chips">
+                            ${royaltyKeys.map((k, i) => `
+                                <span class="pooling-royalty-chip ${i === 0 ? 'primary' : 'secondary'}">
+                                    ${escapeHtml(k)} <span class="chip-count">${royaltyOpts[k]} order${royaltyOpts[k] !== 1 ? 's' : ''}</span>
+                                </span>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Active Operators Bar
+            if (summary.topOperators && summary.topOperators.length > 0) {
+                html += `
+                    <div class="pooling-operators-bar">
+                        <span class="pooling-summary-label">Active Operators</span>
+                        ${summary.topOperators.slice(0, 5).map(op => `
+                            <span class="pooling-operator-chip">
+                                ${escapeHtml(op.name)} <span class="chip-count">${op.orderCount}</span>
+                            </span>
+                        `).join('')}
+                    </div>
+                `;
+            }
+
+            // Toolbar
+            const counties = [...new Set(propertiesWithOrders.map(p => p.county).filter(Boolean))].sort();
+            html += `
+                <div class="pooling-toolbar">
+                    <div class="pooling-search-box">
+                        <span class="search-icon">⌕</span>
+                        <input type="text" id="poolingSearch" placeholder="Search properties, operators..." oninput="filterPoolingProperties()">
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Sort</label>
+                        <select id="poolingSort" class="pooling-filter-select" onchange="sortPoolingProperties()">
+                            <option value="orderCount-desc">Most Nearby Orders</option>
+                            <option value="avgBonus-desc">Highest Avg Bonus</option>
+                            <option value="propertyName-asc">By Name</option>
+                            <option value="county-asc">By County</option>
+                        </select>
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">County</label>
+                        <select id="poolingCounty" class="pooling-filter-select" onchange="filterPoolingProperties()">
+                            <option value="">All Counties</option>
+                            ${counties.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Distance</label>
+                        <select id="poolingDistance" class="pooling-filter-select" onchange="filterPoolingProperties()">
+                            <option value="">All Distances</option>
+                            <option value="same">Same Section</option>
+                            <option value="adjacent">Adjacent</option>
+                            <option value="within2">Within 2 Twp</option>
+                        </select>
+                    </div>
+                    <button class="pooling-btn-export" onclick="exportPoolingCsv()">⤓ Export CSV</button>
+                </div>
+            `;
+
+            // Property Accordions
+            html += `<div id="pooling-properties-list">`;
+            html += renderPoolingPropertyList(propertiesWithOrders);
+            html += `</div>`;
+
+            return html;
+        }
+
+        function renderPoolingPropertyList(properties) {
+            if (!properties || properties.length === 0) {
+                return '<div class="pooling-empty">No properties match your filters</div>';
+            }
+
+            let html = '';
+
+            // Show ALL properties (no limit), all collapsed by default
+            for (const prop of properties) {
+                const propId = (prop.propertyId || prop.propertyName).replace(/[^a-zA-Z0-9]/g, '-');
+                const sameSection = prop.sameSectionCount || 0;
+                const adjacent = prop.adjacentCount || 0;
+
+                // Calculate avgBonus from orders if not provided
+                let avgBonus = prop.avgBonus;
+                if (avgBonus == null && prop.nearbyOrders && prop.nearbyOrders.length > 0) {
+                    const bonuses = [];
+                    for (const order of prop.nearbyOrders) {
+                        if (order.electionOptions) {
+                            for (const opt of order.electionOptions) {
+                                if (opt.bonusPerAcre != null && opt.bonusPerAcre > 0) {
+                                    bonuses.push(opt.bonusPerAcre);
+                                }
+                            }
+                        }
+                    }
+                    if (bonuses.length > 0) {
+                        avgBonus = Math.round(bonuses.reduce((a, b) => a + b, 0) / bonuses.length);
+                    }
+                }
+
+                html += `
+                    <div class="pooling-property-group" id="prop-group-${propId}">
+                        <div class="pooling-property-header" onclick="togglePoolingProperty('${propId}')">
+                            <div class="pooling-header-left">
+                                <span class="expand-chevron" id="pooling-chevron-${propId}">▶</span>
+                                <span class="pooling-prop-name">${escapeHtml(prop.propertyName)}</span>
+                                <span class="pooling-prop-location">${escapeHtml(prop.county || '')}</span>
+                            </div>
+                            <div class="pooling-header-right">
+                                <div class="pooling-prop-stat">
+                                    <div class="pooling-stat-value">${prop.orderCount || prop.nearbyOrders.length}</div>
+                                    <div class="pooling-stat-label">Orders</div>
+                                </div>
+                                <div class="pooling-prop-stat">
+                                    <div class="pooling-stat-value pooling-amber">${avgBonus != null ? '$' + avgBonus.toLocaleString() : '—'}</div>
+                                    <div class="pooling-stat-label">Avg Bonus</div>
+                                </div>
+                                ${sameSection > 0 ? `<span class="pooling-distance-badge same-section">${sameSection} same section</span>` : ''}
+                                ${adjacent > 0 ? `<span class="pooling-distance-badge adjacent">${adjacent} adjacent</span>` : ''}
+                            </div>
+                        </div>
+                        <div class="pooling-property-content" id="pooling-content-${propId}" style="display: none;">
+                            ${renderPoolingOrdersTable(prop.nearbyOrders, propId)}
+                        </div>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function renderPoolingOrdersTable(orders, propId) {
+            if (!orders || orders.length === 0) return '<div class="pooling-empty">No orders</div>';
+
+            const sortedOrders = [...orders].sort((a, b) => {
+                const key = poolingTableSort.key;
+                const dir = poolingTableSort.dir;
+                let aVal = a[key];
+                let bVal = b[key];
+                if (key === 'maxBonus') {
+                    aVal = getMaxBonus(a);
+                    bVal = getMaxBonus(b);
+                }
+                if (aVal == null) return dir === 'asc' ? 1 : -1;
+                if (bVal == null) return dir === 'asc' ? -1 : 1;
+                if (typeof aVal === 'string') {
+                    return dir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                return dir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+
+            return `
+                <table class="pooling-orders-table">
+                    <thead>
+                        <tr>
+                            <th class="sortable ${poolingTableSort.key === 'orderDate' ? 'sorted ' + poolingTableSort.dir : ''}" onclick="sortPoolingTable('orderDate', '${propId}')">Date <span class="sort-chevron">▲</span></th>
+                            <th class="sortable ${poolingTableSort.key === 'operator' ? 'sorted ' + poolingTableSort.dir : ''}" onclick="sortPoolingTable('operator', '${propId}')">Operator <span class="sort-chevron">▲</span></th>
+                            <th>Formation</th>
+                            <th>Location</th>
+                            <th class="sortable ${poolingTableSort.key === 'maxBonus' ? 'sorted ' + poolingTableSort.dir : ''}" onclick="sortPoolingTable('maxBonus', '${propId}')">Bonus Range <span class="sort-chevron">▲</span></th>
+                            <th>Royalty Range</th>
+                            <th class="sortable ${poolingTableSort.key === 'distanceTier' ? 'sorted ' + poolingTableSort.dir : ''}" onclick="sortPoolingTable('distanceTier', '${propId}')">Distance <span class="sort-chevron">▲</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${sortedOrders.map(order => renderPoolingOrderRow(order)).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+
+        function getMaxBonus(order) {
+            let maxBonus = null;
+            if (order.electionOptions) {
+                for (const opt of order.electionOptions) {
+                    if (opt.bonusPerAcre != null && (maxBonus === null || opt.bonusPerAcre > maxBonus)) {
+                        maxBonus = opt.bonusPerAcre;
+                    }
+                }
+            }
+            return maxBonus;
+        }
+
+        function renderPoolingOrderRow(order) {
+            // Parse formations properly
+            const formationNames = parseFormations(order.formations);
+            const formationTags = formationNames.length > 0
+                ? formationNames.slice(0, 2).map(f => `<span class="formation-tag">${escapeHtml(f)}</span>`).join('')
+                : '—';
+
+            const location = `SEC ${order.section} T${order.township} R${order.range}`;
+
+            // Get bonus range and royalty range (excluding $0/null for bonus — those are participate/royalty-only)
+            let minBonus = null;
+            let maxBonus = null;
+            let royaltyFractions = [];
+            let hasOnlyRoyaltyOptions = true;
+            if (order.electionOptions && order.electionOptions.length > 0) {
+                for (const opt of order.electionOptions) {
+                    // Only count positive bonus amounts (exclude $0 and participate options)
+                    if (opt.bonusPerAcre != null && opt.bonusPerAcre > 0) {
+                        hasOnlyRoyaltyOptions = false;
+                        if (minBonus === null || opt.bonusPerAcre < minBonus) minBonus = opt.bonusPerAcre;
+                        if (maxBonus === null || opt.bonusPerAcre > maxBonus) maxBonus = opt.bonusPerAcre;
+                    }
+                    // Only count royalty fractions (exclude WI/participate options without royalty)
+                    if (opt.royaltyFraction && opt.optionType !== 'participate') {
+                        royaltyFractions.push(opt.royaltyFraction);
+                    }
+                }
+            }
+
+            // Parse royalty fractions to get min/max
+            const parseRoyalty = (frac) => {
+                if (!frac) return null;
+                const match = frac.match(/(\d+)\/(\d+)/);
+                if (match) return parseFloat(match[1]) / parseFloat(match[2]);
+                return null;
+            };
+            const royaltyDecimals = royaltyFractions.map(parseRoyalty).filter(v => v !== null);
+            const minRoyalty = royaltyDecimals.length > 0 ? Math.min(...royaltyDecimals) : null;
+            const maxRoyalty = royaltyDecimals.length > 0 ? Math.max(...royaltyDecimals) : null;
+            const minRoyaltyFrac = royaltyFractions.find(f => parseRoyalty(f) === minRoyalty) || null;
+            const maxRoyaltyFrac = royaltyFractions.find(f => parseRoyalty(f) === maxRoyalty) || null;
+
+            // Format bonus range
+            let bonusRangeHtml = '—';
+            if (hasOnlyRoyaltyOptions && order.electionOptions?.length > 0) {
+                bonusRangeHtml = '<span class="royalty-only-label">Royalty Only</span>';
+            } else if (minBonus !== null && maxBonus !== null) {
+                if (minBonus === maxBonus) {
+                    bonusRangeHtml = `$${maxBonus.toLocaleString()}/ac`;
+                } else {
+                    bonusRangeHtml = `$${minBonus.toLocaleString()}–$${maxBonus.toLocaleString()}/ac`;
+                }
+            } else if (maxBonus !== null) {
+                bonusRangeHtml = `$${maxBonus.toLocaleString()}/ac`;
+            }
+
+            // Format royalty range
+            let royaltyRangeHtml = '—';
+            if (minRoyaltyFrac && maxRoyaltyFrac) {
+                if (minRoyaltyFrac === maxRoyaltyFrac) {
+                    royaltyRangeHtml = minRoyaltyFrac;
+                } else {
+                    royaltyRangeHtml = `${minRoyaltyFrac}–${maxRoyaltyFrac}`;
+                }
+            }
+
+            // Bonus color class (based on max)
+            const bonusClass = maxBonus >= 1500 ? 'bonus-high' : maxBonus >= 500 ? 'bonus-mid' : maxBonus > 0 ? 'bonus-low' : '';
+
+            // Distance badge class
+            const distClass = order.distanceDescription === 'Same section' ? 'same-section'
+                : order.distanceDescription === 'Adjacent' ? 'adjacent' : 'within-2';
+
+            // Generate unique row ID for expandable functionality
+            const rowId = 'pooling-row-' + (order.orderId || order.id || Math.random().toString(36).substr(2, 9));
+
+            return `
+                <tr class="pooling-order-row expandable-row" onclick="togglePoolingRowExpand('${rowId}', this)">
+                    <td>${formatPoolingDate(order.orderDate)}</td>
+                    <td><span class="operator-name">${escapeHtml(order.operator || '—')}</span></td>
+                    <td>${formationTags}</td>
+                    <td><span class="location-mono">${escapeHtml(location)}</span></td>
+                    <td><span class="bonus-amount ${bonusClass}">${bonusRangeHtml}</span></td>
+                    <td><span class="royalty-range">${royaltyRangeHtml}</span></td>
+                    <td><span class="pooling-distance-badge ${distClass}">${escapeHtml(order.distanceDescription || '—')}</span></td>
+                </tr>
+                <tr class="pooling-expand-row" id="${rowId}" style="display: none;">
+                    <td colspan="7">
+                        <div class="pooling-options-detail">
+                            <div class="comp-order-meta">
+                                <span class="comp-meta-item"><strong>Operator:</strong> ${escapeHtml(order.operator || '—')}</span>
+                                <span class="comp-meta-item"><strong>Case:</strong> ${escapeHtml(order.caseNumber || '—')}</span>
+                                <span class="comp-meta-item"><strong>Order Date:</strong> ${formatPoolingDate(order.orderDate)}</span>
+                            </div>
+                            ${renderElectionOptionsTable(order.electionOptions)}
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        function renderElectionOptionsTable(options) {
+            if (!options || options.length === 0) {
+                return '<p class="no-options-msg">No election options available</p>';
+            }
+
+            let html = `
+                <table class="election-options-table">
+                    <thead>
+                        <tr>
+                            <th>Option</th>
+                            <th>Type</th>
+                            <th>Bonus/Acre</th>
+                            <th>Royalty</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            for (const opt of options) {
+                const optType = opt.optionType ? opt.optionType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : '—';
+                const bonus = opt.bonusPerAcre != null && opt.bonusPerAcre > 0 ? '$' + opt.bonusPerAcre.toLocaleString() : '—';
+                const royalty = opt.royaltyFraction || (opt.optionType === 'participate' ? 'WI' : '—');
+
+                html += `
+                    <tr>
+                        <td><span class="option-number">${opt.optionNumber || '—'}</span></td>
+                        <td><span class="option-type">${escapeHtml(optType)}</span></td>
+                        <td><span class="option-bonus">${bonus}</span></td>
+                        <td><span class="option-royalty">${escapeHtml(royalty)}</span></td>
+                    </tr>
+                `;
+            }
+
+            html += '</tbody></table>';
+            return html;
+        }
+
+        function togglePoolingRowExpand(rowId, clickedRow) {
+            const expandRow = document.getElementById(rowId);
+            if (!expandRow) return;
+
+            const isExpanded = expandRow.style.display !== 'none';
+            expandRow.style.display = isExpanded ? 'none' : 'table-row';
+            clickedRow.classList.toggle('expanded', !isExpanded);
+        }
+
+        function renderPoolingMarketsTab(countyAverages) {
+            if (!countyAverages || countyAverages.length === 0) {
+                return '<div class="pooling-empty">No county data available</div>';
+            }
+
+            let html = `
+                <p class="pooling-tab-intro">
+                    Average bonus rates and formation activity in counties where you own mineral rights.
+                    Use this to benchmark offers you receive against local market conditions.
+                </p>
+                <div class="pooling-markets-grid">
+            `;
+
+            // Find global min/max for bonus range visualization
+            const allBonuses = countyAverages.flatMap(ca => [ca.minBonus, ca.maxBonus]).filter(b => b != null);
+            const globalMin = Math.min(...allBonuses, 0);
+            const globalMax = Math.max(...allBonuses, 100);
+
+            for (const ca of countyAverages) {
+                const formationTags = (ca.formations || []).slice(0, 3).map(f =>
+                    `<span class="formation-tag">${escapeHtml(f)}</span>`
+                ).join('');
+
+                // Bonus range bar positioning
+                const rangeStart = ca.minBonus != null ? ((ca.minBonus - globalMin) / (globalMax - globalMin) * 100) : 0;
+                const rangeWidth = ca.minBonus != null && ca.maxBonus != null
+                    ? ((ca.maxBonus - ca.minBonus) / (globalMax - globalMin) * 100) : 0;
+                const avgPosition = ca.avgBonus != null ? ((ca.avgBonus - globalMin) / (globalMax - globalMin) * 100) : 50;
+
+                html += `
+                    <div class="pooling-market-card">
+                        <div class="market-card-header">
+                            <span class="market-county">${escapeHtml(ca.county)}</span>
+                            <span class="market-order-count">${ca.orderCount} order${ca.orderCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="market-card-body">
+                            <div class="market-stat-row">
+                                <span class="market-stat-name">Avg Bonus/Acre</span>
+                                <span class="market-stat-val">${ca.avgBonus != null ? '$' + ca.avgBonus.toLocaleString() : '—'}</span>
+                            </div>
+                            ${ca.minBonus != null && ca.maxBonus != null ? `
+                            <div class="bonus-range-bar">
+                                <div class="bonus-range-fill" style="left:${Math.max(rangeStart, 5)}%;width:${Math.max(rangeWidth, 10)}%;"></div>
+                                <div class="bonus-avg-marker" style="left:${avgPosition}%;"></div>
+                            </div>
+                            <div class="bonus-range-labels">
+                                <span class="bonus-range-label">$${ca.minBonus.toLocaleString()}</span>
+                                <span class="bonus-range-label">$${ca.maxBonus.toLocaleString()}</span>
+                            </div>
+                            ` : ''}
+                            <div class="market-stat-row">
+                                <span class="market-stat-name">Most Active Operator</span>
+                                <span class="market-stat-val market-operator">${escapeHtml(ca.mostActiveOperator || '—')}</span>
+                            </div>
+                            <div class="market-stat-row">
+                                <span class="market-stat-name">Dominant Royalty</span>
+                                <span class="market-stat-val">${escapeHtml(ca.dominantRoyalty || '—')}</span>
+                            </div>
+                            ${formationTags ? `
+                            <div class="market-formations">
+                                <div class="market-formations-label">Active Formations</div>
+                                <div class="market-formation-list">${formationTags}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            return html;
+        }
+
+        function renderPoolingResearchTab(marketResearch, userPlan) {
+            const research = marketResearch || {};
+            const topFormations = research.topFormations || [];
+            const topPayingOperators = research.topPayingOperators || [];
+            const hottestCounties = research.hottestCounties || [];
+            const plan = (userPlan || 'Free').toLowerCase();
+
+            let html = `
+                <p class="pooling-tab-intro">
+                    Statewide pooling market intelligence from OCC orders. Identify formation premiums,
+                    top-paying operators, and market trends across Oklahoma.
+                </p>
+                <div class="pooling-insight-cards">
+            `;
+
+            // Top Formations
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Highest-Paying Formations</div>
+                    ${topFormations.length > 0 ? topFormations.map(f => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(f.name)}</span>
+                            <span class="insight-item-val">$${f.avgBonus.toLocaleString()}<span class="insight-item-sub">avg</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            // Top Paying Operators
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Top-Paying Operators</div>
+                    ${topPayingOperators.length > 0 ? topPayingOperators.map(op => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(op.name)}</span>
+                            <span class="insight-item-val">$${op.avgBonus.toLocaleString()}<span class="insight-item-sub">avg</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            // Hottest Counties
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Hottest Counties (Last 90 Days)</div>
+                    ${hottestCounties.length > 0 ? hottestCounties.map(c => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(c.county)}</span>
+                            <span class="insight-item-val">${c.orderCount}<span class="insight-item-sub">orders</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No recent activity</div>'}
+                </div>
+            `;
+
+            html += `</div>`;
+
+            // Tier Gate: Business+ gets full access, everyone else sees gate
+            const hasFullAccess = plan.includes('business') || plan.includes('enterprise');
+
+            if (!hasFullAccess) {
+                html += `
+                    <div class="pooling-tier-gate">
+                        <div class="tier-gate-icon">🔒</div>
+                        <div class="tier-gate-title">Full Market Research requires Business tier</div>
+                        <div class="tier-gate-desc">
+                            Access the complete statewide dataset, formation-level analytics, operator comparison tools,
+                            exportable market reports, and trend analysis.
+                        </div>
+                        <button class="btn-upgrade" onclick="window.location.href='/account'">Upgrade to Business →</button>
+                    </div>
+                `;
+            }
+
+            return html;
+        }
+
+        function switchPoolingTab(tab) {
+            poolingCurrentTab = tab;
+            document.querySelectorAll('.pooling-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+            document.querySelectorAll('.pooling-tab-content').forEach(content => {
+                content.style.display = content.id === 'pooling-tab-' + tab ? 'block' : 'none';
+            });
+        }
+
+        function setupPoolingFilters() {
+            // Already handled by inline event handlers
+        }
+
+        function filterPoolingProperties() {
+            if (!lastPoolingData) return;
+
+            const search = (document.getElementById('poolingSearch')?.value || '').toLowerCase();
+            const county = document.getElementById('poolingCounty')?.value || '';
+            const distance = document.getElementById('poolingDistance')?.value || '';
+
+            let filtered = lastPoolingData.byProperty.filter(p => p.nearbyOrders && p.nearbyOrders.length > 0);
+
+            if (search) {
+                filtered = filtered.filter(p => {
+                    const propMatch = p.propertyName.toLowerCase().includes(search) ||
+                        (p.county || '').toLowerCase().includes(search);
+                    const orderMatch = p.nearbyOrders.some(o =>
+                        (o.operator || '').toLowerCase().includes(search) ||
+                        parseFormations(o.formations).some(f => f.toLowerCase().includes(search))
+                    );
+                    return propMatch || orderMatch;
+                });
+            }
+
+            if (county) {
+                filtered = filtered.filter(p => p.county === county);
+            }
+
+            if (distance) {
+                filtered = filtered.filter(p => {
+                    if (distance === 'same') return (p.sameSectionCount || 0) > 0;
+                    if (distance === 'adjacent') return (p.adjacentCount || 0) > 0;
+                    return true;
+                });
+            }
+
+            // Apply sort
+            const sortVal = document.getElementById('poolingSort')?.value || 'orderCount-desc';
+            const [sortKey, sortDir] = sortVal.split('-');
+            filtered.sort((a, b) => {
+                let aVal = a[sortKey] ?? a.nearbyOrders?.length ?? 0;
+                let bVal = b[sortKey] ?? b.nearbyOrders?.length ?? 0;
+                if (typeof aVal === 'string') {
+                    return sortDir === 'asc' ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
+                }
+                return sortDir === 'asc' ? aVal - bVal : bVal - aVal;
+            });
+
+            document.getElementById('pooling-properties-list').innerHTML = renderPoolingPropertyList(filtered);
+        }
+
+        function sortPoolingProperties() {
+            filterPoolingProperties();
+        }
+
+        function sortPoolingTable(key, propId) {
+            if (poolingTableSort.key === key) {
+                poolingTableSort.dir = poolingTableSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                poolingTableSort = { key, dir: key === 'orderDate' || key === 'maxBonus' ? 'desc' : 'asc' };
+            }
+            // Re-render the specific property's table
+            const prop = lastPoolingData?.byProperty?.find(p =>
+                (p.propertyId || p.propertyName).replace(/[^a-zA-Z0-9]/g, '-') === propId
+            );
+            if (prop) {
+                const contentEl = document.getElementById('pooling-content-' + propId);
+                if (contentEl) {
+                    contentEl.innerHTML = renderPoolingOrdersTable(prop.nearbyOrders, propId);
+                }
+            }
+        }
+
+        function showAllPoolingProperties() {
+            if (!lastPoolingData) return;
+            const filtered = lastPoolingData.byProperty.filter(p => p.nearbyOrders && p.nearbyOrders.length > 0);
+            // Use renderPoolingPropertyList which has the avgBonus calculation fix
+            document.getElementById('pooling-properties-list').innerHTML = renderPoolingPropertyList(filtered);
+        }
+
+        function formatPoolingDate(dateStr) {
+            if (!dateStr) return '—';
+            try {
+                const d = new Date(dateStr);
+                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+            } catch (e) {
+                return dateStr;
+            }
+        }
+
+        function togglePoolingProperty(propId) {
+            const content = document.getElementById('pooling-content-' + propId);
+            const chevron = document.getElementById('pooling-chevron-' + propId);
+            const group = document.getElementById('prop-group-' + propId);
+            if (!content) return;
+
+            if (poolingExpandedProperties.has(propId)) {
+                content.style.display = 'none';
+                if (chevron) chevron.style.transform = '';
+                if (group) group.classList.remove('open');
+                poolingExpandedProperties.delete(propId);
+            } else {
+                content.style.display = 'block';
+                if (chevron) chevron.style.transform = 'rotate(90deg)';
+                if (group) group.classList.add('open');
+                poolingExpandedProperties.add(propId);
+            }
+        }
+
+        function exportPoolingCsv() {
+            if (!lastPoolingData || !lastPoolingData.byProperty) {
+                showToast('No pooling data to export', 'error');
+                return;
+            }
+
+            const rows = [];
+            rows.push([
+                'Property',
+                'Property County',
+                'Order Date',
+                'Operator',
+                'Formation',
+                'Order Location',
+                'Distance',
+                'Max Bonus/Acre',
+                'Royalty Options',
+                'Case Number',
+                'Response Deadline'
+            ].join(','));
+
+            for (const prop of lastPoolingData.byProperty) {
+                if (!prop.nearbyOrders) continue;
+                for (const order of prop.nearbyOrders) {
+                    let maxBonus = null;
+                    let royaltyOpts = [];
+                    if (order.electionOptions && order.electionOptions.length > 0) {
+                        for (const opt of order.electionOptions) {
+                            if (opt.bonusPerAcre != null && (maxBonus === null || opt.bonusPerAcre > maxBonus)) {
+                                maxBonus = opt.bonusPerAcre;
+                            }
+                            if (opt.royaltyFraction) {
+                                royaltyOpts.push(opt.royaltyFraction);
+                            }
+                        }
+                    }
+                    const formationNames = parseFormations(order.formations);
+
+                    rows.push([
+                        csvEscape(prop.propertyName),
+                        csvEscape(prop.county || ''),
+                        order.orderDate || '',
+                        csvEscape(order.operator || ''),
+                        csvEscape(formationNames.join('; ')),
+                        `SEC ${order.section} T${order.township} R${order.range}`,
+                        csvEscape(order.distanceDescription || ''),
+                        maxBonus != null ? maxBonus : '',
+                        csvEscape([...new Set(royaltyOpts)].join('; ')),
+                        csvEscape(order.caseNumber || ''),
+                        order.responseDeadline || ''
+                    ].join(','));
+                }
+            }
+
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'pooling-rates-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        // =============================================
+        // PRODUCTION DECLINE REPORT
+        // =============================================
+
+        let lastDeclineData = null;
+        let declineVirtualTable = null;
+        let declineSearchTerm = '';
+        let declineCountyFilter = '';
+        let declineStatusFilter = '';
+        let declineCurrentTab = 'properties';
+
+        async function loadProductionDeclineReport(forceRefresh = false) {
+            // Set report type for print functionality
+            currentReportType = 'production-decline';
+
+            // Show report viewer, hide main page content
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = 'none';
+            if (hero) hero.style.display = 'none';
+            viewer.style.display = 'block';
+            window.scrollTo(0, 0);
+
+            // Update header for decline report
+            document.getElementById('reportBreadcrumb').textContent = 'Production Decline Analysis';
+            document.getElementById('reportTitle').textContent = 'Production Decline Analysis';
+            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Analyzing production trends for your wells...</div>';
+            document.getElementById('reportSubtitle').textContent = 'Loading...';
+            document.getElementById('reportStatus').textContent = '';
+            document.getElementById('reportStatus').className = 'report-status';
+            document.getElementById('reportMeta').textContent = '';
+
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 30000);
+
+                const url = forceRefresh ? '/api/intelligence/production-decline?bust=1' : '/api/intelligence/production-decline';
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('API returned ' + response.status);
+                }
+
+                const data = await response.json();
+                renderProductionDeclineReport(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Production decline request timed out');
+                } else {
+                    console.error('Failed to load production decline report:', error);
+                }
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load production data. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadProductionDeclineReport(true)">Retry</button>
+                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
+                    </div>
+                `;
+            }
+        }
+
+        function formatDeclineMonth(yyyymm, short = false) {
+            if (!yyyymm) return '—';
+            const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+            const year = yyyymm.substring(0, 4);
+            const month = parseInt(yyyymm.substring(4, 6), 10);
+            if (short) {
+                return `${monthNames[month - 1]} '${year.substring(2)}`;
+            }
+            return `${monthNames[month - 1]} ${year}`;
+        }
+
+        function formatDeclineYoY(pct) {
+            if (pct === null || pct === undefined) return '<span class="yoy-neutral">—</span>';
+            const sign = pct >= 0 ? '+' : '';
+            let colorClass = 'yoy-neutral';
+            if (pct > 0) colorClass = 'yoy-positive';
+            else if (pct <= -20) colorClass = 'yoy-negative';
+            else if (pct < 0) colorClass = 'yoy-warning';
+            return `<span class="${colorClass}">${sign}${pct}%</span>`;
+        }
+
+        function renderProductionDeclineReport(data) {
+            lastDeclineData = data;
+            declineSearchTerm = '';
+            declineCountyFilter = '';
+            declineStatusFilter = '';
+            declineCurrentTab = 'properties';
+
+            const { latestDataMonth, summary, wells } = data;
+
+            // Update header
+            document.getElementById('reportSubtitle').textContent = `Production through ${formatDeclineMonth(latestDataMonth)}`;
+            document.getElementById('reportMeta').innerHTML = `${summary.totalWells} wells analyzed` +
+                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">OTC production data is typically available with a 2-3 month delay</div>';
+
+            // Get unique counties for filter
+            const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
+            const monthlyTotals = data.monthlyTotals || [];
+
+            // Decline subtitle text
+            const declineColor = summary.wellsSteepDecline > 0 ? 'pooling-red' : (summary.wellsInDecline > 0 ? 'pooling-amber' : '');
+            const declineSubtext = summary.wellsSteepDecline > 0
+                ? `${summary.wellsSteepDecline} steep (>20% YoY)`
+                : (summary.wellsInDecline > 0 ? 'Modest decline rates' : 'Portfolio holding steady');
+
+            // Build report content with tabs
+            const html = `
+                <div class="pooling-report-container">
+                    <!-- HUD Metrics Bar (matches pooling report pattern) -->
+                    <div class="hud-metrics pooling-hud">
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">${summary.activeWells}</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Active Wells</div>
+                                <div class="hud-badge-status">${summary.idleWells} idle</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value pooling-amber">${Math.round(summary.portfolioOilBBL / 1000)}K</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Oil (BBL)</div>
+                                <div class="hud-badge-status">${formatDeclineMonth(latestDataMonth)} production</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value pooling-emerald">${Math.round(summary.portfolioGasMCF / 1000)}K</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Gas (MCF)</div>
+                                <div class="hud-badge-status">${formatDeclineMonth(latestDataMonth)} production</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value ${declineColor}">${summary.wellsInDecline}</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Wells Declining</div>
+                                <div class="hud-badge-status">${declineSubtext}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Portfolio Trend Chart -->
+                    <div class="decline-trend-section">
+                        <div class="decline-trend-header">
+                            <span class="decline-trend-title">Portfolio Production Trend</span>
+                            <span class="decline-trend-subtitle">Total BOE (last 18 months)</span>
+                        </div>
+                        <canvas id="declineTrendChart" width="800" height="120"></canvas>
+                    </div>
+
+                    <!-- Tabs -->
+                    <div class="pooling-tabs">
+                        <button class="pooling-tab active" data-tab="properties" onclick="switchDeclineTab('properties')">
+                            My Properties <span class="tab-badge">${summary.totalWells}</span>
+                        </button>
+                        <button class="pooling-tab" data-tab="markets" onclick="switchDeclineTab('markets')">
+                            My Markets
+                        </button>
+                        <button class="pooling-tab" data-tab="research" onclick="switchDeclineTab('research')">
+                            Market Research
+                        </button>
+                    </div>
+
+                    <!-- Tab Content -->
+                    <div id="declineTabContent">
+                        ${renderDeclinePropertiesTab(wells, counties)}
+                    </div>
+
+                    <!-- Print Summary (hidden on screen, shown when printing) -->
+                    ${renderDeclinePrintSummary(wells, latestDataMonth)}
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = html;
+
+            // Initialize VirtualTable after DOM is ready
+            setTimeout(() => initDeclineVirtualTable(wells), 0);
+
+            // Draw trend chart
+            setTimeout(() => drawDeclineTrendChart(monthlyTotals), 50);
+        }
+
+        function renderDeclinePropertiesTab(wells, counties) {
+            return `
+                <!-- Toolbar (matches pooling report pattern) -->
+                <div class="pooling-toolbar">
+                    <div class="pooling-search-box">
+                        <span class="search-icon">⌕</span>
+                        <input type="text" id="declineSearch" placeholder="Search wells, operators..." oninput="filterDeclineWells()">
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Sort</label>
+                        <select id="declineSortFilter" class="pooling-filter-select" onchange="sortDeclineWells()">
+                            <option value="yoy-asc">Steepest Decline</option>
+                            <option value="oil-desc">Highest Oil</option>
+                            <option value="gas-desc">Highest Gas</option>
+                            <option value="name-asc">By Name</option>
+                            <option value="operator-asc">By Operator</option>
+                        </select>
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">County</label>
+                        <select id="declineCountyFilter" class="pooling-filter-select" onchange="filterDeclineWells()">
+                            <option value="">All Counties</option>
+                            ${counties.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Status</label>
+                        <select id="declineStatusFilter" class="pooling-filter-select" onchange="filterDeclineWells()">
+                            <option value="">All Status</option>
+                            <option value="active">Active</option>
+                            <option value="idle">Idle</option>
+                        </select>
+                    </div>
+                    <button class="pooling-btn-export" onclick="exportDeclineCsv()">⤓ Export CSV</button>
+                </div>
+
+                <!-- Wells Table -->
+                <div id="declineTableContainer" class="vt-container" style="min-height: 400px;"></div>
+
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 0.5rem;">
+                    <div class="vt-row-count" style="margin: 0;">
+                        Showing <span id="declineShownCount">${wells.length}</span> of ${wells.length} wells
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic;">
+                        YoY calculated using 24-month production history
+                    </div>
+                </div>
+            `;
+        }
+
+        function initDeclineVirtualTable(wells) {
+            const container = document.getElementById('declineTableContainer');
+            if (!container) return;
+
+            // Destroy previous instance if exists
+            if (declineVirtualTable) {
+                declineVirtualTable.destroy();
+            }
+
+            // Store well data for click-through modal
+            storeWellData(wells);
+
+            // Add row class based on status for left border indicator
+            const wellsWithRowClass = wells.map(w => ({
+                ...w,
+                _rowClass: w.status === 'active' ? 'status-active' : 'status-idle'
+            }));
+
+            declineVirtualTable = new VirtualTable({
+                container: container,
+                rowHeight: 52,
+                maxHeight: 550,
+                data: wellsWithRowClass,
+                defaultSort: 'yoyChangePct',
+                defaultSortDir: 'asc',
+
+                columns: [
+                    {
+                        key: 'wellName',
+                        label: 'Well Name',
+                        width: '25%',
+                        sortable: true,
+                        render: (val, row) => `<span class="vt-well-link" onclick="showWellInfoById('${row.clientWellId || row.apiNumber}')">${escapeHtml(val)}</span>`
+                    },
+                    {
+                        key: 'operator',
+                        label: 'Operator',
+                        width: '19%',
+                        sortable: true,
+                        className: 'vt-hide-mobile'
+                    },
+                    {
+                        key: 'county',
+                        label: 'County',
+                        width: '11%',
+                        sortable: true
+                    },
+                    {
+                        key: 'isHorizontal',
+                        label: 'Type',
+                        width: '7%',
+                        sortable: true,
+                        render: (val) => val ? '<span class="vt-type-badge horiz">H</span>' : '<span class="vt-type-badge vert">V</span>'
+                    },
+                    {
+                        key: 'lastReportedMonth',
+                        label: 'Last Rpt',
+                        width: '11%',
+                        sortable: true,
+                        className: 'numeric',
+                        render: (val) => formatDeclineMonth(val, true)
+                    },
+                    {
+                        key: 'recentOilBBL',
+                        label: 'Oil',
+                        width: '10%',
+                        sortable: true,
+                        className: 'numeric',
+                        render: (val) => val ? val.toLocaleString() : '—'
+                    },
+                    {
+                        key: 'recentGasMCF',
+                        label: 'Gas',
+                        width: '10%',
+                        sortable: true,
+                        className: 'numeric vt-hide-mobile',
+                        render: (val) => val ? val.toLocaleString() : '—'
+                    },
+                    {
+                        key: 'yoyChangePct',
+                        label: 'YoY',
+                        width: '7%',
+                        sortable: true,
+                        className: 'numeric',
+                        render: (val) => formatDeclineYoY(val)
+                    }
+                ],
+
+                onSort: (key, dir) => {
+                    console.log(`Sorted by ${key} ${dir}`);
+                }
+            });
+
+            // Click handler for well name links
+            container.addEventListener('click', (e) => {
+                const link = e.target.closest('.vt-well-link');
+                if (link) {
+                    e.stopPropagation();
+                }
+            });
+        }
+
+        function filterDeclineWells() {
+            if (!lastDeclineData || !declineVirtualTable) return;
+
+            const search = document.getElementById('declineSearch')?.value.toLowerCase() || '';
+            const county = document.getElementById('declineCountyFilter')?.value || '';
+            const status = document.getElementById('declineStatusFilter')?.value || '';
+
+            declineVirtualTable.filter(well => {
+                // County filter
+                if (county && well.county !== county) return false;
+
+                // Status filter
+                if (status && well.status !== status) return false;
+
+                // Search filter
+                if (search) {
+                    const searchFields = [
+                        well.wellName,
+                        well.operator,
+                        well.county,
+                        well.formation,
+                        well.apiNumber
+                    ].filter(Boolean).map(s => s.toLowerCase());
+
+                    if (!searchFields.some(f => f.includes(search))) return false;
+                }
+
+                return true;
+            });
+
+            // Update count
+            const shownCount = document.getElementById('declineShownCount');
+            if (shownCount) {
+                shownCount.textContent = declineVirtualTable.filteredData.length;
+            }
+        }
+
+        function sortDeclineWells() {
+            if (!declineVirtualTable) return;
+            const sortVal = document.getElementById('declineSortFilter')?.value || 'yoy-asc';
+            const [key, dir] = sortVal.split('-');
+
+            const sortKeyMap = {
+                'yoy': 'yoyChangePct',
+                'oil': 'recentOilBBL',
+                'gas': 'recentGasMCF',
+                'name': 'wellName',
+                'operator': 'operator'
+            };
+
+            const sortKey = sortKeyMap[key] || 'yoyChangePct';
+            declineVirtualTable.sortKey = sortKey;
+            declineVirtualTable.sortDir = dir;
+            declineVirtualTable.sortData();
+        }
+
+        let lastMarketsData = null;
+        let declineMarketSort = 'performance'; // 'performance' | 'name'
+
+        function switchDeclineTab(tab) {
+            declineCurrentTab = tab;
+
+            // Update tab buttons
+            document.querySelectorAll('.pooling-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.pooling-tab[data-tab="${tab}"]`)?.classList.add('active');
+
+            const content = document.getElementById('declineTabContent');
+            if (!content || !lastDeclineData) return;
+
+            if (tab === 'properties') {
+                const counties = [...new Set(lastDeclineData.wells.map(w => w.county).filter(Boolean))].sort();
+                content.innerHTML = renderDeclinePropertiesTab(lastDeclineData.wells, counties);
+                setTimeout(() => initDeclineVirtualTable(lastDeclineData.wells), 0);
+            } else if (tab === 'markets') {
+                // Show loading state
+                content.innerHTML = `
+                    <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                        <div class="spinner-border" role="status" style="width: 2rem; height: 2rem; margin-bottom: 1rem;"></div>
+                        <div style="font-size: 1rem;">Loading county benchmarks...</div>
+                    </div>
+                `;
+                // Fetch markets data
+                fetchDeclineMarkets();
+            } else if (tab === 'research') {
+                content.innerHTML = `
+                    <div class="tier-gate" style="padding: 3rem; text-align: center; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 8px; border: 1px solid #fcd34d;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">🔒</div>
+                        <div style="font-size: 1.1rem; font-weight: 600; color: #92400e; margin-bottom: 0.5rem;">Formation Decline Curves & Statewide Insights</div>
+                        <div style="font-size: 0.9rem; color: #a16207; margin-bottom: 1.5rem;">See how your wells compare to formation type curves and statewide benchmarks</div>
+                        <button class="btn btn-primary" onclick="window.location.href='/pricing'" style="background: #b45309;">Upgrade to Business</button>
+                    </div>
+                `;
+            }
+        }
+
+        async function fetchDeclineMarkets() {
+            try {
+                const res = await fetch('/api/intelligence/production-decline/markets');
+                if (!res.ok) throw new Error('Failed to fetch markets data');
+                const data = await res.json();
+                lastMarketsData = data;
+
+                // Update tab badge with county count
+                const marketsTab = document.querySelector('.pooling-tab[data-tab="markets"]');
+                if (marketsTab && data.counties) {
+                    const badge = marketsTab.querySelector('.tab-badge');
+                    if (badge) {
+                        badge.textContent = data.counties.length;
+                    } else {
+                        marketsTab.innerHTML = `My Markets <span class="tab-badge">${data.counties.length}</span>`;
+                    }
+                }
+
+                const content = document.getElementById('declineTabContent');
+                if (content && declineCurrentTab === 'markets') {
+                    content.innerHTML = renderDeclineMarketsTab(data);
+                }
+            } catch (err) {
+                console.error('Failed to load markets:', err);
+                const content = document.getElementById('declineTabContent');
+                if (content && declineCurrentTab === 'markets') {
+                    content.innerHTML = `
+                        <div style="padding: 3rem; text-align: center; color: var(--text-danger);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⚠️</div>
+                            <div>Failed to load county benchmarks. Please try again.</div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function sortDeclineMarkets(sortType) {
+            declineMarketSort = sortType;
+            if (lastMarketsData) {
+                const content = document.getElementById('declineTabContent');
+                if (content) content.innerHTML = renderDeclineMarketsTab(lastMarketsData);
+            }
+        }
+
+        function renderDeclineMarketsTab(data) {
+            const counties = data.counties || [];
+            if (counties.length === 0) {
+                return '<div class="pooling-empty" style="padding: 3rem; text-align: center; color: var(--text-muted);">No county data available</div>';
+            }
+
+            // Sort counties based on current sort mode
+            if (declineMarketSort === 'name') {
+                counties.sort((a, b) => a.county.localeCompare(b.county));
+            } else if (declineMarketSort === 'wells') {
+                counties.sort((a, b) => b.userWellCount - a.userWellCount);
+            } else {
+                // Performance: best delta first (descending), nulls at end
+                counties.sort((a, b) => {
+                    const da = a.userVsCountyDelta;
+                    const db = b.userVsCountyDelta;
+                    if (da == null && db == null) return 0;
+                    if (da == null) return 1;
+                    if (db == null) return -1;
+                    return db - da;
+                });
+            }
+
+            // Compute summary stats and risk scores for chart
+            let outperforming = 0, tracking = 0, underperforming = 0, inactive = 0;
+            let bestCounty = null, worstCounty = null;
+            let bestDelta = -Infinity, worstDelta = Infinity;
+            const riskScores = [];
+
+            for (const ca of counties) {
+                const allInactive = ca.userWellCount > 0 && ca.userMedianYoyPct === null && ca.userAvgYoyPct === null;
+                if (allInactive) {
+                    inactive++;
+                } else if (ca.userVsCountyDelta == null) {
+                    // no comparison
+                } else if (ca.userVsCountyDelta > 5) {
+                    outperforming++;
+                    if (ca.userVsCountyDelta > bestDelta) { bestDelta = ca.userVsCountyDelta; bestCounty = ca.county; }
+                } else if (ca.userVsCountyDelta < -5) {
+                    underperforming++;
+                    if (ca.userVsCountyDelta < worstDelta) { worstDelta = ca.userVsCountyDelta; worstCounty = ca.county; }
+                } else {
+                    tracking++;
+                }
+
+                // Risk score = well count * negative delta (higher = more risk)
+                // Positive delta = outperforming (green, shown as negative risk)
+                if (ca.userVsCountyDelta != null && !allInactive) {
+                    riskScores.push({
+                        county: ca.county,
+                        score: Math.round(-ca.userVsCountyDelta * ca.userWellCount),
+                        delta: ca.userVsCountyDelta,
+                        wells: ca.userWellCount
+                    });
+                }
+            }
+
+            // Build summary insight bar
+            const summaryParts = [];
+            if (outperforming > 0) summaryParts.push(`<span class="decline-summary-pill pill-positive">${outperforming} outperforming</span>`);
+            if (tracking > 0) summaryParts.push(`<span class="decline-summary-pill pill-neutral">${tracking} tracking</span>`);
+            if (underperforming > 0) summaryParts.push(`<span class="decline-summary-pill pill-negative">${underperforming} underperforming</span>`);
+            if (inactive > 0) summaryParts.push(`<span class="decline-summary-pill pill-inactive">${inactive} inactive</span>`);
+            if (bestCounty) summaryParts.push(`<span class="decline-summary-detail">Best: ${escapeHtml(bestCounty)} (+${bestDelta.toFixed(0)}%)</span>`);
+            if (worstCounty) summaryParts.push(`<span class="decline-summary-detail">Needs attention: ${escapeHtml(worstCounty)} (${worstDelta.toFixed(0)}%)</span>`);
+
+            // Build risk score bar chart
+            let riskChartHtml = '';
+            if (riskScores.length > 1) {
+                riskScores.sort((a, b) => b.score - a.score); // Highest risk first
+                const maxAbsScore = Math.max(...riskScores.map(r => Math.abs(r.score)), 1);
+
+                const bars = riskScores.map(r => {
+                    const pct = Math.abs(r.score) / maxAbsScore * 100;
+                    const isRisk = r.score > 0;
+                    const barColor = r.score > 0 ? '#dc2626' : (r.score < 0 ? '#059669' : '#d97706');
+                    const label = r.score >= 0 ? r.score : r.score;
+                    return `
+                        <div class="risk-bar-row">
+                            <div class="risk-bar-label">${escapeHtml(r.county)}</div>
+                            <div class="risk-bar-track">
+                                <div class="risk-bar-center"></div>
+                                ${r.score >= 0 ? `
+                                    <div class="risk-bar-fill risk-bar-right" style="width: ${pct/2}%; background: ${barColor};"></div>
+                                ` : `
+                                    <div class="risk-bar-fill risk-bar-left" style="width: ${pct/2}%; background: ${barColor};"></div>
+                                `}
+                            </div>
+                            <div class="risk-bar-value" style="color: ${barColor}">${label}</div>
+                        </div>
+                    `;
+                }).join('');
+
+                riskChartHtml = `
+                    <div class="risk-chart-container">
+                        <div class="risk-chart-title">Asset Intervention Priority (Risk Score)</div>
+                        <div class="risk-chart-subtitle">Wells x Performance Gap — higher scores indicate more portfolio impact</div>
+                        <div class="risk-chart-bars">${bars}</div>
+                    </div>
+                `;
+            }
+
+            // Build narrative summary paragraph
+            const activeCounties = outperforming + tracking + underperforming;
+            let narrativeParts = [];
+            if (activeCounties > 0) {
+                narrativeParts.push(`Across your ${activeCounties} active count${activeCounties !== 1 ? 'ies' : 'y'}`);
+                const segments = [];
+                if (outperforming > 0) segments.push(`${outperforming} ${outperforming === 1 ? 'is' : 'are'} outperforming county medians`);
+                if (tracking > 0) segments.push(`${tracking} ${tracking === 1 ? 'is' : 'are'} tracking`);
+                if (underperforming > 0) segments.push(`${underperforming} ${underperforming === 1 ? 'is' : 'are'} underperforming`);
+                narrativeParts.push(segments.join(', '));
+            }
+            let narrativeExtra = [];
+            if (bestCounty) narrativeExtra.push(`Your strongest market is ${bestCounty} (+${bestDelta.toFixed(0)}% vs county median)`);
+            if (worstCounty) narrativeExtra.push(`the area needing the most attention is ${worstCounty} (${worstDelta.toFixed(0)}%)`);
+
+            let narrativeHtml = '';
+            if (narrativeParts.length > 0) {
+                const mainSentence = narrativeParts[0] + ', ' + narrativeParts[1] + '.';
+                const extraSentence = narrativeExtra.length > 0 ? ' ' + narrativeExtra.join(' and ') + '.' : '';
+                narrativeHtml = `<p class="decline-narrative">${mainSentence}${extraSentence} Counties are sorted by performance gap — start at the top to identify wells that may need investigation.</p>`;
+            }
+
+            let html = `
+                <p class="pooling-tab-intro">
+                    Compare your wells' year-over-year production change against county-wide benchmarks.
+                </p>
+
+                ${narrativeHtml}
+
+                <div class="decline-summary-bar">${summaryParts.join(' <span class="decline-summary-sep">&middot;</span> ')}</div>
+
+                ${riskChartHtml}
+
+                <div class="decline-sort-controls">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Sort by:</span>
+                    <button class="decline-sort-btn ${declineMarketSort === 'performance' ? 'active' : ''}" onclick="sortDeclineMarkets('performance')">Performance</button>
+                    <button class="decline-sort-btn ${declineMarketSort === 'wells' ? 'active' : ''}" onclick="sortDeclineMarkets('wells')">Well Count</button>
+                    <button class="decline-sort-btn ${declineMarketSort === 'name' ? 'active' : ''}" onclick="sortDeclineMarkets('name')">Name</button>
+                </div>
+
+                <div class="pooling-markets-grid">
+            `;
+
+            for (const ca of counties) {
+                // Check if user's wells are all inactive (no recent production)
+                const userWellsAllInactive = ca.userWellCount > 0 && ca.userMedianYoyPct === null && ca.userAvgYoyPct === null;
+
+                // Delta indicator: user median vs county median (positive = outperforming)
+                let deltaClass = 'neutral';
+                let deltaIcon = '—';
+                let deltaText = 'No comparison';
+
+                if (userWellsAllInactive) {
+                    deltaClass = 'inactive';
+                    deltaIcon = '⏸';
+                    deltaText = 'No recent production (2+ years)';
+                } else if (ca.userVsCountyDelta != null) {
+                    if (ca.userVsCountyDelta > 5) {
+                        deltaClass = 'positive';
+                        deltaIcon = '▲';
+                        deltaText = `Outperforming county median by ${Math.abs(ca.userVsCountyDelta).toFixed(1)}%`;
+                    } else if (ca.userVsCountyDelta < -5) {
+                        deltaClass = 'negative';
+                        deltaIcon = '▼';
+                        deltaText = `Underperforming county median by ${Math.abs(ca.userVsCountyDelta).toFixed(1)}%`;
+                    } else {
+                        deltaClass = 'neutral';
+                        deltaIcon = '≈';
+                        deltaText = 'Performing to county median';
+                    }
+                }
+
+                // Formation tags (top 3)
+                const formationTags = (ca.topFormations || []).slice(0, 3).map(f => {
+                    const yoyStr = f.avgYoY != null ? (f.avgYoY >= 0 ? '+' : '') + f.avgYoY.toFixed(0) + '%' : '—';
+                    const yoyClass = f.avgYoY == null ? '' : (f.avgYoY >= 0 ? 'formation-positive' : (f.avgYoY < -20 ? 'formation-negative' : 'formation-amber'));
+                    return `<span class="formation-tag ${yoyClass}">${escapeHtml(f.formation)} <small>${yoyStr}</small></span>`;
+                }).join('');
+
+                // User wells YoY display (show median, mean in tooltip)
+                const userYoYDisplay = userWellsAllInactive
+                    ? '<span class="market-stat-val inactive-note">Inactive</span>'
+                    : `<span class="market-stat-val ${formatYoYClass(ca.userMedianYoyPct)}" title="Mean: ${formatYoYValue(ca.userAvgYoyPct)}">${formatYoYValue(ca.userMedianYoyPct)}</span>`;
+
+                html += `
+                    <div class="pooling-market-card decline-market-card ${userWellsAllInactive ? 'inactive-wells' : ''}">
+                        <div class="market-card-header">
+                            <span class="market-county">${escapeHtml(ca.county)}</span>
+                            <span class="market-order-count">${ca.userWellCount} well${ca.userWellCount !== 1 ? 's' : ''}${userWellsAllInactive ? ' (inactive)' : ''}</span>
+                        </div>
+                        <div class="market-card-body">
+                            <!-- Delta indicator -->
+                            <div class="decline-delta-row delta-${deltaClass}">
+                                <span class="delta-icon">${deltaIcon}</span>
+                                <span class="delta-text">${deltaText}</span>
+                            </div>
+
+                            <div class="market-stat-row">
+                                <span class="market-stat-name">Your Wells YoY Change</span>
+                                ${userYoYDisplay}
+                            </div>
+                            <div class="market-stat-row">
+                                <span class="market-stat-name" title="Mean: ${formatYoYValue(ca.avgYoyChangePct)}">County Median YoY Change</span>
+                                <span class="market-stat-val ${formatYoYClass(ca.medianYoyChangePct)}">${formatYoYValue(ca.medianYoyChangePct)}</span>
+                            </div>
+                            ${ca.weightedAvgYoyPct != null ? `<div class="market-stat-row">
+                                <span class="market-stat-name">County Weighted Avg YoY (by BOE)</span>
+                                <span class="market-stat-val ${formatYoYClass(ca.weightedAvgYoyPct)}">${formatYoYValue(ca.weightedAvgYoyPct)}</span>
+                            </div>` : ''}
+                            <div class="market-stat-row subtle">
+                                <span class="market-stat-name">County Wells</span>
+                                <span class="market-stat-val">${ca.activeWells} active / ${ca.idleWells} idle</span>
+                            </div>
+
+                            ${formationTags ? `
+                            <div class="market-formations">
+                                <div class="market-formations-label">Top Formations</div>
+                                <div class="market-formation-list">${formationTags}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; margin-top: 1rem; text-align: right;">
+                    YoY calculated using 24-month production history. Wells below 50 BOE/yr excluded from county benchmarks. Hover labels for mean values.
+                </div>
+            `;
+            return html;
+        }
+
+        function formatYoYValue(val) {
+            if (val == null) return '—';
+            const sign = val >= 0 ? '+' : '';
+            return sign + val.toFixed(1) + '%';
+        }
+
+        function formatYoYClass(val) {
+            if (val == null) return '';
+            if (val >= 0) return 'yoy-positive';
+            if (val > -20) return 'yoy-amber';
+            return 'yoy-negative';
+        }
+
+        function exportDeclineCsv() {
+            if (!lastDeclineData) return;
+
+            const wells = lastDeclineData.wells;
+            const rows = [
+                ['Well Name', 'API Number', 'Operator', 'County', 'Formation', 'Type', 'Last Reported', 'Oil (BBL)', 'Gas (MCF)', 'BOE', 'YoY Change %', 'Status'].join(',')
+            ];
+
+            for (const w of wells) {
+                rows.push([
+                    csvEscape(w.wellName),
+                    csvEscape(w.apiNumber),
+                    csvEscape(w.operator),
+                    csvEscape(w.county),
+                    csvEscape(w.formation),
+                    w.isHorizontal ? 'Horizontal' : 'Vertical',
+                    w.lastReportedMonth || '',
+                    w.recentOilBBL || 0,
+                    w.recentGasMCF || 0,
+                    w.recentBOE || 0,
+                    w.yoyChangePct !== null ? w.yoyChangePct : '',
+                    w.status
+                ].join(','));
+            }
+
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'production-decline-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        // =============================================
+        // TREND CHART
+        // =============================================
+
+        function drawDeclineTrendChart(monthlyTotals) {
+            const canvas = document.getElementById('declineTrendChart');
+            if (!canvas) {
+                console.warn('Decline trend canvas not found');
+                return;
+            }
+            if (!monthlyTotals || monthlyTotals.length === 0) {
+                console.warn('No monthly totals data for chart', monthlyTotals);
+                return;
+            }
+
+            console.log('Drawing trend chart with', monthlyTotals.length, 'months');
+
+            const ctx = canvas.getContext('2d');
+            const dpr = window.devicePixelRatio || 1;
+
+            // Get container width, fallback to 800 if not rendered yet
+            const container = canvas.parentElement;
+            const containerWidth = container ? container.clientWidth : 800;
+            const width = Math.max(containerWidth - 40, 400); // padding
+            const height = 120;
+
+            // Set canvas size for high DPI
+            canvas.width = width * dpr;
+            canvas.height = height * dpr;
+            canvas.style.width = width + 'px';
+            canvas.style.height = height + 'px';
+            ctx.scale(dpr, dpr);
+            const padding = { top: 20, right: 20, bottom: 30, left: 60 };
+            const chartWidth = width - padding.left - padding.right;
+            const chartHeight = height - padding.top - padding.bottom;
+
+            // Clear canvas
+            ctx.clearRect(0, 0, width, height);
+
+            // Get data range
+            const values = monthlyTotals.map(m => m.totalBOE);
+            const maxVal = Math.max(...values) * 1.1;
+            const minVal = Math.min(...values) * 0.9;
+            const range = maxVal - minVal || 1;
+
+            // Draw grid lines
+            ctx.strokeStyle = '#e5e7eb';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= 4; i++) {
+                const y = padding.top + (chartHeight * i / 4);
+                ctx.beginPath();
+                ctx.moveTo(padding.left, y);
+                ctx.lineTo(width - padding.right, y);
+                ctx.stroke();
+            }
+
+            // Draw Y-axis labels
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '10px system-ui, sans-serif';
+            ctx.textAlign = 'right';
+            for (let i = 0; i <= 4; i++) {
+                const val = maxVal - (range * i / 4);
+                const y = padding.top + (chartHeight * i / 4);
+                ctx.fillText(formatChartNumber(val), padding.left - 8, y + 3);
+            }
+
+            // Calculate points
+            const points = [];
+            monthlyTotals.forEach((m, i) => {
+                const x = padding.left + (chartWidth * i / (monthlyTotals.length - 1 || 1));
+                const y = padding.top + chartHeight - ((m.totalBOE - minVal) / range * chartHeight);
+                points.push({ x, y, data: m });
+            });
+
+            // Calculate 3-month moving average for smoothing/trend line
+            const trendPoints = values.map((_, i) => {
+                const start = Math.max(0, i - 1);
+                const end = Math.min(values.length, i + 2);
+                const window = values.slice(start, end);
+                const avg = window.reduce((sum, v) => sum + v, 0) / window.length;
+                const x = padding.left + (chartWidth * i / (monthlyTotals.length - 1 || 1));
+                const y = padding.top + chartHeight - ((avg - minVal) / range * chartHeight);
+                return { x, y };
+            });
+
+            // Draw smoothing/trend line FIRST (behind main line) - thicker, semi-transparent
+            ctx.strokeStyle = 'rgba(13, 148, 136, 0.25)';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            trendPoints.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.stroke();
+
+            // Draw main line on top
+            ctx.strokeStyle = '#0d9488';
+            ctx.lineWidth = 2;
+            ctx.lineCap = 'round';
+            ctx.lineJoin = 'round';
+            ctx.beginPath();
+            points.forEach((p, i) => {
+                if (i === 0) ctx.moveTo(p.x, p.y);
+                else ctx.lineTo(p.x, p.y);
+            });
+            ctx.stroke();
+
+            // Draw points
+            ctx.fillStyle = '#0d9488';
+            points.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // Draw X-axis labels (every 2-3 months to avoid crowding)
+            ctx.fillStyle = '#6b7280';
+            ctx.font = '10px system-ui, sans-serif';
+            ctx.textAlign = 'center';
+            const labelInterval = monthlyTotals.length <= 6 ? 1 : (monthlyTotals.length <= 12 ? 2 : 3);
+            monthlyTotals.forEach((m, i) => {
+                if (i % labelInterval === 0 || i === monthlyTotals.length - 1) {
+                    const x = padding.left + (chartWidth * i / (monthlyTotals.length - 1 || 1));
+                    ctx.fillText(formatDeclineMonth(m.yearMonth, true), x, height - 8);
+                }
+            });
+        }
+
+        function formatChartNumber(val) {
+            if (val >= 1000000) return (val / 1000000).toFixed(1) + 'M';
+            if (val >= 1000) return Math.round(val / 1000) + 'K';
+            return Math.round(val).toString();
+        }
+
+        // =============================================
+        // PRINT SUMMARY
+        // =============================================
+
+        function renderDeclinePrintSummary(wells, latestDataMonth) {
+            // Get top declining wells (active only, top 10)
+            const topDeclining = wells
+                .filter(w => w.status === 'active' && w.yoyChangePct !== null && w.yoyChangePct < 0)
+                .sort((a, b) => a.yoyChangePct - b.yoyChangePct)
+                .slice(0, 10);
+
+            // Get idle wells count
+            const idleCount = wells.filter(w => w.status === 'idle').length;
+
+            return `
+                <div class="print-summary-table decline-print-summary">
+                    <h3 class="chart-title">Top Declining Wells</h3>
+                    <p class="summary-note">Production through ${formatDeclineMonth(latestDataMonth)}</p>
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>Well Name</th>
+                                <th>Operator</th>
+                                <th>County</th>
+                                <th style="text-align: right;">Oil (BBL)</th>
+                                <th style="text-align: right;">Gas (MCF)</th>
+                                <th style="text-align: right;">YoY</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${topDeclining.map(w => `
+                            <tr>
+                                <td>${escapeHtml(w.wellName)}</td>
+                                <td>${escapeHtml(w.operator)}</td>
+                                <td>${escapeHtml(w.county)}</td>
+                                <td style="text-align: right;">${w.recentOilBBL ? w.recentOilBBL.toLocaleString() : '—'}</td>
+                                <td style="text-align: right;">${w.recentGasMCF ? w.recentGasMCF.toLocaleString() : '—'}</td>
+                                <td style="text-align: right; color: ${w.yoyChangePct <= -20 ? '#dc2626' : '#d97706'}; font-weight: 600;">${w.yoyChangePct}%</td>
+                            </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                    ${idleCount > 0 ? `<p class="summary-note" style="margin-top: 1rem;">${idleCount} idle well${idleCount !== 1 ? 's' : ''} not shown (no recent production)</p>` : ''}
+                </div>
+            `;
+        }
+
+        // printDeclineSummary() removed - now using global openPrintSummary() function
+
+        // =============================================
+        // CROSS-REPORT NAVIGATION HELPERS
+        // =============================================
+
+        // Store well data for click-through from VirtualTable rows
+        let _wellDataMap = {};
+        function storeWellData(wells) {
+            _wellDataMap = {};
+            for (const w of wells) {
+                _wellDataMap[w.clientWellId || w.apiNumber] = w;
+            }
+        }
+        function showWellInfoById(id) {
+            const w = _wellDataMap[id];
+            if (w) showWellInfo(w);
+        }
+
+        // Quick well info popup using data already in the report (no API call needed)
+        // Full well detail modal is tightly coupled to dashboard — shared module planned for map refactor
+        function showWellInfo(wellData) {
+            let modal = document.getElementById('intelWellModal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'intelWellModal';
+                modal.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:1000; display:flex; align-items:center; justify-content:center;';
+                modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+                document.body.appendChild(modal);
+            }
+            modal.style.display = 'flex';
+
+            const name = wellData.wellName || 'Unknown Well';
+            const api = wellData.apiNumber || '—';
+            const operator = wellData.operator || '—';
+            const county = wellData.county || '—';
+            const wellType = wellData.wellType || wellData.formation || '—';
+            const lastProd = (wellData.lastProdMonth || wellData.lastReportedMonth)
+                ? formatDeclineMonth(wellData.lastProdMonth || wellData.lastReportedMonth)
+                : (wellData.taxPeriodStart ? 'Since ' + wellData.taxPeriodStart.substring(0, 4) : '—');
+            const firstProd = wellData.firstProdMonth ? formatDeclineMonth(wellData.firstProdMonth) : '—';
+            const monthsIdle = wellData.monthsIdle != null && wellData.monthsIdle < 999 ? wellData.monthsIdle + ' months' : null;
+            const flags = wellData.riskFlags || [];
+            const flagsHtml = flags.length > 0
+                ? flags.map(f => {
+                    let cls = 'risk-pill';
+                    if (f === 'HBP Risk') cls += ' risk-hbp';
+                    else if (f === 'Sudden Stop') cls += ' risk-sudden';
+                    else if (f === 'Operator Pattern') cls += ' risk-operator';
+                    const desc = RISK_FLAG_DESCRIPTIONS[f] || f;
+                    return `<span class="${cls}" title="${escapeHtml(desc)}">${escapeHtml(f)}</span>`;
+                }).join(' ')
+                : '<span style="color:var(--text-muted);">None</span>';
+
+            modal.innerHTML = `<div style="background:white; border-radius:12px; max-width:480px; width:90%; max-height:80vh; overflow-y:auto; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1);">
+                <div style="background:linear-gradient(135deg, var(--oil-navy), var(--slate-blue)); color:white; padding:20px 24px; border-radius:12px 12px 0 0; position:relative;">
+                    <button onclick="document.getElementById('intelWellModal').style.display='none'" style="position:absolute; top:12px; right:12px; background:rgba(255,255,255,0.1); border:1px solid rgba(255,255,255,0.2); color:white; width:28px; height:28px; border-radius:6px; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;">×</button>
+                    <h2 style="margin:0; font-family:'Merriweather',serif; font-size:1.15rem; font-weight:700;">${escapeHtml(name)}</h2>
+                    <div style="margin-top:3px; font-size:0.85rem; opacity:0.85;">API: ${escapeHtml(api)}</div>
+                </div>
+                <div style="padding:20px 24px;">
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Operator</div>
+                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${operator !== '—' ? `<span class="vt-well-link" onclick="document.getElementById('intelWellModal').style.display='none'; lookupOperatorDetail('${escapeAttr(operator)}')">${escapeHtml(operator)}</span>` : '—'}</div>
+                        </div>
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">County</div>
+                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${escapeHtml(county)}</div>
+                        </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:14px;">
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Well Type</div>
+                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${escapeHtml(wellType)}</div>
+                        </div>
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">First Prod</div>
+                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${firstProd}</div>
+                        </div>
+                        <div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Last Prod</div>
+                            <div style="font-size:0.85rem; font-weight:500; color:var(--oil-navy);">${lastProd}</div>
+                        </div>
+                    </div>
+                    ${monthsIdle || flags.length > 0 ? `<div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px;">
+                        ${monthsIdle ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Months Idle</div>
+                            <div style="font-size:0.85rem; font-weight:600; color:${wellData.monthsIdle >= 12 ? 'var(--danger-red)' : wellData.monthsIdle >= 6 ? 'var(--warning-amber)' : 'var(--oil-navy)'};">${monthsIdle}</div>
+                        </div>` : ''}
+                        ${flags.length > 0 ? `<div style="background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; padding:10px 12px;">
+                            <div style="font-size:0.6rem; text-transform:uppercase; letter-spacing:0.5px; color:var(--text-muted); margin-bottom:3px;">Risk Flags</div>
+                            <div style="margin-top:2px;">${flagsHtml}</div>
+                        </div>` : ''}
+                    </div>` : ''}
+                    <a href="/portal" target="_blank" class="btn btn-secondary" style="width:100%; justify-content:center; text-decoration:none; font-size:0.8rem;">Open Full Well Details in Dashboard ↗</a>
+                </div>
+            </div>`;
+        }
+
+        // Look up operator by name and open the operator detail modal
+        async function lookupOperatorDetail(operatorName) {
+            if (!operatorName || operatorName === 'Unknown') return;
+
+            // The operator modal and openOperatorDetail() are defined in intelligence-operators.txt
+            // But openOperatorDetail needs an operator_number. Search the directory API by name.
+            try {
+                showToast('Loading operator details...', '', 5000);
+                const response = await fetch('/api/operators/directory?search=' + encodeURIComponent(operatorName), { credentials: 'include' });
+                if (!response.ok) throw new Error('API error');
+                const data = await response.json();
+                const operators = data.operators || [];
+                if (operators.length > 0 && operators[0].operator_number) {
+                    openOperatorDetail(operators[0].operator_number);
+                } else {
+                    showToast('Operator not found in directory', 'error');
+                }
+            } catch (err) {
+                console.error('[Operator Lookup] Error:', err);
+                showToast('Could not load operator details', 'error');
+            }
+        }
+
+        // Risk flag descriptions for tooltips
+        const RISK_FLAG_DESCRIPTIONS = {
+            'HBP Risk': 'Well first produced within 5 years — extended idle may jeopardize Held By Production status',
+            'Sudden Stop': 'Well averaged >50 BOE/month before going idle — unexpected shutdown worth investigating',
+            'Operator Pattern': 'More than half of this operator\'s wells in your portfolio are idle'
+        };
+
+        // =============================================
+        // SHUT-IN DETECTOR
+        // =============================================
+        let lastShutInData = null;
+        let shutInVirtualTable = null;
+        let shutInCurrentTab = 'properties';
+        let lastShutInMarketsData = null;
+        let shutInMarketSort = 'performance';
+
+        async function loadShutInDetectorReport(forceRefresh = false) {
+            currentReportType = 'shut-in-detector';
+            shutInCurrentTab = 'properties';
+            lastShutInMarketsData = null;
+
+            const main = document.querySelector('main');
+            const hero = document.querySelector('.intel-hero');
+            const viewer = document.getElementById('reportViewer');
+            if (main) main.style.display = 'none';
+            if (hero) hero.style.display = 'none';
+            viewer.style.display = 'block';
+            window.scrollTo(0, 0);
+
+            document.getElementById('reportBreadcrumb').textContent = 'Shut-In Detector';
+            document.getElementById('reportTitle').textContent = 'Shut-In Detector';
+            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Scanning your portfolio for idle and shut-in wells...</div>';
+            document.getElementById('reportSubtitle').textContent = 'Loading...';
+            document.getElementById('reportStatus').textContent = '';
+            document.getElementById('reportStatus').className = 'report-status';
+            document.getElementById('reportMeta').textContent = '';
+
+            try {
+                const controller = new AbortController();
+                setTimeout(() => controller.abort(), 30000);
+
+                const url = forceRefresh ? '/api/intelligence/shut-in-detector?bust=1' : '/api/intelligence/shut-in-detector';
+                const response = await fetch(url, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+
+                if (!response.ok) {
+                    throw new Error('API returned ' + response.status);
+                }
+
+                const data = await response.json();
+                renderShutInDetector(data);
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    console.warn('Shut-in detector request timed out');
+                } else {
+                    console.error('Failed to load shut-in detector:', error);
+                }
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load shut-in analysis. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadShutInDetectorReport(true)">Retry</button>
+                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
+                    </div>
+                `;
+            }
+        }
+
+        function shutInStatusLabel(status) {
+            switch (status) {
+                case 'recently_idle': return 'Idle';
+                case 'extended_idle': return 'Extended Idle';
+                case 'no_recent_production': return 'Long-Term Idle';
+                case 'no_data': return 'No Data';
+                default: return status;
+            }
+        }
+
+        function shutInStatusBadgeClass(status) {
+            switch (status) {
+                case 'recently_idle': return 'shutin-badge-warning';
+                case 'extended_idle': return 'shutin-badge-danger';
+                case 'no_recent_production': return 'shutin-badge-critical';
+                case 'no_data': return 'shutin-badge-neutral';
+                default: return '';
+            }
+        }
+
+        function renderShutInDonut(total, recentlyIdle, extendedIdle, noRecentProd, hbpRisk, noData) {
+            if (total === 0) return '';
+
+            const r = 60;
+            const stroke = 22;
+            const cx = 80;
+            const cy = 80;
+            const circumference = 2 * Math.PI * r;
+
+            const segments = [
+                { label: 'Idle (3-6 mo)', count: recentlyIdle, color: '#f59e0b' },
+                { label: 'Extended Idle (6-12 mo)', count: extendedIdle, color: '#f97316' },
+                { label: 'Long-Term Idle (12+ mo)', count: noRecentProd, color: '#ef4444' },
+                { label: 'No Data', count: noData || 0, color: '#cbd5e1' }
+            ].filter(s => s.count > 0);
+
+            let offset = 0;
+            const arcs = segments.map(seg => {
+                const pct = seg.count / total;
+                const len = pct * circumference;
+                const arc = `<circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${seg.color}" stroke-width="${stroke}" stroke-dasharray="${len} ${circumference - len}" stroke-dashoffset="${-offset}" transform="rotate(-90 ${cx} ${cy})"/>`;
+                offset += len;
+                return arc;
+            });
+
+            const legendItems = segments.map(seg => {
+                const pct = Math.round((seg.count / total) * 100);
+                return `<div style="display: flex; align-items: center; gap: 8px; margin-bottom: 6px;">
+                    <span style="width: 10px; height: 10px; border-radius: 2px; background: ${seg.color}; flex-shrink: 0;"></span>
+                    <span style="font-size: 0.8rem; color: var(--slate-blue);">${seg.label}</span>
+                    <span style="font-size: 0.8rem; font-weight: 600; color: var(--oil-navy); margin-left: auto;">${seg.count}</span>
+                    <span style="font-size: 0.75rem; color: var(--text-muted); width: 36px; text-align: right;">${pct}%</span>
+                </div>`;
+            }).join('');
+
+            const hbpNote = hbpRisk > 0
+                ? `<div style="margin-top: 10px; font-size: 0.75rem; color: #dc2626; display: flex; align-items: center; gap: 6px;">
+                    <span style="width: 6px; height: 6px; border-radius: 50%; background: #dc2626; flex-shrink: 0;"></span>
+                    ${hbpRisk} well${hbpRisk !== 1 ? 's' : ''} flagged for potential HBP risk
+                  </div>`
+                : '';
+
+            return `<div style="display: flex; align-items: center; gap: 2rem; padding: 1rem 0; border-bottom: 1px solid var(--border-color, #e2e8f0);">
+                <div style="flex-shrink: 0; position: relative; width: 160px; height: 160px;">
+                    <svg width="160" height="160" viewBox="0 0 160 160">
+                        <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#f1f5f9" stroke-width="${stroke}"/>
+                        ${arcs.join('')}
+                    </svg>
+                    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                        <div style="font-size: 1.5rem; font-weight: 700; color: var(--oil-navy, #1C2B36); line-height: 1;">${total}</div>
+                        <div style="font-size: 0.65rem; color: var(--text-muted, #64748b); margin-top: 2px;">idle wells</div>
+                    </div>
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    ${legendItems}
+                    ${hbpNote}
+                </div>
+            </div>`;
+        }
+
+        function renderShutInDetector(data) {
+            lastShutInData = data;
+            const { summary, wells } = data;
+
+            // Update header
+            document.getElementById('reportSubtitle').textContent = 'Wells with no reported production in 3+ months';
+            document.getElementById('reportMeta').innerHTML = `${summary.totalIdle} idle well${summary.totalIdle !== 1 ? 's' : ''} detected` +
+                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Based on OTC production data, updated daily at 8am CT</div>';
+
+            if (summary.totalIdle === 0) {
+                document.getElementById('reportContent').innerHTML = `
+                    <div class="report-empty-state" style="text-align: center; padding: 3rem 1.5rem;">
+                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">&#10003;</div>
+                        <h3 style="font-size: 1.1rem; color: var(--oil-navy); margin-bottom: 0.5rem;">All Clear</h3>
+                        <p style="color: var(--slate-blue); font-size: 0.9rem;">All wells in your portfolio are actively producing. No shut-in wells detected.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Get unique counties and operators for filters
+            const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
+
+            // Summary cards
+            const summaryHtml = `
+                <div class="shutin-summary-bar">
+                    <div class="shutin-summary-card">
+                        <div class="shutin-summary-label">Total Idle Wells</div>
+                        <div class="shutin-summary-value">${summary.totalIdle}</div>
+                    </div>
+                    <div class="shutin-summary-card ${summary.hbpRisk > 0 ? 'card-critical' : ''}">
+                        <div class="shutin-summary-label">HBP Risk</div>
+                        <div class="shutin-summary-value">${summary.hbpRisk}</div>
+                    </div>
+                    <div class="shutin-summary-card ${summary.recentlyIdle > 0 ? 'card-warning' : ''}">
+                        <div class="shutin-summary-label">Idle (3-6mo)</div>
+                        <div class="shutin-summary-value">${summary.recentlyIdle}</div>
+                    </div>
+                    <div class="shutin-summary-card ${summary.extendedIdle > 0 ? 'card-critical' : ''}">
+                        <div class="shutin-summary-label">Extended Idle (6-12mo)</div>
+                        <div class="shutin-summary-value">${summary.extendedIdle}</div>
+                    </div>
+                    <div class="shutin-summary-card ${(summary.noRecentProd || 0) > 0 ? 'card-critical' : ''}">
+                        <div class="shutin-summary-label">Long-Term Idle (12+mo)</div>
+                        <div class="shutin-summary-value">${summary.noRecentProd || 0}</div>
+                    </div>
+                </div>
+            `;
+
+            // Toolbar
+            const toolbarHtml = `
+                <div class="shutin-toolbar">
+                    <div class="shutin-filters">
+                        <select id="shutinStatusFilter" onchange="filterShutInWells()" class="shutin-select">
+                            <option value="">All Status</option>
+                            <option value="recently_idle">Idle (3-6mo)</option>
+                            <option value="extended_idle">Extended Idle (6-12mo)</option>
+                            <option value="no_recent_production">Long-Term Idle (12+mo)</option>
+                            <option value="no_data">No Data</option>
+                        </select>
+                        <select id="shutinRiskFilter" onchange="filterShutInWells()" class="shutin-select">
+                            <option value="">All Risk Flags</option>
+                            <option value="HBP Risk">HBP Risk</option>
+                            <option value="Sudden Stop">Sudden Stop</option>
+                            <option value="Operator Pattern">Operator Pattern</option>
+                        </select>
+                        <select id="shutinCountyFilter" onchange="filterShutInWells()" class="shutin-select">
+                            <option value="">All Counties</option>
+                            ${counties.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button class="pooling-btn-export" onclick="exportShutInCsv()">&#10515; Export CSV</button>
+                </div>
+            `;
+
+            // Donut chart — segments from well status counts
+            const recentCount = wells.filter(w => w.status === 'recently_idle').length;
+            const extendedCount = wells.filter(w => w.status === 'extended_idle').length;
+            const noRecentCount = wells.filter(w => w.status === 'no_recent_production').length;
+            const noDataCount = wells.filter(w => w.status === 'no_data').length;
+            const donutHtml = renderShutInDonut(summary.totalIdle, recentCount, extendedCount, noRecentCount, summary.hbpRisk, noDataCount);
+
+            // Tab bar
+            const tabHtml = `
+                <div class="pooling-tabs" id="shutInTabs">
+                    <button class="pooling-tab active" data-tab="properties" onclick="switchShutInTab('properties')">
+                        My Properties <span class="tab-badge">${summary.totalIdle}</span>
+                    </button>
+                    <button class="pooling-tab" data-tab="markets" onclick="switchShutInTab('markets')">
+                        My Markets <span class="tab-badge" id="shutInMarketsCountBadge">&ndash;</span>
+                    </button>
+                </div>
+            `;
+
+            // Properties tab content (rendered inline on first load)
+            const propertiesHtml = `
+                ${toolbarHtml}
+                <div id="shutinTableContainer" style="margin-top: 0.75rem;"></div>
+                <div class="about-data-card" style="margin-top: 1.5rem;">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--oil-navy);">About This Report</h4>
+                    <ul style="font-size: 0.8rem; color: var(--slate-blue); line-height: 1.6; padding-left: 1.25rem;">
+                        <li><strong>Idle (3-6mo)</strong> — Well has not reported production in 3-6 months. May be undergoing workover or temporary shut-in.</li>
+                        <li><strong>Extended Idle (6-12mo)</strong> — No production for 6-12 months. Monitor for potential plugging or lease issues.</li>
+                        <li><strong>Long-Term Idle (12+mo)</strong> — Idle for over a year. Consider lease review and HBP implications.</li>
+                        <li><strong>No Data</strong> — No production data in OTC records. Well may predate available data window or have an unlinked PUN.</li>
+                        <li><strong>HBP Risk</strong> — Well first produced within 5 years. Extended idle may jeopardize Held By Production status.</li>
+                        <li><strong>Sudden Stop</strong> — Well averaged &gt;50 BOE/month before going idle. Unexpected shutdown worth investigating.</li>
+                        <li><strong>Operator Pattern</strong> — More than half of this operator's wells in your portfolio are idle.</li>
+                    </ul>
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = `
+                ${summaryHtml}
+                ${donutHtml}
+                ${tabHtml}
+                <div id="shutInTabContent">
+                    ${propertiesHtml}
+                </div>
+            `;
+
+            initShutInVirtualTable(wells);
+        }
+
+        function initShutInVirtualTable(wells) {
+            const container = document.getElementById('shutinTableContainer');
+            if (!container) return;
+
+            if (shutInVirtualTable) {
+                shutInVirtualTable.destroy();
+            }
+
+            // Assign sort priority and status severity for proper column sorting
+            const STATUS_SEVERITY = { 'no_data': 0, 'no_recent_production': 1, 'extended_idle': 2, 'recently_idle': 3 };
+            const wellsWithMeta = wells.map(w => {
+                let priority = 3;
+                if (w.riskFlags.includes('HBP Risk')) priority = 0;
+                else if (w.riskFlags.includes('Sudden Stop')) priority = 1;
+                else if (w.riskFlags.includes('Operator Pattern')) priority = 2;
+
+                let rowClass = '';
+                if (w.riskFlags.includes('HBP Risk')) rowClass = 'shutin-row-hbp';
+                else if (w.riskFlags.includes('Sudden Stop')) rowClass = 'shutin-row-sudden';
+                else if (w.riskFlags.includes('Operator Pattern')) rowClass = 'shutin-row-operator';
+
+                return { ...w, _sortPriority: priority, _statusSeverity: STATUS_SEVERITY[w.status] ?? 1, _rowClass: rowClass };
+            });
+
+            // Store well data for click-through modal
+            storeWellData(wellsWithMeta);
+
+            // Default sort: risk priority ASC, then months idle DESC
+            wellsWithMeta.sort((a, b) => {
+                if (a._sortPriority !== b._sortPriority) return a._sortPriority - b._sortPriority;
+                return b.monthsIdle - a.monthsIdle;
+            });
+
+            shutInVirtualTable = new VirtualTable({
+                container: container,
+                rowHeight: 52,
+                maxHeight: 550,
+                data: wellsWithMeta,
+                defaultSort: '_sortPriority',
+                defaultSortDir: 'asc',
+
+                columns: [
+                    {
+                        key: 'wellName',
+                        label: 'Well Name',
+                        width: '22%',
+                        sortable: true,
+                        render: (val, row) => `<span class="vt-well-link" onclick="showWellInfoById('${row.clientWellId || row.apiNumber}')">${escapeHtml(val)}</span>`
+                    },
+                    {
+                        key: 'operator',
+                        label: 'Operator',
+                        width: '18%',
+                        sortable: true,
+                        className: 'vt-hide-mobile',
+                        render: (val) => val && val !== 'Unknown' ? `<span class="vt-well-link" onclick="lookupOperatorDetail('${escapeAttr(val)}')">${escapeHtml(val)}</span>` : escapeHtml(val || '—')
+                    },
+                    {
+                        key: 'county',
+                        label: 'County',
+                        width: '11%',
+                        sortable: true
+                    },
+                    {
+                        key: '_statusSeverity',
+                        label: 'Status',
+                        width: '13%',
+                        sortable: true,
+                        render: (val, row) => `<span class="shutin-status-badge ${shutInStatusBadgeClass(row.status)}">${shutInStatusLabel(row.status)}</span>`
+                    },
+                    {
+                        key: 'monthsIdle',
+                        label: 'Mo. Idle',
+                        width: '8%',
+                        sortable: true,
+                        className: 'numeric',
+                        render: (val) => val >= 999 ? '—' : val
+                    },
+                    {
+                        key: 'lastProdMonth',
+                        label: 'Last Prod',
+                        width: '10%',
+                        sortable: true,
+                        className: 'numeric',
+                        render: (val, row) => {
+                            if (val) return formatDeclineMonth(val, true);
+                            if (row.taxPeriodStart) return '<span style="color:var(--text-muted);" title="Tax period start date (no OTC production data)">Since ' + row.taxPeriodStart.substring(0, 4) + '</span>';
+                            return '<span style="color:var(--text-muted);">—</span>';
+                        }
+                    },
+                    {
+                        key: 'riskFlags',
+                        label: 'Risk Flags',
+                        width: '18%',
+                        sortable: false,
+                        render: (val) => {
+                            if (!val || val.length === 0) return '<span style="color: var(--text-muted);">—</span>';
+                            const SHORT_LABELS = { 'HBP Risk': 'HBP Risk', 'Sudden Stop': 'Sudden Stop', 'Operator Pattern': 'Op Pattern' };
+                            return val.map(flag => {
+                                let cls = 'risk-pill';
+                                if (flag === 'HBP Risk') cls += ' risk-hbp';
+                                else if (flag === 'Sudden Stop') cls += ' risk-sudden';
+                                else if (flag === 'Operator Pattern') cls += ' risk-operator';
+                                const desc = RISK_FLAG_DESCRIPTIONS[flag] || flag;
+                                return `<span class="${cls}" title="${escapeHtml(desc)}">${escapeHtml(SHORT_LABELS[flag] || flag)}</span>`;
+                            }).join(' ');
+                        }
+                    }
+                ],
+
+                onSort: (key, dir) => {
+                    console.log(`Shut-in sorted by ${key} ${dir}`);
+                }
+            });
+
+            container.addEventListener('click', (e) => {
+                const link = e.target.closest('.vt-well-link');
+                if (link) e.stopPropagation();
+            });
+        }
+
+        function filterShutInWells() {
+            if (!lastShutInData || !shutInVirtualTable) return;
+
+            const statusFilter = document.getElementById('shutinStatusFilter')?.value || '';
+            const riskFilter = document.getElementById('shutinRiskFilter')?.value || '';
+            const countyFilter = document.getElementById('shutinCountyFilter')?.value || '';
+
+            shutInVirtualTable.filter(well => {
+                if (statusFilter && well.status !== statusFilter) return false;
+                if (riskFilter && !well.riskFlags.includes(riskFilter)) return false;
+                if (countyFilter && well.county !== countyFilter) return false;
+                return true;
+            });
+        }
+
+        function exportShutInCsv() {
+            if (!lastShutInData) return;
+
+            const wells = lastShutInData.wells;
+            const rows = [
+                ['Well Name', 'API Number', 'Operator', 'County', 'Status', 'Months Idle', 'Last Production', 'Risk Flags'].join(',')
+            ];
+
+            for (const w of wells) {
+                rows.push([
+                    csvEscape(w.wellName),
+                    csvEscape(w.apiNumber),
+                    csvEscape(w.operator),
+                    csvEscape(w.county),
+                    shutInStatusLabel(w.status),
+                    w.monthsIdle >= 999 ? '' : w.monthsIdle,
+                    w.lastProdMonth || (w.taxPeriodStart ? 'Since ' + w.taxPeriodStart.substring(0, 4) : ''),
+                    csvEscape(w.riskFlags.join('; '))
+                ].join(','));
+            }
+
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'shut-in-detector-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
+        }
+
+        // =============================================
+        // SHUT-IN DETECTOR — MY MARKETS TAB
+        // =============================================
+
+        function switchShutInTab(tab) {
+            shutInCurrentTab = tab;
+
+            // Update tab buttons (scope to shutInTabs to avoid collision with decline tabs)
+            const tabContainer = document.getElementById('shutInTabs');
+            if (tabContainer) {
+                tabContainer.querySelectorAll('.pooling-tab').forEach(t => t.classList.remove('active'));
+                tabContainer.querySelector(`.pooling-tab[data-tab="${tab}"]`)?.classList.add('active');
+            }
+
+            const content = document.getElementById('shutInTabContent');
+            if (!content || !lastShutInData) return;
+
+            if (tab === 'properties') {
+                const { wells } = lastShutInData;
+                const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
+                content.innerHTML = renderShutInPropertiesContent(wells, counties);
+                setTimeout(() => initShutInVirtualTable(wells), 0);
+            } else if (tab === 'markets') {
+                if (lastShutInMarketsData) {
+                    content.innerHTML = renderShutInMarketsTab(lastShutInMarketsData);
+                } else {
+                    content.innerHTML = `
+                        <div style="padding: 3rem; text-align: center; color: var(--text-muted);">
+                            <div class="report-loading">Loading county benchmarks...</div>
+                        </div>
+                    `;
+                    fetchShutInMarkets();
+                }
+            }
+        }
+
+        function renderShutInPropertiesContent(wells, counties) {
+            if (!counties) {
+                counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
+            }
+            return `
+                <div class="shutin-toolbar">
+                    <div class="shutin-filters">
+                        <select id="shutinStatusFilter" onchange="filterShutInWells()" class="shutin-select">
+                            <option value="">All Status</option>
+                            <option value="recently_idle">Idle (3-6mo)</option>
+                            <option value="extended_idle">Extended Idle (6-12mo)</option>
+                            <option value="no_recent_production">Long-Term Idle (12+mo)</option>
+                            <option value="no_data">No Data</option>
+                        </select>
+                        <select id="shutinRiskFilter" onchange="filterShutInWells()" class="shutin-select">
+                            <option value="">All Risk Flags</option>
+                            <option value="HBP Risk">HBP Risk</option>
+                            <option value="Sudden Stop">Sudden Stop</option>
+                            <option value="Operator Pattern">Operator Pattern</option>
+                        </select>
+                        <select id="shutinCountyFilter" onchange="filterShutInWells()" class="shutin-select">
+                            <option value="">All Counties</option>
+                            ${counties.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('')}
+                        </select>
+                    </div>
+                    <button class="pooling-btn-export" onclick="exportShutInCsv()">&#10515; Export CSV</button>
+                </div>
+                <div id="shutinTableContainer" style="margin-top: 0.75rem;"></div>
+                <div class="about-data-card" style="margin-top: 1.5rem;">
+                    <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--oil-navy);">About This Report</h4>
+                    <ul style="font-size: 0.8rem; color: var(--slate-blue); line-height: 1.6; padding-left: 1.25rem;">
+                        <li><strong>Idle (3-6mo)</strong> — Well has not reported production in 3-6 months. May be undergoing workover or temporary shut-in.</li>
+                        <li><strong>Extended Idle (6-12mo)</strong> — No production for 6-12 months. Monitor for potential plugging or lease issues.</li>
+                        <li><strong>Long-Term Idle (12+mo)</strong> — Idle for over a year. Consider lease review and HBP implications.</li>
+                        <li><strong>No Data</strong> — No production data in OTC records. Well may predate available data window or have an unlinked PUN.</li>
+                        <li><strong>HBP Risk</strong> — Well first produced within 5 years. Extended idle may jeopardize Held By Production status.</li>
+                        <li><strong>Sudden Stop</strong> — Well averaged &gt;50 BOE/month before going idle. Unexpected shutdown worth investigating.</li>
+                        <li><strong>Operator Pattern</strong> — More than half of this operator's wells in your portfolio are idle.</li>
+                    </ul>
+                </div>
+            `;
+        }
+
+        async function fetchShutInMarkets() {
+            try {
+                const res = await fetch('/api/intelligence/shut-in-detector/markets', { credentials: 'include' });
+                if (!res.ok) throw new Error('Failed to fetch markets data');
+                const data = await res.json();
+                lastShutInMarketsData = data;
+
+                // Update badge with county count
+                const badge = document.getElementById('shutInMarketsCountBadge');
+                if (badge && data.counties) {
+                    badge.textContent = data.counties.length;
+                }
+
+                const content = document.getElementById('shutInTabContent');
+                if (content && shutInCurrentTab === 'markets') {
+                    content.innerHTML = renderShutInMarketsTab(data);
+                }
+            } catch (err) {
+                console.error('Failed to load shut-in markets:', err);
+                const content = document.getElementById('shutInTabContent');
+                if (content && shutInCurrentTab === 'markets') {
+                    content.innerHTML = `
+                        <div style="padding: 3rem; text-align: center; color: var(--text-danger);">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">&#9888;</div>
+                            <div>Failed to load county benchmarks. Please try again.</div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        function sortShutInMarkets(sortType) {
+            shutInMarketSort = sortType;
+            if (lastShutInMarketsData) {
+                const content = document.getElementById('shutInTabContent');
+                if (content) content.innerHTML = renderShutInMarketsTab(lastShutInMarketsData);
+            }
+        }
+
+        function renderShutInMarketsTab(data) {
+            const counties = data.counties || [];
+            if (counties.length === 0) {
+                return '<div class="pooling-empty" style="padding: 3rem; text-align: center; color: var(--text-muted);">No county data available</div>';
+            }
+
+            // Sort counties based on current mode
+            if (shutInMarketSort === 'name') {
+                counties.sort((a, b) => a.county.localeCompare(b.county));
+            } else if (shutInMarketSort === 'wells') {
+                counties.sort((a, b) => b.userWellCount - a.userWellCount);
+            } else {
+                // Performance: best delta first (lowest idle rate delta = healthiest)
+                counties.sort((a, b) => {
+                    const da = a.userVsCountyDelta;
+                    const db = b.userVsCountyDelta;
+                    if (da == null && db == null) return 0;
+                    if (da == null) return 1;
+                    if (db == null) return -1;
+                    return da - db; // Lower = healthier
+                });
+            }
+
+            // Compute summary stats
+            let healthier = 0, tracking = 0, concern = 0;
+            for (const ca of counties) {
+                if (ca.userVsCountyDelta == null) continue;
+                if (ca.userVsCountyDelta < -5) healthier++;
+                else if (ca.userVsCountyDelta > 5) concern++;
+                else tracking++;
+            }
+
+            const summaryParts = [];
+            if (healthier > 0) summaryParts.push(`<span class="decline-summary-pill pill-positive">${healthier} healthier</span>`);
+            if (tracking > 0) summaryParts.push(`<span class="decline-summary-pill pill-neutral">${tracking} tracking</span>`);
+            if (concern > 0) summaryParts.push(`<span class="decline-summary-pill pill-negative">${concern} concern</span>`);
+
+            let html = `
+                <p class="pooling-tab-intro">
+                    Compare your wells' idle rates against county-wide statistics. See which operators are shutting in the most wells.
+                </p>
+
+                <div class="decline-summary-bar">${summaryParts.join(' <span class="decline-summary-sep">&middot;</span> ')}</div>
+
+                <div class="decline-sort-controls">
+                    <span style="font-size: 0.8rem; color: var(--text-muted);">Sort by:</span>
+                    <button class="decline-sort-btn ${shutInMarketSort === 'performance' ? 'active' : ''}" onclick="sortShutInMarkets('performance')">Performance</button>
+                    <button class="decline-sort-btn ${shutInMarketSort === 'wells' ? 'active' : ''}" onclick="sortShutInMarkets('wells')">Well Count</button>
+                    <button class="decline-sort-btn ${shutInMarketSort === 'name' ? 'active' : ''}" onclick="sortShutInMarkets('name')">Name</button>
+                </div>
+
+                <div class="pooling-markets-grid">
+            `;
+
+            for (const ca of counties) {
+                // Delta indicator — inverted from production decline:
+                // positive delta = user has MORE idle wells = BAD
+                let deltaClass = 'neutral';
+                let deltaIcon = '&mdash;';
+                let deltaText = 'No comparison';
+
+                if (ca.userVsCountyDelta != null) {
+                    if (ca.userVsCountyDelta < -5) {
+                        deltaClass = 'positive';
+                        deltaIcon = '&#9660;'; // ▼
+                        deltaText = `Healthier: ${Math.abs(ca.userVsCountyDelta).toFixed(1)}% lower idle rate`;
+                    } else if (ca.userVsCountyDelta > 5) {
+                        deltaClass = 'negative';
+                        deltaIcon = '&#9650;'; // ▲
+                        deltaText = `Concern: ${ca.userVsCountyDelta.toFixed(1)}% higher idle rate`;
+                    } else {
+                        deltaClass = 'neutral';
+                        deltaIcon = '&asymp;'; // ≈
+                        deltaText = 'Tracking county idle rate';
+                    }
+                }
+
+                // Operator breakdown tags (top 5)
+                const operatorTags = (ca.topOperators || []).slice(0, 5).map(op => {
+                    const opClass = op.idleRate > 60 ? 'formation-negative' : (op.idleRate > 40 ? 'formation-amber' : 'formation-positive');
+                    return `<span class="formation-tag ${opClass}">${escapeHtml(op.operator)} <small>${op.idleWells}/${op.totalWells} idle (${op.idleRate.toFixed(0)}%)</small></span>`;
+                }).join('');
+
+                html += `
+                    <div class="pooling-market-card decline-market-card">
+                        <div class="market-card-header">
+                            <span class="market-county">${escapeHtml(ca.county)}</span>
+                            <span class="market-order-count">${ca.userWellCount} well${ca.userWellCount !== 1 ? 's' : ''}</span>
+                        </div>
+                        <div class="market-card-body">
+                            <div class="decline-delta-row delta-${deltaClass}">
+                                <span class="delta-icon">${deltaIcon}</span>
+                                <span class="delta-text">${deltaText}</span>
+                            </div>
+
+                            <div class="market-stat-row">
+                                <span class="market-stat-name">Your Idle Rate</span>
+                                <span class="market-stat-val">${ca.userIdleRate.toFixed(1)}% (${ca.userIdleWells}/${ca.userWellCount})</span>
+                            </div>
+                            <div class="market-stat-row">
+                                <span class="market-stat-name">County Idle Rate</span>
+                                <span class="market-stat-val">${ca.idleRate.toFixed(1)}% (${ca.idleWells}/${ca.totalWells})</span>
+                            </div>
+
+                            ${operatorTags ? `
+                            <div class="market-formations">
+                                <div class="market-formations-label">Top Operators by Idle Wells</div>
+                                <div class="market-formation-list">${operatorTags}</div>
+                            </div>
+                            ` : ''}
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `</div>
+                <div style="font-size: 0.75rem; color: var(--text-muted); font-style: italic; margin-top: 1rem; text-align: right;">
+                    Idle = no production in 3+ months. Includes wells with no reported production in available OTC data. Updated daily at 8am CT.
+                </div>
+            `;
+            return html;
         }
 

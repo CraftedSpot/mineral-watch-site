@@ -8,6 +8,7 @@
     <style>
 /* __INTEL_CSS__ */
 /* __INTEL_REPORTS_CSS__ */
+/* __VIRTUAL_SCROLL_CSS__ */
     </style>
 </head>
 <body>
@@ -37,22 +38,22 @@
                 <p class="intel-subtitle">Insights and analysis across your mineral portfolio</p>
             </div>
             <div class="summary-cards skeleton-loading" id="summaryCardsContainer">
-                <div class="summary-card" id="cardActiveWells">
+                <div class="summary-card clickable" id="cardActiveWells" onclick="loadProductionDeclineReport()">
                     <div class="summary-label">Active Wells</div>
                     <div class="summary-value" id="summaryActiveWells">—</div>
                     <div class="summary-detail neutral" id="summaryWellsDetail">Loading...</div>
                 </div>
-                <div class="summary-card" id="cardRevenue">
+                <div class="summary-card clickable" id="cardRevenue" onclick="loadDeductionReport()">
                     <div class="summary-label">Est. Monthly Revenue</div>
                     <div class="summary-value" id="summaryRevenue">—</div>
                     <div class="summary-detail neutral" id="summaryRevenueDetail">Loading...</div>
                 </div>
-                <div class="summary-card" id="cardDeductions">
+                <div class="summary-card clickable" id="cardDeductions" onclick="loadDeductionReport()">
                     <div class="summary-label">Deduction Health</div>
                     <div class="summary-value" id="summaryDeductions">—</div>
                     <div class="summary-detail neutral" id="summaryDeductionsDetail">Loading...</div>
                 </div>
-                <div class="summary-card" id="cardActions">
+                <div class="summary-card clickable" id="cardActions" onclick="document.getElementById('insightsSection').scrollIntoView({behavior:'smooth'})">
                     <div class="summary-label">Action Items</div>
                     <div class="summary-value" id="summaryActions">—</div>
                     <div class="summary-detail neutral" id="summaryActionsDetail">Loading...</div>
@@ -64,19 +65,10 @@
     <main>
         <div class="container">
 
-            <!-- Top-level Intelligence Tabs -->
-            <div class="intel-tabs" id="intelTabs">
-                <button class="intel-tab active" data-tab="portfolio">My Portfolio</button>
-                <button class="intel-tab" data-tab="operators">Operators</button>
-            </div>
-
-            <!-- Portfolio Tab Content -->
-            <div class="intel-tab-content active" id="portfolioContent">
-
-            <!-- Suggested Insights -->
+            <!-- Alerts & Insights -->
             <section class="insights-section insights-loading" id="insightsSection">
                 <div class="section-header">
-                    <h2 class="section-title">Suggested for You</h2>
+                    <h2 class="section-title">Alerts & Insights</h2>
                     <span class="section-meta">Based on your portfolio data</span>
                 </div>
                 <div id="insightsList">
@@ -89,113 +81,155 @@
                 </div>
             </section>
 
-            <!-- Guided Questions -->
-            <section class="questions-section">
+            <!-- Reports -->
+            <section class="intel-section">
                 <div class="section-header">
-                    <h2 class="section-title">Explore Your Data</h2>
+                    <h2 class="section-title">Reports</h2>
+                    <span class="section-meta">Analyze your mineral portfolio</span>
                 </div>
+                <div class="market-tools-grid">
+                    <div class="market-tool-card" onclick="loadDeductionReport()">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Deduction Audit</h3>
+                            <p>Identify wells with high deduction ratios and compare against county averages</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
 
-                <div class="category-tabs" id="categoryTabs">
-                    <button class="category-tab active" data-category="deductions">Cost & Deductions</button>
-                    <button class="category-tab" data-category="performance">Well Performance</button>
-                    <button class="category-tab" data-category="lease">Lease & Revenue</button>
-                    <button class="category-tab" data-category="risk">Risk & Deadlines</button>
-                </div>
+                    <div class="market-tool-card" onclick="loadProductionDeclineReport()">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M3 3v18h18"/>
+                                <path d="M7 16l4-4 4 2 5-6"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Production Decline Analysis</h3>
+                            <p>Track well-by-well production trends, YoY changes, and county benchmarks</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
 
-                <div class="questions-grid" id="questionsGrid">
-                    <!-- Populated by JS -->
-                </div>
+                    <div class="market-tool-card" onclick="loadPoolingReport()">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <rect x="3" y="3" width="18" height="18" rx="2"/>
+                                <path d="M3 9h18M9 3v18"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Pooling Rate Comparison</h3>
+                            <p>See bonus rates and royalty options from OCC pooling orders near your properties</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
 
-                <div class="custom-question">
-                    <input type="text" id="customQuestionInput" placeholder="Ask a different question about your portfolio...">
-                    <button class="btn btn-primary" id="customQuestionBtn">Ask</button>
+                    <div class="market-tool-card" onclick="loadOperatorComparison()">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                                <circle cx="8.5" cy="7" r="4"/>
+                                <path d="M20 8v6M23 11h-6"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Operator Comparison</h3>
+                            <p>Compare your operators' deduction ratios and NGL recovery against statewide data</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
+
+                    <div class="market-tool-card" onclick="loadShutInDetectorReport()">
+                        <div class="tool-icon" style="background: #fef2f2;">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5">
+                                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                                <line x1="12" y1="9" x2="12" y2="13"/>
+                                <line x1="12" y1="17" x2="12.01" y2="17"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Shut-In Detector</h3>
+                            <p>Identify idle wells and assess HBP risk, sudden stops, and operator patterns</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
                 </div>
             </section>
 
-            <!-- Recent Reports -->
-            <section class="reports-section" id="reportsSection">
-                <div class="reports-header">
-                    <h2 class="section-title">Recent Reports</h2>
+            <!-- Research Tools -->
+            <section class="intel-section">
+                <div class="section-header">
+                    <h2 class="section-title">Research Tools</h2>
+                    <span class="section-meta">Statewide operator data and benchmarking</span>
                 </div>
-                <div id="reportsList" class="reports-list">
-                    <div class="reports-empty">
-                        <p>No reports yet. Click a question above to generate your first report.</p>
+                <div class="market-tools-grid">
+                    <div class="market-tool-card" onclick="loadOperatorEfficiency()">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M3 3v18h18"/>
+                                <path d="M18 9l-5 5-4-4-3 3"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Operator Efficiency Index</h3>
+                            <p>Compare deductions, NGL returns, and PCRR efficiency metrics across Oklahoma operators</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
+
+                    <div class="market-tool-card" onclick="loadOperatorDirectory()">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
+                                <circle cx="12" cy="7" r="4"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Operator Directory</h3>
+                            <p>Look up operator contact information, counties of operation, and well counts</p>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
+                    </div>
+
+                    <div class="market-tool-card disabled" title="Coming soon">
+                        <div class="tool-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                                <polyline points="14 2 14 8 20 8"/>
+                                <line x1="16" y1="13" x2="8" y2="13"/>
+                                <line x1="16" y1="17" x2="8" y2="17"/>
+                            </svg>
+                        </div>
+                        <div class="tool-content">
+                            <h3>Pooling Orders</h3>
+                            <p>Research pooling orders and bonus terms by location</p>
+                            <span class="coming-soon-badge">Coming Soon</span>
+                        </div>
+                        <div class="tool-arrow">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
+                        </div>
                     </div>
                 </div>
             </section>
-
-            </div><!-- End Portfolio Tab Content -->
-
-            <!-- Operators Tab Content -->
-            <div class="intel-tab-content" id="operatorsContent" style="display: none;">
-
-                <section class="market-section">
-                    <div class="section-header">
-                        <h2 class="section-title">Operator Research Tools</h2>
-                        <span class="section-meta">Statewide efficiency metrics and benchmarking</span>
-                    </div>
-
-                    <div class="market-tools-grid">
-                        <div class="market-tool-card" onclick="loadOperatorEfficiency()">
-                            <div class="tool-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M3 3v18h18"/>
-                                    <path d="M18 9l-5 5-4-4-3 3"/>
-                                </svg>
-                            </div>
-                            <div class="tool-content">
-                                <h3>Operator Efficiency Index</h3>
-                                <p>Compare deductions, NGL returns, and PCRR efficiency metrics across Oklahoma operators</p>
-                            </div>
-                            <div class="tool-arrow">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 5l7 7-7 7"/>
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div class="market-tool-card" onclick="loadOperatorDirectory()">
-                            <div class="tool-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
-                                    <circle cx="12" cy="7" r="4"/>
-                                </svg>
-                            </div>
-                            <div class="tool-content">
-                                <h3>Operator Directory</h3>
-                                <p>Look up operator contact information, counties of operation, and well counts</p>
-                            </div>
-                            <div class="tool-arrow">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 5l7 7-7 7"/>
-                                </svg>
-                            </div>
-                        </div>
-
-                        <div class="market-tool-card disabled" title="Coming soon">
-                            <div class="tool-icon">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
-                                    <polyline points="14 2 14 8 20 8"/>
-                                    <line x1="16" y1="13" x2="8" y2="13"/>
-                                    <line x1="16" y1="17" x2="8" y2="17"/>
-                                </svg>
-                            </div>
-                            <div class="tool-content">
-                                <h3>Pooling Orders</h3>
-                                <p>Research pooling orders and bonus terms by location</p>
-                                <span class="coming-soon-badge">Coming Soon</span>
-                            </div>
-                            <div class="tool-arrow">
-                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                                    <path d="M9 5l7 7-7 7"/>
-                                </svg>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-
-            </div><!-- End Operators Tab Content -->
 
         </div>
     </main>
@@ -227,7 +261,7 @@
                             <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             Back
                         </button>
-                        <button class="btn btn-secondary" onclick="window.print()">Print Summary</button>
+                        <button class="btn btn-secondary" id="printSummaryBtn" onclick="openPrintSummary()">Print Summary</button>
                     </div>
                 </div>
             </div>
@@ -324,6 +358,10 @@
                             <option value="20" selected>20+ wells</option>
                             <option value="50">50+ wells</option>
                         </select>
+                        <button class="btn btn-secondary" onclick="exportDirectoryCSV()">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; margin-right: 0.25rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                            Export CSV
+                        </button>
                         <button class="btn btn-ghost" onclick="closeOperatorDirectory()">
                             <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
                             Back
@@ -357,6 +395,7 @@
 /* __INTEL_INIT__ */
 /* __INTEL_INSIGHTS__ */
 /* __INTEL_QUESTIONS__ */
+/* __VIRTUAL_SCROLL__ */
 /* __INTEL_REPORTS__ */
 /* __INTEL_OPERATORS__ */
     </script>

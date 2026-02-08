@@ -945,8 +945,7 @@ POOLING ORDER EXAMPLE
       "description": "Participate as working interest owner",
       "bonus_per_nma": null,
       "cost_per_nma": 5541.25,
-      "royalty_rate": "1/8",
-      "excess_royalty": null,
+      "total_royalty": null,
       "nri_delivered": null,
       "risk_penalty_percentage": null,
       "is_default": false
@@ -954,11 +953,10 @@ POOLING ORDER EXAMPLE
     {
       "option_number": 2,
       "option_type": "cash_bonus_excess_royalty",
-      "description": "Cash bonus plus excess royalty",
+      "description": "Cash bonus plus excess royalty - total 3/16 royalty (1/8 base + 1/16 excess)",
       "bonus_per_nma": 350,
       "cost_per_nma": null,
-      "royalty_rate": "1/8",
-      "excess_royalty": "1/16",
+      "total_royalty": "3/16",
       "nri_delivered": "81.25%",
       "risk_penalty_percentage": null,
       "is_default": true
@@ -966,11 +964,10 @@ POOLING ORDER EXAMPLE
     {
       "option_number": 3,
       "option_type": "no_cash_higher_royalty",
-      "description": "No cash, higher royalty",
+      "description": "No cash, higher royalty - total 1/4 royalty (1/8 base + 1/8 excess)",
       "bonus_per_nma": null,
       "cost_per_nma": null,
-      "royalty_rate": "1/8",
-      "excess_royalty": "1/8",
+      "total_royalty": "1/4",
       "nri_delivered": "75%",
       "risk_penalty_percentage": null,
       "is_default": false
@@ -1046,8 +1043,16 @@ EXTRACTION NOTES:
 
 ELECTION OPTIONS - EXTRACT ALL with ALL financial terms:
 - option_number, option_type, is_default are required for every option
-- Extract: bonus_per_nma, cost_per_nma, royalty_rate, excess_royalty, nri_delivered
+- Extract: bonus_per_nma, cost_per_nma, total_royalty, nri_delivered
 - The DEFAULT option is critical - what happens if owner doesn't respond
+
+TOTAL ROYALTY CALCULATION - CRITICAL:
+- total_royalty must be the COMPLETE royalty the mineral owner receives
+- If the option shows "1/8 base royalty + 1/16 excess royalty", calculate: total_royalty = "3/16"
+- If the option shows "1/8 royalty plus 1/8 excess", calculate: total_royalty = "1/4"
+- The NRI (Net Revenue Interest) should equal 100% minus total_royalty (e.g., 3/16 royalty = 81.25% NRI)
+- Use this cross-check: if NRI is 81.25%, total_royalty should be 3/16 (18.75%)
+- NEVER return just the base royalty (1/8) for options that have excess royalty - always add them together
 
 DEADLINES - CALCULATE:
 - election_deadline = effective_date + election_period_days

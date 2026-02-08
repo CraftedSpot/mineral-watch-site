@@ -86,11 +86,16 @@
                 console.log('[DecimalInterest] Data received:', data);
 
                 const section = document.querySelector('.decimal-interest-section');
-                if (data.hasData && data.decimals && data.decimals.length > 0) {
+                const ent = window._currentWellEnterprise || {};
+                const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
+                const hasOtcData = data.hasData && data.decimals && data.decimals.length > 0;
+
+                if (hasOtcData || hasUserInterest) {
                     section.style.display = '';
-                    renderDecimalInterest(data);
+                    renderDecimalInterest(data, ent);
                     // Show badge with count and auto-expand
-                    badge.textContent = data.decimals.length;
+                    const count = (data.decimals ? data.decimals.length : 0) + (hasUserInterest ? 1 : 0);
+                    badge.textContent = count;
                     badge.style.display = '';
                     badge.style.background = '#dbeafe';
                     badge.style.color = '#1e40af';
@@ -102,17 +107,31 @@
                         arrow.style.transform = 'rotate(90deg)';
                     }
                 } else {
-                    // Hide the entire section when no decimal data
+                    // Hide the entire section when no data
                     section.style.display = 'none';
                 }
             } catch (error) {
                 console.error('[DecimalInterest] Error:', error);
-                // Hide section on error — don't clutter the modal
-                document.querySelector('.decimal-interest-section').style.display = 'none';
+                // On error, still show user enterprise interest if available
+                const ent = window._currentWellEnterprise || {};
+                const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
+                const section = document.querySelector('.decimal-interest-section');
+                if (hasUserInterest) {
+                    section.style.display = '';
+                    renderDecimalInterest({ decimals: [] }, ent);
+                    const content = document.getElementById('decimal-interest-content');
+                    const arrow = document.getElementById('decimal-interest-arrow');
+                    if (content.style.display === 'none') {
+                        content.style.display = 'block';
+                        arrow.style.transform = 'rotate(90deg)';
+                    }
+                } else {
+                    section.style.display = 'none';
+                }
             }
         }
 
-        function renderDecimalInterest(data) {
+        function renderDecimalInterest(data, enterprise) {
             const container = document.getElementById('decimal-interest-container');
             const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -123,24 +142,57 @@
                 return `${monthNames[month - 1]} ${year}`;
             };
 
+            const ent = enterprise || {};
+            const hasUserInterest = ent.wi_nri || ent.ri_nri || ent.orri_nri;
+
+            let html = '';
+
+            // Your Interest section (from enterprise data)
+            if (hasUserInterest) {
+                html += `<div style="padding: 8px 0 10px;">
+                    <div style="font-size: 11px; font-weight: 600; color: #059669; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">Your Interest</div>`;
+                const interestTypes = [
+                    { label: 'WI NRI', value: ent.wi_nri },
+                    { label: 'RI NRI', value: ent.ri_nri },
+                    { label: 'ORRI NRI', value: ent.orri_nri }
+                ];
+                for (const item of interestTypes) {
+                    if (item.value) {
+                        html += `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 3px 0;">
+                            <span style="color: #6b7280; font-size: 13px;">${item.label}:</span>
+                            <span style="font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace; font-size: 14px; font-weight: 600; color: #059669;">${parseFloat(item.value).toFixed(8)}</span>
+                        </div>`;
+                    }
+                }
+                html += `</div>`;
+            }
+
             // OTC product codes: 1=Oil, 3=Condensate, 5=Casinghead Gas, 6=Natural Gas
             const productLabels = { '1': 'Oil', '3': 'Condensate', '5': 'Casinghead Gas', '6': 'Natural Gas' };
 
-            let html = '';
-            for (const d of data.decimals) {
-                const monthDisplay = formatMonth(d.year_month);
-                const product = productLabels[d.product_code] || d.product_code || '';
-                html += `
+            if (data.decimals && data.decimals.length > 0) {
+                // Separator between user interest and OTC data
+                if (hasUserInterest) {
+                    html += `<div style="border-top: 1px solid #e5e7eb; margin: 4px 0 8px;"></div>`;
+                    html += `<div style="font-size: 11px; font-weight: 600; color: #1e40af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px;">OTC Reported</div>`;
+                }
+
+                for (const d of data.decimals) {
+                    const monthDisplay = formatMonth(d.year_month);
+                    const product = productLabels[d.product_code] || d.product_code || '';
+                    html += `
                     <div style="padding: 10px 0; border-bottom: 1px solid #f3f4f6;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span style="color: #6b7280; font-size: 13px;">OTC Reported:</span>
+                            <span style="color: #6b7280; font-size: 13px;">${hasUserInterest ? '' : 'OTC Reported: '}${product ? escapeHtml(product) : ''}</span>
                             <span style="font-family: 'SF Mono', 'Monaco', 'Inconsolata', 'Fira Mono', monospace; font-size: 15px; font-weight: 600; color: #111827;">${d.decimal_equivalent.toFixed(8)}</span>
                         </div>
                         <div style="font-size: 12px; color: #9ca3af; margin-top: 4px;">
-                            ${product ? escapeHtml(product) + ' · ' : ''}Source: OTC state tax records (${monthDisplay})
+                            Source: OTC state tax records (${monthDisplay})
                         </div>
                     </div>
-                `;
+                    `;
+                }
             }
 
             html += `

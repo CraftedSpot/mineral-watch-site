@@ -399,49 +399,66 @@ export async function handleComputePunRollups(
     `);
     const step2Changes = peakResult.meta.changes;
 
+    // Find data horizon — latest month with substantial production data
+    // This handles the lag between OTC data availability and today's date
+    // Without this, wells producing in the latest available month appear "idle"
+    // because months_since_production is measured from today, not the data edge
+    console.log(`${logPrefix} Finding data horizon...`);
+    const DATA_HORIZON_THRESHOLD = 10000;
+    const horizonQuery = await env.WELLS_DB!.prepare(`
+      SELECT last_prod_month, COUNT(*) as cnt
+      FROM puns
+      WHERE last_prod_month IS NOT NULL
+      GROUP BY last_prod_month
+      ORDER BY last_prod_month DESC
+      LIMIT 12
+    `).all();
+
+    const horizonRows = horizonQuery.results as Array<{ last_prod_month: string; cnt: number }>;
+    let referenceYearMonth = new Date().toISOString().slice(0, 7).replace("-", "");
+    for (const row of horizonRows) {
+      if (row.cnt >= DATA_HORIZON_THRESHOLD) {
+        referenceYearMonth = row.last_prod_month;
+        break;
+      }
+    }
+    console.log(`${logPrefix} Data horizon: ${referenceYearMonth} (top months: ${horizonRows.slice(0, 4).map(r => `${r.last_prod_month}=${r.cnt}`).join(', ')})`);
+
+    // Helper to subtract months from a YYYYMM string
+    function subtractMonths(ym: string, n: number): string {
+      let y = parseInt(ym.substring(0, 4));
+      let m = parseInt(ym.substring(4, 6)) - n;
+      while (m <= 0) { m += 12; y -= 1; }
+      return `${y}${String(m).padStart(2, '0')}`;
+    }
+
     // Step 3: Update is_stale and months_since_production
-    console.log(`${logPrefix} Step 3: Updating staleness flags...`);
-    const currentYearMonth = new Date().toISOString().slice(0, 7).replace("-", "");
-    const sixMonthsAgo = (() => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 6);
-      return d.toISOString().slice(0, 7).replace("-", "");
-    })();
+    // Anchored to data horizon, not today
+    console.log(`${logPrefix} Step 3: Updating staleness flags (ref: ${referenceYearMonth})...`);
+    const sixMonthsAgo = subtractMonths(referenceYearMonth, 6);
 
     const staleResult = await runQuery(`
       UPDATE puns SET
         is_stale = CASE WHEN last_prod_month < ? THEN 1 ELSE 0 END,
         months_since_production = CASE
           WHEN last_prod_month IS NULL THEN NULL
-          ELSE (
+          ELSE MAX(0,
             (CAST(SUBSTR(?, 1, 4) AS INTEGER) - CAST(SUBSTR(last_prod_month, 1, 4) AS INTEGER)) * 12 +
             (CAST(SUBSTR(?, 5, 2) AS INTEGER) - CAST(SUBSTR(last_prod_month, 5, 2) AS INTEGER))
           )
         END
       WHERE last_prod_month IS NOT NULL
       ${countyCondition}
-    `, [sixMonthsAgo, currentYearMonth, currentYearMonth]);
+    `, [sixMonthsAgo, referenceYearMonth, referenceYearMonth]);
     const step3Changes = staleResult.meta.changes;
 
     // Step 4: Compute decline rate (compare recent 3 months avg to same period last year)
+    // Anchored to data horizon, not today
     console.log(`${logPrefix} Step 4: Updating decline rates...`);
-    const recentMonthEnd = currentYearMonth;
-    const recentMonthStart = (() => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - 3);
-      return d.toISOString().slice(0, 7).replace("-", "");
-    })();
-    const yearAgoEnd = (() => {
-      const d = new Date();
-      d.setFullYear(d.getFullYear() - 1);
-      return d.toISOString().slice(0, 7).replace("-", "");
-    })();
-    const yearAgoStart = (() => {
-      const d = new Date();
-      d.setFullYear(d.getFullYear() - 1);
-      d.setMonth(d.getMonth() - 3);
-      return d.toISOString().slice(0, 7).replace("-", "");
-    })();
+    const recentMonthEnd = referenceYearMonth;
+    const recentMonthStart = subtractMonths(referenceYearMonth, 3);
+    const yearAgoEnd = subtractMonths(referenceYearMonth, 12);
+    const yearAgoStart = subtractMonths(referenceYearMonth, 15);
 
     const declineResult = await runQuery(`
       UPDATE puns SET
@@ -474,6 +491,7 @@ export async function handleComputePunRollups(
         ? `PUN rollups computed for county ${county}`
         : "PUN rollups computed successfully",
       county: county || "all",
+      dataHorizon: referenceYearMonth,
       stats: {
         step1_aggregates: step1Changes,
         step2_peak_month: step2Changes,

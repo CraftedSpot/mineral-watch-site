@@ -1,37 +1,6 @@
         // =============================================
-        // INTELLIGENCE TABS & OPERATOR TOOLS
+        // OPERATOR TOOLS
         // =============================================
-
-        // Tab switching
-        function setupIntelTabs() {
-            const tabs = document.querySelectorAll('.intel-tab');
-            tabs.forEach(tab => {
-                tab.addEventListener('click', () => {
-                    const targetTab = tab.dataset.tab;
-
-                    // Update tab buttons
-                    tabs.forEach(t => t.classList.remove('active'));
-                    tab.classList.add('active');
-
-                    // Update content
-                    document.querySelectorAll('.intel-tab-content').forEach(content => {
-                        content.classList.remove('active');
-                        content.style.display = 'none';
-                    });
-
-                    const targetContent = document.getElementById(targetTab + 'Content');
-                    if (targetContent) {
-                        targetContent.classList.add('active');
-                        targetContent.style.display = 'block';
-                    }
-                });
-            });
-        }
-
-        // Initialize tabs on load
-        document.addEventListener('DOMContentLoaded', () => {
-            setupIntelTabs();
-        });
 
         // =============================================
         // OPERATOR EFFICIENCY INDEX (Financial metrics)
@@ -208,6 +177,7 @@
                             <th class="text-right sortable" onclick="handleEfficiencySort('pcrr_value')" title="Value returned from extracted liquids (Product 6 - NGLs)">NGL Returned${renderEfficiencySortArrow('pcrr_value')}</th>
                             <th class="text-right sortable" onclick="handleEfficiencySort('net_value_return')" title="NGL Returned minus Deductions. Positive = more returned than taken.">Net Return${renderEfficiencySortArrow('net_value_return')}</th>
                             <th class="text-right sortable" onclick="handleEfficiencySort('pcrr')" title="Post-Production Cost Recovery Ratio: NGL ÷ Deductions × 100. Over 100% is favorable.">PCRR${renderEfficiencySortArrow('pcrr')}</th>
+                            <th title="Primary gas purchaser for this operator">Gas Purchaser</th>
                             <th></th>
                         </tr>
                     </thead>
@@ -223,6 +193,15 @@
                     : op.net_value_return <= -10000000 ? 'danger'
                     : op.net_value_return <= -1000000 ? 'medium' : 'neutral';
 
+                // Purchaser badge
+                let purchaserHtml = '—';
+                if (op.primary_purchaser_name) {
+                    const badge = op.is_affiliated
+                        ? '<span class="affiliated-badge" title="The gas purchaser is the same entity as the operator">Affiliated</span>'
+                        : '<span class="third-party-badge" title="Third-party purchaser">Third Party</span>';
+                    purchaserHtml = `<div class="purchaser-cell-name">${escapeHtml(op.primary_purchaser_name)}</div>${badge}`;
+                }
+
                 html += `
                     <tr onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" style="cursor: pointer;">
                         <td>
@@ -234,6 +213,7 @@
                         <td class="text-right">${formatCurrencyShort(op.pcrr_value)}</td>
                         <td class="text-right"><span class="metric-pill ${returnClass}">${formatCurrencyShort(op.net_value_return)}</span></td>
                         <td class="text-right"><span class="metric-pill ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}</span></td>
+                        <td class="purchaser-cell">${purchaserHtml}</td>
                         <td class="text-right">
                             <svg class="row-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
                         </td>
@@ -269,7 +249,9 @@
                 'Deduction %',
                 'NGL Returned ($)',
                 'Net Return ($)',
-                'PCRR %'
+                'PCRR %',
+                'Primary Gas Purchaser',
+                'Purchaser Type'
             ];
 
             // Build CSV rows
@@ -278,13 +260,15 @@
                 `"${(op.operator_name || '').replace(/"/g, '""')}"`, // Escape quotes in name
                 op.status || '',
                 op.primary_county || '',
-                op.well_count || 0,
+                op.well_count != null ? formatCSVNumber(op.well_count, 0) : 0,
                 op.total_gross != null ? `"${formatCSVNumber(op.total_gross)}"` : '',
                 op.residue_deductions != null ? `"${formatCSVNumber(op.residue_deductions)}"` : '',
-                op.deduction_pct != null ? formatCSVNumber(op.deduction_pct, 1) : '',
+                op.deduction_pct != null ? `"${formatCSVNumber(op.deduction_pct, 1)}"` : '',
                 op.pcrr_value != null ? `"${formatCSVNumber(op.pcrr_value)}"` : '',
                 op.net_value_return != null ? `"${formatCSVNumber(op.net_value_return)}"` : '',
-                op.pcrr != null ? formatCSVNumber(op.pcrr, 1) : ''
+                op.pcrr != null ? `"${formatCSVNumber(op.pcrr, 1)}"` : '',
+                `"${(op.primary_purchaser_name || '').replace(/"/g, '""')}"`,
+                op.primary_purchaser_name ? (op.is_affiliated ? 'Affiliated' : 'Third Party') : ''
             ]);
 
             // Combine into CSV string
@@ -506,6 +490,58 @@
             document.getElementById('directoryContent').innerHTML = html;
         }
 
+        function exportDirectoryCSV() {
+            if (!allDirectoryOperators || allDirectoryOperators.length === 0) {
+                showToast('No data to export', 'error');
+                return;
+            }
+
+            // CSV header row
+            const headers = [
+                'Operator Number',
+                'Operator Name',
+                'Status',
+                'Well Count',
+                'Contact Name',
+                'Phone',
+                'Address',
+                'City',
+                'State',
+                'Zip'
+            ];
+
+            // Build CSV rows
+            const rows = allDirectoryOperators.map(op => [
+                op.operator_number,
+                `"${(op.operator_name || '').replace(/"/g, '""')}"`,
+                op.status === 'OPEN' ? 'Active' : op.status === 'CLOSED' ? 'Inactive' : (op.status || ''),
+                op.well_count || 0,
+                `"${(op.contact_name || '').replace(/"/g, '""')}"`,
+                op.phone || '',
+                `"${(op.address || '').replace(/"/g, '""')}"`,
+                `"${(op.city || '').replace(/"/g, '""')}"`,
+                op.state || '',
+                op.zip || ''
+            ]);
+
+            // Combine into CSV string
+            const csv = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+
+            // Create download
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `operator-directory-${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+
+            showToast(`Exported ${allDirectoryOperators.length} operators`, 'success');
+        }
+
         // =============================================
         // OPERATOR DETAIL MODAL (shared by both views)
         // =============================================
@@ -608,6 +644,29 @@
                     </div>
                 </div>
             `;
+
+            // Purchaser info
+            if (data.purchaser && data.purchaser.primary_purchaser_name) {
+                const badge = data.purchaser.is_affiliated
+                    ? '<span class="affiliated-badge" title="The gas purchaser is the same entity as the operator">Affiliated</span>'
+                    : '<span class="third-party-badge" title="Third-party purchaser">Third Party</span>';
+
+                html += `
+                    <div class="modal-section purchaser-section">
+                        <h3>Gas Purchaser</h3>
+                        <div class="purchaser-info">
+                            <span class="purchaser-name">${escapeHtml(data.purchaser.primary_purchaser_name)}</span>
+                            ${badge}
+                        </div>
+                        ${data.purchaser.is_affiliated ? `
+                            <div class="affiliated-note">
+                                This operator's gas is sold to an entity with the same or similar name, indicating vertical integration.
+                                The operator may control both production and processing/marketing, which can affect deduction structures.
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }
 
             // Contact info
             if (contact && (contact.phone || contact.address || contact.contact_name)) {

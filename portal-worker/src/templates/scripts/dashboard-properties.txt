@@ -1,6 +1,6 @@
         async function loadProperties() {
             try {
-                const res = await fetch('/api/properties');
+                const res = await fetch('/api/properties/v2');
                 if (!res.ok) throw new Error('Failed to load');
                 const properties = await res.json();
                 loadedProperties = properties; // Store for filtering/sorting
@@ -124,7 +124,9 @@
                     f.TWN || '',
                     f.RNG || '',
                     f.MERIDIAN || '',
-                    f.Notes || ''
+                    f.Notes || '',
+                    f.property_code || '',
+                    f.Group || ''
                 ].join(' ').toLowerCase();
                 
                 return searchable.includes(propertiesSearchTerm);
@@ -665,9 +667,66 @@
             document.getElementById('propertyDetailsOriginalNotes').value = f['Notes'] || '';
             document.getElementById('propertyDetailsOriginalRIAcres').value = riAcres;
             document.getElementById('propertyDetailsOriginalWIAcres').value = wiAcres;
-            
+
             // Update total acres display in form
             updateTotalAcres();
+
+            // Enterprise: property_code display
+            const codeRow = document.getElementById('propertyDetailsCodeRow');
+            if (f.property_code) {
+                document.getElementById('propertyDetailsCode').textContent = 'Ref: ' + f.property_code;
+                codeRow.style.display = 'block';
+            } else {
+                codeRow.style.display = 'none';
+            }
+
+            // Enterprise: Ownership Interests section
+            const ownershipSection = document.getElementById('ownership-interests-section');
+            const ownershipGrid = document.getElementById('ownership-interests-grid');
+            const ownershipCount = document.getElementById('ownership-interests-count');
+
+            const interestFields = [];
+            if (f.mi_acres != null || f.mi_decimal != null) {
+                if (f.mi_acres != null) interestFields.push({ id: 'miAcres', label: 'MI Acres', value: f.mi_acres, format: 'acres' });
+                if (f.mi_decimal != null) interestFields.push({ id: 'miDecimal', label: 'MI Decimal', value: f.mi_decimal, format: 'decimal' });
+            }
+            if (f.ri_decimal != null) interestFields.push({ id: 'riDecimal', label: 'RI Decimal', value: f.ri_decimal, format: 'decimal' });
+            if (f.wi_decimal != null) interestFields.push({ id: 'wiDecimal', label: 'WI Decimal', value: f.wi_decimal, format: 'decimal' });
+            if (f.orri_acres != null || f.orri_decimal != null) {
+                if (f.orri_acres != null) interestFields.push({ id: 'orriAcres', label: 'ORRI Acres', value: f.orri_acres, format: 'acres' });
+                if (f.orri_decimal != null) interestFields.push({ id: 'orriDecimal', label: 'ORRI Decimal', value: f.orri_decimal, format: 'decimal' });
+            }
+
+            if (interestFields.length > 0) {
+                ownershipSection.style.display = 'block';
+                ownershipCount.textContent = interestFields.length;
+                let html = '';
+                for (const field of interestFields) {
+                    const step = field.format === 'decimal' ? '0.00000001' : '0.01';
+                    const displayVal = field.value != null ? field.value : '';
+                    html += '<div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f3f4f6;">'
+                        + '<span style="font-size: 13px; color: #374151; font-weight: 500;">' + field.label + '</span>'
+                        + '<input type="number" id="propEnterprise_' + field.id + '" step="' + step + '" min="0" value="' + displayVal + '" '
+                        + 'style="padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; font-family: \'SF Mono\', \'Monaco\', monospace; font-size: 13px; width: 140px; text-align: right; background: white;" '
+                        + 'oninput="toggleSaveButton(\'property\')" placeholder="—">'
+                        + '</div>';
+                }
+                ownershipGrid.innerHTML = html;
+                // Auto-expand
+                document.getElementById('ownership-interests-content').style.display = 'block';
+                document.getElementById('ownership-interests-arrow').style.transform = 'rotate(90deg)';
+            } else {
+                ownershipSection.style.display = 'none';
+            }
+
+            // Store original enterprise values for change detection
+            document.getElementById('propertyDetailsOriginalPropertyCode').value = f.property_code || '';
+            document.getElementById('propertyDetailsOriginalRiDecimal').value = f.ri_decimal != null ? f.ri_decimal : '';
+            document.getElementById('propertyDetailsOriginalWiDecimal').value = f.wi_decimal != null ? f.wi_decimal : '';
+            document.getElementById('propertyDetailsOriginalOrriAcres').value = f.orri_acres != null ? f.orri_acres : '';
+            document.getElementById('propertyDetailsOriginalOrriDecimal').value = f.orri_decimal != null ? f.orri_decimal : '';
+            document.getElementById('propertyDetailsOriginalMiAcres').value = f.mi_acres != null ? f.mi_acres : '';
+            document.getElementById('propertyDetailsOriginalMiDecimal').value = f.mi_decimal != null ? f.mi_decimal : '';
             
             // Don't try to show count from property data - just show loading state
             const wellsCountElement = document.getElementById('property-linked-wells-count');
@@ -756,6 +815,19 @@
             }
         }
         
+        // Ownership Interests toggle
+        function toggleOwnershipInterests() {
+            const content = document.getElementById('ownership-interests-content');
+            const arrow = document.getElementById('ownership-interests-arrow');
+            if (content.style.display === 'none') {
+                content.style.display = 'block';
+                arrow.style.transform = 'rotate(90deg)';
+            } else {
+                content.style.display = 'none';
+                arrow.style.transform = 'rotate(0deg)';
+            }
+        }
+
         // Linked Wells Functions
         function toggleLinkedWells() {
             const content = document.getElementById('linked-wells-content');
@@ -807,11 +879,20 @@
                     listEl.innerHTML = data.wells.map(w => {
                         const isUnlinked = w.linkStatus === 'Unlinked';
                         const unlinkedDate = w.rejectedDate ? new Date(w.rejectedDate).toLocaleDateString() : '';
+                        // Build interest decimal line if any exist
+                        const interestParts = [];
+                        if (w.wiNri) interestParts.push('WI: ' + parseFloat(w.wiNri).toFixed(8));
+                        if (w.riNri) interestParts.push('RI: ' + parseFloat(w.riNri).toFixed(8));
+                        if (w.orriNri) interestParts.push('ORRI: ' + parseFloat(w.orriNri).toFixed(8));
+                        const interestLine = interestParts.length > 0
+                            ? '<div style="font-size: 11px; color: #4b5563; font-family: \'SF Mono\', \'Monaco\', monospace; margin-top: 2px;">' + interestParts.join(' &middot; ') + '</div>'
+                            : '';
                         return `
                         <div class="linked-well-row" style="display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #f3f4f6;${isUnlinked ? ' opacity: 0.5;' : ''}">
                             <div style="flex: 1; cursor: pointer;" onclick="openWellFromProperty('${w.wellId}')">
                                 <div style="font-weight: 500; color: ${isUnlinked ? '#9ca3af' : '#2563eb'};">${escapeHtml(w.wellName)}</div>
                                 <div style="font-size: 12px; color: #6b7280;">${escapeHtml(w.operator)} • ${escapeHtml(w.county)}</div>
+                                ${interestLine}
                             </div>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <span style="font-size: 11px; padding: 2px 6px; border-radius: 4px; ${getMatchReasonStyle(w.matchReason)}">${getMatchReasonLabel(w.matchReason)}</span>
@@ -1785,21 +1866,40 @@
             const meridian = document.getElementById('propertyDetailsMeridian').value;
             const riAcres = parseFloat(document.getElementById('propertyDetailsRIAcres').value) || 0;
             const wiAcres = parseFloat(document.getElementById('propertyDetailsWIAcres').value) || 0;
-            
+
+            // Read enterprise field values from inputs (if they exist)
+            const getEnterpriseVal = (id) => {
+                const el = document.getElementById('propEnterprise_' + id);
+                return el ? (el.value !== '' ? el.value : null) : undefined;
+            };
+            const enterpriseBody = {};
+            const riDec = getEnterpriseVal('riDecimal');
+            const wiDec = getEnterpriseVal('wiDecimal');
+            const orriA = getEnterpriseVal('orriAcres');
+            const orriD = getEnterpriseVal('orriDecimal');
+            const miA = getEnterpriseVal('miAcres');
+            const miD = getEnterpriseVal('miDecimal');
+            if (riDec !== undefined) enterpriseBody.riDecimal = riDec;
+            if (wiDec !== undefined) enterpriseBody.wiDecimal = wiDec;
+            if (orriA !== undefined) enterpriseBody.orriAcres = orriA;
+            if (orriD !== undefined) enterpriseBody.orriDecimal = orriD;
+            if (miA !== undefined) enterpriseBody.miAcres = miA;
+            if (miD !== undefined) enterpriseBody.miDecimal = miD;
+
             if (!propId) {
                 showToast('Error: Property ID not found', 'error');
                 return;
             }
-            
+
             try {
                 const res = await fetch('/api/properties/' + propId, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ notes, meridian, riAcres, wiAcres })
+                    body: JSON.stringify({ notes, meridian, riAcres, wiAcres, ...enterpriseBody })
                 });
-                
+
                 if (!res.ok) throw new Error('Failed to save');
-                
+
                 // Update local data
                 const prop = loadedProperties.find(p => p.id === propId);
                 if (prop) {
@@ -1807,6 +1907,13 @@
                     prop.fields['MERIDIAN'] = meridian;
                     prop.fields['RI Acres'] = riAcres;
                     prop.fields['WI Acres'] = wiAcres;
+                    // Update enterprise fields in cache
+                    if (riDec !== undefined) prop.fields.ri_decimal = riDec ? parseFloat(riDec) : null;
+                    if (wiDec !== undefined) prop.fields.wi_decimal = wiDec ? parseFloat(wiDec) : null;
+                    if (orriA !== undefined) prop.fields.orri_acres = orriA ? parseFloat(orriA) : null;
+                    if (orriD !== undefined) prop.fields.orri_decimal = orriD ? parseFloat(orriD) : null;
+                    if (miA !== undefined) prop.fields.mi_acres = miA ? parseFloat(miA) : null;
+                    if (miD !== undefined) prop.fields.mi_decimal = miD ? parseFloat(miD) : null;
                 }
                 
                 // Close modal immediately after successful save

@@ -266,19 +266,91 @@ export async function handleGetOperatorEfficiency(request: Request, env: Env): P
       primary_county: string | null;
     }
 
-    const operators = (result.results as unknown as EfficiencyRow[]).map(row => ({
-      operator_number: row.operator_number,
-      operator_name: row.company_name || `Operator ${row.operator_number}`,
-      status: row.status || 'UNKNOWN',
-      well_count: row.well_count,
-      total_gross: row.total_gross,
-      residue_deductions: row.residue_deductions,
-      deduction_pct: row.deduction_pct,
-      pcrr_value: row.pcrr_value,
-      net_value_return: row.net_value_return,
-      pcrr: row.pcrr,
-      primary_county: row.primary_county
-    }));
+    // Get primary purchaser for each operator (most common purchaser by volume)
+    const operatorNumbers = (result.results as unknown as EfficiencyRow[]).map(r => r.operator_number);
+
+    // Query for primary purchaser per operator
+    const purchaserResult = await env.WELLS_DB.prepare(`
+      SELECT
+        ol.operator_number,
+        opf.purchaser_id,
+        SUM(opf.gross_value) as volume
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      WHERE opf.product_code = '5'
+        AND opf.purchaser_id IS NOT NULL
+        AND opf.purchaser_id != ''
+        AND opf.year_month >= ?
+        AND opf.gross_value > 0
+      GROUP BY ol.operator_number, opf.purchaser_id
+      ORDER BY ol.operator_number, volume DESC
+    `).bind(sixMonthsAgo).all();
+
+    // Build map of operator -> primary purchaser (highest volume)
+    const purchaserMap = new Map<string, string>();
+    for (const row of purchaserResult.results as Array<{operator_number: string; purchaser_id: string; volume: number}>) {
+      if (!purchaserMap.has(row.operator_number)) {
+        purchaserMap.set(row.operator_number, row.purchaser_id);
+      }
+    }
+
+    // Get purchaser names from otc_companies
+    const uniquePurchaserIds = [...new Set(purchaserMap.values())];
+    const purchaserNames = new Map<string, string>();
+
+    if (uniquePurchaserIds.length > 0) {
+      // Query in batches to avoid too many placeholders
+      const batchSize = 100;
+      for (let i = 0; i < uniquePurchaserIds.length; i += batchSize) {
+        const batch = uniquePurchaserIds.slice(i, i + batchSize);
+        const placeholders = batch.map(() => '?').join(',');
+        const nameResult = await env.WELLS_DB.prepare(
+          `SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${placeholders})`
+        ).bind(...batch).all();
+
+        for (const row of nameResult.results as Array<{company_id: string; company_name: string}>) {
+          purchaserNames.set(row.company_id, row.company_name);
+        }
+      }
+    }
+
+    // Helper for fuzzy name matching
+    function isAffiliated(operatorNumber: string, operatorName: string, purchaserId: string | null, purchaserName: string | null): boolean {
+      if (!purchaserId) return false;
+      // ID match
+      if (operatorNumber === purchaserId) return true;
+      // Fuzzy name match
+      if (operatorName && purchaserName) {
+        const opNorm = operatorName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const purchNorm = purchaserName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (opNorm.length > 5 && purchNorm.includes(opNorm.substring(0, 10))) return true;
+        if (purchNorm.length > 5 && opNorm.includes(purchNorm.substring(0, 10))) return true;
+      }
+      return false;
+    }
+
+    const operators = (result.results as unknown as EfficiencyRow[]).map(row => {
+      const purchaserId = purchaserMap.get(row.operator_number) || null;
+      const purchaserName = purchaserId ? (purchaserNames.get(purchaserId) || `Purchaser ${purchaserId}`) : null;
+      const operatorName = row.company_name || `Operator ${row.operator_number}`;
+
+      return {
+        operator_number: row.operator_number,
+        operator_name: operatorName,
+        status: row.status || 'UNKNOWN',
+        well_count: row.well_count,
+        total_gross: row.total_gross,
+        residue_deductions: row.residue_deductions,
+        deduction_pct: row.deduction_pct,
+        pcrr_value: row.pcrr_value,
+        net_value_return: row.net_value_return,
+        pcrr: row.pcrr,
+        primary_county: row.primary_county,
+        primary_purchaser_id: purchaserId,
+        primary_purchaser_name: purchaserName,
+        is_affiliated: isAffiliated(row.operator_number, operatorName, purchaserId, purchaserName)
+      };
+    });
 
     // Get total count (separate lighter query)
     const countResult = await env.WELLS_DB.prepare(`
@@ -470,6 +542,50 @@ export async function handleGetOperatorDetail(request: Request, env: Env, operat
     const pcrr = totals.residue_deductions > 0
       ? Math.round((totals.pcrr_value / totals.residue_deductions) * 1000) / 10 : null;
 
+    // Get primary purchaser for this operator
+    const purchaserResult = await env.WELLS_DB.prepare(`
+      SELECT
+        opf.purchaser_id,
+        SUM(opf.gross_value) as volume
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      WHERE ol.operator_number = ?
+        AND opf.product_code = '5'
+        AND opf.purchaser_id IS NOT NULL
+        AND opf.purchaser_id != ''
+        AND opf.year_month >= ?
+        AND opf.gross_value > 0
+      GROUP BY opf.purchaser_id
+      ORDER BY volume DESC
+      LIMIT 1
+    `).bind(operatorNumber, sixMonthsAgo).first() as { purchaser_id: string; volume: number } | null;
+
+    let primaryPurchaserId: string | null = null;
+    let primaryPurchaserName: string | null = null;
+    let isAffiliated = false;
+
+    if (purchaserResult?.purchaser_id) {
+      primaryPurchaserId = purchaserResult.purchaser_id;
+
+      // Get purchaser name
+      const purchaserNameResult = await env.WELLS_DB.prepare(
+        `SELECT company_name FROM otc_companies WHERE company_id = ?`
+      ).bind(primaryPurchaserId).first() as { company_name: string } | null;
+
+      primaryPurchaserName = purchaserNameResult?.company_name || `Purchaser ${primaryPurchaserId}`;
+
+      // Check affiliation
+      const operatorName = operatorInfo?.company_name || '';
+      if (operatorNumber === primaryPurchaserId) {
+        isAffiliated = true;
+      } else if (operatorName && primaryPurchaserName) {
+        const opNorm = operatorName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const purchNorm = primaryPurchaserName.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (opNorm.length > 5 && purchNorm.includes(opNorm.substring(0, 10))) isAffiliated = true;
+        if (purchNorm.length > 5 && opNorm.includes(purchNorm.substring(0, 10))) isAffiliated = true;
+      }
+    }
+
     return jsonResponse({
       operator_number: operatorNumber,
       operator_name: operatorInfo?.company_name || `Operator ${operatorNumber}`,
@@ -495,6 +611,11 @@ export async function handleGetOperatorDetail(request: Request, env: Env, operat
       efficiency: {
         pcrr,
         deduction_ratio: deductionRatio
+      },
+      purchaser: {
+        primary_purchaser_id: primaryPurchaserId,
+        primary_purchaser_name: primaryPurchaserName,
+        is_affiliated: isAffiliated
       },
       monthly,
       counties,

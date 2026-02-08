@@ -5,8 +5,16 @@
  * for the Portal Worker authentication system
  */
 
-import { COOKIE_NAME } from '../constants.js';
+import { COOKIE_NAME, SUPER_ADMIN_EMAILS } from '../constants.js';
+import { getUserById } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
+
+/**
+ * Check if a user is a super admin (can act on behalf of other users/orgs)
+ */
+export function isSuperAdmin(email: string): boolean {
+  return SUPER_ADMIN_EMAILS.includes(email as any);
+}
 
 /**
  * Session payload interface
@@ -29,6 +37,11 @@ export interface SessionPayload {
       Status?: string;
       'Created Time'?: string;
     };
+  };
+  // Set when a super admin is impersonating another user via ?act_as=
+  impersonating?: {
+    adminEmail: string;
+    adminId: string;
   };
 }
 
@@ -80,16 +93,48 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
     }
     
     const userData = await authResponse.json() as any;
-    
+
     // Convert auth-worker response to SessionPayload format
-    // Now includes full airtableUser data from auth-worker
-    return {
+    const sessionPayload: SessionPayload = {
       id: userData.id,
       email: userData.email,
       name: userData.name,
       exp: Date.now() + 30 * 24 * 60 * 60 * 1000, // Session valid for 30 days
-      airtableUser: userData.airtableUser // Include the full user record
+      airtableUser: userData.airtableUser
     };
+
+    // Super admin impersonation: ?act_as=recXXX
+    const url = new URL(request.url);
+    const actAs = url.searchParams.get('act_as');
+
+    if (actAs) {
+      if (!isSuperAdmin(sessionPayload.email)) {
+        // Non-admin tried act_as — silently ignore
+        return sessionPayload;
+      }
+
+      const targetUser = await getUserById(env, actAs);
+      if (!targetUser) {
+        console.warn(`[Impersonate] Target user ${actAs} not found`);
+        return sessionPayload;
+      }
+
+      console.log(`[Impersonate] ${sessionPayload.email} acting as ${targetUser.fields.Email} (${actAs})`);
+
+      return {
+        id: targetUser.id,
+        email: targetUser.fields.Email,
+        name: targetUser.fields.Name,
+        exp: sessionPayload.exp,
+        airtableUser: targetUser as any,
+        impersonating: {
+          adminEmail: sessionPayload.email,
+          adminId: sessionPayload.id
+        }
+      };
+    }
+
+    return sessionPayload;
   } catch (error) {
     console.error('Auth verification failed:', error);
     return null;

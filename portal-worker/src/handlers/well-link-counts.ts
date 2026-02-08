@@ -368,11 +368,12 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
       return jsonResponse(counts);
     }
 
-    // Initialize counts and build well STR list
+    // Initialize counts and collect API numbers
     const wellSTRs: WellSTR[] = [];
     const wellIds: string[] = [];
     const apiNumbers: string[] = [];
     const apiToWellId: Map<string, string> = new Map();
+    const wellsNeedingTRS: string[] = []; // API numbers that don't have TRS in Airtable
 
     for (const well of wells) {
       counts[well.id] = { properties: 0, documents: 0, filings: 0 };
@@ -390,6 +391,43 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
 
       if (sec !== null && twn && rng) {
         wellSTRs.push({ wellId: well.id, apiNumber: apiNumber || '', sec, twn, rng });
+      } else if (apiNumber) {
+        // Mark for D1 lookup
+        wellsNeedingTRS.push(apiNumber);
+      }
+    }
+
+    // Fetch TRS data from D1 for wells that don't have it in Airtable
+    if (wellsNeedingTRS.length > 0) {
+      try {
+        const trsBatches = chunk(wellsNeedingTRS, BATCH_SIZE_D1);
+        const trsPromises = trsBatches.map(async (batch) => {
+          const placeholders = batch.map(() => '?').join(', ');
+          const result = await env.WELLS_DB.prepare(`
+            SELECT api_number, section, township, range
+            FROM wells
+            WHERE api_number IN (${placeholders})
+          `).bind(...batch).all();
+          return result.results as { api_number: string; section: number; township: string; range: string }[] || [];
+        });
+        const trsResults = await Promise.all(trsPromises);
+
+        for (const rows of trsResults) {
+          for (const row of rows) {
+            const wellId = apiToWellId.get(row.api_number);
+            if (wellId) {
+              const sec = normalizeSection(row.section);
+              const twn = normalizeTownship(row.township);
+              const rng = normalizeRange(row.range);
+              if (sec !== null && twn && rng) {
+                wellSTRs.push({ wellId, apiNumber: row.api_number, sec, twn, rng });
+              }
+            }
+          }
+        }
+        console.log(`[WellLinkCounts] Fetched TRS from D1 for ${wellsNeedingTRS.length} wells, found ${wellSTRs.length} with valid TRS`);
+      } catch (err) {
+        console.error('[WellLinkCounts] Error fetching TRS from D1:', err);
       }
     }
 

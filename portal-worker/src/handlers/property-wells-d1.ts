@@ -64,7 +64,10 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
           cw.operator,
           cw.county,
           cw.well_status,
-          cw.occ_map_link
+          cw.occ_map_link,
+          cw.wi_nri,
+          cw.ri_nri,
+          cw.orri_nri
         FROM property_well_links pwl
         JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
@@ -94,10 +97,13 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
           apiNumber: row.api_number,
           confidenceScore: row.confidence_score,
           linkStatus: isLinked ? 'Linked' : 'Unlinked',
-          rejectedDate: row.rejected_date || null
+          rejectedDate: row.rejected_date || null,
+          wiNri: row.wi_nri || null,
+          riNri: row.ri_nri || null,
+          orriNri: row.orri_nri || null
         };
       });
-      
+
       return jsonResponse({
         success: true,
         wells,

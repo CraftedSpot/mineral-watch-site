@@ -57,6 +57,7 @@ import {
 
 import {
   authenticateRequest,
+  isSuperAdmin,
   generateToken,
   verifyToken,
   getCookieValue
@@ -80,6 +81,7 @@ import {
   handleDeleteActivity,
   // Property handlers
   handleListProperties,
+  handleListPropertiesV2,
   handleAddProperty,
   handleUpdateProperty,
   handleDeleteProperty,
@@ -261,6 +263,12 @@ var index_default = {
     if (request.method === "OPTIONS") {
       return corsResponse();
     }
+
+    // Simple version endpoint to verify deployments
+    if (path === "/api/version") {
+      return jsonResponse({ version: "2025-02-06-v3", deployed: new Date().toISOString() });
+    }
+
     try {
       if (path === "/" || path === "") {
         return Response.redirect(`${BASE_URL}/portal`, 302);
@@ -831,9 +839,26 @@ var index_default = {
         try {
           // Create new request with full URL for service binding (include query params!)
           const documentsUrl = new URL(path + url.search, request.url);
+          const headers = new Headers(request.headers);
+
+          // If impersonating, inject trusted headers for documents-worker
+          const actAs = url.searchParams.get('act_as');
+          if (actAs) {
+            const realUser = await authenticateRequest(new Request(request.url, { headers: { Cookie: request.headers.get('Cookie') || '' } }), env);
+            if (realUser && realUser.impersonating) {
+              headers.set('X-Impersonate-User-Id', realUser.id);
+              headers.set('X-Impersonate-User-Email', realUser.email);
+              const targetOrg = realUser.airtableUser?.fields?.Organization?.[0] || '';
+              if (targetOrg) headers.set('X-Impersonate-Org-Id', targetOrg);
+              const targetPlan = realUser.airtableUser?.fields?.Plan || '';
+              if (targetPlan) headers.set('X-Impersonate-Plan', targetPlan);
+              console.log(`[Portal] Impersonation headers injected for documents proxy: ${realUser.email}`);
+            }
+          }
+
           const documentsRequest = new Request(documentsUrl.toString(), {
             method: request.method,
-            headers: request.headers,
+            headers,
             body: request.body,
             redirect: 'manual'
           });
@@ -905,6 +930,11 @@ var index_default = {
       }
 
       // Properties endpoints
+      // GET /api/properties/v2 - D1-first endpoint (fast, source of truth)
+      if (path === "/api/properties/v2" && request.method === "GET") {
+        return handleListPropertiesV2(request, env);
+      }
+      // GET /api/properties - Legacy Airtable endpoint
       if (path === "/api/properties" && request.method === "GET") {
         return handleListProperties(request, env);
       }
@@ -1009,6 +1039,43 @@ var index_default = {
         return handleDeleteActivity(deleteActivityMatch[1], request, env);
       }
       
+      // Admin impersonation info endpoint (for banner display)
+      if (path === "/api/admin/impersonate-info" && request.method === "GET") {
+        const user = await authenticateRequest(request, env);
+        if (!user || !isSuperAdmin(user.email)) {
+          return jsonResponse({ error: 'Admin required' }, 403);
+        }
+        const targetId = url.searchParams.get('user_id');
+        if (!targetId) return jsonResponse({ error: 'user_id required' }, 400);
+
+        const targetUser = await getUserById(env, targetId);
+        if (!targetUser) return jsonResponse({ error: 'User not found' }, 404);
+
+        let orgName = null;
+        const orgId = targetUser.fields.Organization?.[0];
+        if (orgId) {
+          try {
+            const orgRes = await fetch(
+              `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🏢 Organization')}/${orgId}`,
+              { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+            );
+            if (orgRes.ok) {
+              const org = await orgRes.json() as any;
+              orgName = org.fields.Name;
+            }
+          } catch (e) { /* org lookup failed, non-fatal */ }
+        }
+
+        return jsonResponse({
+          id: targetUser.id,
+          name: targetUser.fields.Name,
+          email: targetUser.fields.Email,
+          plan: targetUser.fields.Plan,
+          orgId,
+          orgName
+        });
+      }
+
       // Organization endpoints
       if (path === "/api/organization" && request.method === "GET") {
         const { handleGetOrganization } = await import('./handlers/organization.js');
@@ -1265,6 +1332,26 @@ var index_default = {
         const { handleGetOperatorComparison } = await import('./handlers/intelligence.js');
         return handleGetOperatorComparison(request, env);
       }
+      if (path === "/api/intelligence/pooling-report" && request.method === "GET") {
+        const { handleGetPoolingReport } = await import('./handlers/intelligence.js');
+        return handleGetPoolingReport(request, env);
+      }
+      if (path === "/api/intelligence/production-decline" && request.method === "GET") {
+        const { handleGetProductionDecline } = await import('./handlers/intelligence.js');
+        return handleGetProductionDecline(request, env);
+      }
+      if (path === "/api/intelligence/production-decline/markets" && request.method === "GET") {
+        const { handleGetProductionDeclineMarkets } = await import('./handlers/intelligence.js');
+        return handleGetProductionDeclineMarkets(request, env);
+      }
+      if (path === "/api/intelligence/shut-in-detector" && request.method === "GET") {
+        const { handleGetShutInDetector } = await import('./handlers/intelligence.js');
+        return handleGetShutInDetector(request, env);
+      }
+      if (path === "/api/intelligence/shut-in-detector/markets" && request.method === "GET") {
+        const { handleGetShutInDetectorMarkets } = await import('./handlers/intelligence.js');
+        return handleGetShutInDetectorMarkets(request, env);
+      }
 
       // Operator Directory API (contact info, no financial data - fast)
       if (path === "/api/operators/directory" && request.method === "GET") {
@@ -1388,6 +1475,20 @@ var index_default = {
       // Document Print Report - printable document summary
       if (path === "/print/document" && request.method === "GET") {
         return handleDocumentPrint(request, env);
+      }
+
+      // Intelligence Print Reports
+      if (path === "/print/intelligence/deduction-audit" && request.method === "GET") {
+        const { handleDeductionAuditPrint } = await import('./handlers/intelligence.js');
+        return handleDeductionAuditPrint(request, env);
+      }
+      if (path === "/print/intelligence/production-decline" && request.method === "GET") {
+        const { handleProductionDeclinePrint } = await import('./handlers/intelligence.js');
+        return handleProductionDeclinePrint(request, env);
+      }
+      if (path === "/print/intelligence/shut-in-detector" && request.method === "GET") {
+        const { handleShutInDetectorPrint } = await import('./handlers/intelligence.js');
+        return handleShutInDetectorPrint(request, env);
       }
 
       // Track This Well endpoint

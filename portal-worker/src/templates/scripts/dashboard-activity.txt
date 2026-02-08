@@ -49,7 +49,7 @@
                 let html = '<div class="activity-list">';
                 
                 // Show limit notice for lower tiers
-                if (recordLimit < 100 && plan !== 'Professional' && plan !== 'Enterprise') {
+                if (recordLimit < 100 && plan !== 'Professional' && !plan.startsWith('Enterprise')) {
                     html += `<div class="activity-limit-notice">Showing last ${recordLimit} alerts. <a href="/portal/upgrade">Upgrade</a> for more history.</div>`;
                 }
                 

@@ -4,12 +4,13 @@
  * Handles bulk validation and upload of properties and wells with normalization
  */
 
-import { 
+import {
   BASE_ID,
   PROPERTIES_TABLE,
   WELLS_TABLE,
   PLAN_LIMITS,
-  MAX_NOTES_LENGTH
+  MAX_NOTES_LENGTH,
+  getPlanLimits
 } from '../constants.js';
 
 import { 
@@ -17,14 +18,14 @@ import {
 } from '../utils/responses.js';
 
 import {
-  authenticateRequest
+  authenticateRequest,
+  isSuperAdmin
 } from '../utils/auth.js';
 
 import {
   getUserById,
   countUserProperties,
   countUserWells,
-  fetchUserProperties,
   fetchUserWells
 } from '../services/airtable.js';
 
@@ -37,6 +38,172 @@ import {
 import { runFullPropertyWellMatching } from '../utils/property-well-matching.js';
 
 import type { Env } from '../types/env.js';
+
+// ============================================================================
+// Super Admin: Upload on behalf of another user/org
+// ============================================================================
+
+interface UploadContext {
+  /** Airtable user record ID to attribute ownership to */
+  targetUserId: string;
+  /** Airtable org record ID (if any) */
+  targetOrgId: string | undefined;
+  /** Email for duplicate checking / logging */
+  targetEmail: string;
+  /** Plan name for limit checks */
+  plan: string;
+  /** Plan limits */
+  planLimits: { properties: number; wells: number };
+  /** True if admin is acting on behalf of another user */
+  isAdminOverride: boolean;
+}
+
+/**
+ * Resolve the upload context — either the session user's own, or a target user
+ * if the caller is a super admin with ?target_user_id=recXXX
+ */
+async function resolveUploadContext(
+  request: Request,
+  sessionUser: any,
+  env: Env
+): Promise<UploadContext | Response> {
+  const url = new URL(request.url);
+  const targetUserId = url.searchParams.get('target_user_id');
+
+  // If already impersonating via ?act_as=, treat as admin override
+  if (sessionUser.impersonating) {
+    const userRecord = await getUserById(env, sessionUser.id);
+    const plan = userRecord?.fields.Plan || 'Free';
+    console.log(`[AdminOverride] Impersonation mode: ${sessionUser.impersonating.adminEmail} acting as ${sessionUser.email} (${sessionUser.id})`);
+    return {
+      targetUserId: sessionUser.id,
+      targetOrgId: userRecord?.fields.Organization?.[0],
+      targetEmail: sessionUser.email,
+      plan,
+      planLimits: getPlanLimits(plan),
+      isAdminOverride: true
+    };
+  }
+
+  // No override requested — use session user's context
+  if (!targetUserId) {
+    const userRecord = await getUserById(env, sessionUser.id);
+    const plan = userRecord?.fields.Plan || 'Free';
+    return {
+      targetUserId: sessionUser.id,
+      targetOrgId: userRecord?.fields.Organization?.[0],
+      targetEmail: sessionUser.email,
+      plan,
+      planLimits: getPlanLimits(plan),
+      isAdminOverride: false
+    };
+  }
+
+  // Override requested — verify super admin
+  if (!isSuperAdmin(sessionUser.email)) {
+    return jsonResponse({ error: 'Admin access required for target_user_id' }, 403);
+  }
+
+  // Look up the target user
+  const targetRecord = await getUserById(env, targetUserId);
+  if (!targetRecord) {
+    return jsonResponse({ error: `Target user ${targetUserId} not found` }, 404);
+  }
+
+  const plan = targetRecord.fields.Plan || 'Free';
+  console.log(`[AdminOverride] ${sessionUser.email} acting as user ${targetRecord.fields.Email} (${targetUserId}), org: ${targetRecord.fields.Organization?.[0] || 'none'}`);
+
+  return {
+    targetUserId,
+    targetOrgId: targetRecord.fields.Organization?.[0],
+    targetEmail: targetRecord.fields.Email,
+    plan,
+    planLimits: getPlanLimits(plan),
+    isAdminOverride: true
+  };
+}
+
+// ============================================================================
+// Flexible Column Mapping
+// Handles messy enterprise CSV headers (typos, inconsistent naming, etc.)
+// ============================================================================
+
+const PROPERTY_CODE_ALIASES = [
+  'property_code', 'Prperty_code', 'prop_code', 'PropertyCode', 'Prop Code',
+  'Code', 'Property Code', 'PROPERTY_CODE', 'Prop_Code'
+];
+const INTEREST_ALIASES = [
+  'Interest', 'interest', 'RI_Decimal', 'ri_decimal', 'NRI', 'Decimal',
+  'RI Decimal', 'Net Revenue Interest', 'NRI Decimal'
+];
+const TOTAL_ACRES_ALIASES = [
+  'Total Acres', 'Total_Acres', 'TotalAcres', 'Total', 'total_acres'
+];
+
+// Well-specific enterprise column aliases
+const WELL_CODE_ALIASES = [
+  'well_code', 'Well #', 'Well Number', 'WellCode', 'Well_Number',
+  'WELL_CODE', 'Well Code', 'Well#'
+];
+const WI_NRI_ALIASES = [
+  'wi_nri', 'WI NRI', 'WI_NRI', 'WINRI', 'WI', 'Working Interest NRI',
+  'WI Decimal', 'wi nri'
+];
+const RI_NRI_ALIASES = [
+  'ri_nri', 'RI NRI', 'RI_NRI', 'RINRI', 'RI', 'Royalty Interest NRI',
+  'RI Decimal', 'ri nri'
+];
+const ORRI_NRI_ALIASES = [
+  'orri_nri', 'ORRI NRI', 'ORRI_NRI', 'ORRINRI', 'ORRI', 'ORRI  NRI',
+  'Override NRI', 'Overriding Royalty NRI', 'orri nri'
+];
+const PUN_ALIASES = [
+  'PUN', 'pun', 'Prod Unit', 'Production Unit', 'Production Unit Number',
+  'PROD_UNIT', 'ProdUnit', 'prod_unit_no', 'OTC PUN', 'Unit Number',
+  'Prod Unit No', 'PUN Number', 'PUN#', 'PUN #'
+];
+
+// API number column aliases — used by findField() for flexible detection
+const API_ALIASES = [
+  'API', 'api', 'API Number', 'API #', 'apiNumber', 'API_Number', 'Api Number',
+  'Api', 'Matched API', 'API_NUMBER', 'API_NO', 'Api #', 'API No',
+  'api_number', 'Api_Number', 'OCC API', 'Well API'
+];
+
+// Well name column aliases
+const WELL_NAME_ALIASES = [
+  'Well Name', 'WELL_NAME', 'Well_Name', 'well_name', 'WellName', 'wellName',
+  'Name', 'name', 'WELL Name & Number', 'Well Name & Number',
+  'HHD Well Name', 'Well_name', 'WELLNAME'
+];
+
+// Well number column aliases (separate from well name)
+const WELL_NUMBER_ALIASES = [
+  'WELL_NUM', 'Well_Num', 'WELL_NUMBER', 'Well Number', 'well_number',
+  'WellNumber', 'wellNumber', 'well_num', 'HHD Well #', 'Well #', 'Well#',
+  'WELL_NO', 'Well No'
+];
+
+/**
+ * Find a field value from a row using a list of possible column name aliases.
+ * Tries exact match, case-insensitive match, then fuzzy match (collapsed spaces/underscores).
+ */
+function findField(row: any, aliases: string[]): any {
+  for (const alias of aliases) {
+    // Exact match
+    if (row[alias] !== undefined) return row[alias];
+    // Case-insensitive match
+    const key = Object.keys(row).find(k => k.trim().toLowerCase() === alias.toLowerCase());
+    if (key) return row[key];
+    // Fuzzy match: collapse spaces/underscores
+    const normalized = alias.replace(/[\s_]+/g, '').toLowerCase();
+    const fuzzyKey = Object.keys(row).find(k =>
+      k.trim().replace(/[\s_]+/g, '').toLowerCase() === normalized
+    );
+    if (fuzzyKey) return row[fuzzyKey];
+  }
+  return undefined;
+}
 
 // Normalization Helper Functions
 
@@ -129,11 +296,105 @@ function normalizeMeridian(value: any, county?: string): string {
   return "IM";
 }
 
+// Oklahoma county abbreviations used by enterprise systems (e.g., HHD)
+const COUNTY_ABBREVIATIONS: Record<string, string> = {
+  'ALFA': 'Alfalfa',
+  'ATOKA': 'Atoka',
+  'BEAV': 'Beaver',
+  'BECK': 'Beckham',
+  'BLAI': 'Blaine',
+  'BRYA': 'Bryan',
+  'CADD': 'Caddo',
+  'CANA': 'Canadian',
+  'CART': 'Carter',
+  'CHER': 'Cherokee',
+  'CHOC': 'Choctaw',
+  'CIMA': 'Cimarron',
+  'CLEV': 'Cleveland',
+  'COAL': 'Coal',
+  'COMA': 'Comanche',
+  'COTT': 'Cotton',
+  'CRAI': 'Craig',
+  'CREE': 'Creek',
+  'CUST': 'Custer',
+  'DELA': 'Delaware',
+  'DEWE': 'Dewey',
+  'ELLI': 'Ellis',
+  'GARF': 'Garfield',
+  'GARV': 'Garvin',
+  'GRAD': 'Grady',
+  'GRAN': 'Grant',
+  'GREE': 'Greer',
+  'HARM': 'Harmon',
+  'HARP': 'Harper',
+  'HASK': 'Haskell',
+  'HUGH': 'Hughes',
+  'JACK': 'Jackson',
+  'JEFF': 'Jefferson',
+  'JOHN': 'Johnston',
+  'KAY': 'Kay',
+  'KING': 'Kingfisher',
+  'KIOW': 'Kiowa',
+  'LATI': 'Latimer',
+  'LEFL': 'LeFlore',
+  'LINC': 'Lincoln',
+  'LOGA': 'Logan',
+  'LOVE': 'Love',
+  'MAJO': 'Major',
+  'MARS': 'Marshall',
+  'MAYES': 'Mayes',
+  'MCCL': 'McClain',
+  'MCCU': 'McCurtain',
+  'MCIN': 'McIntosh',
+  'MURR': 'Murray',
+  'MUSK': 'Muskogee',
+  'NOBL': 'Noble',
+  'NOWA': 'Nowata',
+  'OKFU': 'Okfuskee',
+  'OKLA': 'Oklahoma',
+  'OKMU': 'Okmulgee',
+  'OSAG': 'Osage',
+  'OTTA': 'Ottawa',
+  'PAWN': 'Pawnee',
+  'PAYN': 'Payne',
+  'PITT': 'Pittsburg',
+  'PONT': 'Pontotoc',
+  'POTT': 'Pottawatomie',
+  'PUSH': 'Pushmataha',
+  'ROGM': 'Roger Mills',
+  'ROGE': 'Rogers',
+  'SEMI': 'Seminole',
+  'SEQU': 'Sequoyah',
+  'STEP': 'Stephens',
+  'TEXA': 'Texas',
+  'TILL': 'Tillman',
+  'TULS': 'Tulsa',
+  'WAGO': 'Wagoner',
+  'WASH': 'Washita',
+  'WASHI': 'Washington',
+  'WOOD': 'Woodward',
+  'WOODS': 'Woods',
+  'WODW': 'Woodward',
+  // Additional HHD abbreviation variants
+  'ATOK': 'Atoka',
+  'WAST': 'Washita',
+  'WOOW': 'Woodward',
+  // Out-of-state abbreviations (for multi-state operators)
+  'MCKE': 'McKenzie',    // North Dakota
+  'REEV': 'Reeves',      // Texas
+};
+
 function normalizeCounty(value: any): string {
   if (!value) return "";
-  
+
   const str = String(value).trim();
-  
+  const upper = str.toUpperCase();
+
+  // Check abbreviation map first
+  if (COUNTY_ABBREVIATIONS[upper]) {
+    return COUNTY_ABBREVIATIONS[upper];
+  }
+
   // Capitalize first letter of each word
   return str
     .split(' ')
@@ -178,6 +439,13 @@ function normalizePropertyData(prop: any) {
   // Normalize county first so we can use it for meridian detection
   const county = normalizeCounty(prop.COUNTY || prop.County || prop.Co || prop.C);
   
+  // Enterprise fields via flexible column mapping
+  const propertyCode = findField(prop, PROPERTY_CODE_ALIASES) || null;
+  const riDecimalRaw = findField(prop, INTEREST_ALIASES);
+  const riDecimal = riDecimalRaw !== undefined ? parseFloat(riDecimalRaw) || null : null;
+  const totalAcresField = findField(prop, TOTAL_ACRES_ALIASES);
+  const totalAcres = totalAcresField !== undefined ? parseFloat(totalAcresField) || null : null;
+
   return {
     SEC: normalizeSectionNumber(prop.SEC || prop.Section || prop.Sec || prop.S),
     TWN: normalizeTownship(prop.TWN || prop.Township || prop.Town || prop.T),
@@ -187,7 +455,11 @@ function normalizePropertyData(prop: any) {
     GROUP: group,
     NOTES: notes,
     'RI Acres': riAcres,
-    'WI Acres': wiAcres
+    'WI Acres': wiAcres,
+    // Enterprise fields
+    property_code: propertyCode ? String(propertyCode).trim() : null,
+    ri_decimal: riDecimal,
+    total_acres: totalAcres
   };
 }
 
@@ -220,18 +492,34 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
     return jsonResponse({ error: "Invalid data format" }, 400);
   }
   
-  // Get user's current properties for duplicate checking
-  const existingProperties = await fetchUserProperties(env, user.email);
+  // Get user's plan limits (impersonation-aware: authenticateRequest already resolved target user)
+  const userRecord = await getUserById(env, user.id);
+  const organizationId = userRecord?.fields.Organization?.[0];
+
+  // Get user's current properties for duplicate checking (from D1, includes property_code)
+  let existingRows: any[];
+  if (organizationId) {
+    const stmt = env.WELLS_DB.prepare(
+      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE organization_id = ? OR user_id = ?`
+    );
+    existingRows = (await stmt.bind(organizationId, user.id).all()).results || [];
+  } else {
+    const stmt = env.WELLS_DB.prepare(
+      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE user_id = ?`
+    );
+    existingRows = (await stmt.bind(user.id).all()).results || [];
+  }
+  // D1 stores section as zero-padded string ("01"), normalized SEC is a number (1)
+  // Parse section to int so keys match the validation output
   const existingSet = new Set(
-    existingProperties.map(p =>
-      `${p.SEC}-${p.TWN}-${p.RNG}-${p.MERIDIAN || 'IM'}-${p.GROUP || ''}`
+    existingRows.map((p: any) =>
+      `${parseInt(p.section, 10) || p.section}-${p.township}-${p.range}-${p.meridian || 'IM'}-${p.group_name || ''}-${p.property_code || ''}`
     )
   );
-
-  // Get user's plan limits
-  const userRecord = await getUserById(env, user.id);
-  const plan = userRecord?.fields.Plan || "Free";
-  const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const rawPlan = userRecord?.fields.Plan || "Free";
+  const plan = rawPlan;
+  const planLimits = getPlanLimits(rawPlan);
+  const isAdminOverride = !!(user as any).impersonating;
 
   const propertiesCount = await countUserProperties(env, user.email);
   const currentPropertyCount = propertiesCount;
@@ -243,6 +531,23 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
   const results = properties.map((prop: any, index: number) => {
     const errors: string[] = [];
     const warnings: string[] = [];
+
+    // Skip completely empty rows (no property_code, no section, no county)
+    const rawCode = findField(prop, PROPERTY_CODE_ALIASES);
+    const rawSec = prop.SEC || prop.Section || prop.Sec || prop.S || '';
+    const rawCounty = prop.COUNTY || prop.County || prop.Co || prop.C || '';
+    if (!String(rawCode || '').trim() && !String(rawSec).trim() && !String(rawCounty).trim()) {
+      return {
+        index,
+        original: prop,
+        normalized: null,
+        errors: [],
+        warnings: [],
+        isDuplicate: false,
+        isValid: false,
+        isEmpty: true
+      };
+    }
 
     // Normalize data
     const normalized = normalizePropertyData(prop);
@@ -267,17 +572,14 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
     }
 
     // Check for duplicates (existing properties + within this batch)
-    const key = `${normalized.SEC}-${normalized.TWN}-${normalized.RNG}-${normalized.MERIDIAN}-${normalized.GROUP || ''}`;
+    // Include property_code so same section with different interests is NOT a duplicate
+    const key = `${normalized.SEC}-${normalized.TWN}-${normalized.RNG}-${normalized.MERIDIAN}-${normalized.GROUP || ''}-${normalized.property_code || ''}`;
     const existsDuplicate = existingSet.has(key);
     const batchDupeRow = seenInBatch.get(key);
     const batchDuplicate = batchDupeRow !== undefined;
     const isDuplicate = existsDuplicate || batchDuplicate;
 
-    if (existsDuplicate) {
-      warnings.push("Already monitoring this property");
-    } else if (batchDuplicate) {
-      warnings.push(`Duplicate of row ${batchDupeRow! + 1} in this upload`);
-    } else {
+    if (!isDuplicate) {
       seenInBatch.set(key, index);
     }
 
@@ -295,25 +597,33 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
     };
   });
   
+  // Filter out empty rows from results
+  const nonEmptyResults = results.filter((r: any) => !r.isEmpty);
+  const emptyCount = results.length - nonEmptyResults.length;
+  if (emptyCount > 0) {
+    console.log(`[BulkValidate] Skipped ${emptyCount} empty rows`);
+  }
+
   // Count valid non-duplicates
-  const validCount = results.filter(r => r.isValid && !r.isDuplicate).length;
+  const validCount = nonEmptyResults.filter((r: any) => r.isValid && !r.isDuplicate).length;
   const newPropertyCount = currentPropertyCount + validCount;
-  const wouldExceedLimit = newPropertyCount > planLimits.properties;
-  
+  const wouldExceedLimit = isAdminOverride ? false : newPropertyCount > planLimits.properties;
+
   return jsonResponse({
-    results,
+    results: nonEmptyResults,
     summary: {
-      total: properties.length,
-      valid: results.filter(r => r.isValid).length,
-      invalid: results.filter(r => !r.isValid).length,
-      duplicates: results.filter(r => r.isDuplicate).length,
-      warnings: results.filter(r => r.warnings.length > 0).length,
-      willImport: validCount
+      total: nonEmptyResults.length,
+      valid: nonEmptyResults.filter((r: any) => r.isValid).length,
+      invalid: nonEmptyResults.filter((r: any) => !r.isValid).length,
+      duplicates: nonEmptyResults.filter((r: any) => r.isDuplicate).length,
+      warnings: nonEmptyResults.filter((r: any) => r.warnings.length > 0).length,
+      willImport: validCount,
+      emptyRowsSkipped: emptyCount
     },
     planCheck: {
       current: currentPropertyCount,
-      limit: planLimits.properties,
-      plan,
+      limit: isAdminOverride ? 999999 : planLimits.properties,
+      plan: isAdminOverride ? plan + ' (Admin Override)' : plan,
       afterUpload: newPropertyCount,
       wouldExceedLimit
     }
@@ -321,7 +631,12 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
 }
 
 /**
- * Upload validated properties in bulk
+ * Upload validated properties in bulk — D1-First
+ *
+ * Flow: CSV → D1 (all fields, immediate) → Airtable (ownership only) → Link → Auto-match
+ * D1 is the source of truth for all detail fields.
+ * Airtable stores only ownership (User, Organization, minimal TRS).
+ *
  * @param request The incoming request with validated properties
  * @param env Worker environment
  * @returns JSON response with upload results
@@ -329,119 +644,201 @@ export async function handleBulkValidateProperties(request: Request, env: Env) {
 export async function handleBulkUploadProperties(request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  
+
   const body = await request.json();
   const { properties } = body; // Array of validated, normalized property objects
-  
+
   if (!properties || !Array.isArray(properties)) {
     return jsonResponse({ error: "Invalid data format" }, 400);
   }
-  
-  // Final validation check (security - never trust client)
-  const userRecord = await getUserById(env, user.id);
-  const plan = userRecord?.fields.Plan || "Free";
-  const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
-  const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
-  
-  const propertiesCount = await countUserProperties(env, user.email);
-  
-  if (propertiesCount + properties.length > planLimits.properties) {
-    return jsonResponse({ 
-      error: `Would exceed property limit (${planLimits.properties} properties on ${plan} plan)` 
+
+  // Resolve upload context (supports admin override via ?target_user_id=recXXX)
+  const ctxResult = await resolveUploadContext(request, user, env);
+  if (ctxResult instanceof Response) return ctxResult;
+  const { targetUserId, targetOrgId: userOrganization, targetEmail, plan, planLimits, isAdminOverride } = ctxResult;
+
+  const propertiesCount = await countUserProperties(env, targetEmail);
+
+  // Skip plan limits for admin override
+  if (!isAdminOverride && propertiesCount + properties.length > planLimits.properties) {
+    return jsonResponse({
+      error: `Would exceed property limit (${planLimits.properties} properties on ${plan} plan)`
     }, 403);
   }
-  
-  // Get existing properties for duplicate check
-  const existingProperties = await fetchUserProperties(env, user.email);
+
+  // Get existing properties for duplicate check (from D1, includes property_code)
+  const existingOrgId = userOrganization;
+  let existingRows: any[];
+  if (existingOrgId) {
+    const stmt = env.WELLS_DB.prepare(
+      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE organization_id = ? OR user_id = ?`
+    );
+    existingRows = (await stmt.bind(existingOrgId, targetUserId).all()).results || [];
+  } else {
+    const stmt = env.WELLS_DB.prepare(
+      `SELECT section, township, range, meridian, group_name, property_code FROM properties WHERE user_id = ?`
+    );
+    existingRows = (await stmt.bind(targetUserId).all()).results || [];
+  }
+  // D1 stores section as zero-padded string ("01"), normalized SEC is a number (1)
   const existingSet = new Set(
-    existingProperties.map(p =>
-      `${p.SEC}-${p.TWN}-${p.RNG}-${p.MERIDIAN || 'IM'}-${p.GROUP || ''}`
+    existingRows.map((p: any) =>
+      `${parseInt(p.section, 10) || p.section}-${p.township}-${p.range}-${p.meridian || 'IM'}-${p.group_name || ''}-${p.property_code || ''}`
     )
   );
 
   // Filter out duplicates (existing + intra-batch) and invalid
+  // Include property_code so same section with different interests is NOT a duplicate
   const seenInUpload = new Set<string>();
   const toCreate = properties.filter((prop: any) => {
-    const key = `${prop.SEC}-${prop.TWN}-${prop.RNG}-${prop.MERIDIAN}-${prop.GROUP || ''}`;
+    const key = `${prop.SEC}-${prop.TWN}-${prop.RNG}-${prop.MERIDIAN}-${prop.GROUP || ''}-${prop.property_code || ''}`;
     if (existingSet.has(key) || seenInUpload.has(key)) return false;
     if (prop.SEC < 1 || prop.SEC > 36 || !validateTownship(prop.TWN) || !validateRange(prop.RNG)) return false;
     seenInUpload.add(key);
     return true;
   });
-  
-  console.log(`Bulk upload: Creating ${toCreate.length} properties for ${user.email}`);
-  
-  // Create in batches of 10 (Airtable limit)
-  const batchSize = 10;
+
+  console.log(`[BulkPropertyUpload] D1-first: Creating ${toCreate.length} properties for ${targetEmail}${isAdminOverride ? ` (admin: ${user.email})` : ''}`);
+
   const results = {
     successful: 0,
     failed: 0,
     skipped: properties.length - toCreate.length,
-    errors: []
+    errors: [] as string[]
   };
-  
-  for (let i = 0; i < toCreate.length; i += batchSize) {
-    const batch = toCreate.slice(i, i + batchSize);
-    
-    const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
-    const response = await fetch(createUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        records: batch.map((prop: any) => {
-          const fields: any = {
-            User: [user.id],
-            SEC: String(prop.SEC).padStart(2, '0'),
-            TWN: prop.TWN,
-            RNG: prop.RNG,
-            MERIDIAN: prop.MERIDIAN,
-            COUNTY: prop.COUNTY || "",
-            Group: prop.GROUP || "",
-            "Monitor Adjacent": true,
-            Status: "Active",
-            Notes: prop.NOTES || "",
-            "RI Acres": prop['RI Acres'] || 0,
-            "WI Acres": prop['WI Acres'] || 0
-          };
-          
-          // Add organization if user has one
-          if (userOrganization) {
-            fields.Organization = [userOrganization];
-          }
-          
-          return { fields };
-        })
-      })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      results.successful += data.records.length;
-    } else {
-      const err = await response.text();
-      console.error(`Batch create failed:`, err);
-      results.failed += batch.length;
-      results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed: ${err}`);
+
+  // ====================================================================
+  // STEP 1: Write ALL fields to D1 (source of truth, immediate)
+  // ====================================================================
+  const d1Batch = 500; // D1 batch limit
+  const d1Records: Array<{ d1Id: string; prop: any }> = [];
+
+  for (const prop of toCreate) {
+    const d1Id = `prop_${crypto.randomUUID().replace(/-/g, '').substring(0, 17)}`;
+    d1Records.push({ d1Id, prop });
+  }
+
+  // Insert into D1 in batches
+  for (let i = 0; i < d1Records.length; i += d1Batch) {
+    const chunk = d1Records.slice(i, i + d1Batch);
+    try {
+      const stmts = chunk.map(({ d1Id, prop }) => {
+        const section = String(prop.SEC).padStart(2, '0');
+        return env.WELLS_DB.prepare(`
+          INSERT INTO properties (
+            id, county, section, township, range, meridian,
+            ri_acres, wi_acres, ri_decimal, total_acres,
+            notes, group_name, property_code,
+            user_id, organization_id, monitor_adjacent, status, created_at, updated_at
+          )
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 'Active', datetime('now'), datetime('now'))
+        `).bind(
+          d1Id,
+          prop.COUNTY || null,
+          section,
+          prop.TWN,
+          prop.RNG,
+          prop.MERIDIAN,
+          prop['RI Acres'] || 0,
+          prop['WI Acres'] || 0,
+          prop.ri_decimal || null,
+          prop.total_acres || null,
+          prop.NOTES || null,
+          prop.GROUP || null,
+          prop.property_code || null,
+          targetUserId,
+          userOrganization || null
+        );
+      });
+      await env.WELLS_DB.batch(stmts);
+      results.successful += chunk.length;
+    } catch (err: any) {
+      console.error(`[BulkPropertyUpload] D1 batch ${Math.floor(i / d1Batch) + 1} failed:`, err.message);
+      results.failed += chunk.length;
+      results.errors.push(`D1 batch ${Math.floor(i / d1Batch) + 1} failed: ${err.message}`);
     }
-    
-    // Small delay between batches to be nice to Airtable
-    // Increased delay for larger imports to avoid rate limits
-    if (i + batchSize < toCreate.length) {
+  }
+
+  console.log(`[BulkPropertyUpload] D1 writes complete: ${results.successful} created, ${results.failed} failed`);
+
+  // ====================================================================
+  // STEP 2: Create minimal Airtable records (ownership only)
+  // ====================================================================
+  const airtableBatchSize = 10;
+  const successfulD1 = d1Records.filter((_, idx) => idx < results.successful);
+
+  for (let i = 0; i < successfulD1.length; i += airtableBatchSize) {
+    const batch = successfulD1.slice(i, i + airtableBatchSize);
+
+    const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}`;
+    try {
+      const response = await fetch(createUrl, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          records: batch.map(({ prop }) => {
+            const fields: any = {
+              User: [targetUserId],
+              SEC: String(prop.SEC).padStart(2, '0'),
+              TWN: prop.TWN,
+              RNG: prop.RNG,
+              MERIDIAN: prop.MERIDIAN,
+              COUNTY: prop.COUNTY || "",
+              Group: prop.GROUP || "",
+              "Monitor Adjacent": true,
+              Status: "Active",
+              Notes: prop.NOTES || "",
+              "RI Acres": prop['RI Acres'] || 0,
+              "WI Acres": prop['WI Acres'] || 0
+            };
+            if (userOrganization) {
+              fields.Organization = [userOrganization];
+            }
+            return { fields };
+          })
+        })
+      });
+
+      if (response.ok) {
+        const data = await response.json() as any;
+        // Link D1 records to Airtable records
+        const linkStmts = data.records.map((rec: any, j: number) => {
+          const d1Id = batch[j].d1Id;
+          return env.WELLS_DB.prepare(
+            `UPDATE properties SET airtable_record_id = ? WHERE id = ?`
+          ).bind(rec.id, d1Id);
+        });
+        if (linkStmts.length > 0) {
+          await env.WELLS_DB.batch(linkStmts);
+        }
+      } else {
+        const err = await response.text();
+        console.error(`[BulkPropertyUpload] Airtable batch ${Math.floor(i / airtableBatchSize) + 1} failed:`, err);
+        // D1 records still exist — they'll get linked on next sync
+        results.errors.push(`Airtable batch failed (D1 records OK, will link on sync): ${err}`);
+      }
+    } catch (err: any) {
+      console.error(`[BulkPropertyUpload] Airtable batch error:`, err.message);
+      results.errors.push(`Airtable batch error: ${err.message}`);
+    }
+
+    // Small delay between batches to avoid Airtable rate limits
+    if (i + airtableBatchSize < successfulD1.length) {
       await new Promise(resolve => setTimeout(resolve, 500));
     }
   }
-  
-  console.log(`Bulk upload complete: ${results.successful} created, ${results.failed} failed, ${results.skipped} skipped`);
-  
+
+  console.log(`[BulkPropertyUpload] Complete: ${results.successful} D1, Airtable ownership records created`);
+
   // Trigger full property-well matching if any properties were created
   if (results.successful > 0 && ctx) {
     console.log('[BulkPropertyUpload] Triggering full property-well matching');
-    
+
     const organizationId = userOrganization || undefined;
-    const matchPromise = runFullPropertyWellMatching(user.id, user.email, organizationId, env)
+    const matchPromise = runFullPropertyWellMatching(targetUserId, targetEmail, organizationId, env)
       .then(result => {
         console.log(`[BulkPropertyUpload] Matching complete:`, result);
         if (result.linksCreated > 0) {
@@ -452,14 +849,14 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
         console.error('[BulkPropertyUpload] Background matching failed:', err);
         console.error('[BulkPropertyUpload] Error details:', err.message, err.stack);
       });
-    
-    // Keep the worker alive until the match completes
+
     ctx.waitUntil(matchPromise);
   }
-  
+
   return jsonResponse({
     success: true,
-    results
+    results,
+    ...(isAdminOverride && { adminOverride: { targetUserId, targetEmail, actingAs: user.email } })
   });
 }
 
@@ -478,63 +875,111 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     return { matches: [], total: 0, truncated: false };
   }
 
-  // Extract search criteria from various possible column names
-  // Priority 1: Use WELL_NAME + WELL_NUM (separate fields to combine)
-  const wellName = rowData.WELL_NAME || rowData['Well_Name'] || rowData['Well Name'] || 
-                   rowData.well_name || rowData.WellName || rowData.wellName || '';
-  const wellNumber = rowData.WELL_NUM || rowData['Well_Num'] || rowData['WELL_NUMBER'] || 
-                     rowData['Well Number'] || rowData['well_number'] || rowData.WellNumber || 
-                     rowData.wellNumber || rowData.well_num || '';
-  
-  // Combine well name and number if both exist
-  const cleanWellName = wellName.trim();
-  const cleanWellNumber = wellNumber.trim();
-  
+  // Extract search criteria using flexible column matching
+  const wellName = String(findField(rowData, WELL_NAME_ALIASES) || '').trim();
+  const wellNumber = String(findField(rowData, WELL_NUMBER_ALIASES) || '').trim();
+
   // Priority logic for well name:
   // 1. If we have separate name and number, combine them
-  // 2. Otherwise use 'WELL Name & Number' if available
-  // 3. Do NOT use 'WELL NAME COMBINED' as it includes operator
+  // 2. Otherwise use name alone
   let fullWellName = '';
-  if (cleanWellName && cleanWellNumber) {
-    fullWellName = `${cleanWellName} ${cleanWellNumber}`;
+  if (wellName && wellNumber) {
+    fullWellName = `${wellName} ${wellNumber}`;
   } else {
-    fullWellName = rowData['WELL Name & Number'] || rowData['Well Name & Number'] || cleanWellName || '';
+    fullWellName = wellName;
   }
   
   // Clean well name: remove quotes that prevent matching
-  // CSV has: FEIKES "A" UNIT, ADAMS "Q", RICHARDSON "B" 
+  // CSV has: FEIKES "A" UNIT, ADAMS "Q", RICHARDSON "B"
   // D1 has: FEIKES A UNIT, ADAMS Q, RICHARDSON B
   const cleanedWellName = fullWellName.replace(/["""'']/g, '').trim();
-  
+
   // For fuzzy matching, extract the base well name (before well number)
   // Examples: "MCCARTHY 1506 3H-30X" -> "MCCARTHY 1506"
   // This helps match variations like "3H-30X" vs "#1H-30X"
   const wellNameParts = cleanedWellName.match(/^(.*?)\s+(\d+[A-Z]?-\d+[A-Z]?X?|\#\d+[A-Z]?-\d+[A-Z]?X?)$/i);
-  const baseWellName = wellNameParts ? wellNameParts[1].trim() : cleanedWellName;
+  let baseWellName = wellNameParts ? wellNameParts[1].trim() : cleanedWellName;
   
   // Extract other fields
   const operator = rowData.Operator || rowData.operator || rowData.OPERATOR || '';
-  const section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
-  const township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
-  const range = rowData.Range || rowData.range || rowData.RANGE || rowData.RNG || rowData.rng || '';
+  let section = rowData.Section || rowData.section || rowData.SECTION || rowData.SEC || rowData.sec || '';
+  let township = rowData.Township || rowData.township || rowData.TOWNSHIP || rowData.TWN || rowData.twn || '';
+  let range = rowData.Range || rowData.range || rowData.RANGE || rowData.RNG || rowData.rng || '';
   const county = rowData.County || rowData.county || rowData.COUNTY || '';
-  
+
+  // Parse combined Location field if separate TRS fields are empty
+  // Handles formats like "32 12N 3E LINC OK" or "1 2 12 9N 4E POTT OK"
+  if (!section && !township && !range) {
+    const locationField = rowData.Location || rowData.location || rowData.LOCATION || '';
+    if (locationField) {
+      // Match: section(s) then township(N/S) then range(E/W)
+      const locMatch = String(locationField).match(/(\d+)\s+(\d+[NS])\s+(\d+[EW])/i);
+      if (locMatch) {
+        section = locMatch[1];
+        township = locMatch[2];
+        range = locMatch[3];
+        console.log(`[SearchWells] Parsed Location field "${locationField}" → S${section} T${township} R${range}`);
+      } else {
+        console.log(`[SearchWells] Could not parse Location field: "${locationField}"`);
+      }
+    }
+  }
+
+  // Convert section to number early (needed for name variant generation and search strategies)
+  const sectionNum = section ? parseInt(section, 10) : null;
+
+  // ---- Smart name variant generation ----
+  // HHD pattern: "MCNALLY 1 15" = lease name + well# + section
+  // OCC pattern: "MCNALLY #1" = lease name + #well_number
+  // Problem: LIKE '%MCNALLY 1 15%' won't match 'MCNALLY #1'
+  // Fix: strip the section from the name, and try #-prefixed well number
+
+  // If we parsed a section, strip it from the search name
+  if (sectionNum !== null && sectionNum >= 1 && sectionNum <= 36) {
+    // Strip trailing section number: "MCNALLY 1 15" → "MCNALLY 1"
+    const sectionStr = String(sectionNum);
+    const trailingSecPattern = new RegExp(`\\s+${sectionStr}\\s*$`);
+    const stripped = cleanedWellName.replace(trailingSecPattern, '').trim();
+    if (stripped !== cleanedWellName && stripped.length > 2) {
+      baseWellName = stripped;
+      console.log(`[SearchWells] Stripped section ${sectionNum} from name: "${cleanedWellName}" → "${baseWellName}"`);
+    }
+  }
+
+  // Generate #-prefixed variants: "MCNALLY 1" → "MCNALLY #1"
+  // Adds # before the first standalone number that looks like a well number
+  const hashVariant = baseWellName.replace(/^([A-Z\s]+?)\s+(\d+)/, '$1 #$2');
+  const hasHashVariant = hashVariant !== baseWellName;
+  if (hasHashVariant) {
+    console.log(`[SearchWells] Hash variant: "${baseWellName}" → "${hashVariant}"`);
+  }
+
+  // Normalize spaces/hyphens for LIKE matching
+  // CSV has "HURST BOUGHAN" but D1 has "HURST-BOUGHAN"
+  // Replace spaces and hyphens with % wildcard so LIKE matches either format
+  const normalizedNamePattern = cleanedWellName.replace(/[\s-]+/g, '%');
+  const finalBasePattern = baseWellName.replace(/[\s-]+/g, '%');
+  const finalHashPattern = hashVariant.replace(/[\s-]+/g, '%');
+
   // Log extracted fields for debugging
   console.log('[SearchWells] Extracted fields:', {
-    wellName: cleanWellName, 
-    wellNumber: cleanWellNumber, 
-    fullWellName, 
-    cleanedWellName,  // After removing quotes
-    operator, 
-    section, 
-    township, 
+    wellName,
+    wellNumber,
+    fullWellName,
+    cleanedWellName,
+    baseWellName,
+    hashVariant: hasHashVariant ? hashVariant : '(none)',
+    operator,
+    section,
+    township,
     range,
     county
   });
   
-  // Normalize location data
-  const panhandleCounties = ['CIMARRON', 'TEXAS', 'BEAVER'];
-  const meridian = county && panhandleCounties.includes(county.toUpperCase()) ? 'CM' : 'IM';
+  // Normalize location data — expand county abbreviation for panhandle detection
+  const normalizedCounty = normalizeCounty(county);
+  const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
+  const meridian = normalizedCounty && panhandleCounties.includes(normalizedCounty) ? 'CM' : 'IM';
   
   // Normalize township/range with proper padding
   let normalizedTownship = township.toUpperCase();
@@ -551,9 +996,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   if (normalizedRange) {
     normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
   }
-  
-  // Convert section to number
-  const sectionNum = section ? parseInt(section, 10) : null;
   
   // Add detailed parsed logging
   console.log('[CascadingSearch] Parsed values:', {
@@ -586,30 +1028,41 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   let searchStrategy = '';
   
   // Strategy 1: Name + Section + T-R (most specific)
+  // Tries full name, section-stripped name, and #-prefixed variant
   if (cleanedWellName && normalizedTownship && normalizedRange && sectionNum !== null) {
     console.log('[CascadingSearch] Strategy 1: Name + Section + T-R');
     const query1 = operator ? `
-      SELECT w.*, 
-        CASE 
+      SELECT w.*,
+        CASE
           WHEN UPPER(operator) LIKE UPPER(?1) THEN 100
           ELSE 90
         END as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
-        AND section = ?3 AND township = ?4 AND range = ?5 AND meridian = ?6
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?3)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?4)
+        OR UPPER(well_name) LIKE UPPER(?5)
+      )
+        AND section = ?6 AND township = ?7 AND range = ?8 AND meridian = ?9
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     ` : `
       SELECT w.*, 90 as match_score
       FROM wells w
-      WHERE UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
-        AND section = ?2 AND township = ?3 AND range = ?4 AND meridian = ?5
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?3)
+        OR UPPER(well_name) LIKE UPPER(?4)
+      )
+        AND section = ?5 AND township = ?6 AND range = ?7 AND meridian = ?8
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
-    const params1 = operator ? 
-      [`%${operator}%`, `%${cleanedWellName}%`, sectionNum, normalizedTownship, normalizedRange, meridian] :
-      [`%${cleanedWellName}%`, sectionNum, normalizedTownship, normalizedRange, meridian];
+    const params1 = operator ?
+      [`%${operator}%`, `%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, sectionNum, normalizedTownship, normalizedRange, meridian] :
+      [`%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, sectionNum, normalizedTownship, normalizedRange, meridian];
     
     console.log('[CascadingSearch] Strategy 1 SQL params:', {
       wellNamePattern: `%${cleanedWellName}%`,
@@ -675,6 +1128,161 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     console.log(`[CascadingSearch] Strategy 1.5 found ${results.results.length} results`);
   }
   
+  // Strategy 1.7: Horizontal well expanded search
+  // Triggers when TRS match fails AND well name has horizontal indicators
+  // Searches: alternative sections from name, bottom-hole TRS, county-wide by lease name
+  // Results returned as lower confidence for user review
+  if (results.results.length === 0 && cleanedWellName && normalizedCounty) {
+    // Detect horizontal indicators at end of name (after a digit)
+    const horizMatch = cleanedWellName.match(/\d+\s*(WH|XH|MXH|CH|H)\s*$/i);
+    if (horizMatch) {
+      console.log(`[CascadingSearch] Strategy 1.7: Horizontal well detected (${horizMatch[1]})`);
+
+      // Parse multi-section numbers from name
+      // "JASMINE 1 28 33WH" → sections [28, 33]
+      // "LDC 3 24/25H" → sections [24, 25]
+      // "KANE #1 1/12H" → sections [1, 12]
+      const altSections: number[] = [];
+
+      // Pattern 1: "name # sec1 sec2WH" (space-separated sections)
+      const spaceSections = cleanedWellName.match(/(\d+)\s+(\d+)\s*(?:WH|XH|MXH|CH|H)\s*$/i);
+      if (spaceSections) {
+        const s1 = parseInt(spaceSections[1], 10);
+        const s2 = parseInt(spaceSections[2], 10);
+        if (s1 >= 1 && s1 <= 36) altSections.push(s1);
+        if (s2 >= 1 && s2 <= 36) altSections.push(s2);
+      }
+
+      // Pattern 2: "name # sec1/sec2H" (slash-separated sections)
+      const slashSections = cleanedWellName.match(/(\d+)\/(\d+)\s*(?:WH|XH|MXH|CH|H)\s*$/i);
+      if (slashSections) {
+        const s1 = parseInt(slashSections[1], 10);
+        const s2 = parseInt(slashSections[2], 10);
+        if (s1 >= 1 && s1 <= 36) altSections.push(s1);
+        if (s2 >= 1 && s2 <= 36) altSections.push(s2);
+      }
+
+      // Remove duplicates and exclude the section we already tried
+      const uniqueAltSections = [...new Set(altSections)].filter(s => s !== sectionNum);
+      console.log(`[CascadingSearch] Strategy 1.7: Alt sections from name: [${uniqueAltSections.join(', ')}]`);
+
+      // Extract lease name (everything before the well number + section pattern)
+      // "JASMINE 1 28 33WH" → "JASMINE"
+      // "LDC 3 24/25H" → "LDC"
+      // "KANE #1 1/12H" → "KANE"
+      // "HURST BOUGHAN 8 1H" → "HURST BOUGHAN" (strip trailing section number too)
+      let leaseName = cleanedWellName
+        .replace(/\s*#?\d+\s+\d+\s+\d+\s*(?:WH|XH|MXH|CH|H)\s*$/i, '')  // name # sec1 sec2WH
+        .replace(/\s*#?\d+\s+\d+\/\d+\s*(?:WH|XH|MXH|CH|H)\s*$/i, '')   // name # sec1/sec2H
+        .replace(/\s*#?\d+\s*(?:WH|XH|MXH|CH|H)\s*$/i, '')              // name #H (simple)
+        .replace(/\s+\d{1,2}\s*$/, '')                                     // strip trailing section number (1-36)
+        .trim();
+      // Normalize spaces/hyphens in lease name for LIKE matching
+      // D1 has "HURST-BOUGHAN" but CSV may have "HURST BOUGHAN"
+      const leaseNamePattern = leaseName.replace(/[\s-]+/g, '%');
+      console.log(`[CascadingSearch] Strategy 1.7: Lease name extracted: "${leaseName}" (pattern: "${leaseNamePattern}")`);
+
+      const allHorizResults: any[] = [];
+      const seenApis = new Set<string>();
+
+      // 1.7a: Try TRS match with each alternative section
+      if (normalizedTownship && normalizedRange) {
+        for (const altSec of uniqueAltSections) {
+          console.log(`[CascadingSearch] Strategy 1.7a: Trying alt section ${altSec}`);
+          const q17a = `
+            SELECT w.*, 75 as match_score
+            FROM wells w
+            WHERE (
+              UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+              OR UPPER(well_name) LIKE UPPER(?2)
+            )
+            AND section = ?3 AND township = ?4 AND range = ?5 AND meridian = ?6
+            ORDER BY well_status = 'AC' DESC
+            LIMIT 10
+          `;
+          const r17a = await env.WELLS_DB.prepare(q17a)
+            .bind(`%${leaseNamePattern}%`, `%${leaseNamePattern}%`, altSec, normalizedTownship, normalizedRange, meridian).all();
+          for (const row of r17a.results as any[]) {
+            if (!seenApis.has(row.api_number)) {
+              seenApis.add(row.api_number);
+              allHorizResults.push(row);
+            }
+          }
+          console.log(`[CascadingSearch] Strategy 1.7a: Section ${altSec} found ${r17a.results.length} results`);
+        }
+      }
+
+      // 1.7b: Search by bottom-hole location matching CSV's TRS
+      if (normalizedTownship && normalizedRange && sectionNum !== null) {
+        console.log(`[CascadingSearch] Strategy 1.7b: Bottom-hole TRS match`);
+        const q17b = `
+          SELECT w.*, 70 as match_score
+          FROM wells w
+          WHERE (
+            UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+            OR UPPER(well_name) LIKE UPPER(?2)
+          )
+          AND bh_section = ?3 AND bh_township = ?4 AND bh_range = ?5
+          AND is_horizontal = 1
+          ORDER BY well_status = 'AC' DESC
+          LIMIT 10
+        `;
+        const r17b = await env.WELLS_DB.prepare(q17b)
+          .bind(`%${leaseNamePattern}%`, `%${leaseNamePattern}%`, sectionNum, normalizedTownship, normalizedRange).all();
+        for (const row of r17b.results as any[]) {
+          if (!seenApis.has(row.api_number)) {
+            seenApis.add(row.api_number);
+            allHorizResults.push(row);
+          }
+        }
+        console.log(`[CascadingSearch] Strategy 1.7b: BH match found ${r17b.results.length} results`);
+      }
+
+      // 1.7c: County-wide lease name search (broadest, lowest confidence)
+      // Runs if 1.7a/1.7b found fewer than 5 results — always worth checking county-wide
+      if (allHorizResults.length < 5) {
+        console.log(`[CascadingSearch] Strategy 1.7c: County-wide lease name search`);
+        const q17c = `
+          SELECT w.*,
+            CASE
+              WHEN section = ?1 THEN 65
+              WHEN bh_section = ?1 THEN 60
+              WHEN township = ?2 AND range = ?3 THEN 55
+              ELSE 45
+            END as match_score
+          FROM wells w
+          WHERE UPPER(well_name) LIKE UPPER(?4)
+            AND UPPER(county) = UPPER(?5)
+          ORDER BY match_score DESC, well_status = 'AC' DESC
+          LIMIT 15
+        `;
+        const secParam = sectionNum !== null ? sectionNum : -1;
+        const r17c = await env.WELLS_DB.prepare(q17c)
+          .bind(secParam, normalizedTownship || '', normalizedRange || '', `%${leaseNamePattern}%`, normalizedCounty).all();
+        for (const row of r17c.results as any[]) {
+          if (!seenApis.has(row.api_number)) {
+            seenApis.add(row.api_number);
+            allHorizResults.push(row);
+          }
+        }
+        console.log(`[CascadingSearch] Strategy 1.7c: County-wide found ${r17c.results.length} results`);
+      }
+
+      if (allHorizResults.length > 0) {
+        // Sort by match_score descending, then active wells first
+        allHorizResults.sort((a, b) => {
+          if (b.match_score !== a.match_score) return b.match_score - a.match_score;
+          if (a.well_status === 'AC' && b.well_status !== 'AC') return -1;
+          if (b.well_status === 'AC' && a.well_status !== 'AC') return 1;
+          return 0;
+        });
+        results = { results: allHorizResults.slice(0, 15) };
+        searchStrategy = 'horizontal-expanded';
+        console.log(`[CascadingSearch] Strategy 1.7: Total ${allHorizResults.length} horizontal matches (showing top ${results.results.length})`);
+      }
+    }
+  }
+
   // Strategy 2: Name + T-R (no section - handles horizontal wells)
   if (results.results.length === 0 && cleanedWellName && normalizedTownship && normalizedRange) {
     console.log('[CascadingSearch] Strategy 2: Name + T-R (no section)');
@@ -705,16 +1313,18 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       FROM wells w
       WHERE (
         UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${caseParams.length + 1})
-        OR UPPER(well_name) LIKE UPPER(?${caseParams.length + 2})
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${caseParams.length + 2})
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?${caseParams.length + 3})
+        OR UPPER(well_name) LIKE UPPER(?${caseParams.length + 4})
       )
-        AND township = ?${caseParams.length + 3} 
-        AND range = ?${caseParams.length + 4} 
-        AND meridian = ?${caseParams.length + 5}
+        AND township = ?${caseParams.length + 5}
+        AND range = ?${caseParams.length + 6}
+        AND meridian = ?${caseParams.length + 7}
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
-    
-    const params2 = [...caseParams, `%${cleanedWellName}%`, `%${baseWellName}%`, normalizedTownship, normalizedRange, meridian];
+
+    const params2 = [...caseParams, `%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, normalizedTownship, normalizedRange, meridian];
     
     results = await env.WELLS_DB.prepare(query2).bind(...params2).all();
     searchStrategy = 'name+T-R';
@@ -747,19 +1357,62 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     console.log(`[CascadingSearch] Strategy 2b found ${results.results.length} results`);
   }
   
-  // Strategy 3: Name only (broader search)
+  // Strategy 3a: Name + County (narrow search when we have county but no TRS)
+  if (results.results.length === 0 && cleanedWellName && normalizedCounty) {
+    console.log(`[CascadingSearch] Strategy 3a: Name + County (${normalizedCounty})`);
+    const query3a = operator ? `
+      SELECT w.*,
+        CASE
+          WHEN UPPER(operator) LIKE UPPER(?1) THEN 65
+          ELSE 55
+        END as match_score
+      FROM wells w
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?3)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?4)
+        OR UPPER(well_name) LIKE UPPER(?5)
+      )
+        AND UPPER(county) = UPPER(?6)
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    ` : `
+      SELECT w.*, 55 as match_score
+      FROM wells w
+      WHERE (
+        UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?3)
+        OR UPPER(well_name) LIKE UPPER(?4)
+      )
+        AND UPPER(county) = UPPER(?5)
+      ORDER BY match_score DESC, well_status = 'AC' DESC
+      LIMIT 15
+    `;
+    const params3a = operator ?
+      [`%${operator}%`, `%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, normalizedCounty] :
+      [`%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, normalizedCounty];
+
+    results = await env.WELLS_DB.prepare(query3a).bind(...params3a).all();
+    searchStrategy = 'name+county';
+    console.log(`[CascadingSearch] Strategy 3a found ${results.results.length} results`);
+  }
+
+  // Strategy 3b: Name only (broader fallback — no county filter)
   if (results.results.length === 0 && cleanedWellName) {
-    console.log('[CascadingSearch] Strategy 3: Name only');
+    console.log('[CascadingSearch] Strategy 3b: Name only (statewide)');
     const query3 = operator ? `
-      SELECT w.*, 
-        CASE 
+      SELECT w.*,
+        CASE
           WHEN UPPER(operator) LIKE UPPER(?1) THEN 60
           ELSE 50
         END as match_score
       FROM wells w
       WHERE (
         UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
-        OR UPPER(well_name) LIKE UPPER(?3)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?3)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?4)
+        OR UPPER(well_name) LIKE UPPER(?5)
       )
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
@@ -768,18 +1421,20 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       FROM wells w
       WHERE (
         UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?1)
-        OR UPPER(well_name) LIKE UPPER(?2)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?2)
+        OR UPPER(well_name || ' ' || COALESCE(well_number, '')) LIKE UPPER(?3)
+        OR UPPER(well_name) LIKE UPPER(?4)
       )
       ORDER BY match_score DESC, well_status = 'AC' DESC
       LIMIT 15
     `;
-    const params3 = operator ? 
-      [`%${operator}%`, `%${cleanedWellName}%`, `%${baseWellName}%`] :
-      [`%${cleanedWellName}%`, `%${baseWellName}%`];
-    
+    const params3 = operator ?
+      [`%${operator}%`, `%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`] :
+      [`%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`];
+
     results = await env.WELLS_DB.prepare(query3).bind(...params3).all();
     searchStrategy = 'name-only';
-    console.log(`[CascadingSearch] Strategy 3 found ${results.results.length} results`);
+    console.log(`[CascadingSearch] Strategy 3b found ${results.results.length} results`);
   }
   
   // Strategy 4: Location only (LAST RESORT - only if name search failed)
@@ -919,7 +1574,8 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   // Check plan allows wells
   const userRecord = await getUserById(env, user.id);
   const plan = userRecord?.fields.Plan || "Free";
-  const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
+  const planLimits = getPlanLimits(plan);
+  const isAdminOverride = !!(user as any).impersonating;
   
   if (planLimits.wells === 0) {
     return jsonResponse({ 
@@ -941,8 +1597,8 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     let searchResults: any = null;
     let matchStatus: 'exact' | 'ambiguous' | 'not_found' | 'has_api' = 'has_api';
     
-    // Check if we have a direct API number
-    const rawApi = well.API || well.api || well['API Number'] || well.apiNumber || '';
+    // Check if we have a direct API number (flexible column matching)
+    const rawApi = findField(well, API_ALIASES) || '';
     const cleanApi = String(rawApi).replace(/\D/g, '');
     
     if (cleanApi && cleanApi.length === 10 && cleanApi.startsWith('35')) {
@@ -954,7 +1610,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
 
       // Check for duplicate in this batch
       const batchDuplicates = wells.slice(0, index).filter((w: any) => {
-        const api = String(w.API || w.api || w['API Number'] || w.apiNumber || '').replace(/\D/g, '');
+        const api = String(w.API || w.api || w['API Number'] || w['API #'] || w.apiNumber || '').replace(/\D/g, '');
         return api === cleanApi;
       });
       const batchDuplicate = batchDuplicates.length > 0;
@@ -964,15 +1620,12 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
 
       const isDuplicate = existsDuplicate || batchDuplicate;
 
-      // Combine well name and number for preview
-      const wellNameField = well.WELL_NAME || well['Well_Name'] || well['Well Name'] ||
-                           well.well_name || well.WellName || well.wellName || '';
-      const wellNumberField = well.WELL_NUM || well['Well_Num'] || well['WELL_NUMBER'] ||
-                             well['Well Number'] || well['well_number'] || well.WellNumber ||
-                             well.wellNumber || well.well_num || '';
+      // Combine well name and number for preview (flexible column matching)
+      const wellNameField = findField(well, WELL_NAME_ALIASES) || '';
+      const wellNumberField = findField(well, WELL_NUMBER_ALIASES) || '';
       const combinedWellName = wellNameField && wellNumberField
-        ? `${wellNameField.trim()} ${wellNumberField.trim()}`
-        : wellNameField || '';
+        ? `${String(wellNameField).trim()} ${String(wellNumberField).trim()}`
+        : String(wellNameField || '').trim();
 
       return {
         row: index + 1,
@@ -980,6 +1633,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         normalized: {
           apiNumber: cleanApi,
           wellName: combinedWellName,
+          csvWellName: combinedWellName,
           notes: well.Notes || well.notes || ''
         },
         matchStatus,
@@ -991,11 +1645,93 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         needsSelection: false
       };
     } else {
-      // No valid API - search by other fields
-      const hasSearchableFields = 
-        well['Well Name'] || well.well_name || well.WELL_NAME || well.WellName || well.wellName || well.Name || well.name ||
+      // No valid API — check if we have a PUN to look up
+      const rawPun = findField(well, PUN_ALIASES);
+      const cleanPun = rawPun ? String(rawPun).trim() : '';
+
+      if (cleanPun && env.WELLS_DB) {
+        console.log(`[BulkValidateWells] Row ${index + 1}: No API, trying PUN lookup: "${cleanPun}"`);
+        try {
+          // Look up API(s) from well_pun_links table
+          const punResults = await env.WELLS_DB.prepare(`
+            SELECT DISTINCT wpl.api_number, w.well_name, w.well_number, w.operator, w.county, w.section, w.township, w.range, w.well_status
+            FROM well_pun_links wpl
+            JOIN wells w ON w.api_number = wpl.api_number
+            WHERE wpl.pun = ? OR wpl.base_pun = ?
+            ORDER BY w.well_status = 'AC' DESC
+            LIMIT 10
+          `).bind(cleanPun, cleanPun).all();
+
+          if (punResults.results.length === 1) {
+            // Single match — treat like a direct API
+            const match = punResults.results[0] as any;
+            const punApi = match.api_number;
+            console.log(`[BulkValidateWells] PUN ${cleanPun} → single API ${punApi}`);
+
+            const existsDuplicate = existingSet.has(punApi);
+            if (existsDuplicate) warnings.push("Already tracking this well");
+
+            const wellNameField = findField(well, WELL_NAME_ALIASES) || '';
+
+            return {
+              row: index + 1,
+              original: well,
+              normalized: {
+                apiNumber: punApi,
+                wellName: String(wellNameField).trim() || `${match.well_name || ''} ${match.well_number || ''}`.trim(),
+                csvWellName: String(wellNameField).trim(),
+                notes: well.Notes || well.notes || '',
+                punResolved: cleanPun
+              },
+              matchStatus: 'has_api' as const,
+              searchResults: null,
+              errors,
+              warnings: [...warnings, `API resolved from PUN ${cleanPun}`],
+              isDuplicate: existsDuplicate,
+              isValid: errors.length === 0,
+              needsSelection: false
+            };
+          } else if (punResults.results.length > 1) {
+            // Multiple APIs for this PUN — show as ambiguous for user review
+            console.log(`[BulkValidateWells] PUN ${cleanPun} → ${punResults.results.length} APIs`);
+            const punMatches = punResults.results.map((r: any) => ({
+              ...r,
+              match_score: 85,
+              pun_resolved: true
+            }));
+
+            return {
+              row: index + 1,
+              original: well,
+              normalized: {
+                wellName: String(findField(well, WELL_NAME_ALIASES) || '').trim(),
+                csvWellName: String(findField(well, WELL_NAME_ALIASES) || '').trim(),
+                notes: well.Notes || well.notes || '',
+                punResolved: cleanPun
+              },
+              matchStatus: 'ambiguous' as const,
+              searchResults: { matches: punMatches, total: punMatches.length, truncated: false },
+              errors,
+              warnings: [`Multiple APIs found for PUN ${cleanPun}`],
+              isDuplicate: false,
+              isValid: true,
+              needsSelection: true
+            };
+          } else {
+            console.log(`[BulkValidateWells] PUN ${cleanPun} not found in well_pun_links`);
+            warnings.push(`PUN ${cleanPun} not in our database yet`);
+          }
+        } catch (punError) {
+          console.error(`[BulkValidateWells] PUN lookup error:`, punError);
+        }
+      }
+
+      // No valid API and no PUN match - search by other fields
+      const hasSearchableFields =
+        findField(well, WELL_NAME_ALIASES) ||
         well.Operator || well.operator || well.OPERATOR ||
         (well.Section || well.section || well.SECTION) && (well.Township || well.township || well.TOWNSHIP) && (well.Range || well.range || well.RANGE) ||
+        well.Location || well.location || well.LOCATION ||
         well.County || well.county || well.COUNTY;
       
       // Extract section for mismatch warnings
@@ -1093,14 +1829,25 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
         }
       }
       
+      // Always include CSV well name in normalized so the preview can display it
+      const csvWellName = String(findField(well, WELL_NAME_ALIASES) || '').trim();
+      const csvWellNumber = String(findField(well, WELL_NUMBER_ALIASES) || '').trim();
+      const csvDisplayName = csvWellName && csvWellNumber
+        ? `${csvWellName} ${csvWellNumber}` : csvWellName;
+
       return {
         row: index + 1,
         original: well,
         normalized: matchStatus === 'exact' ? {
           apiNumber: searchResults.matches[0].api_number,
           wellName: searchResults.matches[0].well_name,
+          csvWellName: csvDisplayName,
           notes: well.Notes || well.notes || ''
-        } : null,
+        } : {
+          wellName: csvDisplayName,
+          csvWellName: csvDisplayName,
+          notes: well.Notes || well.notes || ''
+        },
         matchStatus,
         searchResults,
         errors,
@@ -1136,8 +1883,8 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   // Count valid non-duplicates
   const validCount = exactMatches + hasApi;
   const newWellCount = wellsCount + validCount;
-  const wouldExceedLimit = newWellCount > planLimits.wells;
-  
+  const wouldExceedLimit = isAdminOverride ? false : newWellCount > planLimits.wells;
+
   return jsonResponse({
     results,
     summary: {
@@ -1152,8 +1899,8 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
     },
     planCheck: {
       current: wellsCount,
-      limit: planLimits.wells,
-      plan,
+      limit: isAdminOverride ? 999999 : planLimits.wells,
+      plan: isAdminOverride ? plan + ' (Admin Override)' : plan,
       afterUpload: newWellCount,
       wouldExceedLimit
     }
@@ -1169,39 +1916,41 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
 export async function handleBulkUploadWells(request: Request, env: Env, ctx?: ExecutionContext) {
   const user = await authenticateRequest(request, env);
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
-  
+
   const body = await request.json();
   const { wells, selections } = body; // Array of validated wells + optional selections for ambiguous matches
-  
+
   if (!wells || !Array.isArray(wells)) {
     return jsonResponse({ error: "Invalid data format" }, 400);
   }
-  
-  // Final validation check
-  const userRecord = await getUserById(env, user.id);
-  const plan = userRecord?.fields.Plan || "Free";
-  const planLimits = PLAN_LIMITS[plan] || { properties: 1, wells: 0 };
-  const userOrganization = userRecord?.fields.Organization?.[0]; // Get user's organization if they have one
-  
-  if (planLimits.wells === 0) {
-    return jsonResponse({ 
-      error: `Your ${plan} plan does not include well monitoring.` 
-    }, 403);
+
+  // Resolve upload context (supports admin override via ?target_user_id=recXXX)
+  const ctxResult = await resolveUploadContext(request, user, env);
+  if (ctxResult instanceof Response) return ctxResult;
+  const { targetUserId, targetOrgId: userOrganization, targetEmail, plan, planLimits, isAdminOverride } = ctxResult;
+
+  // Skip plan limits for admin override
+  if (!isAdminOverride) {
+    if (planLimits.wells === 0) {
+      return jsonResponse({
+        error: `Your ${plan} plan does not include well monitoring.`
+      }, 403);
+    }
+
+    const wellsCount = await countUserWells(env, targetEmail);
+
+    if (wellsCount + wells.length > planLimits.wells) {
+      return jsonResponse({
+        error: `Would exceed well limit (${planLimits.wells} wells on ${plan} plan)`
+      }, 403);
+    }
   }
-  
-  const wellsCount = await countUserWells(env, user.email);
-  
-  if (wellsCount + wells.length > planLimits.wells) {
-    return jsonResponse({ 
-      error: `Would exceed well limit (${planLimits.wells} wells on ${plan} plan)` 
-    }, 403);
-  }
-  
+
   // Get existing wells for duplicate check - CRITICAL for preventing partial import duplicates
-  const existingWells = await fetchUserWells(env, user.email);
+  const existingWells = await fetchUserWells(env, targetEmail);
   const existingSet = new Set(existingWells.map(w => w.apiNumber));
-  
-  console.log(`[BulkUpload] User has ${existingWells.length} existing wells`);
+
+  console.log(`[BulkUpload] User has ${existingWells.length} existing wells${isAdminOverride ? ` (admin: ${user.email} acting as ${targetEmail})` : ''}`);
   
   // Process wells based on their match status and selections
   const toCreate: any[] = [];
@@ -1242,10 +1991,25 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
         console.log(`[BulkUpload] Skipping duplicate: ${apiNumber} - ${wellName}`);
       } else {
         seenInUpload.add(apiNumber);
+        // Extract enterprise interest fields from original CSV row
+        const orig = well.original || {};
+        const userWellCode = findField(orig, WELL_CODE_ALIASES);
+        const wiNriRaw = findField(orig, WI_NRI_ALIASES);
+        const riNriRaw = findField(orig, RI_NRI_ALIASES);
+        const orriNriRaw = findField(orig, ORRI_NRI_ALIASES);
+        const punRaw = findField(orig, PUN_ALIASES);
+        const punResolved = well.normalized?.punResolved || null;
         toCreate.push({
           apiNumber,
           wellName,
-          notes: well.original.Notes || well.original.notes || ''
+          notes: well.original.Notes || well.original.notes || '',
+          // Enterprise fields
+          user_well_code: userWellCode ? String(userWellCode).trim() : null,
+          wi_nri: wiNriRaw !== undefined ? parseFloat(wiNriRaw) || null : null,
+          ri_nri: riNriRaw !== undefined ? parseFloat(riNriRaw) || null : null,
+          orri_nri: orriNriRaw !== undefined ? parseFloat(orriNriRaw) || null : null,
+          // PUN for enrichment
+          pun: punRaw ? String(punRaw).trim() : (punResolved || null)
         });
       }
     }
@@ -1266,8 +2030,9 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   
   console.log(`[BulkUpload] Processing ${toCreate.length} new wells (${results.skipped} skipped: ${results.duplicatesSkipped} duplicates, ${results.skipped - results.duplicatesSkipped} other reasons)`);
   
-  // Create minimal Airtable records - D1 is now the source for well metadata
-  // Airtable only stores: User relationship, tracking status, and user notes
+  // Create minimal Airtable records + write enterprise fields to D1
+  // Airtable stores: User relationship, tracking status, and user notes
+  // D1 stores: Enterprise interest decimals (wi_nri, ri_nri, orri_nri, user_well_code)
   const batchSize = 10;
   for (let i = 0; i < toCreate.length; i += batchSize) {
     const batch = toCreate.slice(i, i + batchSize);
@@ -1283,7 +2048,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       body: JSON.stringify({
         records: batch.map((well: any) => {
           const fields: any = {
-            User: [user.id],
+            User: [targetUserId],
             "API Number": well.apiNumber,
             Notes: well.notes || "",
             Status: "Active"
@@ -1298,17 +2063,83 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
         })
       })
     });
-    
+
     if (response.ok) {
-      const data = await response.json();
+      const data = await response.json() as any;
       results.successful += data.records.length;
+
+      // Write to D1 client_wells with TRS data from OCC wells table
+      // This ensures OCC filings can be matched via TRS location
+      if (env.WELLS_DB) {
+        try {
+          // Fetch TRS data from OCC wells table for all APIs in this batch
+          const apiNumbers = batch.map((w: any) => w.apiNumber);
+          const placeholders = apiNumbers.map(() => '?').join(', ');
+          const occWells = await env.WELLS_DB.prepare(`
+            SELECT api_number, well_name, operator, county, section, township, range
+            FROM wells WHERE api_number IN (${placeholders})
+          `).bind(...apiNumbers).all();
+
+          const occDataMap = new Map<string, any>();
+          for (const row of occWells.results || []) {
+            occDataMap.set(row.api_number as string, row);
+          }
+
+          const d1Stmts = data.records.map((rec: any, j: number) => {
+            const well = batch[j];
+            const occData = occDataMap.get(well.apiNumber);
+            const d1Id = `cwell_${rec.id}`;
+            return env.WELLS_DB.prepare(`
+              INSERT INTO client_wells (
+                id, airtable_id, api_number, user_id, organization_id,
+                well_name, operator, county, section, township, range_val,
+                user_well_code, wi_nri, ri_nri, orri_nri, status, synced_at
+              )
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'Active', CURRENT_TIMESTAMP)
+              ON CONFLICT(airtable_id) DO UPDATE SET
+                well_name = COALESCE(excluded.well_name, client_wells.well_name),
+                operator = COALESCE(excluded.operator, client_wells.operator),
+                county = COALESCE(excluded.county, client_wells.county),
+                section = COALESCE(excluded.section, client_wells.section),
+                township = COALESCE(excluded.township, client_wells.township),
+                range_val = COALESCE(excluded.range_val, client_wells.range_val),
+                user_well_code = COALESCE(excluded.user_well_code, client_wells.user_well_code),
+                wi_nri = COALESCE(excluded.wi_nri, client_wells.wi_nri),
+                ri_nri = COALESCE(excluded.ri_nri, client_wells.ri_nri),
+                orri_nri = COALESCE(excluded.orri_nri, client_wells.orri_nri),
+                updated_at = datetime('now')
+            `).bind(
+              d1Id,
+              rec.id,
+              well.apiNumber,
+              targetUserId,
+              userOrganization || null,
+              occData?.well_name || well.wellName || null,
+              occData?.operator || null,
+              occData?.county || null,
+              occData?.section ? String(occData.section) : null,
+              occData?.township || null,
+              occData?.range || null,
+              well.user_well_code || null,
+              well.wi_nri || null,
+              well.ri_nri || null,
+              well.orri_nri || null
+            );
+          });
+          await env.WELLS_DB.batch(d1Stmts);
+          console.log(`[BulkUpload] D1 client_wells written for ${d1Stmts.length} wells (with TRS data)`);
+        } catch (d1Err: any) {
+          console.error(`[BulkUpload] D1 write failed (non-fatal):`, d1Err.message);
+          // Non-fatal — the fields will be populated on next sync
+        }
+      }
     } else {
       const err = await response.text();
       console.error(`Batch create wells failed:`, err);
       results.failed += batch.length;
       results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed: ${err}`);
     }
-    
+
     // Small delay between batches
     if (i + batchSize < toCreate.length) {
       await new Promise(resolve => setTimeout(resolve, 500));
@@ -1316,13 +2147,36 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   }
   
   console.log(`Bulk wells upload complete: ${results.successful} created, ${results.failed} failed, ${results.skipped} skipped`);
-  
+
+  // Enrich well_pun_links with any new PUN→API mappings from user's data
+  if (env.WELLS_DB) {
+    const punMappings = toCreate.filter((w: any) => w.pun && w.apiNumber);
+    if (punMappings.length > 0) {
+      try {
+        const punStmts = punMappings.map((w: any) =>
+          env.WELLS_DB.prepare(`
+            INSERT INTO well_pun_links (api_number, pun, match_method, match_source, confidence, link_status)
+            VALUES (?, ?, 'user_upload', 'bulk_import', 'high', 'confirmed')
+            ON CONFLICT(api_number, pun) DO NOTHING
+          `).bind(w.apiNumber, w.pun)
+        );
+        // Batch in groups of 100
+        for (let i = 0; i < punStmts.length; i += 100) {
+          await env.WELLS_DB.batch(punStmts.slice(i, i + 100));
+        }
+        console.log(`[BulkUpload] Enriched well_pun_links with ${punMappings.length} user-provided PUN mappings`);
+      } catch (punErr: any) {
+        console.error(`[BulkUpload] PUN enrichment failed (non-fatal):`, punErr.message);
+      }
+    }
+  }
+
   // Trigger full property-well matching if any wells were created
   if (results.successful > 0 && ctx) {
     console.log('[BulkWellUpload] Triggering full property-well matching');
     
     const organizationId = userOrganization || undefined;
-    const matchPromise = runFullPropertyWellMatching(user.id, user.email, organizationId, env)
+    const matchPromise = runFullPropertyWellMatching(targetUserId, targetEmail, organizationId, env)
       .then(result => {
         console.log(`[BulkWellUpload] Matching complete:`, result);
         if (result.linksCreated > 0) {
@@ -1340,6 +2194,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   
   return jsonResponse({
     success: true,
-    results
+    results,
+    ...(isAdminOverride && { adminOverride: { targetUserId, targetEmail, actingAs: user.email } })
   });
 }

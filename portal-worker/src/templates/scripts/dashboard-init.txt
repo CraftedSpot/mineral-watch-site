@@ -1,5 +1,18 @@
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                // Super admin impersonation: intercept fetch calls to append ?act_as=
+                const actAsParam = new URLSearchParams(window.location.search).get('act_as');
+                if (actAsParam) {
+                    const _origFetch = window.fetch;
+                    window.fetch = function(url, options) {
+                        if (typeof url === 'string' && url.startsWith('/api/') && !url.startsWith('/api/auth/') && !url.startsWith('/api/admin/')) {
+                            const sep = url.includes('?') ? '&' : '?';
+                            url = url + sep + 'act_as=' + encodeURIComponent(actAsParam);
+                        }
+                        return _origFetch.call(this, url, options);
+                    };
+                }
+
                 // Check for credit pack purchase success
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('purchase') === 'success') {
@@ -20,14 +33,47 @@
                 const limits = planConfigs[currentUser.plan] || { properties: 1, wells: 0 };
                 document.getElementById('propLimit').textContent = limits.properties === Infinity ? '∞' : limits.properties;
                 document.getElementById('wellLimit').textContent = limits.wells === Infinity ? '∞' : limits.wells;
-                
+
+                // Super admin impersonation: override displayed user info + show banner
+                if (actAsParam) {
+                    try {
+                        const infoRes = await fetch('/api/admin/impersonate-info?user_id=' + encodeURIComponent(actAsParam));
+                        if (infoRes.ok) {
+                            const info = await infoRes.json();
+
+                            const targetPlan = info.plan || 'Free';
+
+                            // Override currentUser so all downstream logic uses target user's context
+                            currentUser.name = info.name;
+                            currentUser.email = info.email;
+                            currentUser.plan = targetPlan;
+
+                            // Re-apply header display with target user's info
+                            document.getElementById('userName').textContent = info.name || info.email;
+                            document.getElementById('planBadge').textContent = targetPlan;
+                            const targetLimits = planConfigs[targetPlan] || planConfigs['Free'] || { properties: 1, wells: 0 };
+                            document.getElementById('propLimit').textContent = targetLimits.properties === Infinity ? '∞' : targetLimits.properties;
+                            document.getElementById('wellLimit').textContent = targetLimits.wells === Infinity ? '∞' : targetLimits.wells;
+
+                            // Show banner
+                            const banner = document.createElement('div');
+                            banner.id = 'impersonation-banner';
+                            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#f59e0b;color:#000;padding:10px 16px;text-align:center;font-weight:600;font-size:14px;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+                            banner.innerHTML = 'Viewing as: ' + (info.name || 'Unknown') + ' (' + info.email + ') — ' + (info.orgName || 'No org') + ' [' + (info.plan || 'Free') + ']' +
+                                ' <a href="/portal" style="margin-left:16px;color:#000;text-decoration:underline;font-weight:700;">Exit</a>';
+                            document.body.prepend(banner);
+                            document.body.style.paddingTop = '42px';
+                        }
+                    } catch (e) { console.warn('Could not load impersonation info', e); }
+                }
+
                 // Hide upgrade link for Business/Enterprise users
-                if (currentUser.plan === 'Enterprise' || currentUser.plan === 'Business') {
+                if (currentUser.plan === 'Business' || (currentUser.plan && currentUser.plan.startsWith('Enterprise'))) {
                     document.getElementById('upgradeLink').style.display = 'none';
                 }
 
                 // Show export buttons for Professional+ users
-                if (currentUser.plan === 'Professional' || currentUser.plan === 'Business' || currentUser.plan === 'Enterprise') {
+                if (currentUser.plan === 'Professional' || currentUser.plan === 'Business' || (currentUser.plan && currentUser.plan.startsWith('Enterprise'))) {
                     document.getElementById('exportPropertiesBtn').style.display = 'inline-flex';
                     document.getElementById('exportWellsBtn').style.display = 'inline-flex';
                 }

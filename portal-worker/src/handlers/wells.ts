@@ -476,10 +476,33 @@ export async function handleListWellsV2(request: Request, env: Env) {
   // Batch query D1 for well metadata
   const d1Wells = await batchQueryD1Wells(apiNumbers, env);
 
-  // Merge: D1 metadata + Airtable user data
+  // Batch query client_wells for enterprise interest fields
+  const clientWellsMap: Record<string, any> = {};
+  if (env.WELLS_DB) {
+    const airtableIds = trackedWells.map((t: any) => t.id);
+    const BATCH = 100;
+    for (let i = 0; i < airtableIds.length; i += BATCH) {
+      const batch = airtableIds.slice(i, i + BATCH);
+      const placeholders = batch.map(() => '?').join(',');
+      try {
+        const cwResults = await env.WELLS_DB.prepare(`
+          SELECT airtable_id, user_well_code, wi_nri, ri_nri, orri_nri
+          FROM client_wells WHERE airtable_id IN (${placeholders})
+        `).bind(...batch).all();
+        for (const row of cwResults.results as any[]) {
+          clientWellsMap[row.airtable_id] = row;
+        }
+      } catch (e) {
+        console.error('[WellsV2] client_wells batch query failed:', e);
+      }
+    }
+  }
+
+  // Merge: D1 metadata + Airtable user data + client_wells enterprise fields
   const merged = trackedWells.map((t: any) => {
     const apiNumber = t.fields['API Number'];
     const d1 = d1Wells[apiNumber] || {};
+    const cw = clientWellsMap[t.id] || {};
 
     // Combine well_name and well_number for full display name
     // e.g., "BENTLEY" + "#1-5" = "BENTLEY #1-5"
@@ -545,6 +568,12 @@ export async function handleListWellsV2(request: Request, env: Env) {
 
       // Generated links
       occMapLink,
+
+      // Enterprise interest fields from client_wells (D1-only)
+      user_well_code: cw.user_well_code || null,
+      wi_nri: cw.wi_nri || null,
+      ri_nri: cw.ri_nri || null,
+      orri_nri: cw.orri_nri || null,
 
       // Flag indicating if D1 had data for this well
       hasD1Data: !!d1.api_number

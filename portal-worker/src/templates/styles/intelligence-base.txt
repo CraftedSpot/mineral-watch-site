@@ -22,6 +22,7 @@
         .summary-cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
         .summary-card { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; padding: 1.25rem; transition: all 0.2s ease; }
         .summary-card:hover { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.2); }
+        .summary-card.clickable { cursor: pointer; }
         .summary-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); margin-bottom: 0.5rem; }
         .summary-value { font-size: 1.75rem; font-weight: 700; color: white; line-height: 1.2; }
         .summary-detail { font-size: 0.8rem; margin-top: 0.5rem; display: flex; align-items: center; gap: 0.35rem; }
@@ -155,6 +156,9 @@
         .intel-tab.active::after { content: ''; position: absolute; bottom: -2px; left: 0; right: 0; height: 2px; background: var(--oil-navy); }
         .intel-tab-content { display: none; }
         .intel-tab-content.active { display: block; }
+
+        /* Content Sections */
+        .intel-section { margin-bottom: 2rem; }
 
         /* Market Research Section */
         .market-section { margin-bottom: 2rem; }

@@ -57,7 +57,8 @@
                         w.well_name || '',
                         w.operator || '',
                         w.apiNumber || '',
-                        w.county || ''
+                        w.county || '',
+                        w.user_well_code || ''
                     ].join(' ').toLowerCase();
 
                     return searchable.includes(searchTerm);
@@ -1000,6 +1001,25 @@
             // Populate header
             document.getElementById('wellDetailsTitle').textContent = well.well_name || 'Unknown Well';
             document.getElementById('wellDetailsApi').textContent = `API: ${well.apiNumber || '—'}`;
+
+            // Enterprise: user_well_code display
+            const userCodeRow = document.getElementById('wellDetailsUserCodeRow');
+            if (userCodeRow) {
+                if (well.user_well_code) {
+                    document.getElementById('wellDetailsUserCode').textContent = 'Ref: ' + well.user_well_code;
+                    userCodeRow.style.display = 'block';
+                } else {
+                    userCodeRow.style.display = 'none';
+                }
+            }
+
+            // Store enterprise interest data for decimal interest section
+            window._currentWellEnterprise = {
+                wi_nri: well.wi_nri || null,
+                ri_nri: well.ri_nri || null,
+                orri_nri: well.orri_nri || null,
+                user_well_code: well.user_well_code || null
+            };
 
             // Store well ID
             document.getElementById('wellDetailsId').value = wellId;

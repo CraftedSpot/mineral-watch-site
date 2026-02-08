@@ -30,8 +30,19 @@ export const PLAN_LIMITS = {
   "Standard": { properties: 50, wells: 50, activityRecords: 50, seats: 1, docCreditsMonthly: 25, docCreditsBonus: 300 },
   "Professional": { properties: 250, wells: 250, activityRecords: 100, seats: 1, docCreditsMonthly: 50, docCreditsBonus: 1000 },
   "Business": { properties: 500, wells: 500, activityRecords: 200, seats: 3, docCreditsMonthly: 100, docCreditsBonus: 2500 },
-  "Enterprise": { properties: 1000, wells: 1000, activityRecords: 500, seats: 5, docCreditsMonthly: 150, docCreditsBonus: 5000 }
+  "Enterprise 1K": { properties: 1000, wells: 1000, activityRecords: 500, seats: 5, docCreditsMonthly: 150, docCreditsBonus: 5000 }
 } as const;
+
+// Safe plan limits lookup with fallback to Free
+export function getPlanLimits(plan: string) {
+  return PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS] || PLAN_LIMITS['Free'];
+}
+
+// Super Admin Emails
+// These users can act on behalf of any org/user (white-glove onboarding, troubleshooting)
+export const SUPER_ADMIN_EMAILS = [
+  'james@mymineralwatch.com'
+] as const;
 
 // Cache TTL
 export const OCC_CACHE_TTL = 86400; // 24 hours in seconds
@@ -78,6 +89,6 @@ export const PRICE_TO_PLAN = {
   [PRICE_IDS.professional_annual]: 'Professional',
   [PRICE_IDS.business_monthly]: 'Business',
   [PRICE_IDS.business_annual]: 'Business',
-  [PRICE_IDS.enterprise_monthly]: 'Enterprise',
-  [PRICE_IDS.enterprise_annual]: 'Enterprise'
+  [PRICE_IDS.enterprise_monthly]: 'Enterprise 1K',
+  [PRICE_IDS.enterprise_annual]: 'Enterprise 1K'
 } as const;

@@ -7,17 +7,19 @@ and imports to otc_production table for well-level production summary.
 
 These files contain CURRENT production data, unlike gtr36 which has historical data.
 
-Field Positions (0-indexed) - same as gtr36:
-- Position 275-276: Reporting Month (2 chars, MM)
-- Position 277-280: Reporting Year (4 chars, YYYY)
-- Position 283-284: Product Code (2 chars: 01=Oil, 05=Gas, 03=CasingheadGas, 06=Condensate)
-- Position 287-289: PUN County (3 chars)
-- Position 290-294: PUN Lease (5 chars)
-- Position 295: PUN Sub (1 char)
-- Position 296-300: PUN Merge (5 chars)
-- Position 577-596: Gross Volume (20 chars with decimal)
+Field Positions (0-indexed Python slices per OTC data dictionary):
+- [275:277] Reporting Month (2 chars, MM)
+- [277:281] Reporting Year (4 chars, YYYY)
+- [283:285] Product Code (2 chars: 01=Oil, 03=Condensate, 05=CasingheadGas, 06=NaturalGas)
+- [287:290] PUN County (3 chars)
+- [290:296] PUN Lease (6 chars)
+- [296:297] PUN Sub (1 char)
+- [297:301] PUN Merge (4 chars)
+- [577:597] Gross Volume (20 chars with decimal)
 
-PUN Format: XXX-XXXXX-X-XXXXX (County-Lease-Sub-Merge)
+PUN Format: XXX-XXXXXX-X-XXXX (County-Lease-Sub-Merge) = 3-6-1-4 digits
+D1 year_month format: YYYYMM (no dash)
+D1 product_code format: '1', '3', '5', '6' (single digit strings)
 """
 
 import os
@@ -31,22 +33,30 @@ INPUT_DIR = os.environ.get("INPUT_DIR", "/Users/jamesprice/mymineralwatch/OTC Bu
 OUTPUT_DIR = os.environ.get("OUTPUT_DIR", "/Users/jamesprice/mymineralwatch/mineral-watch-site/portal-worker/otc-current-batches")
 BATCH_SIZE = 500
 
-# Product code mapping - combine into oil/gas
-PRODUCT_OIL_CODES = {'01', '06'}  # Oil + Condensate
-PRODUCT_GAS_CODES = {'03', '05'}  # Casinghead Gas + Gas
+# Product code mapping - raw 2-char field to single digit for D1
+PRODUCT_CODE_MAP = {
+    '01': '1',   # Crude Oil
+    ' 1': '1',
+    '03': '3',   # Condensate
+    ' 3': '3',
+    '05': '5',   # Casinghead Gas
+    ' 5': '5',
+    '06': '6',   # Natural Gas
+    ' 6': '6',
+}
 
 
 def format_pun(county, lease, sub, merge):
-    """Format PUN components into standard format: XXX-XXXXX-X-XXXXX"""
-    return f"{county}-{lease}-{sub}-{merge}"
+    """Format PUN components into standard format: XXX-XXXXXX-X-XXXX (3-6-1-4)"""
+    return f"{county}-{lease.strip().zfill(6)}-{sub}-{merge.strip().zfill(4)}"
 
 
 def parse_production_file(filepath):
     """
     Parse 12/36 month production .dat file (fixed-width format).
 
-    Returns dict: {(pun, year_month, product_type): gross_volume}
-    where product_type is 'OIL' or 'GAS'
+    Returns dict: {(pun, year_month, product_code): gross_volume}
+    where product_code is '1', '3', '5', or '6'
     """
     production = defaultdict(float)
 
@@ -70,11 +80,11 @@ def parse_production_file(filepath):
                 year = line[277:281]
                 product_code = line[283:285]
 
-                # PUN components
+                # PUN components (3-6-1-4 per OTC data dictionary)
                 pun_county = line[287:290]
-                pun_lease = line[290:295]
-                pun_sub = line[295:296]
-                pun_merge = line[296:301]
+                pun_lease = line[290:296]
+                pun_sub = line[296:297]
+                pun_merge = line[297:301]
 
                 gross_vol_str = line[577:597].strip()
 
@@ -89,28 +99,29 @@ def parse_production_file(filepath):
                     skipped_invalid += 1
                     continue
 
-                # Format year_month as YYYY-MM for consistency with otc_production
-                year_month = f"{year}-{month}"
+                # Format year_month as YYYYMM (matches D1 format, no dash)
+                year_month = f"{year}{month}"
 
                 # Validate PUN components
-                if not pun_county.isdigit() or not pun_lease.isdigit():
+                if not pun_county.isdigit() or not pun_lease.strip().isdigit():
                     skipped_invalid += 1
                     continue
-                if not pun_sub.isdigit() or not pun_merge.isdigit():
+                if not pun_sub.isdigit() or not pun_merge.strip().isdigit():
                     skipped_invalid += 1
                     continue
 
-                # Format PUN
+                # Format PUN (3-6-1-4)
                 pun = format_pun(pun_county, pun_lease, pun_sub, pun_merge)
 
-                # Determine product type (OIL or GAS)
-                if product_code in PRODUCT_OIL_CODES:
-                    product_type = 'OIL'
-                elif product_code in PRODUCT_GAS_CODES:
-                    product_type = 'GAS'
-                else:
-                    skipped_invalid += 1
-                    continue
+                # Map product code (2-char raw → single digit for D1)
+                mapped_code = PRODUCT_CODE_MAP.get(product_code)
+                if not mapped_code:
+                    stripped = product_code.strip()
+                    if stripped in ('1', '3', '5', '6'):
+                        mapped_code = stripped
+                    else:
+                        skipped_invalid += 1
+                        continue
 
                 # Parse gross volume
                 try:
@@ -122,7 +133,7 @@ def parse_production_file(filepath):
                     continue
 
                 # Aggregate by PUN + year_month + product
-                key = (pun, year_month, product_type)
+                key = (pun, year_month, mapped_code)
                 production[key] += gross_volume
                 valid_count += 1
 
@@ -295,8 +306,8 @@ def main():
     print("=" * 60)
 
     # Calculate totals by product type
-    oil_volume = sum(v for (p, m, t), v in all_production.items() if t == 'OIL')
-    gas_volume = sum(v for (p, m, t), v in all_production.items() if t == 'GAS')
+    oil_volume = sum(v for (p, m, t), v in all_production.items() if t in ('1', '3'))
+    gas_volume = sum(v for (p, m, t), v in all_production.items() if t in ('5', '6'))
 
     # Get date range
     months = set(m for (p, m, t) in all_production.keys())

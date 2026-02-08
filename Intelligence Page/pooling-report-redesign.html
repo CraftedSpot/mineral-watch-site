@@ -1,0 +1,1631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pooling Rate Comparison — Mineral Watch</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,400;0,500;0,600;0,700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --slate-900: #0f172a;
+    --slate-800: #1e293b;
+    --slate-700: #334155;
+    --slate-600: #475569;
+    --slate-500: #64748b;
+    --slate-400: #94a3b8;
+    --slate-300: #cbd5e1;
+    --slate-200: #e2e8f0;
+    --slate-100: #f1f5f9;
+    --slate-50: #f8fafc;
+    --white: #ffffff;
+    --amber-50: #fffbeb;
+    --amber-100: #fef3c7;
+    --amber-200: #fde68a;
+    --amber-400: #fbbf24;
+    --amber-500: #f59e0b;
+    --amber-600: #d97706;
+    --amber-700: #b45309;
+    --emerald-50: #ecfdf5;
+    --emerald-100: #d1fae5;
+    --emerald-400: #34d399;
+    --emerald-500: #10b981;
+    --emerald-600: #059669;
+    --emerald-700: #047857;
+    --blue-50: #eff6ff;
+    --blue-100: #dbeafe;
+    --blue-400: #60a5fa;
+    --blue-500: #3b82f6;
+    --blue-600: #2563eb;
+    --red-50: #fef2f2;
+    --red-400: #f87171;
+    --red-500: #ef4444;
+    --orange-50: #fff7ed;
+    --orange-400: #fb923c;
+    --orange-500: #f97316;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--slate-100);
+    color: var(--slate-800);
+    min-height: 100vh;
+  }
+
+  /* ── Top Nav ── */
+  .top-nav {
+    background: var(--slate-900);
+    padding: 0 2rem;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .nav-brand {
+    color: var(--white);
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: -0.01em;
+  }
+  .nav-links { display: flex; gap: 1.75rem; align-items: center; }
+  .nav-links a {
+    color: var(--slate-400);
+    text-decoration: none;
+    font-size: 0.875rem;
+    font-weight: 500;
+    transition: color 0.15s;
+  }
+  .nav-links a:hover, .nav-links a.active { color: var(--white); }
+  .nav-right { display: flex; align-items: center; gap: 1rem; }
+  .nav-user { color: var(--slate-300); font-size: 0.875rem; }
+  .btn-logout {
+    background: var(--slate-700);
+    color: var(--slate-200);
+    border: none;
+    padding: 0.35rem 0.85rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+  }
+
+  /* ── Page Header ── */
+  .page-header {
+    background: linear-gradient(135deg, var(--slate-800) 0%, var(--slate-900) 100%);
+    padding: 1.75rem 2rem 1.5rem;
+    border-bottom: 3px solid var(--amber-500);
+  }
+  .breadcrumb {
+    font-size: 0.78rem;
+    color: var(--slate-400);
+    margin-bottom: 0.5rem;
+  }
+  .breadcrumb a { color: var(--slate-400); text-decoration: none; }
+  .breadcrumb a:hover { color: var(--slate-200); }
+  .breadcrumb span { color: var(--slate-500); margin: 0 0.35rem; }
+  .page-title {
+    color: var(--white);
+    font-size: 1.65rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.25rem;
+  }
+  .page-subtitle {
+    color: var(--slate-400);
+    font-size: 0.9rem;
+  }
+  .header-meta {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 1rem;
+  }
+  .date-range {
+    color: var(--slate-400);
+    font-size: 0.8rem;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .header-actions { display: flex; gap: 0.65rem; }
+  .btn-header {
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: var(--slate-300);
+    padding: 0.4rem 0.9rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+  }
+  .btn-header:hover {
+    background: rgba(255,255,255,0.14);
+    color: var(--white);
+  }
+
+  /* ── HUD Metrics ── */
+  .hud-bar {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1px;
+    background: var(--slate-200);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 1.5rem 2rem 0;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  }
+  .hud-card {
+    background: var(--white);
+    padding: 1.25rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+  }
+  .hud-value {
+    font-size: 1.85rem;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    color: var(--slate-900);
+    line-height: 1.1;
+  }
+  .hud-value.amber { color: var(--amber-600); }
+  .hud-value.emerald { color: var(--emerald-600); }
+  .hud-value.blue { color: var(--blue-600); }
+  .hud-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--slate-500);
+    margin-top: 0.3rem;
+  }
+  .hud-detail {
+    font-size: 0.78rem;
+    color: var(--slate-400);
+    margin-top: 0.15rem;
+  }
+
+  /* ── Section Tabs ── */
+  .section-tabs {
+    display: flex;
+    gap: 0;
+    margin: 1.5rem 2rem 0;
+    border-bottom: 2px solid var(--slate-200);
+  }
+  .section-tab {
+    padding: 0.75rem 1.5rem;
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--slate-500);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -2px;
+    transition: all 0.15s;
+    background: none;
+    border-top: none;
+    border-left: none;
+    border-right: none;
+    font-family: 'DM Sans', sans-serif;
+    position: relative;
+  }
+  .section-tab:hover { color: var(--slate-700); }
+  .section-tab.active {
+    color: var(--amber-700);
+    border-bottom-color: var(--amber-500);
+  }
+  .section-tab .tab-badge {
+    background: var(--slate-200);
+    color: var(--slate-600);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.1rem 0.45rem;
+    border-radius: 10px;
+    margin-left: 0.45rem;
+  }
+  .section-tab.active .tab-badge {
+    background: var(--amber-100);
+    color: var(--amber-700);
+  }
+
+  /* ── Content Area ── */
+  .content { padding: 1.5rem 2rem 3rem; }
+
+  /* ── My Properties Section ── */
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .search-box {
+    flex: 1;
+    min-width: 220px;
+    max-width: 320px;
+    position: relative;
+  }
+  .search-box input {
+    width: 100%;
+    padding: 0.55rem 0.85rem 0.55rem 2.2rem;
+    border: 1px solid var(--slate-300);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--white);
+    color: var(--slate-800);
+    transition: border-color 0.15s;
+  }
+  .search-box input:focus {
+    outline: none;
+    border-color: var(--amber-400);
+    box-shadow: 0 0 0 3px rgba(251,191,36,0.1);
+  }
+  .search-box input::placeholder { color: var(--slate-400); }
+  .search-icon {
+    position: absolute;
+    left: 0.7rem;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--slate-400);
+    font-size: 0.85rem;
+  }
+  .filter-group { display: flex; gap: 0.5rem; align-items: center; }
+  .filter-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--slate-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .filter-select {
+    padding: 0.5rem 2rem 0.5rem 0.75rem;
+    border: 1px solid var(--slate-300);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-family: 'DM Sans', sans-serif;
+    background: var(--white);
+    color: var(--slate-700);
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg width='10' height='6' viewBox='0 0 10 6' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1L5 5L9 1' stroke='%2364748b' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.7rem center;
+  }
+  .btn-export {
+    margin-left: auto;
+    padding: 0.5rem 1rem;
+    background: var(--white);
+    border: 1px solid var(--slate-300);
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--slate-600);
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    transition: all 0.15s;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+  }
+  .btn-export:hover {
+    background: var(--slate-50);
+    border-color: var(--slate-400);
+  }
+
+  /* ── Property Accordion ── */
+  .property-group {
+    background: var(--white);
+    border-radius: 10px;
+    margin-bottom: 0.75rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid var(--slate-200);
+    overflow: hidden;
+  }
+  .property-header {
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    cursor: pointer;
+    transition: background 0.1s;
+    user-select: none;
+  }
+  .property-header:hover { background: var(--slate-50); }
+  .property-header-left { display: flex; align-items: center; gap: 0.75rem; }
+  .expand-chevron {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--slate-400);
+    font-size: 0.7rem;
+    transition: transform 0.2s;
+  }
+  .property-group.open .expand-chevron { transform: rotate(90deg); }
+  .property-name {
+    font-weight: 600;
+    font-size: 0.92rem;
+    color: var(--slate-800);
+  }
+  .property-location {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--slate-500);
+    margin-left: 0.25rem;
+  }
+  .property-header-right { display: flex; align-items: center; gap: 1rem; }
+  .property-stat {
+    text-align: right;
+  }
+  .property-stat-value {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: var(--slate-800);
+  }
+  .property-stat-label {
+    font-size: 0.7rem;
+    color: var(--slate-500);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .distance-badge {
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 0.2rem 0.55rem;
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+  .distance-badge.same-section {
+    background: var(--emerald-50);
+    color: var(--emerald-700);
+    border: 1px solid var(--emerald-100);
+  }
+  .distance-badge.adjacent {
+    background: var(--blue-50);
+    color: var(--blue-600);
+    border: 1px solid var(--blue-100);
+  }
+  .distance-badge.within-2 {
+    background: var(--slate-50);
+    color: var(--slate-600);
+    border: 1px solid var(--slate-200);
+  }
+
+  /* ── Sortable Table ── */
+  .orders-table-wrap {
+    padding: 0 1.25rem 1.25rem;
+    display: none;
+  }
+  .property-group.open .orders-table-wrap { display: block; }
+  .orders-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.84rem;
+  }
+  .orders-table thead th {
+    text-align: left;
+    padding: 0.6rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    border-bottom: 2px solid var(--slate-200);
+    cursor: pointer;
+    white-space: nowrap;
+    user-select: none;
+    transition: color 0.15s;
+    position: relative;
+  }
+  .orders-table thead th:hover { color: var(--slate-700); }
+  .orders-table thead th.sorted { color: var(--amber-700); }
+  .sort-chevron {
+    display: inline-block;
+    margin-left: 0.3rem;
+    font-size: 0.6rem;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+    vertical-align: middle;
+  }
+  .orders-table thead th:hover .sort-chevron { opacity: 0.4; }
+  .orders-table thead th.sorted .sort-chevron { opacity: 1; }
+  .orders-table thead th.sorted.desc .sort-chevron { transform: rotate(180deg); }
+  .orders-table tbody td {
+    padding: 0.7rem 0.75rem;
+    border-bottom: 1px solid var(--slate-100);
+    color: var(--slate-700);
+    vertical-align: top;
+  }
+  .orders-table tbody tr:hover td { background: var(--amber-50); }
+  .orders-table tbody tr:last-child td { border-bottom: none; }
+
+  .operator-name { font-weight: 500; color: var(--slate-800); }
+  .formation-tag {
+    display: inline-block;
+    background: var(--slate-100);
+    color: var(--slate-600);
+    padding: 0.15rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.78rem;
+    font-weight: 500;
+    margin: 0.1rem 0.2rem 0.1rem 0;
+  }
+  .location-mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.78rem;
+    color: var(--slate-600);
+  }
+  .bonus-amount {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+  .bonus-high { color: var(--emerald-600); }
+  .bonus-mid { color: var(--amber-600); }
+  .bonus-low { color: var(--red-500); }
+  .royalty-options { display: flex; flex-direction: column; gap: 0.2rem; }
+  .royalty-option {
+    font-size: 0.78rem;
+    display: flex;
+    gap: 0.5rem;
+    align-items: baseline;
+  }
+  .royalty-fraction {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--slate-800);
+  }
+  .royalty-bonus {
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--slate-500);
+    font-size: 0.75rem;
+  }
+  .royalty-type {
+    color: var(--slate-400);
+    font-size: 0.72rem;
+  }
+
+  .row-expandable { cursor: pointer; }
+  .row-detail { display: none; }
+  .row-expandable.open + .row-detail { display: table-row; }
+  .row-detail td {
+    background: var(--slate-50);
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--slate-200);
+  }
+  .election-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 0.75rem;
+  }
+  .election-card {
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+  }
+  .election-card-type {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    margin-bottom: 0.35rem;
+  }
+  .election-card-royalty {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: var(--slate-800);
+  }
+  .election-card-bonus {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    color: var(--amber-600);
+    margin-top: 0.15rem;
+  }
+  .election-card.highlighted {
+    border-color: var(--amber-400);
+    background: var(--amber-50);
+  }
+
+  /* ── My Markets Section ── */
+  .markets-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+    gap: 1rem;
+  }
+  .market-card {
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    transition: box-shadow 0.2s;
+  }
+  .market-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+  .market-card-header {
+    padding: 1rem 1.25rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--slate-100);
+  }
+  .market-county {
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--slate-800);
+  }
+  .market-order-count {
+    font-size: 0.78rem;
+    color: var(--slate-500);
+    font-weight: 500;
+  }
+  .market-card-body { padding: 1rem 1.25rem; }
+  .market-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.4rem 0;
+  }
+  .market-stat-row + .market-stat-row { border-top: 1px solid var(--slate-50); }
+  .market-stat-name {
+    font-size: 0.82rem;
+    color: var(--slate-600);
+  }
+  .market-stat-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--slate-800);
+  }
+  .market-formations {
+    margin-top: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--slate-100);
+  }
+  .market-formations-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    margin-bottom: 0.4rem;
+  }
+  .market-formation-list { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+
+  /* ── Bonus Range Bar ── */
+  .bonus-range-bar {
+    margin: 0.75rem 0;
+    position: relative;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--slate-100);
+    overflow: visible;
+  }
+  .bonus-range-fill {
+    position: absolute;
+    top: 0;
+    height: 100%;
+    border-radius: 3px;
+    background: linear-gradient(90deg, var(--amber-400), var(--emerald-400));
+  }
+  .bonus-range-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.3rem;
+  }
+  .bonus-range-label {
+    font-size: 0.72rem;
+    color: var(--slate-500);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .bonus-avg-marker {
+    position: absolute;
+    top: -4px;
+    width: 14px;
+    height: 14px;
+    background: var(--amber-500);
+    border: 2px solid var(--white);
+    border-radius: 50%;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    transform: translateX(-50%);
+  }
+
+  /* ── Market Research Section ── */
+  .research-section { display: none; }
+  .research-section.active { display: block; }
+
+  .insight-cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+  .insight-card {
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    border-radius: 10px;
+    padding: 1.25rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .insight-card-title {
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    margin-bottom: 0.75rem;
+  }
+  .insight-top-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    border-bottom: 1px solid var(--slate-50);
+  }
+  .insight-top-item:last-child { border-bottom: none; }
+  .insight-item-name {
+    font-size: 0.85rem;
+    color: var(--slate-700);
+    font-weight: 500;
+  }
+  .insight-item-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--slate-800);
+  }
+  .insight-item-sub {
+    font-size: 0.72rem;
+    color: var(--slate-400);
+    margin-left: 0.3rem;
+  }
+
+  .statewide-table-wrap {
+    background: var(--white);
+    border-radius: 10px;
+    border: 1px solid var(--slate-200);
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+  .statewide-table-header {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--slate-200);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .statewide-table-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--slate-800);
+  }
+
+  /* ── Tier Gate Banner ── */
+  .tier-gate {
+    background: linear-gradient(135deg, var(--slate-800), var(--slate-900));
+    border-radius: 10px;
+    padding: 2rem;
+    text-align: center;
+    margin-top: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .tier-gate::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle at 30% 40%, rgba(251,191,36,0.08) 0%, transparent 60%);
+  }
+  .tier-gate-icon {
+    font-size: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+  .tier-gate-title {
+    color: var(--white);
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+    position: relative;
+  }
+  .tier-gate-desc {
+    color: var(--slate-400);
+    font-size: 0.88rem;
+    max-width: 450px;
+    margin: 0 auto 1rem;
+    line-height: 1.5;
+    position: relative;
+  }
+  .btn-upgrade {
+    background: var(--amber-500);
+    color: var(--slate-900);
+    border: none;
+    padding: 0.65rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    position: relative;
+    transition: background 0.15s;
+  }
+  .btn-upgrade:hover { background: var(--amber-400); }
+
+  /* ── Section visibility ── */
+  .tab-content { display: none; }
+  .tab-content.active { display: block; }
+
+  /* ── Footer ── */
+  .report-footer {
+    text-align: center;
+    padding: 1.5rem 2rem;
+    color: var(--slate-400);
+    font-size: 0.78rem;
+    line-height: 1.6;
+  }
+
+  /* ── Active operators inline ── */
+  .operators-bar {
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+  }
+  .operators-bar-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    white-space: nowrap;
+  }
+  .operator-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    background: var(--slate-50);
+    border: 1px solid var(--slate-200);
+    padding: 0.3rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    color: var(--slate-700);
+    font-weight: 500;
+  }
+  .operator-chip-count {
+    background: var(--amber-100);
+    color: var(--amber-700);
+    font-size: 0.7rem;
+    font-weight: 700;
+    padding: 0.05rem 0.4rem;
+    border-radius: 4px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* ── Royalty Summary Strip ── */
+  .royalty-summary {
+    background: var(--white);
+    border: 1px solid var(--slate-200);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    margin-bottom: 1.25rem;
+  }
+  .royalty-summary-label {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--slate-500);
+    margin-bottom: 0.6rem;
+  }
+  .royalty-options-row { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+  .royalty-option-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.35rem;
+    padding: 0.35rem 0.7rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    border: 1px solid;
+  }
+  .royalty-option-chip.primary {
+    background: var(--amber-50);
+    color: var(--amber-700);
+    border-color: var(--amber-200);
+  }
+  .royalty-option-chip.secondary {
+    background: var(--slate-50);
+    color: var(--slate-600);
+    border-color: var(--slate-200);
+  }
+  .royalty-chip-count {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.72rem;
+    font-weight: 500;
+    color: var(--slate-400);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hud-bar { grid-template-columns: repeat(2, 1fr); }
+    .insight-cards { grid-template-columns: 1fr; }
+    .markets-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<nav class="top-nav">
+  <div class="nav-brand">Mineral Watch</div>
+  <div class="nav-links">
+    <a href="#">Dashboard</a>
+    <a href="#">Map</a>
+    <a href="#" class="active">Intelligence</a>
+    <a href="#">Account</a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-user">James Price</span>
+    <button class="btn-logout">Log Out</button>
+  </div>
+</nav>
+
+<!-- Page Header -->
+<header class="page-header">
+  <div class="breadcrumb">
+    <a href="#">Intelligence</a>
+    <span>›</span>
+    Pooling Rate Comparison
+  </div>
+  <h1 class="page-title">Pooling Rate Comparison</h1>
+  <p class="page-subtitle">Bonus rates and royalty options from OCC pooling orders near your properties</p>
+  <div class="header-meta">
+    <span class="date-range">Mar 4, 2025 – Jan 26, 2026 · Updated daily</span>
+    <div class="header-actions">
+      <button class="btn-header">‹ Back</button>
+      <button class="btn-header">⎙ Print Summary</button>
+    </div>
+  </div>
+</header>
+
+<!-- HUD Metrics -->
+<div class="hud-bar">
+  <div class="hud-card">
+    <div class="hud-value">122</div>
+    <div class="hud-label">Nearby Orders</div>
+    <div class="hud-detail">Within 2 townships of your properties</div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-value amber">$863</div>
+    <div class="hud-label">Avg Bonus / Acre</div>
+    <div class="hud-detail">Range: $1 – $3,096</div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-value emerald">5</div>
+    <div class="hud-label">Active Operators</div>
+    <div class="hud-detail">Validus Energy is most active</div>
+  </div>
+  <div class="hud-card">
+    <div class="hud-value blue">8</div>
+    <div class="hud-label">Your Counties</div>
+    <div class="hud-detail">Roger Mills leads with 27 orders</div>
+  </div>
+</div>
+
+<!-- Section Tabs -->
+<div class="section-tabs">
+  <button class="section-tab active" onclick="switchTab('properties')">
+    My Properties <span class="tab-badge">122</span>
+  </button>
+  <button class="section-tab" onclick="switchTab('markets')">
+    My Markets <span class="tab-badge">8</span>
+  </button>
+  <button class="section-tab" onclick="switchTab('research')">
+    Market Research
+  </button>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 1: MY PROPERTIES                   -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-properties" class="tab-content active">
+  <div class="content">
+
+    <!-- Royalty Summary -->
+    <div class="royalty-summary">
+      <div class="royalty-summary-label">Royalty Options in Your Area</div>
+      <div class="royalty-options-row">
+        <div class="royalty-option-chip primary">1/8 <span class="royalty-chip-count">434 orders</span></div>
+        <div class="royalty-option-chip secondary">existing <span class="royalty-chip-count">7 orders</span></div>
+        <div class="royalty-option-chip secondary">1/5 <span class="royalty-chip-count">4 orders</span></div>
+        <div class="royalty-option-chip secondary">1/4 <span class="royalty-chip-count">2 orders</span></div>
+        <div class="royalty-option-chip secondary">3/16 <span class="royalty-chip-count">4 orders</span></div>
+        <div class="royalty-option-chip secondary">≥ 1/5th <span class="royalty-chip-count">1 order</span></div>
+      </div>
+    </div>
+
+    <!-- Active Operators -->
+    <div class="operators-bar">
+      <span class="operators-bar-label">Active Operators</span>
+      <div class="operator-chip">Validus Energy II Midcon LLC <span class="operator-chip-count">24</span></div>
+      <div class="operator-chip">Mewbourne Oil Company <span class="operator-chip-count">22</span></div>
+      <div class="operator-chip">Calyx Energy III, LLC <span class="operator-chip-count">14</span></div>
+      <div class="operator-chip">Charter Oak Production Co. <span class="operator-chip-count">14</span></div>
+      <div class="operator-chip">Camino Natural Resources <span class="operator-chip-count">5</span></div>
+    </div>
+
+    <!-- Toolbar -->
+    <div class="toolbar">
+      <div class="search-box">
+        <span class="search-icon">⌕</span>
+        <input type="text" placeholder="Search properties, operators...">
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Sort</label>
+        <select class="filter-select">
+          <option>Most Nearby Orders</option>
+          <option>Highest Avg Bonus</option>
+          <option>Most Acreage</option>
+          <option>By County</option>
+          <option>Most Recent Activity</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">County</label>
+        <select class="filter-select">
+          <option>All Counties</option>
+          <option>Roger Mills (27)</option>
+          <option>McClain (16)</option>
+          <option>Blaine (12)</option>
+          <option>Canadian (11)</option>
+          <option>Dewey (8)</option>
+          <option>Hughes (7)</option>
+          <option>Grady (6)</option>
+        </select>
+      </div>
+      <div class="filter-group">
+        <label class="filter-label">Distance</label>
+        <select class="filter-select">
+          <option>All Distances</option>
+          <option>Same Section</option>
+          <option>Adjacent</option>
+          <option>Within 2 Twp</option>
+        </select>
+      </div>
+      <button class="btn-export">⤓ Export CSV</button>
+    </div>
+
+    <!-- Property 1: Expanded -->
+    <div class="property-group open">
+      <div class="property-header" onclick="this.parentElement.classList.toggle('open')">
+        <div class="property-header-left">
+          <div class="expand-chevron">▶</div>
+          <span class="property-name">SEC 22 T13N R24W</span>
+          <span class="property-location">Roger Mills County</span>
+        </div>
+        <div class="property-header-right">
+          <div class="property-stat">
+            <div class="property-stat-value">16</div>
+            <div class="property-stat-label">Orders</div>
+          </div>
+          <div class="property-stat">
+            <div class="property-stat-value" style="color:var(--amber-600);">$1,496</div>
+            <div class="property-stat-label">Avg Bonus</div>
+          </div>
+          <div class="distance-badge adjacent">1 adjacent</div>
+        </div>
+      </div>
+      <div class="orders-table-wrap">
+        <table class="orders-table">
+          <thead>
+            <tr>
+              <th class="sorted desc">Date <span class="sort-chevron">▲</span></th>
+              <th>Operator <span class="sort-chevron">▲</span></th>
+              <th>Formation <span class="sort-chevron">▲</span></th>
+              <th>Location <span class="sort-chevron">▲</span></th>
+              <th>Max Bonus <span class="sort-chevron">▲</span></th>
+              <th>Royalty Options <span class="sort-chevron">▲</span></th>
+              <th>Distance <span class="sort-chevron">▲</span></th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr class="row-expandable" onclick="this.classList.toggle('open')">
+              <td>Jan 26, 2026</td>
+              <td><span class="operator-name">Upland Operating LLC</span></td>
+              <td><span class="formation-tag">Upper Cherokee</span></td>
+              <td><span class="location-mono">SEC 16 T13N R24W</span></td>
+              <td><span class="bonus-amount bonus-mid">$1,250</span></td>
+              <td>
+                <div class="royalty-options">
+                  <div class="royalty-option"><span class="royalty-fraction">1/8</span> <span class="royalty-bonus">$1,250/ac</span></div>
+                </div>
+              </td>
+              <td><span class="distance-badge adjacent">Adjacent</span></td>
+            </tr>
+            <tr class="row-detail">
+              <td colspan="7">
+                <div style="font-size:0.78rem;font-weight:600;color:var(--slate-500);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:0.6rem;">All Election Options</div>
+                <div class="election-grid">
+                  <div class="election-card highlighted">
+                    <div class="election-card-type">Option 1 — Bonus + Royalty</div>
+                    <div class="election-card-royalty">1/8</div>
+                    <div class="election-card-bonus">$1,250/acre</div>
+                  </div>
+                  <div class="election-card">
+                    <div class="election-card-type">Option 2 — Increased Royalty</div>
+                    <div class="election-card-royalty">3/16</div>
+                    <div class="election-card-bonus">$400/acre</div>
+                  </div>
+                  <div class="election-card">
+                    <div class="election-card-type">Option 3 — Max Royalty</div>
+                    <div class="election-card-royalty">1/4</div>
+                    <div class="election-card-bonus">$0/acre</div>
+                  </div>
+                </div>
+              </td>
+            </tr>
+            <tr class="row-expandable">
+              <td>Jan 26, 2026</td>
+              <td><span class="operator-name">Upland Operating LLC</span></td>
+              <td><span class="formation-tag">Upper Cherokee</span></td>
+              <td><span class="location-mono">SEC 9 T13N R24W</span></td>
+              <td><span class="bonus-amount bonus-mid">$1,250</span></td>
+              <td>
+                <div class="royalty-options">
+                  <div class="royalty-option"><span class="royalty-fraction">1/8</span> <span class="royalty-bonus">$1,250/ac</span></div>
+                </div>
+              </td>
+              <td><span class="distance-badge within-2">Within 2 twp</span></td>
+            </tr>
+            <tr class="row-expandable">
+              <td>Jan 19, 2026</td>
+              <td><span class="operator-name">Citizen Energy Ventures LLC</span></td>
+              <td><span class="formation-tag">Cherokee</span></td>
+              <td><span class="location-mono">SEC 4 T14N R23W</span></td>
+              <td><span class="bonus-amount bonus-high">$1,800</span></td>
+              <td>
+                <div class="royalty-options">
+                  <div class="royalty-option"><span class="royalty-fraction">1/8</span> <span class="royalty-bonus">$1,800/ac</span></div>
+                </div>
+              </td>
+              <td><span class="distance-badge within-2">Within 2 twp</span></td>
+            </tr>
+            <tr class="row-expandable">
+              <td>Jan 5, 2026</td>
+              <td><span class="operator-name">SandRidge Exploration and Production</span></td>
+              <td><span class="formation-tag">Cherokee</span></td>
+              <td><span class="location-mono">SEC 1 T14N R24W</span></td>
+              <td><span class="bonus-amount bonus-high">$1,900</span></td>
+              <td>
+                <div class="royalty-options">
+                  <div class="royalty-option"><span class="royalty-fraction">1/8</span> <span class="royalty-bonus">$1,900/ac</span></div>
+                  <div class="royalty-option"><span class="royalty-fraction">existing</span></div>
+                </div>
+              </td>
+              <td><span class="distance-badge within-2">Within 2 twp</span></td>
+            </tr>
+            <tr class="row-expandable">
+              <td>Oct 6, 2025</td>
+              <td><span class="operator-name">Mewbourne Oil Company</span></td>
+              <td><span class="formation-tag">Cherokee</span></td>
+              <td><span class="location-mono">SEC 7 T13N R23W</span></td>
+              <td><span class="bonus-amount bonus-high">$2,500</span></td>
+              <td>
+                <div class="royalty-options">
+                  <div class="royalty-option"><span class="royalty-fraction">1/8</span> <span class="royalty-bonus">$2,500/ac</span></div>
+                </div>
+              </td>
+              <td><span class="distance-badge within-2">Within 2 twp</span></td>
+            </tr>
+            <tr class="row-expandable">
+              <td>Oct 5, 2025</td>
+              <td><span class="operator-name">Mewbourne Oil Company</span></td>
+              <td><span class="formation-tag">Cherokee</span></td>
+              <td><span class="location-mono">SEC 10 T13N R23W</span></td>
+              <td><span class="bonus-amount bonus-high">$2,400</span></td>
+              <td>
+                <div class="royalty-options">
+                  <div class="royalty-option"><span class="royalty-fraction">1/8</span> <span class="royalty-bonus">$2,400/ac</span></div>
+                </div>
+              </td>
+              <td><span class="distance-badge within-2">Within 2 twp</span></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Property 2: Collapsed -->
+    <div class="property-group">
+      <div class="property-header" onclick="this.parentElement.classList.toggle('open')">
+        <div class="property-header-left">
+          <div class="expand-chevron">▶</div>
+          <span class="property-name">SEC 10 T06N R18E</span>
+          <span class="property-location">Okfuskee County</span>
+        </div>
+        <div class="property-header-right">
+          <div class="property-stat">
+            <div class="property-stat-value">15</div>
+            <div class="property-stat-label">Orders</div>
+          </div>
+          <div class="property-stat">
+            <div class="property-stat-value" style="color:var(--amber-600);">$725</div>
+            <div class="property-stat-label">Avg Bonus</div>
+          </div>
+        </div>
+      </div>
+      <div class="orders-table-wrap"></div>
+    </div>
+
+    <!-- Property 3: Collapsed -->
+    <div class="property-group">
+      <div class="property-header" onclick="this.parentElement.classList.toggle('open')">
+        <div class="property-header-left">
+          <div class="expand-chevron">▶</div>
+          <span class="property-name">SEC 08 T00N R20W</span>
+          <span class="property-location">McClain County</span>
+        </div>
+        <div class="property-header-right">
+          <div class="property-stat">
+            <div class="property-stat-value">13</div>
+            <div class="property-stat-label">Orders</div>
+          </div>
+          <div class="property-stat">
+            <div class="property-stat-value" style="color:var(--amber-600);">$703</div>
+            <div class="property-stat-label">Avg Bonus</div>
+          </div>
+        </div>
+      </div>
+      <div class="orders-table-wrap"></div>
+    </div>
+
+    <!-- Property 4 -->
+    <div class="property-group">
+      <div class="property-header" onclick="this.parentElement.classList.toggle('open')">
+        <div class="property-header-left">
+          <div class="expand-chevron">▶</div>
+          <span class="property-name">SEC 09 T16N R26E</span>
+          <span class="property-location">Roger Mills County</span>
+        </div>
+        <div class="property-header-right">
+          <div class="property-stat">
+            <div class="property-stat-value">9</div>
+            <div class="property-stat-label">Orders</div>
+          </div>
+          <div class="property-stat">
+            <div class="property-stat-value" style="color:var(--amber-600);">$1,180</div>
+            <div class="property-stat-label">Avg Bonus</div>
+          </div>
+        </div>
+      </div>
+      <div class="orders-table-wrap"></div>
+    </div>
+
+    <!-- Property 5 -->
+    <div class="property-group">
+      <div class="property-header" onclick="this.parentElement.classList.toggle('open')">
+        <div class="property-header-left">
+          <div class="expand-chevron">▶</div>
+          <span class="property-name">SEC 05 T12N R08W</span>
+          <span class="property-location">Canadian County</span>
+        </div>
+        <div class="property-header-right">
+          <div class="property-stat">
+            <div class="property-stat-value">8</div>
+            <div class="property-stat-label">Orders</div>
+          </div>
+          <div class="property-stat">
+            <div class="property-stat-value" style="color:var(--amber-600);">$464</div>
+            <div class="property-stat-label">Avg Bonus</div>
+          </div>
+          <div class="distance-badge same-section">2 same section</div>
+        </div>
+      </div>
+      <div class="orders-table-wrap"></div>
+    </div>
+
+    <!-- More collapsed properties indicator -->
+    <div style="text-align:center; padding:1rem; color:var(--slate-400); font-size:0.85rem;">
+      Showing 5 of 32 properties with nearby pooling orders · <a href="#" style="color:var(--amber-600); font-weight:600; text-decoration:none;">Show all</a>
+    </div>
+
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 2: MY MARKETS                      -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-markets" class="tab-content">
+  <div class="content">
+    <p style="color:var(--slate-600); margin-bottom:1.25rem; font-size:0.9rem; line-height:1.6;">
+      Average bonus rates and formation activity in counties where you own mineral rights. Use this to benchmark offers you receive against local market conditions.
+    </p>
+
+    <div class="markets-grid">
+      <!-- Roger Mills -->
+      <div class="market-card">
+        <div class="market-card-header">
+          <span class="market-county">Roger Mills</span>
+          <span class="market-order-count">27 orders</span>
+        </div>
+        <div class="market-card-body">
+          <div class="market-stat-row">
+            <span class="market-stat-name">Avg Bonus/Acre</span>
+            <span class="market-stat-val">$1,431</span>
+          </div>
+          <div class="bonus-range-bar">
+            <div class="bonus-range-fill" style="left:5%;width:90%;"></div>
+            <div class="bonus-avg-marker" style="left:45%;"></div>
+          </div>
+          <div class="bonus-range-labels">
+            <span class="bonus-range-label">$400</span>
+            <span class="bonus-range-label">$3,096</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Most Active Operator</span>
+            <span class="market-stat-val" style="font-family:'DM Sans';font-size:0.82rem;">Mewbourne</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Dominant Royalty</span>
+            <span class="market-stat-val">1/8</span>
+          </div>
+          <div class="market-formations">
+            <div class="market-formations-label">Active Formations</div>
+            <div class="market-formation-list">
+              <span class="formation-tag">Upper Cherokee</span>
+              <span class="formation-tag">Cherokee</span>
+              <span class="formation-tag">Lower Cherokee</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Grady -->
+      <div class="market-card">
+        <div class="market-card-header">
+          <span class="market-county">Grady</span>
+          <span class="market-order-count">6 orders</span>
+        </div>
+        <div class="market-card-body">
+          <div class="market-stat-row">
+            <span class="market-stat-name">Avg Bonus/Acre</span>
+            <span class="market-stat-val">$1,711</span>
+          </div>
+          <div class="bonus-range-bar">
+            <div class="bonus-range-fill" style="left:10%;width:75%;"></div>
+            <div class="bonus-avg-marker" style="left:55%;"></div>
+          </div>
+          <div class="bonus-range-labels">
+            <span class="bonus-range-label">$800</span>
+            <span class="bonus-range-label">$2,400</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Most Active Operator</span>
+            <span class="market-stat-val" style="font-family:'DM Sans';font-size:0.82rem;">Charter Oak</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Dominant Royalty</span>
+            <span class="market-stat-val">1/8</span>
+          </div>
+          <div class="market-formations">
+            <div class="market-formations-label">Active Formations</div>
+            <div class="market-formation-list">
+              <span class="formation-tag">Hart</span>
+              <span class="formation-tag">Osborne Sand</span>
+              <span class="formation-tag">Atoka</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Blaine -->
+      <div class="market-card">
+        <div class="market-card-header">
+          <span class="market-county">Blaine</span>
+          <span class="market-order-count">12 orders</span>
+        </div>
+        <div class="market-card-body">
+          <div class="market-stat-row">
+            <span class="market-stat-name">Avg Bonus/Acre</span>
+            <span class="market-stat-val">$998</span>
+          </div>
+          <div class="bonus-range-bar">
+            <div class="bonus-range-fill" style="left:8%;width:82%;"></div>
+            <div class="bonus-avg-marker" style="left:38%;"></div>
+          </div>
+          <div class="bonus-range-labels">
+            <span class="bonus-range-label">$200</span>
+            <span class="bonus-range-label">$2,100</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Most Active Operator</span>
+            <span class="market-stat-val" style="font-family:'DM Sans';font-size:0.82rem;">Validus Energy</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Dominant Royalty</span>
+            <span class="market-stat-val">1/8</span>
+          </div>
+          <div class="market-formations">
+            <div class="market-formations-label">Active Formations</div>
+            <div class="market-formation-list">
+              <span class="formation-tag">Woodford</span>
+              <span class="formation-tag">Hunton</span>
+              <span class="formation-tag">Mississippian</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- McClain -->
+      <div class="market-card">
+        <div class="market-card-header">
+          <span class="market-county">McClain</span>
+          <span class="market-order-count">16 orders</span>
+        </div>
+        <div class="market-card-body">
+          <div class="market-stat-row">
+            <span class="market-stat-name">Avg Bonus/Acre</span>
+            <span class="market-stat-val">$703</span>
+          </div>
+          <div class="bonus-range-bar">
+            <div class="bonus-range-fill" style="left:5%;width:88%;"></div>
+            <div class="bonus-avg-marker" style="left:30%;"></div>
+          </div>
+          <div class="bonus-range-labels">
+            <span class="bonus-range-label">$100</span>
+            <span class="bonus-range-label">$1,800</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Most Active Operator</span>
+            <span class="market-stat-val" style="font-family:'DM Sans';font-size:0.82rem;">Calyx Energy</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Dominant Royalty</span>
+            <span class="market-stat-val">1/8</span>
+          </div>
+          <div class="market-formations">
+            <div class="market-formations-label">Active Formations</div>
+            <div class="market-formation-list">
+              <span class="formation-tag">Woodford</span>
+              <span class="formation-tag">North Lindsay Deese Sands</span>
+              <span class="formation-tag">Mississippian</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Canadian -->
+      <div class="market-card">
+        <div class="market-card-header">
+          <span class="market-county">Canadian</span>
+          <span class="market-order-count">11 orders</span>
+        </div>
+        <div class="market-card-body">
+          <div class="market-stat-row">
+            <span class="market-stat-name">Avg Bonus/Acre</span>
+            <span class="market-stat-val">$464</span>
+          </div>
+          <div class="bonus-range-bar">
+            <div class="bonus-range-fill" style="left:5%;width:70%;"></div>
+            <div class="bonus-avg-marker" style="left:25%;"></div>
+          </div>
+          <div class="bonus-range-labels">
+            <span class="bonus-range-label">$50</span>
+            <span class="bonus-range-label">$1,200</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Most Active Operator</span>
+            <span class="market-stat-val" style="font-family:'DM Sans';font-size:0.82rem;">B&W Operating</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Dominant Royalty</span>
+            <span class="market-stat-val">1/8</span>
+          </div>
+          <div class="market-formations">
+            <div class="market-formations-label">Active Formations</div>
+            <div class="market-formation-list">
+              <span class="formation-tag">Mississippian</span>
+              <span class="formation-tag">Woodford</span>
+              <span class="formation-tag">Woodford Shale</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Dewey -->
+      <div class="market-card">
+        <div class="market-card-header">
+          <span class="market-county">Dewey</span>
+          <span class="market-order-count">8 orders</span>
+        </div>
+        <div class="market-card-body">
+          <div class="market-stat-row">
+            <span class="market-stat-name">Avg Bonus/Acre</span>
+            <span class="market-stat-val">$621</span>
+          </div>
+          <div class="bonus-range-bar">
+            <div class="bonus-range-fill" style="left:10%;width:60%;"></div>
+            <div class="bonus-avg-marker" style="left:32%;"></div>
+          </div>
+          <div class="bonus-range-labels">
+            <span class="bonus-range-label">$150</span>
+            <span class="bonus-range-label">$1,400</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Most Active Operator</span>
+            <span class="market-stat-val" style="font-family:'DM Sans';font-size:0.82rem;">Crawley Petroleum</span>
+          </div>
+          <div class="market-stat-row">
+            <span class="market-stat-name">Dominant Royalty</span>
+            <span class="market-stat-val">1/8</span>
+          </div>
+          <div class="market-formations">
+            <div class="market-formations-label">Active Formations</div>
+            <div class="market-formation-list">
+              <span class="formation-tag">Cherokee</span>
+              <span class="formation-tag">Morrow</span>
+              <span class="formation-tag">Chester</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- TAB 3: MARKET RESEARCH                 -->
+<!-- ═══════════════════════════════════════ -->
+<div id="tab-research" class="tab-content">
+  <div class="content">
+    <p style="color:var(--slate-600); margin-bottom:1.25rem; font-size:0.9rem; line-height:1.6;">
+      Statewide pooling market intelligence from 195+ OCC orders. Identify formation premiums, top-paying operators, and market trends across Oklahoma.
+    </p>
+
+    <!-- Insight Cards -->
+    <div class="insight-cards">
+      <div class="insight-card">
+        <div class="insight-card-title">Highest-Paying Formations</div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Hart / Osborne Sand</span>
+          <span class="insight-item-val">$1,711<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Upper Cherokee</span>
+          <span class="insight-item-val">$1,431<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Red Fork</span>
+          <span class="insight-item-val">$1,346<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Cottage Grove</span>
+          <span class="insight-item-val">$800<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Cherokee</span>
+          <span class="insight-item-val">$725<span class="insight-item-sub">avg</span></span>
+        </div>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-card-title">Top-Paying Operators</div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Mewbourne Oil Company</span>
+          <span class="insight-item-val">$2,350<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Citizen Energy Ventures</span>
+          <span class="insight-item-val">$1,800<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">SandRidge E&P</span>
+          <span class="insight-item-val">$1,900<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Charter Oak Production</span>
+          <span class="insight-item-val">$800<span class="insight-item-sub">avg</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Validus Energy</span>
+          <span class="insight-item-val">$550<span class="insight-item-sub">avg</span></span>
+        </div>
+      </div>
+
+      <div class="insight-card">
+        <div class="insight-card-title">Hottest Counties (Last 90 Days)</div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Roger Mills</span>
+          <span class="insight-item-val">14<span class="insight-item-sub">orders</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">McClain</span>
+          <span class="insight-item-val">8<span class="insight-item-sub">orders</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Blaine</span>
+          <span class="insight-item-val">6<span class="insight-item-sub">orders</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Grady</span>
+          <span class="insight-item-val">5<span class="insight-item-sub">orders</span></span>
+        </div>
+        <div class="insight-top-item">
+          <span class="insight-item-name">Canadian</span>
+          <span class="insight-item-val">4<span class="insight-item-sub">orders</span></span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tier Gate -->
+    <div class="tier-gate">
+      <div class="tier-gate-icon">🔒</div>
+      <div class="tier-gate-title">Full Market Research requires Professional tier</div>
+      <div class="tier-gate-desc">
+        Access the complete statewide dataset, formation-level analytics, operator comparison tools, exportable market reports, and trend analysis.
+      </div>
+      <button class="btn-upgrade">Upgrade to Professional →</button>
+    </div>
+
+  </div>
+</div>
+
+<!-- Footer -->
+<div class="report-footer">
+  Data sourced from Oklahoma Corporation Commission pooling docket.<br>
+  Showing orders filed within the past 12 months. · Updated daily.
+</div>
+
+<script>
+function switchTab(tab) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.section-tab').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// Handle tab clicks more robustly
+document.querySelectorAll('.section-tab').forEach((btn, i) => {
+  btn.addEventListener('click', function() {
+    const tabs = ['properties', 'markets', 'research'];
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.section-tab').forEach(el => el.classList.remove('active'));
+    document.getElementById('tab-' + tabs[i]).classList.add('active');
+    this.classList.add('active');
+  });
+});
+
+// Sortable column headers
+document.querySelectorAll('.orders-table thead th').forEach(th => {
+  th.addEventListener('click', function() {
+    const wasSorted = this.classList.contains('sorted');
+    const wasDesc = this.classList.contains('desc');
+    
+    // Remove sorted from siblings
+    this.parentElement.querySelectorAll('th').forEach(sib => {
+      sib.classList.remove('sorted', 'desc');
+    });
+    
+    this.classList.add('sorted');
+    if (wasSorted && !wasDesc) {
+      this.classList.add('desc');
+    }
+  });
+});
+</script>
+
+</body>
+</html>

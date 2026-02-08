@@ -195,7 +195,7 @@
             'Standard': { properties: 50, wells: 50 },
             'Professional': { properties: 250, wells: 250 },
             'Business': { properties: 500, wells: 500 },
-            'Enterprise': { properties: 1000, wells: 1000 }
+            'Enterprise 1K': { properties: 1000, wells: 1000 }
         };
         let currentTab = 'properties';
         let currentUser = null; // Store user data globally

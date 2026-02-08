@@ -342,37 +342,45 @@ export async function fetchAllAirtableRecords(env: Env, table: string, formula: 
 export async function fetchUserProperties(env: Env, userEmail: string): Promise<SimplifiedProperty[]> {
   const user = await findUserByEmail(env, userEmail);
   if (!user) return [];
-  
+
   const userOrganizations = user.fields.Organization || [];
-  
+
   let formula: string;
   if (userOrganizations.length > 0) {
-    // User is part of an organization - fetch both personal and org properties
     const orgId = userOrganizations[0];
     formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
   } else {
-    // No organization - fetch only personal properties
     formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
   }
-  
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
-  
-  const response = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`
+
+  const allRecords: SimplifiedProperty[] = [];
+  let offset: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ filterByFormula: formula });
+    if (offset) params.set('offset', offset);
+
+    const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?${params}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+    });
+
+    if (!response.ok) break;
+
+    const data: any = await response.json();
+    for (const r of data.records) {
+      allRecords.push({
+        SEC: r.fields.SEC,
+        TWN: r.fields.TWN,
+        RNG: r.fields.RNG,
+        MERIDIAN: r.fields.MERIDIAN || 'IM',
+        GROUP: r.fields.Group || ''
+      });
     }
-  });
-  
-  if (!response.ok) return [];
-  
-  const data = await response.json();
-  return data.records.map((r: AirtableProperty) => ({
-    SEC: r.fields.SEC,
-    TWN: r.fields.TWN,
-    RNG: r.fields.RNG,
-    MERIDIAN: r.fields.MERIDIAN || 'IM',
-    GROUP: r.fields.Group || ''
-  }));
+    offset = data.offset;
+  } while (offset);
+
+  return allRecords;
 }
 
 /**
@@ -388,31 +396,41 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
 export async function fetchUserWells(env: Env, userEmail: string): Promise<SimplifiedWell[]> {
   const user = await findUserByEmail(env, userEmail);
   if (!user) return [];
-  
+
   const userOrganizations = user.fields.Organization || [];
-  
+
   let formula: string;
   if (userOrganizations.length > 0) {
-    // User is part of an organization - fetch both personal and org wells
     const orgId = userOrganizations[0];
     formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
   } else {
-    // No organization - fetch only personal wells
     formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
   }
-  
-  const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}`;
-  
-  const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
-  });
-  
-  if (!response.ok) return [];
-  
-  const data = await response.json();
-  return data.records.map((r: AirtableWell) => ({
-    id: r.id,
-    apiNumber: r.fields["API Number"] || '',
-    wellName: r.fields["Well Name"] || ''
-  }));
+
+  const allRecords: SimplifiedWell[] = [];
+  let offset: string | undefined;
+
+  do {
+    const params = new URLSearchParams({ filterByFormula: formula });
+    if (offset) params.set('offset', offset);
+
+    const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?${params}`;
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
+    });
+
+    if (!response.ok) break;
+
+    const data: any = await response.json();
+    for (const r of data.records) {
+      allRecords.push({
+        id: r.id,
+        apiNumber: r.fields["API Number"] || '',
+        wellName: r.fields["Well Name"] || ''
+      });
+    }
+    offset = data.offset;
+  } while (offset);
+
+  return allRecords;
 }

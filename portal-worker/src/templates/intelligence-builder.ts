@@ -16,9 +16,11 @@ import insightsJs from './scripts/intelligence-insights.txt';
 import questionsJs from './scripts/intelligence-questions.txt';
 import reportsJs from './scripts/intelligence-reports.txt';
 import operatorsJs from './scripts/intelligence-operators.txt';
+import virtualScrollJs from './scripts/virtual-scroll.txt';
 
 // Report CSS
 import reportsCss from './styles/intelligence-reports.txt';
+import virtualScrollCss from './styles/virtual-scroll.txt';
 
 // Assemble: replace placeholders with component content
 let html = shell;
@@ -28,11 +30,13 @@ html = html.replace('/* __INTEL_CSS__ */\n', () => baseCss);
 
 // Report CSS
 html = html.replace('/* __INTEL_REPORTS_CSS__ */\n', () => reportsCss);
+html = html.replace('/* __VIRTUAL_SCROLL_CSS__ */\n', () => virtualScrollCss);
 
 // JS
 html = html.replace('/* __INTEL_INIT__ */\n', () => initJs);
 html = html.replace('/* __INTEL_INSIGHTS__ */\n', () => insightsJs);
 html = html.replace('/* __INTEL_QUESTIONS__ */\n', () => questionsJs);
+html = html.replace('/* __VIRTUAL_SCROLL__ */\n', () => virtualScrollJs);
 html = html.replace('/* __INTEL_REPORTS__ */\n', () => reportsJs);
 html = html.replace('/* __INTEL_OPERATORS__ */\n', () => operatorsJs);
 

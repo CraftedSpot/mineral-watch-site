@@ -1,0 +1,384 @@
+/* Virtual Scroll / Virtual Table Styles */
+
+/* Base container */
+.vt-container {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+    background: white;
+}
+
+/* Inner wrapper - full width, no min-width constraint */
+.vt-inner {
+    width: 100%;
+}
+
+/* Header row (div-based, matches body layout) */
+.vt-header-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    background: var(--paper);
+    border-bottom: 2px solid var(--border);
+}
+
+.vt-header-cell {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    text-align: left;
+    padding: 0.75rem 0.75rem;
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    user-select: none;
+    flex: none;
+    min-width: 0;
+    line-height: 1.2;
+    box-sizing: border-box;
+}
+
+.vt-header-cell[data-sortable] {
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s;
+}
+
+.vt-header-cell[data-sortable]:hover {
+    color: var(--slate-blue);
+    background: #f5f5f4;
+}
+
+.vt-header-cell.sorted {
+    color: #b45309;
+}
+
+.vt-header-cell .header-label {
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.vt-header-cell .sort-chevron {
+    flex-shrink: 0;
+    font-size: 0.6rem;
+    opacity: 0;
+    transition: opacity 0.15s, transform 0.15s;
+}
+
+.vt-header-cell[data-sortable]:hover .sort-chevron {
+    opacity: 0.4;
+}
+
+.vt-header-cell.sorted .sort-chevron {
+    opacity: 1;
+}
+
+.vt-header-cell.sorted.desc .sort-chevron {
+    transform: rotate(180deg);
+}
+
+/* Right-align numeric header cells */
+.vt-header-cell.numeric {
+    justify-content: flex-end;
+    text-align: right;
+}
+
+/* Scrollable body wrapper */
+.vt-body-wrapper {
+    position: relative;
+    overflow-y: auto;
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar */
+.vt-body-wrapper::-webkit-scrollbar {
+    width: 8px;
+}
+
+.vt-body-wrapper::-webkit-scrollbar-track {
+    background: var(--paper);
+}
+
+.vt-body-wrapper::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.vt-body-wrapper::-webkit-scrollbar-thumb:hover {
+    background: #a8a29e;
+}
+
+/* Virtual scroll body */
+.vt-body {
+    position: relative;
+}
+
+/* Virtual row container (VirtualScroll wrapper) */
+.vs-row {
+    display: flex;
+    align-items: center;
+    border-bottom: 1px solid var(--border-light);
+    transition: background 0.1s;
+}
+
+/* VirtualTable row (inside vs-row) */
+.vt-row {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    border-left: 4px solid transparent;
+}
+
+.vt-row.status-active {
+    border-left-color: #22c55e;
+}
+
+.vt-row.status-idle {
+    border-left-color: #9ca3af;
+}
+
+.vs-row:hover {
+    background: #fffbeb;
+}
+
+/* Row with click handler */
+.vt-container[data-clickable] .vs-row {
+    cursor: pointer;
+}
+
+/* Virtual cell */
+.vt-cell {
+    padding: 0.65rem 0.75rem;
+    font-size: 0.85rem;
+    color: var(--slate-blue);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex: none;
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* Cell variants */
+.vt-cell.mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem;
+}
+
+.vt-cell.numeric {
+    text-align: right;
+    font-family: 'JetBrains Mono', monospace;
+}
+
+.vt-cell.status {
+    text-align: center;
+}
+
+.vt-cell.actions {
+    text-align: right;
+    flex: 0 0 100px;
+}
+
+/* Status badges */
+.vt-status-badge {
+    display: inline-block;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+}
+
+.vt-status-badge.active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.vt-status-badge.declining {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.vt-status-badge.idle {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+.vt-status-badge.critical {
+    background: #fef2f2;
+    color: #dc2626;
+}
+
+/* Compact type badges (H/V for horizontal/vertical) */
+.vt-type-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.vt-type-badge.horiz {
+    background: #dbeafe;
+    color: #1d4ed8;
+}
+
+.vt-type-badge.vert {
+    background: #f3f4f6;
+    color: #6b7280;
+}
+
+/* YoY change color coding */
+.yoy-positive {
+    color: #059669;
+    font-weight: 600;
+}
+
+.yoy-warning {
+    color: #d97706;
+    font-weight: 600;
+}
+
+.yoy-negative {
+    color: #dc2626;
+    font-weight: 600;
+}
+
+.yoy-neutral {
+    color: #9ca3af;
+}
+
+/* Change indicators */
+.vt-change {
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    font-size: 0.82rem;
+}
+
+.vt-change.positive {
+    color: #059669;
+}
+
+.vt-change.positive::before {
+    content: '+';
+}
+
+.vt-change.negative {
+    color: #dc2626;
+}
+
+.vt-change.neutral {
+    color: var(--text-muted);
+}
+
+.vt-change.warning {
+    color: #d97706;
+}
+
+/* Well name link style */
+.vt-well-link {
+    color: var(--oil-navy);
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+.vt-well-link:hover {
+    color: #b45309;
+    text-decoration: underline;
+}
+
+/* Empty state */
+.vt-empty {
+    padding: 3rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.9rem;
+}
+
+.vt-empty-icon {
+    font-size: 2.5rem;
+    margin-bottom: 1rem;
+    opacity: 0.4;
+}
+
+/* Loading state */
+.vt-loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 3rem;
+    color: var(--text-muted);
+}
+
+.vt-loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--border);
+    border-top-color: #b45309;
+    border-radius: 50%;
+    animation: vt-spin 0.8s linear infinite;
+    margin-right: 0.75rem;
+}
+
+@keyframes vt-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Row count indicator */
+.vt-row-count {
+    padding: 0.5rem 1rem;
+    background: var(--paper);
+    border-top: 1px solid var(--border);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-align: right;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .vt-table thead th {
+        padding: 0.6rem 0.5rem;
+        font-size: 0.68rem;
+    }
+
+    .vt-cell {
+        padding: 0.5rem;
+        font-size: 0.8rem;
+    }
+
+    /* Hide less important columns on mobile */
+    .vt-hide-mobile {
+        display: none;
+    }
+}
+
+/* Keyboard navigation focus styles */
+.vs-row:focus-visible {
+    outline: 2px solid #f59e0b;
+    outline-offset: -2px;
+    background: #fffbeb;
+}
+
+/* Print styles - show all rows */
+@media print {
+    .vt-body-wrapper {
+        max-height: none !important;
+        overflow: visible !important;
+    }
+
+    .vs-row {
+        position: relative !important;
+        top: auto !important;
+    }
+
+    .vs-spacer {
+        display: none;
+    }
+}

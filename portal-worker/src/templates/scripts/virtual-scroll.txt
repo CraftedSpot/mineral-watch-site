@@ -1,0 +1,388 @@
+/**
+ * Virtual Scroll Module
+ *
+ * Renders only visible rows for large datasets while maintaining full
+ * client-side sorting and filtering capabilities.
+ *
+ * Usage:
+ *   const vs = new VirtualScroll({
+ *     container: document.getElementById('table-body'),
+ *     rowHeight: 48,
+ *     data: wellsArray,
+ *     renderRow: (well, index) => `<tr>...</tr>`,
+ *     bufferSize: 5
+ *   });
+ *
+ *   // Update data (after sort/filter)
+ *   vs.setData(sortedWells);
+ *
+ *   // Clean up
+ *   vs.destroy();
+ */
+
+class VirtualScroll {
+    constructor(options) {
+        this.container = options.container;
+        this.rowHeight = options.rowHeight || 48;
+        this.data = options.data || [];
+        this.renderRow = options.renderRow;
+        this.bufferSize = options.bufferSize || 5;
+        this.onRowClick = options.onRowClick || null;
+
+        // Create wrapper structure
+        this.setup();
+        this.bindEvents();
+        this.render();
+    }
+
+    setup() {
+        // Get or create scroll container
+        this.scrollContainer = this.container.parentElement;
+        if (!this.scrollContainer.classList.contains('vs-scroll-container')) {
+            // Wrap container in scroll wrapper
+            const wrapper = document.createElement('div');
+            wrapper.className = 'vs-scroll-container';
+            wrapper.style.cssText = 'overflow-y: auto; position: relative;';
+            this.container.parentElement.insertBefore(wrapper, this.container);
+            wrapper.appendChild(this.container);
+            this.scrollContainer = wrapper;
+        }
+
+        // Set container to relative positioning for absolute children
+        this.container.style.position = 'relative';
+        this.container.innerHTML = '';
+
+        // Create spacer for total height
+        this.spacer = document.createElement('div');
+        this.spacer.className = 'vs-spacer';
+        this.spacer.style.cssText = 'position: absolute; top: 0; left: 0; width: 1px; pointer-events: none;';
+        this.container.appendChild(this.spacer);
+
+        // Create rows container
+        this.rowsContainer = document.createElement('div');
+        this.rowsContainer.className = 'vs-rows';
+        this.rowsContainer.style.cssText = 'position: absolute; top: 0; left: 0; right: 0;';
+        this.container.appendChild(this.rowsContainer);
+
+        this.updateHeight();
+    }
+
+    updateHeight() {
+        const totalHeight = this.data.length * this.rowHeight;
+        this.spacer.style.height = totalHeight + 'px';
+        // If scrollContainer hasn't been measured yet (0 height), use totalHeight
+        // The parent's max-height CSS will constrain it appropriately
+        const viewportHeight = this.scrollContainer.clientHeight || totalHeight;
+        this.container.style.minHeight = Math.min(totalHeight, viewportHeight) + 'px';
+    }
+
+    bindEvents() {
+        this.scrollHandler = () => this.render();
+        this.scrollContainer.addEventListener('scroll', this.scrollHandler, { passive: true });
+
+        // Debounced resize handler
+        this.resizeHandler = this.debounce(() => this.render(), 100);
+        window.addEventListener('resize', this.resizeHandler);
+
+        // Row click delegation
+        if (this.onRowClick) {
+            this.clickHandler = (e) => {
+                const row = e.target.closest('[data-vs-index]');
+                if (row) {
+                    const index = parseInt(row.dataset.vsIndex, 10);
+                    if (this.data[index]) {
+                        this.onRowClick(this.data[index], index, e);
+                    }
+                }
+            };
+            this.rowsContainer.addEventListener('click', this.clickHandler);
+        }
+    }
+
+    render() {
+        const scrollTop = this.scrollContainer.scrollTop;
+        const viewportHeight = this.scrollContainer.clientHeight;
+
+        // Calculate visible range
+        const startIndex = Math.max(0, Math.floor(scrollTop / this.rowHeight) - this.bufferSize);
+        const endIndex = Math.min(
+            this.data.length,
+            Math.ceil((scrollTop + viewportHeight) / this.rowHeight) + this.bufferSize
+        );
+
+        // Only re-render if range changed
+        if (this.lastStartIndex === startIndex && this.lastEndIndex === endIndex) {
+            return;
+        }
+        this.lastStartIndex = startIndex;
+        this.lastEndIndex = endIndex;
+
+        // Build visible rows HTML
+        let html = '';
+        for (let i = startIndex; i < endIndex; i++) {
+            const item = this.data[i];
+            if (!item) continue;
+
+            const rowHtml = this.renderRow(item, i);
+            // Wrap in positioned container
+            html += `<div class="vs-row" data-vs-index="${i}" style="position: absolute; top: ${i * this.rowHeight}px; left: 0; right: 0; height: ${this.rowHeight}px;">${rowHtml}</div>`;
+        }
+
+        this.rowsContainer.innerHTML = html;
+    }
+
+    setData(newData) {
+        this.data = newData || [];
+        this.lastStartIndex = -1; // Force re-render
+        this.lastEndIndex = -1;
+        this.updateHeight();
+        this.render();
+    }
+
+    scrollToIndex(index) {
+        const targetTop = index * this.rowHeight;
+        this.scrollContainer.scrollTop = targetTop;
+    }
+
+    scrollToTop() {
+        this.scrollContainer.scrollTop = 0;
+    }
+
+    getVisibleRange() {
+        return {
+            start: this.lastStartIndex,
+            end: this.lastEndIndex,
+            total: this.data.length
+        };
+    }
+
+    debounce(fn, wait) {
+        let timeout;
+        return (...args) => {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => fn.apply(this, args), wait);
+        };
+    }
+
+    destroy() {
+        this.scrollContainer.removeEventListener('scroll', this.scrollHandler);
+        window.removeEventListener('resize', this.resizeHandler);
+        if (this.clickHandler) {
+            this.rowsContainer.removeEventListener('click', this.clickHandler);
+        }
+        this.container.innerHTML = '';
+    }
+}
+
+/**
+ * Virtual Table - Higher-level wrapper for table-based virtual scroll
+ *
+ * Usage:
+ *   const vt = new VirtualTable({
+ *     container: document.getElementById('wells-table'),
+ *     columns: [
+ *       { key: 'name', label: 'Well Name', sortable: true, render: (v, row) => `<a>${v}</a>` },
+ *       { key: 'operator', label: 'Operator', sortable: true },
+ *       { key: 'decline_pct', label: 'YoY Change', sortable: true, render: (v) => formatPercent(v) },
+ *     ],
+ *     data: wells,
+ *     rowHeight: 48,
+ *     maxHeight: 600,
+ *     onRowClick: (well) => openWellDetail(well.id),
+ *     onSort: (key, dir) => console.log('Sorted by', key, dir)
+ *   });
+ */
+
+class VirtualTable {
+    constructor(options) {
+        this.container = options.container;
+        this.columns = options.columns || [];
+        this.data = options.data || [];
+        this.rowHeight = options.rowHeight || 48;
+        this.maxHeight = options.maxHeight || 500;
+        this.onRowClick = options.onRowClick || null;
+        this.onSort = options.onSort || null;
+        this.emptyMessage = options.emptyMessage || 'No data available';
+
+        this.sortKey = options.defaultSort || null;
+        this.sortDir = options.defaultSortDir || 'asc';
+        this.filteredData = [...this.data];
+
+        this.build();
+    }
+
+    build() {
+        this.container.innerHTML = '';
+        this.container.className = 'vt-container';
+
+        // Inner wrapper for horizontal scrolling
+        this.inner = document.createElement('div');
+        this.inner.className = 'vt-inner';
+
+        // Header row (div-based to match body layout)
+        this.headerRow = document.createElement('div');
+        this.headerRow.className = 'vt-header-row';
+        this.headerRow.innerHTML = this.renderHeader();
+        this.inner.appendChild(this.headerRow);
+
+        // Body wrapper (for virtual scroll)
+        // Set explicit height (capped by maxHeight) since content uses absolute positioning
+        const contentHeight = Math.min(this.data.length * this.rowHeight, this.maxHeight);
+        this.tbodyWrapper = document.createElement('div');
+        this.tbodyWrapper.className = 'vt-body-wrapper vs-scroll-container';
+        this.tbodyWrapper.style.cssText = `height: ${contentHeight}px; max-height: ${this.maxHeight}px; overflow-y: auto; position: relative;`;
+
+        this.tbody = document.createElement('div');
+        this.tbody.className = 'vt-body';
+        this.tbodyWrapper.appendChild(this.tbody);
+
+        this.inner.appendChild(this.tbodyWrapper);
+        this.container.appendChild(this.inner);
+
+        // Bind header sort clicks
+        this.headerRow.querySelectorAll('.vt-header-cell[data-sortable]').forEach(cell => {
+            cell.addEventListener('click', () => this.handleSort(cell.dataset.key));
+        });
+
+        // Initialize virtual scroll
+        this.vs = new VirtualScroll({
+            container: this.tbody,
+            rowHeight: this.rowHeight,
+            data: this.filteredData,
+            renderRow: (item, index) => this.renderRow(item, index),
+            bufferSize: 5,
+            onRowClick: this.onRowClick
+        });
+
+        // Override scroll container reference
+        this.vs.scrollContainer = this.tbodyWrapper;
+        this.vs.bindEvents();
+        this.vs.render();
+    }
+
+    renderHeader() {
+        return this.columns.map(col => {
+            const sortable = col.sortable ? 'data-sortable data-key="' + col.key + '"' : '';
+            const sortClass = this.sortKey === col.key ? ` sorted ${this.sortDir}` : '';
+            const colClass = col.className || '';
+            const chevron = col.sortable ? '<span class="sort-chevron">▲</span>' : '';
+            const width = col.width ? `width: ${col.width}` : '';
+            return `<div class="vt-header-cell ${colClass}${sortClass}" ${sortable} style="${width}"><span class="header-label">${col.label}</span>${chevron}</div>`;
+        }).join('');
+    }
+
+    renderRow(item, index) {
+        const cells = this.columns.map(col => {
+            const value = item[col.key];
+            const rendered = col.render ? col.render(value, item, index) : this.escapeHtml(value ?? '—');
+            const className = col.className || '';
+            return `<div class="vt-cell ${className}" style="width: ${col.width || 'auto'}">${rendered}</div>`;
+        }).join('');
+
+        const rowClass = item._rowClass || '';
+        return `<div class="vt-row ${rowClass}">${cells}</div>`;
+    }
+
+    handleSort(key) {
+        if (this.sortKey === key) {
+            this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+        } else {
+            this.sortKey = key;
+            this.sortDir = 'desc'; // Default to desc for new column (show highest/worst first)
+        }
+
+        // Update header classes
+        this.headerRow.innerHTML = this.renderHeader();
+        this.headerRow.querySelectorAll('.vt-header-cell[data-sortable]').forEach(cell => {
+            cell.addEventListener('click', () => this.handleSort(cell.dataset.key));
+        });
+
+        // Sort data
+        this.sortData();
+
+        // Callback
+        if (this.onSort) {
+            this.onSort(this.sortKey, this.sortDir);
+        }
+    }
+
+    sortData() {
+        const key = this.sortKey;
+        const dir = this.sortDir === 'asc' ? 1 : -1;
+
+        this.filteredData.sort((a, b) => {
+            let aVal = a[key];
+            let bVal = b[key];
+
+            // Handle nulls
+            if (aVal == null && bVal == null) return 0;
+            if (aVal == null) return 1;
+            if (bVal == null) return -1;
+
+            // Numeric comparison
+            if (typeof aVal === 'number' && typeof bVal === 'number') {
+                return (aVal - bVal) * dir;
+            }
+
+            // String comparison
+            return String(aVal).localeCompare(String(bVal)) * dir;
+        });
+
+        this.vs.setData(this.filteredData);
+        this.vs.scrollToTop();
+    }
+
+    setData(newData) {
+        this.data = newData || [];
+        this.filteredData = [...this.data];
+        this.updateWrapperHeight();
+        if (this.sortKey) {
+            this.sortData();
+        } else {
+            this.vs.setData(this.filteredData);
+        }
+    }
+
+    filter(predicate) {
+        this.filteredData = this.data.filter(predicate);
+        this.updateWrapperHeight();
+        if (this.sortKey) {
+            this.sortData();
+        } else {
+            this.vs.setData(this.filteredData);
+        }
+    }
+
+    resetFilter() {
+        this.filteredData = [...this.data];
+        this.updateWrapperHeight();
+        if (this.sortKey) {
+            this.sortData();
+        } else {
+            this.vs.setData(this.filteredData);
+        }
+    }
+
+    updateWrapperHeight() {
+        const contentHeight = Math.min(this.filteredData.length * this.rowHeight, this.maxHeight);
+        this.tbodyWrapper.style.height = contentHeight + 'px';
+    }
+
+    escapeHtml(str) {
+        if (str == null) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    destroy() {
+        this.vs.destroy();
+        this.container.innerHTML = '';
+    }
+}
+
+// Export for use in other modules
+window.VirtualScroll = VirtualScroll;
+window.VirtualTable = VirtualTable;

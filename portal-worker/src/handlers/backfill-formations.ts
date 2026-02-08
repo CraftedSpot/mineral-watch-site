@@ -5,17 +5,18 @@
  * with formation data from the completion cache
  */
 
-import { 
+import {
   BASE_ID,
   ACTIVITY_TABLE
 } from '../constants.js';
 
-import { 
-  jsonResponse 
+import {
+  jsonResponse
 } from '../utils/responses.js';
 
 import {
-  authenticateRequest
+  authenticateRequest,
+  isSuperAdmin
 } from '../utils/auth.js';
 
 import {
@@ -35,7 +36,7 @@ export async function handleBackfillFormations(request: Request, env: Env) {
   if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
   
   // Check if user is admin (you might want to restrict this)
-  if (user.email !== 'admin@mymineralwatch.com' && user.email !== 'jamesrprice3@gmail.com') {
+  if (!isSuperAdmin(user.email)) {
     return jsonResponse({ error: "Admin access required" }, 403);
   }
   

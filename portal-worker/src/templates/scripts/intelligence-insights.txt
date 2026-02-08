@@ -95,6 +95,14 @@
                 loadDeductionReport();
                 return;
             }
+            if (actionId === 'pooling-report') {
+                loadPoolingReport();
+                return;
+            }
+            if (actionId === 'shut-in-review') {
+                loadShutInDetectorReport();
+                return;
+            }
             console.log('Insight action:', actionId);
             showToast('Report generation coming soon', 'info');
         }

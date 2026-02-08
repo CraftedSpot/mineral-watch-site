@@ -51,6 +51,12 @@ export const TIER_LIMITS: Record<string, TierLimit> = {
   'Enterprise': {
     monthly: 150,
     bonus: 5000       // 5000 permanent credits for annual
+  },
+
+  // Enterprise 1K (alternate name used in Airtable)
+  'Enterprise 1K': {
+    monthly: 150,
+    bonus: 5000       // 5000 permanent credits for annual
   }
 };
 

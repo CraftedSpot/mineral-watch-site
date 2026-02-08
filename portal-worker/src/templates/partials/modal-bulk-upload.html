@@ -235,11 +235,17 @@
                     <span class="file-size" id="wells-filesize"></span>
                 </div>
                 
+                <div id="wells-validating" style="display: none; text-align: center; padding: 24px 0;">
+                    <div style="display: inline-block; width: 24px; height: 24px; border: 3px solid #e5e7eb; border-top: 3px solid #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin-bottom: 8px;"></div>
+                    <div style="color: #6b7280; font-size: 14px;">Matching wells against OCC database...</div>
+                    <div style="color: #9ca3af; font-size: 12px; margin-top: 4px;">This may take a moment</div>
+                </div>
+
                 <div id="wells-parse-error" class="bulk-error" style="display: none;">
                     <strong>Error parsing file:</strong> <span id="wells-error-message"></span>
                 </div>
             </div>
-            
+
             <div class="bulk-footer">
                 <button class="btn-secondary" onclick="closeBulkUploadWellsModal()">Cancel</button>
             </div>
@@ -283,6 +289,10 @@
                 </div>
             </div>
             
+            <div style="margin-top: 10px; padding: 8px 12px; background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 6px; font-size: 13px; color: #1e40af; display: flex; align-items: center; gap: 6px;">
+                <span style="font-size: 15px;">&#9432;</span>
+                Any wells that can't be matched will be available to download as a CSV after import, so you can research and try again later.
+            </div>
             <div class="bulk-footer">
                 <button class="btn-secondary" onclick="resetBulkUploadWells()">Start Over</button>
                 <button id="wells-import-btn" class="btn-primary" onclick="startWellsImport()">Import Wells</button>
@@ -322,6 +332,7 @@
                     </div>
                 </div>
                 <p class="bulk-text" id="wells-results-details">Your wells are now being monitored for OCC activity.</p>
+                <button class="btn-secondary" id="wells-download-skipped-btn" onclick="downloadSkippedWells()" style="display:none; margin-bottom: 12px;">Download Skipped Wells (CSV)</button>
                 <button class="btn-primary" onclick="finishBulkUploadWells()">Done</button>
             </div>
         </div>

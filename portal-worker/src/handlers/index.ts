@@ -14,6 +14,7 @@ export {
 // Property handlers
 export {
   handleListProperties,
+  handleListPropertiesV2,
   handleAddProperty,
   handleUpdateProperty,
   handleDeleteProperty

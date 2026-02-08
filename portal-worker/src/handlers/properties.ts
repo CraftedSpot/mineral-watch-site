@@ -32,6 +32,87 @@ import { getOccFilingsForProperty } from '../utils/docket-matching.js';
 import type { Env } from '../types/env.js';
 
 /**
+ * List all properties for the authenticated user — D1-first (V2)
+ * Queries D1 directly instead of Airtable. Returns data in the same
+ * format the dashboard frontend expects (id, createdTime, fields).
+ * @param request The incoming request
+ * @param env Worker environment
+ * @returns JSON response with user properties
+ */
+export async function handleListPropertiesV2(request: Request, env: Env) {
+  const user = await authenticateRequest(request, env);
+  if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
+
+  // Get full user record to check for organization
+  const userRecord = await getUserFromSession(env, user);
+  if (!userRecord) return jsonResponse({ error: "User not found" }, 404);
+
+  const organizationId = userRecord.fields.Organization?.[0];
+
+  // Query D1 directly — filter by organization_id or user_id
+  let rows: any[];
+  if (organizationId) {
+    const stmt = env.WELLS_DB.prepare(`
+      SELECT p.*,
+        (SELECT COUNT(*) FROM property_well_links pwl
+         WHERE pwl.property_airtable_id = p.airtable_record_id
+         AND pwl.status IN ('Active', 'Linked')) as linked_wells
+      FROM properties p
+      WHERE p.organization_id = ? OR p.user_id = ?
+      ORDER BY p.county, p.township, p.range, p.section
+    `);
+    const result = await stmt.bind(organizationId, user.id).all();
+    rows = result.results || [];
+  } else {
+    const stmt = env.WELLS_DB.prepare(`
+      SELECT p.*,
+        (SELECT COUNT(*) FROM property_well_links pwl
+         WHERE pwl.property_airtable_id = p.airtable_record_id
+         AND pwl.status IN ('Active', 'Linked')) as linked_wells
+      FROM properties p
+      WHERE p.user_id = ?
+      ORDER BY p.county, p.township, p.range, p.section
+    `);
+    const result = await stmt.bind(user.id).all();
+    rows = result.results || [];
+  }
+
+  // Transform D1 rows to match Airtable response format for frontend compatibility
+  const records = rows.map((row: any) => ({
+    // Use airtable_record_id as the record ID (frontend uses this for updates/deletes)
+    id: row.airtable_record_id || row.id,
+    createdTime: row.created_at || new Date().toISOString(),
+    fields: {
+      COUNTY: row.county || '',
+      SEC: row.section || '',
+      TWN: row.township || '',
+      RNG: row.range || '',
+      MERIDIAN: row.meridian || 'IM',
+      'RI Acres': row.ri_acres || 0,
+      'WI Acres': row.wi_acres || 0,
+      Notes: row.notes || '',
+      Group: row.group_name || '',
+      Status: row.status || 'Active',
+      'Monitor Adjacent': row.monitor_adjacent === 1,
+      // Enterprise fields (new — ignored by current frontend, ready for use)
+      property_code: row.property_code || null,
+      total_acres: row.total_acres || null,
+      ri_decimal: row.ri_decimal || null,
+      wi_decimal: row.wi_decimal || null,
+      orri_acres: row.orri_acres || null,
+      orri_decimal: row.orri_decimal || null,
+      mi_acres: row.mi_acres || null,
+      mi_decimal: row.mi_decimal || null,
+    },
+    // Extra metadata (not in Airtable format but useful)
+    _d1Id: row.id,
+    _linkedWells: row.linked_wells || 0,
+  }));
+
+  return jsonResponse(records);
+}
+
+/**
  * List all properties for the authenticated user
  * @param request The incoming request
  * @param env Worker environment
@@ -240,9 +321,12 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
   }
   
   const body = await request.json();
-  
+
   // Build fields object with allowed editable fields
   const updateFields: Record<string, any> = {};
+  const d1Updates: string[] = [];
+  const d1Binds: any[] = [];
+
   if (body.notes !== undefined) {
     let notes = body.notes || "";
     // Limit notes length to prevent abuse
@@ -250,6 +334,8 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
       notes = notes.substring(0, 1000);
     }
     updateFields['Notes'] = notes;
+    d1Updates.push('notes = ?');
+    d1Binds.push(notes);
   }
   if (body.meridian !== undefined) {
     // Validate meridian value
@@ -257,38 +343,97 @@ export async function handleUpdateProperty(propertyId: string, request: Request,
       return jsonResponse({ error: 'Invalid meridian value' }, 400);
     }
     updateFields['MERIDIAN'] = body.meridian;
+    d1Updates.push('meridian = ?');
+    d1Binds.push(body.meridian);
   }
-  
+  if (body.riAcres !== undefined) {
+    const riAcres = parseFloat(body.riAcres) || 0;
+    updateFields['RI Acres'] = riAcres;
+    d1Updates.push('ri_acres = ?');
+    d1Binds.push(riAcres);
+  }
+  if (body.wiAcres !== undefined) {
+    const wiAcres = parseFloat(body.wiAcres) || 0;
+    updateFields['WI Acres'] = wiAcres;
+    d1Updates.push('wi_acres = ?');
+    d1Binds.push(wiAcres);
+  }
+
+  // Enterprise fields (D1-only — NOT written to Airtable)
+  if (body.propertyCode !== undefined) {
+    d1Updates.push('property_code = ?');
+    d1Binds.push(body.propertyCode || null);
+  }
+  if (body.riDecimal !== undefined) {
+    d1Updates.push('ri_decimal = ?');
+    d1Binds.push(body.riDecimal !== null && body.riDecimal !== '' ? parseFloat(body.riDecimal) || null : null);
+  }
+  if (body.wiDecimal !== undefined) {
+    d1Updates.push('wi_decimal = ?');
+    d1Binds.push(body.wiDecimal !== null && body.wiDecimal !== '' ? parseFloat(body.wiDecimal) || null : null);
+  }
+  if (body.orriAcres !== undefined) {
+    d1Updates.push('orri_acres = ?');
+    d1Binds.push(body.orriAcres !== null && body.orriAcres !== '' ? parseFloat(body.orriAcres) || null : null);
+  }
+  if (body.orriDecimal !== undefined) {
+    d1Updates.push('orri_decimal = ?');
+    d1Binds.push(body.orriDecimal !== null && body.orriDecimal !== '' ? parseFloat(body.orriDecimal) || null : null);
+  }
+  if (body.miAcres !== undefined) {
+    d1Updates.push('mi_acres = ?');
+    d1Binds.push(body.miAcres !== null && body.miAcres !== '' ? parseFloat(body.miAcres) || null : null);
+  }
+  if (body.miDecimal !== undefined) {
+    d1Updates.push('mi_decimal = ?');
+    d1Binds.push(body.miDecimal !== null && body.miDecimal !== '' ? parseFloat(body.miDecimal) || null : null);
+  }
+
   // Verify ownership
   const getUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
   const getResponse = await fetch(getUrl, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
   });
-  
+
   if (!getResponse.ok) {
     return jsonResponse({ error: "Property not found" }, 404);
   }
-  
+
   const property = await getResponse.json();
   if (property.fields.User?.[0] !== user.id) {
     return jsonResponse({ error: "Not authorized" }, 403);
   }
-  
-  // Update property
-  const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
-  const updateResponse = await fetch(updateUrl, {
-    method: "PATCH",
-    headers: {
-      Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ fields: updateFields })
-  });
-  
-  if (!updateResponse.ok) {
-    return jsonResponse({ error: "Failed to update property" }, 500);
+
+  // Update Airtable (skip if only enterprise/D1-only fields changed)
+  if (Object.keys(updateFields).length > 0) {
+    const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}/${propertyId}`;
+    const updateResponse = await fetch(updateUrl, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ fields: updateFields })
+    });
+
+    if (!updateResponse.ok) {
+      return jsonResponse({ error: "Failed to update property" }, 500);
+    }
   }
-  
+
+  // Also write to D1 immediately so v2 endpoint reflects changes instantly
+  if (d1Updates.length > 0 && env.WELLS_DB) {
+    try {
+      d1Updates.push('updated_at = datetime(\'now\')');
+      const sql = `UPDATE properties SET ${d1Updates.join(', ')} WHERE airtable_record_id = ?`;
+      d1Binds.push(propertyId);
+      await env.WELLS_DB.prepare(sql).bind(...d1Binds).run();
+    } catch (d1Err) {
+      // Non-fatal — Airtable was updated, D1 will catch up on next sync
+      console.error('[UpdateProperty] D1 write failed (non-fatal):', d1Err);
+    }
+  }
+
   return jsonResponse({ success: true });
 }
 

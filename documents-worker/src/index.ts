@@ -2,6 +2,7 @@ import { linkDocumentToEntities, ensureLinkColumns } from './link-documents';
 import { migrateDocumentIds } from './migrate-document-ids';
 import { UsageTrackingService } from './services/usage-tracking';
 import { CountyRecordExtractionService } from './services/county-record-extraction';
+import { getExtractionPrompt, preparePrompt } from './services/extraction-prompts';
 import { PDFDocument } from 'pdf-lib';
 
 interface Env {
@@ -144,6 +145,283 @@ function postProcessExtractedData(extractedData: any): any {
   return extractedData;
 }
 
+/**
+ * Re-extract a pooling order document using Claude Opus for better accuracy.
+ * This is used for documents where initial extraction failed or had missing data.
+ */
+async function reextractPoolingWithOpus(env: Env, documentId: string): Promise<{
+  success: boolean;
+  document_id: string;
+  election_options_count?: number;
+  error?: string;
+}> {
+  console.log(`[Opus Reextract] Starting for document ${documentId}`);
+
+  if (!env.ANTHROPIC_API_KEY) {
+    return { success: false, document_id: documentId, error: 'ANTHROPIC_API_KEY not configured' };
+  }
+
+  // 1. Get document and pooling order info
+  const docResult = await env.WELLS_DB.prepare(`
+    SELECT d.id, d.r2_key, d.filename, d.doc_type, po.id as pooling_order_id
+    FROM documents d
+    LEFT JOIN pooling_orders po ON po.document_id = d.id
+    WHERE d.id = ?
+  `).bind(documentId).first() as any;
+
+  if (!docResult) {
+    return { success: false, document_id: documentId, error: 'Document not found' };
+  }
+
+  if (!docResult.r2_key) {
+    return { success: false, document_id: documentId, error: 'No R2 key for document' };
+  }
+
+  // 2. Fetch PDF from R2
+  console.log(`[Opus Reextract] Fetching PDF from R2: ${docResult.r2_key}`);
+  const r2Object = await env.UPLOADS_BUCKET.get(docResult.r2_key);
+  if (!r2Object) {
+    return { success: false, document_id: documentId, error: 'PDF not found in R2' };
+  }
+
+  const pdfBytes = await r2Object.arrayBuffer();
+  // Chunked base64 encoding to avoid stack overflow on large PDFs
+  const uint8Array = new Uint8Array(pdfBytes);
+  let binary = '';
+  const chunkSize = 8192;
+  for (let i = 0; i < uint8Array.length; i += chunkSize) {
+    const chunk = uint8Array.slice(i, i + chunkSize);
+    binary += String.fromCharCode(...chunk);
+  }
+  const base64Pdf = btoa(binary);
+  console.log(`[Opus Reextract] PDF encoded, size: ${pdfBytes.byteLength} bytes`);
+
+  // 3. Get the pooling extraction prompt
+  const prompt = preparePrompt(getExtractionPrompt('pooling_order'));
+
+  // 4. Call Claude Opus
+  console.log(`[Opus Reextract] Calling Claude Opus API...`);
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': env.ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'claude-opus-4-20250514',
+      max_tokens: 8192,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'document',
+            source: {
+              type: 'base64',
+              media_type: 'application/pdf',
+              data: base64Pdf,
+            }
+          },
+          {
+            type: 'text',
+            text: prompt,
+          }
+        ]
+      }]
+    })
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error(`[Opus Reextract] API error: ${response.status}`, errorText.substring(0, 200));
+    return { success: false, document_id: documentId, error: `Claude API error ${response.status}` };
+  }
+
+  const result: any = await response.json();
+  const rawResponse = result.content?.[0]?.text || '';
+
+  // 5. Parse the JSON from the response
+  let extractedData: any = null;
+  try {
+    const firstBrace = rawResponse.indexOf('{');
+    if (firstBrace === -1) {
+      return { success: false, document_id: documentId, error: 'No JSON found in response' };
+    }
+
+    let depth = 0;
+    let lastBrace = -1;
+    for (let i = firstBrace; i < rawResponse.length; i++) {
+      if (rawResponse[i] === '{') depth++;
+      if (rawResponse[i] === '}') {
+        depth--;
+        if (depth === 0) {
+          lastBrace = i;
+          break;
+        }
+      }
+    }
+
+    if (lastBrace === -1) {
+      return { success: false, document_id: documentId, error: 'Malformed JSON in response' };
+    }
+
+    extractedData = JSON.parse(rawResponse.substring(firstBrace, lastBrace + 1));
+  } catch (parseError) {
+    console.error(`[Opus Reextract] JSON parse error:`, parseError);
+    return { success: false, document_id: documentId, error: 'Failed to parse extraction JSON' };
+  }
+
+  // 6. Update document with new extraction
+  const keyTakeawayMatch = rawResponse.match(/KEY TAKEAWAY[:\s]*\n?([\s\S]*?)(?=DETAILED ANALYSIS|$)/i);
+  const detailedAnalysisMatch = rawResponse.match(/DETAILED ANALYSIS[:\s]*\n?([\s\S]*?)$/i);
+
+  extractedData.key_takeaway = keyTakeawayMatch ? keyTakeawayMatch[1].trim().substring(0, 1000) : null;
+  extractedData.detailed_analysis = detailedAnalysisMatch ? detailedAnalysisMatch[1].trim().substring(0, 4000) : null;
+
+  await env.WELLS_DB.prepare(`
+    UPDATE documents
+    SET extracted_data = ?,
+        confidence = 'high',
+        status = 'complete',
+        extraction_completed_at = datetime('now'),
+        notes = 'Opus v2 re-extraction ' || datetime('now')
+    WHERE id = ?
+  `).bind(JSON.stringify(extractedData), documentId).run();
+
+  console.log(`[Opus Reextract] Document updated with new extraction`);
+
+  // 7. Update pooling_orders table
+  const poolingId = docResult.pooling_order_id || 'po_' + documentId.replace(/^doc_/, '');
+  const orderInfo = extractedData.order_info || {};
+  const unitInfo = extractedData.unit_info || {};
+  const wellInfo = extractedData.well_info || {};
+  const deadlines = extractedData.deadlines || {};
+  const defaultElection = extractedData.default_election || {};
+
+  await env.WELLS_DB.prepare(`
+    INSERT INTO pooling_orders (
+      id, document_id, case_number, order_number, order_date, effective_date,
+      applicant, operator, proposed_well_name,
+      section, township, range, county, meridian,
+      unit_description, unit_size_acres,
+      well_type, formations,
+      response_deadline, response_deadline_days,
+      default_election_option, default_election_description,
+      confidence
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET
+      case_number = excluded.case_number,
+      order_number = excluded.order_number,
+      order_date = excluded.order_date,
+      effective_date = excluded.effective_date,
+      applicant = excluded.applicant,
+      operator = excluded.operator,
+      proposed_well_name = excluded.proposed_well_name,
+      section = excluded.section,
+      township = excluded.township,
+      range = excluded.range,
+      county = excluded.county,
+      unit_description = excluded.unit_description,
+      unit_size_acres = excluded.unit_size_acres,
+      well_type = excluded.well_type,
+      formations = excluded.formations,
+      response_deadline = excluded.response_deadline,
+      response_deadline_days = excluded.response_deadline_days,
+      default_election_option = excluded.default_election_option,
+      default_election_description = excluded.default_election_description,
+      confidence = 'high',
+      updated_at = datetime('now')
+  `).bind(
+    poolingId,
+    documentId,
+    orderInfo.case_number || null,
+    orderInfo.order_number || null,
+    orderInfo.order_date || null,
+    orderInfo.effective_date || null,
+    extractedData.applicant?.name || null,
+    extractedData.operator?.name || null,
+    wellInfo.proposed_well_name || null,
+    extractedData.section ? String(extractedData.section) : null,
+    extractedData.township || null,
+    extractedData.range || null,
+    extractedData.county || null,
+    'IM',
+    unitInfo.unit_description || null,
+    unitInfo.unit_size_acres || null,
+    wellInfo.well_type || null,
+    extractedData.formations ? JSON.stringify(extractedData.formations) : null,
+    deadlines.election_deadline || null,
+    deadlines.election_period_days || null,
+    defaultElection.option_number != null ? String(defaultElection.option_number) : null,
+    defaultElection.description || null,
+    'high'
+  ).run();
+
+  console.log(`[Opus Reextract] Pooling order updated: ${poolingId}`);
+
+  // 8. Delete existing election options and insert new ones
+  await env.WELLS_DB.prepare(`
+    DELETE FROM pooling_election_options WHERE pooling_order_id = ?
+  `).bind(poolingId).run();
+
+  const options = extractedData.election_options || [];
+  let optionsInserted = 0;
+
+  for (const opt of options) {
+    try {
+      // Use total_royalty (new field) or fall back to royalty_rate (old field) for backwards compatibility
+      const royaltyFraction = opt.total_royalty || opt.royalty_rate || null;
+
+      // Calculate royalty decimal from fraction (e.g., "3/16" -> 0.1875)
+      let royaltyDecimal = null;
+      if (royaltyFraction) {
+        const match = royaltyFraction.match(/(\d+)\/(\d+)/);
+        if (match) {
+          royaltyDecimal = parseFloat(match[1]) / parseFloat(match[2]);
+        }
+      }
+      // Cross-check with NRI if available (NRI = 1 - royalty)
+      if (!royaltyDecimal && opt.nri_delivered) {
+        const nri = parseFloat(String(opt.nri_delivered).replace('%', '')) / 100;
+        if (nri > 0 && nri < 1) {
+          royaltyDecimal = 1 - nri;
+        }
+      }
+
+      await env.WELLS_DB.prepare(`
+        INSERT INTO pooling_election_options (
+          pooling_order_id, option_number, option_type, description,
+          bonus_per_acre, royalty_fraction, royalty_decimal,
+          working_interest_retained, cost_per_nma, penalty_percentage, notes
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `).bind(
+        poolingId,
+        opt.option_number || null,
+        opt.option_type || null,
+        opt.description || null,
+        opt.bonus_per_nma || null,
+        royaltyFraction,
+        royaltyDecimal,
+        opt.option_type === 'participate' ? 1 : 0,
+        opt.cost_per_nma || null,
+        opt.risk_penalty_percentage || null,
+        null
+      ).run();
+      optionsInserted++;
+    } catch (optErr: any) {
+      console.error(`[Opus Reextract] Failed to insert option ${opt.option_number}:`, optErr.message);
+    }
+  }
+
+  console.log(`[Opus Reextract] Inserted ${optionsInserted} election options`);
+
+  return {
+    success: true,
+    document_id: documentId,
+    election_options_count: optionsInserted
+  };
+}
+
 // Allowed file types for document uploads
 const ALLOWED_FILE_TYPES: Record<string, { extension: string; canViewInline: boolean }> = {
   'application/pdf': { extension: 'pdf', canViewInline: true },
@@ -172,14 +450,38 @@ async function authenticateUser(request: Request, env: Env) {
     });
 
     const authResponse = await env.AUTH_WORKER.fetch(authRequest);
-    
+
     if (!authResponse.ok) {
       console.log('Auth failed:', authResponse.status);
       return null;
     }
 
-    const userData = await authResponse.json();
+    const userData = await authResponse.json() as any;
     console.log('Authenticated user:', userData.id);
+
+    // Check for impersonation headers (trusted, set by portal-worker proxy)
+    const impersonateUserId = request.headers.get('X-Impersonate-User-Id');
+    if (impersonateUserId) {
+      const impersonateEmail = request.headers.get('X-Impersonate-User-Email') || '';
+      const impersonateOrgId = request.headers.get('X-Impersonate-Org-Id') || '';
+      const impersonatePlan = request.headers.get('X-Impersonate-Plan') || '';
+      console.log(`[Impersonate] Documents: ${userData.email} acting as ${impersonateEmail} (${impersonateUserId})`);
+      return {
+        ...userData,
+        id: impersonateUserId,
+        email: impersonateEmail,
+        organizationId: impersonateOrgId || undefined,
+        fields: {
+          ...userData.fields,
+          Email: impersonateEmail,
+          Organization: impersonateOrgId ? [impersonateOrgId] : [],
+          Plan: impersonatePlan || userData.fields?.Plan
+        },
+        organization: impersonateOrgId ? [impersonateOrgId] : [],
+        Organization: impersonateOrgId ? [impersonateOrgId] : []
+      };
+    }
+
     return userData;
   } catch (error) {
     console.error('Auth error:', error);
@@ -3072,6 +3374,168 @@ export default {
       } catch (error) {
         console.error('[County Record Extraction] Error:', error);
         return errorResponse('Failed to extract county record: ' + (error as Error).message, 500, env);
+      }
+    }
+
+    // =====================================================
+    // POOLING ORDER RE-EXTRACTION WITH OPUS
+    // =====================================================
+
+    // Route: GET /api/processing/pooling-reextract/candidates - List documents needing re-review
+    if (path === '/api/processing/pooling-reextract/candidates' && request.method === 'GET') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      try {
+        // Find pooling orders with no election options OR options missing bonus data
+        // Exclude documents already re-extracted with Opus (notes contains "Opus re-extraction")
+        const noOptionsResult = await env.WELLS_DB.prepare(`
+          SELECT po.id as pooling_order_id, po.document_id, po.case_number, po.order_number,
+                 po.county, po.operator, d.filename, d.r2_key, d.page_count,
+                 'no_options' as issue_type
+          FROM pooling_orders po
+          JOIN documents d ON d.id = po.document_id
+          WHERE NOT EXISTS (
+            SELECT 1 FROM pooling_election_options peo WHERE peo.pooling_order_id = po.id
+          )
+          AND (d.notes IS NULL OR d.notes NOT LIKE '%Opus re-extraction%')
+          ORDER BY po.order_date DESC
+        `).all();
+
+        const missingBonusResult = await env.WELLS_DB.prepare(`
+          SELECT DISTINCT po.id as pooling_order_id, po.document_id, po.case_number, po.order_number,
+                 po.county, po.operator, d.filename, d.r2_key, d.page_count,
+                 'missing_bonus' as issue_type
+          FROM pooling_orders po
+          JOIN documents d ON d.id = po.document_id
+          JOIN pooling_election_options peo ON peo.pooling_order_id = po.id
+          WHERE peo.bonus_per_acre IS NULL
+            AND peo.option_type NOT IN ('participate', 'non_consent')
+            AND (d.notes IS NULL OR d.notes NOT LIKE '%Opus re-extraction%')
+          ORDER BY po.order_date DESC
+        `).all();
+
+        // Combine and dedupe
+        const seen = new Set<string>();
+        const candidates: any[] = [];
+        for (const row of [...noOptionsResult.results, ...missingBonusResult.results]) {
+          const r = row as any;
+          if (!seen.has(r.document_id)) {
+            seen.add(r.document_id);
+            candidates.push(r);
+          }
+        }
+
+        // Estimate cost
+        const totalPages = candidates.reduce((sum, c) => sum + (c.page_count || 7), 0);
+        const estimatedInputTokens = totalPages * 2000; // ~2K tokens per page
+        const estimatedOutputTokens = candidates.length * 3000; // ~3K output per doc
+        const estimatedCost = (estimatedInputTokens * 15 + estimatedOutputTokens * 75) / 1_000_000;
+
+        return jsonResponse({
+          candidates,
+          summary: {
+            total: candidates.length,
+            no_options: noOptionsResult.results.length,
+            missing_bonus: missingBonusResult.results.length,
+            total_pages: totalPages,
+            estimated_cost_usd: Math.round(estimatedCost * 100) / 100
+          }
+        }, 200, env);
+
+      } catch (error) {
+        console.error('[Pooling Reextract] Candidates error:', error);
+        return errorResponse('Failed to list candidates: ' + (error as Error).message, 500, env);
+      }
+    }
+
+    // Route: POST /api/processing/pooling-reextract/:document_id - Re-extract single document with Opus
+    if (path.startsWith('/api/processing/pooling-reextract/') && request.method === 'POST') {
+      const apiKey = request.headers.get('X-API-Key');
+      if (!apiKey || apiKey !== env.PROCESSING_API_KEY) {
+        return errorResponse('Unauthorized', 401, env);
+      }
+
+      const documentId = path.split('/').pop();
+
+      // Handle "all" endpoint
+      if (documentId === 'all') {
+        try {
+          const body = await request.json() as any;
+          const limit = body.limit || 10; // Process max 10 at a time by default
+          const dryRun = body.dry_run || false;
+          const force = body.force || false; // Force re-extract ALL documents
+
+          // Get candidates
+          let candidatesResult;
+          if (force) {
+            // Force mode: re-extract ALL pooling orders that haven't been v2 extracted yet
+            candidatesResult = await env.WELLS_DB.prepare(`
+              SELECT DISTINCT po.document_id
+              FROM pooling_orders po
+              JOIN documents d ON d.id = po.document_id
+              WHERE d.r2_key IS NOT NULL
+                AND (d.notes IS NULL OR d.notes NOT LIKE '%Opus v2%')
+              ORDER BY po.order_date DESC
+              LIMIT ?
+            `).bind(limit).all();
+          } else {
+            // Normal mode: only candidates with issues, exclude already processed
+            candidatesResult = await env.WELLS_DB.prepare(`
+              SELECT DISTINCT po.document_id
+              FROM pooling_orders po
+              JOIN documents d ON d.id = po.document_id
+              WHERE (d.notes IS NULL OR d.notes NOT LIKE '%Opus re-extraction%')
+              LIMIT ?
+            `).bind(limit).all();
+          }
+
+          if (dryRun) {
+            return jsonResponse({
+              dry_run: true,
+              would_process: candidatesResult.results.length,
+              document_ids: candidatesResult.results.map((r: any) => r.document_id)
+            }, 200, env);
+          }
+
+          const results: any[] = [];
+          for (const row of candidatesResult.results) {
+            const docId = (row as any).document_id;
+            try {
+              const result = await reextractPoolingWithOpus(env, docId);
+              results.push({ document_id: docId, ...result });
+            } catch (err) {
+              results.push({ document_id: docId, success: false, error: (err as Error).message });
+            }
+          }
+
+          const successful = results.filter(r => r.success).length;
+          return jsonResponse({
+            processed: results.length,
+            successful,
+            failed: results.length - successful,
+            results
+          }, 200, env);
+
+        } catch (error) {
+          console.error('[Pooling Reextract All] Error:', error);
+          return errorResponse('Failed to reextract all: ' + (error as Error).message, 500, env);
+        }
+      }
+
+      // Single document re-extraction
+      if (!documentId || documentId === 'candidates') {
+        return errorResponse('Invalid document ID', 400, env);
+      }
+
+      try {
+        const result = await reextractPoolingWithOpus(env, documentId);
+        return jsonResponse(result, result.success ? 200 : 500, env);
+      } catch (error) {
+        console.error('[Pooling Reextract] Error:', error);
+        return errorResponse('Failed to reextract: ' + (error as Error).message, 500, env);
       }
     }
 

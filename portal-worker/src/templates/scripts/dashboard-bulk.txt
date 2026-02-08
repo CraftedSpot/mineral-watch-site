@@ -491,6 +491,7 @@ async function finishBulkUpload() {
 
 let wellsParsedData = [];
 let wellsValidationResults = null;
+let wellsSkippedData = []; // Wells that weren't imported (not found, skipped, failed)
 
 // Close wells modal
 function closeBulkUploadWellsModal() {
@@ -506,9 +507,11 @@ function resetBulkUploadWells() {
     document.getElementById('wells-results-step').style.display = 'none';
     document.getElementById('wells-file-info').style.display = 'none';
     document.getElementById('wells-parse-error').style.display = 'none';
+    if (document.getElementById('wells-validating')) document.getElementById('wells-validating').style.display = 'none';
     document.getElementById('wellsFileInput').value = '';
     wellsParsedData = [];
     wellsValidationResults = null;
+    wellsSkippedData = [];
 }
 
 // Handle wells file drop
@@ -631,12 +634,16 @@ async function validateAndPreviewWells() {
     try {
         const totalRows = wellsParsedData.length;
         const BATCH_SIZE = 25; // Reduced from 50 to avoid timeouts
-        
+
+        // Show validating spinner
+        const validatingEl = document.getElementById('wells-validating');
+        if (validatingEl) validatingEl.style.display = 'block';
+
         // Show progress UI for large files
         if (totalRows > 200) {
             showBatchProgress(totalRows);
         }
-        
+
         // For files <= 200 rows, process normally
         if (totalRows <= 200) {
             const response = await fetch('/api/bulk-validate-wells', {
@@ -732,18 +739,20 @@ async function validateAndPreviewWells() {
         }
         
         hideBatchProgress();
-        
+        if (document.getElementById('wells-validating')) document.getElementById('wells-validating').style.display = 'none';
+
         document.getElementById('wells-upload-step').style.display = 'none';
         document.getElementById('wells-preview-step').style.display = 'block';
-        
+
         renderWellsSummary();
         renderWellsPlanCheck();
         renderWellsPreviewTable();
         updateImportButtonState();
-        
+
     } catch (error) {
         console.error('Wells validation error:', error);
         hideBatchProgress();
+        if (document.getElementById('wells-validating')) document.getElementById('wells-validating').style.display = 'none';
         document.getElementById('wells-error-message').textContent = error.message;
         document.getElementById('wells-parse-error').style.display = 'block';
     }
@@ -859,26 +868,11 @@ function renderWellsPreviewTable() {
         // Build CSV data display
         const csvData = [];
         const orig = result.original;
-        
-        // Extract well name and number with same priority as search function
-        // Priority 1: Use WELL_NAME + WELL_NUM (separate fields to combine)
-        const wellName = orig.WELL_NAME || orig['Well_Name'] || orig['Well Name'] || 
-                        orig.well_name || orig.WellName || orig.wellName || '';
-        const wellNumber = orig.WELL_NUM || orig['Well_Num'] || orig['WELL_NUMBER'] || 
-                          orig['Well Number'] || orig['well_number'] || orig.WellNumber || 
-                          orig.wellNumber || orig.well_num || '';
-        
-        // Priority logic for well name:
-        // 1. If we have separate name and number, combine them
-        // 2. Otherwise use 'WELL Name & Number' if available  
-        // 3. Do NOT use 'WELL NAME COMBINED' as it includes operator
-        let fullWellName = '';
-        if (wellName && wellNumber) {
-            fullWellName = `${wellName.trim()} ${wellNumber.trim()}`.trim();
-        } else {
-            fullWellName = orig['WELL Name & Number'] || orig['Well Name & Number'] || wellName || '';
-        }
-        
+
+        // Use normalized.csvWellName from backend (handles all column aliases via findField)
+        // Fallback to legacy extraction for backwards compatibility
+        const fullWellName = (result.normalized && (result.normalized.csvWellName || result.normalized.wellName)) || '';
+
         if (fullWellName) csvData.push(`Well: ${fullWellName}`);
         if (orig.Operator || orig.operator || orig.OPERATOR) csvData.push(`Op: ${orig.Operator || orig.operator || orig.OPERATOR}`);
         
@@ -1051,6 +1045,28 @@ async function startWellsImport() {
         }
     }, 500);
     
+    // Collect wells that won't be imported
+    wellsSkippedData = [];
+    wellsValidationResults.results.forEach((r, index) => {
+        let dominated = false;
+        if (r.matchStatus === 'not_found') {
+            wellsSkippedData.push({ original: r.original, reason: 'Not Found' });
+            dominated = true;
+        } else if (r.isDuplicate) {
+            wellsSkippedData.push({ original: r.original, reason: 'Duplicate' });
+            dominated = true;
+        } else if (r.matchStatus === 'ambiguous') {
+            const sel = wellsSelections[index];
+            if (!sel || sel === 'SKIP') {
+                wellsSkippedData.push({ original: r.original, reason: 'Skipped (No Match Selected)' });
+                dominated = true;
+            }
+        }
+        if (!dominated && r.errors && r.errors.length > 0) {
+            wellsSkippedData.push({ original: r.original, reason: r.errors[0] });
+        }
+    });
+
     try {
         // Send all validation results with selections
         const response = await fetch('/api/bulk-upload-wells', {
@@ -1128,6 +1144,49 @@ function showWellsResults(results) {
         document.getElementById('wells-results-title').textContent = 'Import Completed with Errors';
         document.getElementById('wells-results-details').textContent = 'Some wells could not be imported.';
     }
+
+    // Show download button if there are skipped wells
+    const downloadBtn = document.getElementById('wells-download-skipped-btn');
+    if (downloadBtn && wellsSkippedData.length > 0) {
+        downloadBtn.style.display = 'inline-block';
+        downloadBtn.textContent = `Download ${wellsSkippedData.length} Skipped Wells (CSV)`;
+    }
+}
+
+// Download skipped wells as CSV
+function downloadSkippedWells() {
+    if (wellsSkippedData.length === 0) return;
+
+    // Collect all unique column headers from original CSV data
+    const allKeys = new Set();
+    wellsSkippedData.forEach(item => {
+        Object.keys(item.original).forEach(k => allKeys.add(k));
+    });
+    // Put Skip_Reason first, then original columns
+    const headers = ['Skip_Reason', ...Array.from(allKeys)];
+
+    // Build CSV rows
+    const csvRows = [headers.join(',')];
+    wellsSkippedData.forEach(item => {
+        const row = headers.map(h => {
+            const val = h === 'Skip_Reason' ? item.reason : (item.original[h] || '');
+            const str = String(val);
+            if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+                return '"' + str.replace(/"/g, '""') + '"';
+            }
+            return str;
+        });
+        csvRows.push(row.join(','));
+    });
+
+    const csvContent = csvRows.join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'skipped-wells.csv';
+    link.click();
+    URL.revokeObjectURL(url);
 }
 
 // Show wells error
