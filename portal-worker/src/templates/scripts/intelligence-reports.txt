@@ -206,7 +206,7 @@
             return `
                 <tr class="well-row ${priorityClass}" onclick="toggleWellDetail('${well.api_number}')">
                     <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}</td>
-                    <td class="sticky sticky-operator">${escapeHtml(well.operator || '—')}</td>
+                    <td class="sticky sticky-operator">${escapeHtml(well.operator || '—')}${well.is_affiliated ? ' <span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>' : ''}</td>
                     <td class="${pctClass}">${well.agg_deduction_pct}%</td>
                     <td class="${pcrrClass}">${metrics.pcrr != null ? metrics.pcrr + '%' : '—'}</td>
                     <td class="${netReturnClass}">${formatCurrencyFull(metrics.netReturn)}</td>
@@ -223,9 +223,18 @@
             `;
         }
 
-        async function loadDeductionReport() {
+        let deductionCurrentTab = 'properties';
+        let deductionResearchLoaded = false;
+        let lastOperatorData = null;
+        let deductionInitialTab = null;
+        let marketsSort = { key: 'deduction_ratio', dir: 'desc' };
+        let marketsOperators = [];
+
+        async function loadDeductionReport(initialTab) {
             // Set report type for print functionality
             currentReportType = 'deduction-audit';
+            deductionResearchLoaded = false;
+            deductionInitialTab = initialTab || 'properties';
 
             // Show report viewer, hide main page content
             const main = document.querySelector('main');
@@ -247,19 +256,31 @@
 
             try {
                 const controller = new AbortController();
-                setTimeout(() => controller.abort(), 15000);
+                setTimeout(() => controller.abort(), 20000);
 
-                const response = await fetch('/api/intelligence/deduction-report', {
-                    credentials: 'include',
-                    signal: controller.signal
-                });
+                // Fetch deduction report and operator comparison in parallel
+                const [deductionResponse, operatorResponse] = await Promise.all([
+                    fetch('/api/intelligence/deduction-report', {
+                        credentials: 'include',
+                        signal: controller.signal
+                    }),
+                    fetch('/api/intelligence/operator-comparison', {
+                        credentials: 'include',
+                        signal: controller.signal
+                    })
+                ]);
 
-                if (!response.ok) {
-                    throw new Error('API returned ' + response.status);
+                if (!deductionResponse.ok) {
+                    throw new Error('Deduction API returned ' + deductionResponse.status);
                 }
 
-                const data = await response.json();
-                renderDeductionReport(data);
+                const data = await deductionResponse.json();
+                let operatorData = null;
+                if (operatorResponse.ok) {
+                    operatorData = await operatorResponse.json();
+                }
+
+                renderDeductionReport(data, operatorData);
             } catch (error) {
                 if (error.name === 'AbortError') {
                     console.warn('Deduction report request timed out');
@@ -276,17 +297,18 @@
             }
         }
 
-        function renderDeductionReport(data) {
+        function renderDeductionReport(data, operatorData) {
             const { flaggedWells, portfolio, statewide, summary } = data;
             lastReportData = data;
+            lastOperatorData = operatorData;
             expandedWells = new Set();
 
-            // Header - neutral language
+            // Header
             const counties = [...new Set(flaggedWells.map(w => w.county).filter(Boolean))];
             const highDeductionWells = flaggedWells.filter(w => w.agg_deduction_pct > 50);
             document.getElementById('reportSubtitle').textContent = flaggedWells.length > 0
                 ? `${flaggedWells.length} wells analyzed across ${counties.length || '—'} count${counties.length !== 1 ? 'ies' : 'y'}`
-                : 'No wells with elevated deductions';
+                : 'Portfolio deduction analysis';
 
             if (highDeductionWells.length === 0) {
                 document.getElementById('reportStatus').textContent = '';
@@ -300,54 +322,9 @@
             document.getElementById('reportMeta').innerHTML = 'Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + ' · Data through ' + latestFormatted +
                 '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">OTC financial records are typically available with a 2-3 month delay</div>';
 
-            if (flaggedWells.length === 0) {
-                const emptyStatewideText = statewide && statewide.avg_deduction_pct != null
-                    ? `vs ${statewide.avg_deduction_pct}% statewide`
-                    : 'Deduction rate';
-                document.getElementById('reportContent').innerHTML = `
-                    <div class="hud-metrics">
-                        <div class="hud-badge">
-                            <div class="hud-badge-value">${portfolio.avg_deduction_pct}%</div>
-                            <div class="hud-badge-content">
-                                <div class="hud-badge-label">Portfolio Avg</div>
-                                <div class="hud-badge-status">${emptyStatewideText}</div>
-                            </div>
-                        </div>
-                        <div class="hud-badge">
-                            <div class="hud-badge-value">0</div>
-                            <div class="hud-badge-content">
-                                <div class="hud-badge-label">Above 25%</div>
-                                <div class="hud-badge-status">None found</div>
-                            </div>
-                        </div>
-                        <div class="hud-badge">
-                            <div class="hud-badge-value">${portfolio.total_wells_analyzed}</div>
-                            <div class="hud-badge-content">
-                                <div class="hud-badge-label">Wells Analyzed</div>
-                                <div class="hud-badge-status">${summary.analysis_period}</div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="report-summary-card">
-                        <h2 class="report-summary-title">Summary</h2>
-                        <p class="report-summary-text">
-                            <strong>${portfolio.total_wells_analyzed} wells</strong> with multi-product financial data were analyzed
-                            over the past ${summary.analysis_period}. No wells exceeded the 25% aggregate deduction threshold.
-                            Your portfolio average is <strong>${portfolio.avg_deduction_pct}%</strong>.
-                        </p>
-                    </div>
-                    <div class="report-footer">
-                        <p>Data sourced from Oklahoma Tax Commission gross production reports.</p>
-                    </div>
-                `;
-                return;
-            }
-
-            const worstWell = flaggedWells[0];
-
             let html = '';
 
-            // HUD Metrics Bar - neutral language
+            // HUD Metrics Bar (above tabs)
             const statewideText = statewide && statewide.avg_deduction_pct != null
                 ? `vs ${statewide.avg_deduction_pct}% statewide`
                 : 'Deduction rate';
@@ -376,6 +353,88 @@
                     </div>
                 </div>
             `;
+
+            // Tab Navigation
+            const operatorCount = operatorData && operatorData.operators ? operatorData.operators.length : 0;
+            const initialTab = deductionInitialTab || 'properties';
+            html += `
+                <div class="pooling-tabs">
+                    <button class="pooling-tab ${initialTab === 'properties' ? 'active' : ''}" data-tab="properties" onclick="switchDeductionTab('properties')">
+                        My Properties <span class="tab-badge">${summary.flagged_count || 0}</span>
+                    </button>
+                    <button class="pooling-tab ${initialTab === 'markets' ? 'active' : ''}" data-tab="markets" onclick="switchDeductionTab('markets')">
+                        My Markets <span class="tab-badge">${operatorCount}</span>
+                    </button>
+                    <button class="pooling-tab ${initialTab === 'research' ? 'active' : ''}" data-tab="research" onclick="switchDeductionTab('research')">
+                        Market Research
+                    </button>
+                </div>
+            `;
+
+            // Tab Content Panels
+            html += `<div id="deduction-tab-contents">`;
+
+            // TAB 1: MY PROPERTIES
+            html += `<div id="deduction-tab-properties" class="pooling-tab-content ${initialTab === 'properties' ? 'active' : ''}" style="${initialTab !== 'properties' ? 'display:none;' : ''}">`;
+            html += renderDeductionPropertiesTab(data);
+            html += `</div>`;
+
+            // TAB 2: MY MARKETS
+            html += `<div id="deduction-tab-markets" class="pooling-tab-content ${initialTab === 'markets' ? 'active' : ''}" style="${initialTab !== 'markets' ? 'display:none;' : ''}">`;
+            html += renderDeductionMarketsTab(operatorData);
+            html += `</div>`;
+
+            // TAB 3: MARKET RESEARCH (lazy-loaded)
+            html += `<div id="deduction-tab-research" class="pooling-tab-content ${initialTab === 'research' ? 'active' : ''}" style="${initialTab !== 'research' ? 'display:none;' : ''}">`;
+            html += '<div id="deduction-research-content"><div class="report-loading">Loading market research data...</div></div>';
+            html += `</div>`;
+
+            html += `</div>`; // Close tab contents
+
+            // Footer
+            html += `
+                <div class="report-footer">
+                    <p>
+                        Data sourced from Oklahoma Tax Commission gross production reports.
+                        <br>Analysis date: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                    </p>
+                </div>
+            `;
+
+            document.getElementById('reportContent').innerHTML = html;
+            deductionCurrentTab = initialTab;
+
+            // Render the sortable markets table
+            renderMarketsTable();
+
+            // If starting on Market Research tab, trigger lazy load
+            if (initialTab === 'research') {
+                loadDeductionResearch();
+            }
+        }
+
+        function renderDeductionPropertiesTab(data) {
+            const { flaggedWells, portfolio, statewide, summary } = data;
+            const highDeductionWells = flaggedWells.filter(w => w.agg_deduction_pct > 50);
+
+            if (flaggedWells.length === 0) {
+                const emptyStatewideText = statewide && statewide.avg_deduction_pct != null
+                    ? `vs ${statewide.avg_deduction_pct}% statewide`
+                    : 'Deduction rate';
+                return `
+                    <div class="report-summary-card">
+                        <h2 class="report-summary-title">Summary</h2>
+                        <p class="report-summary-text">
+                            <strong>${portfolio.total_wells_analyzed} wells</strong> with multi-product financial data were analyzed
+                            over the past ${summary.analysis_period}. No wells exceeded the 25% aggregate deduction threshold.
+                            Your portfolio average is <strong>${portfolio.avg_deduction_pct}%</strong> (${emptyStatewideText}).
+                        </p>
+                    </div>
+                `;
+            }
+
+            const worstWell = flaggedWells[0];
+            let html = '';
 
             // Executive Summary
             const latestMonth = summary.latest_month || '';
@@ -436,7 +495,7 @@
                 </div>
             `;
 
-            // Print-only Summary Table (simple, no scroll, top 10 offenders)
+            // Print-only Summary Table
             const topOffenders = flaggedWells.slice(0, 10);
             html += `
                 <div class="print-summary-table">
@@ -465,8 +524,8 @@
                 </div>
             `;
 
-            // Per-Well Breakdown Table with Horizontal Scroll + Sticky Columns + Sortable Headers (screen only)
-            currentSort = { key: 'agg_deduction_pct', dir: 'desc' }; // Reset to default sort
+            // Per-Well Breakdown Table
+            currentSort = { key: 'agg_deduction_pct', dir: 'desc' };
             html += `
                 <div class="report-data-section screen-only">
                     <div class="report-data-header">
@@ -504,17 +563,557 @@
                 </div>
             `;
 
-            // Footer
+            return html;
+        }
+
+        function renderDeductionMarketsTab(operatorData) {
+            if (!operatorData || !operatorData.operators || operatorData.operators.length === 0) {
+                return `
+                    <div class="report-summary-card">
+                        <h2 class="report-summary-title">No Operator Data</h2>
+                        <p class="report-summary-text">
+                            We couldn't find operator data for your wells. This may happen if your wells haven't been
+                            linked to OTC production records yet.
+                        </p>
+                    </div>
+                `;
+            }
+
+            const { operators, statewide, analysis_period } = operatorData;
+            const criticalOps = operators.filter(op => op.deduction_ratio > 40 && op.your_wells > 20);
+            const statewideAvg = statewide ? statewide.deduction_ratio : null;
+
+            let html = '';
+
+            // Statewide context HUD
+            if (statewide) {
+                html += `
+                    <div class="hud-metrics" style="margin-top: 0.5rem;">
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">${statewide.deduction_ratio}%</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Statewide Deduction Ratio</div>
+                                <div class="hud-badge-status">Median baseline</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">${statewide.ngl_recovery_ratio != null ? statewide.ngl_recovery_ratio + '%' : '—'}</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Statewide NGL Recovery</div>
+                                <div class="hud-badge-status">Liquids vs deductions</div>
+                            </div>
+                        </div>
+                        <div class="hud-badge">
+                            <div class="hud-badge-value">${operators.length}</div>
+                            <div class="hud-badge-content">
+                                <div class="hud-badge-label">Your Operators</div>
+                                <div class="hud-badge-status">In this report</div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Critical operator callout
+            if (criticalOps.length > 0) {
+                const calloutItems = criticalOps.map(op => {
+                    const aboveAvg = statewideAvg != null ? ` — significantly above the statewide average of ${statewideAvg}%` : '';
+                    return `<strong>${escapeHtml(op.operator_name)}</strong> manages ${op.your_wells} of your wells with a ${op.deduction_ratio}% deduction ratio${aboveAvg}`;
+                }).join('. ');
+                const anyAffiliated = criticalOps.some(op => op.is_affiliated);
+                const affiliatedSentence = anyAffiliated
+                    ? ' ' + criticalOps.filter(op => op.is_affiliated).map(op => `${escapeHtml(op.operator_name)} pays processing deductions to affiliated companies.`).join(' ')
+                    : '';
+
+                html += `
+                    <div class="report-summary-card" style="border-left: 4px solid var(--danger-red); background: var(--danger-red-light);">
+                        <h2 class="report-summary-title" style="color: var(--danger-red);">High-Impact Operator${criticalOps.length > 1 ? 's' : ''} Detected</h2>
+                        <p class="report-summary-text">
+                            ${calloutItems}. Operators with high deduction ratios across a large number of your wells have an outsized impact on your net revenue. Consider reviewing these deductions closely.${affiliatedSentence}
+                        </p>
+                    </div>
+                `;
+            }
+
+            // Explanation card
             html += `
-                <div class="report-footer">
-                    <p>
-                        Data sourced from Oklahoma Tax Commission gross production reports.
-                        <br>Analysis date: ${new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}
+                <div class="report-summary-card">
+                    <h2 class="report-summary-title">About This Data</h2>
+                    <p class="report-summary-text">
+                        This report shows deduction ratios and NGL recovery ratios for operators associated with your wells.
+                        <strong>Deduction Ratio</strong> = Residue Gas deductions as a percentage of total gross value.
+                        <strong>NGL Recovery Ratio</strong> = NGL/Casinghead value returned as a percentage of Residue Gas deductions.
+                        Higher NGL recovery means more value returned relative to processing costs.
+                        NGL Recovery Ratios above 100% indicate the operator is returning more NGL value than they are deducting in processing costs, which is a positive outcome.
                     </p>
                 </div>
             `;
 
-            document.getElementById('reportContent').innerHTML = html;
+            // Store operators for sorting and build critical set
+            marketsOperators = operators;
+            const criticalOpNames = new Set(criticalOps.map(op => op.operator_name));
+
+            // Operator table — container for sortable re-rendering
+            html += `
+                <div class="report-data-section">
+                    <div class="report-data-header">
+                        <h3 class="report-data-title">Your Operators</h3>
+                        <div class="report-data-actions">
+                            <button class="btn btn-secondary" onclick="exportOperatorCsv()" style="font-size: 0.8rem;">Export Data</button>
+                        </div>
+                    </div>
+                    <div id="marketsOperatorTable"></div>
+                    ${statewide ? `<p class="table-footnote">Statewide median: ${statewide.deduction_ratio}% deduction ratio, ${statewide.ngl_recovery_ratio != null ? statewide.ngl_recovery_ratio + '%' : '—'} NGL recovery</p>` : ''}
+                </div>
+            `;
+
+            return html;
+        }
+
+        function marketsSortArrow(key) {
+            if (marketsSort.key !== key) return '';
+            return marketsSort.dir === 'asc' ? ' &#9650;' : ' &#9660;';
+        }
+
+        function sortMarketsTable(key) {
+            if (marketsSort.key === key) {
+                marketsSort.dir = marketsSort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                marketsSort.key = key;
+                marketsSort.dir = key === 'operator_name' ? 'asc' : 'desc';
+            }
+            renderMarketsTable();
+        }
+
+        function renderMarketsTable() {
+            const container = document.getElementById('marketsOperatorTable');
+            if (!container || !marketsOperators || marketsOperators.length === 0) return;
+
+            const criticalOps = marketsOperators.filter(op => op.deduction_ratio > 40 && op.your_wells > 20);
+            const criticalOpNames = new Set(criticalOps.map(op => op.operator_name));
+
+            const sorted = [...marketsOperators].sort((a, b) => {
+                const dir = marketsSort.dir === 'asc' ? 1 : -1;
+                const key = marketsSort.key;
+                if (key === 'operator_name') return dir * (a.operator_name || '').localeCompare(b.operator_name || '');
+                if (key === 'affiliated') return dir * ((a.is_affiliated ? 1 : 0) - (b.is_affiliated ? 1 : 0));
+                const aVal = a[key] ?? -Infinity;
+                const bVal = b[key] ?? -Infinity;
+                return dir * (aVal - bVal);
+            });
+
+            let html = `
+                <div class="table-scroll-container">
+                    <table class="report-data-table">
+                        <thead>
+                            <tr>
+                                <th class="sticky sticky-well sortable" onclick="sortMarketsTable('operator_name')">Operator${marketsSortArrow('operator_name')}</th>
+                                <th class="sortable" onclick="sortMarketsTable('affiliated')">Affiliated${marketsSortArrow('affiliated')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('your_wells')">Your Wells${marketsSortArrow('your_wells')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('total_wells')">Total Wells${marketsSortArrow('total_wells')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('total_gross')">Total Gross${marketsSortArrow('total_gross')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('deduction_ratio')">Deduction Ratio${marketsSortArrow('deduction_ratio')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('ngl_recovery_ratio')">NGL Recovery${marketsSortArrow('ngl_recovery_ratio')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            sorted.forEach(op => {
+                const isCritical = criticalOpNames.has(op.operator_name);
+                const rowStyle = isCritical ? ' style="border-left: 4px solid var(--danger-red);"' : '';
+                const badge = isCritical ? ' <span class="status-badge status-critical" style="font-size: 0.6rem; padding: 0.15rem 0.4rem; margin-left: 0.5rem;">High Impact</span>' : '';
+                const affiliatedBadge = op.is_affiliated
+                    ? '<span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>'
+                    : '';
+                const nglVal = op.ngl_recovery_ratio != null
+                    ? (op.ngl_recovery_ratio > 100
+                        ? `<span title="NGL recovery above 100% means more value returned than deducted — favorable for the mineral owner" style="cursor: help;">${op.ngl_recovery_ratio}% <span style="font-size: 0.7rem; color: var(--success);">&#9432;</span></span>`
+                        : op.ngl_recovery_ratio + '%')
+                    : '—';
+                html += `
+                    <tr${rowStyle}>
+                        <td class="sticky sticky-well">${escapeHtml(op.operator_name)}${badge}</td>
+                        <td>${affiliatedBadge}</td>
+                        <td class="text-right">${op.your_wells}</td>
+                        <td class="text-right">${op.total_wells.toLocaleString()}</td>
+                        <td class="text-right">${formatCurrencyFull(op.total_gross)}</td>
+                        <td class="text-right ${op.deduction_ratio > 40 ? 'value-danger' : ''}">${op.deduction_ratio}%</td>
+                        <td class="text-right">${nglVal}</td>
+                    </tr>`;
+            });
+
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        }
+
+        function switchDeductionTab(tab) {
+            deductionCurrentTab = tab;
+            document.querySelectorAll('.pooling-tab').forEach(btn => {
+                btn.classList.toggle('active', btn.dataset.tab === tab);
+            });
+            document.querySelectorAll('.pooling-tab-content').forEach(content => {
+                content.style.display = content.id === 'deduction-tab-' + tab ? 'block' : 'none';
+            });
+            // Lazy-load Market Research on first visit
+            if (tab === 'research' && !deductionResearchLoaded) {
+                loadDeductionResearch();
+            }
+        }
+
+        async function loadDeductionResearch() {
+            deductionResearchLoaded = true;
+            const container = document.getElementById('deduction-research-content');
+            if (!container) return;
+            container.innerHTML = '<div class="report-loading">Loading market research data...</div>';
+
+            try {
+                const [researchResponse, efficiencyResponse] = await Promise.all([
+                    fetch('/api/intelligence/deduction-research', { credentials: 'include' }),
+                    fetch('/api/operators/efficiency?limit=1000&min_wells=20', { credentials: 'include' })
+                ]);
+
+                let researchData = null;
+                if (researchResponse.ok) {
+                    researchData = await researchResponse.json();
+                }
+
+                let efficiencyData = null;
+                if (efficiencyResponse.ok) {
+                    efficiencyData = await efficiencyResponse.json();
+                }
+
+                container.innerHTML = renderDeductionResearchContent(researchData, efficiencyData);
+                setupInlineEfficiency(efficiencyData);
+            } catch (error) {
+                console.error('Failed to load deduction research:', error);
+                container.innerHTML = `
+                    <div class="report-error">
+                        <p>Could not load market research data. Please try again.</p>
+                        <button class="btn btn-primary" onclick="loadDeductionResearch()">Retry</button>
+                    </div>
+                `;
+            }
+        }
+
+        let inlineEfficiencyOperators = [];
+        let inlineEfficiencyAll = [];
+        let inlineEfficiencySort = { key: 'well_count', dir: 'desc' };
+        let inlineEfficiencySearch = '';
+
+        function renderDeductionResearchContent(researchData, efficiencyData) {
+            let html = '';
+
+            // Section 1: Breakdown Cards
+            html += `
+                <p class="pooling-tab-intro">
+                    Statewide deduction and efficiency intelligence from OTC financial data.
+                </p>
+                <div class="pooling-insight-cards">
+            `;
+
+            // Top Deduction Counties
+            const topCounties = researchData ? researchData.topDeductionCounties || [] : [];
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Highest Deduction Counties</div>
+                    ${topCounties.length > 0 ? topCounties.map(c => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(c.county)}</span>
+                            <span class="insight-item-val">${c.avg_deduction_pct}%<span class="insight-item-sub">${c.well_count} wells</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            // Top PCRR Operators
+            const topPcrr = researchData ? researchData.topPcrrOperators || [] : [];
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Most Efficient Operators (PCRR)</div>
+                    ${topPcrr.length > 0 ? topPcrr.map(op => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(op.operator_name)}</span>
+                            <span class="insight-item-val">${op.pcrr}%<span class="insight-item-sub">${op.well_count} wells</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            // Top Net Return Operators
+            const topReturn = researchData ? researchData.topNetReturnOperators || [] : [];
+            html += `
+                <div class="pooling-insight-card">
+                    <div class="insight-card-title">Highest Net Return</div>
+                    ${topReturn.length > 0 ? topReturn.map(op => `
+                        <div class="insight-top-item">
+                            <span class="insight-item-name">${escapeHtml(op.operator_name)}</span>
+                            <span class="insight-item-val">${formatCurrencyShort(op.net_value_return)}<span class="insight-item-sub">${op.well_count} wells</span></span>
+                        </div>
+                    `).join('') : '<div class="pooling-empty">No data</div>'}
+                </div>
+            `;
+
+            html += `</div>`;
+
+            // Section Divider
+            html += `
+                <div style="margin: 2rem 0 1.5rem; border-top: 2px solid var(--border); padding-top: 1.5rem;">
+                    <h3 style="font-size: 1.1rem; font-weight: 700; color: var(--oil-navy); margin-bottom: 0.25rem;">Operator Efficiency Index</h3>
+                    <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Compare deduction efficiency across Oklahoma operators with 20+ wells</p>
+                </div>
+            `;
+
+            // Efficiency Index toolbar
+            html += `
+                <div class="pooling-toolbar" style="margin-bottom: 1rem;">
+                    <div class="pooling-search-box">
+                        <span class="search-icon">&#8981;</span>
+                        <input type="text" id="inlineEfficiencySearch" placeholder="Search operators..." oninput="filterInlineEfficiency()">
+                    </div>
+                    <div class="pooling-filter-group">
+                        <label class="filter-label">Min Wells</label>
+                        <select id="inlineEfficiencyMinWells" class="pooling-filter-select" onchange="filterInlineEfficiency()">
+                            <option value="5">5+ wells</option>
+                            <option value="10">10+ wells</option>
+                            <option value="20" selected>20+ wells</option>
+                            <option value="50">50+ wells</option>
+                        </select>
+                    </div>
+                    <button class="pooling-btn-export" onclick="exportInlineEfficiencyCsv()">&#10516; Export CSV</button>
+                </div>
+            `;
+
+            // Efficiency table container
+            html += `<div id="inlineEfficiencyTable"></div>`;
+
+            return html;
+        }
+
+        function setupInlineEfficiency(efficiencyData) {
+            if (!efficiencyData || !efficiencyData.operators) {
+                document.getElementById('inlineEfficiencyTable').innerHTML = '<div class="pooling-empty">No efficiency data available</div>';
+                return;
+            }
+            inlineEfficiencyAll = efficiencyData.operators;
+            inlineEfficiencyOperators = [...inlineEfficiencyAll];
+            // Populate allEfficiencyOperators so openOperatorDetail() can find names
+            if (typeof allEfficiencyOperators !== 'undefined') {
+                allEfficiencyOperators = inlineEfficiencyAll;
+            }
+            inlineEfficiencySort = { key: 'well_count', dir: 'desc' };
+            inlineEfficiencySearch = '';
+            renderInlineEfficiencyTable();
+        }
+
+        function filterInlineEfficiency() {
+            const search = (document.getElementById('inlineEfficiencySearch')?.value || '').trim().toLowerCase();
+            const minWells = parseInt(document.getElementById('inlineEfficiencyMinWells')?.value || '20');
+            inlineEfficiencySearch = search;
+
+            inlineEfficiencyOperators = inlineEfficiencyAll.filter(op => {
+                if (op.well_count < minWells) return false;
+                if (search && !op.operator_name.toLowerCase().includes(search) && !op.operator_number.includes(search)) return false;
+                return true;
+            });
+            renderInlineEfficiencyTable();
+        }
+
+        function sortInlineEfficiency(key) {
+            if (inlineEfficiencySort.key === key) {
+                inlineEfficiencySort.dir = inlineEfficiencySort.dir === 'asc' ? 'desc' : 'asc';
+            } else {
+                inlineEfficiencySort.key = key;
+                inlineEfficiencySort.dir = key === 'name' ? 'asc' : 'desc';
+            }
+            renderInlineEfficiencyTable();
+        }
+
+        function renderInlineEfficiencySortArrow(key) {
+            if (inlineEfficiencySort.key !== key) return '';
+            return inlineEfficiencySort.dir === 'asc' ? ' &#9650;' : ' &#9660;';
+        }
+
+        function renderInlineEfficiencyTable() {
+            const container = document.getElementById('inlineEfficiencyTable');
+            if (!container) return;
+
+            if (!inlineEfficiencyOperators || inlineEfficiencyOperators.length === 0) {
+                container.innerHTML = '<div class="pooling-empty">' + (inlineEfficiencySearch ? 'No operators match your search' : 'No operators found') + '</div>';
+                return;
+            }
+
+            // Affiliated stats banner — aggregate per-dollar NGL return
+            const affiliatedOps = inlineEfficiencyOperators.filter(op => op.is_affiliated);
+            const thirdPartyOps = inlineEfficiencyOperators.filter(op => !op.is_affiliated && op.primary_purchaser_id);
+            const affCount = affiliatedOps.length;
+            const totalCount = inlineEfficiencyOperators.length;
+            let bannerHtml = '';
+            if (affCount > 0) {
+                const affTotalDed = affiliatedOps.reduce((sum, op) => sum + Math.abs(op.residue_deductions || 0), 0);
+                const affTotalNgl = affiliatedOps.reduce((sum, op) => sum + (op.pcrr_value || 0), 0);
+                const tpTotalDed = thirdPartyOps.reduce((sum, op) => sum + Math.abs(op.residue_deductions || 0), 0);
+                const tpTotalNgl = thirdPartyOps.reduce((sum, op) => sum + (op.pcrr_value || 0), 0);
+                const affPerDollar = affTotalDed > 0 ? (affTotalNgl / affTotalDed).toFixed(2) : null;
+                const tpPerDollar = tpTotalDed > 0 ? (tpTotalNgl / tpTotalDed).toFixed(2) : null;
+                const pct = Math.round(affCount / totalCount * 100);
+                const comparisonText = affPerDollar != null && tpPerDollar != null
+                    ? ` Affiliated operators return <strong>$${affPerDollar}</strong> in NGL value per $1 deducted. Third-party operators return <strong>$${tpPerDollar}</strong>.`
+                    : '';
+                bannerHtml = `
+                    <div style="background: #fffbeb; border: 1px solid #fde68a; border-radius: 8px; padding: 0.875rem 1.25rem; margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem;">
+                        <div style="font-size: 1.5rem; line-height: 1;">&#9888;</div>
+                        <div style="font-size: 0.875rem; color: #92400e;">
+                            <strong>${affCount} of ${totalCount} operators (${pct}%)</strong> pay processing deductions to affiliated companies.${comparisonText}
+                        </div>
+                    </div>
+                `;
+            }
+
+            // Sort
+            const sorted = [...inlineEfficiencyOperators].sort((a, b) => {
+                const key = inlineEfficiencySort.key;
+                const dir = inlineEfficiencySort.dir === 'asc' ? 1 : -1;
+                if (key === 'name') return dir * (a.operator_name || '').localeCompare(b.operator_name || '');
+                if (key === 'primary_county') return dir * (a.primary_county || '').localeCompare(b.primary_county || '');
+                if (key === 'affiliated') return dir * ((a.is_affiliated ? 1 : 0) - (b.is_affiliated ? 1 : 0));
+                const aVal = a[key] ?? -Infinity;
+                const bVal = b[key] ?? -Infinity;
+                return dir * (aVal - bVal);
+            });
+
+            const countHtml = inlineEfficiencySearch
+                ? `<div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">Showing ${inlineEfficiencyOperators.length} of ${inlineEfficiencyAll.length} operators</div>`
+                : `<div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 0.5rem;">${inlineEfficiencyOperators.length} operators</div>`;
+
+            let html = bannerHtml + countHtml + `
+                <div class="table-scroll-container">
+                    <table class="report-data-table efficiency-table" style="min-width: 1000px;">
+                        <thead>
+                            <tr>
+                                <th class="sticky sortable" style="left: 0; min-width: 200px; max-width: 200px; z-index: 2; background: var(--paper);" onclick="sortInlineEfficiency('name')">Operator${renderInlineEfficiencySortArrow('name')}</th>
+                                <th class="sortable" onclick="sortInlineEfficiency('affiliated')">Affiliated${renderInlineEfficiencySortArrow('affiliated')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('well_count')">Wells${renderInlineEfficiencySortArrow('well_count')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('deduction_pct')">Ded %${renderInlineEfficiencySortArrow('deduction_pct')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('pcrr_value')">NGL Returned${renderInlineEfficiencySortArrow('pcrr_value')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('net_value_return')">Net Return${renderInlineEfficiencySortArrow('net_value_return')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('pcrr')">PCRR${renderInlineEfficiencySortArrow('pcrr')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('total_gross')">Total Gross${renderInlineEfficiencySortArrow('total_gross')}</th>
+                                <th class="text-right sortable" onclick="sortInlineEfficiency('residue_deductions')">Deductions${renderInlineEfficiencySortArrow('residue_deductions')}</th>
+                                <th class="sortable" onclick="sortInlineEfficiency('primary_county')">County${renderInlineEfficiencySortArrow('primary_county')}</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            sorted.forEach(op => {
+                const pcrrClass = op.pcrr == null ? ''
+                    : op.pcrr >= 100 ? 'value-success'
+                    : op.pcrr >= 30 ? '' : 'value-danger';
+                const returnColor = op.net_value_return == null ? ''
+                    : op.net_value_return <= -5000000 ? 'color: #ef4444;'
+                    : op.net_value_return <= -1000000 ? 'color: #f97316;'
+                    : '';
+                const deductPctClass = op.deduction_pct != null && op.deduction_pct > 40 ? 'value-danger' : '';
+                // Side indicator on sticky column based on net return severity
+                const sideIndicator = op.net_value_return != null && op.net_value_return <= -5000000
+                    ? 'box-shadow: inset 4px 0 0 var(--danger-red);'
+                    : op.net_value_return != null && op.net_value_return <= -1000000
+                    ? 'box-shadow: inset 4px 0 0 var(--warning-amber);'
+                    : '';
+                const affiliatedBadge = op.is_affiliated
+                    ? '<span class="affiliated-badge" title="Operator pays deductions to their own affiliated company">Affiliated</span>'
+                    : (op.primary_purchaser_name ? '<span class="third-party-badge">Third Party</span>' : '—');
+
+                html += `
+                    <tr>
+                        <td class="sticky" style="left: 0; min-width: 200px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; background: white; z-index: 1; ${sideIndicator}">
+                            <div class="op-name" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" title="${escapeHtml(op.operator_name)}">${escapeHtml(op.operator_name)}</div>
+                            <div class="op-meta">#${escapeHtml(op.operator_number)}</div>
+                        </td>
+                        <td>${affiliatedBadge}</td>
+                        <td class="text-right">${op.well_count.toLocaleString()}</td>
+                        <td class="text-right ${deductPctClass}">${op.deduction_pct != null ? op.deduction_pct + '%' : '—'}</td>
+                        <td class="text-right">${formatCurrencyShort(op.pcrr_value)}</td>
+                        <td class="text-right" style="${returnColor} font-weight: 600;">${formatCurrencyShort(op.net_value_return)}</td>
+                        <td class="text-right ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}</td>
+                        <td class="text-right">${formatCurrencyShort(op.total_gross)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.residue_deductions)}</td>
+                        <td>${escapeHtml(op.primary_county || '—')}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table></div>';
+            html += `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem; line-height: 1.5; max-width: 900px;">
+                Data sourced from Oklahoma Tax Commission gross production reports, most recent 6-month window. &ldquo;Affiliated&rdquo; indicates the operator name matches a purchaser name on their wells&rsquo; deduction records. PCRR (Processing Cost Recovery Ratio) measures NGL value returned as a percentage of processing deductions taken. This data reflects reported figures and does not account for differences in gas composition, processing contract structures, or regional infrastructure costs that may affect operator-level metrics.
+            </div>`;
+            container.innerHTML = html;
+        }
+
+        function formatCurrencyShort(val) {
+            if (val == null) return '—';
+            const abs = Math.abs(val);
+            const sign = val < 0 ? '-' : '';
+            if (abs >= 1000000) return sign + '$' + (abs / 1000000).toFixed(1) + 'M';
+            if (abs >= 1000) return sign + '$' + (abs / 1000).toFixed(0) + 'K';
+            return sign + '$' + abs.toLocaleString();
+        }
+
+        function exportInlineEfficiencyCsv() {
+            if (!inlineEfficiencyOperators || inlineEfficiencyOperators.length === 0) {
+                showToast('No data to export', 'error');
+                return;
+            }
+            const rows = [[
+                'Operator',
+                'Operator Number',
+                'Affiliated',
+                'Wells',
+                'Deduction %',
+                'NGL Returned',
+                'Net Return',
+                'PCRR %',
+                'Total Gross',
+                'Deductions',
+                'County',
+                'Status',
+                'Affiliated Purchaser Name',
+                'Affiliated Deduction $',
+                'Affiliated Deduction %'
+            ].join(',')];
+            for (const op of inlineEfficiencyOperators) {
+                const affDed = op.is_affiliated ? op.residue_deductions : 0;
+                const affPct = op.is_affiliated ? (op.deduction_pct != null ? op.deduction_pct : '') : 0;
+                rows.push([
+                    csvEscape(op.operator_name),
+                    op.operator_number,
+                    op.is_affiliated ? 'Yes' : (op.primary_purchaser_id ? 'No' : ''),
+                    op.well_count,
+                    op.deduction_pct != null ? op.deduction_pct : '',
+                    op.pcrr_value,
+                    op.net_value_return,
+                    op.pcrr != null ? op.pcrr : '',
+                    op.total_gross,
+                    op.residue_deductions,
+                    csvEscape(op.primary_county || ''),
+                    op.status || '',
+                    csvEscape(op.is_affiliated ? (op.primary_purchaser_name || '') : ''),
+                    affDed,
+                    affPct
+                ].join(','));
+            }
+            const csv = rows.join('\n');
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'operator-efficiency-' + new Date().toISOString().substring(0, 10) + '.csv';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('CSV downloaded', 'success');
         }
 
         function buildWellDetail(well) {
@@ -738,218 +1337,6 @@
                 return '"' + str.replace(/"/g, '""') + '"';
             }
             return str;
-        }
-
-        // =============================================
-        // OPERATOR COMPARISON — Neutral Data Presentation
-        // =============================================
-
-        let lastOperatorData = null;
-
-        async function loadOperatorComparison() {
-            // Show report viewer, hide main page content
-            const main = document.querySelector('main');
-            const hero = document.querySelector('.intel-hero');
-            const viewer = document.getElementById('reportViewer');
-            if (main) main.style.display = 'none';
-            if (hero) hero.style.display = 'none';
-            viewer.style.display = 'block';
-            window.scrollTo(0, 0);
-
-            // Update header for operator report
-            document.getElementById('reportBreadcrumb').textContent = 'Operator Comparison';
-            document.getElementById('reportTitle').textContent = 'Operator Comparison';
-            document.getElementById('reportContent').innerHTML = '<div class="report-loading">Loading operator data...</div>';
-            document.getElementById('reportSubtitle').textContent = 'Loading...';
-            document.getElementById('reportStatus').textContent = '';
-            document.getElementById('reportStatus').className = 'report-status';
-            document.getElementById('reportMeta').textContent = '';
-
-            try {
-                const controller = new AbortController();
-                setTimeout(() => controller.abort(), 15000);
-
-                const response = await fetch('/api/intelligence/operator-comparison', {
-                    credentials: 'include',
-                    signal: controller.signal
-                });
-
-                if (!response.ok) {
-                    throw new Error('API returned ' + response.status);
-                }
-
-                const data = await response.json();
-                renderOperatorComparison(data);
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.warn('Operator comparison request timed out');
-                } else {
-                    console.error('Failed to load operator comparison:', error);
-                }
-                document.getElementById('reportContent').innerHTML = `
-                    <div class="report-error">
-                        <p>Could not load operator data. Please try again.</p>
-                        <button class="btn btn-primary" onclick="loadOperatorComparison()">Retry</button>
-                        <button class="btn btn-ghost" onclick="closeReport()" style="margin-left: 0.5rem;">Back</button>
-                    </div>
-                `;
-            }
-        }
-
-        function renderOperatorComparison(data) {
-            const { operators, statewide, analysis_period } = data;
-            lastOperatorData = data;
-
-            // Header
-            document.getElementById('reportSubtitle').textContent = operators.length > 0
-                ? `${operators.length} operator${operators.length !== 1 ? 's' : ''} across your portfolio`
-                : 'No operator data found';
-
-            document.getElementById('reportStatus').textContent = '';
-            document.getElementById('reportMeta').innerHTML = 'Analysis period: ' + (analysis_period || '6 months') + ' · Data from Oklahoma Tax Commission' +
-                '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">OTC production and financial data is typically available with a 2-3 month delay</div>';
-
-            if (operators.length === 0) {
-                document.getElementById('reportContent').innerHTML = `
-                    <div class="report-summary-card">
-                        <h2 class="report-summary-title">No Operator Data</h2>
-                        <p class="report-summary-text">
-                            We couldn't find operator data for your wells. This may happen if your wells haven't been
-                            linked to OTC production records yet.
-                        </p>
-                    </div>
-                `;
-                return;
-            }
-
-            // Detect critical operators: >40% deduction ratio AND >20 of user's wells
-            const criticalOps = operators.filter(op => op.deduction_ratio > 40 && op.your_wells > 20);
-            const statewideAvg = statewide ? statewide.deduction_ratio : null;
-
-            let html = '';
-
-            // Statewide context
-            if (statewide) {
-                html += `
-                    <div class="hud-metrics">
-                        <div class="hud-badge">
-                            <div class="hud-badge-value">${statewide.deduction_ratio}%</div>
-                            <div class="hud-badge-content">
-                                <div class="hud-badge-label">Statewide Deduction Ratio</div>
-                                <div class="hud-badge-status">Median baseline</div>
-                            </div>
-                        </div>
-                        <div class="hud-badge">
-                            <div class="hud-badge-value">${statewide.ngl_recovery_ratio != null ? statewide.ngl_recovery_ratio + '%' : '—'}</div>
-                            <div class="hud-badge-content">
-                                <div class="hud-badge-label">Statewide NGL Recovery</div>
-                                <div class="hud-badge-status">Liquids vs deductions</div>
-                            </div>
-                        </div>
-                        <div class="hud-badge">
-                            <div class="hud-badge-value">${operators.length}</div>
-                            <div class="hud-badge-content">
-                                <div class="hud-badge-label">Your Operators</div>
-                                <div class="hud-badge-status">In this report</div>
-                            </div>
-                        </div>
-                    </div>
-                `;
-            }
-
-            // Critical operator callout
-            if (criticalOps.length > 0) {
-                const calloutItems = criticalOps.map(op => {
-                    const aboveAvg = statewideAvg != null ? ` — significantly above the statewide average of ${statewideAvg}%` : '';
-                    return `<strong>${escapeHtml(op.operator_name)}</strong> manages ${op.your_wells} of your wells with a ${op.deduction_ratio}% deduction ratio${aboveAvg}`;
-                }).join('. ');
-
-                html += `
-                    <div class="report-summary-card" style="border-left: 4px solid var(--danger-red); background: var(--danger-red-light);">
-                        <h2 class="report-summary-title" style="color: var(--danger-red);">High-Impact Operator${criticalOps.length > 1 ? 's' : ''} Detected</h2>
-                        <p class="report-summary-text">
-                            ${calloutItems}. Operators with high deduction ratios across a large number of your wells have an outsized impact on your net revenue. Consider reviewing these deductions closely.
-                        </p>
-                    </div>
-                `;
-            }
-
-            // Explanation card
-            html += `
-                <div class="report-summary-card">
-                    <h2 class="report-summary-title">About This Data</h2>
-                    <p class="report-summary-text">
-                        This report shows deduction ratios and NGL recovery ratios for operators associated with your wells.
-                        <strong>Deduction Ratio</strong> = Residue Gas deductions as a percentage of total gross value.
-                        <strong>NGL Recovery Ratio</strong> = NGL/Casinghead value returned as a percentage of Residue Gas deductions.
-                        Higher NGL recovery means more value returned relative to processing costs.
-                        NGL Recovery Ratios above 100% indicate the operator is returning more NGL value than they are deducting in processing costs, which is a positive outcome.
-                    </p>
-                </div>
-            `;
-
-            // Build critical operator set for row styling
-            const criticalOpNames = new Set(criticalOps.map(op => op.operator_name));
-
-            // Operator table
-            html += `
-                <div class="report-data-section">
-                    <div class="report-data-header">
-                        <h3 class="report-data-title">Your Operators</h3>
-                        <div class="report-data-actions">
-                            <button class="btn btn-secondary" onclick="exportOperatorCsv()" style="font-size: 0.8rem;">Export Data</button>
-                        </div>
-                    </div>
-                    <div class="table-scroll-container">
-                        <table class="report-data-table">
-                            <thead>
-                                <tr>
-                                    <th class="sticky sticky-well">Operator</th>
-                                    <th>Your Wells</th>
-                                    <th>Total Wells</th>
-                                    <th>Total Gross</th>
-                                    <th>Deduction Ratio</th>
-                                    <th>NGL Recovery</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${operators.map(op => {
-                                    const isCritical = criticalOpNames.has(op.operator_name);
-                                    const rowStyle = isCritical ? ' style="border-left: 4px solid var(--danger-red);"' : '';
-                                    const badge = isCritical ? ' <span class="status-badge status-critical" style="font-size: 0.6rem; padding: 0.15rem 0.4rem; margin-left: 0.5rem;">High Impact</span>' : '';
-                                    const nglVal = op.ngl_recovery_ratio != null
-                                        ? (op.ngl_recovery_ratio > 100
-                                            ? `<span title="NGL recovery above 100% means more value returned than deducted — favorable for the mineral owner" style="cursor: help;">${op.ngl_recovery_ratio}% <span style="font-size: 0.7rem; color: var(--success);">&#9432;</span></span>`
-                                            : op.ngl_recovery_ratio + '%')
-                                        : '—';
-                                    return `
-                                    <tr${rowStyle}>
-                                        <td class="sticky sticky-well">${escapeHtml(op.operator_name)}${badge}</td>
-                                        <td>${op.your_wells}</td>
-                                        <td>${op.total_wells.toLocaleString()}</td>
-                                        <td>${formatCurrencyFull(op.total_gross)}</td>
-                                        <td class="${op.deduction_ratio > 40 ? 'value-danger' : ''}">${op.deduction_ratio}%</td>
-                                        <td>${nglVal}</td>
-                                    </tr>`;
-                                }).join('')}
-                            </tbody>
-                        </table>
-                    </div>
-                    ${statewide ? `<p class="table-footnote">Statewide median: ${statewide.deduction_ratio}% deduction ratio, ${statewide.ngl_recovery_ratio != null ? statewide.ngl_recovery_ratio + '%' : '—'} NGL recovery</p>` : ''}
-                </div>
-            `;
-
-            // Footer
-            html += `
-                <div class="report-footer">
-                    <p>
-                        Data sourced from Oklahoma Tax Commission gross production reports.
-                        <br>Analysis period: ${analysis_period || '6 months'}
-                    </p>
-                </div>
-            `;
-
-            document.getElementById('reportContent').innerHTML = html;
         }
 
         function exportOperatorCsv() {

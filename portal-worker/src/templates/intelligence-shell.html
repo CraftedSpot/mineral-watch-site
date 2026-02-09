@@ -135,23 +135,6 @@
                         </div>
                     </div>
 
-                    <div class="market-tool-card" onclick="loadOperatorComparison()">
-                        <div class="tool-icon">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-                                <circle cx="8.5" cy="7" r="4"/>
-                                <path d="M20 8v6M23 11h-6"/>
-                            </svg>
-                        </div>
-                        <div class="tool-content">
-                            <h3>Operator Comparison</h3>
-                            <p>Compare your operators' deduction ratios and NGL recovery against statewide data</p>
-                        </div>
-                        <div class="tool-arrow">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5l7 7-7 7"/></svg>
-                        </div>
-                    </div>
-
                     <div class="market-tool-card" onclick="loadShutInDetectorReport()">
                         <div class="tool-icon" style="background: #fef2f2;">
                             <svg viewBox="0 0 24 24" fill="none" stroke="#dc2626" stroke-width="1.5">
@@ -178,7 +161,7 @@
                     <span class="section-meta">Statewide operator data and benchmarking</span>
                 </div>
                 <div class="market-tools-grid">
-                    <div class="market-tool-card" onclick="loadOperatorEfficiency()">
+                    <div class="market-tool-card" onclick="loadDeductionReport('research')">
                         <div class="tool-icon">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                                 <path d="M3 3v18h18"/>
@@ -269,58 +252,6 @@
         <div class="container">
             <div class="report-content" id="reportContent">
                 <div class="report-loading">Analyzing deduction data...</div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Operator Efficiency Index Viewer (hidden by default) -->
-    <div id="operatorEfficiencyViewer" style="display: none;">
-        <div class="intel-hero efficiency-hero">
-            <div class="container">
-                <div class="report-breadcrumb" style="margin-bottom: 1rem;">
-                    <a href="#" onclick="closeOperatorEfficiency(); return false;">Intelligence</a>
-                    <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <a href="#" onclick="closeOperatorEfficiency(); return false;">Operators</a>
-                    <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                    <span>Efficiency Index</span>
-                </div>
-                <div class="report-title-row">
-                    <div>
-                        <h1 class="report-title" style="color: white;">Operator Efficiency Index</h1>
-                        <p class="report-subtitle" id="efficiencySubtitle" style="color: rgba(255,255,255,0.8);">Comparing deduction efficiency across Oklahoma operators</p>
-                    </div>
-                    <div class="directory-stats" id="efficiencyStats"></div>
-                </div>
-            </div>
-        </div>
-        <div class="report-actions-bar">
-            <div class="container">
-                <div class="report-actions-content">
-                    <div class="directory-search">
-                        <input type="text" id="efficiencySearchInput" placeholder="Search operators..." autocomplete="off">
-                    </div>
-                    <div class="directory-filters">
-                        <select id="efficiencyMinWells">
-                            <option value="5">5+ wells</option>
-                            <option value="10">10+ wells</option>
-                            <option value="20" selected>20+ wells</option>
-                            <option value="50">50+ wells</option>
-                        </select>
-                        <button class="btn btn-secondary" onclick="exportEfficiencyCSV()">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px; margin-right: 0.25rem;"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                            Export CSV
-                        </button>
-                        <button class="btn btn-ghost" onclick="closeOperatorEfficiency()">
-                            <svg class="chevron-icon" viewBox="0 0 24 24"><path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                            Back
-                        </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="container">
-            <div id="efficiencyContent" class="directory-content">
-                <div class="report-loading">Loading efficiency data...</div>
             </div>
         </div>
     </div>

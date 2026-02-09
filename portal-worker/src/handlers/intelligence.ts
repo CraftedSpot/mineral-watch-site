@@ -1432,6 +1432,38 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       HAVING well_count >= 1
     `).bind(...uniqueOperators, sixMonthsAgo).all();
 
+    // Look up primary gas purchaser per operator for affiliated detection
+    const purchaserResult = await env.WELLS_DB.prepare(`
+      SELECT operator_number, purchaser_id FROM (
+        SELECT l.operator_number, opf.purchaser_id, COUNT(*) as cnt,
+          ROW_NUMBER() OVER (PARTITION BY l.operator_number ORDER BY COUNT(*) DESC) as rn
+        FROM otc_production_financial opf
+        JOIN otc_leases l ON SUBSTR(opf.pun, 1, 10) = l.base_pun
+        WHERE opf.product_code = '5' AND opf.purchaser_id IS NOT NULL AND opf.purchaser_id != ''
+          AND l.operator_number IN (${opPlaceholders})
+          AND opf.year_month >= ?
+        GROUP BY l.operator_number, opf.purchaser_id
+      ) WHERE rn = 1
+    `).bind(...uniqueOperators, sixMonthsAgo).all();
+
+    // Look up purchaser company names
+    const purchaserIds = [...new Set((purchaserResult.results as Array<{ purchaser_id: string }>).map(r => r.purchaser_id))];
+    const purchaserNameMap = new Map<string, string>();
+    if (purchaserIds.length > 0) {
+      const pPlaceholders = purchaserIds.map(() => '?').join(',');
+      const nameResult = await env.WELLS_DB.prepare(
+        `SELECT company_id, company_name FROM otc_companies WHERE company_id IN (${pPlaceholders})`
+      ).bind(...purchaserIds).all();
+      for (const r of nameResult.results as Array<{ company_id: string; company_name: string }>) {
+        purchaserNameMap.set(r.company_id, r.company_name || '');
+      }
+    }
+
+    const purchaserMap = new Map<string, { purchaser_id: string; purchaser_name: string }>();
+    for (const row of purchaserResult.results as Array<{ operator_number: string; purchaser_id: string }>) {
+      purchaserMap.set(row.operator_number, { purchaser_id: row.purchaser_id, purchaser_name: purchaserNameMap.get(row.purchaser_id) || '' });
+    }
+
     const operatorData = (metricsResult.results as Array<{
       operator_number: string;
       company_name: string;
@@ -1450,6 +1482,21 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       // Count user's wells with this operator
       const userWellCount = operatorWells.filter(ow => ow.operator_number === row.operator_number).length;
 
+      // Affiliated detection: operator number matches purchaser ID, or normalized name match
+      const purchaserInfo = purchaserMap.get(row.operator_number);
+      let isAffiliated = false;
+      if (purchaserInfo) {
+        if (row.operator_number === purchaserInfo.purchaser_id) {
+          isAffiliated = true;
+        } else {
+          const opNorm = (row.company_name || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+          const pNorm = purchaserInfo.purchaser_name.toUpperCase().replace(/[^A-Z0-9]/g, '');
+          if (opNorm.length > 5 && pNorm.includes(opNorm.substring(0, 10))) {
+            isAffiliated = true;
+          }
+        }
+      }
+
       return {
         operator_number: row.operator_number,
         operator_name: row.company_name || `Operator ${row.operator_number}`,
@@ -1459,7 +1506,8 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
         residue_deductions: row.residue_deductions,
         liquids_returned: row.liquids_returned,
         deduction_ratio: deductionRatio,
-        ngl_recovery_ratio: nglRecoveryRatio
+        ngl_recovery_ratio: nglRecoveryRatio,
+        is_affiliated: isAffiliated
       };
     });
 
@@ -1518,6 +1566,131 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       error: 'Failed to load operator comparison',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
+  }
+}
+
+// =============================================
+// DEDUCTION RESEARCH (Market Research tab breakdown cards)
+// =============================================
+
+/**
+ * GET /api/intelligence/deduction-research
+ *
+ * Returns statewide breakdown stats for the Deduction Audit Market Research tab:
+ * - Top counties by deduction %
+ * - Top operators by PCRR (most efficient)
+ * - Top operators by net value return
+ *
+ * No auth required beyond login — this is statewide data, not portfolio-specific.
+ */
+export async function handleGetDeductionResearch(request: Request, env: Env): Promise<Response> {
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    // Check KV cache (15 min, shared across all users since it's statewide)
+    if (env.OCC_CACHE) {
+      try {
+        const cached = await env.OCC_CACHE.get('deduction-research', 'json');
+        if (cached) return jsonResponse(cached);
+      } catch (e) {
+        console.error('[Deduction Research] Cache read error:', e);
+      }
+    }
+
+    const sixMonthsAgo = getMonthsAgo(6);
+
+    // Query 1: Top counties by avg deduction %
+    const countiesResult = await env.WELLS_DB.prepare(`
+      SELECT
+        ol.county,
+        ROUND(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) * 100.0
+              / NULLIF(SUM(opf.gross_value), 0), 1) AS avg_deduction_pct,
+        COUNT(DISTINCT ol.base_pun) AS well_count
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      WHERE opf.gross_value > 0
+        AND opf.year_month >= ?
+        AND ol.county IS NOT NULL
+      GROUP BY ol.county
+      HAVING well_count >= 20
+        AND avg_deduction_pct > 0
+      ORDER BY avg_deduction_pct DESC
+      LIMIT 5
+    `).bind(sixMonthsAgo).all();
+
+    // Query 2: Top operators by PCRR (most efficient — highest PCRR with 20+ wells)
+    const pcrrResult = await env.WELLS_DB.prepare(`
+      SELECT
+        oc.company_name AS operator_name,
+        ROUND(SUM(CASE WHEN opf.product_code = '6' THEN opf.gross_value ELSE 0 END) * 100.0
+              / NULLIF(SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0), 1) AS pcrr,
+        COUNT(DISTINCT ol.base_pun) AS well_count
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+      WHERE opf.gross_value > 0
+        AND opf.year_month >= ?
+        AND ol.operator_number IS NOT NULL
+      GROUP BY ol.operator_number
+      HAVING well_count >= 20
+        AND SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) > 0
+      ORDER BY pcrr DESC
+      LIMIT 5
+    `).bind(sixMonthsAgo).all();
+
+    // Query 3: Top operators by net value return (NGL returned - deductions)
+    const netReturnResult = await env.WELLS_DB.prepare(`
+      SELECT
+        oc.company_name AS operator_name,
+        ROUND(SUM(CASE WHEN opf.product_code = '6' THEN opf.gross_value ELSE 0 END)
+              - SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END), 0) AS net_value_return,
+        COUNT(DISTINCT ol.base_pun) AS well_count
+      FROM otc_production_financial opf
+      JOIN otc_leases ol ON SUBSTR(opf.pun, 1, 10) = ol.base_pun
+      LEFT JOIN otc_companies oc ON ol.operator_number = oc.company_id
+      WHERE opf.gross_value > 0
+        AND opf.year_month >= ?
+        AND ol.operator_number IS NOT NULL
+      GROUP BY ol.operator_number
+      HAVING well_count >= 20
+        AND SUM(CASE WHEN opf.product_code = '5' THEN opf.market_deduction ELSE 0 END) > 0
+      ORDER BY net_value_return DESC
+      LIMIT 5
+    `).bind(sixMonthsAgo).all();
+
+    const response = {
+      topDeductionCounties: (countiesResult.results as any[]).map(r => ({
+        county: r.county,
+        avg_deduction_pct: r.avg_deduction_pct,
+        well_count: r.well_count
+      })),
+      topPcrrOperators: (pcrrResult.results as any[]).map(r => ({
+        operator_name: r.operator_name || 'Unknown',
+        pcrr: r.pcrr,
+        well_count: r.well_count
+      })),
+      topNetReturnOperators: (netReturnResult.results as any[]).map(r => ({
+        operator_name: r.operator_name || 'Unknown',
+        net_value_return: r.net_value_return,
+        well_count: r.well_count
+      }))
+    };
+
+    // Cache for 15 minutes
+    if (env.OCC_CACHE) {
+      try {
+        await env.OCC_CACHE.put('deduction-research', JSON.stringify(response), { expirationTtl: 900 });
+      } catch (e) {
+        console.error('[Deduction Research] Cache write error:', e);
+      }
+    }
+
+    return jsonResponse(response);
+
+  } catch (error) {
+    console.error('[Deduction Research] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({ error: 'Failed to load deduction research data' }, 500);
   }
 }
 

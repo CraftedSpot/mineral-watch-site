@@ -1372,6 +1372,10 @@ var index_default = {
         const { handleGetOperatorComparison } = await import('./handlers/intelligence.js');
         return handleGetOperatorComparison(request, env);
       }
+      if (path === "/api/intelligence/deduction-research" && request.method === "GET") {
+        const { handleGetDeductionResearch } = await import('./handlers/intelligence.js');
+        return handleGetDeductionResearch(request, env);
+      }
       if (path === "/api/intelligence/pooling-report" && request.method === "GET") {
         const { handleGetPoolingReport } = await import('./handlers/intelligence.js');
         return handleGetPoolingReport(request, env);
