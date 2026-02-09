@@ -9,6 +9,7 @@ import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
 import { parseTownship, parseRange, getAdjacentLocations } from '../utils/property-well-matching.js';
+import { classifyWellGor, classifyOperatorGor } from '../utils/gor-classification.js';
 import type { Env } from '../types/env.js';
 
 // Minimum annual BOE threshold for including a well in county YoY calculations.
@@ -936,8 +937,12 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
 
     const cacheId = userOrgId || authUser.id;
 
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
     // Check KV cache
-    if (env.OCC_CACHE) {
+    if (env.OCC_CACHE && !skipCache) {
       try {
         const cached = await env.OCC_CACHE.get(`deduction-report:${cacheId}`, 'json');
         if (cached) return jsonResponse(cached);
@@ -962,6 +967,9 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
 
     const api10s = [...new Set(wells.map(w => w.api_number).filter(Boolean).map(a => a.replace(/-/g, '').substring(0, 10)))];
     const sixMonthsAgo = getMonthsAgo(6);
+
+    // GOR classification — runs in parallel with financial queries
+    const gorPromise = classifyWellGor(env.WELLS_DB!, api10s);
 
     // Query 1: Product-level breakdown for ALL wells with financial data
     type ProductRow = { api_number: string; product_code: string; gross_value: number; market_deduction: number; net_value: number };
@@ -1036,6 +1044,8 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
       purchaser_id: string | null;
       purchaser_name: string | null;
       is_affiliated: boolean;
+      gas_profile: string | null;
+      gor: number | null;
     }> = [];
 
     for (const [apiNum, entry] of wellMap) {
@@ -1074,8 +1084,28 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
         operator: well?.operator || '',
         purchaser_id: null, // filled by purchaser query
         purchaser_name: null,
-        is_affiliated: false
+        is_affiliated: false,
+        gas_profile: null, // filled by GOR classification
+        gor: null
       });
+    }
+
+    // Await GOR classification and attach to flagged wells
+    try {
+      const gorMap = await gorPromise;
+      for (const well of flaggedWellsData) {
+        const gorInfo = gorMap.get(well.api_number);
+        if (gorInfo) {
+          well.gas_profile = gorInfo.gas_profile;
+          well.gor = gorInfo.gor;
+          // Enhance residueGasNote: lean gas wells inherently have high residue deductions
+          if (gorInfo.gas_profile === 'lean') {
+            (well as any).residueGasNote = true;
+          }
+        }
+      }
+    } catch (gorError) {
+      console.error('[Deduction Report] GOR classification error:', gorError);
     }
 
     // Sort flagged wells by deduction rate descending
@@ -1229,6 +1259,7 @@ export async function handleGetDeductionReport(request: Request, env: Env): Prom
           const well = flaggedWellsData.find(w => w.api_number === row.api_number);
           if (well && row.purchaser_id) {
             well.purchaser_id = row.purchaser_id;
+            well.operator_number = row.operator_number;
             const purchaserName = purchaserNames.get(row.purchaser_id) || `Purchaser ${row.purchaser_id}`;
             well.purchaser_name = purchaserName;
             // Check if operator = purchaser (vertical integration)
@@ -1350,8 +1381,12 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
 
     const cacheId = userOrgId || authUser.id;
 
+    // Check for cache bypass
+    const url = new URL(request.url);
+    const skipCache = url.searchParams.get('bust') === '1' || url.searchParams.get('refresh') === '1';
+
     // Check KV cache
-    if (env.OCC_CACHE) {
+    if (env.OCC_CACHE && !skipCache) {
       try {
         const cached = await env.OCC_CACHE.get(`operator-comparison:${cacheId}`, 'json');
         if (cached) return jsonResponse(cached);
@@ -1399,6 +1434,9 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
     if (uniqueOperators.length === 0) {
       return jsonResponse({ operators: [], statewide: null });
     }
+
+    // GOR classification — runs in parallel with financial queries
+    const gorOpPromise = classifyOperatorGor(env.WELLS_DB!, uniqueOperators);
 
     // Query operator-level metrics: deduction ratio, NGL recovery ratio
     const opPlaceholders = uniqueOperators.map(() => '?').join(',');
@@ -1464,6 +1502,14 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
       purchaserMap.set(row.operator_number, { purchaser_id: row.purchaser_id, purchaser_name: purchaserNameMap.get(row.purchaser_id) || '' });
     }
 
+    // Await GOR classifications
+    let gorOpMap = new Map<string, any>();
+    try {
+      gorOpMap = await gorOpPromise;
+    } catch (e) {
+      console.error('[Operator Comparison] GOR classification error:', e);
+    }
+
     const operatorData = (metricsResult.results as Array<{
       operator_number: string;
       company_name: string;
@@ -1507,7 +1553,8 @@ export async function handleGetOperatorComparison(request: Request, env: Env): P
         liquids_returned: row.liquids_returned,
         deduction_ratio: deductionRatio,
         ngl_recovery_ratio: nglRecoveryRatio,
-        is_affiliated: isAffiliated
+        is_affiliated: isAffiliated,
+        gas_profile: gorOpMap.get(row.operator_number)?.label || null
       };
     });
 

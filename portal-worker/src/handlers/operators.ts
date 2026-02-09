@@ -9,6 +9,7 @@
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserFromSession } from '../services/airtable.js';
+import { classifyOperatorGor } from '../utils/gor-classification.js';
 import type { Env } from '../types/env.js';
 
 const OPERATORS_ALLOWED_ORGS = [
@@ -269,6 +270,9 @@ export async function handleGetOperatorEfficiency(request: Request, env: Env): P
     // Get primary purchaser for each operator (most common purchaser by volume)
     const operatorNumbers = (result.results as unknown as EfficiencyRow[]).map(r => r.operator_number);
 
+    // GOR classification — runs in parallel with purchaser queries
+    const gorOpPromise = classifyOperatorGor(env.WELLS_DB!, operatorNumbers);
+
     // Query for primary purchaser per operator
     const purchaserResult = await env.WELLS_DB.prepare(`
       SELECT
@@ -329,6 +333,14 @@ export async function handleGetOperatorEfficiency(request: Request, env: Env): P
       return false;
     }
 
+    // Await GOR classifications
+    let gorOpMap = new Map<string, any>();
+    try {
+      gorOpMap = await gorOpPromise;
+    } catch (e) {
+      console.error('[Operator Efficiency] GOR classification error:', e);
+    }
+
     const operators = (result.results as unknown as EfficiencyRow[]).map(row => {
       const purchaserId = purchaserMap.get(row.operator_number) || null;
       const purchaserName = purchaserId ? (purchaserNames.get(purchaserId) || `Purchaser ${purchaserId}`) : null;
@@ -348,7 +360,8 @@ export async function handleGetOperatorEfficiency(request: Request, env: Env): P
         primary_county: row.primary_county,
         primary_purchaser_id: purchaserId,
         primary_purchaser_name: purchaserName,
-        is_affiliated: isAffiliated(row.operator_number, operatorName, purchaserId, purchaserName)
+        is_affiliated: isAffiliated(row.operator_number, operatorName, purchaserId, purchaserName),
+        gas_profile: gorOpMap.get(row.operator_number)?.label || null
       };
     });
 

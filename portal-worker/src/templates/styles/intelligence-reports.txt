@@ -146,6 +146,10 @@
         .purchaser-name { font-weight: 600; color: var(--oil-navy); }
         .affiliated-badge { display: inline-block; background: var(--warning-amber-light); color: var(--warning-amber); font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 0.5rem; cursor: help; }
         .third-party-badge { display: inline-block; background: var(--success-bg); color: var(--success); font-size: 0.7rem; font-weight: 600; padding: 0.2rem 0.5rem; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.3px; margin-left: 0.5rem; cursor: help; }
+        .gas-profile-badge { display: inline-block; font-size: 0.55rem; font-weight: 600; padding: 0.1rem 0.4rem; border-radius: 3px; letter-spacing: 0.2px; margin-left: 0.35rem; cursor: help; vertical-align: middle; text-transform: uppercase; }
+        .gas-profile-lean { background: #f1f5f9; color: #64748b; border: 1px solid #e2e8f0; }
+        .gas-profile-rich { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
+        .gas-profile-mixed { background: #fefce8; color: #a16207; border: 1px solid #fef08a; }
         .affiliated-note { font-size: 0.8rem; color: var(--slate-blue); margin-top: 0.5rem; line-height: 1.4; }
 
         /* Purchaser cell in efficiency table */
@@ -782,7 +786,15 @@
             .pooling-property-header { padding: 0.75rem 1rem; }
             .pooling-prop-name { font-size: 0.85rem; }
             .pooling-header-right { gap: 0.5rem; }
-            .pooling-hud .hud-badge-value { font-size: 1.4rem; }
+            .pooling-hud .hud-badge-value { font-size: 1.3rem; }
+            .pooling-hud .hud-badge { padding: 0.6rem 0.75rem; }
+            .pooling-hud .hud-badge-label { font-size: 0.65rem; }
+            .pooling-hud .hud-badge-status { font-size: 0.6rem; }
+            .decline-trend-section { padding: 0.75rem; }
+            .risk-bar-label { width: 70px; font-size: 0.68rem; }
+            .risk-bar-value { width: 38px; font-size: 0.65rem; }
+            .risk-bar-row { height: 1.4rem; gap: 0.35rem; }
+            .risk-bar-track { height: 1rem; }
         }
 
         /* ========================================= */

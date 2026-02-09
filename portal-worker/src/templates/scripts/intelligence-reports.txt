@@ -58,6 +58,25 @@
             return county.replace(/^\d{3}-/, '');
         }
 
+        function gasProfileBadge(profile, isOperatorLevel) {
+            if (!profile) return '';
+            const labelMap = isOperatorLevel
+                ? { 'Primarily Lean Gas': 'Lean Gas', 'Primarily Rich Gas': 'Rich Gas', 'Mixed Portfolio': 'Mixed' }
+                : { lean: 'Lean Gas', rich: 'Rich Gas', mixed: 'Mixed' };
+            const classMap = isOperatorLevel
+                ? { 'Primarily Lean Gas': 'lean', 'Primarily Rich Gas': 'rich', 'Mixed Portfolio': 'mixed' }
+                : { lean: 'lean', rich: 'rich', mixed: 'mixed' };
+            const titleMap = {
+                lean: 'Lean/dry gas profile (GOR > 15,000) — low NGL recovery expected',
+                rich: 'Rich/wet gas profile (GOR < 3,000) — NGL recovery expected',
+                mixed: 'Mixed gas profile (GOR 3,000–15,000) — transitional'
+            };
+            const label = labelMap[profile] || profile;
+            const cls = classMap[profile] || 'mixed';
+            const title = titleMap[cls] || '';
+            return ' <span class="gas-profile-badge gas-profile-' + cls + '" title="' + title + '">' + label + '</span>';
+        }
+
         let expandedWells = new Set();
         let lastReportData = null;
 
@@ -206,7 +225,7 @@
             return `
                 <tr class="well-row ${priorityClass}" onclick="toggleWellDetail('${well.api_number}')">
                     <td class="sticky sticky-well"><span class="expand-icon" id="expand-${well.api_number}">&#9654;</span>${escapeHtml(well.well_name)}</td>
-                    <td class="sticky sticky-operator">${escapeHtml(well.operator || '—')}${well.is_affiliated ? ' <span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>' : ''}</td>
+                    <td class="sticky sticky-operator">${well.operator_number ? `<span class="op-name" onclick="event.stopPropagation(); openOperatorDetail('${escapeHtml(well.operator_number)}')" title="${escapeHtml(well.operator || '')}">${escapeHtml(well.operator || '—')}</span>` : escapeHtml(well.operator || '—')}${well.is_affiliated ? ' <span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>' : ''}${gasProfileBadge(well.gas_profile, false)}</td>
                     <td class="${pctClass}">${well.agg_deduction_pct}%</td>
                     <td class="${pcrrClass}">${metrics.pcrr != null ? metrics.pcrr + '%' : '—'}</td>
                     <td class="${netReturnClass}">${formatCurrencyFull(metrics.netReturn)}</td>
@@ -563,6 +582,18 @@
                 </div>
             `;
 
+            html += `
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1.5rem; line-height: 1.6; max-width: 900px;">
+                    <strong style="color: var(--text-secondary);">&#9432; About gas profile classifications</strong><br>
+                    Each well is classified by its Gas-Oil Ratio (GOR) using lifetime production volumes:
+                    <strong>Lean Gas</strong> (GOR &gt; 15,000 or pure gas) = low NGL expected;
+                    <strong>Rich Gas</strong> (GOR &lt; 3,000) = NGL recovery expected;
+                    <strong>Mixed</strong> = transitional.
+                    Wells tagged &ldquo;Lean Gas&rdquo; may legitimately show high deductions with low NGL returns &mdash; this reflects gas composition, not processing inefficiency.
+                    Wells tagged &ldquo;Rich Gas&rdquo; with low NGL returns may warrant review of your lease terms and operator reporting.
+                </div>
+            `;
+
             return html;
         }
 
@@ -618,7 +649,12 @@
             if (criticalOps.length > 0) {
                 const calloutItems = criticalOps.map(op => {
                     const aboveAvg = statewideAvg != null ? ` — significantly above the statewide average of ${statewideAvg}%` : '';
-                    return `<strong>${escapeHtml(op.operator_name)}</strong> manages ${op.your_wells} of your wells with a ${op.deduction_ratio}% deduction ratio${aboveAvg}`;
+                    const netReturn = (op.liquids_returned || 0) - (op.residue_deductions || 0);
+                    const pcrr = op.residue_deductions > 0 ? Math.round((op.liquids_returned / op.residue_deductions) * 1000) / 10 : null;
+                    const dollarDetail = op.residue_deductions > 0
+                        ? `. Across all their wells, deductions totaled ${formatCurrencyShort(op.residue_deductions)} with ${formatCurrencyShort(op.liquids_returned)} in NGL returned${pcrr != null ? ` (${pcrr}% PCRR)` : ''}`
+                        : '';
+                    return `<strong>${escapeHtml(op.operator_name)}</strong> manages ${op.your_wells} of your wells with a ${op.deduction_ratio}% deduction ratio${aboveAvg}${dollarDetail}`;
                 }).join('. ');
                 const anyAffiliated = criticalOps.some(op => op.is_affiliated);
                 const affiliatedSentence = anyAffiliated
@@ -667,6 +703,18 @@
                 </div>
             `;
 
+            html += `
+                <div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1.5rem; line-height: 1.6; max-width: 900px;">
+                    <strong style="color: var(--text-secondary);">&#9432; About gas profile classifications</strong><br>
+                    Each operator is classified by the Gas-Oil Ratio (GOR) of their well portfolio:
+                    <strong>Lean Gas</strong> (&gt;70% of wells GOR &gt; 15,000) = low NGL expected;
+                    <strong>Rich Gas</strong> (&gt;70% of wells GOR &lt; 3,000) = NGL recovery expected;
+                    <strong>Mixed</strong> = transitional portfolio.
+                    Operators tagged &ldquo;Primarily Lean Gas&rdquo; may legitimately show high deductions with low PCRR.
+                    Operators tagged &ldquo;Primarily Rich Gas&rdquo; with low PCRR may warrant closer review.
+                </div>
+            `;
+
             return html;
         }
 
@@ -697,23 +745,35 @@
                 const key = marketsSort.key;
                 if (key === 'operator_name') return dir * (a.operator_name || '').localeCompare(b.operator_name || '');
                 if (key === 'affiliated') return dir * ((a.is_affiliated ? 1 : 0) - (b.is_affiliated ? 1 : 0));
-                const aVal = a[key] ?? -Infinity;
-                const bVal = b[key] ?? -Infinity;
+                let aVal, bVal;
+                if (key === '_net_return') {
+                    aVal = (a.liquids_returned || 0) - (a.residue_deductions || 0);
+                    bVal = (b.liquids_returned || 0) - (b.residue_deductions || 0);
+                } else if (key === '_pcrr') {
+                    aVal = a.residue_deductions > 0 ? (a.liquids_returned / a.residue_deductions) * 100 : -Infinity;
+                    bVal = b.residue_deductions > 0 ? (b.liquids_returned / b.residue_deductions) * 100 : -Infinity;
+                } else {
+                    aVal = a[key] ?? -Infinity;
+                    bVal = b[key] ?? -Infinity;
+                }
                 return dir * (aVal - bVal);
             });
 
             let html = `
                 <div class="table-scroll-container">
-                    <table class="report-data-table">
+                    <table class="report-data-table" style="min-width: 1000px;">
                         <thead>
                             <tr>
                                 <th class="sticky sticky-well sortable" onclick="sortMarketsTable('operator_name')">Operator${marketsSortArrow('operator_name')}</th>
                                 <th class="sortable" onclick="sortMarketsTable('affiliated')">Affiliated${marketsSortArrow('affiliated')}</th>
-                                <th class="sortable text-right" onclick="sortMarketsTable('your_wells')">Your Wells${marketsSortArrow('your_wells')}</th>
-                                <th class="sortable text-right" onclick="sortMarketsTable('total_wells')">Total Wells${marketsSortArrow('total_wells')}</th>
-                                <th class="sortable text-right" onclick="sortMarketsTable('total_gross')">Total Gross${marketsSortArrow('total_gross')}</th>
-                                <th class="sortable text-right" onclick="sortMarketsTable('deduction_ratio')">Deduction Ratio${marketsSortArrow('deduction_ratio')}</th>
-                                <th class="sortable text-right" onclick="sortMarketsTable('ngl_recovery_ratio')">NGL Recovery${marketsSortArrow('ngl_recovery_ratio')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('your_wells')" style="white-space: nowrap;">Your<br>Wells${marketsSortArrow('your_wells')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('total_wells')" style="white-space: nowrap;">Total<br>Wells${marketsSortArrow('total_wells')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('total_gross')" style="white-space: nowrap;">Total<br>Gross${marketsSortArrow('total_gross')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('residue_deductions')">Deductions${marketsSortArrow('residue_deductions')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('deduction_ratio')" style="white-space: nowrap;">Ded %${marketsSortArrow('deduction_ratio')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('liquids_returned')" style="white-space: nowrap;">NGL<br>Returned${marketsSortArrow('liquids_returned')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('_net_return')" style="white-space: nowrap;">Net<br>Return${marketsSortArrow('_net_return')}</th>
+                                <th class="sortable text-right" onclick="sortMarketsTable('_pcrr')">PCRR${marketsSortArrow('_pcrr')}</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -721,25 +781,37 @@
 
             sorted.forEach(op => {
                 const isCritical = criticalOpNames.has(op.operator_name);
-                const rowStyle = isCritical ? ' style="border-left: 4px solid var(--danger-red);"' : '';
                 const badge = isCritical ? ' <span class="status-badge status-critical" style="font-size: 0.6rem; padding: 0.15rem 0.4rem; margin-left: 0.5rem;">High Impact</span>' : '';
                 const affiliatedBadge = op.is_affiliated
                     ? '<span class="affiliated-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Affiliated</span>'
+                    : '<span class="third-party-badge" style="font-size: 0.6rem; padding: 0.1rem 0.35rem;">Third Party</span>';
+                const netReturn = (op.liquids_returned || 0) - (op.residue_deductions || 0);
+                const pcrr = op.residue_deductions > 0
+                    ? Math.round((op.liquids_returned / op.residue_deductions) * 1000) / 10
+                    : null;
+                const sideIndicator = netReturn <= -5000000
+                    ? 'box-shadow: inset 4px 0 0 var(--danger-red);'
+                    : netReturn <= -1000000
+                    ? 'box-shadow: inset 4px 0 0 var(--warning-amber);'
                     : '';
-                const nglVal = op.ngl_recovery_ratio != null
-                    ? (op.ngl_recovery_ratio > 100
-                        ? `<span title="NGL recovery above 100% means more value returned than deducted — favorable for the mineral owner" style="cursor: help;">${op.ngl_recovery_ratio}% <span style="font-size: 0.7rem; color: var(--success);">&#9432;</span></span>`
-                        : op.ngl_recovery_ratio + '%')
-                    : '—';
+                const returnColor = netReturn <= -5000000 ? 'color: #ef4444;'
+                    : netReturn <= -1000000 ? 'color: #f97316;'
+                    : '';
+                const pcrrClass = pcrr == null ? ''
+                    : pcrr >= 100 ? 'value-success'
+                    : pcrr >= 30 ? '' : 'value-danger';
                 html += `
-                    <tr${rowStyle}>
-                        <td class="sticky sticky-well">${escapeHtml(op.operator_name)}${badge}</td>
+                    <tr>
+                        <td class="sticky sticky-well" style="${sideIndicator}"><span class="op-name" onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" title="${escapeHtml(op.operator_name)}">${escapeHtml(op.operator_name)}</span>${badge}${gasProfileBadge(op.gas_profile, true)}</td>
                         <td>${affiliatedBadge}</td>
                         <td class="text-right">${op.your_wells}</td>
                         <td class="text-right">${op.total_wells.toLocaleString()}</td>
-                        <td class="text-right">${formatCurrencyFull(op.total_gross)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.total_gross)}</td>
+                        <td class="text-right">${formatCurrencyShort(op.residue_deductions)}</td>
                         <td class="text-right ${op.deduction_ratio > 40 ? 'value-danger' : ''}">${op.deduction_ratio}%</td>
-                        <td class="text-right">${nglVal}</td>
+                        <td class="text-right">${formatCurrencyShort(op.liquids_returned)}</td>
+                        <td class="text-right" style="${returnColor} font-weight: 600;">${formatCurrencyShort(netReturn)}</td>
+                        <td class="text-right ${pcrrClass}">${pcrr != null ? pcrr + '%' : '—'}</td>
                     </tr>`;
             });
 
@@ -1029,14 +1101,14 @@
                     <tr>
                         <td class="sticky" style="left: 0; min-width: 200px; max-width: 200px; overflow: hidden; text-overflow: ellipsis; background: white; z-index: 1; ${sideIndicator}">
                             <div class="op-name" style="cursor: pointer; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" onclick="openOperatorDetail('${escapeHtml(op.operator_number)}')" title="${escapeHtml(op.operator_name)}">${escapeHtml(op.operator_name)}</div>
-                            <div class="op-meta">#${escapeHtml(op.operator_number)}</div>
+                            <div class="op-meta">#${escapeHtml(op.operator_number)}${gasProfileBadge(op.gas_profile, true)}</div>
                         </td>
                         <td>${affiliatedBadge}</td>
                         <td class="text-right">${op.well_count.toLocaleString()}</td>
                         <td class="text-right ${deductPctClass}">${op.deduction_pct != null ? op.deduction_pct + '%' : '—'}</td>
                         <td class="text-right">${formatCurrencyShort(op.pcrr_value)}</td>
                         <td class="text-right" style="${returnColor} font-weight: 600;">${formatCurrencyShort(op.net_value_return)}</td>
-                        <td class="text-right ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}</td>
+                        <td class="text-right ${pcrrClass}">${op.pcrr != null ? op.pcrr + '%' : 'N/A'}${op.gas_profile && op.gas_profile.includes('Rich') && op.pcrr != null && op.pcrr < 50 && op.deduction_pct > 10 ? ' <span title="Rich gas operator with significant deductions but low NGL recovery — may warrant review" style="cursor: help; color: var(--danger-red);">&#9888;</span>' : ''}</td>
                         <td class="text-right">${formatCurrencyShort(op.total_gross)}</td>
                         <td class="text-right">${formatCurrencyShort(op.residue_deductions)}</td>
                         <td>${escapeHtml(op.primary_county || '—')}</td>
@@ -1045,8 +1117,16 @@
             });
 
             html += '</tbody></table></div>';
-            html += `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem; line-height: 1.5; max-width: 900px;">
-                Data sourced from Oklahoma Tax Commission gross production reports, most recent 6-month window. &ldquo;Affiliated&rdquo; indicates the operator name matches a purchaser name on their wells&rsquo; deduction records. PCRR (Processing Cost Recovery Ratio) measures NGL value returned as a percentage of processing deductions taken. This data reflects reported figures and does not account for differences in gas composition, processing contract structures, or regional infrastructure costs that may affect operator-level metrics.
+            html += `<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 1rem; line-height: 1.6; max-width: 900px;">
+                <strong style="color: var(--text-secondary);">&#9432; Methodology &amp; context</strong><br>
+                Data sourced from Oklahoma Tax Commission gross production reports, most recent 6-month window. &ldquo;Affiliated&rdquo; indicates the operator&rsquo;s company ID matches the purchaser ID on their wells&rsquo; residue gas deduction records. PCRR (Processing Cost Recovery Ratio) measures NGL value returned as a percentage of processing deductions taken.
+                <br><br>
+                <strong>Gas profile classifications</strong> use lifetime Gas-Oil Ratio (GOR) from OTC production records:
+                <strong>Lean Gas</strong> (&gt;70% of wells GOR &gt; 15,000 or pure gas) = low NGL expected;
+                <strong>Rich Gas</strong> (&gt;70% of wells GOR &lt; 3,000) = NGL recovery expected;
+                <strong>Mixed</strong> = transitional portfolio.
+                Operators tagged &ldquo;Primarily Lean Gas&rdquo; may legitimately show high deductions with low PCRR.
+                Operators tagged &ldquo;Primarily Rich Gas&rdquo; with low PCRR (&lt; 50%) are flagged with &#9888; as NGL recovery may warrant review.
             </div>`;
             container.innerHTML = html;
         }
@@ -1069,6 +1149,7 @@
                 'Operator',
                 'Operator Number',
                 'Affiliated',
+                'Gas Profile',
                 'Wells',
                 'Deduction %',
                 'NGL Returned',
@@ -1089,6 +1170,7 @@
                     csvEscape(op.operator_name),
                     op.operator_number,
                     op.is_affiliated ? 'Yes' : (op.primary_purchaser_id ? 'No' : ''),
+                    csvEscape(op.gas_profile || ''),
                     op.well_count,
                     op.deduction_pct != null ? op.deduction_pct : '',
                     op.pcrr_value,
@@ -1151,6 +1233,19 @@
             // Residue gas note
             if (well.residueGasNote) {
                 html += '<div class="residue-gas-note"><strong>Note:</strong> This well\'s Residue Gas shows high deductions. This is typical when natural gas is processed — the valuable NGLs are extracted and reported separately as Casinghead Gas. The aggregate rate across all products reflects the true economic impact.</div>';
+            }
+
+            // GOR context note for lean gas wells
+            if (well.gas_profile === 'lean') {
+                const hasNoNgl = !well.products || !well.products.some(p => (p.product_code === '3' || p.product_code === '6') && p.gross_value > 100);
+                if (hasNoNgl) {
+                    html += '<div class="residue-gas-note" style="border-left-color: #94a3b8;"><strong>Lean Gas Well:</strong> This well produces primarily lean/dry gas (GOR > 15,000 MCF/BBL). Low or zero NGL returns are typical for this gas composition. Deductions reflect processing costs to meet pipeline specifications, not necessarily poor economics.</div>';
+                }
+            } else if (well.gas_profile === 'rich') {
+                const hasLowNgl = !well.products || !well.products.some(p => (p.product_code === '3' || p.product_code === '6') && p.gross_value > 500);
+                if (hasLowNgl) {
+                    html += '<div class="residue-gas-note" style="border-left-color: #ef4444;"><strong>&#9888; Rich Gas Well:</strong> This well produces rich/wet gas (GOR < 3,000 MCF/BBL) where NGL recovery is expected. Low NGL returns with high deductions may warrant review of your lease terms and operator reporting.</div>';
+                }
             }
 
             // Monthly trend
@@ -1348,25 +1443,39 @@
             const rows = [];
             rows.push([
                 'Operator',
+                'Affiliated',
+                'Gas Profile',
                 'Your Wells',
                 'Total Wells',
                 'Total Gross',
-                'Residue Deductions',
-                'Liquids Returned',
-                'Deduction Ratio %',
-                'NGL Recovery Ratio %'
+                'Deductions',
+                'Deduction %',
+                'NGL Returned',
+                'Net Return',
+                'PCRR %',
+                'NGL Recovery %',
+                'Operator Number'
             ].join(','));
 
             for (const op of lastOperatorData.operators) {
+                const netReturn = (op.liquids_returned || 0) - (op.residue_deductions || 0);
+                const pcrr = op.residue_deductions > 0
+                    ? Math.round((op.liquids_returned / op.residue_deductions) * 1000) / 10
+                    : '';
                 rows.push([
                     csvEscape(op.operator_name),
+                    op.is_affiliated ? 'Yes' : 'No',
+                    csvEscape(op.gas_profile || ''),
                     op.your_wells,
                     op.total_wells,
                     op.total_gross,
                     op.residue_deductions,
-                    op.liquids_returned,
                     op.deduction_ratio,
-                    op.ngl_recovery_ratio != null ? op.ngl_recovery_ratio : ''
+                    op.liquids_returned,
+                    Math.round(netReturn),
+                    pcrr,
+                    op.ngl_recovery_ratio != null ? op.ngl_recovery_ratio : '',
+                    op.operator_number || ''
                 ].join(','));
             }
 
@@ -2454,7 +2563,7 @@
                             <span class="decline-trend-title">Portfolio Production Trend</span>
                             <span class="decline-trend-subtitle">Total BOE (last 18 months)</span>
                         </div>
-                        <canvas id="declineTrendChart" width="800" height="120"></canvas>
+                        <canvas id="declineTrendChart" height="120"></canvas>
                     </div>
 
                     <!-- Tabs -->
@@ -3089,7 +3198,7 @@
             // Get container width, fallback to 800 if not rendered yet
             const container = canvas.parentElement;
             const containerWidth = container ? container.clientWidth : 800;
-            const width = Math.max(containerWidth - 40, 400); // padding
+            const width = Math.max(containerWidth - 20, 280); // responsive — scale down on mobile
             const height = 120;
 
             // Set canvas size for high DPI
@@ -3098,7 +3207,8 @@
             canvas.style.width = width + 'px';
             canvas.style.height = height + 'px';
             ctx.scale(dpr, dpr);
-            const padding = { top: 20, right: 20, bottom: 30, left: 60 };
+            const isMobile = width < 400;
+            const padding = { top: 20, right: isMobile ? 10 : 20, bottom: 30, left: isMobile ? 40 : 60 };
             const chartWidth = width - padding.left - padding.right;
             const chartHeight = height - padding.top - padding.bottom;
 
