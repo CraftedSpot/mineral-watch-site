@@ -840,14 +840,12 @@ export async function handleBulkUploadProperties(request: Request, env: Env, ctx
     const organizationId = userOrganization || undefined;
     const matchPromise = runFullPropertyWellMatching(targetUserId, targetEmail, organizationId, env)
       .then(result => {
-        console.log(`[BulkPropertyUpload] Matching complete:`, result);
         if (result.linksCreated > 0) {
-          console.log(`[BulkPropertyUpload] Created ${result.linksCreated} links from ${result.propertiesProcessed} properties and ${result.wellsProcessed} wells`);
+          console.log(`[BulkPropertyUpload] Auto-matched: ${result.linksCreated} links`);
         }
       })
       .catch(err => {
-        console.error('[BulkPropertyUpload] Background matching failed:', err);
-        console.error('[BulkPropertyUpload] Error details:', err.message, err.stack);
+        console.error('[BulkPropertyUpload] Background matching failed:', err.message);
       });
 
     ctx.waitUntil(matchPromise);
@@ -918,9 +916,7 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
         section = locMatch[1];
         township = locMatch[2];
         range = locMatch[3];
-        console.log(`[SearchWells] Parsed Location field "${locationField}" → S${section} T${township} R${range}`);
       } else {
-        console.log(`[SearchWells] Could not parse Location field: "${locationField}"`);
       }
     }
   }
@@ -942,7 +938,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     const stripped = cleanedWellName.replace(trailingSecPattern, '').trim();
     if (stripped !== cleanedWellName && stripped.length > 2) {
       baseWellName = stripped;
-      console.log(`[SearchWells] Stripped section ${sectionNum} from name: "${cleanedWellName}" → "${baseWellName}"`);
     }
   }
 
@@ -950,9 +945,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Adds # before the first standalone number that looks like a well number
   const hashVariant = baseWellName.replace(/^([A-Z\s]+?)\s+(\d+)/, '$1 #$2');
   const hasHashVariant = hashVariant !== baseWellName;
-  if (hasHashVariant) {
-    console.log(`[SearchWells] Hash variant: "${baseWellName}" → "${hashVariant}"`);
-  }
 
   // Normalize spaces/hyphens for LIKE matching
   // CSV has "HURST BOUGHAN" but D1 has "HURST-BOUGHAN"
@@ -961,21 +953,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   const finalBasePattern = baseWellName.replace(/[\s-]+/g, '%');
   const finalHashPattern = hashVariant.replace(/[\s-]+/g, '%');
 
-  // Log extracted fields for debugging
-  console.log('[SearchWells] Extracted fields:', {
-    wellName,
-    wellNumber,
-    fullWellName,
-    cleanedWellName,
-    baseWellName,
-    hashVariant: hasHashVariant ? hashVariant : '(none)',
-    operator,
-    section,
-    township,
-    range,
-    county
-  });
-  
   // Normalize location data — expand county abbreviation for panhandle detection
   const normalizedCounty = normalizeCounty(county);
   const panhandleCounties = ['Cimarron', 'Texas', 'Beaver'];
@@ -997,29 +974,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     normalizedRange = normalizedRange.replace(/^(\d)([EW])$/i, '0$1$2');
   }
   
-  // Add detailed parsed logging
-  console.log('[CascadingSearch] Parsed values:', {
-    originalWellName: fullWellName,
-    cleanedWellName,  // After quotes removed
-    baseWellName,     // Base name for fuzzy matching
-    sectionString: section,
-    sectionNum,
-    normalizedTownship,
-    normalizedRange,
-    meridian,
-    operator
-  });
-  
-  console.log('[CascadingSearch] Input:', { 
-    wellName: cleanedWellName, 
-    operator, 
-    location: `S${section}-T${normalizedTownship}-R${normalizedRange}-${meridian}`,
-    county 
-  });
-  
   // Check minimum search criteria
   if (!cleanedWellName && (!normalizedTownship || !normalizedRange)) {
-    console.log('[CascadingSearch] Insufficient criteria - need well name or T-R');
     return { matches: [], total: 0, truncated: false };
   }
 
@@ -1030,7 +986,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
   // Strategy 1: Name + Section + T-R (most specific)
   // Tries full name, section-stripped name, and #-prefixed variant
   if (cleanedWellName && normalizedTownship && normalizedRange && sectionNum !== null) {
-    console.log('[CascadingSearch] Strategy 1: Name + Section + T-R');
     const query1 = operator ? `
       SELECT w.*,
         CASE
@@ -1064,24 +1019,12 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       [`%${operator}%`, `%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, sectionNum, normalizedTownship, normalizedRange, meridian] :
       [`%${normalizedNamePattern}%`, `%${finalBasePattern}%`, `%${finalHashPattern}%`, `%${finalBasePattern}%`, sectionNum, normalizedTownship, normalizedRange, meridian];
     
-    console.log('[CascadingSearch] Strategy 1 SQL params:', {
-      wellNamePattern: `%${cleanedWellName}%`,
-      section: sectionNum,
-      township: normalizedTownship,
-      range: normalizedRange,
-      meridian: meridian,
-      operator: operator ? `%${operator}%` : 'none'
-    });
-    
     results = await env.WELLS_DB.prepare(query1).bind(...params1).all();
     searchStrategy = 'name+section+T-R';
-    console.log(`[CascadingSearch] Strategy 1 found ${results.results.length} results`);
   }
   
   // Strategy 1.5: Exact name match statewide (for very specific well names)
   if (results.results.length === 0 && cleanedWellName && cleanedWellName.length > 10) {
-    console.log('[CascadingSearch] Strategy 1.5: Exact name match statewide');
-    
     // Try to match with # added if not present
     // "MCCARTHY 1506 3H-30X" should also match "MCCARTHY 1506 #3H-30X"
     const nameWithHash = cleanedWellName.replace(/\s+(\d+[A-Z]?-\d+[A-Z]?X?)$/i, ' #$1');
@@ -1122,10 +1065,8 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       [`%${operator}%`, normalizedTownship, normalizedRange, cleanedWellName, nameWithHash, nameWithoutHash] :
       [normalizedTownship, normalizedRange, cleanedWellName, nameWithHash, nameWithoutHash];
     
-    console.log(`[CascadingSearch] Strategy 1.5 searching for exact names: "${cleanedWellName}", "${nameWithHash}", "${nameWithoutHash}"`);
     results = await env.WELLS_DB.prepare(query15).bind(...params15).all();
     searchStrategy = 'exact-name-statewide';
-    console.log(`[CascadingSearch] Strategy 1.5 found ${results.results.length} results`);
   }
   
   // Strategy 1.7: Horizontal well expanded search
@@ -1136,8 +1077,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     // Detect horizontal indicators at end of name (after a digit)
     const horizMatch = cleanedWellName.match(/\d+\s*(WH|XH|MXH|CH|H)\s*$/i);
     if (horizMatch) {
-      console.log(`[CascadingSearch] Strategy 1.7: Horizontal well detected (${horizMatch[1]})`);
-
       // Parse multi-section numbers from name
       // "JASMINE 1 28 33WH" → sections [28, 33]
       // "LDC 3 24/25H" → sections [24, 25]
@@ -1164,7 +1103,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
 
       // Remove duplicates and exclude the section we already tried
       const uniqueAltSections = [...new Set(altSections)].filter(s => s !== sectionNum);
-      console.log(`[CascadingSearch] Strategy 1.7: Alt sections from name: [${uniqueAltSections.join(', ')}]`);
 
       // Extract lease name (everything before the well number + section pattern)
       // "JASMINE 1 28 33WH" → "JASMINE"
@@ -1180,7 +1118,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       // Normalize spaces/hyphens in lease name for LIKE matching
       // D1 has "HURST-BOUGHAN" but CSV may have "HURST BOUGHAN"
       const leaseNamePattern = leaseName.replace(/[\s-]+/g, '%');
-      console.log(`[CascadingSearch] Strategy 1.7: Lease name extracted: "${leaseName}" (pattern: "${leaseNamePattern}")`);
 
       const allHorizResults: any[] = [];
       const seenApis = new Set<string>();
@@ -1188,7 +1125,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       // 1.7a: Try TRS match with each alternative section
       if (normalizedTownship && normalizedRange) {
         for (const altSec of uniqueAltSections) {
-          console.log(`[CascadingSearch] Strategy 1.7a: Trying alt section ${altSec}`);
           const q17a = `
             SELECT w.*, 75 as match_score
             FROM wells w
@@ -1208,13 +1144,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
               allHorizResults.push(row);
             }
           }
-          console.log(`[CascadingSearch] Strategy 1.7a: Section ${altSec} found ${r17a.results.length} results`);
         }
       }
 
       // 1.7b: Search by bottom-hole location matching CSV's TRS
       if (normalizedTownship && normalizedRange && sectionNum !== null) {
-        console.log(`[CascadingSearch] Strategy 1.7b: Bottom-hole TRS match`);
         const q17b = `
           SELECT w.*, 70 as match_score
           FROM wells w
@@ -1235,13 +1169,10 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
             allHorizResults.push(row);
           }
         }
-        console.log(`[CascadingSearch] Strategy 1.7b: BH match found ${r17b.results.length} results`);
       }
 
       // 1.7c: County-wide lease name search (broadest, lowest confidence)
-      // Runs if 1.7a/1.7b found fewer than 5 results — always worth checking county-wide
       if (allHorizResults.length < 5) {
-        console.log(`[CascadingSearch] Strategy 1.7c: County-wide lease name search`);
         const q17c = `
           SELECT w.*,
             CASE
@@ -1265,7 +1196,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
             allHorizResults.push(row);
           }
         }
-        console.log(`[CascadingSearch] Strategy 1.7c: County-wide found ${r17c.results.length} results`);
       }
 
       if (allHorizResults.length > 0) {
@@ -1278,14 +1208,12 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
         });
         results = { results: allHorizResults.slice(0, 15) };
         searchStrategy = 'horizontal-expanded';
-        console.log(`[CascadingSearch] Strategy 1.7: Total ${allHorizResults.length} horizontal matches (showing top ${results.results.length})`);
       }
     }
   }
 
   // Strategy 2: Name + T-R (no section - handles horizontal wells)
   if (results.results.length === 0 && cleanedWellName && normalizedTownship && normalizedRange) {
-    console.log('[CascadingSearch] Strategy 2: Name + T-R (no section)');
     // Build the query dynamically based on what we have
     let scoreConditions: string[] = [];
     let caseParams: any[] = [];
@@ -1328,12 +1256,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     
     results = await env.WELLS_DB.prepare(query2).bind(...params2).all();
     searchStrategy = 'name+T-R';
-    console.log(`[CascadingSearch] Strategy 2 found ${results.results.length} results`);
   }
   
   // Strategy 2b: Location + Section (when name doesn't match but we have location)
   if (results.results.length === 0 && normalizedTownship && normalizedRange && sectionNum !== null) {
-    console.log('[CascadingSearch] Strategy 2b: Location + Section only (name not found)');
+    // Strategy 2b: Location + Section only (name not found)
     const query2b = `
       SELECT w.*, 
         CASE 
@@ -1354,12 +1281,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     
     results = await env.WELLS_DB.prepare(query2b).bind(...params2b).all();
     searchStrategy = 'location+section-only';
-    console.log(`[CascadingSearch] Strategy 2b found ${results.results.length} results`);
   }
   
   // Strategy 3a: Name + County (narrow search when we have county but no TRS)
   if (results.results.length === 0 && cleanedWellName && normalizedCounty) {
-    console.log(`[CascadingSearch] Strategy 3a: Name + County (${normalizedCounty})`);
+    // Strategy 3a: Name + County
     const query3a = operator ? `
       SELECT w.*,
         CASE
@@ -1395,12 +1321,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
 
     results = await env.WELLS_DB.prepare(query3a).bind(...params3a).all();
     searchStrategy = 'name+county';
-    console.log(`[CascadingSearch] Strategy 3a found ${results.results.length} results`);
   }
 
   // Strategy 3b: Name only (broader fallback — no county filter)
   if (results.results.length === 0 && cleanedWellName) {
-    console.log('[CascadingSearch] Strategy 3b: Name only (statewide)');
+    // Strategy 3b: Name only (statewide)
     const query3 = operator ? `
       SELECT w.*,
         CASE
@@ -1434,12 +1359,11 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
 
     results = await env.WELLS_DB.prepare(query3).bind(...params3).all();
     searchStrategy = 'name-only';
-    console.log(`[CascadingSearch] Strategy 3b found ${results.results.length} results`);
   }
   
   // Strategy 4: Location only (LAST RESORT - only if name search failed)
   if (results.results.length === 0 && normalizedTownship && normalizedRange && !cleanedWellName) {
-    console.log('[CascadingSearch] Strategy 4: Location only (no name provided)');
+    // Strategy 4: Location only (no name provided)
     const query4 = `
       SELECT w.*, 30 as match_score
       FROM wells w
@@ -1453,7 +1377,6 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
     
     results = await env.WELLS_DB.prepare(query4).bind(...params4).all();
     searchStrategy = 'location-only';
-    console.log(`[CascadingSearch] Strategy 4 found ${results.results.length} results`);
   }
   
   // Post-process: If operator provided and multiple results, filter/prioritize operator matches
@@ -1465,67 +1388,16 @@ async function searchWellsByCSVData(rowData: any, env: Env): Promise<{
       )
     );
     
-    console.log(`[CascadingSearch] Operator filtering: ${results.results.length} total, ${operatorMatches.length} match operator`);
-    
-    // Debug: log operator comparison details
-    if (operatorMatches.length > 1) {
-      console.log('[CascadingSearch] Multiple operator matches found:', operatorMatches.map((r: any) => ({
-        well: `${r.well_name} ${r.well_number}`,
-        operator: r.operator,
-        searchOperator: operator
-      })));
-    }
-    
     // If operator narrows it down to exactly 1, use only that
     if (operatorMatches.length === 1) {
       results.results = operatorMatches;
-      results.results[0].match_score = 100; // Boost score for exact operator match
-      console.log('[CascadingSearch] Operator match narrowed to single result');
+      results.results[0].match_score = 100;
     } else if (operatorMatches.length > 1) {
       // Multiple operator matches - show only those
       results.results = operatorMatches;
     } else if (operatorMatches.length === 0 && operator) {
       // No operator matches - this might indicate the well doesn't exist with this operator
-      console.log(`[CascadingSearch] WARNING: No wells match operator "${operator}" at this location`);
     }
-    // If no operator matches, keep all results but with lower scores
-  }
-  
-  console.log(`[CascadingSearch] Final strategy: ${searchStrategy}, Results: ${results.results.length}`);
-  
-  // Enhanced debug logging
-  console.log('[CascadingSearch] Search details:', {
-    strategy: searchStrategy,
-    wellName: cleanedWellName,
-    operator,
-    township: normalizedTownship,
-    range: normalizedRange,
-    section: sectionNum,
-    meridian,
-    resultsFound: results.results.length,
-    firstResult: results.results.length > 0 ? {
-      name: results.results[0].well_name,
-      number: results.results[0].well_number,
-      operator: results.results[0].operator,
-      section: results.results[0].section,
-      score: results.results[0].match_score
-    } : null
-  });
-  
-  
-  // Log first result for debugging
-  if (results.results.length > 0) {
-    console.log('[CascadingSearch] Sample result:', {
-      api_number: results.results[0].api_number,
-      well_name: results.results[0].well_name,
-      well_number: results.results[0].well_number,
-      operator: results.results[0].operator,
-      section: results.results[0].section,
-      township: results.results[0].township,
-      range: results.results[0].range,
-      meridian: results.results[0].meridian,
-      score: results.results[0].match_score
-    });
   }
   
   return {
@@ -1560,9 +1432,6 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
   }
   
   console.log(`[BulkValidateWells] Processing ${wells.length} wells for user ${user.email}`);
-  if (wells.length > 0) {
-    console.log('[BulkValidateWells] First well sample:', JSON.stringify(wells[0], null, 2).substring(0, 500));
-  }
 
   // Limit to 2000 rows for safety
   if (wells.length > 2000) {
@@ -1650,7 +1519,6 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
       const cleanPun = rawPun ? String(rawPun).trim() : '';
 
       if (cleanPun && env.WELLS_DB) {
-        console.log(`[BulkValidateWells] Row ${index + 1}: No API, trying PUN lookup: "${cleanPun}"`);
         try {
           // Look up API(s) from well_pun_links table
           const punResults = await env.WELLS_DB.prepare(`
@@ -1666,7 +1534,6 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             // Single match — treat like a direct API
             const match = punResults.results[0] as any;
             const punApi = match.api_number;
-            console.log(`[BulkValidateWells] PUN ${cleanPun} → single API ${punApi}`);
 
             const existsDuplicate = existingSet.has(punApi);
             if (existsDuplicate) warnings.push("Already tracking this well");
@@ -1692,8 +1559,6 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
               needsSelection: false
             };
           } else if (punResults.results.length > 1) {
-            // Multiple APIs for this PUN — show as ambiguous for user review
-            console.log(`[BulkValidateWells] PUN ${cleanPun} → ${punResults.results.length} APIs`);
             const punMatches = punResults.results.map((r: any) => ({
               ...r,
               match_score: 85,
@@ -1718,7 +1583,6 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
               needsSelection: true
             };
           } else {
-            console.log(`[BulkValidateWells] PUN ${cleanPun} not found in well_pun_links`);
             warnings.push(`PUN ${cleanPun} not in our database yet`);
           }
         } catch (punError) {
@@ -1762,20 +1626,7 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
             // Multiple matches - check if operator makes it unambiguous
             const highScoreMatches = searchResults.matches.filter((m: any) => m.match_score >= 90);
             
-            // Debug operator matching
             const csvOperator = well.Operator || well.operator || well.OPERATOR || '';
-            console.log(`[BulkValidate] Row ${index + 1} - Multiple matches:`, {
-              total: searchResults.total,
-              csvOperator,
-              hasOperator: !!csvOperator,
-              highScoreCount: highScoreMatches.length,
-              scores: searchResults.matches.map((m: any) => ({ 
-                name: m.well_name, 
-                operator: m.operator, 
-                score: m.match_score 
-              }))
-            });
-            
             if (highScoreMatches.length === 1 && csvOperator) {
               // Only one well matches with operator - treat as exact match
               matchStatus = 'exact';
@@ -1786,8 +1637,6 @@ export async function handleBulkValidateWells(request: Request, env: Env) {
               if (existingSet.has(match.api_number)) {
                 warnings.push("Already tracking this well");
               }
-              
-              console.log(`[BulkValidate] Auto-selected well with operator match: ${match.well_name} - ${match.operator}`);
             } else if (searchResults.total <= 10) {
               // Multiple matches without clear winner - needs review
               matchStatus = 'ambiguous';
@@ -1975,9 +1824,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       // User selected from multiple matches
       const selectedApi = selections[index];
       if (selectedApi === 'SKIP') {
-        // User explicitly chose to skip this well
-        console.log(`[BulkUpload] User chose to skip ambiguous well at index ${index}`);
-        return; // Skip this well
+        return;
       }
       const selectedMatch = well.searchResults?.matches?.find((m: any) => m.api_number === selectedApi);
       if (selectedMatch) {
@@ -1988,7 +1835,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
 
     if (apiNumber) {
       if (existingSet.has(apiNumber) || seenInUpload.has(apiNumber)) {
-        console.log(`[BulkUpload] Skipping duplicate: ${apiNumber} - ${wellName}`);
+        // Skip duplicate
       } else {
         seenInUpload.add(apiNumber);
         // Extract enterprise interest fields from original CSV row
@@ -2037,7 +1884,6 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
   for (let i = 0; i < toCreate.length; i += batchSize) {
     const batch = toCreate.slice(i, i + batchSize);
 
-    console.log(`[BulkUpload] Creating batch ${Math.floor(i/batchSize) + 1}: ${batch.length} wells`);
 
     const response = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}`, {
       method: 'POST',
@@ -2135,7 +1981,7 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
       }
     } else {
       const err = await response.text();
-      console.error(`Batch create wells failed:`, err);
+      console.error(`[BulkUpload] Batch create wells failed:`, err.message);
       results.failed += batch.length;
       results.errors.push(`Batch ${Math.floor(i/batchSize) + 1} failed: ${err}`);
     }
@@ -2178,14 +2024,12 @@ export async function handleBulkUploadWells(request: Request, env: Env, ctx?: Ex
     const organizationId = userOrganization || undefined;
     const matchPromise = runFullPropertyWellMatching(targetUserId, targetEmail, organizationId, env)
       .then(result => {
-        console.log(`[BulkWellUpload] Matching complete:`, result);
         if (result.linksCreated > 0) {
-          console.log(`[BulkWellUpload] Created ${result.linksCreated} links from ${result.propertiesProcessed} properties and ${result.wellsProcessed} wells`);
+          console.log(`[BulkWellUpload] Auto-matched: ${result.linksCreated} links`);
         }
       })
       .catch(err => {
-        console.error('[BulkWellUpload] Background matching failed:', err);
-        console.error('[BulkWellUpload] Error details:', err.message, err.stack);
+        console.error('[BulkWellUpload] Background matching failed:', err.message);
       });
     
     // Keep the worker alive until the match completes

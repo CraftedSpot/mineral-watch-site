@@ -21,34 +21,45 @@
             let filtered = wells;
 
             // Apply status filter (Active/Idle based on OTC production data)
-            // Helper to calculate production status (matches completion-reports.ts logic)
+            // Uses data horizon (latest OTC month with data) instead of today
+            // to account for 3-4 month OTC reporting lag
             const getProductionStatus = (w) => {
                 if (!w.otc_last_prod_month) return 'no_data';
 
-                const now = new Date();
-                const threeMonthsAgo = (() => {
-                    const d = new Date(now);
-                    d.setMonth(d.getMonth() - 3);
-                    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-                })();
-                const sixMonthsAgo = (() => {
-                    const d = new Date(now);
-                    d.setMonth(d.getMonth() - 6);
-                    return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}`;
-                })();
+                // Data horizon: use the latest otc_last_prod_month across all wells as reference
+                // This avoids false-idle caused by OTC's 3-4 month reporting lag
+                if (!getProductionStatus._horizon) {
+                    const allMonths = filtered.map(x => x.otc_last_prod_month).filter(Boolean).sort();
+                    const horizon = allMonths.length > 0 ? allMonths[allMonths.length - 1] : null;
+                    if (horizon) {
+                        const hYear = parseInt(horizon.substring(0, 4));
+                        const hMonth = parseInt(horizon.substring(4, 6));
+                        let m3 = hMonth - 3, y3 = hYear;
+                        if (m3 <= 0) { m3 += 12; y3--; }
+                        getProductionStatus._horizon = horizon;
+                        getProductionStatus._threeMonthsAgo = `${y3}${String(m3).padStart(2, '0')}`;
+                    } else {
+                        const now = new Date();
+                        const d3 = new Date(now); d3.setMonth(d3.getMonth() - 3);
+                        getProductionStatus._threeMonthsAgo = `${d3.getFullYear()}${String(d3.getMonth() + 1).padStart(2, '0')}`;
+                    }
+                }
 
-                if (w.otc_last_prod_month >= threeMonthsAgo) return 'active';
-                if (w.otc_last_prod_month >= sixMonthsAgo) return 'recently_idle';
-                return 'extended_idle';
+                if (w.otc_last_prod_month >= getProductionStatus._threeMonthsAgo) return 'active';
+                return 'idle';
             };
 
             if (filterBy === 'active') {
-                // Active = produced in last 3 months
                 filtered = filtered.filter(w => getProductionStatus(w) === 'active');
             } else if (filterBy === 'idle') {
-                // Idle = recently_idle, extended_idle, or no_data (anything NOT active)
-                filtered = filtered.filter(w => getProductionStatus(w) !== 'active');
+                // Idle = produced but not in recent months (excludes no_data wells)
+                filtered = filtered.filter(w => getProductionStatus(w) === 'idle');
+            } else if (filterBy === 'no_data') {
+                filtered = filtered.filter(w => getProductionStatus(w) === 'no_data');
             }
+            // Reset cached horizon for next filter call
+            getProductionStatus._horizon = null;
+            getProductionStatus._threeMonthsAgo = null;
 
             // Apply search filter
             if (searchTerm) {

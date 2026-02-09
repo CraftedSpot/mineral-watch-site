@@ -63,9 +63,7 @@ async function loadOperatorList(env: Env): Promise<Map<string, OperatorInfo>> {
 
   // Try to load from KV cache first
   const cached = await env.OCC_CACHE?.get('operator-list', { type: 'json' });
-  // Force refresh for now to get new data with status field
-  const forceRefresh = true; // TODO: Remove after confirming status field is working
-  if (cached && cached.timestamp && Date.now() - cached.timestamp < CACHE_TTL && !forceRefresh) {
+  if (cached && cached.timestamp && Date.now() - cached.timestamp < CACHE_TTL) {
     console.log('[Operators] Loaded from KV cache');
     operatorCache = new Map(cached.operators);
     cacheTimestamp = cached.timestamp;

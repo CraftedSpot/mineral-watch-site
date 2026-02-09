@@ -115,7 +115,8 @@
         // Filter properties based on search term
         function filterProperties(properties) {
             if (!propertiesSearchTerm) return properties;
-            
+
+            const searchNoDash = propertiesSearchTerm.replace(/-/g, '');
             return properties.filter(p => {
                 const f = p.fields;
                 const searchable = [
@@ -126,10 +127,12 @@
                     f.MERIDIAN || '',
                     f.Notes || '',
                     f.property_code || '',
-                    f.Group || ''
+                    f.Group || '',
+                    (f.TWN || '') + '-' + (f.RNG || '') + '-' + (f.SEC || '')
                 ].join(' ').toLowerCase();
-                
-                return searchable.includes(propertiesSearchTerm);
+
+                return searchable.includes(propertiesSearchTerm) ||
+                    searchable.replace(/-/g, '').includes(searchNoDash);
             });
         }
 
@@ -264,7 +267,7 @@
 
             displayProperties.forEach(p => {
                 const f = p.fields;
-                const str = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+                const str = `${f.TWN}-${f.RNG}-${f.SEC}`;
                 const riAcres = parseFloat(f['RI Acres'] || 0);
                 const wiAcres = parseFloat(f['WI Acres'] || 0);
                 const totalAcres = riAcres + wiAcres;
@@ -462,7 +465,7 @@
             const locationDiv = document.getElementById('addPropertyLocation');
             
             if (county && section && township && range) {
-                locationDiv.textContent = `${county} County • S${section} T${township} R${range}`;
+                locationDiv.textContent = `${county} County • ${township}-${range}-${section}`;
                 locationDiv.style.opacity = '1';
             } else if (county) {
                 locationDiv.textContent = `${county} County`;
@@ -642,7 +645,7 @@
             
             // Set location info (county + legal)
             const county = cleanCountyDisplay(f['COUNTY']) || 'Unknown County';
-            const legal = `T${f.TWN} R${f.RNG} ${f.SEC}`;
+            const legal = `${f.TWN}-${f.RNG}-${f.SEC}`;
             document.getElementById('propertyDetailsLocation').textContent = `${county} • ${legal}`;
             
             // Set form fields

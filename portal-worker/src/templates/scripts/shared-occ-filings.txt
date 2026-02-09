@@ -1,0 +1,399 @@
+        // Shared OCC Filings Processing & Rendering
+        // Used by both map and dashboard for filing analysis, polling, and display.
+
+        // State tracking for OCC filing processing
+        const occProcessingStates = {}; // { stateKey: { status, documentId, buttonEl, pollInterval } }
+        const OCC_POLL_INTERVAL = 5000; // 5 seconds
+        const OCC_MAX_POLL_DURATION = 5 * 60 * 1000; // 5 minutes
+
+        // Client-side cache for analyzed filings (persists across modal opens)
+        const analyzedFilingsCache = {};
+
+        /**
+         * Process an OCC filing — fetch from OCC + queue for analysis.
+         * @param {string} caseNumber
+         * @param {string} orderNumber
+         * @param {HTMLElement} buttonEl
+         * @param {boolean} force - Re-analyze even if already processed
+         */
+        async function processOccFiling(caseNumber, orderNumber, buttonEl, force = false) {
+            const stateKey = orderNumber || caseNumber;
+            console.log(`[OCC Process] Processing ${caseNumber} (order: ${orderNumber})${force ? ' (force re-analyze)' : ''}`);
+
+            // Helper to get current button from state (after DOM updates)
+            const getCurrentButton = () => occProcessingStates[stateKey]?.buttonEl || buttonEl;
+
+            // Update button to fetching state
+            occProcessingStates[stateKey] = { status: 'fetching', buttonEl };
+            updateOccButtonState(buttonEl, 'fetching');
+
+            try {
+                const response = await fetch('/api/occ/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ caseNumber, orderNumber, force })
+                });
+
+                const result = await response.json();
+                const currentBtn = getCurrentButton();
+
+                if (result.alreadyProcessed) {
+                    console.log(`[OCC Process] Already processed: ${result.documentId}`);
+                    occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'complete', documentId: result.documentId };
+                    // Cache for future modal opens
+                    const caseNumClean = caseNumber?.replace(/^CD\s*/i, '');
+                    const cacheEntry = { documentId: result.documentId, displayName: result.displayName };
+                    analyzedFilingsCache[caseNumber] = cacheEntry;
+                    analyzedFilingsCache[caseNumClean] = cacheEntry;
+                    updateOccButtonState(currentBtn, 'complete', result.documentId, result.displayName);
+                } else if (result.success) {
+                    const docId = result.document.id;
+                    const docStatus = result.document.status || 'pending';
+                    console.log(`[OCC Process] Successfully queued: ${docId}, status: ${docStatus}`);
+
+                    // Update credits display if available (dashboard has this, map doesn't)
+                    if (typeof updateCreditsDisplay === 'function') {
+                        updateCreditsDisplay(result.creditsRemaining);
+                    }
+
+                    if (docStatus === 'complete') {
+                        occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'complete', documentId: docId };
+                        const caseNumClean = caseNumber?.replace(/^CD\s*/i, '');
+                        const cacheEntry = { documentId: docId, displayName: result.document.display_name };
+                        analyzedFilingsCache[caseNumber] = cacheEntry;
+                        analyzedFilingsCache[caseNumClean] = cacheEntry;
+                        updateOccButtonState(currentBtn, 'complete', docId);
+                    } else {
+                        occProcessingStates[stateKey] = {
+                            ...occProcessingStates[stateKey],
+                            status: docStatus === 'processing' ? 'processing' : 'queued',
+                            documentId: docId,
+                            pollStartTime: Date.now()
+                        };
+                        updateOccButtonState(currentBtn, docStatus === 'processing' ? 'processing' : 'queued');
+                        startOccDocumentPolling(stateKey, docId, getCurrentButton());
+                    }
+                } else if (result.error === 'no_credits') {
+                    console.log(`[OCC Process] No credits available`);
+                    occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'idle' };
+                    updateOccButtonState(currentBtn, 'idle');
+                    if (typeof showOutOfCreditsModal === 'function') {
+                        showOutOfCreditsModal();
+                    } else if (typeof showMapToast === 'function') {
+                        showMapToast('No document credits available. Check your plan.', 'error');
+                    } else {
+                        showToast('No document credits available', 'error');
+                    }
+                } else {
+                    throw new Error(result.message || result.error || 'Unknown error');
+                }
+            } catch (error) {
+                console.error('[OCC Process] Error:', error);
+                const currentBtn = getCurrentButton();
+                occProcessingStates[stateKey] = { ...occProcessingStates[stateKey], status: 'error' };
+                updateOccButtonState(currentBtn, 'error');
+                const toastFn = typeof showMapToast === 'function' ? showMapToast : showToast;
+                toastFn('Failed to process filing: ' + error.message, 'error');
+            }
+        }
+        window.processOccFiling = processOccFiling;
+
+        /**
+         * Wrapper for Activity Log — processes OCC filing by case number only.
+         */
+        async function processOccFilingFromActivity(caseNumber, buttonEl) {
+            await processOccFiling(caseNumber, '', buttonEl);
+        }
+        window.processOccFilingFromActivity = processOccFilingFromActivity;
+
+        /**
+         * Poll for document processing status until complete.
+         */
+        function startOccDocumentPolling(stateKey, documentId, buttonEl) {
+            const state = occProcessingStates[stateKey];
+            if (!state || state.pollInterval) return; // Already polling
+
+            console.log(`[OCC Poll] Starting polling for ${documentId}`);
+
+            state.pollInterval = setInterval(async () => {
+                const currentState = occProcessingStates[stateKey];
+                if (!currentState) {
+                    clearInterval(state.pollInterval);
+                    return;
+                }
+
+                const currentButtonEl = currentState.buttonEl;
+
+                if (Date.now() - currentState.pollStartTime > OCC_MAX_POLL_DURATION) {
+                    console.log(`[OCC Poll] Max duration exceeded for ${documentId}`);
+                    clearInterval(currentState.pollInterval);
+                    currentState.pollInterval = null;
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`/api/documents/${documentId}`, {
+                        credentials: 'include'
+                    });
+
+                    if (!response.ok) {
+                        console.log(`[OCC Poll] Error fetching status for ${documentId}`);
+                        return;
+                    }
+
+                    const data = await response.json();
+                    const doc = data.document;
+                    if (!doc) return;
+
+                    console.log(`[OCC Poll] Document ${documentId} status: ${doc.status}`);
+
+                    if (doc.status === 'complete') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'complete';
+                        // Cache for future modal opens
+                        const caseNumClean = stateKey?.replace(/^CD\s*/i, '');
+                        const cacheEntry = { documentId: documentId, displayName: doc.display_name };
+                        analyzedFilingsCache[stateKey] = cacheEntry;
+                        analyzedFilingsCache[caseNumClean] = cacheEntry;
+                        updateOccButtonState(currentButtonEl, 'complete', documentId, doc.display_name);
+                        const toastFn = typeof showMapToast === 'function' ? showMapToast : showToast;
+                        toastFn('Document analysis complete!', 'success');
+                        if (typeof loadUsageStats === 'function') loadUsageStats();
+                    } else if (doc.status === 'processing' && currentState.status !== 'processing') {
+                        currentState.status = 'processing';
+                        updateOccButtonState(currentButtonEl, 'processing');
+                    } else if (doc.status === 'error' || doc.status === 'failed') {
+                        clearInterval(currentState.pollInterval);
+                        currentState.pollInterval = null;
+                        currentState.status = 'error';
+                        updateOccButtonState(currentButtonEl, 'error');
+                        const toastFn = typeof showMapToast === 'function' ? showMapToast : showToast;
+                        toastFn('Document processing failed', 'error');
+                    }
+                } catch (err) {
+                    console.error(`[OCC Poll] Error polling ${documentId}:`, err);
+                }
+            }, OCC_POLL_INTERVAL);
+        }
+
+        /**
+         * Stop all active OCC polling intervals.
+         */
+        function stopAllOccPolling() {
+            for (const key in occProcessingStates) {
+                const state = occProcessingStates[key];
+                if (state.pollInterval) {
+                    clearInterval(state.pollInterval);
+                    state.pollInterval = null;
+                }
+            }
+        }
+
+        /**
+         * Update button UI during processing lifecycle.
+         * Uses container-based replacement for DOM consistency.
+         */
+        function updateOccButtonState(buttonEl, state, documentId = null, displayName = null) {
+            if (!buttonEl) return;
+
+            let parentContainer = buttonEl.parentElement;
+            let caseNumber = buttonEl.dataset?.caseNumber || '';
+            let orderNumber = buttonEl.dataset?.orderNumber || '';
+
+            if (!parentContainer) {
+                console.warn('[OCC] Button element is detached from DOM, cannot update state');
+                return;
+            }
+
+            // Resolve which function opens document detail on this page
+            const openDocFn = typeof openDocumentDetail === 'function' ? 'openDocumentDetail'
+                            : typeof openMapDocumentDetail === 'function' ? 'openMapDocumentDetail'
+                            : 'openDocumentDetail';
+
+            const createProcessButton = (stateClass, disabled, innerHTML, title) => {
+                parentContainer.innerHTML = `
+                    <button class="occ-process-btn ${stateClass}"
+                            data-case-number="${typeof escapeHtml === 'function' ? escapeHtml(caseNumber) : caseNumber}"
+                            data-order-number="${typeof escapeHtml === 'function' ? escapeHtml(orderNumber) : orderNumber}"
+                            ${disabled ? 'disabled' : ''}
+                            onclick="processOccFiling('${typeof escapeHtml === 'function' ? escapeHtml(caseNumber) : caseNumber}', '${typeof escapeHtml === 'function' ? escapeHtml(orderNumber) : orderNumber}', this)"
+                            title="${title}">${innerHTML}</button>
+                `;
+                return parentContainer.querySelector('button');
+            };
+
+            const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => s;
+
+            let newButton = null;
+            switch (state) {
+                case 'fetching':
+                    newButton = createProcessButton('fetching', true, '<span class="spinner-sm"></span> Fetching...', 'Downloading from OCC');
+                    break;
+                case 'queued':
+                    newButton = createProcessButton('queued', true, '<span class="spinner-sm"></span> Queued...', 'Waiting for processing');
+                    break;
+                case 'processing':
+                    newButton = createProcessButton('processing', true, '<span class="spinner-sm"></span> Processing...', 'Extracting document data');
+                    break;
+                case 'complete':
+                    if (documentId) {
+                        parentContainer.innerHTML = `
+                            <button class="occ-reanalyze-btn"
+                                    data-case-number="${esc(caseNumber)}"
+                                    data-order-number="${esc(orderNumber)}"
+                                    onclick="processOccFiling('${esc(caseNumber)}', '${esc(orderNumber)}', this, true)"
+                                    title="Re-process this document (uses 1 credit)">Re-analyze</button>
+                            <button class="occ-view-doc-btn"
+                                    onclick="${openDocFn}('${documentId}')"
+                                    title="View analyzed document">View Doc ↗</button>
+                        `;
+                        newButton = parentContainer.querySelector('button');
+                    } else {
+                        newButton = createProcessButton('complete', false, '✓ Analyzed', 'Click to view document');
+                    }
+                    break;
+                case 'error':
+                    newButton = createProcessButton('error', false, 'Retry', 'Click to retry');
+                    break;
+                default: // idle
+                    newButton = createProcessButton('', false, 'Analyze', 'Uses 1 document credit');
+            }
+
+            // Update state tracking with new button reference
+            const stateKey = orderNumber || caseNumber;
+            if (stateKey && occProcessingStates[stateKey] && newButton) {
+                occProcessingStates[stateKey].buttonEl = newButton;
+            }
+        }
+
+        /**
+         * Check which filings have already been analyzed (fire-and-forget).
+         * Populates cache and updates button states.
+         */
+        async function checkAnalyzedFilings(analyzableFilings) {
+            const caseNumbers = analyzableFilings.map(f => f.caseNumber).join(',');
+            console.log('[OccFilings] Checking analyzed status for:', caseNumbers);
+
+            try {
+                const analyzedResponse = await fetch(
+                    `/api/documents/by-occ-cases?cases=${encodeURIComponent(caseNumbers)}`,
+                    { credentials: 'include' }
+                );
+
+                if (!analyzedResponse.ok) {
+                    console.error('[OccFilings] API error:', analyzedResponse.status);
+                    return;
+                }
+
+                const analyzedData = await analyzedResponse.json();
+
+                for (const filing of analyzableFilings) {
+                    const caseNum = filing.caseNumber;
+                    const caseNumClean = caseNum?.replace(/^CD\s*/i, '');
+                    const analyzed = analyzedData[caseNum] ||
+                                   analyzedData[caseNumClean] ||
+                                   analyzedData[`CD${caseNumClean}`];
+
+                    if (analyzed) {
+                        const cacheEntry = { documentId: analyzed.documentId, displayName: analyzed.displayName };
+                        analyzedFilingsCache[caseNum] = cacheEntry;
+                        analyzedFilingsCache[caseNumClean] = cacheEntry;
+                        analyzedFilingsCache[`CD${caseNumClean}`] = cacheEntry;
+
+                        const buttonId = `occ-btn-${(filing.orderNumber || filing.caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
+                        const button = document.getElementById(buttonId);
+                        if (button) {
+                            const stateKey = filing.orderNumber || filing.caseNumber;
+                            occProcessingStates[stateKey] = { status: 'complete', documentId: analyzed.documentId, buttonEl: button };
+                            updateOccButtonState(button, 'complete', analyzed.documentId, analyzed.displayName);
+                        }
+                    }
+                }
+            } catch (err) {
+                console.log('[OccFilings] Could not check analyzed status:', err);
+            }
+        }
+
+        /**
+         * Render a single OCC filing item with cache-aware button state.
+         */
+        function renderOccFiling(filing, isAdjacent = false) {
+            const statusClass = getOccStatusClass(filing.status);
+            const dateDisplay = formatOccDate(filing.hearingDate || filing.docketDate);
+            const isUpcoming = isOccHearingUpcoming(filing.hearingDate, filing.status);
+
+            let adjacentNote = '';
+            if (isAdjacent && filing.section) {
+                adjacentNote = `<span class="occ-adjacent-note">S${filing.section}-T${filing.township}-R${filing.range}</span>`;
+            }
+
+            const hasFinalOrder = filing.status === 'HEARD' || filing.status === 'RECOMMENDED';
+            const orderNumber = filing.orderNumber || '';
+            const caseNumber = filing.caseNumber || '';
+            const buttonId = `occ-btn-${(orderNumber || caseNumber).replace(/[^a-zA-Z0-9]/g, '-')}`;
+            const esc = typeof escapeHtml === 'function' ? escapeHtml : (s) => s;
+
+            // Resolve which function opens document detail on this page
+            const openDocFn = typeof openDocumentDetail === 'function' ? 'openDocumentDetail'
+                            : typeof openMapDocumentDetail === 'function' ? 'openMapDocumentDetail'
+                            : 'openDocumentDetail';
+
+            // Check cache for already-analyzed filings
+            const caseNumClean = caseNumber?.replace(/^CD\s*/i, '');
+            const cached = analyzedFilingsCache[caseNumber] || analyzedFilingsCache[caseNumClean] || analyzedFilingsCache[`CD${caseNumClean}`];
+
+            let processButton = '';
+            if (hasFinalOrder && caseNumber && cached) {
+                processButton = `
+                    <div class="occ-filing-actions">
+                        <button
+                            id="${buttonId}"
+                            class="occ-reanalyze-btn"
+                            data-case-number="${esc(caseNumber)}"
+                            data-order-number="${esc(orderNumber)}"
+                            onclick="processOccFiling('${esc(caseNumber)}', '${esc(orderNumber)}', this, true)"
+                            title="Re-process this document (uses 1 credit)"
+                        >Re-analyze</button>
+                        <button class="occ-view-doc-btn" onclick="${openDocFn}('${cached.documentId}')" title="View analyzed document">View Doc ↗</button>
+                    </div>
+                `;
+            } else if (hasFinalOrder && caseNumber) {
+                processButton = `
+                    <div class="occ-filing-actions">
+                        <button
+                            id="${buttonId}"
+                            class="occ-process-btn"
+                            data-case-number="${esc(caseNumber)}"
+                            data-order-number="${esc(orderNumber)}"
+                            onclick="processOccFiling('${esc(caseNumber)}', '${esc(orderNumber)}', this)"
+                            title="Uses 1 document credit"
+                        >Analyze</button>
+                    </div>
+                `;
+            }
+
+            return `
+                <div class="occ-filing-item">
+                    <div class="occ-filing-main">
+                        <div class="occ-filing-type">
+                            ${isUpcoming ? '<span class="occ-hearing-warning" title="Hearing within 30 days">⚠️</span>' : ''}
+                            ${esc(filing.reliefTypeDisplay)}
+                            ${adjacentNote}
+                        </div>
+                        <div class="occ-filing-applicant">${esc(filing.applicant) || 'Unknown Applicant'}</div>
+                        <div class="occ-filing-details">
+                            <span class="occ-filing-case">${esc(filing.caseNumber)}</span>
+                            <span class="occ-filing-status ${statusClass}">${esc(filing.statusDisplay)}</span>
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 4px;">
+                        <div class="occ-filing-date">
+                            ${dateDisplay}
+                        </div>
+                        ${processButton}
+                    </div>
+                </div>
+            `;
+        }

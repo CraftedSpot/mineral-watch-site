@@ -192,12 +192,43 @@
             .hud-metrics { flex-direction: column; }
             .hud-badge { min-width: 100%; }
             .report-title-row { flex-direction: column; }
-            .report-content { margin: 1rem auto; padding: 0 0.5rem; }
-            .bar-label { width: 120px; font-size: 0.75rem; }
+            .report-content { margin: 1rem auto; padding: 0 1rem; }
+            .report-title { font-size: 1.2rem; }
+            .bar-label { width: 100px; font-size: 0.75rem; }
             .recommendation-actions { flex-direction: column; }
+            .report-actions-content { flex-direction: column; gap: 0.5rem; align-items: flex-start; }
+            .report-actions { width: 100%; }
+            .report-actions .btn { flex: 1; justify-content: center; min-height: 44px; }
+            .well-detail-content { max-width: 100%; padding: 1rem; }
+            /* Decline chart — scroll with min-width like Unit Report */
+            #declineTrendChart { min-width: 600px; }
             /* On mobile, don't use sticky - just scroll */
             .report-data-table th.sticky, .report-data-table td.sticky { position: static; }
             .report-data-table th.sticky-operator, .report-data-table td.sticky-operator { border-right: none; }
+        }
+        @media (max-width: 480px) {
+            .report-title { font-size: 1.1rem; }
+            .report-status { font-size: 0.65rem; padding: 0.3rem 0.6rem; }
+            .hud-badge { padding: 0.75rem 1rem; }
+            .hud-badge-value { font-size: 1.2rem; }
+            .report-data-table { min-width: 600px; }
+            .report-data-table th, .report-data-table td { padding: 0.5rem; font-size: 0.75rem; }
+            .compact-directory th:nth-child(1) { min-width: 140px; }
+            .compact-directory .contact-cell { min-width: 120px; }
+            .compact-directory .address-cell { min-width: 150px; }
+            .compact-directory th, .compact-directory td { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
+            .modal-content { width: 95%; max-height: 90vh; }
+            .modal-body { padding: 1rem; }
+            .modal-header { padding: 0.75rem 1rem; }
+            .modal-stats { gap: 0.5rem; }
+            .modal-stat { padding: 0.6rem; }
+            .modal-stat-value { font-size: 1rem; }
+            .recommendation-card { padding: 1.25rem; }
+            .recommendation-title { font-size: 0.9rem; }
+            .recommendation-text { font-size: 0.85rem; }
+            .report-summary-card { padding: 1rem; }
+            .report-summary-text { font-size: 0.875rem; }
+            .chart-section { padding: 1rem; }
         }
 
         @media print {
@@ -262,9 +293,21 @@
             .recommendation-text { color: var(--slate-blue) !important; font-size: 0.8rem; line-height: 1.4; margin-bottom: 0; }
             .recommendation-actions { display: none; }
 
+            /* Decline report: hide interactive elements, show print summary */
+            .pooling-tabs, .pooling-toolbar, .decline-sort-controls, .decline-summary-bar { display: none !important; }
+            #declineTabContent { display: none !important; }
+            .decline-trend-section { overflow: visible !important; border: 1.5px solid var(--border) !important; break-inside: avoid; }
+            #declineTrendChart { min-width: 0 !important; width: 100% !important; }
+
+            /* Shut-in report: hide interactive toolbar */
+            .shutin-toolbar { display: none !important; }
+
             /* Footer compact */
             .report-footer { padding: 0.75rem 0; font-size: 0.7rem; }
         }
+
+        /* Print page setup — letter size like Unit Report */
+        @page { size: letter; margin: 0.25in; }
 
         /* =============================================
            OPERATOR DIRECTORY VIEWER
@@ -451,8 +494,9 @@
         @media (max-width: 768px) {
             .modal-stats { grid-template-columns: repeat(2, 1fr); }
             .directory-filters { flex-wrap: wrap; }
-            .directory-search { max-width: none; }
+            .directory-search { max-width: none; width: 100%; }
             .scorecard-grid { grid-template-columns: 1fr; }
+            .modal-close { min-width: 44px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
         }
 
         /* =============================================
@@ -475,6 +519,8 @@
             border-radius: 10px;
             padding: 1rem 1.25rem;
             margin-bottom: 1.5rem;
+            overflow-x: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .decline-trend-header {
             display: flex;
@@ -557,7 +603,7 @@
         .pooling-distance-badge.adjacent { background: #eff6ff; color: #2563eb; border: 1px solid #dbeafe; }
         .pooling-distance-badge.within-2 { background: var(--paper); color: var(--slate-blue); border: 1px solid var(--border); }
 
-        .pooling-property-content { padding: 0 1.25rem 1.25rem; }
+        .pooling-property-content { padding: 0 1.25rem 1.25rem; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
         /* Pooling Orders Table */
         .pooling-orders-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
@@ -727,6 +773,15 @@
             .pooling-search-box { max-width: none; }
             .pooling-btn-export { margin-left: 0; }
         }
+        @media (max-width: 480px) {
+            .pooling-orders-table { min-width: 600px; }
+            .pooling-orders-table thead th { font-size: 0.65rem; padding: 0.5rem; }
+            .pooling-orders-table tbody td { padding: 0.5rem; font-size: 0.78rem; }
+            .pooling-property-header { padding: 0.75rem 1rem; }
+            .pooling-prop-name { font-size: 0.85rem; }
+            .pooling-header-right { gap: 0.5rem; }
+            .pooling-hud .hud-badge-value { font-size: 1.4rem; }
+        }
 
         /* ========================================= */
         /* SHUT-IN DETECTOR                          */
@@ -774,5 +829,9 @@
             .shutin-summary-card { flex: 0 1 calc(50% - 0.5rem); }
             .shutin-toolbar { flex-direction: column; align-items: stretch; }
             .shutin-filters { flex-direction: column; }
+        }
+        @media (max-width: 480px) {
+            .shutin-summary-card { flex: 0 1 100%; }
+            .shutin-summary-value { font-size: 1.35rem; }
         }
 

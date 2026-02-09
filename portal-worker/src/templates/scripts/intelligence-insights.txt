@@ -1,38 +1,22 @@
         // =============================================
         // SUGGESTED INSIGHTS
         // =============================================
-        async function loadInsights() {
-            try {
-                const controller = new AbortController();
-                setTimeout(() => controller.abort(), 12000);
-
-                const response = await fetch('/api/intelligence/insights', {
-                    credentials: 'include',
-                    signal: controller.signal
-                });
-
-                if (!response.ok) {
-                    console.error('Insights API error:', response.status);
-                    renderInsightsFallback();
-                    return;
-                }
-
-                const data = await response.json();
-                renderInsights(data.insights || []);
-            } catch (error) {
-                if (error.name === 'AbortError') {
-                    console.warn('Insights request timed out');
-                } else {
-                    console.error('Failed to load insights:', error);
-                }
-                renderInsightsFallback();
-            }
-        }
-
         function renderInsights(insights) {
             const container = document.getElementById('insightsList');
             // Remove loading animation
             document.getElementById('insightsSection')?.classList.remove('insights-loading');
+
+            // Update action items count in summary card
+            const count = insights ? insights.length : 0;
+            document.getElementById('summaryActions').textContent = count;
+            const actDetail = document.getElementById('summaryActionsDetail');
+            if (count === 0) {
+                actDetail.textContent = 'No pending items';
+                actDetail.className = 'summary-detail success';
+            } else {
+                actDetail.textContent = count === 1 ? '1 insight needs attention' : `${count} insights need attention`;
+                actDetail.className = 'summary-detail alert';
+            }
 
             if (!insights || insights.length === 0) {
                 container.innerHTML = `

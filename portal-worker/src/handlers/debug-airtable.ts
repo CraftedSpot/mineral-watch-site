@@ -5,6 +5,7 @@
 import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
 export async function handleDebugAirtable(request: Request, env: Env) {
@@ -27,7 +28,7 @@ export async function handleDebugAirtable(request: Request, env: Env) {
       
       // Fetch some sample links
       const linksResponse = await fetch(
-        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🔗 Property-Well Links')}?maxRecords=10${propertyId ? `&filterByFormula=${encodeURIComponent(`FIND('${propertyId}', ARRAYJOIN({Property})) > 0`)}` : ''}`,
+        `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent('🔗 Property-Well Links')}?maxRecords=10${propertyId ? `&filterByFormula=${encodeURIComponent(`FIND('${escapeAirtableValue(propertyId)}', ARRAYJOIN({Property})) > 0`)}` : ''}`,
         {
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }
@@ -53,8 +54,8 @@ export async function handleDebugAirtable(request: Request, env: Env) {
     
     // Original debug code
     const testFilters = [
-      `FIND('${user.id}', ARRAYJOIN({User})) > 0`,
-      `FIND('${user.email}', ARRAYJOIN({User})) > 0`,
+      `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`,
+      `FIND('${escapeAirtableValue(user.email)}', ARRAYJOIN({User})) > 0`,
       `NOT({User} = BLANK())`
     ];
     

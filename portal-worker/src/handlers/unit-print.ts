@@ -7,6 +7,7 @@
 
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest, SessionPayload } from '../utils/auth.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 import { BASE_ID, PROPERTIES_TABLE } from '../constants.js';
 
@@ -123,8 +124,23 @@ async function fetchUnitPrintData(
   });
 
   // 2. Get production data for this PUN
+  // Use data horizon (latest month in OTC data) instead of today for status thresholds
+  // This avoids false-idle caused by OTC's 2-3 month reporting lag
   const now = new Date();
-  const twelveMonthsAgo = new Date(now);
+  const horizonResult = await env.WELLS_DB.prepare(
+    `SELECT MAX(year_month) as horizon FROM otc_production`
+  ).first() as { horizon: string } | null;
+
+  let horizonDate: Date;
+  if (horizonResult?.horizon) {
+    const hYear = parseInt(horizonResult.horizon.substring(0, 4));
+    const hMonth = parseInt(horizonResult.horizon.substring(4, 6));
+    horizonDate = new Date(hYear, hMonth - 1, 1);
+  } else {
+    horizonDate = new Date(now);
+  }
+
+  const twelveMonthsAgo = new Date(horizonDate);
   twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
   const twelveMonthsAgoYM = `${twelveMonthsAgo.getFullYear()}${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
@@ -221,12 +237,12 @@ async function fetchUnitPrintData(
   const lastReported = lastReportedEntry?.month || null;
   const lastReportedYearMonth = lastReportedEntry?.yearMonth || null;
 
-  // Calculate reporting status thresholds
-  const threeMonthsAgo = new Date(now);
+  // Calculate reporting status thresholds (relative to data horizon, not today)
+  const threeMonthsAgo = new Date(horizonDate);
   threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
   const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-  const sixMonthsAgo = new Date(now);
+  const sixMonthsAgo = new Date(horizonDate);
   sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
   const sixMonthsAgoYM = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
@@ -312,7 +328,7 @@ async function fetchUnitPrintData(
     const nmaMap = new Map<string, number>();
     console.log(`[UnitPrint] Fetching NMA for ${propertyIds.length} properties:`, propertyIds);
     if (propertyIds.length > 0) {
-      const formula = `OR(${propertyIds.map(id => `RECORD_ID()='${id}'`).join(',')})`;
+      const formula = `OR(${propertyIds.map(id => `RECORD_ID()='${escapeAirtableValue(id)}'`).join(',')})`;
       const airtableUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields%5B%5D=RI%20Acres&fields%5B%5D=WI%20Acres`;
 
       try {

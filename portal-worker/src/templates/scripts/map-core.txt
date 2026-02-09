@@ -149,41 +149,8 @@
             default: '#6B7280'              // Gray
         };
         
-        // =============================================
-        // AUTHENTICATION
-        // =============================================
-        async function checkAuth() {
-            try {
-                const response = await fetch('/api/auth/me', {
-                    credentials: 'include'
-                });
-                
-                if (response.ok) {
-                    const user = await response.json();
-                    document.getElementById('userName').textContent = user.name || user.email;
-                    return user;
-                } else {
-                    window.location.href = '/portal/login';
-                    return null;
-                }
-            } catch (error) {
-                console.error('Auth check failed:', error);
-                window.location.href = '/portal/login';
-                return null;
-            }
-        }
-
-        async function logout() {
-            try {
-                await fetch('/api/auth/logout', {
-                    method: 'POST',
-                    credentials: 'include'
-                });
-            } catch (error) {
-                console.error('Logout failed:', error);
-            }
-            window.location.href = '/portal/login';
-        }
+        // Authentication: checkAuth(), logout(), setupImpersonation(), loadImpersonationBanner()
+        // are provided by shared-auth.txt (loaded before this module)
 
         // Update status
         function updateStatus(message) {

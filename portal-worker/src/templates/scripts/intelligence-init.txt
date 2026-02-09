@@ -1,47 +1,21 @@
-        let currentUser = null;
-
-        // =============================================
-        // AUTHENTICATION
-        // =============================================
-        async function checkAuth() {
-            try {
-                const response = await fetch('/api/auth/me', { credentials: 'include' });
-                if (response.ok) {
-                    const user = await response.json();
-                    document.getElementById('userName').textContent = user.name || user.email;
-                    return user;
-                } else {
-                    window.location.href = '/portal/login';
-                    return null;
-                }
-            } catch (error) {
-                console.error('Auth check failed:', error);
-                window.location.href = '/portal/login';
-                return null;
-            }
-        }
+        let currentUser; // Set by checkAuth() in shared-auth.txt
 
         // Logout handler
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            try {
-                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
-            } catch (e) { /* ignore */ }
-            window.location.href = '/portal/login';
-        });
+        document.getElementById('logoutBtn').addEventListener('click', logout);
 
         // =============================================
         // PAGE INITIALIZATION
         // =============================================
         document.addEventListener('DOMContentLoaded', async () => {
             try {
+                // Auth: impersonation must run BEFORE any fetch calls
+                const actAs = setupImpersonation();
                 currentUser = await checkAuth();
                 if (!currentUser) return;
+                if (actAs) await loadImpersonationBanner(actAs);
 
-                // Load summary cards
-                loadSummaryCards();
-
-                // Load insights
-                loadInsights();
+                // Load all intelligence data in one request
+                loadIntelligenceData();
 
             } catch (error) {
                 console.error('Intelligence page init error:', error);
@@ -49,33 +23,36 @@
         });
 
         // =============================================
-        // SUMMARY CARDS
+        // COMBINED DATA LOADER
         // =============================================
-        async function loadSummaryCards() {
+        async function loadIntelligenceData() {
             try {
                 const controller = new AbortController();
-                setTimeout(() => controller.abort(), 12000);
+                setTimeout(() => controller.abort(), 15000);
 
-                const response = await fetch('/api/intelligence/summary', {
+                const response = await fetch('/api/intelligence/data', {
                     credentials: 'include',
                     signal: controller.signal
                 });
 
                 if (!response.ok) {
-                    console.error('Summary API error:', response.status);
+                    console.error('Intelligence API error:', response.status);
                     setSummaryError();
+                    renderInsightsFallback();
                     return;
                 }
 
                 const data = await response.json();
-                renderSummaryCards(data);
+                renderSummaryCards(data.summary);
+                renderInsights(data.insights || []);
             } catch (error) {
                 if (error.name === 'AbortError') {
-                    console.warn('Summary request timed out');
+                    console.warn('Intelligence request timed out');
                 } else {
-                    console.error('Failed to load summary:', error);
+                    console.error('Failed to load intelligence data:', error);
                 }
                 setSummaryError();
+                renderInsightsFallback();
             }
         }
 
@@ -128,21 +105,7 @@
                 document.getElementById('summaryDeductionsDetail').textContent = 'No deduction data yet';
             }
 
-            // Action Items
-            if (data.actionItems !== null && data.actionItems !== undefined) {
-                document.getElementById('summaryActions').textContent = data.actionItems;
-                const actDetail = document.getElementById('summaryActionsDetail');
-                if (data.nearestDeadline) {
-                    actDetail.textContent = data.nearestDeadline;
-                    actDetail.className = 'summary-detail alert';
-                } else if (data.actionItems === 0) {
-                    actDetail.textContent = 'No pending items';
-                    actDetail.className = 'summary-detail success';
-                }
-            } else {
-                document.getElementById('summaryActions').textContent = '0';
-                document.getElementById('summaryActionsDetail').textContent = 'No pending items';
-            }
+            // Action Items — count is set by renderInsights() after insights load
         }
 
         function setSummaryError() {
@@ -155,8 +118,7 @@
             document.getElementById('summaryRevenueDetail').textContent = 'Could not load';
             document.getElementById('summaryDeductions').textContent = '—';
             document.getElementById('summaryDeductionsDetail').textContent = 'Could not load';
-            document.getElementById('summaryActions').textContent = '—';
-            document.getElementById('summaryActionsDetail').textContent = 'Could not load';
+            // Action Items count is owned by renderInsights() — don't overwrite here
         }
 
         function formatCurrency(amount) {

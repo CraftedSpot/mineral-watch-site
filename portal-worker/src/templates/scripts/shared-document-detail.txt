@@ -1,0 +1,350 @@
+        // Shared Document Detail & Viewer Functions
+        // Used by both map and dashboard for document type formatting,
+        // field value formatting, document viewing (PDF/image/TIFF),
+        // and document detail content rendering.
+
+        // Document viewer state
+        const _docViewerState = { docId: null, blobUrl: null, filename: null, contentType: null };
+
+        /**
+         * Format document type for display (snake_case → readable label).
+         */
+        function formatDocType(docType) {
+            if (!docType) return 'Unknown';
+            const typeMap = {
+                'pooling_order': 'Pooling Order',
+                'spacing_order': 'Spacing Order',
+                'increased_density': 'Increased Density Order',
+                'location_exception': 'Location Exception',
+                'multiunit_horizontal': 'Multi-Unit Horizontal Order',
+                'well_proposal': 'Well Proposal',
+                'oil_gas_lease': 'Oil & Gas Lease',
+                'multi_document': 'Multi-Document PDF',
+                'other': 'Other Document'
+            };
+            if (typeMap[docType]) return typeMap[docType];
+            return docType.split('_').map(word =>
+                word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
+            ).join(' ');
+        }
+
+        /**
+         * Format a value for display in document detail.
+         * Handles arrays, objects, and primitives.
+         * Uses shared helpers: isSectionsArray, condenseSections, formatSnakeCaseValue, formatFieldName.
+         */
+        function formatFieldValue(value) {
+            if (value === null || value === undefined || value === '') return null;
+            if (Array.isArray(value)) {
+                if (value.length === 0) return null;
+                if (typeof value[0] === 'object') {
+                    if (isSectionsArray(value)) {
+                        return condenseSections(value);
+                    }
+                    return value.map(v => v.name || v.formation || v.description || v.option_type || JSON.stringify(v)).join(', ');
+                }
+                return value.join(', ');
+            }
+            if (typeof value === 'object') {
+                if (value.sections && Array.isArray(value.sections) && isSectionsArray(value.sections)) {
+                    return condenseSections(value.sections);
+                }
+                const entries = Object.entries(value).filter(([k, v]) => v !== null && v !== undefined && v !== '');
+                if (entries.length === 0) return null;
+                return entries.map(([k, v]) => {
+                    let displayV;
+                    if (typeof v === 'string') {
+                        displayV = formatSnakeCaseValue(v);
+                    } else if (typeof v === 'object') {
+                        displayV = formatFieldValue(v);
+                    } else {
+                        displayV = String(v);
+                    }
+                    return `${formatFieldName(k)}: ${displayV}`;
+                }).join(', ');
+            }
+            if (typeof value === 'string') {
+                return formatSnakeCaseValue(value);
+            }
+            return String(value);
+        }
+
+        /**
+         * Open document viewer modal for PDF/image/TIFF display.
+         * ctx = { container, titleEl, modal, zIndex, rotation }
+         */
+        async function openDocumentViewer(docId, filename, contentType, ctx) {
+            console.log('Opening document viewer:', docId, filename, 'type:', contentType);
+            _docViewerState.docId = docId;
+            _docViewerState.filename = filename;
+            _docViewerState.contentType = contentType || 'application/pdf';
+
+            const modal = ctx.modal || document.getElementById('documentViewModal');
+            const container = ctx.container;
+            const titleEl = ctx.titleEl || document.getElementById('documentViewTitle');
+            const rotation = ctx.rotation || 0;
+
+            titleEl.textContent = filename || 'Document Viewer';
+            modal.style.display = 'flex';
+            if (ctx.zIndex) modal.style.zIndex = ctx.zIndex;
+
+            const isImage = contentType && (contentType.startsWith('image/jpeg') || contentType.startsWith('image/png'));
+            const isTiff = contentType && contentType.startsWith('image/tiff');
+
+            if (isTiff) {
+                container.innerHTML = `
+                    <div style="color: white; text-align: center; padding: 50px;">
+                        <svg width="64" height="64" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 20px; opacity: 0.6;">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
+                        </svg>
+                        <p style="font-size: 16px; margin-bottom: 8px;">TIFF files cannot be previewed in browser</p>
+                        <p style="opacity: 0.7; margin-bottom: 20px;">Download to view in an image editor</p>
+                        <button onclick="downloadViewerDocument()" style="background: #3B82F6; color: white; padding: 10px 20px; border-radius: 6px; border: none; cursor: pointer; font-size: 14px;">
+                            Download TIFF
+                        </button>
+                    </div>
+                `;
+                return;
+            }
+
+            container.innerHTML = `<div style="color: white; text-align: center; padding: 50px;">Loading ${isImage ? 'image' : 'document'}...</div>`;
+
+            try {
+                const response = await fetch(`/api/documents/${docId}/download?view=true`);
+                if (!response.ok) throw new Error('Failed to load file');
+
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+
+                if (isImage) {
+                    const rotationStyle = rotation ? `transform: rotate(${rotation}deg);` : '';
+                    container.innerHTML = `
+                        <div style="width: 100%; height: 100%; overflow: auto; display: flex; align-items: center; justify-content: center; padding: 20px;">
+                            <img src="${objectUrl}" alt="${escapeHtml(filename || 'Document')}" style="max-width: 100%; max-height: 100%; object-fit: contain; ${rotationStyle}"/>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <iframe
+                            src="${objectUrl}"
+                            style="width: 100%; height: 100%; border: none;"
+                            title="${escapeHtml(filename || 'Document')}"
+                        ></iframe>
+                    `;
+                }
+
+                _docViewerState.blobUrl = objectUrl;
+            } catch (error) {
+                console.error('Error loading file:', error);
+                container.innerHTML = `
+                    <div style="color: white; text-align: center; padding: 50px;">
+                        <p>Unable to display file in browser</p>
+                        <p style="margin-top: 20px;">
+                            <button onclick="downloadViewerDocument()" style="background: #3B82F6; color: white; padding: 8px 16px; border-radius: 6px; border: none; cursor: pointer;">
+                                Download File
+                            </button>
+                        </p>
+                    </div>
+                `;
+            }
+        }
+
+        /**
+         * Close document viewer and clean up blob URL.
+         * ctx = { container, modal, resetZIndex }
+         */
+        function closeDocumentViewerShared(ctx) {
+            const modal = (ctx && ctx.modal) || document.getElementById('documentViewModal');
+            const container = (ctx && ctx.container) || document.getElementById('pdfViewerContainer');
+
+            modal.style.display = 'none';
+            if (ctx && ctx.resetZIndex) {
+                modal.style.zIndex = '2000';
+            }
+
+            if (_docViewerState.blobUrl) {
+                URL.revokeObjectURL(_docViewerState.blobUrl);
+                _docViewerState.blobUrl = null;
+            }
+            container.innerHTML = '';
+        }
+
+        /**
+         * Download the currently viewed document.
+         */
+        function downloadViewerDocument() {
+            if (_docViewerState.docId) {
+                window.location.href = `/api/documents/${_docViewerState.docId}/download`;
+            }
+        }
+
+        /**
+         * Print document summary in new tab.
+         */
+        function printDocSummary(docId) {
+            const id = docId || _docViewerState.docId;
+            if (id) {
+                window.open(`/print/document?id=${id}`, '_blank');
+            }
+        }
+
+        /**
+         * Render document detail content body.
+         * Returns HTML string with: status/type row, key takeaway, detailed analysis,
+         * election options, extracted fields grid, or no-data state.
+         * Used by map's simpler detail modal. Dashboard uses its own renderExtractedData.
+         */
+        function renderDocDetailContent(doc) {
+            let content = '';
+
+            // Status + Type row
+            const statusColor = doc.status === 'complete' ? '#1D6F5C' :
+                               doc.status === 'failed' ? '#DC2626' :
+                               doc.status === 'manual_review' ? '#D97706' : '#F59E0B';
+            const statusText = doc.status === 'complete' ? 'Complete' :
+                              doc.status === 'failed' ? 'Failed' :
+                              doc.status === 'manual_review' ? 'Needs Review' : 'Processing';
+
+            content += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px;">';
+            content += `
+                <div style="background: #f9fafb; padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Status</div>
+                    <div style="font-weight: 600; color: ${statusColor};">${statusText}</div>
+                </div>`;
+
+            if (doc.category || doc.doc_type) {
+                content += `
+                <div style="background: #f9fafb; padding: 12px; border-radius: 8px;">
+                    <div style="font-size: 12px; color: #6b7280; margin-bottom: 4px;">Document Type</div>
+                    <div style="font-weight: 500; color: var(--oil-navy);">${formatDocType(doc.category || doc.doc_type)}</div>
+                </div>`;
+            }
+            content += '</div>';
+
+            // Parse extracted data if available
+            if (doc.extracted_data) {
+                try {
+                    const extractedData = typeof doc.extracted_data === 'string' ? JSON.parse(doc.extracted_data) : doc.extracted_data;
+                    const docType = extractedData.doc_type || doc.doc_type;
+
+                    // Processor error
+                    if (extractedData.error) {
+                        content += '<div style="background: #FEF2F2; border: 1px solid #FECACA; border-radius: 8px; padding: 16px; margin-bottom: 20px;">';
+                        content += `<h4 style="margin: 0 0 8px 0; color: #B91C1C; font-size: 14px; font-weight: 600;">Error: ${escapeHtml(extractedData.error)}</h4>`;
+                        content += '<p style="margin: 0; color: #7F1D1D; font-size: 13px;">The document processor encountered an error. Please try re-analyzing the document.</p>';
+                        content += '</div>';
+                    }
+
+                    // Key Takeaway (prominent, open by default)
+                    if (extractedData.key_takeaway) {
+                        const cleanedTakeaway = String(extractedData.key_takeaway).trim()
+                            .replace(/^#{1,6}\s*/gm, '').replace(/^---+$/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/\*\*/g, '').replace(/^\s+/gm, '').replace(/\t/g, ' ').replace(/\n{3,}/g, '\n\n');
+                        content += `<div style="margin-bottom: 16px;">
+                            <details open style="border: 1px solid #d1fae5; border-radius: 8px; overflow: hidden;">
+                                <summary style="padding: 12px 16px; background: #ecfdf5; cursor: pointer; font-weight: 600; font-size: 14px; color: #065f46; display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 10px; transition: transform 0.2s;">&#9654;</span>
+                                    Key Takeaway
+                                </summary>
+                                <div style="padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #1a1a2e; white-space: pre-wrap;">${escapeHtml(cleanedTakeaway)}</div>
+                            </details>
+                        </div>`;
+                    }
+
+                    // Detailed Analysis (collapsible, closed by default)
+                    const analysisText = extractedData.ai_observations || extractedData.detailed_analysis || extractedData.observations;
+                    if (analysisText) {
+                        const cleanedAnalysis = String(analysisText).trim().replace(/^\s+/gm, '').replace(/\t/g, ' ');
+                        content += `<div style="margin-bottom: 20px;">
+                            <details style="border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+                                <summary style="padding: 12px 16px; background: #f9fafb; cursor: pointer; font-weight: 600; font-size: 14px; color: var(--oil-navy); display: flex; align-items: center; gap: 8px;">
+                                    <span style="font-size: 10px; transition: transform 0.2s;">&#9654;</span>
+                                    View Detailed Analysis
+                                    <span style="font-size: 12px; color: #9ca3af; font-weight: 400; margin-left: auto;">Click to expand</span>
+                                </summary>
+                                <div style="padding: 12px 16px; font-size: 13px; line-height: 1.6; color: #4b5563;">${formatAnalysisText(cleanedAnalysis)}</div>
+                            </details>
+                        </div>`;
+                    }
+
+                    // Election Options
+                    if (extractedData.election_options && Array.isArray(extractedData.election_options) && extractedData.election_options.length > 0) {
+                        content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px; margin-bottom: 16px;">';
+                        content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Election Options</h4>';
+                        content += '<div style="display: flex; flex-direction: column; gap: 8px;">';
+
+                        extractedData.election_options.forEach((option, idx) => {
+                            const optType = (option.option_type || option.type || 'unknown').toLowerCase();
+                            let bgColor = '#f3f4f6', borderColor = '#d1d5db';
+
+                            if (optType === 'participate') { bgColor = '#eff6ff'; borderColor = '#3b82f6'; }
+                            else if (optType.includes('cash')) { bgColor = '#fef3c7'; borderColor = '#f59e0b'; }
+                            else if (optType === 'non_consent') { bgColor = '#fee2e2'; borderColor = '#ef4444'; }
+
+                            content += `
+                                <div style="background: ${bgColor}; border: 1px solid ${borderColor}; border-radius: 6px; padding: 10px 12px;">
+                                    <div style="font-weight: 600; color: var(--oil-navy); margin-bottom: 4px;">${formatFieldName(option.option_type || option.type || 'Option ' + (idx + 1))}</div>
+                                    ${option.description ? `<div style="font-size: 13px; color: #4b5563;">${escapeHtml(option.description)}</div>` : ''}
+                                    ${option.bonus_per_acre ? `<div style="font-size: 13px; color: #4b5563; margin-top: 4px;">Bonus: $${option.bonus_per_acre}/acre</div>` : ''}
+                                    ${option.royalty_rate ? `<div style="font-size: 13px; color: #4b5563;">Royalty: ${option.royalty_rate}</div>` : ''}
+                                </div>`;
+                        });
+
+                        content += '</div></div>';
+                    }
+
+                    // Extracted Fields Grid (simple 2-column layout using shared display config)
+                    const displayFields = Object.entries(extractedData).filter(([key, val]) => {
+                        if (!shouldDisplayField(key, docType)) return false;
+                        if (val === null || val === undefined || val === '') return false;
+                        if (Array.isArray(val) && val.length > 0 && typeof val[0] === 'object' && key !== 'formations') return false;
+                        return true;
+                    });
+
+                    if (displayFields.length > 0) {
+                        content += '<div style="border-top: 1px solid #e5e7eb; padding-top: 16px;">';
+                        content += '<h4 style="margin: 0 0 12px; font-size: 14px; font-weight: 600; color: var(--oil-navy);">Extracted Information</h4>';
+                        content += '<div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px;">';
+
+                        displayFields.forEach(([key, value]) => {
+                            let displayVal;
+                            if (key === 'legal_description' && typeof value === 'object') {
+                                displayVal = condenseLegal(value);
+                            } else {
+                                displayVal = formatFieldValue(value);
+                            }
+                            if (!displayVal) return;
+                            displayVal = cleanFieldValue(displayVal);
+                            if (key === 'unit_size_acres') displayVal += ' acres';
+                            if (key === 'election_deadline_days') displayVal += ' days';
+
+                            content += `
+                                <div style="background: #f9fafb; padding: 10px 12px; border-radius: 6px;">
+                                    <div style="font-size: 11px; color: #6b7280; margin-bottom: 2px; text-transform: uppercase;">${formatFieldName(key)}</div>
+                                    <div style="font-size: 14px; color: var(--oil-navy); white-space: pre-line;">${escapeHtml(displayVal)}</div>
+                                </div>`;
+                        });
+
+                        content += '</div></div>';
+                    }
+
+                } catch (e) {
+                    console.error('Error parsing extracted data:', e);
+                    content += '<div style="padding: 16px; color: #DC2626;">Error displaying extracted data</div>';
+                }
+            } else {
+                // No extracted data — show processing or pending state
+                content += '<div style="text-align: center; padding: 40px 20px; background: #f9fafb; border-radius: 8px; margin: 20px 0;">';
+                content += '<svg width="48" height="48" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="margin: 0 auto 16px; display: block; opacity: 0.3;"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>';
+                if (doc.status === 'failed') {
+                    content += '<p style="margin: 0; color: #DC2626; font-size: 14px; font-weight: 500;">Document processing failed</p>';
+                    content += '<p style="margin: 8px 0 0; color: #6b7280; font-size: 13px;">You can try re-analyzing or view the original document.</p>';
+                } else if (doc.status === 'processing' || doc.status === 'pending') {
+                    content += '<p style="margin: 0; color: #6b7280; font-size: 14px;">Document is still being processed...</p>';
+                } else {
+                    content += '<p style="margin: 0; color: #6b7280; font-size: 14px;">No extracted data available for this document.</p>';
+                }
+                content += '</div>';
+            }
+
+            return content;
+        }

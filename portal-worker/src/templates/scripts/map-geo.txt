@@ -654,11 +654,10 @@
         function drawLateralPath(surfaceCoords, bhCoords, wellData, pathType = 'tracked') {
             if (!surfaceCoords || !bhCoords) return null;
             
-            const fields = wellData.fields || {};
-            const wellName = fields['Well Name'] || fields['wellName'] || `API ${fields['API Number']}`;
-            const operator = fields['Operator'] || fields['operator'] || 'Unknown';
-            const status = fields['Well Status'] || 'Unknown';
-            const formation = fields['Formation Name'] || fields['Formation'] || fields['formation'] || '';
+            const wellName = wellData.well_name || `API ${wellData.apiNumber || wellData.api_number}`;
+            const operator = wellData.operator || 'Unknown';
+            const status = wellData.well_status || wellData.well_status_code || 'Unknown';
+            const formation = wellData.formation_name || '';
             
             // Determine color based on type
             let pathColor = '#6B7280'; // Default gray
@@ -668,7 +667,7 @@
                 pathColor = '#3B82F6'; // Blue for completions
             } else if (pathType === 'nearby') {
                 // For nearby wells, use green for oil, red for gas
-                const wellType = fields['Well Type'] || fields['well_type'] || '';
+                const wellType = wellData.well_type || '';
                 if (wellType.toLowerCase().includes('gas')) {
                     pathColor = '#EF4444'; // Red for gas
                 } else {
@@ -713,7 +712,7 @@
             const distanceFt = Math.round(distance * 3.28084); // Convert meters to feet
             
             // Popup for the lateral path
-            const lateralLength = fields['Lateral Length'] ? `${fields['Lateral Length'].toLocaleString()} ft` : `~${distanceFt.toLocaleString()} ft`;
+            const lateralLength = wellData.lateral_length ? `${Number(wellData.lateral_length).toLocaleString()} ft` : `~${distanceFt.toLocaleString()} ft`;
             const popupContent = `
                 <div class="popup-header">
                     <span class="popup-tag" style="background: ${pathColor}; color: white;">Horizontal Lateral</span>
@@ -761,7 +760,7 @@
         async function fetchTrackedWells() {
             try {
                 console.log('Fetching tracked wells...');
-                const response = await fetch('/api/wells', { credentials: 'include' });
+                const response = await fetch('/api/wells/v2', { credentials: 'include' });
                 if (!response.ok) {
                     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                 }
@@ -776,40 +775,36 @@
         
         // Create individual tracked well marker
         function createTrackedWellMarker(well, coords) {
-            const fields = well.fields || {};
-            const wellStatus = fields['Well Status'] || 'Unknown';
+            const wellStatus = well.well_status || 'Unknown';
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
-            const operatorColor = getOperatorColor(fields['Operator'] || '');
+            const operatorColor = getOperatorColor(well.operator || '');
 
-            // Create pin marker for tracked wells
-            // Scale down at lower zoom levels (zoom 7-8 = 50% size, zoom 9+ = full size)
-            const currentZoom = map.getZoom();
-            const zoomScale = currentZoom < 9 ? 0.5 : 1;
-            const markerSize = Math.round(24 * zoomScale);
-            const markerHeight = Math.round(30 * zoomScale);
-            
+            // Fixed-size pin marker for tracked wells (same size as nearby wells)
+            const markerSize = 14;
+            const markerH = markerSize * 1.4;
+
             const icon = L.divIcon({
                 className: 'tracked-well-pin',
                 html: `
-                    <svg width="${markerSize + 8}" height="${markerHeight + 4}" viewBox="-2 -1 32 40" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                    <svg width="${markerSize}" height="${markerH}" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z"
                               fill="${statusColor}" stroke="${operatorColor}" stroke-width="2"/>
                         <circle cx="12" cy="12" r="4.5" fill="${operatorColor}"/>
                     </svg>
                 `,
-                iconSize: [markerSize + 8, markerHeight + 4],
-                iconAnchor: [(markerSize + 8)/2, markerHeight + 4],
-                popupAnchor: [0, -markerHeight - 2]
+                iconSize: [markerSize, markerH],
+                iconAnchor: [markerSize/2, markerH],
+                popupAnchor: [0, -markerH]
             });
             
             const marker = L.marker([coords.lat, coords.lon], { icon: icon });
             
             // Create popup content
-            const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
-            const operator = toTitleCase(fields['Operator'] || 'Unknown');
+            const wellName = toTitleCase(well.well_name || `API ${well.apiNumber}`);
+            const operator = toTitleCase(well.operator || 'Unknown');
             const wellStatusLabel = getStatusLabel(wellStatus);
-            const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
-            
+            const formation = toTitleCase(well.formation_name || '');
+
             const popupContent = `
                 <div class="popup-header">
                     <span class="popup-tag tracked-well">Tracked Well</span>
@@ -817,7 +812,7 @@
                 <div class="popup-well-name">${wellName}</div>
                 <div class="popup-details">
                     ${operator}<br>
-                    ${fields['Section'] ? `S${fields['Section']} T${fields['Township']} R${fields['Range']} • ` : ''}${fields['County'] || 'Unknown'}<br>
+                    ${well.section ? `S${well.section} T${well.township} R${well.range} • ` : ''}${well.county || 'Unknown'}<br>
                     Status: ${wellStatusLabel}${formation ? ` • ${formation}` : ''}
                 </div>
                 <div class="popup-actions">
@@ -836,57 +831,55 @@
         // Create clustered marker for multiple wells at same location (with lateral paths) - LEGACY, keeping for reference
         function createClusteredWellMarker(wellsAtLocation) {
             const firstWell = wellsAtLocation[0];
-            const coords = parseOccMapLink(firstWell.fields['OCC Map Link']);
+            const coords = parseOccMapLink(firstWell.occMapLink);
             const count = wellsAtLocation.length;
-            
+
             // Use the most prominent status for the main marker color
             const statusPriority = { 'AC': 4, 'ND': 3, 'SI': 2, 'PA': 1, 'TA': 1 };
             const dominantWell = wellsAtLocation.reduce((prev, curr) => {
-                const prevStatus = prev.fields['Well Status'] || '';
-                const currStatus = curr.fields['Well Status'] || '';
+                const prevStatus = prev.well_status || '';
+                const currStatus = curr.well_status || '';
                 return (statusPriority[currStatus] || 0) > (statusPriority[prevStatus] || 0) ? curr : prev;
             });
-            
-            const dominantStatus = dominantWell.fields['Well Status'] || 'Unknown';
+
+            const dominantStatus = dominantWell.well_status || 'Unknown';
             const statusColor = WELL_STATUS_COLORS[dominantStatus] || WELL_STATUS_COLORS.default;
-            const operatorColor = getOperatorColor(dominantWell.fields['Operator'] || '');
+            const operatorColor = getOperatorColor(dominantWell.operator || '');
             
             let marker;
             
-            // Create pin marker for tracked wells (like classic map pins)
-            // Scale slightly for clusters, but don't exaggerate
-            const markerSize = count === 1 ? 24 : 28;
-            const markerHeight = count === 1 ? 30 : 36;
-            
+            // Fixed-size pin marker (same as nearby wells; slightly larger for clusters)
+            const markerSize = count === 1 ? 14 : 18;
+            const markerH = markerSize * 1.4;
+
             // For clusters, show count as a badge - centered on the pin
             let badgeHtml = '';
             if (count > 1) {
                 const badgeSize = count >= 10 ? 18 : 16;
                 const fontSize = count >= 10 ? 10 : 11;
-                // Center the badge on the pin (at x="12" y="12" which is the center)
                 badgeHtml = `
                     <circle cx="12" cy="12" r="${badgeSize/2 + 1}" fill="white" stroke-width="2"/>
                     <circle cx="12" cy="12" r="${badgeSize/2}" fill="${statusColor}"/>
                     <text x="12" y="12" text-anchor="middle" dominant-baseline="middle" fill="white" font-size="${fontSize}" font-weight="bold">${count}</text>
                 `;
             }
-            
+
             // Only show inner dot for single wells
             const innerDot = count === 1 ? `<circle cx="12" cy="12" r="4.5" fill="${operatorColor}"/>` : '';
-            
+
             const icon = L.divIcon({
                 className: 'tracked-well-pin',
                 html: `
-                    <svg width="${markerSize + 8}" height="${markerHeight + 4}" viewBox="-2 -1 32 40" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z" 
+                    <svg width="${markerSize}" height="${markerH}" viewBox="-1 -1 26 35" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 1C5.9 1 1 5.9 1 12c0 8.5 11 19 11 19s11-10.5 11-19c0-6.1-4.9-11-11-11z"
                               fill="${statusColor}" stroke="${operatorColor}" stroke-width="2"/>
                         ${innerDot}
                         ${badgeHtml}
                     </svg>
                 `,
-                iconSize: [markerSize + 8, markerHeight + 4],
-                iconAnchor: [(markerSize + 8)/2, markerHeight + 3],
-                popupAnchor: [0, -markerHeight]
+                iconSize: [markerSize, markerH],
+                iconAnchor: [markerSize/2, markerH],
+                popupAnchor: [0, -markerH]
             });
             marker = L.marker([coords.lat, coords.lon], { icon: icon });
             
@@ -895,13 +888,11 @@
             if (count === 1) {
                 // Single well popup with enhanced styling
                 const well = firstWell;
-                const fields = well.fields || {};
-                const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
-                const operator = toTitleCase(fields['Operator'] || 'Unknown');
-                const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
-                const formation = toTitleCase(fields['Formation Name'] || fields['Formation'] || '');
-                const apiNumber = fields['API Number'];
-                
+                const wellName = toTitleCase(well.well_name || `API ${well.apiNumber}`);
+                const operator = toTitleCase(well.operator || 'Unknown');
+                const wellStatus = (well.well_status || 'Unknown').toUpperCase();
+                const formation = toTitleCase(well.formation_name || '');
+
                 popupContent = `
                     <div class="popup-header">
                         <span class="popup-tag tracked-well">Tracked Well</span>
@@ -909,7 +900,7 @@
                     <div class="popup-well-name">${wellName}</div>
                     <div class="popup-details">
                         ${operator}<br>
-                        ${fields['Section'] ? `S${fields['Section']} T${fields['Township']} R${fields['Range']} • ` : ''}${fields['County'] || 'Unknown'}<br>
+                        ${well.section ? `S${well.section} T${well.township} R${well.range} • ` : ''}${well.county || 'Unknown'}<br>
                         Status: ${wellStatus}${formation ? ` • ${formation}` : ''}
                     </div>
                     <div class="popup-actions">
@@ -918,10 +909,9 @@
                 `;
             } else {
                 // Multiple wells popup - show location context
-                const firstFields = firstWell.fields || {};
-                const locationStr = firstFields['Section'] 
-                    ? `S${firstFields['Section']} T${firstFields['Township']} R${firstFields['Range']}`
-                    : (firstFields['County'] || 'this location');
+                const locationStr = firstWell.section
+                    ? `S${firstWell.section} T${firstWell.township} R${firstWell.range}`
+                    : (firstWell.county || 'this location');
                 
                 popupContent = `
                     <div class="popup-header">
@@ -936,10 +926,9 @@
                 const hasMore = count > showInitially;
                 
                 wellsAtLocation.forEach((well, index) => {
-                    const fields = well.fields || {};
-                    const wellName = fields['Well Name'] || `API ${fields['API Number']}`;
-                    const operator = fields['Operator'] || 'Unknown';
-                    const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
+                    const wellName = well.well_name || `API ${well.apiNumber}`;
+                    const operator = well.operator || 'Unknown';
+                    const wellStatus = (well.well_status || 'Unknown').toUpperCase();
                     const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
                     const isHidden = hasMore && index >= showInitially;
                     

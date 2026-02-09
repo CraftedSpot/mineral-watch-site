@@ -357,6 +357,28 @@
     .vt-hide-mobile {
         display: none;
     }
+
+    /* Let visible cells grow to fill space from hidden columns */
+    .vt-header-cell:not(.vt-hide-mobile),
+    .vt-cell:not(.vt-hide-mobile) {
+        flex-grow: 1;
+    }
+
+    /* Enable horizontal scrolling — container scrolls header + body together */
+    .vt-container {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+    .vt-inner {
+        min-width: 550px;
+    }
+    .vt-body-wrapper {
+        overflow-x: visible;
+    }
+    .vt-header-cell {
+        padding: 0.6rem 0.5rem;
+        font-size: 0.65rem;
+    }
 }
 
 /* Keyboard navigation focus styles */

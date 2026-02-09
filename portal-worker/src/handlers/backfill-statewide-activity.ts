@@ -7,6 +7,7 @@
 import { BASE_ID, WELL_LOCATIONS_TABLE, ACTIVITY_TABLE } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
 const STATEWIDE_ACTIVITY_TABLE = 'tblbM8kwkRyFS9eaj';
@@ -177,7 +178,7 @@ async function fetchAllRecords(env: Env, table: string) {
 }
 
 async function checkIfExists(env: Env, apiNumber: string) {
-  const formula = `{API Number} = "${apiNumber}"`;
+  const formula = `{API Number} = '${escapeAirtableValue(apiNumber)}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(STATEWIDE_ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   
   const response = await fetch(url, {

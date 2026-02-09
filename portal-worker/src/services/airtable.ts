@@ -12,6 +12,7 @@ import {
   WELLS_TABLE 
 } from '../constants.js';
 
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -74,7 +75,7 @@ export interface SimplifiedWell {
  * @returns User record or null if not found
  */
 export async function findUserByEmail(env: Env, email: string): Promise<AirtableUser | null> {
-  const formula = `LOWER({Email}) = '${email.toLowerCase()}'`;
+  const formula = `LOWER({Email}) = '${escapeAirtableValue(email.toLowerCase())}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -133,12 +134,12 @@ export async function countUserProperties(env: Env, userEmail: string): Promise<
   if (userOrganizations.length > 0) {
     // User is part of an organization - count both personal and org properties
     const orgId = userOrganizations[0];
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+    formula = `OR(FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0, FIND('${escapeAirtableValue(orgId)}', ARRAYJOIN({Organization})) > 0)`;
   } else {
     // No organization - count only personal properties
-    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`;
   }
-  
+
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -165,12 +166,12 @@ export async function countUserWells(env: Env, userEmail: string): Promise<numbe
   if (userOrganizations.length > 0) {
     // User is part of an organization - count both personal and org wells
     const orgId = userOrganizations[0];
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+    formula = `OR(FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0, FIND('${escapeAirtableValue(orgId)}', ARRAYJOIN({Organization})) > 0)`;
   } else {
     // No organization - count only personal wells
-    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`;
   }
-  
+
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -201,15 +202,15 @@ export async function countPropertiesForUserOrOrg(env: Env, userRecord: Airtable
     
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      formula = `{Organization} = '${org.fields.Name}'`;
+      formula = `{Organization} = '${escapeAirtableValue(org.fields.Name)}'`;
     } else {
       // Fallback to email
-      formula = `{User Email} = "${userRecord.fields.Email}"`;
+      formula = `{User Email} = '${escapeAirtableValue(userRecord.fields.Email)}'`;
     }
   } else {
-    formula = `{User Email} = "${userRecord.fields.Email}"`;
+    formula = `{User Email} = '${escapeAirtableValue(userRecord.fields.Email)}'`;
   }
-  
+
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=SEC`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -240,15 +241,15 @@ export async function countWellsForUserOrOrg(env: Env, userRecord: AirtableUser)
     
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      formula = `{Organization} = '${org.fields.Name}'`;
+      formula = `{Organization} = '${escapeAirtableValue(org.fields.Name)}'`;
     } else {
       // Fallback to email
-      formula = `FIND('${userRecord.fields.Email}', ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${escapeAirtableValue(userRecord.fields.Email)}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    formula = `FIND('${userRecord.fields.Email}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(userRecord.fields.Email)}', ARRAYJOIN({User})) > 0`;
   }
-  
+
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&fields[]=API Number`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -269,7 +270,7 @@ export async function countWellsForUserOrOrg(env: Env, userRecord: AirtableUser)
  * @returns True if duplicate exists, false otherwise
  */
 export async function checkDuplicateProperty(env: Env, userEmail: string, county: string, section: string, township: string, range: string): Promise<boolean> {
-  const formula = `AND(FIND('${userEmail}', ARRAYJOIN({User})) > 0, {COUNTY} = '${county}', {SEC} = '${section}', {TWN} = '${township}', {RNG} = '${range}')`;
+  const formula = `AND(FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0, {COUNTY} = '${escapeAirtableValue(county)}', {SEC} = '${escapeAirtableValue(section)}', {TWN} = '${escapeAirtableValue(township)}', {RNG} = '${escapeAirtableValue(range)}')`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(PROPERTIES_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -287,7 +288,7 @@ export async function checkDuplicateProperty(env: Env, userEmail: string, county
  * @returns True if duplicate exists, false otherwise
  */
 export async function checkDuplicateWell(env: Env, userEmail: string, apiNumber: string): Promise<boolean> {
-  const formula = `AND(FIND('${userEmail}', ARRAYJOIN({User})) > 0, {API Number} = '${apiNumber}')`;
+  const formula = `AND(FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0, {API Number} = '${escapeAirtableValue(apiNumber)}')`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(WELLS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   const response = await fetch(url, {
     headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
@@ -348,9 +349,9 @@ export async function fetchUserProperties(env: Env, userEmail: string): Promise<
   let formula: string;
   if (userOrganizations.length > 0) {
     const orgId = userOrganizations[0];
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+    formula = `OR(FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0, FIND('${escapeAirtableValue(orgId)}', ARRAYJOIN({Organization})) > 0)`;
   } else {
-    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`;
   }
 
   const allRecords: SimplifiedProperty[] = [];
@@ -402,9 +403,9 @@ export async function fetchUserWells(env: Env, userEmail: string): Promise<Simpl
   let formula: string;
   if (userOrganizations.length > 0) {
     const orgId = userOrganizations[0];
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization})) > 0)`;
+    formula = `OR(FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0, FIND('${escapeAirtableValue(orgId)}', ARRAYJOIN({Organization})) > 0)`;
   } else {
-    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`;
   }
 
   const allRecords: SimplifiedWell[] = [];

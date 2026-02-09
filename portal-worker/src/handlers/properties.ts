@@ -29,6 +29,7 @@ import {
 import { matchSingleProperty } from '../utils/property-well-matching.js';
 import { getOccFilingsForProperty } from '../utils/docket-matching.js';
 
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -129,7 +130,7 @@ export async function handleListProperties(request: Request, env: Env) {
   let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
   
-  const userEmail = user.email.replace(/'/g, "\\'");
+  const safeEmail = escapeAirtableValue(user.email);
 
   if (organizationId) {
     // User has organization - need to get org name for the filter
@@ -142,17 +143,17 @@ export async function handleListProperties(request: Request, env: Env) {
 
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+      const orgName = escapeAirtableValue(org.fields.Name || '');
       // Filter by org name OR user email — properties uploaded via Airtable
       // may have User field set but Organization field empty
       const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
-      const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
+      const userFind = `FIND('${safeEmail}', ARRAYJOIN({User}))`;
       formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
-      formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${safeEmail}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${safeEmail}', ARRAYJOIN({User})) > 0`;
   }
   
   const records = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, formula);

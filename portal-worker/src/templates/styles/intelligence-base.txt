@@ -188,6 +188,33 @@
             .nav-links a { font-size: 13px; }
             .intel-hero { padding: 0 0 1.5rem; }
             .intel-hero-header { padding: 1.5rem 0 1rem; }
+            .intel-hero-header h1 { font-size: 1.35rem; }
+            .intel-subtitle { font-size: 0.85rem; }
+            .summary-value { font-size: 1.35rem; }
+            .summary-card { padding: 1rem; }
+            .question-card { padding: 0.75rem 1rem; }
+            .question-text { font-size: 0.85rem; }
+            .custom-question { flex-direction: column; }
+            .custom-question input { width: 100%; }
+            .btn { min-height: 44px; padding: 0.625rem 1rem; }
+            .insight-item { flex-wrap: wrap; }
+            .insight-action { width: auto; align-self: flex-end; margin-top: 0.5rem; }
+            .toast { left: 16px; right: 16px; bottom: 16px; }
+            .intel-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+            .intel-tab { white-space: nowrap; padding: 0.75rem 1rem; font-size: 0.85rem; }
             .category-tabs { overflow-x: auto; -webkit-overflow-scrolling: touch; }
             .category-tab { white-space: nowrap; padding: 0.75rem 1rem; font-size: 0.8rem; }
+            .tool-icon { width: 40px; height: 40px; }
+            .market-tool-card { padding: 1rem; }
+        }
+        @media (max-width: 480px) {
+            .container { padding: 0 16px; }
+            .summary-value { font-size: 1.2rem; }
+            .summary-card { padding: 0.875rem; }
+            .summary-label { font-size: 0.65rem; }
+            .header-inner { flex-wrap: wrap; }
+            .nav-links { width: 100%; justify-content: center; gap: 12px; order: 3; }
+            .nav-links a { font-size: 12px; }
+            .user-menu { gap: 10px; }
+            .user-name { display: none; }
         }

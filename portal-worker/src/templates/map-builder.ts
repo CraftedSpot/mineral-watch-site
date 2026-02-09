@@ -9,10 +9,15 @@
 import shell from './map-shell.html';
 
 // Shared utilities (same source files as dashboard — single source of truth)
+import sharedAuth from './scripts/shared-auth.txt';
 import sharedUtils from './scripts/shared-utils.txt';
 import sharedConfig from './scripts/shared-display-config.txt';
 import sharedOccHelpers from './scripts/shared-occ-helpers.txt';
 import sharedDocHelpers from './scripts/shared-doc-helpers.txt';
+import sharedOtcProduction from './scripts/shared-otc-production.txt';
+import sharedOtcCss from './styles/shared-otc-production.txt';
+import sharedOccFilings from './scripts/shared-occ-filings.txt';
+import sharedDocDetail from './scripts/shared-document-detail.txt';
 
 // Map-specific JS modules
 import controls from './scripts/map-controls.txt';
@@ -31,10 +36,15 @@ import init from './scripts/map-init.txt';
 // Use function replacements to prevent $-pattern interpretation in String.replace()
 let html = shell;
 
+html = html.replace('/* __MAP_SHARED_AUTH__ */\n', () => sharedAuth);
 html = html.replace('/* __MAP_SHARED_UTILS__ */\n', () => sharedUtils);
 html = html.replace('/* __MAP_SHARED_CONFIG__ */\n', () => sharedConfig);
 html = html.replace('/* __MAP_SHARED_OCC_HELPERS__ */\n', () => sharedOccHelpers);
 html = html.replace('/* __MAP_SHARED_DOC_HELPERS__ */\n', () => sharedDocHelpers);
+html = html.replace('/* __SHARED_OTC_PRODUCTION__ */\n', () => sharedOtcProduction);
+html = html.replace('/* __SHARED_OTC_CSS__ */\n', () => sharedOtcCss);
+html = html.replace('/* __SHARED_OCC_FILINGS__ */\n', () => sharedOccFilings);
+html = html.replace('/* __SHARED_DOCUMENT_DETAIL__ */\n', () => sharedDocDetail);
 html = html.replace('/* __MAP_CONTROLS__ */\n', () => controls);
 html = html.replace('/* __MAP_CORE__ */\n', () => core);
 html = html.replace('/* __MAP_GEO__ */\n', () => geo);

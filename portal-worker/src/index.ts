@@ -3,9 +3,8 @@
 
 // Import constants and utilities from modular files
 import { 
-  COOKIE_NAME, 
-  TOKEN_EXPIRY, 
-  SESSION_EXPIRY, 
+  COOKIE_NAME,
+  SESSION_EXPIRY,
   BASE_ID, 
   USERS_TABLE, 
   PROPERTIES_TABLE, 
@@ -307,6 +306,7 @@ var index_default = {
         if (!caseNumber) {
           return Response.redirect(`${BASE_URL}/portal?error=Missing%20case%20number`, 302);
         }
+        const safeCaseNumber = escapeHtml(caseNumber);
 
         // Serve an HTML page that handles the analyze flow
         const analyzeHtml = `<!DOCTYPE html>
@@ -384,7 +384,7 @@ var index_default = {
   <div class="container">
     <div class="spinner" id="spinner"></div>
     <h1 id="title">Analyzing OCC Order</h1>
-    <div class="case-number">${caseNumber}</div>
+    <div class="case-number">${safeCaseNumber}</div>
     <p class="status" id="status">Fetching order from OCC...</p>
     <div class="error" id="error"></div>
     <div class="login-prompt" id="loginPrompt">
@@ -1197,74 +1197,74 @@ var index_default = {
         return handleCountyRecordsRetrieve(request, env);
       }
 
-      // OTC file sync endpoints (for Fly.io automation)
-      if (path === "/api/otc-sync/files" && request.method === "GET") {
-        return handleGetOtcSyncFiles(request, env);
-      }
-      if (path === "/api/otc-sync/check" && request.method === "GET") {
-        return handleCheckOtcFile(request, env);
-      }
-      if (path === "/api/otc-sync/check-batch" && request.method === "POST") {
-        return handleCheckOtcFilesBatch(request, env);
-      }
-      if (path === "/api/otc-sync/record" && request.method === "POST") {
-        return handleRecordOtcFile(request, env);
-      }
-      if (path === "/api/otc-sync/upload-production" && request.method === "POST") {
-        return handleUploadProductionData(request, env);
-      }
-      if (path === "/api/otc-sync/production-stats" && request.method === "GET") {
-        return handleGetProductionStats(request, env);
-      }
-      if (path === "/api/otc-sync/upload-pun-production" && request.method === "POST") {
-        return handleUploadPunProductionData(request, env);
-      }
-      if (path === "/api/otc-sync/truncate-pun-production" && request.method === "POST") {
-        return handleTruncatePunProduction(request, env);
-      }
-      if (path === "/api/otc-sync/compute-pun-rollups" && request.method === "POST") {
-        return handleComputePunRollups(request, env);
-      }
-      if (path === "/api/otc-sync/pun-production-stats" && request.method === "GET") {
-        return handleGetPunProductionStats(request, env);
-      }
-      if (path === "/api/otc-sync/upload-financial" && request.method === "POST") {
-        return handleUploadFinancialData(request, env);
-      }
-      if (path === "/api/otc-sync/financial-stats" && request.method === "GET") {
-        return handleGetFinancialStats(request, env);
-      }
-      if (path === "/api/otc-sync/truncate-financial" && request.method === "POST") {
-        return handleTruncateFinancial(request, env);
-      }
-      // Manual trigger for OTC sync (calls Fly machine)
-      if (path === "/api/otc-sync/trigger" && request.method === "POST") {
-        // Require PROCESSING_API_KEY for manual triggers
-        const authHeader = request.headers.get('Authorization');
-        if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
-          return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-            status: 401,
-            headers: { 'Content-Type': 'application/json' }
-          });
+      // OTC sync endpoints — all require PROCESSING_API_KEY (except /trigger which has its own check)
+      if (path.startsWith("/api/otc-sync/")) {
+        // Auth guard for all OTC sync endpoints
+        if (path !== "/api/otc-sync/trigger") {
+          const authHeader = request.headers.get('Authorization');
+          if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+            return jsonResponse({ error: 'Unauthorized' }, 401);
+          }
         }
-        try {
-          await triggerOTCSync(env);
-          return new Response(JSON.stringify({
-            success: true,
-            message: 'OTC sync triggered on Fly machine',
-            check_status: `${OTC_FLY_URL}/status`
-          }), {
-            status: 200,
-            headers: { 'Content-Type': 'application/json' }
-          });
-        } catch (error) {
-          return new Response(JSON.stringify({
-            error: 'Failed to trigger sync',
-            details: error instanceof Error ? error.message : String(error)
-          }), {
-            status: 500,
-            headers: { 'Content-Type': 'application/json' }
-          });
+
+        if (path === "/api/otc-sync/files" && request.method === "GET") {
+          return handleGetOtcSyncFiles(request, env);
+        }
+        if (path === "/api/otc-sync/check" && request.method === "GET") {
+          return handleCheckOtcFile(request, env);
+        }
+        if (path === "/api/otc-sync/check-batch" && request.method === "POST") {
+          return handleCheckOtcFilesBatch(request, env);
+        }
+        if (path === "/api/otc-sync/record" && request.method === "POST") {
+          return handleRecordOtcFile(request, env);
+        }
+        if (path === "/api/otc-sync/upload-production" && request.method === "POST") {
+          return handleUploadProductionData(request, env);
+        }
+        if (path === "/api/otc-sync/production-stats" && request.method === "GET") {
+          return handleGetProductionStats(request, env);
+        }
+        if (path === "/api/otc-sync/upload-pun-production" && request.method === "POST") {
+          return handleUploadPunProductionData(request, env);
+        }
+        if (path === "/api/otc-sync/truncate-pun-production" && request.method === "POST") {
+          return handleTruncatePunProduction(request, env);
+        }
+        if (path === "/api/otc-sync/compute-pun-rollups" && request.method === "POST") {
+          return handleComputePunRollups(request, env);
+        }
+        if (path === "/api/otc-sync/pun-production-stats" && request.method === "GET") {
+          return handleGetPunProductionStats(request, env);
+        }
+        if (path === "/api/otc-sync/upload-financial" && request.method === "POST") {
+          return handleUploadFinancialData(request, env);
+        }
+        if (path === "/api/otc-sync/financial-stats" && request.method === "GET") {
+          return handleGetFinancialStats(request, env);
+        }
+        if (path === "/api/otc-sync/truncate-financial" && request.method === "POST") {
+          return handleTruncateFinancial(request, env);
+        }
+        // Manual trigger for OTC sync (calls Fly machine)
+        if (path === "/api/otc-sync/trigger" && request.method === "POST") {
+          const authHeader = request.headers.get('Authorization');
+          if (authHeader !== `Bearer ${env.PROCESSING_API_KEY}`) {
+            return jsonResponse({ error: 'Unauthorized' }, 401);
+          }
+          try {
+            await triggerOTCSync(env);
+            return jsonResponse({
+              success: true,
+              message: 'OTC sync triggered on Fly machine',
+              check_status: `${OTC_FLY_URL}/status`
+            });
+          } catch (error) {
+            return jsonResponse({
+              error: 'Failed to trigger sync',
+              details: error instanceof Error ? error.message : String(error)
+            }, 500);
+          }
         }
       }
 
@@ -1316,6 +1316,10 @@ var index_default = {
       }
       
       // Intelligence API endpoints
+      if (path === "/api/intelligence/data" && request.method === "GET") {
+        const { handleGetIntelligenceData } = await import('./handlers/intelligence.js');
+        return handleGetIntelligenceData(request, env);
+      }
       if (path === "/api/intelligence/summary" && request.method === "GET") {
         const { handleGetIntelligenceSummary } = await import('./handlers/intelligence.js');
         return handleGetIntelligenceSummary(request, env);
@@ -1447,17 +1451,6 @@ var index_default = {
         return handleTestWells(request, env);
       }
       
-      // TEMPORARY: Debug Stripe key endpoint
-      if (path === "/debug/stripe" && request.method === "GET") {
-        const keyPrefix = env.STRIPE_SECRET_KEY?.substring(0, 12) || 'not set';
-        const isLive = keyPrefix.includes('sk_live');
-        return jsonResponse({ 
-          prefix: keyPrefix,
-          mode: isLive ? 'LIVE' : 'TEST',
-          timestamp: new Date().toISOString()
-        });
-      }
-
       // TEMPORARY: Domain bridge for testing
       if (path === "/test-upgrade" && request.method === "GET") {
         return Response.redirect(`https://portal-worker.photog12.workers.dev/portal/upgrade`, 302);

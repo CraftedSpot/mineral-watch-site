@@ -2,10 +2,10 @@
  * Stripe Webhook Worker for My Mineral Watch
  * 
  * Handles:
- * - checkout.session.completed: New signups (paid plans) + Welcome Email
- * - customer.subscription.updated: Plan upgrades/downgrades + Notification Email
+ * - checkout.session.completed: New signups (paid plans) + Welcome Email + Payment Status
+ * - customer.subscription.updated: Plan upgrades/downgrades + Notification Email + Payment Status
  * - customer.subscription.deleted: Cancellations (revert to Free) + Cancellation Email
- * - invoice.payment_succeeded: Payment receipts (optional)
+ * - invoice.payment_failed: Sets Payment Status to "Failed" for at-a-glance billing visibility
  * 
  * Required Environment Variables:
  * - STRIPE_WEBHOOK_SECRET: Webhook signing secret from Stripe
@@ -120,7 +120,11 @@ export default {
         case 'customer.subscription.deleted':
           await handleSubscriptionDeleted(event.data.object, env);
           break;
-          
+
+        case 'invoice.payment_failed':
+          await handleInvoicePaymentFailed(event.data.object, env);
+          break;
+
         default:
           console.log(`Unhandled event type: ${event.type}`);
       }
@@ -245,6 +249,7 @@ async function handleCheckoutComplete(session, env) {
     const updateFields = {
       'Plan': plan,
       'Status': 'Active',
+      'Payment Status': 'Active',
       'Stripe Customer ID': stripeCustomerId,
       'Stripe Subscription ID': subscriptionId,
       'Plan History': updatedHistory
@@ -283,6 +288,7 @@ async function handleCheckoutComplete(session, env) {
       'Name': customerName,
       'Plan': plan,
       'Status': 'Active',
+      'Payment Status': 'Active',
       'Stripe Customer ID': stripeCustomerId,
       'Stripe Subscription ID': subscriptionId,
       'Plan History': historyEntry
@@ -443,8 +449,10 @@ async function handleSubscriptionUpdated(subscription, env, previousAttributes =
   
   // Determine Airtable status based on Stripe subscription status
   let airtableStatus = 'Active';
+  let paymentStatus = 'Active';
   if (status === 'past_due' || status === 'unpaid') {
     airtableStatus = 'Past Due';
+    paymentStatus = 'Past Due';
   } else if (status === 'canceled' || status === 'incomplete_expired') {
     airtableStatus = 'Canceled';
   } else if (status === 'trialing') {
@@ -466,6 +474,7 @@ async function handleSubscriptionUpdated(subscription, env, previousAttributes =
   const updateFields = {
     'Plan': newPlan,
     'Status': airtableStatus,
+    'Payment Status': paymentStatus,
     'Stripe Subscription ID': subscriptionId
   };
   
@@ -566,6 +575,31 @@ async function handleSubscriptionDeleted(subscription, env) {
   
   // Send cancellation email
   await sendCancellationEmail(env, userEmail, userName, oldPlan);
+}
+
+/**
+ * Handle failed invoice payment
+ * Sets Payment Status to "Failed" so admin can see at a glance who has billing issues
+ */
+async function handleInvoicePaymentFailed(invoice, env) {
+  const stripeCustomerId = invoice.customer;
+
+  console.log(`Invoice payment failed for customer: ${stripeCustomerId}`);
+
+  const user = await findUserByStripeCustomerId(env, stripeCustomerId);
+
+  if (!user) {
+    console.error(`No user found for Stripe customer: ${stripeCustomerId}`);
+    return;
+  }
+
+  const userEmail = user.fields.Email;
+
+  await updateUser(env, user.id, {
+    'Payment Status': 'Failed'
+  });
+
+  console.log(`Payment status set to Failed for ${userEmail}`);
 }
 
 // ============================================
@@ -1191,7 +1225,7 @@ async function getPlanFromSession(session, env) {
  * Find user by email
  */
 async function findUserByEmail(env, email) {
-  const formula = `{Email} = '${email}'`;
+  const formula = `{Email} = '${email.replace(/'/g, "''")}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   
   const response = await fetch(url, {
@@ -1211,7 +1245,7 @@ async function findUserByEmail(env, email) {
  * Find user by Stripe Customer ID
  */
 async function findUserByStripeCustomerId(env, customerId) {
-  const formula = `{Stripe Customer ID} = '${customerId}'`;
+  const formula = `{Stripe Customer ID} = '${customerId.replace(/'/g, "''")}'`;
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
   
   const response = await fetch(url, {
@@ -1407,9 +1441,16 @@ async function verifyStripeSignature(payload, signature, secret) {
     .join('');
   
   // Constant-time comparison
-  if (expectedSignature !== v1Signature) {
+  if (expectedSignature.length !== v1Signature.length) {
     throw new Error('Signature mismatch');
   }
-  
+  let mismatch = 0;
+  for (let i = 0; i < expectedSignature.length; i++) {
+    mismatch |= expectedSignature.charCodeAt(i) ^ v1Signature.charCodeAt(i);
+  }
+  if (mismatch !== 0) {
+    throw new Error('Signature mismatch');
+  }
+
   return JSON.parse(payload);
 }

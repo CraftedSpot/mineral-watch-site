@@ -1431,7 +1431,7 @@
                 ? formationNames.slice(0, 2).map(f => `<span class="formation-tag">${escapeHtml(f)}</span>`).join('')
                 : '—';
 
-            const location = `SEC ${order.section} T${order.township} R${order.range}`;
+            const location = `${order.township}-${order.range}-${order.section}`;
 
             // Get bonus range and royalty range (excluding $0/null for bonus — those are participate/royalty-only)
             let minBonus = null;
@@ -1744,13 +1744,22 @@
             let filtered = lastPoolingData.byProperty.filter(p => p.nearbyOrders && p.nearbyOrders.length > 0);
 
             if (search) {
+                // Strip dashes from search so "16-11" matches "16N-11W-10"
+                const searchNoDash = search.replace(/-/g, '');
                 filtered = filtered.filter(p => {
-                    const propMatch = p.propertyName.toLowerCase().includes(search) ||
+                    const propName = p.propertyName.toLowerCase();
+                    const propNameNoDash = propName.replace(/-/g, '');
+                    const propMatch = propName.includes(search) ||
+                        propNameNoDash.includes(searchNoDash) ||
                         (p.county || '').toLowerCase().includes(search);
-                    const orderMatch = p.nearbyOrders.some(o =>
-                        (o.operator || '').toLowerCase().includes(search) ||
-                        parseFormations(o.formations).some(f => f.toLowerCase().includes(search))
-                    );
+                    const orderMatch = p.nearbyOrders.some(o => {
+                        const loc = ((o.township || '') + '-' + (o.range || '') + '-' + (o.section || '')).toLowerCase();
+                        const locNoDash = loc.replace(/-/g, '');
+                        return (o.operator || '').toLowerCase().includes(search) ||
+                            loc.includes(search) ||
+                            locNoDash.includes(searchNoDash) ||
+                            parseFormations(o.formations).some(f => f.toLowerCase().includes(search));
+                    });
                     return propMatch || orderMatch;
                 });
             }
@@ -1884,7 +1893,7 @@
                         order.orderDate || '',
                         csvEscape(order.operator || ''),
                         csvEscape(formationNames.join('; ')),
-                        `SEC ${order.section} T${order.township} R${order.range}`,
+                        `${order.township}-${order.range}-${order.section}`,
                         csvEscape(order.distanceDescription || ''),
                         maxBonus != null ? maxBonus : '',
                         csvEscape([...new Set(royaltyOpts)].join('; ')),
@@ -3065,7 +3074,7 @@
             }
         }
 
-        function renderShutInDonut(total, recentlyIdle, extendedIdle, noRecentProd, hbpRisk, noData) {
+        function renderShutInDonut(total, recentlyIdle, extendedIdle, noRecentProd, hbpRisk) {
             if (total === 0) return '';
 
             const r = 60;
@@ -3077,8 +3086,7 @@
             const segments = [
                 { label: 'Idle (3-6 mo)', count: recentlyIdle, color: '#f59e0b' },
                 { label: 'Extended Idle (6-12 mo)', count: extendedIdle, color: '#f97316' },
-                { label: 'Long-Term Idle (12+ mo)', count: noRecentProd, color: '#ef4444' },
-                { label: 'No Data', count: noData || 0, color: '#cbd5e1' }
+                { label: 'Long-Term Idle (12+ mo)', count: noRecentProd, color: '#ef4444' }
             ].filter(s => s.count > 0);
 
             let offset = 0;
@@ -3125,16 +3133,98 @@
             </div>`;
         }
 
+        function classifyNoDataWell(well) {
+            if (well.taxPeriodActive === false) return 'ceased';
+            if (well.taxPeriodActive === true) return 'pre_data';
+            return 'unlinked';
+        }
+
+        function noDataSubLabel(well) {
+            const type = classifyNoDataWell(well);
+            if (type === 'ceased') {
+                const endDate = well.taxPeriodEnd;
+                const year = endDate ? endDate.substring(0, 4) : '';
+                return year ? 'Ceased (' + year + ')' : 'Ceased';
+            }
+            if (type === 'pre_data') {
+                const start = well.taxPeriodStart;
+                const year = start ? start.substring(0, 4) : '';
+                return year ? 'No Production Data (est. ' + year + ')' : 'No Production Data';
+            }
+            return 'No OTC Link';
+        }
+
+        function renderNoDataSection(noDataWells) {
+            if (noDataWells.length === 0) return '';
+            const ceased = noDataWells.filter(w => classifyNoDataWell(w) === 'ceased');
+            const preData = noDataWells.filter(w => classifyNoDataWell(w) === 'pre_data');
+            const unlinked = noDataWells.filter(w => classifyNoDataWell(w) === 'unlinked');
+
+            const pill = (label, count, color) => count > 0 ? `<span style="display:inline-flex;align-items:center;gap:4px;font-size:0.75rem;padding:2px 8px;border-radius:10px;background:${color};color:white;">${count} ${label}</span>` : '';
+
+            const rows = noDataWells.map(w => {
+                const type = classifyNoDataWell(w);
+                const badgeColor = type === 'ceased' ? '#64748b' : type === 'pre_data' ? '#8b5cf6' : '#94a3b8';
+                const label = noDataSubLabel(w);
+                return `<tr style="border-bottom:1px solid #f1f5f9;">
+                    <td style="padding:8px 10px;font-size:0.82rem;"><span class="vt-well-link" onclick="showWellInfoById('${w.clientWellId || w.apiNumber}')">${escapeHtml(w.wellName)}</span></td>
+                    <td style="padding:8px 10px;font-size:0.82rem;" class="vt-hide-mobile">${w.operator !== 'Unknown' ? '<span class="vt-well-link" onclick="lookupOperatorDetail(\'' + escapeAttr(w.operator) + '\')">' + escapeHtml(w.operator) + '</span>' : escapeHtml(w.operator)}</td>
+                    <td style="padding:8px 10px;font-size:0.82rem;">${escapeHtml(w.county)}</td>
+                    <td style="padding:8px 10px;"><span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.7rem;font-weight:600;background:${badgeColor};color:white;">${escapeHtml(label)}</span></td>
+                    <td style="padding:8px 10px;font-size:0.82rem;color:var(--text-muted);">${w.riskFlags.length > 0 ? w.riskFlags.map(f => { let cls = 'risk-pill'; if (f === 'HBP Risk') cls += ' risk-hbp'; else if (f === 'Sudden Stop') cls += ' risk-sudden'; else if (f === 'Operator Pattern') cls += ' risk-operator'; return '<span class="' + cls + '">' + escapeHtml(f) + '</span>'; }).join(' ') : '—'}</td>
+                </tr>`;
+            }).join('');
+
+            return `<div style="margin-top:1.5rem;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;">
+                <div onclick="this.parentElement.querySelector('.nodata-body').style.display = this.parentElement.querySelector('.nodata-body').style.display === 'none' ? 'block' : 'none'; this.querySelector('.nodata-chevron').style.transform = this.parentElement.querySelector('.nodata-body').style.display === 'none' ? '' : 'rotate(90deg)'" style="background:#f8fafc;padding:12px 16px;cursor:pointer;display:flex;align-items:center;gap:10px;user-select:none;">
+                    <span class="nodata-chevron" style="font-size:0.7rem;color:var(--text-muted);transition:transform 0.15s;">&#9654;</span>
+                    <span style="font-size:0.85rem;font-weight:600;color:var(--oil-navy);">Historical / No OTC Data</span>
+                    <span style="font-size:0.75rem;color:var(--text-muted);">${noDataWells.length} well${noDataWells.length !== 1 ? 's' : ''}</span>
+                    <div style="margin-left:auto;display:flex;gap:6px;">
+                        ${pill('Ceased', ceased.length, '#64748b')}
+                        ${pill('No Prod Data', preData.length, '#8b5cf6')}
+                        ${pill('No OTC Link', unlinked.length, '#94a3b8')}
+                    </div>
+                </div>
+                <div class="nodata-body" style="display:none;">
+                    <div style="padding:10px 16px 6px;font-size:0.75rem;color:var(--text-muted);line-height:1.5;">
+                        These wells have no production data in the OTC reporting window (2017-present).
+                        <strong>Ceased</strong> = all OTC tax periods ended.
+                        <strong>No Production Data</strong> = OTC tax period still registered but no reported production.
+                        <strong>No OTC Link</strong> = well has no valid PUN link to OTC data.
+                    </div>
+                    <table style="width:100%;border-collapse:collapse;">
+                        <thead>
+                            <tr style="background:#f8fafc;border-bottom:1px solid #e2e8f0;">
+                                <th style="padding:8px 10px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-muted);text-align:left;">Well Name</th>
+                                <th style="padding:8px 10px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-muted);text-align:left;" class="vt-hide-mobile">Operator</th>
+                                <th style="padding:8px 10px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-muted);text-align:left;">County</th>
+                                <th style="padding:8px 10px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-muted);text-align:left;">Status</th>
+                                <th style="padding:8px 10px;font-size:0.7rem;text-transform:uppercase;letter-spacing:0.3px;color:var(--text-muted);text-align:left;">Risk Flags</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+        }
+
         function renderShutInDetector(data) {
             lastShutInData = data;
             const { summary, wells } = data;
 
+            // Separate idle wells from no-data wells
+            const idleWells = wells.filter(w => w.status !== 'no_data');
+            const noDataWells = wells.filter(w => w.status === 'no_data');
+            const idleCount = idleWells.length;
+
             // Update header
             document.getElementById('reportSubtitle').textContent = 'Wells with no reported production in 3+ months';
-            document.getElementById('reportMeta').innerHTML = `${summary.totalIdle} idle well${summary.totalIdle !== 1 ? 's' : ''} detected` +
+            document.getElementById('reportMeta').innerHTML = `${idleCount} idle well${idleCount !== 1 ? 's' : ''} detected` +
+                (noDataWells.length > 0 ? ` · ${noDataWells.length} with no OTC data` : '') +
                 '<div style="font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">Based on OTC production data, updated daily at 8am CT</div>';
 
-            if (summary.totalIdle === 0) {
+            if (idleCount === 0 && noDataWells.length === 0) {
                 document.getElementById('reportContent').innerHTML = `
                     <div class="report-empty-state" style="text-align: center; padding: 3rem 1.5rem;">
                         <div style="font-size: 2.5rem; margin-bottom: 1rem;">&#10003;</div>
@@ -3145,15 +3235,15 @@
                 return;
             }
 
-            // Get unique counties and operators for filters
-            const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
+            // Get unique counties for filters (from idle wells only)
+            const counties = [...new Set(idleWells.map(w => w.county).filter(Boolean))].sort();
 
-            // Summary cards
+            // Summary cards (exclude no data wells from Total Idle)
             const summaryHtml = `
                 <div class="shutin-summary-bar">
                     <div class="shutin-summary-card">
                         <div class="shutin-summary-label">Total Idle Wells</div>
-                        <div class="shutin-summary-value">${summary.totalIdle}</div>
+                        <div class="shutin-summary-value">${idleCount}</div>
                     </div>
                     <div class="shutin-summary-card ${summary.hbpRisk > 0 ? 'card-critical' : ''}">
                         <div class="shutin-summary-label">HBP Risk</div>
@@ -3174,7 +3264,7 @@
                 </div>
             `;
 
-            // Toolbar
+            // Toolbar (no No Data filter needed — they're in their own section)
             const toolbarHtml = `
                 <div class="shutin-toolbar">
                     <div class="shutin-filters">
@@ -3183,7 +3273,6 @@
                             <option value="recently_idle">Idle (3-6mo)</option>
                             <option value="extended_idle">Extended Idle (6-12mo)</option>
                             <option value="no_recent_production">Long-Term Idle (12+mo)</option>
-                            <option value="no_data">No Data</option>
                         </select>
                         <select id="shutinRiskFilter" onchange="filterShutInWells()" class="shutin-select">
                             <option value="">All Risk Flags</option>
@@ -3200,18 +3289,17 @@
                 </div>
             `;
 
-            // Donut chart — segments from well status counts
-            const recentCount = wells.filter(w => w.status === 'recently_idle').length;
-            const extendedCount = wells.filter(w => w.status === 'extended_idle').length;
-            const noRecentCount = wells.filter(w => w.status === 'no_recent_production').length;
-            const noDataCount = wells.filter(w => w.status === 'no_data').length;
-            const donutHtml = renderShutInDonut(summary.totalIdle, recentCount, extendedCount, noRecentCount, summary.hbpRisk, noDataCount);
+            // Donut chart — only idle wells (not no data)
+            const recentCount = idleWells.filter(w => w.status === 'recently_idle').length;
+            const extendedCount = idleWells.filter(w => w.status === 'extended_idle').length;
+            const noRecentCount = idleWells.filter(w => w.status === 'no_recent_production').length;
+            const donutHtml = idleCount > 0 ? renderShutInDonut(idleCount, recentCount, extendedCount, noRecentCount, summary.hbpRisk) : '';
 
             // Tab bar
             const tabHtml = `
                 <div class="pooling-tabs" id="shutInTabs">
                     <button class="pooling-tab active" data-tab="properties" onclick="switchShutInTab('properties')">
-                        My Properties <span class="tab-badge">${summary.totalIdle}</span>
+                        My Properties <span class="tab-badge">${idleCount}</span>
                     </button>
                     <button class="pooling-tab" data-tab="markets" onclick="switchShutInTab('markets')">
                         My Markets <span class="tab-badge" id="shutInMarketsCountBadge">&ndash;</span>
@@ -3219,17 +3307,20 @@
                 </div>
             `;
 
+            // No data section (collapsible)
+            const noDataHtml = renderNoDataSection(noDataWells);
+
             // Properties tab content (rendered inline on first load)
             const propertiesHtml = `
                 ${toolbarHtml}
                 <div id="shutinTableContainer" style="margin-top: 0.75rem;"></div>
+                ${noDataHtml}
                 <div class="about-data-card" style="margin-top: 1.5rem;">
                     <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--oil-navy);">About This Report</h4>
                     <ul style="font-size: 0.8rem; color: var(--slate-blue); line-height: 1.6; padding-left: 1.25rem;">
                         <li><strong>Idle (3-6mo)</strong> — Well has not reported production in 3-6 months. May be undergoing workover or temporary shut-in.</li>
                         <li><strong>Extended Idle (6-12mo)</strong> — No production for 6-12 months. Monitor for potential plugging or lease issues.</li>
                         <li><strong>Long-Term Idle (12+mo)</strong> — Idle for over a year. Consider lease review and HBP implications.</li>
-                        <li><strong>No Data</strong> — No production data in OTC records. Well may predate available data window or have an unlinked PUN.</li>
                         <li><strong>HBP Risk</strong> — Well first produced within 5 years. Extended idle may jeopardize Held By Production status.</li>
                         <li><strong>Sudden Stop</strong> — Well averaged &gt;50 BOE/month before going idle. Unexpected shutdown worth investigating.</li>
                         <li><strong>Operator Pattern</strong> — More than half of this operator's wells in your portfolio are idle.</li>
@@ -3246,7 +3337,8 @@
                 </div>
             `;
 
-            initShutInVirtualTable(wells);
+            // Only init the VirtualTable with idle wells (not no data)
+            initShutInVirtualTable(idleWells);
         }
 
         function initShutInVirtualTable(wells) {
@@ -3258,7 +3350,7 @@
             }
 
             // Assign sort priority and status severity for proper column sorting
-            const STATUS_SEVERITY = { 'no_data': 0, 'no_recent_production': 1, 'extended_idle': 2, 'recently_idle': 3 };
+            const STATUS_SEVERITY = { 'no_recent_production': 0, 'extended_idle': 1, 'recently_idle': 2 };
             const wellsWithMeta = wells.map(w => {
                 let priority = 3;
                 if (w.riskFlags.includes('HBP Risk')) priority = 0;
@@ -3399,7 +3491,7 @@
                     csvEscape(w.apiNumber),
                     csvEscape(w.operator),
                     csvEscape(w.county),
-                    shutInStatusLabel(w.status),
+                    w.status === 'no_data' ? noDataSubLabel(w) : shutInStatusLabel(w.status),
                     w.monthsIdle >= 999 ? '' : w.monthsIdle,
                     w.lastProdMonth || (w.taxPeriodStart ? 'Since ' + w.taxPeriodStart.substring(0, 4) : ''),
                     csvEscape(w.riskFlags.join('; '))
@@ -3438,9 +3530,11 @@
 
             if (tab === 'properties') {
                 const { wells } = lastShutInData;
-                const counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
-                content.innerHTML = renderShutInPropertiesContent(wells, counties);
-                setTimeout(() => initShutInVirtualTable(wells), 0);
+                const idleWells = wells.filter(w => w.status !== 'no_data');
+                const noDataWells = wells.filter(w => w.status === 'no_data');
+                const counties = [...new Set(idleWells.map(w => w.county).filter(Boolean))].sort();
+                content.innerHTML = renderShutInPropertiesContent(idleWells, counties, noDataWells);
+                setTimeout(() => initShutInVirtualTable(idleWells), 0);
             } else if (tab === 'markets') {
                 if (lastShutInMarketsData) {
                     content.innerHTML = renderShutInMarketsTab(lastShutInMarketsData);
@@ -3455,10 +3549,14 @@
             }
         }
 
-        function renderShutInPropertiesContent(wells, counties) {
+        function renderShutInPropertiesContent(wells, counties, noDataWells) {
             if (!counties) {
                 counties = [...new Set(wells.map(w => w.county).filter(Boolean))].sort();
             }
+            if (!noDataWells && lastShutInData) {
+                noDataWells = lastShutInData.wells.filter(w => w.status === 'no_data');
+            }
+            const noDataHtml = noDataWells ? renderNoDataSection(noDataWells) : '';
             return `
                 <div class="shutin-toolbar">
                     <div class="shutin-filters">
@@ -3467,7 +3565,6 @@
                             <option value="recently_idle">Idle (3-6mo)</option>
                             <option value="extended_idle">Extended Idle (6-12mo)</option>
                             <option value="no_recent_production">Long-Term Idle (12+mo)</option>
-                            <option value="no_data">No Data</option>
                         </select>
                         <select id="shutinRiskFilter" onchange="filterShutInWells()" class="shutin-select">
                             <option value="">All Risk Flags</option>
@@ -3483,13 +3580,13 @@
                     <button class="pooling-btn-export" onclick="exportShutInCsv()">&#10515; Export CSV</button>
                 </div>
                 <div id="shutinTableContainer" style="margin-top: 0.75rem;"></div>
+                ${noDataHtml}
                 <div class="about-data-card" style="margin-top: 1.5rem;">
                     <h4 style="font-size: 0.85rem; font-weight: 600; margin-bottom: 0.5rem; color: var(--oil-navy);">About This Report</h4>
                     <ul style="font-size: 0.8rem; color: var(--slate-blue); line-height: 1.6; padding-left: 1.25rem;">
                         <li><strong>Idle (3-6mo)</strong> — Well has not reported production in 3-6 months. May be undergoing workover or temporary shut-in.</li>
                         <li><strong>Extended Idle (6-12mo)</strong> — No production for 6-12 months. Monitor for potential plugging or lease issues.</li>
                         <li><strong>Long-Term Idle (12+mo)</strong> — Idle for over a year. Consider lease review and HBP implications.</li>
-                        <li><strong>No Data</strong> — No production data in OTC records. Well may predate available data window or have an unlinked PUN.</li>
                         <li><strong>HBP Risk</strong> — Well first produced within 5 years. Extended idle may jeopardize Held By Production status.</li>
                         <li><strong>Sudden Stop</strong> — Well averaged &gt;50 BOE/month before going idle. Unexpected shutdown worth investigating.</li>
                         <li><strong>Operator Pattern</strong> — More than half of this operator's wells in your portfolio are idle.</li>

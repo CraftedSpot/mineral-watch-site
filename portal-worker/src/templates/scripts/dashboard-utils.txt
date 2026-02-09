@@ -198,7 +198,7 @@
             'Enterprise 1K': { properties: 1000, wells: 1000 }
         };
         let currentTab = 'properties';
-        let currentUser = null; // Store user data globally
+        let currentUser; // Set by checkAuth() in shared-auth.txt → dashboard-init.txt
         
         // Modal stacking management
         const modalStack = [];
@@ -535,28 +535,7 @@
             link.click();
         }
         
-        document.getElementById('logoutBtn').addEventListener('click', async () => {
-            try {
-                const response = await fetch('/api/auth/logout', { 
-                    method: 'POST',
-                    credentials: 'same-origin'
-                });
-                
-                if (response.ok) {
-                    // Clear any client-side session data
-                    document.cookie = 'mw_session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
-                    window.location.href = '/portal/login';
-                } else {
-                    console.error('Logout failed:', response.status);
-                    // Still redirect to login
-                    window.location.href = '/portal/login';
-                }
-            } catch (error) {
-                console.error('Logout error:', error);
-                // Still redirect to login
-                window.location.href = '/portal/login';
-            }
-        });
+        document.getElementById('logoutBtn').addEventListener('click', logout);
         
         // Toast notification system
         function showToast(message, type = 'success', duration = 3000) {

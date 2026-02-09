@@ -410,31 +410,30 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       console.error('[Insights] Deduction check error:', e instanceof Error ? e.message : e);
     }
 
-    // Insight 2: Shut-in wells — process ALL basePuns in batches
+    // Insight 2: Shut-in wells — use puns table (months_since_production uses data horizon, not today)
     try {
-      const allShutInPuns: Array<{ base_pun: string; last_active: string }> = [];
-      const threeMonthsAgo = getMonthsAgo(3);
+      let idleWellCount = 0;
 
-      for (let i = 0; i < basePuns.length; i += 50) {
-        const punBatch = basePuns.slice(i, i + 50);
-        const punPlaceholders = punBatch.map(() => '?').join(',');
+      for (let i = 0; i < api10s.length; i += 50) {
+        const apiBatch = api10s.slice(i, i + 50);
+        const apiPlaceholders = apiBatch.map(() => '?').join(',');
 
         const shutInResult = await env.WELLS_DB.prepare(`
-          SELECT base_pun, MAX(year_month) as last_active
-          FROM otc_production
-          WHERE base_pun IN (${punPlaceholders})
-            AND gross_volume > 0
-          GROUP BY base_pun
-          HAVING MAX(year_month) <= ?
-        `).bind(...punBatch, threeMonthsAgo).all();
+          SELECT COUNT(DISTINCT wpl.api_number) as idle_count
+          FROM well_pun_links wpl
+          JOIN puns p ON p.pun = wpl.pun
+          WHERE wpl.api_number IN (${apiPlaceholders})
+            AND p.months_since_production >= 3
+        `).bind(...apiBatch).all();
 
-        allShutInPuns.push(...(shutInResult.results as Array<{ base_pun: string; last_active: string }>));
+        const row = shutInResult.results[0] as { idle_count: number } | undefined;
+        if (row) idleWellCount += row.idle_count;
       }
 
-      if (allShutInPuns.length > 0) {
+      if (idleWellCount > 0) {
         insights.push({
           severity: 'warning',
-          title: `${allShutInPuns.length} well${allShutInPuns.length > 1 ? 's' : ''} may be shut-in`,
+          title: `${idleWellCount} well${idleWellCount > 1 ? 's' : ''} may be shut-in`,
           description: `Production has been zero for 3+ months. If these wells hold your lease by production, the lease may be at risk.`,
           action: 'Review Wells',
           actionId: 'shut-in-review'
@@ -444,17 +443,7 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
       console.error('[Insights] Shut-in check error:', e instanceof Error ? e.message : e);
     }
 
-    // Insight 3: Wells without PUN links (data gap)
-    if (basePuns.length < api10s.length) {
-      const unlinkedWellCount = api10s.length - basePuns.length;
-      insights.push({
-        severity: 'info',
-        title: `${unlinkedWellCount} well${unlinkedWellCount > 1 ? 's' : ''} not yet linked to OTC data`,
-        description: 'Some of your wells don\'t have PUN matches yet. This can happen with new wells or wells with non-standard API numbers. Links are updated as OTC data syncs.'
-      });
-    }
-
-    // Insight 4: Recent pooling orders near user's properties (exact section match for proactive alert)
+    // Insight 3: Recent pooling orders near user's properties (exact section match for proactive alert)
     try {
       // Get user's properties with TRS data
       const propsQuery = userOrgId
@@ -542,6 +531,380 @@ export async function handleGetIntelligenceInsights(request: Request, env: Env):
     console.error('[Intelligence Insights] Error:', error instanceof Error ? error.message : error);
     return jsonResponse({
       error: 'Failed to load insights',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    }, 500);
+  }
+}
+
+/**
+ * GET /api/intelligence/data
+ *
+ * Combined endpoint that returns both summary cards and insights in one request.
+ * Eliminates duplicate auth/wells/PUN queries and parallelizes independent D1 queries.
+ */
+export async function handleGetIntelligenceData(request: Request, env: Env): Promise<Response> {
+  const t0 = Date.now();
+  try {
+    const authUser = await authenticateRequest(request, env);
+    if (!authUser) return jsonResponse({ error: 'Unauthorized' }, 401);
+
+    const userRecord = await getUserFromSession(env, authUser);
+    if (!userRecord) return jsonResponse({ error: 'User not found' }, 404);
+
+    const userOrgId = userRecord.fields.Organization?.[0];
+
+    // Beta: Intelligence features limited to allowed organizations
+    if (!isIntelligenceAllowed(userOrgId)) {
+      return jsonResponse({
+        summary: {
+          activeWells: 0, countyCount: 0, estimatedRevenue: null,
+          revenueChange: null, deductionFlags: null, shutInWells: 0,
+          actionItems: 0, nearestDeadline: null, wellsAnalyzed: 0,
+          _beta_restricted: true
+        },
+        insights: [{
+          severity: 'info',
+          title: 'Intelligence features coming soon',
+          description: 'Advanced deduction analysis and operator comparisons will be available in an upcoming release.'
+        }]
+      });
+    }
+
+    // ---- Shared setup: wells query (once) ----
+    const wellsQuery = userOrgId
+      ? `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ? OR organization_id = ?`
+      : `SELECT api_number, well_name, county, well_status FROM client_wells WHERE user_id = ?`;
+
+    const wellsResult = userOrgId
+      ? await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id, userOrgId).all()
+      : await env.WELLS_DB.prepare(wellsQuery).bind(authUser.id).all();
+    const wells = wellsResult.results as Array<{ api_number: string; well_name: string; county: string; well_status: string }>;
+
+    if (!wells || wells.length === 0) {
+      return jsonResponse({
+        summary: {
+          activeWells: 0, countyCount: 0, estimatedRevenue: null,
+          revenueChange: null, deductionFlags: null, shutInWells: 0,
+          actionItems: 0, nearestDeadline: null, wellsAnalyzed: 0
+        },
+        insights: [{
+          severity: 'info',
+          title: 'Add wells to get started',
+          description: 'Add wells to your dashboard and we\'ll analyze your production data, deductions, and lease risk automatically.'
+        }]
+      });
+    }
+
+    const activeWells = wells.filter(w => w.well_status === 'AC' || w.well_status === 'Active' || !w.well_status).length;
+    const counties = new Set(wells.map(w => w.county).filter(Boolean));
+
+    const api10Set = new Set(
+      wells.map(w => w.api_number).filter(Boolean).map(a => a.replace(/-/g, '').substring(0, 10))
+    );
+    const api10s = Array.from(api10Set);
+
+    // ---- Shared setup: PUN linking (once) ----
+    let basePuns: string[] = [];
+    try {
+      if (api10s.length > 0) {
+        for (let i = 0; i < api10s.length; i += 50) {
+          const batch = api10s.slice(i, i + 50);
+          const placeholders = batch.map(() => '?').join(',');
+          const punsResult = await env.WELLS_DB.prepare(
+            `SELECT DISTINCT base_pun FROM well_pun_links WHERE api_number IN (${placeholders}) AND base_pun IS NOT NULL`
+          ).bind(...batch).all();
+          basePuns.push(...(punsResult.results as Array<{ base_pun: string }>).map(r => r.base_pun));
+        }
+        basePuns = [...new Set(basePuns)];
+      }
+    } catch (punError) {
+      console.error('[Intelligence Data] PUN linking error:', punError instanceof Error ? punError.message : punError);
+    }
+
+    if (basePuns.length === 0) {
+      return jsonResponse({
+        summary: {
+          activeWells, countyCount: counties.size, estimatedRevenue: null,
+          revenueChange: null, deductionFlags: null, shutInWells: 0,
+          actionItems: 0, nearestDeadline: null, wellsAnalyzed: 0, wellsWithLinks: 0
+        },
+        insights: [{
+          severity: 'info',
+          title: 'Connecting your wells to state data',
+          description: `We found ${wells.length} wells in your portfolio but haven't linked them to OTC production data yet. This happens automatically as data syncs.`
+        }]
+      });
+    }
+
+    const tSetup = Date.now();
+
+    // ---- Parallel query groups ----
+    // Group A: Revenue (internal chain: latestMonth → current + prior)
+    async function queryRevenue(): Promise<{ estimatedRevenue: number | null; revenueChange: number | null }> {
+      let estimatedRevenue: number | null = null;
+      let revenueChange: number | null = null;
+
+      try {
+        const punBatch = basePuns.slice(0, 50);
+        const punPlaceholders = punBatch.map(() => '?').join(',');
+
+        const latestMonthResult = await env.WELLS_DB.prepare(
+          `SELECT MAX(year_month) as latest FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND gross_value > 0`
+        ).bind(...punBatch).first() as { latest: string } | null;
+
+        const latestMonth = latestMonthResult?.latest;
+        if (!latestMonth) return { estimatedRevenue, revenueChange };
+
+        // Current + prior revenue in parallel
+        const [revenueResult, priorResult] = await Promise.all([
+          env.WELLS_DB.prepare(
+            `SELECT SUM(net_value) as total_net, SUM(gross_value) as total_gross
+             FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
+          ).bind(...punBatch, latestMonth).first() as Promise<{ total_net: number; total_gross: number } | null>,
+          env.WELLS_DB.prepare(
+            `SELECT SUM(net_value) as total_net, SUM(gross_value) as total_gross
+             FROM otc_production WHERE base_pun IN (${punPlaceholders}) AND year_month = ?`
+          ).bind(...punBatch, getPriorMonth(latestMonth)).first() as Promise<{ total_net: number; total_gross: number } | null>
+        ]);
+
+        if (revenueResult) {
+          estimatedRevenue = Math.round(revenueResult.total_net || revenueResult.total_gross || 0);
+        }
+
+        if (priorResult && estimatedRevenue) {
+          const priorRevenue = priorResult.total_net || priorResult.total_gross || 0;
+          if (priorRevenue > 0) {
+            revenueChange = ((estimatedRevenue - priorRevenue) / priorRevenue) * 100;
+          }
+        }
+      } catch (e) {
+        console.error('[Intelligence Data] Revenue error:', e instanceof Error ? e.message : e);
+      }
+
+      return { estimatedRevenue, revenueChange };
+    }
+
+    // Group B: Deductions (full detail — superset of summary count + insights)
+    async function queryDeductions(): Promise<{
+      deductionFlags: number;
+      wellsAnalyzed: number;
+      flaggedWells: Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
+    }> {
+      const allFlaggedWells: Array<{ api_number: string; agg_deduction_pct: number; product_count: number }> = [];
+      let wellsAnalyzed = 0;
+
+      try {
+        const sixMonthsAgo = getMonthsAgo(6);
+
+        for (let i = 0; i < api10s.length; i += 50) {
+          const apiBatch = api10s.slice(i, i + 50);
+          const apiPlaceholders = apiBatch.map(() => '?').join(',');
+
+          const analyzedResult = await env.WELLS_DB.prepare(`
+            SELECT wpl.api_number,
+              ROUND(SUM(opf.market_deduction) / SUM(opf.gross_value) * 100, 1) as agg_deduction_pct,
+              COUNT(DISTINCT opf.product_code) as product_count
+            FROM well_pun_links wpl
+            JOIN otc_production_financial opf ON wpl.base_pun = substr(opf.pun, 1, 10)
+            WHERE wpl.api_number IN (${apiPlaceholders})
+              AND opf.gross_value > 0
+              AND opf.year_month >= ?
+            GROUP BY wpl.api_number
+            HAVING SUM(opf.gross_value) > 500
+              AND COUNT(DISTINCT opf.product_code) > 1
+          `).bind(...apiBatch, sixMonthsAgo).all();
+
+          const batchResults = analyzedResult.results as Array<{ api_number: string; agg_deduction_pct: number; product_count: number }>;
+          wellsAnalyzed += batchResults.length;
+
+          const flagged = batchResults.filter(r => r.agg_deduction_pct > 50 && r.agg_deduction_pct < 100);
+          allFlaggedWells.push(...flagged);
+        }
+      } catch (e) {
+        console.error('[Intelligence Data] Deduction error:', e instanceof Error ? e.message : e);
+      }
+
+      return { deductionFlags: allFlaggedWells.length, wellsAnalyzed, flaggedWells: allFlaggedWells };
+    }
+
+    // Group C: Shut-in (puns table approach — uses data horizon)
+    async function queryShutIn(): Promise<number> {
+      let idleWellCount = 0;
+
+      try {
+        for (let i = 0; i < api10s.length; i += 50) {
+          const apiBatch = api10s.slice(i, i + 50);
+          const apiPlaceholders = apiBatch.map(() => '?').join(',');
+
+          const shutInResult = await env.WELLS_DB.prepare(`
+            SELECT COUNT(DISTINCT wpl.api_number) as idle_count
+            FROM well_pun_links wpl
+            JOIN puns p ON p.pun = wpl.pun
+            WHERE wpl.api_number IN (${apiPlaceholders})
+              AND p.months_since_production >= 3
+          `).bind(...apiBatch).all();
+
+          const row = shutInResult.results[0] as { idle_count: number } | undefined;
+          if (row) idleWellCount += row.idle_count;
+        }
+      } catch (e) {
+        console.error('[Intelligence Data] Shut-in error:', e instanceof Error ? e.message : e);
+      }
+
+      return idleWellCount;
+    }
+
+    // Group D: Pooling orders (properties → pooling)
+    async function queryPooling(): Promise<{ count: number; nearestDeadline: string | null; isUrgent: boolean }> {
+      try {
+        const propsQuery = userOrgId
+          ? `SELECT section, township, range FROM properties WHERE (user_id = ? OR organization_id = ?) AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`
+          : `SELECT section, township, range FROM properties WHERE user_id = ? AND section IS NOT NULL AND township IS NOT NULL AND range IS NOT NULL`;
+
+        const propsResult = userOrgId
+          ? await env.WELLS_DB.prepare(propsQuery).bind(authUser.id, userOrgId).all()
+          : await env.WELLS_DB.prepare(propsQuery).bind(authUser.id).all();
+
+        const props = propsResult.results as Array<{ section: string; township: string; range: string }>;
+
+        if (props.length === 0) return { count: 0, nearestDeadline: null, isUrgent: false };
+
+        const trsSet = new Set<string>();
+        for (const p of props) {
+          trsSet.add(`${p.section}|${p.township}|${p.range}`);
+        }
+
+        const ninetyDaysAgo = new Date();
+        ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+        const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().substring(0, 10);
+
+        const trsConditions: string[] = [];
+        const trsBindings: string[] = [];
+        for (const trs of trsSet) {
+          const [sec, twp, rng] = trs.split('|');
+          trsConditions.push('(section = ? AND township = ? AND range = ?)');
+          trsBindings.push(sec, twp, rng);
+        }
+
+        if (trsConditions.length === 0 || trsConditions.length > 100) return { count: 0, nearestDeadline: null, isUrgent: false };
+
+        const poolingResult = await env.WELLS_DB.prepare(`
+          SELECT COUNT(*) as count, MIN(response_deadline) as nearest_deadline
+          FROM pooling_orders
+          WHERE order_date >= ?
+            AND (${trsConditions.join(' OR ')})
+        `).bind(ninetyDaysAgoStr, ...trsBindings).all();
+
+        const poolingData = poolingResult.results[0] as { count: number; nearest_deadline: string | null } | undefined;
+
+        if (poolingData && poolingData.count > 0) {
+          let isUrgent = false;
+          if (poolingData.nearest_deadline) {
+            const deadlineDate = new Date(poolingData.nearest_deadline);
+            const thirtyDaysFromNow = new Date();
+            thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+            isUrgent = deadlineDate < thirtyDaysFromNow;
+          }
+          return { count: poolingData.count, nearestDeadline: poolingData.nearest_deadline, isUrgent };
+        }
+      } catch (e) {
+        console.error('[Intelligence Data] Pooling error:', e instanceof Error ? e.message : e);
+      }
+
+      return { count: 0, nearestDeadline: null, isUrgent: false };
+    }
+
+    // Run all groups in parallel
+    const [revenueData, deductionData, shutInCount, poolingData] = await Promise.all([
+      queryRevenue(),
+      queryDeductions(),
+      queryShutIn(),
+      queryPooling()
+    ]);
+
+    const tQueries = Date.now();
+    console.log(`[Intelligence Data] Setup: ${tSetup - t0}ms, Queries (parallel): ${tQueries - tSetup}ms, Total: ${tQueries - t0}ms`);
+
+    // ---- Build insights array ----
+    const insights: Array<{ severity: string; title: string; description: string; action?: string; actionId?: string }> = [];
+
+    // Insight 1: High deduction wells
+    if (deductionData.flaggedWells.length > 0) {
+      const topFlagged = deductionData.flaggedWells
+        .sort((a, b) => b.agg_deduction_pct - a.agg_deduction_pct)
+        .slice(0, 5);
+
+      const wellNames = topFlagged.map(fw => {
+        const match = wells.find(w => w.api_number.replace(/-/g, '').startsWith(fw.api_number));
+        return match?.well_name || fw.api_number;
+      });
+
+      const nameList = wellNames.length <= 2
+        ? wellNames.join(' and ')
+        : `${wellNames[0]} and ${wellNames.length - 1} other${wellNames.length > 2 ? 's' : ''}`;
+
+      insights.push({
+        severity: 'info',
+        title: `${deductionData.flaggedWells.length} well${deductionData.flaggedWells.length > 1 ? 's' : ''} with high deduction ratios`,
+        description: `${deductionData.wellsAnalyzed} wells analyzed. ${nameList} show${wellNames.length === 1 ? 's' : ''} ${topFlagged[0].agg_deduction_pct}% aggregate deductions. View details to compare with industry data.`,
+        action: 'View Details',
+        actionId: 'deduction-audit'
+      });
+    }
+
+    // Insight 2: Shut-in wells
+    if (shutInCount > 0) {
+      insights.push({
+        severity: 'warning',
+        title: `${shutInCount} well${shutInCount > 1 ? 's' : ''} may be shut-in`,
+        description: `Production has been zero for 3+ months. If these wells hold your lease by production, the lease may be at risk.`,
+        action: 'Review Wells',
+        actionId: 'shut-in-review'
+      });
+    }
+
+    // Insight 3: Pooling orders
+    if (poolingData.count > 0) {
+      insights.push({
+        severity: poolingData.isUrgent ? 'warning' : 'info',
+        title: `${poolingData.count} pooling order${poolingData.count > 1 ? 's' : ''} filed on your properties`,
+        description: poolingData.isUrgent
+          ? 'A response deadline is approaching. View the latest bonus rates and royalty options.'
+          : 'View the latest bonus rates and royalty options in your area.',
+        action: 'View Rates',
+        actionId: 'pooling-report'
+      });
+    }
+
+    // No issues found
+    if (insights.length === 0) {
+      insights.push({
+        severity: 'success',
+        title: 'Portfolio looks healthy',
+        description: `All ${wells.length} wells are linked to OTC data with no deduction flags or shut-in alerts. Use the questions below to explore deeper.`
+      });
+    }
+
+    // ---- Build summary object ----
+    const summary = {
+      activeWells,
+      countyCount: counties.size,
+      estimatedRevenue: revenueData.estimatedRevenue,
+      revenueChange: revenueData.revenueChange !== null ? Math.round(revenueData.revenueChange * 10) / 10 : null,
+      deductionFlags: deductionData.deductionFlags,
+      shutInWells: shutInCount,
+      wellsAnalyzed: deductionData.wellsAnalyzed,
+      wellsWithLinks: basePuns.length,
+      actionItems: insights.length,
+      nearestDeadline: poolingData.nearestDeadline
+    };
+
+    return jsonResponse({ summary, insights });
+
+  } catch (error) {
+    console.error('[Intelligence Data] Error:', error instanceof Error ? error.message : error);
+    return jsonResponse({
+      error: 'Failed to load intelligence data',
       message: error instanceof Error ? error.message : 'Unknown error'
     }, 500);
   }
@@ -1476,7 +1839,7 @@ export async function handleGetPoolingReport(request: Request, env: Env): Promis
 
         byProperty.push({
           propertyId: prop.id,
-          propertyName: `SEC ${prop.section} T${prop.township} R${prop.range}`,
+          propertyName: `${prop.township}-${prop.range}-${prop.section}`,
           section: prop.section,
           township: prop.township,
           range: prop.range,
@@ -3284,6 +3647,8 @@ interface ShutInWell {
   declineRate12m: number | null;
   riskFlags: string[];
   taxPeriodStart: string | null;
+  taxPeriodEnd: string | null;      // Latest ended period_end_date (if all periods ended)
+  taxPeriodActive: boolean | null;   // true if any tax period is_active=1, false if all ended, null if no tax data
 }
 
 /**
@@ -3333,14 +3698,18 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
              p.is_stale, p.months_since_production,
              p.first_prod_month, p.last_prod_month,
              p.peak_month, p.decline_rate_12m,
-             tp.period_start_date as tp_start_date
+             tp.period_start_date as tp_start_date,
+             tp.max_is_active as tp_is_active,
+             tp.latest_end_date as tp_end_date
       FROM client_wells cw
       JOIN wells w ON w.api_number = cw.api_number
       LEFT JOIN well_pun_links wpl ON wpl.api_number = cw.api_number
       LEFT JOIN puns p ON p.pun = wpl.pun
       LEFT JOIN (
         SELECT pun,
-               MIN(period_start_date) as period_start_date
+               MIN(period_start_date) as period_start_date,
+               MAX(is_active) as max_is_active,
+               MAX(CASE WHEN is_active = 0 THEN period_end_date END) as latest_end_date
         FROM otc_pun_tax_periods
         GROUP BY pun
       ) tp ON tp.pun = wpl.pun
@@ -3373,6 +3742,8 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
       peak_month: string | null;
       decline_rate_12m: number | null;
       tp_start_date: string | null;
+      tp_is_active: number | null;
+      tp_end_date: string | null;
     }>;
 
     // Deduplicate by api_number (a well may have multiple PUNs — take the one with latest production)
@@ -3585,7 +3956,9 @@ export async function handleGetShutInDetector(request: Request, env: Env): Promi
         peakMonth: well.peak_month,
         declineRate12m: well.decline_rate_12m,
         riskFlags,
-        taxPeriodStart: well.tp_start_date
+        taxPeriodStart: well.tp_start_date,
+        taxPeriodEnd: well.tp_end_date,
+        taxPeriodActive: well.tp_is_active !== null ? well.tp_is_active === 1 : null
       });
     }
 

@@ -13,11 +13,16 @@ import baseCss from './styles/dashboard-base.txt';
 import documentsCssRaw from './styles/dashboard-documents.txt';
 
 // Shared utilities (used by both dashboard and map)
+import sharedAuth from './scripts/shared-auth.txt';
 import sharedUtils from './scripts/shared-utils.txt';
 import sharedDisplayConfig from './scripts/shared-display-config.txt';
 import sharedOccHelpers from './scripts/shared-occ-helpers.txt';
 import sharedDocHelpers from './scripts/shared-doc-helpers.txt';
 import sharedListController from './scripts/shared-list-controller.txt';
+import sharedOtcProduction from './scripts/shared-otc-production.txt';
+import sharedOtcCss from './styles/shared-otc-production.txt';
+import sharedOccFilings from './scripts/shared-occ-filings.txt';
+import sharedDocDetail from './scripts/shared-document-detail.txt';
 
 // JS components (imported as text via .txt extension — esbuild would execute .js)
 import utilsJsRaw from './scripts/dashboard-utils.txt';
@@ -90,6 +95,7 @@ html = html.replace('<!-- __DOCUMENT_MODALS_C__ -->\n', () => docModalsC);
 html = html.replace('<!-- __BULK_PROCESSING_MODAL__ -->\n', () => bulkModalsProcessing);
 
 // JS
+html = html.replace('/* __SHARED_AUTH__ */\n', () => sharedAuth);
 html = html.replace('/* __SHARED_UTILS__ */\n', () => sharedUtils);
 html = html.replace('/* __SHARED_DISPLAY_CONFIG__ */\n', () => sharedDisplayConfig);
 html = html.replace('/* __SHARED_OCC_HELPERS__ */\n', () => sharedOccHelpers);
@@ -110,6 +116,10 @@ html = html.replace('/* __DOCS_B__ */\n', () => docsB);
 html = html.replace('/* __DOCS_C__ */\n', () => docsC);
 html = html.replace('/* __INIT_JS__ */\n', () => initJs);
 html = html.replace('/* __ACTIVITY_JS__ */\n', () => activityJs);
+html = html.replace('/* __SHARED_OTC_PRODUCTION__ */\n', () => sharedOtcProduction);
+html = html.replace('/* __SHARED_OTC_CSS__ */\n', () => sharedOtcCss);
+html = html.replace('/* __SHARED_OCC_FILINGS__ */\n', () => sharedOccFilings);
+html = html.replace('/* __SHARED_DOCUMENT_DETAIL__ */\n', () => sharedDocDetail);
 html = html.replace('/* __PRODUCTION_JS__ */\n', () => productionJs);
 html = html.replace('/* __OCC_JS__ */\n', () => occJs);
 html = html.replace('/* __BULK_JS__ */\n', () => bulkJsMain);

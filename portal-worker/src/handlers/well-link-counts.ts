@@ -15,6 +15,7 @@ import { authenticateRequest } from '../utils/auth.js';
 import { fetchAllAirtableRecords, getUserFromSession } from '../services/airtable.js';
 import { BASE_ID, WELLS_TABLE } from '../constants.js';
 import { getAdjacentLocations } from '../utils/property-well-matching.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../index';
 
 /**
@@ -273,9 +274,10 @@ async function fetchOCCFilingCounts(
   const strBatches = chunk(allSTRList, BATCH_SIZE_D1);
   const strBatchPromises = strBatches.map(async (batch) => {
     try {
-      const whereConditions = batch.map(
-        ({ sec, twn, rng }) => `(section = '${sec}' AND UPPER(township) = '${twn}' AND UPPER(range) = '${rng}')`
+      const whereConditions = batch.map(() =>
+        `(section = ? AND UPPER(township) = ? AND UPPER(range) = ?)`
       ).join(' OR ');
+      const whereBindings = batch.flatMap(({ sec, twn, rng }) => [sec, twn, rng]);
 
       const query = `
         SELECT section as sec, township as twn, range as rng, COUNT(*) as count
@@ -283,7 +285,7 @@ async function fetchOCCFilingCounts(
         WHERE (${whereConditions})
         GROUP BY section, township, range
       `;
-      const result = await env.WELLS_DB.prepare(query).all();
+      const result = await env.WELLS_DB.prepare(query).bind(...whereBindings).all();
       return result.results as { sec: string; twn: string; rng: string; count: number }[] || [];
     } catch (err) {
       console.error('[WellLinkCounts] Error querying OCC filings:', err);
@@ -339,7 +341,7 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
     const cacheKey = `link-counts:wells:${organizationId || user.id}`;
     let wellsFilter: string;
 
-    const userEmail = user.email.replace(/'/g, "\\'");
+    const userEmail = escapeAirtableValue(user.email);
 
     if (organizationId) {
       const orgResponse = await fetch(
@@ -349,7 +351,7 @@ export async function handleGetWellLinkCounts(request: Request, env: Env) {
 
       if (orgResponse.ok) {
         const org = await orgResponse.json() as any;
-        const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+        const orgName = escapeAirtableValue(org.fields.Name || '');
         const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
         const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
         wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;

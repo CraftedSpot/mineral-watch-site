@@ -8,6 +8,7 @@ import { BASE_ID, ACTIVITY_TABLE, PLAN_LIMITS } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, getUserFromSession } from '../services/airtable.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -42,10 +43,10 @@ export async function handleListActivity(request: Request, env: Env) {
     // User is part of an organization - show both personal and org activities
     const orgId = userOrganizations[0]; // User typically belongs to one org
     // Also include records where User field contains other org members (temporary backward compatibility)
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization ID (from User)})) > 0)`;
+    formula = `OR(FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0, FIND('${escapeAirtableValue(orgId)}', ARRAYJOIN({Organization ID (from User)})) > 0)`;
   } else {
     // No organization - show only personal activities
-    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`;
   }
   
   // If days parameter provided, add date filter
@@ -114,10 +115,10 @@ export async function handleActivityStats(request: Request, env: Env) {
   if (userOrganizations.length > 0) {
     // User is part of an organization - count both personal and org activities
     const orgId = userOrganizations[0];
-    formula = `OR(FIND('${user.id}', ARRAYJOIN({User})) > 0, FIND('${orgId}', ARRAYJOIN({Organization ID (from User)})) > 0)`;
+    formula = `OR(FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0, FIND('${escapeAirtableValue(orgId)}', ARRAYJOIN({Organization ID (from User)})) > 0)`;
   } else {
     // No organization - count only personal activities
-    formula = `FIND('${user.id}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${escapeAirtableValue(user.id)}', ARRAYJOIN({User})) > 0`;
   }
   
   const url = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ACTIVITY_TABLE)}?filterByFormula=${encodeURIComponent(formula)}&sort[0][field]=Detected At&sort[0][direction]=desc`;

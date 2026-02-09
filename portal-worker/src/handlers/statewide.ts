@@ -30,7 +30,8 @@ export async function handleStatewideActivity(request: Request, env: Env) {
   
   try {
     // Fetch all statewide activities from D1
-    const statewideActivities = await fetchStatewideActivitiesFromD1(env, parseInt(days), county, activityType);
+    const daysAgo = parseInt(days) || 30;
+    const statewideActivities = await fetchStatewideActivitiesFromD1(env, daysAgo, county, activityType);
     
     // Format results to match frontend expectations
     const allActivities = formatStatewideActivities(statewideActivities);
@@ -48,9 +49,11 @@ export async function handleStatewideActivity(request: Request, env: Env) {
  * Fetch statewide activities from D1 database
  */
 async function fetchStatewideActivitiesFromD1(env: Env, daysAgo: number, county?: string | null, activityType?: string | null) {
-  // Build the WHERE clause
-  const conditions = [`created_at >= datetime('now', '-${daysAgo} days')`];
-  const bindings = [];
+  // Build the WHERE clause — compute cutoff in JS to avoid SQL interpolation
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - daysAgo);
+  const conditions = [`created_at >= ?`];
+  const bindings: (string | number)[] = [cutoffDate.toISOString()];
   
   if (county) {
     conditions.push(`county = ?`);

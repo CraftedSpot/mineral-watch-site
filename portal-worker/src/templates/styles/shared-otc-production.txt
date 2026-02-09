@@ -1,0 +1,120 @@
+        /* Shared OTC Production Styles — used by map + dashboard */
+        .otc-production-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+        .otc-production-meta {
+            display: flex;
+            gap: 12px;
+        }
+        .otc-meta-item {
+            display: flex;
+            flex-direction: column;
+            gap: 3px;
+            background: rgba(22, 101, 52, 0.08);
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(22, 101, 52, 0.15);
+        }
+        .otc-meta-label {
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: #166534;
+            letter-spacing: 0.3px;
+        }
+        .otc-meta-value {
+            font-size: 14px;
+            font-weight: 700;
+            color: #166534;
+        }
+        .otc-pun-badge {
+            background: rgba(22, 101, 52, 0.1);
+            color: #166534;
+            padding: 3px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+        .otc-data-grid {
+            display: grid;
+            grid-template-columns: 80px 1fr 1fr 1fr;
+            gap: 8px;
+            font-size: 12px;
+            margin-bottom: 12px;
+        }
+        .otc-grid-header {
+            color: #1e40af;
+            text-align: center;
+            font-size: 9px;
+            font-weight: 600;
+            text-transform: uppercase;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 4px 6px;
+            border-radius: 4px;
+            border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        .otc-row-label {
+            font-weight: 600;
+        }
+        .otc-row-label.otc-oil { color: #166534; }
+        .otc-row-label.otc-gas { color: #dc2626; }
+        .otc-value-cell {
+            text-align: right;
+            font-weight: 600;
+        }
+        .otc-value-cell span {
+            color: var(--slate-blue, #334E68);
+            font-weight: 400;
+        }
+        .otc-status-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding-top: 12px;
+            border-top: 1px solid var(--border, #E2E8F0);
+        }
+        .otc-status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .otc-status-dot {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            background: #9ca3af;
+        }
+        .otc-status-dot.active { background: #22c55e; }
+        .otc-status-dot.recently-idle { background: #f59e0b; }
+        .otc-status-dot.extended-idle { background: #f97316; }
+        .otc-status-dot.no-recent { background: #ef4444; }
+        .otc-status-text {
+            font-weight: 500;
+            font-size: 13px;
+        }
+        .otc-trend-indicator {
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .otc-trend-indicator.down { color: #dc2626; }
+        .otc-trend-indicator.up { color: #166534; }
+        .otc-trend-indicator.flat { color: var(--slate-blue, #334E68); }
+        .otc-sparkline-svg { display: block; }
+        .no-production-data {
+            text-align: center;
+            padding: 20px;
+            color: var(--slate-blue, #334E68);
+        }
+        .no-production-data .icon { font-size: 24px; margin-bottom: 8px; opacity: 0.5; }
+        .no-production-data .message { font-size: 14px; margin-bottom: 4px; }
+        .no-production-data .sub-message { font-size: 12px; opacity: 0.7; }
+        @media (max-width: 480px) {
+            .otc-production-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+            .otc-data-grid { grid-template-columns: 60px 1fr 1fr 1fr; font-size: 11px; }
+            .otc-grid-header { font-size: 9px; }
+        }

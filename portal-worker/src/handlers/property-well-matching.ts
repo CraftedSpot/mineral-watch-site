@@ -8,6 +8,7 @@ import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import { enrichWellsWithD1Data, getAdjacentLocations, parseSectionsAffected as sharedParseSectionsAffected } from '../utils/property-well-matching.js';
 import type { LateralLocation } from '../utils/property-well-matching.js';
 import type { Env } from '../types/env.js';
@@ -296,7 +297,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
 
     console.log(`[PropertyWellMatch] User ID: ${userId}, Org ID: ${organizationId || 'none'}`);
 
-    const userEmail = authUser.email.replace(/'/g, "\\'");
+    const userEmail = escapeAirtableValue(authUser.email);
 
     if (organizationId) {
       // Organization user - get org name for filtering
@@ -314,7 +315,7 @@ export async function handleMatchPropertyWells(request: Request, env: Env) {
 
       // Filter by organization name OR user email - properties may have Organization
       // field empty but User field set (e.g., after bulk re-upload via Airtable)
-      const orgFind = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization}))`;
+      const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;
       const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
       propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
       wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;

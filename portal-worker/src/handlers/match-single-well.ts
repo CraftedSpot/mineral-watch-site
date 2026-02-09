@@ -6,6 +6,7 @@ import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import {
   PROPERTIES_TABLE,
   WELLS_TABLE,
@@ -83,10 +84,10 @@ export async function handleMatchSingleWell(wellId: string, request: Request, en
       
       const orgData = await orgResponse.json();
       const orgName = orgData.fields?.Name || '';
-      propertiesFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
+      propertiesFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
     } else {
       // Filter by user email
-      const userEmail = authUser.email.replace(/'/g, "\\'");
+      const userEmail = escapeAirtableValue(authUser.email);
       propertiesFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
     

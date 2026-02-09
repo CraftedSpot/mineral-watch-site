@@ -1,70 +1,35 @@
         document.addEventListener('DOMContentLoaded', async () => {
             try {
-                // Super admin impersonation: intercept fetch calls to append ?act_as=
-                const actAsParam = new URLSearchParams(window.location.search).get('act_as');
-                if (actAsParam) {
-                    const _origFetch = window.fetch;
-                    window.fetch = function(url, options) {
-                        if (typeof url === 'string' && url.startsWith('/api/') && !url.startsWith('/api/auth/') && !url.startsWith('/api/admin/')) {
-                            const sep = url.includes('?') ? '&' : '?';
-                            url = url + sep + 'act_as=' + encodeURIComponent(actAsParam);
-                        }
-                        return _origFetch.call(this, url, options);
-                    };
-                }
+                // Auth: impersonation must run BEFORE any fetch calls
+                const actAs = setupImpersonation();
 
                 // Check for credit pack purchase success
                 const urlParams = new URLSearchParams(window.location.search);
                 if (urlParams.get('purchase') === 'success') {
-                    // Remove the query parameter from URL without reload
                     const newUrl = window.location.pathname;
                     window.history.replaceState({}, '', newUrl);
-                    // Show success toast after a brief delay to ensure DOM is ready
                     setTimeout(() => {
                         showToast('Credit pack purchased successfully! Credits have been added to your account.', 'success', 6000);
                     }, 500);
                 }
 
-                const res = await fetch('/api/auth/me');
-                if (!res.ok) { window.location.href = '/portal/login'; return; }
-                currentUser = await res.json();
-                document.getElementById('userName').textContent = currentUser.name || currentUser.email;
+                currentUser = await checkAuth();
+                if (!currentUser) return;
+
+                // Dashboard-specific: plan badge and limits
                 document.getElementById('planBadge').textContent = currentUser.plan || 'FREE';
                 const limits = planConfigs[currentUser.plan] || { properties: 1, wells: 0 };
                 document.getElementById('propLimit').textContent = limits.properties === Infinity ? '∞' : limits.properties;
                 document.getElementById('wellLimit').textContent = limits.wells === Infinity ? '∞' : limits.wells;
 
-                // Super admin impersonation: override displayed user info + show banner
-                if (actAsParam) {
-                    try {
-                        const infoRes = await fetch('/api/admin/impersonate-info?user_id=' + encodeURIComponent(actAsParam));
-                        if (infoRes.ok) {
-                            const info = await infoRes.json();
-
-                            const targetPlan = info.plan || 'Free';
-
-                            // Override currentUser so all downstream logic uses target user's context
-                            currentUser.name = info.name;
-                            currentUser.email = info.email;
-                            currentUser.plan = targetPlan;
-
-                            // Re-apply header display with target user's info
-                            document.getElementById('userName').textContent = info.name || info.email;
-                            document.getElementById('planBadge').textContent = targetPlan;
-                            const targetLimits = planConfigs[targetPlan] || planConfigs['Free'] || { properties: 1, wells: 0 };
-                            document.getElementById('propLimit').textContent = targetLimits.properties === Infinity ? '∞' : targetLimits.properties;
-                            document.getElementById('wellLimit').textContent = targetLimits.wells === Infinity ? '∞' : targetLimits.wells;
-
-                            // Show banner
-                            const banner = document.createElement('div');
-                            banner.id = 'impersonation-banner';
-                            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#f59e0b;color:#000;padding:10px 16px;text-align:center;font-weight:600;font-size:14px;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
-                            banner.innerHTML = 'Viewing as: ' + (info.name || 'Unknown') + ' (' + info.email + ') — ' + (info.orgName || 'No org') + ' [' + (info.plan || 'Free') + ']' +
-                                ' <a href="/portal" style="margin-left:16px;color:#000;text-decoration:underline;font-weight:700;">Exit</a>';
-                            document.body.prepend(banner);
-                            document.body.style.paddingTop = '42px';
-                        }
-                    } catch (e) { console.warn('Could not load impersonation info', e); }
+                // Load impersonation banner (overrides currentUser.name/email/plan)
+                if (actAs) {
+                    await loadImpersonationBanner(actAs);
+                    // Re-apply plan badge/limits with impersonated user's plan
+                    document.getElementById('planBadge').textContent = currentUser.plan || 'FREE';
+                    const targetLimits = planConfigs[currentUser.plan] || planConfigs['Free'] || { properties: 1, wells: 0 };
+                    document.getElementById('propLimit').textContent = targetLimits.properties === Infinity ? '∞' : targetLimits.properties;
+                    document.getElementById('wellLimit').textContent = targetLimits.wells === Infinity ? '∞' : targetLimits.wells;
                 }
 
                 // Hide upgrade link for Business/Enterprise users

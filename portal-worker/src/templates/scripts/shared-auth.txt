@@ -1,0 +1,85 @@
+        // =============================================
+        // SHARED AUTH MODULE
+        // Used by: map, dashboard, intelligence, operators
+        // =============================================
+
+        // Impersonation: detect ?act_as= and patch fetch to append it
+        // MUST be called BEFORE any fetch calls (including checkAuth)
+        function setupImpersonation() {
+            const actAsParam = new URLSearchParams(window.location.search).get('act_as');
+            if (!actAsParam) return null;
+
+            const _origFetch = window.fetch;
+            window.fetch = function(url, options) {
+                if (typeof url === 'string' && url.startsWith('/api/') &&
+                    !url.startsWith('/api/auth/') && !url.startsWith('/api/admin/')) {
+                    const sep = url.includes('?') ? '&' : '?';
+                    url = url + sep + 'act_as=' + encodeURIComponent(actAsParam);
+                }
+                return _origFetch.call(this, url, options);
+            };
+
+            return actAsParam;
+        }
+
+        // Authenticate: call /api/auth/me, store window.currentUser, set DOM
+        async function checkAuth() {
+            try {
+                const response = await fetch('/api/auth/me', { credentials: 'include' });
+                if (response.ok) {
+                    const user = await response.json();
+                    window.currentUser = user;
+                    const nameEl = document.getElementById('userName');
+                    if (nameEl) nameEl.textContent = user.name || user.email;
+                    return user;
+                } else {
+                    window.location.href = '/portal/login';
+                    return null;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                window.location.href = '/portal/login';
+                return null;
+            }
+        }
+
+        // Logout: POST to /api/auth/logout, redirect to login
+        async function logout() {
+            try {
+                await fetch('/api/auth/logout', { method: 'POST', credentials: 'include' });
+            } catch (error) {
+                console.error('Logout failed:', error);
+            }
+            window.location.href = '/portal/login';
+        }
+
+        // Impersonation banner: fetch target user info, override currentUser, show yellow bar
+        async function loadImpersonationBanner(actAsParam) {
+            try {
+                const infoRes = await fetch('/api/admin/impersonate-info?user_id=' + encodeURIComponent(actAsParam));
+                if (infoRes.ok) {
+                    const info = await infoRes.json();
+
+                    // Override currentUser with target user's context
+                    window.currentUser.name = info.name;
+                    window.currentUser.email = info.email;
+                    window.currentUser.plan = info.plan || 'Free';
+
+                    // Re-apply name display
+                    const nameEl = document.getElementById('userName');
+                    if (nameEl) nameEl.textContent = info.name || info.email;
+
+                    // Show yellow banner
+                    const banner = document.createElement('div');
+                    banner.id = 'impersonation-banner';
+                    banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:10000;background:#f59e0b;color:#000;padding:10px 16px;text-align:center;font-weight:600;font-size:14px;box-shadow:0 2px 4px rgba(0,0,0,0.2);';
+                    banner.innerHTML = 'Viewing as: ' + (info.name || 'Unknown') + ' (' + info.email + ') — ' +
+                        (info.orgName || 'No org') + ' [' + (info.plan || 'Free') + ']' +
+                        ' <a href="' + window.location.pathname + '" style="margin-left:16px;color:#000;text-decoration:underline;font-weight:700;">Exit</a>';
+                    document.body.prepend(banner);
+                    document.body.style.paddingTop = '42px';
+                }
+            } catch (e) {
+                console.warn('Could not load impersonation info', e);
+            }
+        }

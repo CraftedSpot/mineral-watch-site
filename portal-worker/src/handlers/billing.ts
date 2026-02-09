@@ -4,21 +4,22 @@
  * Handles Stripe billing integration including upgrades, billing portal, and subscription management
  */
 
-import { 
+import {
   BASE_ID,
   USERS_TABLE,
   BASE_URL,
+  COOKIE_NAME,
   PRICE_IDS,
   PRICE_TO_PLAN
 } from '../constants.js';
 
-import { 
-  jsonResponse 
+import {
+  jsonResponse
 } from '../utils/responses.js';
 
 import {
   authenticateRequest,
-  generateToken
+  generateSessionToken
 } from '../utils/auth.js';
 
 import {
@@ -259,18 +260,79 @@ export async function handleUpgradeSuccess(request: Request, env: Env, url: URL)
       return Response.redirect(`${BASE_URL}/portal/upgrade?error=no_email`, 302);
     }
     
-    // Generate magic link token directly
-    const token = await generateToken(customerEmail, env.AUTH_SECRET);
-    
-    // Redirect with magic link for auto-login
-    return Response.redirect(
-      `${BASE_URL}/api/auth/verify?token=${encodeURIComponent(token)}&email=${encodeURIComponent(customerEmail)}&redirect=portal?upgraded=true`, 
-      302
-    );
-    
+    // Get subscription details to determine plan
+    const subscriptionId = session.subscription;
+    const stripeCustomerId = session.customer;
+    let targetPlan = 'Starter'; // Safe default
+
+    if (subscriptionId) {
+      const subResponse = await fetch(
+        `https://api.stripe.com/v1/subscriptions/${subscriptionId}`,
+        { headers: { 'Authorization': `Bearer ${env.STRIPE_SECRET_KEY}` } }
+      );
+      if (subResponse.ok) {
+        const sub = await subResponse.json();
+        const priceId = sub.items?.data?.[0]?.price?.id;
+        if (priceId) {
+          targetPlan = PRICE_TO_PLAN[priceId as keyof typeof PRICE_TO_PLAN] || 'Starter';
+        }
+      }
+    }
+
+    // Update user in Airtable (idempotent — webhook may also fire)
+    const userRecord = await findUserByEmail(env, customerEmail);
+    if (userRecord) {
+      const currentPlan = userRecord.fields.Plan || 'Free';
+      if (currentPlan !== targetPlan || !userRecord.fields['Stripe Customer ID']) {
+        await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${userRecord.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Authorization': `Bearer ${env.MINERAL_AIRTABLE_API_KEY}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            fields: {
+              Plan: targetPlan,
+              'Stripe Customer ID': stripeCustomerId,
+              'Stripe Subscription ID': subscriptionId
+            }
+          })
+        });
+        console.log(`[Billing] User ${customerEmail} upgraded to ${targetPlan}`);
+      }
+    }
+
+    // Generate session token directly (same pattern as org invite flow)
+    const sessionToken = await generateSessionToken(env, customerEmail, userRecord?.id || '');
+
+    // Safari doesn't honor Set-Cookie on 302 redirects — use HTML page
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8"><title>Completing upgrade...</title></head><body>
+<p>Completing your upgrade...</p>
+<script>
+var attempts = 0;
+function checkAndRedirect() {
+  attempts++;
+  if (document.cookie.indexOf('${COOKIE_NAME}=') !== -1 || attempts >= 20) {
+    window.location.replace('/portal?upgraded=true');
+  } else {
+    setTimeout(checkAndRedirect, 100);
+  }
+}
+setTimeout(checkAndRedirect, 100);
+</script>
+</body></html>`;
+
+    return new Response(html, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000; HttpOnly`
+      }
+    });
+
   } catch (err) {
-    console.error('Error in upgrade success handler:', err);
-    // Fallback to regular redirect
+    console.error('[Billing] Error in upgrade success handler:', err);
     return Response.redirect(`${BASE_URL}/portal?upgraded=true`, 302);
   }
 }

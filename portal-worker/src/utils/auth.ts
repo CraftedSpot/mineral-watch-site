@@ -188,7 +188,8 @@ export async function generateSessionToken(env: Env, email: string, userId: stri
   };
   
   // Use the same secret as auth-worker
-  const secret = env.AUTH_SECRET || 'default-secret-change-me';
+  const secret = env.AUTH_SECRET;
+  if (!secret) throw new Error('AUTH_SECRET not configured');
   
   // Create the token in the same format as auth-worker
   const data = JSON.stringify(payload);

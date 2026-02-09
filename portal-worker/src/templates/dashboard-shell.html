@@ -8,6 +8,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Merriweather:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
 /* __BASE_CSS__ */
+/* __SHARED_OTC_CSS__ */
     </style>
 </head>
 <body>
@@ -173,8 +174,9 @@
                         <input type="text" id="wellsSearch" class="search-input" placeholder="Search wells by name, operator, API, or county...">
                         <select id="wellsFilter" class="sort-select">
                             <option value="all" selected>All Wells</option>
-                            <option value="active">Active Only</option>
-                            <option value="idle">Idle Only</option>
+                            <option value="active">Active</option>
+                            <option value="idle">Idle</option>
+                            <option value="no_data">No OTC Data</option>
                         </select>
                         <select id="wellsSort" class="sort-select">
                             <option value="name-asc" selected>Well Name</option>
@@ -369,6 +371,7 @@
 <!-- __PROPERTY_DETAILS_MODAL__ -->
     
     <script>
+/* __SHARED_AUTH__ */
 /* __SHARED_UTILS__ */
 /* __SHARED_DISPLAY_CONFIG__ */
 /* __SHARED_OCC_HELPERS__ */
@@ -392,6 +395,12 @@
 /* __WELLS_C__ */
         
 /* __PROPS_C__ */
+
+/* __SHARED_OTC_PRODUCTION__ */
+
+/* __SHARED_OCC_FILINGS__ */
+
+/* __SHARED_DOCUMENT_DETAIL__ */
 
 /* __PRODUCTION_JS__ */
 

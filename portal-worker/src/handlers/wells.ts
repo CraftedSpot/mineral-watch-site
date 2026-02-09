@@ -27,6 +27,8 @@ import {
   authenticateRequest
 } from '../utils/auth.js';
 
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
+
 // Operator lookup no longer needed - data comes from D1 via /api/wells/v2
 // import { getOperatorPhone, findOperatorByName } from '../services/operators.js';
 
@@ -311,7 +313,7 @@ export async function handleListWells(request: Request, env: Env) {
   let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
   
-  const userEmail = user.email.replace(/'/g, "\\'");
+  const safeEmail = escapeAirtableValue(user.email);
 
   if (organizationId) {
     // User has organization - fetch org name and filter by it
@@ -324,17 +326,17 @@ export async function handleListWells(request: Request, env: Env) {
 
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+      const orgName = escapeAirtableValue(org.fields.Name || '');
       const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
-      const userFind = `FIND('${userEmail}', ARRAYJOIN({User}))`;
+      const userFind = `FIND('${safeEmail}', ARRAYJOIN({User}))`;
       formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
-      formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${safeEmail}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    formula = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${safeEmail}', ARRAYJOIN({User})) > 0`;
   }
-  
+
   const records = await fetchAllAirtableRecords(env, WELLS_TABLE, formula);
 
   return jsonResponse(records);
@@ -366,10 +368,10 @@ async function batchQueryD1Wells(apiNumbers: string[], env: Env): Promise<Record
         w.api_number, w.well_name, w.well_number, w.operator, w.county,
         w.section, w.township, w.range, w.meridian,
         w.well_type, w.well_status, w.latitude, w.longitude,
-        w.formation_name, w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
+        w.formation_name, w.formation_depth, w.measured_total_depth, w.true_vertical_depth, w.lateral_length,
         w.spud_date, w.completion_date, w.first_production_date,
         w.ip_oil_bbl, w.ip_gas_mcf, w.ip_water_bbl,
-        w.bh_latitude, w.bh_longitude,
+        w.bh_latitude, w.bh_longitude, w.bh_section, w.bh_township, w.bh_range,
         o.phone as operator_phone,
         o.contact_name as operator_contact,
         prod.otc_total_oil,
@@ -441,7 +443,7 @@ export async function handleListWellsV2(request: Request, env: Env) {
   let formula: string;
   const organizationId = userRecord.fields.Organization?.[0];
 
-  const userEmail2 = user.email.replace(/'/g, "\\'");
+  const safeEmail2 = escapeAirtableValue(user.email);
 
   if (organizationId) {
     // User has organization - fetch org name and filter by it
@@ -454,15 +456,15 @@ export async function handleListWellsV2(request: Request, env: Env) {
 
     if (orgResponse.ok) {
       const org = await orgResponse.json() as any;
-      const orgName = (org.fields.Name || '').replace(/'/g, "\\'");
+      const orgName = escapeAirtableValue(org.fields.Name || '');
       const orgFind = `FIND('${orgName}', ARRAYJOIN({Organization}))`;
-      const userFind = `FIND('${userEmail2}', ARRAYJOIN({User}))`;
+      const userFind = `FIND('${safeEmail2}', ARRAYJOIN({User}))`;
       formula = `OR(${orgFind} > 0, ${userFind} > 0)`;
     } else {
-      formula = `FIND('${userEmail2}', ARRAYJOIN({User})) > 0`;
+      formula = `FIND('${safeEmail2}', ARRAYJOIN({User})) > 0`;
     }
   } else {
-    formula = `FIND('${userEmail2}', ARRAYJOIN({User})) > 0`;
+    formula = `FIND('${safeEmail2}', ARRAYJOIN({User})) > 0`;
   }
 
   // Fetch tracked wells from Airtable (returns all fields, we'll use minimal)
@@ -555,6 +557,12 @@ export async function handleListWellsV2(request: Request, env: Env) {
       // Bottom hole location (for horizontal wells)
       bh_latitude: d1.bh_latitude || null,
       bh_longitude: d1.bh_longitude || null,
+      bh_section: d1.bh_section || null,
+      bh_township: d1.bh_township || null,
+      bh_range: d1.bh_range || null,
+
+      // Formation depth
+      formation_depth: d1.formation_depth || null,
 
       // Operator contact from D1 operators table
       operator_phone: d1.operator_phone || t.fields['Operator Phone'] || null,

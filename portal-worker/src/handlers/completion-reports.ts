@@ -249,12 +249,27 @@ export async function handleGetProductionSummary(
     const punWhereClause = `base_pun IN (${placeholders})`;
 
     // Calculate date ranges - DB stores year_month as YYYYMM (no hyphen)
+    // Use data horizon (latest month in OTC data) instead of today for status thresholds
+    // This avoids false-idle caused by OTC's 2-3 month reporting lag
     const now = new Date();
-    const threeMonthsAgo = new Date(now);
+    const horizonResult = await env.WELLS_DB.prepare(
+      `SELECT MAX(year_month) as horizon FROM otc_production`
+    ).first() as { horizon: string } | null;
+
+    let horizonDate: Date;
+    if (horizonResult?.horizon) {
+      const hYear = parseInt(horizonResult.horizon.substring(0, 4));
+      const hMonth = parseInt(horizonResult.horizon.substring(4, 6));
+      horizonDate = new Date(hYear, hMonth - 1, 1);
+    } else {
+      horizonDate = new Date(now);
+    }
+
+    const threeMonthsAgo = new Date(horizonDate);
     threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
     const threeMonthsAgoYM = `${threeMonthsAgo.getFullYear()}${String(threeMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
-    const twelveMonthsAgo = new Date(now);
+    const twelveMonthsAgo = new Date(horizonDate);
     twelveMonthsAgo.setMonth(twelveMonthsAgo.getMonth() - 12);
     const twelveMonthsAgoYM = `${twelveMonthsAgo.getFullYear()}${String(twelveMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 
@@ -292,7 +307,7 @@ export async function handleGetProductionSummary(
     // Get sparkline data in BOE (Barrels of Oil Equivalent), last 6 calendar months
     // BOE = Oil + (Gas / 6) - standard industry conversion
     // OTC product codes: 1=Oil, 3=Condensate, 5=Gas(casinghead), 6=Gas(natural)
-    const sixMonthsAgo = new Date(now);
+    const sixMonthsAgo = new Date(horizonDate);
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
     const sixMonthsAgoYM = `${sixMonthsAgo.getFullYear()}${String(sixMonthsAgo.getMonth() + 1).padStart(2, '0')}`;
 

@@ -233,7 +233,7 @@ export async function handleChangeEmail(request: Request, env: Env) {
       iat: Date.now()
     };
     
-    const token = await generateToken(verificationData, env.AUTH_SECRET);
+    const token = await generateToken(env, verificationData, 900);
     
     // Send verification email to the NEW email address
     const verificationLink = `${BASE_URL}/portal/verify-email-change?token=${encodeURIComponent(token)}`;
@@ -304,7 +304,7 @@ export async function handleVerifyEmailChange(request: Request, env: Env, url: U
   
   try {
     // Verify the token
-    const payload = await verifyToken(token, env.AUTH_SECRET);
+    const payload = await verifyToken(env, token);
     
     // Check if token is expired
     if (Date.now() > payload.exp) {

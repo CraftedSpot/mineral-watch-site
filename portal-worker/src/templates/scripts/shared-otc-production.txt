@@ -1,0 +1,203 @@
+        // Shared OTC Production Renderer
+        // Used by both map and dashboard well detail modals.
+
+        /**
+         * Load and render OTC production data for a well.
+         * @param {string} apiNumber - Well API number
+         * @param {Object} ctx - Context for DOM elements
+         * @param {HTMLElement} ctx.container - Element to render production HTML into
+         * @param {HTMLElement} [ctx.statusBadge] - Optional element to set status text on
+         * @param {HTMLElement} [ctx.section] - Optional wrapper to show/hide and store PUN on
+         */
+        async function loadOTCProduction(apiNumber, ctx) {
+            const { container, statusBadge, section } = ctx;
+
+            // Show loading state
+            if (section) section.style.display = 'block';
+            if (statusBadge) {
+                statusBadge.textContent = '...';
+                statusBadge.style.color = '';
+            }
+            container.innerHTML = '<div style="text-align: center; padding: 12px; color: var(--slate-blue);">Loading production data...</div>';
+
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+                const response = await fetch(`/api/wells/${apiNumber}/production-summary`, {
+                    credentials: 'include',
+                    signal: controller.signal
+                });
+                clearTimeout(timeoutId);
+
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        renderNoOTCData(ctx, 'No production data available for this well');
+                        return;
+                    }
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('[OTCProduction] Data received:', data);
+
+                if (!data.hasPun && !data.production) {
+                    renderNoOTCData(ctx, 'No OTC production data linked to this well');
+                    return;
+                }
+
+                if (!data.production) {
+                    renderNoOTCData(ctx, 'No OTC production data linked to this well');
+                    return;
+                }
+
+                renderOTCProduction(data, ctx);
+
+            } catch (error) {
+                console.error('[OTCProduction] Error:', error);
+                if (error.name === 'AbortError') {
+                    renderNoOTCData(ctx, 'Production data request timed out');
+                } else {
+                    renderNoOTCData(ctx, 'Failed to load production data');
+                }
+            }
+        }
+
+        /**
+         * Render empty/error state for production data.
+         */
+        function renderNoOTCData(ctx, message) {
+            const { container, statusBadge, section } = ctx;
+            if (section) section.dataset.pun = '';
+            if (statusBadge) statusBadge.textContent = '';
+            container.innerHTML = `
+                <div class="no-production-data">
+                    <div class="icon">📊</div>
+                    <div class="message">${typeof escapeHtml === 'function' ? escapeHtml(message) : message}</div>
+                    <div class="sub-message">Well may not be producing yet or OTC data not yet linked</div>
+                </div>
+            `;
+        }
+
+        /**
+         * Render OTC production summary into the given context.
+         */
+        function renderOTCProduction(data, ctx) {
+            const { container, statusBadge, section } = ctx;
+            const prod = data.production;
+
+            // Store PUN on section or container
+            const punTarget = section || container;
+            punTarget.dataset.pun = data.pun || '';
+
+            const formatNum = (num) => num != null ? Number(num).toLocaleString() : '—';
+
+            // Status mapping
+            const statusMap = {
+                'active': { cssClass: 'active', text: 'Active', suffix: '(Last Reported: Within 3 Months)', color: '#22c55e' },
+                'recently_idle': { cssClass: 'recently-idle', text: 'Recently Idle', suffix: '', color: '#f59e0b' },
+                'extended_idle': { cssClass: 'extended-idle', text: 'Extended Idle', suffix: '', color: '#f97316' },
+                'no_recent_production': { cssClass: 'no-recent', text: '⚠️ No Recent Reported Production', suffix: '', color: '#ef4444' }
+            };
+            const statusInfo = statusMap[data.status] || { cssClass: '', text: data.status || 'Unknown', suffix: '', color: '#9ca3af' };
+
+            // Update status badge if provided
+            if (statusBadge) {
+                statusBadge.textContent = statusInfo.text;
+            }
+
+            // Trend indicator (YoY)
+            let trendHtml = '';
+            if (data.trend && data.trend.yoyChange != null && data.trend.yoyChange !== 0) {
+                let trendClass = 'flat', trendSymbol = '→', trendText = '';
+                if (data.trend.direction === 'up') {
+                    trendClass = 'up'; trendSymbol = '↑'; trendText = `+${data.trend.yoyChange}% YoY`;
+                } else if (data.trend.direction === 'down') {
+                    trendClass = 'down'; trendSymbol = '↓'; trendText = `${data.trend.yoyChange}% YoY`;
+                }
+                trendHtml = `<span class="otc-trend-indicator ${trendClass}">${trendSymbol} ${trendText}</span>`;
+            }
+
+            // Sparkline
+            let sparklineHtml = '';
+            if (data.sparkline && data.sparkline.length > 0) {
+                const points = data.sparkline;
+                const months = data.sparklineMonths || [];
+                const maxVal = Math.max(...points, 1);
+                const height = 32;
+                const width = 120;
+                const isActive = data.status === 'active';
+                const step = points.length === 1 ? 0 : width / (points.length - 1);
+                const coordPairs = points.map((val, i) => {
+                    const x = points.length === 1 ? width / 2 : i * step;
+                    const y = height - (val / maxVal) * (height - 4);
+                    return { x, y, val, month: months[i] || '' };
+                });
+                const lineCoords = coordPairs.map(p => `${p.x},${p.y}`).join(' ');
+                const circles = coordPairs.map(p =>
+                    `<circle cx="${p.x}" cy="${p.y}" r="3" fill="${p.val > 0 ? '#3b82f6' : '#cbd5e1'}"/>
+                     <circle cx="${p.x}" cy="${p.y}" r="8" fill="transparent" stroke="none" style="cursor:pointer">
+                        <title>${p.month}: ${p.val > 0 ? p.val.toLocaleString() + ' BOE' : 'No report'}</title>
+                    </circle>`
+                ).join('');
+                const totalBOE = data.sparklineBOE || points.reduce((a, b) => a + b, 0);
+                const reportedCount = points.filter(p => p > 0).length;
+                const tooltipText = isActive
+                    ? `${reportedCount} reported month${reportedCount !== 1 ? 's' : ''}: ${totalBOE.toLocaleString()} BOE`
+                    : `Last 6 months: ${totalBOE.toLocaleString()} BOE`;
+                sparklineHtml = `
+                    <div class="otc-sparkline-container" title="${tooltipText}">
+                        <svg class="otc-sparkline-svg" width="${width}" height="${height}" style="display: block;">
+                            ${points.length > 1 ? `<polyline fill="none" stroke="#3b82f6" stroke-width="2" points="${lineCoords}"/>` : ''}
+                            ${circles}
+                        </svg>
+                    </div>
+                `;
+            }
+
+            const lastProd = prod.lastProduction?.formatted || 'N/A';
+            const monthsProduced = prod.monthsProduced || 0;
+            const escPun = typeof escapeHtml === 'function' ? escapeHtml(data.pun || '') : (data.pun || '');
+
+            container.innerHTML = `
+                <div class="otc-production-header">
+                    <div class="otc-production-meta">
+                        <div class="otc-meta-item">
+                            <span class="otc-meta-label">Last Reported</span>
+                            <span class="otc-meta-value">${lastProd}</span>
+                        </div>
+                        <div class="otc-meta-item">
+                            <span class="otc-meta-label">Months Produced</span>
+                            <span class="otc-meta-value">${monthsProduced.toLocaleString()}</span>
+                        </div>
+                    </div>
+                    ${data.pun ? `<span class="otc-pun-badge">✓ PUN: ${escPun}</span>` : ''}
+                </div>
+
+                <div class="otc-data-grid">
+                    <div></div>
+                    <div class="otc-grid-header">${prod.lastMonth?.formatted || 'Last Reported'}</div>
+                    <div class="otc-grid-header">Last 12 Mo</div>
+                    <div class="otc-grid-header">Lifetime</div>
+
+                    <div class="otc-row-label otc-oil">OIL</div>
+                    <div class="otc-value-cell">${formatNum(prod.lastMonth?.oil)} <span>BBL</span></div>
+                    <div class="otc-value-cell">${formatNum(prod.last12Mo?.oil)} <span>BBL</span></div>
+                    <div class="otc-value-cell">${formatNum(prod.lifetime?.oil)} <span>BBL</span></div>
+
+                    <div class="otc-row-label otc-gas">GAS</div>
+                    <div class="otc-value-cell">${formatNum(prod.lastMonth?.gas)} <span>MCF</span></div>
+                    <div class="otc-value-cell">${formatNum(prod.last12Mo?.gas)} <span>MCF</span></div>
+                    <div class="otc-value-cell">${formatNum(prod.lifetime?.gas)} <span>MCF</span></div>
+                </div>
+
+                <div class="otc-status-row">
+                    <div class="otc-status-indicator">
+                        <span class="otc-status-dot ${statusInfo.cssClass}"></span>
+                        <span class="otc-status-text">${statusInfo.text} ${data.status === 'active' ? statusInfo.suffix : (lastProd !== 'N/A' ? `(Last Reported: ${lastProd})` : '')}</span>
+                        ${trendHtml}
+                    </div>
+                    ${sparklineHtml}
+                </div>
+            `;
+        }

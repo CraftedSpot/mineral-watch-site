@@ -628,9 +628,8 @@
             const trackedAPIs = new Set();
             if (trackedWells && trackedWells.length > 0) {
                 trackedWells.forEach(well => {
-                    const apiNumber = well.fields && well.fields['API Number'];
-                    if (apiNumber) {
-                        trackedAPIs.add(apiNumber);
+                    if (well.apiNumber) {
+                        trackedAPIs.add(well.apiNumber);
                     }
                 });
                 console.log(`Filtering out ${trackedAPIs.size} tracked wells from nearby wells display`);
@@ -759,16 +758,12 @@
                                 { lat: well.latitude, lng: well.longitude },
                                 { lat: well.bh_latitude, lng: well.bh_longitude },
                                 {
-                                    fields: {
-                                        'Well Name': well.well_name,
-                                        'API Number': well.api_number,
-                                        'Operator': well.operator,
-                                        'Well Status': well.well_status,
-                                        'Formation': well.formation_name,
-                                        'wellName': well.well_name,
-                                        'operator': well.operator,
-                                        'formation': well.formation_name
-                                    }
+                                    well_name: well.well_name,
+                                    api_number: well.api_number,
+                                    operator: well.operator,
+                                    well_status: well.well_status,
+                                    well_type: well.well_type,
+                                    formation_name: well.formation_name
                                 },
                                 'nearby'
                             );

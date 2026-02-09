@@ -5,6 +5,7 @@
 import { BASE_ID } from '../constants.js';
 import { fetchAllAirtableRecords } from '../services/airtable.js';
 import type { Env } from '../types/env.js';
+import { escapeAirtableValue } from './airtable-escape.js';
 
 // Panhandle counties that use Cimarron Meridian (CM)
 export const CM_COUNTIES = ['BEAVER', 'TEXAS', 'CIMARRON'];
@@ -844,7 +845,7 @@ export async function matchSingleProperty(
     
     const orgData = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
-    wellsFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
+    wellsFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
   } else {
     // Need user email for filter
     const userResponse = await fetch(
@@ -855,9 +856,9 @@ export async function matchSingleProperty(
     );
     const userData = await userResponse.json();
     const userEmail = userData.fields.Email;
-    wellsFilter = `FIND('${userEmail.replace(/'/g, "\\\'")}', ARRAYJOIN({User})) > 0`;
+    wellsFilter = `FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0`;
   }
-  
+
   // Fetch all user's wells
   const wells = await fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter);
 
@@ -960,7 +961,7 @@ export async function matchSingleWell(
     
     const orgData = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
-    propertiesFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
+    propertiesFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
   } else {
     // Need user email for filter
     const userResponse = await fetch(
@@ -971,9 +972,9 @@ export async function matchSingleWell(
     );
     const userData = await userResponse.json();
     const userEmail = userData.fields.Email;
-    propertiesFilter = `FIND('${userEmail.replace(/'/g, "\\\'")}', ARRAYJOIN({User})) > 0`;
+    propertiesFilter = `FIND('${escapeAirtableValue(userEmail)}', ARRAYJOIN({User})) > 0`;
   }
-  
+
   // Fetch all user's properties
   const properties = await fetchAllAirtableRecords(env, PROPERTIES_TABLE, propertiesFilter);
 
@@ -1053,7 +1054,7 @@ export async function runFullPropertyWellMatching(
   let propertiesFilter: string;
   let wellsFilter: string;
 
-  const email = userEmail.replace(/'/g, "\\'");
+  const escapedEmail = escapeAirtableValue(userEmail);
 
   if (organizationId) {
     // Organization user - get org name for filtering
@@ -1067,13 +1068,13 @@ export async function runFullPropertyWellMatching(
     const orgData = await orgResponse.json();
     const orgName = orgData.fields?.Name || '';
 
-    const orgFind = `FIND('${orgName.replace(/'/g, "\\'")}', ARRAYJOIN({Organization}))`;
-    const userFind = `FIND('${email}', ARRAYJOIN({User}))`;
+    const orgFind = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization}))`;
+    const userFind = `FIND('${escapedEmail}', ARRAYJOIN({User}))`;
     propertiesFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
     wellsFilter = `OR(${orgFind} > 0, ${userFind} > 0)`;
   } else {
-    propertiesFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
-    wellsFilter = `FIND('${email}', ARRAYJOIN({User})) > 0`;
+    propertiesFilter = `FIND('${escapedEmail}', ARRAYJOIN({User})) > 0`;
+    wellsFilter = `FIND('${escapedEmail}', ARRAYJOIN({User})) > 0`;
   }
 
   // Fetch tracked properties/wells from Airtable

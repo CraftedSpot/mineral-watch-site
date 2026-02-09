@@ -81,8 +81,11 @@
 
         // Initialize on page load
         document.addEventListener('DOMContentLoaded', async function() {
-            // Check authentication first
-            await checkAuth();
+            // Auth: impersonation must run BEFORE any fetch calls
+            const actAs = setupImpersonation();
+            const user = await checkAuth();
+            if (!user) return;
+            if (actAs) await loadImpersonationBanner(actAs);
 
             try {
                 // Only show loading screen if boundaries aren't cached
@@ -228,13 +231,12 @@
             // Add tracked wells
             if (trackedWells) {
                 trackedWells.forEach(well => {
-                    const fields = well.fields;
                     allSearchableItems.push({
                         type: 'well',
-                        name: fields['Well Name'] || `API ${fields['API Number']}`,
-                        details: `${fields.Operator || 'Unknown'} • ${fields['Well Status'] || 'Unknown'}`,
+                        name: well.well_name || `API ${well.apiNumber}`,
+                        details: `${well.operator || 'Unknown'} • ${well.well_status || 'Unknown'}`,
                         data: well,
-                        searchText: `${fields['Well Name'] || ''} ${fields['API Number'] || ''} ${fields.Operator || ''} ${fields.Formation || ''}`.toLowerCase()
+                        searchText: `${well.well_name || ''} ${well.apiNumber || ''} ${well.operator || ''} ${well.formation_name || ''}`.toLowerCase()
                     });
                 });
             }

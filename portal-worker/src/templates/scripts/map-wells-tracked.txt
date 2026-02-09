@@ -60,12 +60,10 @@
                 let addedWells = 0;
                 
                 for (const well of wells) {
-                    const fields = well.fields || {};
-                    
                     // Parse coordinates from OCC Map Link
-                    const coords = parseOccMapLink(fields['OCC Map Link']);
+                    const coords = parseOccMapLink(well.occMapLink);
                     if (!coords) {
-                        console.warn(`No coordinates found for well ${fields['API Number']}`);
+                        console.warn(`No coordinates found for well ${well.apiNumber}`);
                         continue;
                     }
                     
@@ -97,15 +95,14 @@
                 // Pre-fetch BH section geometries for wells that need them
                 const bhSectionsToFetch = new Set();
                 for (const well of wells) {
-                    const fields = well.fields || {};
-                    if (fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
-                        const bhCacheKey = `${fields['BH Section']}-${fields['BH Township']}-${fields['BH Range']}`;
+                    if (well.bh_section && well.bh_township && well.bh_range) {
+                        const bhCacheKey = `${well.bh_section}-${well.bh_township}-${well.bh_range}`;
                         if (!geometryCache[bhCacheKey]) {
                             bhSectionsToFetch.add({
-                                section: fields['BH Section'],
-                                township: fields['BH Township'],
-                                range: fields['BH Range'],
-                                county: fields['County'] || ''
+                                section: well.bh_section,
+                                township: well.bh_township,
+                                range: well.bh_range,
+                                county: well.county || ''
                             });
                         }
                     }
@@ -130,7 +127,7 @@
                 // Fetch D1 lateral data for tracked wells
                 console.log('Fetching D1 lateral data for tracked wells...');
                 const apiNumbers = wells
-                    .map(w => w.fields['API Number'])
+                    .map(w => w.apiNumber)
                     .filter(api => api && api.length >= 10);
                 
                 let d1LateralData = {};
@@ -173,13 +170,12 @@
                 let lateralPathCount = 0;
                 
                 for (const well of wells) {
-                    const fields = well.fields || {};
-                    const apiNumber = fields['API Number'];
-                    
+                    const apiNumber = well.apiNumber;
+
                     // Get surface coordinates
-                    const coords = parseOccMapLink(fields['OCC Map Link']);
+                    const coords = parseOccMapLink(well.occMapLink);
                     if (!coords) continue;
-                    
+
                     // First check D1 data for bottom hole coordinates
                     const d1Data = d1LateralData[apiNumber];
                     if (d1Data && d1Data.has_lateral && d1Data.bottom_hole_location) {
@@ -205,9 +201,9 @@
                             }
                         }
                     }
-                    // Fall back to Airtable BH Section/Township/Range if no D1 data
-                    else if (fields['BH Section'] && fields['BH Township'] && fields['BH Range']) {
-                        const bhCacheKey = `${fields['BH Section']}-${fields['BH Township']}-${fields['BH Range']}`;
+                    // Fall back to BH Section/Township/Range if no D1 data
+                    else if (well.bh_section && well.bh_township && well.bh_range) {
+                        const bhCacheKey = `${well.bh_section}-${well.bh_township}-${well.bh_range}`;
                         const bhGeometry = geometryCache[bhCacheKey];
                         
                         if (bhGeometry && bhGeometry.geometry) {
@@ -447,29 +443,28 @@
                 <button class="action-btn primary well-blue" id="wellModalSaveBtn" onclick="saveMapWellNotesAndClose()" style="display: none; margin-top: 10px; width: 100%;">Save & Close</button>
             `;
 
-            const fields = well.fields || {};
-            const wellName = toTitleCase(fields['Well Name'] || `API ${fields['API Number']}`);
-            const apiNumber = fields['API Number'] || 'Unknown';
-            const operator = toTitleCase(fields['Operator'] || 'Unknown');
-            const operatorPhone = fields['Operator Phone'] || '';
-            const contactName = toTitleCase(fields['Contact Name'] || fields['Operator Contact'] || '');
-            const wellStatus = (fields['Well Status'] || 'Unknown').toUpperCase();
+            const wellName = toTitleCase(well.well_name || `API ${well.apiNumber}`);
+            const apiNumber = well.apiNumber || 'Unknown';
+            const operator = toTitleCase(well.operator || 'Unknown');
+            const operatorPhone = well.operator_phone || '';
+            const contactName = toTitleCase(well.operator_contact || '');
+            const wellStatus = (well.well_status || 'Unknown').toUpperCase();
             const statusColor = WELL_STATUS_COLORS[wellStatus] || WELL_STATUS_COLORS.default;
 
             // Get formation name but filter out invalid values
-            let formationRaw = fields['Formation Name'] || fields['Formation'] || '';
+            let formationRaw = well.formation_name || '';
             const invalidFormations = ['horizontal hole', 'horizontal', 'vertical hole', 'vertical', 'directional'];
             const formation = invalidFormations.includes(formationRaw.toLowerCase()) ? '' : toTitleCase(formationRaw);
 
-            const wellType = fields['Well Type'] || 'Oil Well';
-            const county = toTitleCase(fields['County'] || '');
-            const section = fields['Section'] || '';
-            const township = fields['Township'] || '';
-            const range = fields['Range'] || '';
-            const meridian = fields['Meridian'] || 'IM';
-            const completionDate = fields['Completion Date'] || '';
-            const totalDepth = fields['Total Depth'] || '';
-            const occMapLink = fields['OCC Map Link'] || '';
+            const wellType = well.well_type || 'Oil Well';
+            const county = toTitleCase(well.county || '');
+            const section = well.section || '';
+            const township = well.township || '';
+            const range = well.range || '';
+            const meridian = well.meridian || 'IM';
+            const completionDate = well.completion_date || '';
+            const totalDepth = well.measured_total_depth || '';
+            const occMapLink = well.occMapLink || '';
 
             // Detect if horizontal based on well name pattern
             const isHorizontal = detectHorizontalWell(wellName);
@@ -538,10 +533,10 @@
             const formationBox = document.getElementById('wellModalFormationBox');
             const ipBox = document.getElementById('wellModalIPBox');
 
-            // Get IP data from fields
-            const ipOil = fields['IP Oil'] || fields['IP Oil BBL'] || null;
-            const ipGas = fields['IP Gas'] || fields['IP Gas MCF'] || null;
-            const displayDepth = totalDepth || fields['Formation Depth'] || fields['True Vertical Depth'] || null;
+            // Get IP data
+            const ipOil = well.ip_oil_bbl || null;
+            const ipGas = well.ip_gas_mcf || null;
+            const displayDepth = totalDepth || well.formation_depth || well.true_vertical_depth || null;
 
             // Check if we have any data to show
             const hasFormationData = (formation && formation.trim()) || (displayDepth && displayDepth > 0);
@@ -571,7 +566,7 @@
                     let ipText = '';
                     let ipTypeText = '';
                     if (ipOil) {
-                        ipText += `${Number(ipOil).toLocaleString()} BBL/day`;
+                        ipText += `${Math.round(Number(ipOil)).toLocaleString()} BBL/day`;
                         ipTypeText = 'Oil';
                     }
                     if (ipOil && ipGas) {
@@ -579,7 +574,7 @@
                         ipTypeText += ' & ';
                     }
                     if (ipGas) {
-                        ipText += `${Number(ipGas).toLocaleString()} MCF/day`;
+                        ipText += `${Math.round(Number(ipGas)).toLocaleString()} MCF/day`;
                         ipTypeText += 'Gas';
                     }
                     document.getElementById('wellModalIP').textContent = ipText;

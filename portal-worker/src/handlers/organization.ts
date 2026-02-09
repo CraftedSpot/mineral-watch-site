@@ -27,6 +27,7 @@ import {
   findUserByEmail
 } from '../services/airtable.js';
 
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import type { Env } from '../types/env.js';
 
 /**
@@ -50,17 +51,13 @@ export async function handleGetOrganization(request: Request, env: Env) {
     }
 
     // Get full user details to find organization
-    console.log('Fetching user record for:', user.email);
     const userRecord = await findUserByEmail(env, user.email);
-    console.log('User record:', JSON.stringify(userRecord, null, 2));
-    
+
     if (!userRecord) {
-      console.log('No user record found');
       return jsonResponse({ organization: null });
     }
-    
+
     if (!userRecord.fields.Organization || !userRecord.fields.Organization[0]) {
-      console.log('User has no organization assigned');
       return jsonResponse({ organization: null });
     }
 
@@ -68,7 +65,6 @@ export async function handleGetOrganization(request: Request, env: Env) {
     const organizationId = userRecord.fields.Organization[0];
 
     // Fetch organization details
-    console.log('Fetching organization with ID:', organizationId);
     const orgResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(ORGANIZATION_TABLE)}/${organizationId}`,
       {
@@ -77,20 +73,14 @@ export async function handleGetOrganization(request: Request, env: Env) {
     );
 
     if (!orgResponse.ok) {
-      const errorText = await orgResponse.text();
-      console.error('Failed to fetch organization:', errorText);
-      console.error('Status:', orgResponse.status);
-      return jsonResponse({ error: "Failed to fetch organization", details: errorText }, 500);
+      console.error('[Organization] Failed to fetch org:', orgResponse.status);
+      return jsonResponse({ error: "Failed to fetch organization" }, 500);
     }
 
     const organization = await orgResponse.json() as any;
-    console.log('Organization data:', JSON.stringify(organization, null, 2));
 
     // Fetch all members of this organization
-    // Filter by organization name since Organization is a linked record field
-    const filterFormula = `{Organization} = '${organization.fields.Name}'`;
-    console.log('Fetching members with filter:', filterFormula);
-    
+    const filterFormula = `{Organization} = '${escapeAirtableValue(organization.fields.Name)}'`;
     const membersResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` + 
       `filterByFormula=${encodeURIComponent(filterFormula)}`,
@@ -100,12 +90,11 @@ export async function handleGetOrganization(request: Request, env: Env) {
     );
 
     if (!membersResponse.ok) {
-      console.error('Failed to fetch members:', await membersResponse.text());
+      console.error('[Organization] Failed to fetch members:', membersResponse.status);
       return jsonResponse({ error: "Failed to fetch members" }, 500);
     }
 
     const membersData = await membersResponse.json() as any;
-    console.log('Members response:', JSON.stringify(membersData, null, 2));
     
     // Format member data
     const members = membersData.records.map((record: any) => ({
@@ -200,12 +189,8 @@ export async function handleInviteMember(request: Request, env: Env) {
     if (existingUser) {
       // Check if they're already in THIS organization
       if (existingUser.fields.Organization && existingUser.fields.Organization.includes(organizationId)) {
-        // User is already in this organization - just resend the invite email (no seat check needed)
-        console.log(`User ${normalizedEmail} already in organization - resending invite email`);
-        
-        // Generate new magic link token
+        // User is already in this organization - resend the invite email
         const token = generateToken();
-        console.log(`🎲 Generated new token: ${token}`);
         const magicLink = `${BASE_URL}/portal/verify?token=${token}`;
         
         // Store token in KV
@@ -218,19 +203,12 @@ export async function handleInviteMember(request: Request, env: Env) {
         };
         
         const tokenKey = `token:${token}`;
-        console.log(`🔑 Storing resend invite token with key: ${tokenKey}`);
-        console.log(`🔑 Token: ${token}`);
-        
         await env.AUTH_TOKENS.put(
           tokenKey,
           JSON.stringify(tokenData),
           { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 }
         );
-        
-        // Verify it was stored
-        const verifyStored = await env.AUTH_TOKENS.get(tokenKey);
-        console.log(`✅ Token stored successfully: ${!!verifyStored}`);
-        
+
         // Send invitation email
         try {
           const { sendInviteEmail } = await import('../services/postmark.js');
@@ -264,7 +242,7 @@ export async function handleInviteMember(request: Request, env: Env) {
       
       // User exists but has no organization - add them to this one
       // Check seat limits before adding
-      const membersFilter = `{Organization} = '${organizationName}'`;
+      const membersFilter = `{Organization} = '${escapeAirtableValue(organizationName)}'`;
       const membersCountResponse = await fetch(
         `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
         `filterByFormula=${encodeURIComponent(membersFilter)}&view=Grid%20view`,
@@ -274,14 +252,12 @@ export async function handleInviteMember(request: Request, env: Env) {
       );
 
       if (!membersCountResponse.ok) {
-        console.error('Failed to count members:', await membersCountResponse.text());
+        console.error('[Organization] Failed to count members:', membersCountResponse.status);
         return jsonResponse({ error: "Failed to check member count" }, 500);
       }
 
       const membersData = await membersCountResponse.json() as any;
       const currentMemberCount = membersData.records.length;
-
-      console.log(`Organization ${organizationName} has ${currentMemberCount} members, max allowed: ${maxMembers}`);
 
       if (currentMemberCount >= maxMembers) {
         return jsonResponse({
@@ -307,14 +283,14 @@ export async function handleInviteMember(request: Request, env: Env) {
       );
       
       if (!updateResponse.ok) {
-        console.error('Failed to update user:', await updateResponse.text());
+        console.error('[Organization] Failed to add user to org:', updateResponse.status);
         return jsonResponse({ error: "Failed to add user to organization" }, 500);
       }
-      
+
       // Generate magic link and send invite
       const token = generateToken();
       const magicLink = `${BASE_URL}/portal/verify?token=${token}`;
-      
+
       const tokenData = {
         email: normalizedEmail,
         userId: existingUser.id,
@@ -322,19 +298,13 @@ export async function handleInviteMember(request: Request, env: Env) {
         organizationId: organizationId,
         organizationName: organizationName
       };
-      
+
       const tokenKey = `token:${token}`;
-      console.log(`🔑 Storing existing user invite token with key: ${tokenKey}`);
-      
       await env.AUTH_TOKENS.put(
         tokenKey,
         JSON.stringify(tokenData),
         { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 }
       );
-      
-      // Verify it was stored
-      const verifyStored = await env.AUTH_TOKENS.get(tokenKey);
-      console.log(`✅ Token stored successfully: ${!!verifyStored}`);
       
       try {
         const { sendInviteEmail } = await import('../services/postmark.js');
@@ -359,7 +329,7 @@ export async function handleInviteMember(request: Request, env: Env) {
     }
 
     // Create new invited user - first check seat limits
-    const newUserMembersFilter = `{Organization} = '${organizationName}'`;
+    const newUserMembersFilter = `{Organization} = '${escapeAirtableValue(organizationName)}'`;
     const newUserMembersCountResponse = await fetch(
       `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}?` +
       `filterByFormula=${encodeURIComponent(newUserMembersFilter)}&view=Grid%20view`,
@@ -369,14 +339,12 @@ export async function handleInviteMember(request: Request, env: Env) {
     );
 
     if (!newUserMembersCountResponse.ok) {
-      console.error('Failed to count members:', await newUserMembersCountResponse.text());
+      console.error('[Organization] Failed to count members:', newUserMembersCountResponse.status);
       return jsonResponse({ error: "Failed to check member count" }, 500);
     }
 
     const newUserMembersData = await newUserMembersCountResponse.json() as any;
     const newUserCurrentMemberCount = newUserMembersData.records.length;
-
-    console.log(`Organization ${organizationName} has ${newUserCurrentMemberCount} members, max allowed: ${maxMembers}`);
 
     if (newUserCurrentMemberCount >= maxMembers) {
       return jsonResponse({
@@ -384,7 +352,6 @@ export async function handleInviteMember(request: Request, env: Env) {
       }, 403);
     }
 
-    console.log(`Creating invited user: ${normalizedEmail} for org: ${organizationName}`);
     const createUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}`;
     const createResponse = await fetch(createUrl, {
       method: "POST",
@@ -405,13 +372,11 @@ export async function handleInviteMember(request: Request, env: Env) {
     });
     
     if (!createResponse.ok) {
-      const err = await createResponse.text();
-      console.error("Airtable create invited user error:", err);
+      console.error('[Organization] Failed to create invited user:', createResponse.status);
       return jsonResponse({ error: "Failed to create invitation" }, 500);
     }
-    
+
     const newUser = await createResponse.json();
-    console.log(`Invited user created: ${normalizedEmail}`);
 
     // Generate magic link token
     const token = generateToken();
@@ -427,32 +392,14 @@ export async function handleInviteMember(request: Request, env: Env) {
     };
     
     const tokenKey = `token:${token}`;
-    console.log(`🔑 Storing new user invite token with key: ${tokenKey}`);
-    console.log(`🔑 Token: ${token}`);
-    console.log(`🔑 Token data:`, JSON.stringify(tokenData, null, 2));
-    
     await env.AUTH_TOKENS.put(
       tokenKey,
       JSON.stringify(tokenData),
-      { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 } // 72 hours
+      { expirationTtl: INVITE_TOKEN_EXPIRY / 1000 }
     );
-    
-    // Verify it was stored
-    const verifyStored = await env.AUTH_TOKENS.get(tokenKey);
-    console.log(`✅ Token stored successfully: ${!!verifyStored}`);
-    
-    // Send invitation email directly
+
+    // Send invitation email
     try {
-      console.log(`📧 About to send invite email to: ${normalizedEmail}`);
-      console.log(`📧 Environment check - POSTMARK_API_KEY exists: ${!!env.POSTMARK_API_KEY}`);
-      console.log(`📧 Email details:`, {
-        to: normalizedEmail,
-        inviterName: userRecord.fields.Name || user.email.split('@')[0],
-        organizationName,
-        role,
-        magicLinkPreview: magicLink.substring(0, 50) + '...'
-      });
-      
       const { sendInviteEmail } = await import('../services/postmark.js');
       await sendInviteEmail(
         env,
@@ -463,11 +410,8 @@ export async function handleInviteMember(request: Request, env: Env) {
         magicLink
       );
       
-      console.log(`✅ Invite email sent successfully to ${normalizedEmail}`);
     } catch (error) {
-      console.error('❌ Failed to send invite email:', error);
-      console.error('❌ Error details:', error.message);
-      console.error('❌ Full error:', JSON.stringify(error, null, 2));
+      console.error('[Organization] Failed to send invite email:', error);
       
       // Delete the user we just created since email failed
       await fetch(`https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${newUser.id}`, {
@@ -495,8 +439,6 @@ export async function handleInviteMember(request: Request, env: Env) {
  */
 export async function handleUpdateMemberRole(request: Request, env: Env, memberId: string) {
   try {
-    console.log(`🔧 Update role called for member: ${memberId}`);
-    
     // Authenticate user
     const user = await authenticateRequest(request, env);
     if (!user) {
@@ -506,12 +448,10 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
     // Get user details and check if they're an admin
     const userRecord = await findUserByEmail(env, user.email);
     if (!userRecord || userRecord.fields.Role !== 'Admin') {
-      console.error(`❌ User ${user.email} is not an admin (role: ${userRecord?.fields.Role})`);
       return jsonResponse({ error: "Only admins can change roles" }, 403);
     }
 
     const { role } = await request.json() as any;
-    console.log(`🔧 Requested role change to: ${role}`);
 
     if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
       return jsonResponse({ error: "Invalid role" }, 400);
@@ -519,8 +459,6 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
 
     // Update member role in Airtable
     const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`;
-    console.log(`🔧 Updating at URL: ${updateUrl}`);
-    
     const updateResponse = await fetch(updateUrl, {
       method: 'PATCH',
       headers: {
@@ -533,19 +471,14 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
     });
 
     if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error('❌ Failed to update role:', errorText);
-      console.error(`❌ Status: ${updateResponse.status}`);
-      console.error(`❌ Update payload was:`, JSON.stringify({ fields: { Role: role } }));
+      console.error('[Organization] Failed to update role:', updateResponse.status);
       return jsonResponse({ error: "Failed to update role" }, 500);
     }
 
-    console.log(`✅ Successfully updated role to ${role} for member ${memberId}`);
     return jsonResponse({ success: true });
 
   } catch (error) {
-    console.error('❌ Update role error:', error);
-    console.error('❌ Error stack:', error.stack);
+    console.error('[Organization] Update role error:', error);
     return jsonResponse({ error: "Internal server error" }, 500);
   }
 }
@@ -556,32 +489,18 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
 export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
   try {
     const token = url.searchParams.get('token');
-    console.log(`🔐 Verify invite called with token: ${token?.substring(0, 10)}...`);
-    
     if (!token) {
       return jsonResponse({ error: 'Missing token' }, 400);
     }
-    
-    // Try multiple token key formats since there might be inconsistency
+
     const tokenKey = `token:${token}`;
-    console.log(`🔍 Looking for token in KV with key: ${tokenKey}`);
-    
-    // List all keys to debug (temporary)
-    const keyList = await env.AUTH_TOKENS.list({ prefix: 'token:', limit: 10 });
-    console.log(`📋 Current token keys in KV: ${keyList.keys.map(k => k.name).join(', ')}`);
-    
     const tokenDataStr = await env.AUTH_TOKENS.get(tokenKey);
-    
+
     if (!tokenDataStr) {
-      console.error(`❌ Invite token not found in KV: ${token.substring(0, 10)}...`);
-      console.log(`🔐 AUTH_SECRET configured: ${!!env.AUTH_SECRET}`);
-      console.log(`🔐 AUTH_SECRET length: ${env.AUTH_SECRET?.length || 0}`);
-      
       // Maybe the token was stored without the prefix? Try that
-      const tokenDataStrNoPrefixe = await env.AUTH_TOKENS.get(token);
-      if (tokenDataStrNoPrefixe) {
-        console.log(`⚠️ Found token without 'token:' prefix - using that`);
-        const tokenData = JSON.parse(tokenDataStrNoPrefixe);
+      const tokenDataStrNoPrefix = await env.AUTH_TOKENS.get(token);
+      if (tokenDataStrNoPrefix) {
+        const tokenData = JSON.parse(tokenDataStrNoPrefix);
         await env.AUTH_TOKENS.delete(token);
         const { generateSessionToken } = await import('../utils/auth.js');
         const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
@@ -593,7 +512,7 @@ export async function handleVerifyInvite(request: Request, env: Env, url: URL) {
 var attempts = 0;
 function checkAndRedirect() {
   attempts++;
-  if (document.cookie.indexOf('mw_session_v3=') !== -1 || attempts >= 20) {
+  if (document.cookie.indexOf('${COOKIE_NAME}=') !== -1 || attempts >= 20) {
     window.location.replace('/portal');
   } else {
     setTimeout(checkAndRedirect, 100);
@@ -606,7 +525,7 @@ setTimeout(checkAndRedirect, 100);
           status: 200,
           headers: {
             'Content-Type': 'text/html; charset=utf-8',
-            'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
+            'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000; HttpOnly`
           }
         });
       }
@@ -615,22 +534,14 @@ setTimeout(checkAndRedirect, 100);
     }
     
     const tokenData = JSON.parse(tokenDataStr);
-    console.log(`✅ Token data found:`, {
-      email: tokenData.email,
-      userId: tokenData.userId,
-      type: tokenData.type,
-      organizationName: tokenData.organizationName
-    });
-    
+
     // Check if it's an invite token
     if (tokenData.type !== 'invite') {
-      console.error(`❌ Wrong token type: ${tokenData.type}`);
       return jsonResponse({ error: 'Invalid token type' }, 401);
     }
 
-    // Check if token was already used (for race condition on mobile)
+    // Check if token was already used (race condition on mobile)
     if (tokenData.used) {
-      console.log(`⚠️ Token already used, but session was created - generating new session`);
       // Token was already used but user might be retrying - generate new session
       const { generateSessionToken } = await import('../utils/auth.js');
       const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
@@ -642,7 +553,7 @@ setTimeout(checkAndRedirect, 100);
 var attempts = 0;
 function checkAndRedirect() {
   attempts++;
-  if (document.cookie.indexOf('mw_session_v3=') !== -1 || attempts >= 20) {
+  if (document.cookie.indexOf('${COOKIE_NAME}=') !== -1 || attempts >= 20) {
     window.location.replace('/portal');
   } else {
     setTimeout(checkAndRedirect, 100);
@@ -655,7 +566,7 @@ setTimeout(checkAndRedirect, 100);
         status: 200,
         headers: {
           'Content-Type': 'text/html; charset=utf-8',
-          'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
+          'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000; HttpOnly`
         }
       });
     }
@@ -665,17 +576,12 @@ setTimeout(checkAndRedirect, 100);
     tokenData.used = true;
     tokenData.usedAt = new Date().toISOString();
     await env.AUTH_TOKENS.put(tokenKey, JSON.stringify(tokenData), {
-      expirationTtl: 60 * 60 // Keep for 1 hour after use, then auto-delete
+      expirationTtl: 60 * 60
     });
-    console.log(`✅ Token marked as used (will auto-expire in 1 hour)`);
 
     // Generate a session token for the user
     const { generateSessionToken } = await import('../utils/auth.js');
     const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-
-    console.log(`✅ Session token generated for ${tokenData.email}`);
-    console.log(`🔐 Session token preview: ${sessionToken.substring(0, 20)}...`);
-    console.log(`🔐 Session token length: ${sessionToken.length}`);
 
     // Safari doesn't honor Set-Cookie on 302 redirects
     // Return HTML page that waits for cookie to be set, then redirects
@@ -690,7 +596,7 @@ setTimeout(checkAndRedirect, 100);
 var attempts = 0;
 function checkAndRedirect() {
   attempts++;
-  if (document.cookie.indexOf('mw_session_v3=') !== -1) {
+  if (document.cookie.indexOf('${COOKIE_NAME}=') !== -1) {
     console.log('Cookie found after ' + attempts + ' attempts');
     window.location.replace('/portal');
   } else if (attempts < 20) {
@@ -708,14 +614,12 @@ setTimeout(checkAndRedirect, 100);
       status: 200,
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
-        'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000`
+        'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000; HttpOnly`
       }
     });
     
   } catch (error) {
-    console.error('❌ Invite verification error:', error);
-    console.error('❌ Error stack:', error.stack);
-    console.error('❌ Error message:', error.message);
+    console.error('[Organization] Invite verification error:', error);
     return jsonResponse({ error: 'Verification failed' }, 500);
   }
 }
@@ -779,7 +683,6 @@ export async function handleUpdateOrganizationSettings(request: Request, env: En
       return jsonResponse({ error: "Failed to update settings" }, 500);
     }
 
-    console.log(`✅ Updated organization ${organizationId} settings`);
     return jsonResponse({ success: true });
 
   } catch (error) {
@@ -793,8 +696,6 @@ export async function handleUpdateOrganizationSettings(request: Request, env: En
  */
 export async function handleRemoveMember(request: Request, env: Env, memberId: string) {
   try {
-    console.log(`🗑️ Remove member called with ID: ${memberId}`);
-    
     // Authenticate user
     const user = await authenticateRequest(request, env);
     if (!user) {
@@ -807,8 +708,6 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
       return jsonResponse({ error: "Only admins can remove members" }, 403);
     }
 
-    console.log(`🗑️ Admin user ${user.email} (ID: ${userRecord.id}) removing member ${memberId}`);
-
     // Can't remove yourself
     if (memberId === userRecord.id) {
       return jsonResponse({ error: "Cannot remove yourself" }, 400);
@@ -816,8 +715,6 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
 
     // Clear organization from member record
     const updateUrl = `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`;
-    console.log(`🗑️ Updating member at: ${updateUrl}`);
-    
     const updateResponse = await fetch(updateUrl, {
       method: 'PATCH',
       headers: {
@@ -833,18 +730,14 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
     });
 
     if (!updateResponse.ok) {
-      const errorText = await updateResponse.text();
-      console.error('❌ Failed to remove member:', errorText);
-      console.error(`❌ Status: ${updateResponse.status}`);
+      console.error('[Organization] Failed to remove member:', updateResponse.status);
       return jsonResponse({ error: "Failed to remove member" }, 500);
     }
 
-    console.log(`✅ Successfully removed member ${memberId} from organization`);
     return jsonResponse({ success: true });
 
   } catch (error) {
-    console.error('❌ Remove member error:', error);
-    console.error('❌ Error stack:', error.stack);
+    console.error('[Organization] Remove member error:', error);
     return jsonResponse({ error: "Internal server error" }, 500);
   }
 }

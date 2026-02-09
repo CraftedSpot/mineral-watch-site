@@ -6,6 +6,7 @@ import { BASE_ID } from '../constants.js';
 import { jsonResponse } from '../utils/responses.js';
 import { authenticateRequest } from '../utils/auth.js';
 import { getUserById, fetchAllAirtableRecords } from '../services/airtable.js';
+import { escapeAirtableValue } from '../utils/airtable-escape.js';
 import {
   PROPERTIES_TABLE,
   WELLS_TABLE,
@@ -23,9 +24,7 @@ import type { Env } from '../types/env.js';
  * Match a single property against all user's wells
  */
 export async function handleMatchSingleProperty(propertyId: string, request: Request, env: Env) {
-  console.log(`[MatchSingleProperty] Handler called for property: ${propertyId}`);
-  console.log(`[MatchSingleProperty] Request URL: ${request.url}`);
-  console.log(`[MatchSingleProperty] Request headers:`, Object.fromEntries(request.headers.entries()));
+  console.log(`[MatchSingleProperty] Matching property: ${propertyId}`);
   
   const startTime = Date.now();
   
@@ -43,8 +42,6 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
     
     const userId = authUser.id;
     const organizationId = userRecord.fields.Organization?.[0];
-    
-    console.log(`[MatchSingleProperty] Starting for property ${propertyId}`);
     
     // Fetch the property
     const propertyResponse = await fetch(
@@ -72,9 +69,7 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
     }
     
     // Get existing links for this property (active and rejected)
-    console.log(`[MatchSingleProperty] Getting existing links for property`);
     const { active: linkedWellIds, rejected: rejectedWellIds } = await getLinksForProperty(env, propertyId);
-    console.log(`[MatchSingleProperty] Found ${linkedWellIds.size} active links, ${rejectedWellIds.size} rejected`);
     
     // Build well filter
     let wellsFilter: string;
@@ -87,20 +82,21 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
           headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` }
         }
       );
-      
+
+      if (!orgResponse.ok) {
+        throw new Error(`Failed to fetch organization: ${orgResponse.status}`);
+      }
+
       const orgData = await orgResponse.json();
       const orgName = orgData.fields?.Name || '';
-      wellsFilter = `FIND('${orgName.replace(/'/g, "\\\'")}', ARRAYJOIN({Organization})) > 0`;
+      wellsFilter = `FIND('${escapeAirtableValue(orgName)}', ARRAYJOIN({Organization})) > 0`;
     } else {
       // Filter by user email
-      const userEmail = authUser.email.replace(/'/g, "\\'");
+      const userEmail = escapeAirtableValue(authUser.email);
       wellsFilter = `FIND('${userEmail}', ARRAYJOIN({User})) > 0`;
     }
     
-    // Fetch all user's wells
-    console.log(`[MatchSingleProperty] Fetching user's wells`);
     const wells = await fetchAllAirtableRecords(env, WELLS_TABLE, wellsFilter);
-    console.log(`[MatchSingleProperty] Found ${wells.length} wells`);
     
     // Process the property
     const processedProperty = processProperty(propertyData);
@@ -145,8 +141,6 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
           }
         };
         
-        console.log(`[MatchSingleProperty] Creating link with Property=${propertyId}, Well=${wellData.id}`);
-        
         // Add organization if exists
         if (organizationId) {
           linkRecord.fields[LINK_FIELDS.ORGANIZATION] = [organizationId];
@@ -155,10 +149,6 @@ export async function handleMatchSingleProperty(propertyId: string, request: Req
         newLinks.push(linkRecord);
       }
     }
-    
-    console.log(`[MatchSingleProperty] Found ${newLinks.length} new matches`);
-    console.log(`[MatchSingleProperty] PropertyId being used: "${propertyId}"`);
-    console.log(`[MatchSingleProperty] First link to create:`, newLinks[0] ? JSON.stringify(newLinks[0], null, 2) : 'none');
     
     // Create links in batches
     const { created, failed } = await createLinksInBatches(env, newLinks);

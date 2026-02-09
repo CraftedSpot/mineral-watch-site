@@ -10,6 +10,9 @@ import shell from './intelligence-shell.html';
 // CSS
 import baseCss from './styles/intelligence-base.txt';
 
+// Shared utilities
+import sharedAuth from './scripts/shared-auth.txt';
+
 // JS modules
 import initJs from './scripts/intelligence-init.txt';
 import insightsJs from './scripts/intelligence-insights.txt';
@@ -33,6 +36,7 @@ html = html.replace('/* __INTEL_REPORTS_CSS__ */\n', () => reportsCss);
 html = html.replace('/* __VIRTUAL_SCROLL_CSS__ */\n', () => virtualScrollCss);
 
 // JS
+html = html.replace('/* __SHARED_AUTH__ */\n', () => sharedAuth);
 html = html.replace('/* __INTEL_INIT__ */\n', () => initJs);
 html = html.replace('/* __INTEL_INSIGHTS__ */\n', () => insightsJs);
 html = html.replace('/* __INTEL_QUESTIONS__ */\n', () => questionsJs);

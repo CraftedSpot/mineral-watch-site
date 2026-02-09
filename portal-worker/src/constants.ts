@@ -6,7 +6,7 @@
 
 // Authentication & Session Constants
 export const COOKIE_NAME = "mw_session_v4";
-export const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours (for general tokens)
+export const TOKEN_EXPIRY = 15 * 60 * 1000; // 15 minutes (matches email text and KV TTL)
 export const INVITE_TOKEN_EXPIRY = 72 * 60 * 60 * 1000; // 72 hours (for organization invites)
 export const SESSION_EXPIRY = 30 * 24 * 60 * 60 * 1000; // 30 days
 
