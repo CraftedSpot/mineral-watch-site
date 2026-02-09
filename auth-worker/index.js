@@ -199,6 +199,7 @@ async function handleVerifyToken(request, env, url, corsHeaders) {
   const sessionToken = await generateToken(env, {
     email: payload.email,
     id: payload.id,
+    iat: Date.now(),
     exp: Date.now() + SESSION_EXPIRY
   });
   

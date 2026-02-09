@@ -104,6 +104,20 @@ export default {
       return new Response(`Webhook signature verification failed: ${err.message}`, { status: 400 });
     }
 
+    // Deduplicate: reject replayed webhooks
+    if (env.WEBHOOK_KV) {
+      const dedupKey = `stripe-evt:${event.id}`;
+      const existing = await env.WEBHOOK_KV.get(dedupKey);
+      if (existing) {
+        console.log(`Duplicate event ${event.id}, skipping`);
+        return new Response(JSON.stringify({ received: true, duplicate: true }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
+      await env.WEBHOOK_KV.put(dedupKey, new Date().toISOString(), { expirationTtl: 300 });
+    }
+
     // Handle the event
     console.log(`Received Stripe event: ${event.type}`);
 

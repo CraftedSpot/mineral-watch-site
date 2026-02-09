@@ -451,6 +451,24 @@ export async function handleUpdateMemberRole(request: Request, env: Env, memberI
       return jsonResponse({ error: "Only admins can change roles" }, 403);
     }
 
+    // Verify target member belongs to caller's organization
+    const callerOrgId = userRecord.fields.Organization?.[0];
+    if (!callerOrgId) {
+      return jsonResponse({ error: "No organization found" }, 400);
+    }
+
+    const memberResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`,
+      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+    );
+    if (!memberResponse.ok) {
+      return jsonResponse({ error: "Member not found" }, 404);
+    }
+    const memberData = await memberResponse.json() as any;
+    if (memberData.fields.Organization?.[0] !== callerOrgId) {
+      return jsonResponse({ error: "Member not in your organization" }, 403);
+    }
+
     const { role } = await request.json() as any;
 
     if (!['Admin', 'Editor', 'Viewer'].includes(role)) {
@@ -540,44 +558,8 @@ setTimeout(checkAndRedirect, 100);
       return jsonResponse({ error: 'Invalid token type' }, 401);
     }
 
-    // Check if token was already used (race condition on mobile)
-    if (tokenData.used) {
-      // Token was already used but user might be retrying - generate new session
-      const { generateSessionToken } = await import('../utils/auth.js');
-      const sessionToken = await generateSessionToken(env, tokenData.email, tokenData.userId);
-      // Safari doesn't honor Set-Cookie on 302 redirects - use HTML page
-      const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Logging in...</title></head><body>
-<p>Completing login...</p>
-<script>
-var attempts = 0;
-function checkAndRedirect() {
-  attempts++;
-  if (document.cookie.indexOf('${COOKIE_NAME}=') !== -1 || attempts >= 20) {
-    window.location.replace('/portal');
-  } else {
-    setTimeout(checkAndRedirect, 100);
-  }
-}
-setTimeout(checkAndRedirect, 100);
-</script>
-</body></html>`;
-      return new Response(html, {
-        status: 200,
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Set-Cookie': `${COOKIE_NAME}=${sessionToken}; Path=/; Secure; SameSite=Lax; Max-Age=2592000; HttpOnly`
-        }
-      });
-    }
-
-    // Mark token as used instead of deleting (prevents race condition on mobile)
-    // The token will expire naturally after 72 hours
-    tokenData.used = true;
-    tokenData.usedAt = new Date().toISOString();
-    await env.AUTH_TOKENS.put(tokenKey, JSON.stringify(tokenData), {
-      expirationTtl: 60 * 60
-    });
+    // Consume token immediately (single-use)
+    await env.AUTH_TOKENS.delete(tokenKey);
 
     // Generate a session token for the user
     const { generateSessionToken } = await import('../utils/auth.js');
@@ -711,6 +693,24 @@ export async function handleRemoveMember(request: Request, env: Env, memberId: s
     // Can't remove yourself
     if (memberId === userRecord.id) {
       return jsonResponse({ error: "Cannot remove yourself" }, 400);
+    }
+
+    // Verify target member belongs to caller's organization
+    const callerOrgId = userRecord.fields.Organization?.[0];
+    if (!callerOrgId) {
+      return jsonResponse({ error: "No organization found" }, 400);
+    }
+
+    const memberResponse = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${encodeURIComponent(USERS_TABLE)}/${memberId}`,
+      { headers: { Authorization: `Bearer ${env.MINERAL_AIRTABLE_API_KEY}` } }
+    );
+    if (!memberResponse.ok) {
+      return jsonResponse({ error: "Member not found" }, 404);
+    }
+    const memberData = await memberResponse.json() as any;
+    if (memberData.fields.Organization?.[0] !== callerOrgId) {
+      return jsonResponse({ error: "Member not in your organization" }, 403);
     }
 
     // Clear organization from member record

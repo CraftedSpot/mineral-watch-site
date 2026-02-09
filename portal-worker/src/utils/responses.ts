@@ -13,14 +13,15 @@ import { authenticateRequest } from './auth.js';
  * @param status HTTP status code (default: 200)
  * @returns Response object with JSON content type and CORS headers
  */
-export function jsonResponse(data: any, status = 200): Response {
+export function jsonResponse(data: any, status = 200, extraHeaders?: Record<string, string>): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       "Content-Type": "application/json",
       "Cache-Control": "no-cache, no-store, must-revalidate",
       "Pragma": "no-cache",
-      ...CORS_HEADERS
+      ...CORS_HEADERS,
+      ...extraHeaders
     }
   });
 }

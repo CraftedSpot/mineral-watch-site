@@ -312,13 +312,30 @@ export async function handleUnlinkPropertyWell(linkId: string, request: Request,
     const user = await authenticateRequest(request, env);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
+    // Get full user record for ownership verification
+    const userRecord = await getUserById(env, user.id);
+    const userOrgId = userRecord?.fields.Organization?.[0];
+
     console.log(`[UnlinkWell] Unlinking link ${linkId}`);
 
     // D1 id format is "link_recXXX", Airtable id is "recXXX"
     // Extract Airtable ID from D1 id format
     const airtableRecordId = linkId.startsWith('link_') ? linkId.replace('link_', '') : linkId;
 
-    // First, update D1 database (primary source of truth for reads)
+    // Verify the authenticated user owns this link
+    const ownerCol = userOrgId ? 'organization_id' : 'user_id';
+    const ownerVal = userOrgId || user.id;
+    const linkCheck = await env.WELLS_DB.prepare(`
+      SELECT id FROM property_well_links
+      WHERE (id = ? OR airtable_record_id = ?)
+        AND ${ownerCol} = ?
+    `).bind(linkId, airtableRecordId, ownerVal).first();
+
+    if (!linkCheck) {
+      return jsonResponse({ error: "Link not found" }, 404);
+    }
+
+    // Update D1 database (primary source of truth for reads)
     try {
       const d1Result = await env.WELLS_DB.prepare(`
         UPDATE property_well_links
@@ -382,9 +399,26 @@ export async function handleRelinkPropertyWell(linkId: string, request: Request,
     const user = await authenticateRequest(request, env);
     if (!user) return jsonResponse({ error: "Unauthorized" }, 401);
 
+    // Get full user record for ownership verification
+    const userRecord = await getUserById(env, user.id);
+    const userOrgId = userRecord?.fields.Organization?.[0];
+
     console.log(`[RelinkWell] Re-linking link ${linkId}`);
 
     const airtableRecordId = linkId.startsWith('link_') ? linkId.replace('link_', '') : linkId;
+
+    // Verify the authenticated user owns this link
+    const ownerCol = userOrgId ? 'organization_id' : 'user_id';
+    const ownerVal = userOrgId || user.id;
+    const linkCheck = await env.WELLS_DB.prepare(`
+      SELECT id FROM property_well_links
+      WHERE (id = ? OR airtable_record_id = ?)
+        AND ${ownerCol} = ?
+    `).bind(linkId, airtableRecordId, ownerVal).first();
+
+    if (!linkCheck) {
+      return jsonResponse({ error: "Link not found" }, 404);
+    }
 
     // Update D1 database — set confidence_score = 1.0 for user-confirmed links
     try {

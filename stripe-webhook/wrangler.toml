@@ -2,6 +2,10 @@ name = "stripe-webhook"
 main = "index.js"
 compatibility_date = "2024-01-01"
 
+[[kv_namespaces]]
+binding = "WEBHOOK_KV"
+id = "77f5c8c49d4a4743bcf9f9d2140c0f2c"
+
 [vars]
 PROCESSING_API_KEY = "mmw-proc-2024-secure-key"
 

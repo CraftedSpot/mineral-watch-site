@@ -36,21 +36,31 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
     console.log(`[GetLinkedWells-D1] Attempting D1 query for property ${propertyId}`);
     
     try {
-      // First verify the property exists in D1
+      // First verify the property exists in D1 and check ownership
       const propertyResult = await env.WELLS_DB.prepare(`
-        SELECT airtable_record_id
-        FROM properties 
+        SELECT airtable_record_id, user_id, organization_id
+        FROM properties
         WHERE airtable_record_id = ?
       `).bind(propertyId).first();
-      
+
       if (!propertyResult) {
         console.log(`[GetLinkedWells-D1] Property not found in D1, falling back to Airtable`);
         return getLinkedWellsFromAirtable(propertyId, request, env);
       }
-      
-      // Ownership will be verified by filtering links by user/org in the main query below
-      
-      // Query all wells (linked + unlinked) from D1
+
+      // Verify the authenticated user owns this property
+      const propUserId = propertyResult.user_id as string;
+      const propOrgId = propertyResult.organization_id as string;
+      if (propUserId !== authUser.id && (!userOrgId || propOrgId !== userOrgId)) {
+        return jsonResponse({ error: "Unauthorized" }, 403);
+      }
+
+      // Query all wells (linked + unlinked) from D1, filtered by ownership
+      const ownershipFilter = userOrgId
+        ? 'AND pwl.organization_id = ?'
+        : 'AND pwl.user_id = ?';
+      const ownershipBinding = userOrgId || authUser.id;
+
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
           pwl.id as link_id,
@@ -72,10 +82,11 @@ export async function handleGetPropertyLinkedWells(propertyId: string, request: 
         JOIN client_wells cw ON cw.airtable_id = pwl.well_airtable_id
         WHERE pwl.property_airtable_id = ?
           AND pwl.status IN ('Active', 'Linked', 'Rejected', 'Unlinked')
+          ${ownershipFilter}
         ORDER BY
           CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
           cw.well_name
-      `).bind(propertyId).all();
+      `).bind(propertyId, ownershipBinding).all();
 
       console.log(`[GetLinkedWells-D1] D1 query: ${d1Results.results.length} wells in ${Date.now() - start}ms`);
 
@@ -160,9 +171,9 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
     console.log(`[GetLinkedProperties-D1] Attempting D1 query for well ${wellId}`);
     
     try {
-      // First verify the well exists in D1 client_wells table
+      // First verify the well exists in D1 client_wells table and check ownership
       const wellResult = await env.WELLS_DB.prepare(`
-        SELECT airtable_id
+        SELECT airtable_id, user_id, organization_id
         FROM client_wells
         WHERE airtable_id = ?
       `).bind(wellId).first();
@@ -171,8 +182,20 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         console.log(`[GetLinkedProperties-D1] Well not found in D1 client_wells, falling back to Airtable`);
         return getLinkedPropertiesFromAirtable(wellId, request, env);
       }
-      
-      // Query all properties (linked + unlinked) from D1
+
+      // Verify the authenticated user owns this well
+      const wellUserId = wellResult.user_id as string;
+      const wellOrgIdVal = wellResult.organization_id as string;
+      if (wellUserId !== authUser.id && (!userOrgId || wellOrgIdVal !== userOrgId)) {
+        return jsonResponse({ error: "Unauthorized" }, 403);
+      }
+
+      // Query all properties (linked + unlinked) from D1, filtered by ownership
+      const ownershipFilter = userOrgId
+        ? 'AND pwl.organization_id = ?'
+        : 'AND pwl.user_id = ?';
+      const ownershipBinding = userOrgId || authUser.id;
+
       const d1Results = await env.WELLS_DB.prepare(`
         SELECT
           pwl.id as link_id,
@@ -193,10 +216,11 @@ export async function handleGetWellLinkedProperties(wellId: string, request: Req
         JOIN properties p ON p.airtable_record_id = pwl.property_airtable_id
         WHERE pwl.well_airtable_id = ?
           AND pwl.status IN ('Active', 'Linked', 'Rejected', 'Unlinked')
+          ${ownershipFilter}
         ORDER BY
           CASE WHEN pwl.status IN ('Active', 'Linked') THEN 0 ELSE 1 END,
           p.section, p.township, p.range
-      `).bind(wellId).all();
+      `).bind(wellId, ownershipBinding).all();
       
       console.log(`[GetLinkedProperties-D1] D1 query: ${d1Results.results.length} properties in ${Date.now() - start}ms`);
 

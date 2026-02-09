@@ -103,6 +103,29 @@ export async function authenticateRequest(request: Request, env: Env): Promise<S
       airtableUser: userData.airtableUser
     };
 
+    // Session revocation check: compare session iat against per-user revocation timestamp
+    if (env.AUTH_TOKENS && sessionPayload.id) {
+      const revokedAfter = await env.AUTH_TOKENS.get(`sess_valid_after:${sessionPayload.id}`);
+      if (revokedAfter) {
+        // Decode cookie to extract iat from the session token
+        const sessionCookie = getCookieValue(cookie, COOKIE_NAME);
+        let sessionIat = 0;
+        if (sessionCookie) {
+          try {
+            const [dataB64] = sessionCookie.split('.');
+            const padded = dataB64.replace(/-/g, '+').replace(/_/g, '/');
+            const decoded = JSON.parse(atob(padded));
+            sessionIat = decoded.iat || 0;
+          } catch { /* old token format without iat */ }
+        }
+        // Reject if session was issued before revocation (or has no iat)
+        if (sessionIat < parseInt(revokedAfter, 10)) {
+          console.log(`[Auth] Session revoked for user ${sessionPayload.id}: iat=${sessionIat} < valid_after=${revokedAfter}`);
+          return null;
+        }
+      }
+    }
+
     // Super admin impersonation: ?act_as=recXXX
     const url = new URL(request.url);
     const actAs = url.searchParams.get('act_as');
@@ -184,6 +207,7 @@ export async function generateSessionToken(env: Env, email: string, userId: stri
   const payload = {
     email: email,
     id: userId,
+    iat: Date.now(),
     exp: Date.now() + SESSION_EXPIRY
   };
   

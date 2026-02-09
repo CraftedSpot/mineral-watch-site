@@ -190,6 +190,7 @@ import {
   handleCountyRecordsRetrieve
 } from './handlers/index.js';
 
+import { rateLimit } from './utils/rate-limit.js';
 import type { Env } from './types/env.js';
 import { syncAirtableData } from './sync.js';
 
@@ -730,6 +731,12 @@ var index_default = {
       
       // Registration stays in portal-worker (creates users, sends welcome emails)
       if (path === "/api/auth/register" && request.method === "POST") {
+        const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+        const rl = await rateLimit(env.AUTH_TOKENS, 'register', ip, 3, 60);
+        if (!rl.allowed) {
+          return jsonResponse({ error: 'Too many requests. Please try again later.' }, 429,
+            { 'Retry-After': '60' });
+        }
         const { handleRegister } = await import('./handlers/auth.js');
         return handleRegister(request, env);
       }
@@ -744,6 +751,17 @@ var index_default = {
       if (path === "/api/user/preferences" && request.method === "PATCH") {
         const { handleUpdatePreferences } = await import('./handlers/preferences.js');
         return handleUpdatePreferences(request, env);
+      }
+
+      // Rate limit magic link requests before proxying to auth-worker
+      if (path === "/api/auth/send-magic-link" && request.method === "POST") {
+        const ip = request.headers.get('CF-Connecting-IP') || 'unknown';
+        const rl = await rateLimit(env.AUTH_TOKENS, 'magic-link', ip, 5, 60);
+        if (!rl.allowed) {
+          return jsonResponse({ error: 'Too many requests. Please try again later.' }, 429,
+            { 'Retry-After': '60' });
+        }
+        // Fall through to auth proxy below
       }
 
       // Proxy auth endpoints to auth-worker
@@ -1074,6 +1092,24 @@ var index_default = {
           orgId,
           orgName
         });
+      }
+
+      // Admin: revoke all sessions for a specific user
+      if (path === "/api/admin/revoke-sessions" && request.method === "POST") {
+        const user = await authenticateRequest(request, env);
+        if (!user || !isSuperAdmin(user.email)) {
+          return jsonResponse({ error: 'Admin required' }, 403);
+        }
+        const targetId = url.searchParams.get('user_id');
+        if (!targetId) return jsonResponse({ error: 'user_id required' }, 400);
+        // Set revocation timestamp — any session issued before this is rejected
+        await env.AUTH_TOKENS.put(
+          `sess_valid_after:${targetId}`,
+          String(Date.now()),
+          { expirationTtl: 30 * 24 * 60 * 60 } // 30 days (matches session lifetime)
+        );
+        console.log(`[Admin] Sessions revoked for user ${targetId} by ${user.email}`);
+        return jsonResponse({ success: true, user_id: targetId });
       }
 
       // Organization endpoints
